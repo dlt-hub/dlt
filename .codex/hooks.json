@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "^Bash$",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "\"$(git rev-parse --show-toplevel)/.codex/hooks/inject-git-rule.sh\"",
+            "statusMessage": "Injecting git/commit rules",
+            "timeout": 30
+          }
+        ]
+      }
+    ]
+  }
+}

@@ -944,7 +944,6 @@ def test_load_model_with_all_types(destination_config: DestinationTestConfigurat
 
     @dlt.resource(table_name="data_types", columns=column_schemas)
     def my_resource() -> Any:
-        nonlocal data_types
         yield [data_types] * 10
 
     pipeline.run([my_resource()], **destination_config.run_kwargs)

@@ -40,6 +40,8 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     args.extend(["--session-ttl", str(mc.session_ttl)])
     if base_path:
         args.extend(["--base-url", base_path])
+    if mc.asset_url:
+        args.extend(["--asset-url", mc.asset_url])
 
     exec_process(args)
 

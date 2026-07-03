@@ -364,6 +364,25 @@ def test_notebook_token_overwritten_by_sdk_auth(mock_databricks_env, mocker) -> 
     assert creds.access_token is sdk_authenticator
 
 
+@pytest.mark.parametrize(
+    "credentials,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param(
+            DatabricksCredentials(server_hostname="workspace.cloud.databricks.com"),
+            digest128("workspace.cloud.databricks.com"),
+            id="legacy_server_hostname",
+        ),
+    ],
+)
+def test_databricks_fingerprint(
+    credentials: Optional[DatabricksCredentials], expected_fingerprint: str
+) -> None:
+    config = DatabricksClientConfiguration(credentials=credentials)
+
+    assert config.fingerprint() == expected_fingerprint
+
+
 @pytest.mark.parametrize("auth_type", ("pat", "oauth2"))
 def test_default_credentials(auth_type: str) -> None:
     # create minimal default env
@@ -397,9 +416,6 @@ def test_default_credentials(auth_type: str) -> None:
     # "my-dataset-1234" not present (we check SQL execution)
     with bricks.client(Schema("schema"), config) as client:
         assert not client.is_storage_initialized()
-
-    # check fingerprint not default
-    assert config.fingerprint() != digest128("")
 
 
 def test_oauth2_credentials() -> None:

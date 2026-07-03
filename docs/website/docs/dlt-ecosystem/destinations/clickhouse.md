@@ -112,6 +112,8 @@ select_sequential_consistency = 1                       # Ensures read-after-wri
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be atomically swapped with the staging tables via [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange) (requires `Atomic` or `Shared` database engine).
+
 ## Data loading
 
 Data is loaded into ClickHouse using the most efficient method depending on the data source:

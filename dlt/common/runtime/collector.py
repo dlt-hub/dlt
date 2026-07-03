@@ -160,7 +160,6 @@ class LogCollector(Collector):
                 total=total,
             )
             self.messages[counter_key] = None
-            self.last_log_time = None
         else:
             counter_info = self.counter_info[counter_key]
             if inc_total:
@@ -255,7 +254,8 @@ class LogCollector(Collector):
         self.counters = defaultdict(int)
         self.counter_info = {}
         self.messages = {}
-        self.last_log_time = self._clock()
+        # log immediately on the first update
+        self.last_log_time = None
 
     def _stop(self) -> None:
         self.on_log()

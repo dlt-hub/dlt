@@ -46,7 +46,12 @@ from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
 from dlt.common.schema.typing import TColumnSchema
-from dlt.common.schema.utils import get_first_column_name_with_prop, new_column, new_table
+from dlt.common.schema.utils import (
+    get_first_column_name_with_prop,
+    is_nested_table,
+    new_column,
+    new_table,
+)
 from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.warnings import DltDeprecationWarning
@@ -2299,13 +2304,11 @@ def test_progress_subclass_receives_callbacks() -> None:
         def on_start_trace(
             self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_start_trace"] = True
 
         def on_start_trace_step(
             self, trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_start_trace_step"] = True
 
         def on_end_trace_step(
@@ -2316,13 +2319,11 @@ def test_progress_subclass_receives_callbacks() -> None:
             step_info: Any,
             send_state: bool,
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_end_trace_step"] = True
 
         def on_end_trace(
             self, trace: PipelineTrace, pipeline: SupportsPipeline, send_state: bool
         ) -> None:
-            nonlocal callbacks_received
             callbacks_received["on_end_trace"] = True
 
         def on_log(self) -> None:
@@ -3608,7 +3609,6 @@ def test_yielding_empty_list_creates_table() -> None:
             assert rows[0] == (1, None)
 
 
-@pytest.mark.skip(reason="introduced by #3901; temporarily disabled")
 @pytest.mark.parametrize(
     "yield_one,yield_two",
     [(True, False), (False, True), (False, False), (True, True)],
@@ -3620,12 +3620,13 @@ def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two:
     variants are pre-declared with `materialize_table_schema()`.
     """
 
+    # non-normalized table names so the empty-table handling is exercised with normalized identifiers
     @dlt.resource
     def multi_table():
         yield dlt.mark.with_hints(
             dlt.mark.materialize_table_schema(),
             dlt.mark.make_hints(
-                table_name="table_one",
+                table_name="TableOne",
                 write_disposition="replace",
                 columns={"col_one": {"data_type": "text"}},
             ),
@@ -3634,16 +3635,16 @@ def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two:
         yield dlt.mark.with_hints(
             dlt.mark.materialize_table_schema(),
             dlt.mark.make_hints(
-                table_name="table_two",
+                table_name="TableTwo",
                 write_disposition="replace",
                 columns={"col_two": {"data_type": "bigint"}},
             ),
             create_table_variant=True,
         )
         if yield_one:
-            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="table_one")
+            yield dlt.mark.with_table_name({"col_one": "val"}, table_name="TableOne")
         if yield_two:
-            yield dlt.mark.with_table_name({"col_two": 5}, table_name="table_two")
+            yield dlt.mark.with_table_name({"col_two": 5}, table_name="TableTwo")
 
     pipeline = dlt.pipeline(
         pipeline_name="materialize_multi_e2e_" + uniq_id(),
@@ -3653,6 +3654,7 @@ def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two:
     load_info = pipeline.run(multi_table())
     assert_load_info(load_info)
 
+    # tables are materialized under their normalized names
     expected = {
         "table_one": 1 if yield_one else 0,
         "table_two": 1 if yield_two else 0,
@@ -3664,24 +3666,20 @@ def test_materialize_table_schema_multi_table_duckdb(yield_one: bool, yield_two:
     assert "col_two" in schema_tables["table_two"]["columns"]
 
 
-@pytest.mark.skip(reason="introduced by #3901; temporarily disabled")
 def test_materialize_table_schema_with_nested_hints_duckdb() -> None:
-    """Pre-declared nested table via `nested_hints` is added to the schema but does NOT
-    materialize at the destination when only the root yields `materialize_table_schema()`.
-    The normalizer attaches parent/child linking columns only when real nested data flows
-    through it, so an empty nested table cannot be meaningfully created up front.
-    """
+    """Nested tables cannot be materialized in advance"""
 
+    # non-normalized table, column and nested-table names exercised through normalization
     @dlt.resource(
-        name="users",
+        name="Users",
         write_disposition="replace",
         columns=[
-            {"name": "id", "data_type": "bigint", "nullable": False},
-            {"name": "name", "data_type": "text"},
+            {"name": "Id", "data_type": "bigint", "nullable": False},
+            {"name": "Name", "data_type": "text"},
         ],
         nested_hints={
-            "purchases": dlt.mark.make_nested_hints(
-                columns=[{"name": "price", "data_type": "decimal"}],
+            "Purchases": dlt.mark.make_nested_hints(
+                columns=[{"name": "Price", "data_type": "decimal"}],
             ),
         },
     )
@@ -3711,6 +3709,212 @@ def test_materialize_table_schema_with_nested_hints_duckdb() -> None:
     # through `_write_item` for the nested name, and parent linkage columns are produced
     # by the normalizer only on real nested rows
     assert not table_exists(pipeline, "users__purchases")
+
+
+def test_replace_empty_resource_truncates_variant_tables() -> None:
+    """When a replace resource yields no data, everything belonging to it is truncated - the root
+    table and its table variants alike (the tables are emptied, not dropped)."""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(emit: bool) -> DltResource:
+        @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+        def items() -> Any:
+            if emit:
+                yield {"id": 1, "name": "root"}
+                # a table variant with its own data
+                yield dlt.mark.with_hints(
+                    {"id": 2, "name": "variant"},
+                    dlt.mark.make_hints(table_name="other_items"),
+                    create_table_variant=True,
+                )
+
+        return items
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_truncate_variant_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    pipeline.run(items_resource(True))
+    assert load_table_counts(pipeline, "items", "other_items") == {"items": 1, "other_items": 1}
+
+    # the resource yields no data: the root and the variant are both truncated
+    info = pipeline.run(items_resource(False))
+    assert load_table_counts(pipeline, "items", "other_items") == {"items": 0, "other_items": 0}
+    package = info.load_packages[0]
+    assert set(package.truncated_tables) == {"items", "other_items"}
+    assert package.dropped_tables is None
+
+
+def test_replace_empty_resource_truncates_via_package_state() -> None:
+    """A replace resource that yields no data registers its tables in the load package
+    `truncated_tables` state instead of writing an empty-file job."""
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items(emit: bool) -> Any:
+        if emit:
+            yield [{"id": 1}, {"id": 2}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_truncate_state_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    # seed the table so it has seen data
+    pipeline.run(items(True))
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # no data: inspect the normalized load package before loading
+    pipeline.extract(items(False))
+    pipeline.normalize()
+    load_id = pipeline.list_normalized_load_packages()[0]
+    package = pipeline.get_load_package_info(load_id)
+    # no empty-file job is written for `items`
+    assert "items" not in [job.job_file_info.table_name for job in package.jobs["new_jobs"]]
+    # instead `items` is registered for truncation via the package state
+    state = pipeline.get_load_package_state(load_id)
+    assert "items" in [table["name"] for table in state.get("truncated_tables", [])]
+    # package info exposes the requested truncation, no refresh was set
+    assert package.refresh is None
+    assert package.truncated_tables == ["items"]
+
+    # finishing the load truncates the table
+    info = pipeline.load()
+    assert load_table_counts(pipeline, "items") == {"items": 0}
+    # the load step recorded the actually truncated table, still without refresh
+    loaded_package = info.load_packages[0]
+    assert loaded_package.refresh is None
+    assert loaded_package.truncated_tables == ["items"]
+
+
+def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
+    """When a replace resource yields no data, its root (and variant root) are truncated, but a
+    pseudo-root (nested table broken out by a primary key) whose own write disposition differs from
+    the root is NOT truncated"""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(emit: bool) -> DltResource:
+        @dlt.resource(
+            name="items",
+            write_disposition="replace",
+            primary_key="id",
+            nested_hints={
+                "sub_items": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition="append"
+                )
+            },
+        )
+        def items() -> Any:
+            variant_data: Any
+            if emit:
+                yield {"id": 1, "sub_items": [{"id": 101}]}
+                variant_data = {"id": 2, "sub_items": [{"id": 201}]}
+            else:
+                variant_data = []
+            # a variant inherits the nesting-breaking nested hints
+            yield dlt.mark.with_hints(
+                variant_data,
+                dlt.mark.make_hints(table_name="other_items"),
+                create_table_variant=True,
+            )
+
+        return items
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_truncate_pseudo_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    pipeline.run(items_resource(True))
+    # the nested tables are broken out into pseudo-roots
+    assert is_nested_table(pipeline.default_schema.tables["items__sub_items"]) is False
+    assert is_nested_table(pipeline.default_schema.tables["other_items__sub_items"]) is False
+    assert load_table_counts(
+        pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
+    ) == {"items": 1, "items__sub_items": 1, "other_items": 1, "other_items__sub_items": 1}
+
+    # empty run: the replace roots (default and variant) are emptied, but their append pseudo-roots
+    # are kept - we cannot re-derive a pseudo-root's effective disposition, so it is not truncated
+    info = pipeline.run(items_resource(False))
+    assert load_table_counts(
+        pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
+    ) == {"items": 0, "items__sub_items": 1, "other_items": 0, "other_items__sub_items": 1}
+    # only the replace roots appear in the truncated tables record
+    assert set(info.load_packages[0].truncated_tables) == {"items", "other_items"}
+
+
+def test_replace_keeps_pseudo_root_when_root_has_data() -> None:
+    """A pseudo-root must not be force-truncated when its real root received data this run."""
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    def items_resource(with_sub: bool) -> DltResource:
+        @dlt.resource(
+            name="items",
+            write_disposition="replace",
+            primary_key="id",
+            nested_hints={
+                "sub_items": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition="append"
+                )
+            },
+        )
+        def items() -> Any:
+            if with_sub:
+                yield {"id": 1, "sub_items": [{"id": 101}, {"id": 102}]}
+            else:
+                # the root receives data but the pseudo-root receives none
+                yield {"id": 1, "sub_items": []}
+
+        return items
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_pseudo_root_kept_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    pipeline.run(items_resource(True))
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 1,
+        "items__sub_items": 2,
+    }
+
+    # the root received data, so the pseudo-root must not be force-truncated via an empty file
+    pipeline.run(items_resource(False))
+    assert load_table_counts(pipeline, "items", "items__sub_items") == {
+        "items": 1,
+        "items__sub_items": 2,
+    }
+
+
+@pytest.mark.parametrize("dispatch", ["dynamic", "marked"])
+def test_replace_event_dispatch_truncates_missing_table(dispatch: str) -> None:
+    """All dispatched tables will be truncated on write disposition replace
+    including those that didn't get data on replace
+    """
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    if dispatch == "dynamic":
+
+        @dlt.resource(name="events", table_name=lambda e: e["type"], primary_key="id")
+        def events(types: Any) -> Any:
+            for idx, type_ in enumerate(types):
+                yield {"id": idx, "type": type_}
+
+    else:
+
+        @dlt.resource(name="events", primary_key="id")
+        def events(types: Any) -> Any:
+            for idx, type_ in enumerate(types):
+                yield dlt.mark.with_table_name({"id": idx, "type": type_}, type_)
+
+    pipeline = dlt.pipeline(
+        pipeline_name="event_dispatch_replace_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    # 1. start with merge, creating two tables
+    pipeline.run(events(["a", "b"]), write_disposition="merge")
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 1}
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
+
+    # 2. switch to replace, with data only for table "a"
+    pipeline.run(events(["a"]), write_disposition="replace")
+    # "a" received data and is replaced with the new row
+    assert load_tables_to_dicts(pipeline, "a")["a"][0]["id"] == 0
+    # tables with no data have their hints unmodified
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
+    # missing "b" is refreshed to replace and truncated even though it received no data
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}
 
 
 @pytest.mark.parametrize(
@@ -5756,6 +5960,49 @@ def test_no_coercion_normalizer_creates_variant_columns() -> None:
     assert rows[1][2] == 42
     assert rows[1][3] is None
     assert rows[1][4] == "not_a_number"
+
+
+def test_upsert_on_seen_data_table_empty_incremental_run() -> None:
+    """A merge/delete-insert resource loads a row without a primary key (only a warning), then the
+    resource switches to upsert but an incremental run selects no rows. The fully-filtered run
+    yields None, so the table is not recomputed: the stored delete-insert strategy and keyless `id`
+    are left unchanged and the run still loads cleanly.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="upsert_seen_data" + uniq_id(),
+        destination="duckdb",
+        dataset_name="upsert_seen_data",
+    )
+
+    # 1st run: delete-insert merge with no primary key declared. loading a row only warns about the
+    # missing key, so `store` is created with seen-data and `id` as a plain (keyless) column.
+    @dlt.resource(name="store", write_disposition="merge")
+    def store_delete_insert():
+        yield [{"id": 1, "ts": 1, "val": "a"}]
+
+    pipeline.run(store_delete_insert())
+    assert pipeline.default_schema.tables["store"]["columns"]["id"].get("primary_key") is None
+
+    # 2nd run: switch to upsert with the correct key, but the incremental selects no rows
+    # (initial_value is past the only row). the table is not recomputed, and `_handle_empty_tables`
+    # no longer mutates it, so the stored disposition stays merge/delete-insert and the run succeeds.
+    @dlt.resource(
+        name="store",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+    )
+    def store_upsert(updated=dlt.sources.incremental("ts", initial_value=10)):
+        yield [{"id": 1, "ts": 1, "val": "a"}]
+
+    info = pipeline.run(store_upsert())
+    assert_load_info(info)
+    # the fully-filtered incremental yields None, so the table is not recomputed: the stored
+    # delete-insert strategy stays and the primary key is not applied
+    store = pipeline.default_schema.tables["store"]
+    assert store.get("x-merge-strategy") != "upsert"
+    assert store["columns"]["id"].get("primary_key") is None
+    # the row loaded by the first run is intact
+    assert load_table_counts(pipeline, "store")["store"] == 1
 
 
 def test_cleanup() -> None:

@@ -363,8 +363,9 @@ class FileStorage:
             if encoding is not None and mode == "r":
                 mode += "t"  # gzip requires text mode explicitly to use encoding
             f = gzip.open(path, mode, encoding=encoding, **kwargs)
-            # Force gzip to read the first few bytes and check the magic number
-            f.read(2), f.seek(0)
+            # force gzip to read the first few bytes and check the magic number
+            f.read(2)
+            f.seek(0)
             return cast(IO[Any], f)
         except (gzip.BadGzipFile, OSError):
             return open(path, origmode, encoding=encoding, **kwargs)

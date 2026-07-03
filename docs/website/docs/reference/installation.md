@@ -8,7 +8,7 @@ keywords: [installation, environment, pip install]
 
 ## Setting up your environment
 
-### 1. Make sure you are using **Python 3.9-3.13** and have `pip` installed
+### 1. Make sure you are using **Python 3.10-3.14** and have `pip` installed
 
 ```sh
 python --version
@@ -149,4 +149,3 @@ You are now ready to build your first pipeline with `dlt`. Check out these tutor
 - [Load data from a cloud storage or a file system](../tutorial/filesystem)
 
 Or read a more detailed tutorial on how to build a [custom data pipeline with dlt](../tutorial/load-data-from-an-api.md).
-

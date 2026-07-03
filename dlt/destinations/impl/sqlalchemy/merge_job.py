@@ -41,9 +41,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         root_table = table_chain[0]
 
         root_table_obj = sql_client.get_existing_table(root_table["name"])
-        staging_root_table_obj = root_table_obj.to_metadata(
-            sql_client.metadata, schema=sql_client.staging_dataset_name
-        )
+        staging_root_table_obj = sql_client.to_dataset_table(root_table_obj, staging=True)
 
         primary_key_names = get_columns_names_with_prop(root_table, "primary_key")
         merge_key_names = get_columns_names_with_prop(root_table, "merge_key")
@@ -214,9 +212,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         # Insert from staging to dataset
         for table in table_chain:
             table_obj = sql_client.get_existing_table(table["name"])
-            staging_table_obj = table_obj.to_metadata(
-                sql_client.metadata, schema=sql_client.staging_dataset_name
-            )
+            staging_table_obj = sql_client.to_dataset_table(table_obj, staging=True)
             select_sql = staging_table_obj.select()
 
             if (primary_key_names and len(table_chain) > 1) or (
@@ -361,9 +357,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         sqla_statements = []
         root_table = table_chain[0]
         root_table_obj = sql_client.get_existing_table(root_table["name"])
-        staging_root_table_obj = root_table_obj.to_metadata(
-            sql_client.metadata, schema=sql_client.staging_dataset_name
-        )
+        staging_root_table_obj = sql_client.to_dataset_table(root_table_obj, staging=True)
 
         from_, to = get_validity_column_names(root_table)
         hash_ = get_first_column_name_with_prop(root_table, "x-row-version")
@@ -454,9 +448,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             )
 
             table_obj = sql_client.get_existing_table(table["name"])
-            staging_table_obj = table_obj.to_metadata(
-                sql_client.metadata, schema=sql_client.staging_dataset_name
-            )
+            staging_table_obj = sql_client.to_dataset_table(table_obj, staging=True)
 
             insert_statement = table_obj.insert().from_select(
                 [col.name for col in table_obj.columns],

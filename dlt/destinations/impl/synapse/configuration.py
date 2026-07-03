@@ -3,6 +3,7 @@ from dlt import version
 from typing import Final, Any, List, Dict, Optional, ClassVar
 
 from dlt.common.configuration import configspec
+from dlt.common.destination.client import DestinationClientConfiguration
 
 from dlt.destinations.impl.mssql.configuration import (
     MsSqlCredentials,
@@ -59,3 +60,15 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
         "create_indexes",
         "staging_use_msi",
     ]
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same Synapse host:port and database."""
+        if not isinstance(other, SynapseClientConfiguration):
+            return False
+        if not super().can_read_from(other):
+            return False
+
+        self_db = self.credentials.database if self.credentials else None
+        other_db = other.credentials.database if other.credentials else None
+        # Synapse does not support cross-db joins
+        return self_db is not None and other_db is not None and self_db == other_db

@@ -1,4 +1,4 @@
-import dlt, os, pytest
+import dlt, pytest
 import contextlib
 from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type
 
@@ -9,6 +9,8 @@ from dlt.common.schema.typing import (
     TSchemaEvolutionMode,
 )
 from dlt.common.utils import uniq_id
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import new_table
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.typing import TDataItems
 from dlt.extract.hints import make_hints
@@ -1117,6 +1119,75 @@ def test_pydantic_model_evolve_on_existing_table(
         table = pipeline.default_schema.get_table("items")
         # contract blocks the new column
         assert "email" not in table["columns"]
+
+
+def test_replace_contract_discard_all_rows_truncates() -> None:
+    pipeline = get_pipeline()
+
+    @dlt.resource(
+        name="items",
+        write_disposition="replace",
+        columns={"id": {"data_type": "bigint"}},
+        schema_contract={"columns": "discard_row"},
+    )
+    def items(with_new_column: bool) -> Any:
+        # with_new_column adds a NEW column `extra` to every row so discard_row drops them all
+        if with_new_column:
+            yield from [{"id": i, "extra": i} for i in range(5)]
+        else:
+            yield from [{"id": i} for i in range(5)]
+
+    # run 1: rows survive (no new column) - table is populated
+    info = pipeline.run(items(False))
+    assert_load_info(info)
+    assert load_table_counts(pipeline)["items"] == 5
+
+    # run 2: every row is dropped by the contract -> empty job -> replace truncates the table
+    info = pipeline.run(items(True))
+    assert_load_info(info)
+    assert pipeline.last_trace.last_normalize_info.row_counts["items"] == 0
+    assert load_table_counts(pipeline).get("items", 0) == 0
+    # the new column was blocked by the contract
+    assert "extra" not in pipeline.default_schema.get_table("items")["columns"]
+
+
+def test_upsert_contract_discard_all_rows_never_seen_table_not_verified() -> None:
+    """A never-seen `upsert` table whose rows are all dropped by a contract must not be materialized
+    or verified. Before the fix the normalizer wrote an empty job for it, which both flagged the
+    table seen-data that triggered various schema checks that were failing."""
+    pipeline = get_pipeline()
+
+    # establish `items` in the schema (so `evolve-columns-once` does not apply) WITHOUT data:
+    # complete `val`, hint-only (untyped) primary key `id`, upsert, columns: discard_row
+    schema = Schema("contracts")
+    table = new_table(
+        "items", write_disposition="merge", schema_contract={"columns": "discard_row"}
+    )
+    table["x-merge-strategy"] = "upsert"  # type: ignore[typeddict-unknown-key]
+    table["columns"] = {
+        "val": {"name": "val", "data_type": "text"},
+        "id": {"name": "id", "primary_key": True, "nullable": False},
+    }
+    schema.update_table(table, normalize_identifiers=False)
+
+    @dlt.resource(name="items")
+    def items() -> Any:
+        # every row carries a NEW column `extra` so discard_row drops them all
+        yield [{"id": i, "val": "x", "extra": i} for i in range(3)]
+
+    # before the fix this raised `No primary key defined` during verify_schema at the load step
+    info = pipeline.run(items(), schema=schema)
+    assert_load_info(info)
+    # the table that never received data is not created at the destination
+    with pipeline.sql_client() as client:
+        existing = [
+            row[0]
+            for row in client.execute_sql(
+                "SELECT table_name FROM information_schema.tables WHERE table_schema ="
+                " current_schema()"
+            )
+        ]
+    assert "items" not in existing
 
 
 @pytest.mark.parametrize("contract_setting", ["freeze", "discard_value", "discard_row"])

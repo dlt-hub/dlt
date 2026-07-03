@@ -1,5 +1,5 @@
 
-name: tools | dbt runner
+name: dbt
 
 on:
   workflow_call:
@@ -12,7 +12,15 @@ env:
 
 jobs:
   run_dbt:
-    name: tools | dbt runner tests
+    name: ${{ matrix.display_name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - display_name: no-venv
+            suite: no-venv
+          - display_name: venv
+            suite: venv
     defaults:
       run:
         shell: bash
@@ -48,11 +56,14 @@ jobs:
         run: make test-dbt-no-venv
         env:
           PYTEST_XDIST_N: 3
+        if: matrix.suite == 'no-venv'
 
       - name: Remove dbt-core
         run: uv run pip uninstall dbt-core -y
+        if: matrix.suite == 'venv'
 
       - name: Run dbt runner with venv - Linux/MAC
         run: make test-dbt-runner-venv
         env:
           PYTEST_XDIST_N: 3
+        if: matrix.suite == 'venv'

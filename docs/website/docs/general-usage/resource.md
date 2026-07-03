@@ -256,6 +256,10 @@ def repo_events() -> Iterator[TDataItems]:
     yield dlt.mark.with_table_name(item, item["type"])
 ```
 
+Created tables share the hints defined on the resource and evolve according to the received data. If you need separate
+hints per table, use `resource.apply_hints` with the `create_table_variant` option. This is an advanced feature, useful for building
+e.g. an incremental replication resource where a single resource can create many independent tables.
+
 ### Parametrize a resource
 
 You can add arguments to your resource functions like to any other. Below we parametrize our

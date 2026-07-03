@@ -1,10 +1,13 @@
 """Tests for Microsoft Fabric Warehouse destination configuration"""
+
 import os
+from typing import Optional
+
 import pytest
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.schema import Schema
-
+from dlt.common.utils import digest128
 from dlt.destinations.impl.fabric.factory import fabric
 from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
@@ -78,6 +81,30 @@ def test_fabric_configuration_defaults() -> None:
     # Fabric should default to UTF-8 collation
     assert config.collation == "Latin1_General_100_BIN2_UTF8"
     assert config.destination_type == "fabric"
+
+
+@pytest.mark.parametrize(
+    "host,port,expected_fingerprint",
+    [
+        pytest.param(None, None, "", id="empty"),
+        pytest.param("host1", 1433, digest128("host1:1433"), id="host_default_port"),
+        pytest.param("host1", 1444, digest128("host1:1444"), id="host_custom_port"),
+    ],
+)
+def test_fabric_fingerprint(
+    host: Optional[str], port: Optional[int], expected_fingerprint: str
+) -> None:
+    if host:
+        credentials = FabricCredentials()
+        credentials.host = host
+        if port is not None:
+            credentials.port = port
+    else:
+        credentials = None
+
+    config = FabricClientConfiguration(credentials=credentials)
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_fabric_configuration_custom_collation() -> None:

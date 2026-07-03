@@ -55,7 +55,7 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
 
             if isinstance(native_value, duckdb.DuckDBPyConnection):
                 self._external_conn = native_value
-                self.database = ":external:"
+                self.database = self._external_conn_database(native_value)
                 return
         except ImportError:
             pass
@@ -66,6 +66,25 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
                 self.database = native_value
             else:
                 raise
+
+    @staticmethod
+    def _external_conn_database(conn: DuckDBPyConnection) -> str:
+        """Returns the file path of the connection's current database so physical_location()
+        identifies it, ':external:' for in-memory databases or when the path cannot be read.
+        """
+        try:
+            cur = conn.cursor()
+            try:
+                row = cur.execute(
+                    "select path from duckdb_databases() where database_name = current_database()"
+                ).fetchone()
+            finally:
+                cur.close()
+            if row and row[0]:
+                return str(row[0])
+        except Exception:
+            pass
+        return ":external:"
 
     def _conn_str(self) -> str:
         raise NotImplementedError()
@@ -317,6 +336,12 @@ class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingC
             environment=environment,
         )
         self.create_indexes = create_indexes
+
+    def physical_location(self) -> str:
+        """Returns the database file path or ':memory:'."""
+        if self.credentials and self.credentials.database:
+            return self.credentials.database
+        return ""
 
     def on_resolved(self) -> None:
         self.credentials.database = self.make_location(self.credentials.database, DUCK_DB_NAME_PAT)

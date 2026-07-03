@@ -1,6 +1,5 @@
 from __future__ import annotations
 from collections.abc import Collection, Sequence
-from functools import partial
 from typing import (
     overload,
     Union,
@@ -10,6 +9,7 @@ from typing import (
     Type,
     TYPE_CHECKING,
     Literal,
+    get_args,
 )
 from textwrap import indent
 from contextlib import contextmanager
@@ -18,6 +18,7 @@ from dlt.common.utils import simple_repr, without_none
 from sqlglot import maybe_parse
 from sqlglot.optimizer.merge_subqueries import merge_subqueries
 from sqlglot.expressions import ExpOrStr as SqlglotExprOrStr
+from sqlglot.schema import Schema as SQLGlotSchema
 
 import sqlglot.expressions as sge
 
@@ -34,8 +35,8 @@ from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
-from dlt.destinations.queries import bind_query, build_select_expr
+from dlt.destinations.sql_client import SqlClientBase, WithSchemas, WithSqlClient
+from dlt.destinations.queries import bind_query, build_select_expr, make_expand_table_name
 from dlt.common.destination.dataset import SupportsDataAccess
 from dlt.dataset._incremental import (
     _build_incremental_aggregate,
@@ -46,7 +47,14 @@ from dlt.dataset._incremental import (
     _RelationIncrementalContext,
     _sqlglot_type_for_column,
 )
-from dlt.dataset._join import _apply_join, _extract_joined_table_aliases
+from dlt.dataset._join import (
+    _apply_join,
+    _apply_explicit_join,
+    _extract_joined_table_aliases,
+    _JoinTarget,
+    _left_source_qualifier,
+    _qualify_physical_tables_with_dataset,
+)
 
 
 if TYPE_CHECKING:
@@ -117,6 +125,8 @@ class Relation(WithSqlClient):
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
+        self._foreign_schemas: dict[str, list[dlt.Schema]] = {}
+        self._foreign_physical_names: dict[str, str] = {}
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -266,11 +276,9 @@ class Relation(WithSqlClient):
             _, _qualified_query = _get_relation_output_columns_schema(self)
             query = bind_query(
                 qualified_query=_qualified_query,
-                sqlglot_schema=self._dataset.sqlglot_schema,
-                expand_table_name=partial(
-                    self.sql_client.make_qualified_table_name_path,
-                    quote=False,
-                    casefold=False,
+                sqlglot_schema=self._relation_sqlglot_schema(),
+                expand_table_name=make_expand_table_name(
+                    self.sql_client, self._logical_to_physical_dataset_map()
                 ),
                 casefold_identifier=self.sql_client.capabilities.casefold_identifier,
             )
@@ -359,42 +367,64 @@ class Relation(WithSqlClient):
                 f"`{direction}` is an invalid sort order, allowed values are: `asc` and `desc`"
             )
         order_expr = sge.Ordered(
-            this=sge.Column(
-                this=sge.to_identifier(column_name, quoted=True),
-            ),
+            this=self._resolve_output_column(column_name),
             desc=(direction == "desc"),
         )
         rel = self.__copy__()
         rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
         return rel
 
+    def _resolve_output_column(self, column_name: str) -> sge.Expression:
+        """Resolve an output column name to its projected source expression."""
+        for proj in self.sqlglot_expression.selects:
+            if isinstance(proj, sge.Star) or proj.output_name != column_name:
+                continue
+            source = proj.this if isinstance(proj, sge.Alias) else proj
+            if not isinstance(source, sge.Star):
+                return source.copy()
+        return sge.Column(this=sge.to_identifier(column_name, quoted=True))
+
+    @overload
     def join(
         self,
         other: str | Self,
         *,
         kind: TJoinType = "inner",
         alias: Optional[str] = None,
+    ) -> Self: ...
+
+    @overload
+    def join(
+        self,
+        other: str | Self,
+        on: str | sge.Expression,
+        *,
+        kind: TJoinType = "inner",
+        alias: Optional[str] = None,
+    ) -> Self: ...
+
+    def join(
+        self,
+        other: str | Self,
+        on: str | sge.Expression | None = None,
+        *,
+        kind: TJoinType = "inner",
+        alias: Optional[str] = None,
     ) -> Self:
-        """Join this relation to another table using dlt schema references.
+        """Join this relation to another table.
 
-        Join conditions are discovered automatically from the schema's reference
-        chain (parent/child/root relationships created by dlt during loading).
-        Both the current relation and ``other`` must be base-table relations
-        (i.e., created via ``dataset[table_name]``, not transformed with
-        ``.select()``/``.where()`` etc.).
-
-        This method is designed for the common case of navigating dlt's
-        built-in table hierarchy. For more complex join scenarios — such as
-        custom join predicates, joining on non-reference columns, self-joins,
-        or multi-way joins with mixed conditions — use ``Relation.to_ibis()``
-        to obtain an ibis table expression and construct the join manually::
-
-            t1 = dataset["orders"].to_ibis()
-            t2 = dataset["products"].to_ibis()
-            joined = t1.join(t2, t1.product_id == t2.id, how="left")
+        Without `on`, join conditions are discovered automatically from the
+        schema's reference chain (parent/child/root relationships created by
+        dlt during loading). With `on`, an explicit join predicate is used
+        instead — this also enables cross-dataset joins.
 
         Args:
-            other: Table name or base-table relation to join.
+            other: Table name or Relation to join. For cross-dataset joins,
+                pass a Relation from a different `dlt.Dataset`.
+            on: Explicit join condition as an SQL string or sqlglot expression.
+                Required for cross-dataset joins and joins between tables
+                without dlt schema references. Column and table names in the
+                predicate must use their dlt schema (normalized) names.
             kind: Type of SQL join: ``"inner"``, ``"left"``, ``"right"``,
                 or ``"full"``.
             alias: Projection prefix for the joined table's columns. Columns
@@ -402,52 +432,189 @@ class Relation(WithSqlClient):
                 the target table name.
 
         Returns:
-            A new relation with the join(s) applied and the target table's
+            A new relation with the join applied and the target table's
             columns appended to the projection.
 
         Raises:
-            ValueError: If schema references between the two tables cannot be
-                resolved, or if either relation is not join-eligible.
+            ValueError: If the join cannot be resolved.
+
+        Example:
+            >>> # auto join (schema references)
+            >>> dataset["orders"].join("users")
+
+            >>> # explicit ON
+            >>> dataset["orders"].join("users", on="orders._dlt_parent_id = users._dlt_id")
+
+            >>> # cross-dataset join
+            >>> local["orders"].join(
+            ...     foreign["products"],
+            ...     on="orders.product_id = products.id",
+            ... )
         """
         if alias == "":
             raise ValueError("`alias` must be a non-empty string when provided.")
 
-        if not self._table_name:
-            raise ValueError("This relation has no base table to resolve references.")
+        if kind not in get_args(TJoinType):
+            raise ValueErrorWithKnownValues(
+                key="kind", value_received=kind, valid_values=list(get_args(TJoinType))
+            )
 
-        if isinstance(other, dlt.Relation):
-            # TODO: remove once we allow cross-dataset joins
-            if not (
-                self._dataset.is_same_physical_destination(other._dataset)
-                and self._dataset.dataset_name == other._dataset.dataset_name
-            ):
-                raise ValueError(
-                    "Cannot join relations from different datasets: "
-                    f"'{other._dataset.dataset_name}' vs '{self._dataset.dataset_name}'"
-                )
-            target_table = other._table_name
-            if not target_table:
-                raise ValueError(f"Relation `{other}` has no base table to resolve references.")
+        if isinstance(on, str) and not on.strip():
+            raise ValueError("`on` must be a non-empty SQL expression.")
+
+        target = self._resolve_join_target(other, on=on)
+        target_is_foreign = target.dataset_name != self._dataset.dataset_name
+
+        projection_prefix = alias or target.table_name
+
+        if on is None:
+            if not self._table_name:
+                raise ValueError("This relation has no base table to resolve references.")
+            if target_is_foreign:
+                raise ValueError("`on` is required when joining relations from different datasets.")
+            if target.table_name not in self._dataset.schema.tables:
+                raise ValueError(f"Table `{target.table_name}` not found in dataset schema")
+            query = _apply_join(
+                self.sqlglot_expression,
+                schema=self._dataset.schema,
+                left_table=self._table_name,
+                right_table=target.table_name,
+                projection_prefix=projection_prefix,
+                kind=kind,
+                dataset_name=self._dataset.dataset_name,
+            )
         else:
-            target_table = other
+            query = _apply_explicit_join(
+                self.sqlglot_expression,
+                target,
+                on=on,
+                projection_prefix=projection_prefix,
+                kind=kind,
+                destination_dialect=self.destination_dialect,
+                left_dataset_name=self._dataset.dataset_name,
+            )
 
-        if not target_table or not isinstance(target_table, str):
-            raise ValueError("`other` must be a table name or a base table relation.")
-        if target_table not in self._dataset.schema.tables:
-            raise ValueError(f"Table `{target_table}` not found in dataset schema")
+        _qualify_physical_tables_with_dataset(query, self._dataset.dataset_name)
 
-        projection_prefix = alias or target_table
-        query = _apply_join(
-            self.sqlglot_expression,
-            schema=self._dataset.schema,
-            left_table=self._table_name,
-            right_table=target_table,
-            projection_prefix=projection_prefix,
-            kind=kind,
-        )
         rel = self.__copy__()
         rel._sqlglot_expression = query
+
+        # carry the RHS relation's foreign schemas
+        if isinstance(other, dlt.Relation):
+            for ds_name, schemas in other._foreign_schemas.items():
+                if ds_name == self._dataset.dataset_name:
+                    continue
+                rel._foreign_schemas[ds_name] = list(schemas)
+                if ds_name in other._foreign_physical_names:
+                    rel._foreign_physical_names[ds_name] = other._foreign_physical_names[ds_name]
+        if target_is_foreign:
+            rel._foreign_schemas[target.dataset_name] = list(target.schemas)
+            if target.physical_dataset_name is not None:
+                rel._foreign_physical_names[target.dataset_name] = target.physical_dataset_name
+
         return rel
+
+    def _resolve_join_target(
+        self,
+        other: Union[str, Self],
+        *,
+        on: Union[str, sge.Expression, None] = None,
+    ) -> _JoinTarget:
+        """Resolve the right-hand side of a join into a `_JoinTarget`."""
+        if isinstance(other, dlt.Relation):
+            this_dataset = self._dataset
+            target_dataset = other._dataset
+            if not (
+                this_dataset.destination_client.config.can_read_from(
+                    target_dataset.destination_client.config
+                )
+            ):
+                raise ValueError(
+                    "Cannot join relations from different physical destinations: dataset"
+                    f" '{this_dataset.dataset_name}' on"
+                    f" '{this_dataset.destination_client.config}' vs dataset"
+                    f" '{target_dataset.dataset_name}' on"
+                    f" '{target_dataset.destination_client.config}'"
+                )
+
+            dataset_same_name = this_dataset.dataset_name == target_dataset.dataset_name
+            # at this moment we cannot join datasets with the same name on two different locations
+            if (
+                this_dataset.destination_client.config.physical_location()
+                != other._dataset.destination_client.config.physical_location()
+                and dataset_same_name
+            ):
+                raise ValueError(
+                    "Cannot join datasets with the same name located on two different destinations"
+                )
+
+            is_foreign = not self._dataset._is_same_dataset(target_dataset)
+            if is_foreign and (
+                isinstance(self.sql_client, WithSchemas)
+                # TODO: drop the sqlite check once we ATTACH foreign datasets
+                or getattr(self.sql_client, "dialect_name", None) == "sqlite"
+            ):
+                raise ValueError(
+                    "Cross-dataset joins are not supported on the"
+                    f" `{self._dataset._destination.destination_name}` destination."
+                )
+
+            target_table = other._table_name
+            is_transformed = other._query is not None
+            if target_table and not is_transformed:
+                # pristine base-table Relation: look up columns from schema
+                target_columns = _find_table_columns(target_dataset.schemas, target_table)
+            elif target_table and is_transformed:
+                # transformed Relation that still tracks its origin table
+                # (e.g., .where(), .select()); use its actual output columns
+                target_columns = other.columns_schema
+            else:
+                # no base table at all (e.g., from .query())
+                if on is None:
+                    raise ValueError(f"Relation `{other}` has no base table to resolve references.")
+                target_table = _left_source_qualifier(other.sqlglot_expression) or "subquery"
+                target_columns = other.columns_schema
+            return _JoinTarget(
+                dataset_name=target_dataset.dataset_name,
+                table_name=target_table,
+                columns=target_columns,
+                schemas=target_dataset.schemas,
+                subquery=other.sqlglot_expression if is_transformed else None,
+                physical_dataset_name=(
+                    target_dataset.sql_client.dataset_name if is_foreign else None
+                ),
+            )
+
+        if isinstance(other, str):
+            if "." in other:
+                ds_name, tbl_name = other.split(".", 1)
+            else:
+                ds_name, tbl_name = self._dataset.dataset_name, other
+
+            if ds_name == self._dataset.dataset_name:
+                return _JoinTarget(
+                    dataset_name=ds_name,
+                    table_name=tbl_name,
+                    columns=_find_table_columns(self._dataset.schemas, tbl_name),
+                    schemas=self._dataset.schemas,
+                )
+            if ds_name in self._foreign_schemas:
+                foreign_schemas = self._foreign_schemas[ds_name]
+                return _JoinTarget(
+                    dataset_name=ds_name,
+                    table_name=tbl_name,
+                    columns=_find_table_columns(foreign_schemas, tbl_name),
+                    schemas=foreign_schemas,
+                    physical_dataset_name=self._foreign_physical_names.get(ds_name),
+                )
+            raise ValueError(
+                f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
+                "foreign dataset to automatically register its schema."
+            )
+
+        raise ValueError(
+            f"`other` must be a table name or a `dlt.Relation`, got `{type(other).__name__}`."
+        )
 
     def incremental(self, incremental: Incremental[Any]) -> Self:
         """Filter this relation to a cursor range using an Incremental.
@@ -500,7 +667,9 @@ class Relation(WithSqlClient):
         target_columns = self._dataset.schema.get_table_columns(table_name)
         if column_name not in target_columns:
             _raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
-        if self._table_name not in _extract_joined_table_aliases(self.sqlglot_expression):
+        if self._table_name not in _extract_joined_table_aliases(
+            self.sqlglot_expression, self._dataset.dataset_name
+        ):
             raise ValueError(
                 f"Incremental cursor `{incremental.cursor_path}` requires a "
                 f"base-table relation to resolve the join to `{table_name}`. "
@@ -519,8 +688,11 @@ class Relation(WithSqlClient):
             projection_prefix=table_name,
             kind="inner",
             project=False,
+            dataset_name=self._dataset.dataset_name,
         )
-        target_qualifier = _extract_joined_table_aliases(query)[table_name]
+        target_qualifier = _extract_joined_table_aliases(query, self._dataset.dataset_name)[
+            table_name
+        ]
         return self._apply_incremental(
             incremental=incremental,
             target_query=query,
@@ -868,7 +1040,23 @@ class Relation(WithSqlClient):
         rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
+        rel._foreign_schemas = {k: list(v) for k, v in self._foreign_schemas.items()}
+        rel._foreign_physical_names = dict(self._foreign_physical_names)
         return rel
+
+    def _relation_sqlglot_schema(self) -> SQLGlotSchema:
+        schema_map: dict[str, Sequence[dlt.Schema]] = {
+            self._dataset.dataset_name: list(self._dataset.schemas),
+            **self._foreign_schemas,
+        }
+        return lineage.create_sqlglot_schema(schema_map, dialect=self.destination_dialect)
+
+    def _logical_to_physical_dataset_map(self) -> dict[str, str]:
+        """Map each logical dataset qualifier used in the query to its physical name."""
+        return {
+            self._dataset.dataset_name: self.sql_client.dataset_name,
+            **self._foreign_physical_names,
+        }
 
 
 def _get_relation_output_columns_schema(
@@ -881,10 +1069,18 @@ def _get_relation_output_columns_schema(
     columns_schema, normalized_query = lineage.compute_columns_schema(
         # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
         relation.sqlglot_expression,
-        relation._dataset.sqlglot_schema,
+        relation._relation_sqlglot_schema(),
         dialect=relation.destination_dialect,
         infer_sqlglot_schema=infer_sqlglot_schema,
         allow_anonymous_columns=allow_anonymous_columns,
         allow_partial=allow_partial,
     )
     return columns_schema, normalized_query
+
+
+def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTableSchemaColumns:
+    """Find the columns schema for a table across a sequence of schemas."""
+    for schema in schemas:
+        if table_name in schema.tables:
+            return schema.get_table_columns(table_name)
+    raise ValueError(f"Table `{table_name}` not found in dataset schema")

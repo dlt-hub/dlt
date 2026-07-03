@@ -21,3 +21,5 @@ Instead of deploying a `dlt` pipeline to your own runner (Airflow, GitHub Action
 ## Get started
 
 For installation, tutorials, and the full reference, see the [dltHub documentation](../../hub/getting-started/introduction.md).
+
+For a quick walkthrough, see [Deploy a pipeline with dltHub](orchestrate-with-dlthub.md).

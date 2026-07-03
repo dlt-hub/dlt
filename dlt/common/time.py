@@ -383,9 +383,9 @@ def detect_datetime_format(value: str) -> Optional[str]:
         re.compile(r"^\d{4}-\d{2}-\d{2}$"): "%Y-%m-%d",  # Date only
         re.compile(r"^\d{4}-\d{2}$"): "%Y-%m",  # Year and month
         re.compile(r"^\d{4}$"): "%Y",  # Year only
-        # Week-based date formats
-        re.compile(r"^\d{4}-W\d{2}$"): "%Y-W%W",  # Week-based date
-        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%Y-W%W-%u",  # Week-based date with day
+        # Week-based date formats (ISO 8601: week-numbering year %G + ISO week %V)
+        re.compile(r"^\d{4}-W\d{2}$"): "%G-W%V",  # Week-based date
+        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%G-W%V-%u",  # Week-based date with day
         # Ordinal date formats (day of year)
         re.compile(r"^\d{4}-\d{3}$"): "%Y-%j",  # Ordinal date
         # Compact formats (no dashes)

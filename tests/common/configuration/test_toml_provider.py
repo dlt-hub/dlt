@@ -630,5 +630,5 @@ def test_colab_toml() -> None:
         provider = SecretsTomlProvider("tests/common/cases/configuration/.dlt", global_dir=None)
         assert provider.get_value("secret_value", str, None) == ("2137", "secret_value")
     finally:
-        delattr(builtins, "get_ipython")
+        del builtins.get_ipython  # type: ignore[attr-defined]
         sys.path.pop()

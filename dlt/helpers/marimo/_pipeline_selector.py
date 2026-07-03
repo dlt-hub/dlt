@@ -10,7 +10,7 @@ with app.setup:
 
 @app.cell
 def pipeline_locations():
-    _pipelines_dir, _pipelines = list_local_pipelines()
+    _pipelines_dir, _pipelines, _ = list_local_pipelines()
     pipelines_locations = {p["name"]: _pipelines_dir + "/" + p["name"] for p in _pipelines}
     return (pipelines_locations,)
 

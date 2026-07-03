@@ -20,35 +20,17 @@ The dltHub AI workbench works with **Claude Code**, **Cursor**, and **Codex**.
 
 ## Setup
 
-### Python environment
+### Create the workspace
 
-Install `uv` ([instructions](https://docs.astral.sh/uv/getting-started/installation/)) and create a virtual environment:
-
-```sh
-uv venv && source .venv/bin/activate
-```
-
-We recommend using uv. If you use uv, prefix all following commands with `uv run`. 
-
-### Install dlt
-
-Install the dlt workspace:
+Install `uv` ([instructions](https://docs.astral.sh/uv/getting-started/installation/)), then scaffold a dltHub workspace — this installs `dlt[hub]` and all dependencies and sets up the AI skills your coding assistant uses (see the [installation guide](../getting-started/installation.md)):
 
 ```sh
-pip install "dlt[hub]"
-```
-or upgrade to the latest version:
-
-```sh
-pip install --upgrade "dlt[hub]"
+uvx dlthub-init@latest
 ```
 
 ### Initialize the AI assistant
 
-First create the dlthub workspace and install dependencies (see the [installation guide](../getting-started/installation.md)):
-```sh
-uvx dlthub-start@latest
-```
+Wire up your specific coding assistant:
 
 <Tabs values={[{"label": "Claude Code", "value": "claude"}, {"label": "Cursor", "value": "cursor"}, {"label": "Codex", "value": "codex"}]} groupId="ai-agent" defaultValue="claude">
 <TabItem value="claude">

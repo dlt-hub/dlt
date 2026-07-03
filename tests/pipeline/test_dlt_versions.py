@@ -680,3 +680,100 @@ def test_seen_null_first_columns_cleaned_on_upgrade(test_storage: FileStorage) -
         assert_load_info(load_info)
         # optional_field still not in schema (it's null-only)
         assert "optional_field" not in pipeline.default_schema.tables["items"]["columns"]
+
+
+@skip_on_312
+def test_engine_8_upsert_seen_data_migration_update(test_storage: FileStorage) -> None:
+    """read legacy_upsert_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_legacy.duckdb"}):
+        # old dlt 0.4.4 writes a schema at engine 8 (before seen-data). the data has no `id`, so the
+        # declared primary key stays incomplete; the table still gets a `_dlt_id` column.
+        with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==0.4.4", "setuptools<80"]) as venv:
+            # force a compatible duckdb so the current version can open the same database file
+            venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+            try:
+                print(venv.run_script("legacy_upsert_pipeline.py", "old"))
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+
+        # sanity: the persisted schema is engine 8 with an incomplete, seen-data-less primary key
+        legacy_schema = json.loads(
+            test_storage.load(".dlt/pipelines/legacy_upsert/schemas/legacy_upsert.schema.json")
+        )
+        assert legacy_schema["engine_version"] == 8
+        renamed = legacy_schema["tables"]["renamed_store"]
+        assert "x-normalizer" not in renamed
+        assert "_dlt_id" in renamed["columns"]
+        # primary key is declared but incomplete (no data_type) and nullable
+        assert renamed["columns"]["id"]["primary_key"] is True
+        assert "data_type" not in renamed["columns"]["id"]
+        assert renamed["columns"]["id"]["nullable"] is True
+
+        venv = Venv.restore_current()
+        try:
+            # 2nd run on the current dlt: an incremental whose window selects no rows. loading
+            # migrates engine 8 -> current and the 8 -> 9 migration stamps seen-data on the legacy
+            # table. the run yields no rows, so `_handle_empty_tables` no longer rewrites the stored
+            # disposition - the table stays merge/delete-insert and loads cleanly instead of raising
+            # "No primary key defined".
+            print(venv.run_script("legacy_upsert_pipeline.py", "current"))
+            # 3rd run: load a row that carries the primary key. the incomplete `id` column gets a
+            # type and is added (nullable) to the destination table, and the row is upserted.
+            print(venv.run_script("legacy_upsert_pipeline.py", "load"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        # the primary key column is now complete and the row was actually loaded
+        pipeline = dlt.attach("legacy_upsert")
+        assert "data_type" in pipeline.default_schema.tables["renamed_store"]["columns"]["id"]
+        with pipeline.sql_client() as client:
+            rows = client.execute_sql("SELECT id, ts, val FROM renamed_store WHERE id = 1")
+        assert len(rows) == 1
+        assert rows[0][0] == 1 and rows[0][2] == "c"
+
+
+def test_load_normalized_refresh_package_from_1_25(test_storage: FileStorage) -> None:
+    """read refresh_normalized_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_refresh_normalized.duckdb"}
+    ):
+        # dlt 1.25.0 leaves a normalized package with refresh `dropped_tables` in its state
+        with Venv.create(tempfile.mkdtemp(), ["dlt[duckdb]==1.25.0"]) as venv:
+            # force a compatible duckdb so the current version can open the same database file
+            venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+            try:
+                print(venv.run_script("refresh_normalized_pipeline.py", "old"))
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+
+        # the current dlt loads the pending package: drops are applied and recorded. the old
+        # package state has no `refresh` key so it stays None
+        venv = Venv.restore_current()
+        try:
+            output = venv.run_script("refresh_normalized_pipeline.py", "load")
+            print(output)
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+        assert "REFRESH: None" in output
+        assert "DROPPED: ['items']" in output
+        assert "TRUNCATED: []" in output
+
+        # the loaded package state records the applied drops
+        pipeline = dlt.attach("refresh_normalized")
+        load_id = pipeline.list_completed_load_packages()[-1]
+        package_state = pipeline.get_load_package_state(load_id)
+        assert package_state["applied_dropped_tables"] == ["items"]
+        # `items` was dropped and re-created with only the second run's row
+        assert load_table_counts(pipeline, "items") == {"items": 1}

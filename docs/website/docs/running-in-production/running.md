@@ -29,6 +29,12 @@ The `load_info` contains plenty of useful information on the recently loaded dat
     print(load_info.load_packages[0])
     # print the information on the first completed job in the first load package
     print(load_info.load_packages[0].jobs["completed_jobs"][0])
+    # see the refresh mode the package was extracted with (None if refresh was not requested)
+    print(load_info.load_packages[0].refresh)
+    # see the tables that were dropped and truncated in the destination, e.g. by refresh,
+    # the drop command, or when a replace resource yields no data
+    print(load_info.load_packages[0].dropped_tables)
+    print(load_info.load_packages[0].truncated_tables)
 ```
 
 `load_info` may also be loaded into the destinations as below:

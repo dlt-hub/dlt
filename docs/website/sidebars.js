@@ -423,6 +423,11 @@ const sidebars = {
           label: "Orchestrators",
           items: [
             {
+              type: "doc",
+              id: "walkthroughs/deploy-a-pipeline/orchestrate-with-dlthub",
+              label: "dltHub",
+            },
+            {
               id: "walkthroughs/deploy-a-pipeline/deploy-with-github-actions",
               type: "doc",
               label: "GitHub Actions",
@@ -475,6 +480,7 @@ const sidebars = {
         "hub/getting-started/introduction",
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
+        "hub/getting-started/playground-workspace",
         "hub/getting-started/platform-tutorial",
       ],
     },
@@ -486,6 +492,7 @@ const sidebars = {
         "hub/ingestion/rest-api-source",
         "hub/ingestion/dashboard",
         "hub/ingestion/ms-sql",
+        "hub/ingestion/playground",
         "hub/ingestion/delta",
         "hub/ingestion/iceberg",
         "hub/ingestion/snowflake-plus",
@@ -504,9 +511,10 @@ const sidebars = {
       type: "category",
       label: "Pipeline operations",
       items: [
-        "hub/pipeline-operations/profiles",
         "hub/pipeline-operations/overview",
         "hub/pipeline-operations/workspace-setup",
+        "hub/pipeline-operations/profiles",
+        "hub/pipeline-operations/secrets-management",
         "hub/pipeline-operations/deployments",
         "hub/pipeline-operations/triggers",
         "hub/pipeline-operations/job-configuration",
@@ -522,6 +530,11 @@ const sidebars = {
       type: "category",
       label: "Data discovery & serving",
       items: ["hub/data-discovery/datasets", { type: "doc", id: "general-usage/dataset-access/marimo" }],
+    },
+    {
+      type: "category",
+      label: "Notifications",
+      items: ["hub/notifications/slack", "hub/notifications/email"],
     },
     {
       type: "category",
@@ -544,10 +557,25 @@ const sidebars = {
         id: "examples/index",
       },
       items: [
-        "walkthroughs/dispatch-to-multiple-tables",
-        "walkthroughs/share-a-dataset",
-        "walkthroughs/create-new-destination",
-        "walkthroughs/zendesk-weaviate",
+        {
+          type: "category",
+          label: "dlt",
+          collapsible: true,
+          collapsed: true,
+          items: [
+            "walkthroughs/dispatch-to-multiple-tables",
+            "walkthroughs/share-a-dataset",
+            "walkthroughs/create-new-destination",
+            "walkthroughs/zendesk-weaviate",
+          ],
+        },
+        {
+          type: "category",
+          label: "dltHub",
+          collapsible: true,
+          collapsed: true,
+          items: ["hub/cookbook/build-streamlit-dashboard"],
+        },
       ],
     },
   ],
@@ -564,14 +592,19 @@ const sidebars = {
   ],
 };
 
-// insert examples
+// insert examples under the `dlt` subcategory of the Cookbook
+// `examples/index` is the link target of the parent Cookbook category, so skip it here —
+// otherwise navigating to the Cookbook landing page auto-expands `dlt` to highlight it.
 for (const item of sidebars.cookbookSidebar) {
+  const dltSubcategory = item.items.find((entry) => typeof entry === "object" && entry.label === "dlt");
+  if (!dltSubcategory) continue;
   for (let examplePath of walkSync("./docs_processed/examples")) {
     examplePath = examplePath.replace(/\\/g, "/");
     examplePath = examplePath.replace("docs_processed/", "");
     examplePath = examplePath.replace(".mdx", "");
     examplePath = examplePath.replace(".md", "");
-    item.items.push(examplePath);
+    if (examplePath === "examples/index") continue;
+    dltSubcategory.items.push(examplePath);
   }
 }
 

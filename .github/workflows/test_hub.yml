@@ -1,4 +1,4 @@
-name: hub | dlthub features
+name: hub
 
 #
 # dlthub smoke tests against the nightly build.
@@ -13,27 +13,35 @@ env:
 
 jobs:
   run_hub_features:
-    name: test
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:
-        os: ["ubuntu-latest", "macos-latest", "windows-latest"]
-        python-version: ["3.10", "3.11", "3.12", "3.13"]
-        dlthub_dep: [""]  # , "https://dlt-packages.fra1.digitaloceanspaces.com/dlthub/dlthub-0.0.0+nightly-py3-none-any.whl"]
-        # Test all python versions on ubuntu only
-        exclude:
-        - os: "macos-latest"
-          python-version: "3.10"
-        - os: "macos-latest"
-          python-version: "3.12"
-        - os: "macos-latest"
-          python-version: "3.13"
-        - os: "windows-latest"
-          python-version: "3.10"
-        - os: "windows-latest"
-          python-version: "3.12"
-        - os: "windows-latest"
-          python-version: "3.13"
+        include:
+          - display_name: linux-3.10
+            os: ubuntu-latest
+            python-version: "3.10"
+            dlthub_dep: ""
+          - display_name: linux-3.11
+            os: ubuntu-latest
+            python-version: "3.11"
+            dlthub_dep: ""
+          - display_name: linux-3.12
+            os: ubuntu-latest
+            python-version: "3.12"
+            dlthub_dep: ""
+          - display_name: linux-3.13
+            os: ubuntu-latest
+            python-version: "3.13"
+            dlthub_dep: ""
+          - display_name: macos-3.11
+            os: macos-latest
+            python-version: "3.11"
+            dlthub_dep: ""
+          - display_name: windows-3.11
+            os: windows-latest
+            python-version: "3.11"
+            dlthub_dep: ""
 
     defaults:
       run:
@@ -99,7 +107,7 @@ jobs:
       #   if: ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' }}
 
   matrix_job_required_check:
-    name: hub | dlthub features tests
+    name: hub-check
     needs: run_hub_features
     runs-on: ubuntu-latest
     if: always()

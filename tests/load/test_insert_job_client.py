@@ -302,6 +302,83 @@ def test_query_split(client: InsertValuesJobClient, file_storage: FileStorage) -
     assert mocked_fragments.call_count == 1
 
 
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(
+        default_sql_configs=True, subset=["duckdb", "postgres", "redshift", "motherduck"]
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_insert_nul_in_string(client: InsertValuesJobClient, file_storage: FileStorage) -> None:
+    # an embedded NUL (eg. coming from mongo) cannot be stored in these engines via an inline
+    # INSERT literal - the query is parsed as a NUL-terminated string. the escaper strips it
+    user_table_name = prepare_table(client)
+    canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+    nul_value = client.capabilities.escape_literal("hello\x00world")
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text)\nVALUES\n"
+    insert_values = (
+        f"('{uniq_id()}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+        f" '{str(pendulum.now())}', {nul_value});"
+    )
+    expect_load_file(
+        client,
+        file_storage,
+        insert_sql + insert_values,
+        user_table_name,
+        file_format="insert_values",
+    )
+    rows = client.sql_client.execute_sql(f"SELECT text FROM {canonical_name}")
+    # NUL stripped, the rest of the string is preserved
+    assert rows[0][0] == "helloworld"
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True, subset=DEFAULT_SUBSET),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_insert_unicode_line_separators(
+    client: InsertValuesJobClient, file_storage: FileStorage
+) -> None:
+    # characters that str.splitlines() treats as line boundaries but the writer does not escape.
+    # they must not split a VALUES row when the loader reassembles statements on the max_rows path
+    weird = "a b c\x85d\x0be\x0cf\x1cg\x1dh\x1ei"
+    writer_type = client.capabilities.insert_values_writer_type
+    if writer_type == "default":
+        pre, post, sep = ("(", ")", ",\n")
+    elif writer_type == "select_union":
+        pre, post, sep = ("SELECT ", "", " UNION ALL\n")
+
+    user_table_name = prepare_table(client)
+    canonical_name = client.sql_client.make_qualified_table_name(user_table_name)
+    # build 4 rows, the third carries the weird value in text
+    rows = []
+    for i in range(4):
+        text_value = client.capabilities.escape_literal(weird if i == 2 else f"plain{i}")
+        rows.append(
+            pre
+            + f"'{i}', '{uniq_id()}', '90238094809sajlkjxoiewjhduuiuehd',"
+            f" '{str(pendulum.now().add(seconds=i))}', {text_value}"
+            + post
+        )
+    insert_sql = "INSERT INTO {}(_dlt_id, _dlt_root_id, sender_id, timestamp, text)\n"
+    if writer_type == "default":
+        insert_sql += "VALUES\n"
+    insert_sql += sep.join(rows) + ";"
+
+    # force the max_rows (splitlines) reassembly branch; caps are a per-instance attr so safe to mock
+    client.sql_client.capabilities.max_rows_per_insert = 2
+    expect_load_file(client, file_storage, insert_sql, user_table_name, file_format="insert_values")
+
+    count = client.sql_client.execute_sql(f"SELECT COUNT(1) FROM {canonical_name}")[0][0]
+    assert count == 4
+    stored = client.sql_client.execute_sql(f"SELECT text FROM {canonical_name} ORDER BY _dlt_id")
+    # the weird value round-trips intact, not split across rows
+    assert weird in [row[0] for row in stored]
+
+
 def assert_load_with_max_query(
     client: InsertValuesJobClient,
     file_storage: FileStorage,

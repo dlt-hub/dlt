@@ -364,11 +364,8 @@ def test_parallel_incremental():
     )
     pipeline_standalone.run(mock_data_incremental_source())
 
-    tasks_list: List[BaseOperator] = None
-
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
-        nonlocal tasks_list
         tasks = PipelineTasksGroup(
             "pipeline_dag_parallel",
             local_data_folder=get_test_storage_root(),

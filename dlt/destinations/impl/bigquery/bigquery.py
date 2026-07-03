@@ -616,5 +616,6 @@ def _streaming_load(
     bq_client.insert_rows_json(
         full_name,
         items,
-        retry=retry.Retry(predicate=_should_retry, deadline=600),  # with 10 mins deadline
+        # with 10 mins deadline
+        retry=retry.Retry(predicate=_should_retry, deadline=600),  # type: ignore[arg-type,unused-ignore]
     )

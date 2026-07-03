@@ -8,9 +8,15 @@ import pytest
 from tests.dataset.utils import (
     LOAD_0_STATS,
     LOAD_1_STATS,
+    TCrossDs3Fixture,
+    TCrossDsFixture,
     TLoadsFixture,
     annotated_references,
+    billing,
     crm,
+    inventory,
+    marketing_users,
+    relational_tables,
 )
 from tests.utils import (
     auto_test_run_context,
@@ -87,6 +93,111 @@ def dataset_with_loads(
 
 
 @pytest.fixture(scope="module")
+def dataset_with_relational_tables(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    pipeline = dlt.pipeline(
+        pipeline_name="relational_tables",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "relational.db")),
+        dev_mode=True,
+    )
+    pipeline.run(relational_tables())
+    return pipeline.dataset()
+
+
+@pytest.fixture(scope="module")
+def cross_dataset_duckdb(module_tmp_path: pathlib.Path) -> TCrossDsFixture:
+    db_path = str(module_tmp_path / "cross_dataset.db")
+
+    # dataset A: CRM data (users + orders)
+    pipeline_crm = dlt.pipeline(
+        pipeline_name="cross_ds_a",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="crm_data",
+        dev_mode=True,
+    )
+    source_a = crm(0)
+    source_a.root_key = True
+    pipeline_crm.run(source_a)
+
+    # dataset B: inventory data (products + warehouses)
+    pipeline_inv = dlt.pipeline(
+        pipeline_name="cross_ds_b",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="inv_data",
+        dev_mode=True,
+    )
+    pipeline_inv.run(inventory())
+
+    return pipeline_crm.dataset(), pipeline_inv.dataset()
+
+
+@pytest.fixture(scope="module")
+def three_way_cross_dataset_duckdb(module_tmp_path: pathlib.Path) -> TCrossDs3Fixture:
+    db_path = str(module_tmp_path / "three_way_cross_dataset.db")
+
+    pipeline_crm = dlt.pipeline(
+        pipeline_name="three_way_ds_a",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="crm_data",
+        dev_mode=True,
+    )
+    source_a = crm(0)
+    source_a.root_key = True
+    pipeline_crm.run(source_a)
+
+    pipeline_inv = dlt.pipeline(
+        pipeline_name="three_way_ds_b",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="inv_data",
+        dev_mode=True,
+    )
+    pipeline_inv.run(inventory())
+
+    pipeline_billing = dlt.pipeline(
+        pipeline_name="three_way_ds_c",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="billing_data",
+        dev_mode=True,
+    )
+    pipeline_billing.run(billing())
+
+    return pipeline_crm.dataset(), pipeline_inv.dataset(), pipeline_billing.dataset()
+
+
+@pytest.fixture(scope="module")
+def same_named_cross_dataset_duckdb(module_tmp_path: pathlib.Path) -> TCrossDsFixture:
+    # Below both datasets have a `users` table, but with different schema and data
+    db_path = str(module_tmp_path / "same_named_cross_dataset.db")
+
+    pipeline_a = dlt.pipeline(
+        pipeline_name="same_name_cross_ds_a",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="crm_data",
+        dev_mode=True,
+    )
+    source_a = crm(0)
+    source_a.root_key = True
+    pipeline_a.run(source_a)
+
+    pipeline_b = dlt.pipeline(
+        pipeline_name="same_name_cross_ds_b",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="marketing_data",
+        dev_mode=True,
+    )
+    pipeline_b.run(marketing_users())
+
+    return pipeline_a.dataset(), pipeline_b.dataset()
+
+
+@pytest.fixture(scope="module")
 def dataset_with_annotated_references(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     pipeline = dlt.pipeline(
         pipeline_name="annotated_references",
@@ -106,8 +217,7 @@ def dataset_with_incomplete_join_target(module_tmp_path: pathlib.Path) -> dlt.Da
     declares an incomplete column hint via `columns=`.
 
     `phantom_field` is declared on `categories` with no `data_type`, so it never
-    materializes at the destination. `Schema.get_table_columns()` filters it out
-    via `is_complete_column`; raw `schema.tables[...]["columns"]` does not.
+    materializes at the destination.
     """
     pipeline = dlt.pipeline(
         pipeline_name="relation_incomplete_join_target",

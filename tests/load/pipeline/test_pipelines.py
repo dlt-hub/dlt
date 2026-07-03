@@ -707,8 +707,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         columns=columns_schema,
     )
     def my_resource():
-        nonlocal datetime_data
-
         start_idx = cast(int, datetime_data["col1"])
         for idx, item in enumerate([datetime_data] * 10):
             item = deepcopy(item)
@@ -1281,7 +1279,6 @@ def test_pipeline_with_named_destination_via_factory_initializer() -> None:
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
-        nonlocal calls
         assert my_val == "something"
         calls.append((items, table))
 

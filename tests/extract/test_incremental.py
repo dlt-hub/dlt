@@ -1514,11 +1514,13 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     # state was reset (child is replace but parent is append! so it will not generate any more items due to incremental
     # so child will reset itself on replace and never set the state...)
     assert "child" not in s.state["resources"]
-    # there will be a load package to reset the state but also a load package to update the child table
-    assert len(info.load_packages[0].jobs["completed_jobs"]) == 2
+    # there will be a load package to reset the state
+    assert len(info.load_packages[0].jobs["completed_jobs"]) == 1
     assert {
         job.job_file_info.table_name for job in info.load_packages[0].jobs["completed_jobs"]
-    } == {"_dlt_pipeline_state", "child"}
+    } == {"_dlt_pipeline_state"}
+    # package state also contains truncate "child" table command
+    # TODO: check the above
 
     # now we add child that has parent_r as parent but we add another instance of standalone_some_data explicitly
     # so we have a resource with the same name as child parent but the pipe instance is different
@@ -3148,9 +3150,6 @@ def test_incremental_lag_datetime_str(lag: float, last_value_func) -> None:
     def events_resource(
         _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
     ):
-        nonlocal is_second_run
-        nonlocal is_third_run
-
         initial_entries = [
             {"id": 1, "created_at": "2023-03-03T01:00:00Z", "event": "1"},
             {"id": 2, "created_at": "2023-03-03T01:00:01Z", "event": "2"},
@@ -3233,8 +3232,6 @@ def test_incremental_lag_disabled_with_custom_last_value_func(lag: float) -> Non
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=custom_function)):
-        nonlocal is_second_run
-
         initial_entries = [
             {"id": 100, "event": "100"},
             {"id": 200, "event": "200"},
@@ -3282,8 +3279,6 @@ def test_incremental_lag_disabled_with_end_values(lag: float, end_value: float) 
     def events_resource(
         _=dlt.sources.incremental("id", lag=lag, initial_value=-450, end_value=end_value)
     ):
-        nonlocal is_second_run
-
         # prepare negative ids so for all end_values we load the table with cutoff at -450
         # lag, if present would skip values even from initial load (lag==-3600)
         initial_entries = [
@@ -3347,9 +3342,6 @@ def test_incremental_lag_date_str(lag: int, last_value_func) -> None:
     def events_resource(
         _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
     ):
-        nonlocal is_second_run
-        nonlocal is_third_run
-
         initial_entries = [
             {"id": 1, "created_at": "2023-03-01", "event": "1"},
             {"id": 2, "created_at": "2023-03-02", "event": "2"},
@@ -3487,9 +3479,6 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
     def events_resource(
         _=dlt.sources.incremental("created_at", lag=lag, last_value_func=last_value_func)
     ):
-        nonlocal is_second_run
-        nonlocal is_third_run
-
         initial_entries = [
             {"id": 1, "created_at": date(2023, 3, 1), "event": "1"},
             {"id": 2, "created_at": date(2023, 3, 2), "event": "2"},
@@ -3627,9 +3616,6 @@ def test_incremental_lag_int_with_initial_values(lag: float, last_value_func) ->
     def events_resource(
         _=dlt.sources.incremental("id", lag=lag, initial_value=200, last_value_func=last_value_func)
     ):
-        nonlocal is_second_run
-        nonlocal is_third_run
-
         initial_entries = [
             {"id": 100, "event": "100"},
             {"id": 200, "event": "200"},
@@ -3739,9 +3725,6 @@ def test_incremental_lag_float(lag: float, last_value_func) -> None:
 
     @dlt.resource(name=name, primary_key="id", write_disposition="append")
     def events_resource(_=dlt.sources.incremental("id", lag=lag, last_value_func=last_value_func)):
-        nonlocal is_second_run
-        nonlocal is_third_run
-
         initial_entries = [
             {"id": 1.0, "event": "1"},
             {"id": 2.0, "event": "2"},

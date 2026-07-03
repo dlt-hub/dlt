@@ -8,7 +8,7 @@ keywords: [sql, sqlalchemy, database, destination]
 
 The SQLAlchemy destination allows you to use any database that has an [SQLAlchemy dialect](https://docs.sqlalchemy.org/en/20/dialects/) implemented as a destination.
 
-Currently, MySQL and SQLite are considered to have full support and are tested as part of the `dlt` CI suite. Other dialects are not tested but should generally work.
+Currently, MySQL, SQLite, and DuckDB are considered to have full support and are tested as part of the `dlt` CI suite. Other dialects are not tested but should generally work.
 
 ## Install dlt with SQLAlchemy
 
@@ -258,8 +258,56 @@ To work around this issue, use one of the following approaches:
    workers=1
    ```
 
+## Notes on DuckDB
+Install the [duckdb_engine](https://github.com/Mause/duckdb_engine) dialect to use DuckDB with the SQLAlchemy destination:
+
+```sh
+pip install duckdb-engine
+```
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.sqlalchemy(credentials="duckdb:///my_data.duckdb"),
+    dataset_name="my_dataset",
+)
+```
+
+Relative database paths are placed in the pipeline's local directory, same as for SQLite and the native DuckDB destination.
+
+**Note**: Prefer the native [DuckDB destination](duckdb.md). Use SQLAlchemy when you need full control over the engine, e.g., to `ATTACH` encrypted database files with connection setup SQL.
+
+### In-memory databases
+An in-memory DuckDB database is private to each connection. Pass an `Engine` that shares a single connection and load sequentially:
+
+```py
+import dlt
+import sqlalchemy as sa
+
+engine = sa.create_engine("duckdb:///:memory:", poolclass=sa.pool.StaticPool)
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination=dlt.destinations.sqlalchemy(engine),
+    dataset_name="my_dataset",
+)
+```
+
+```toml
+[load]
+workers=1
+```
+
+### DuckDB dialect limitations
+* `duckdb_engine` does not reflect primary key and unique constraints nor indexes: they are created when `create_primary_keys` / `create_unique_indexes` are enabled but cannot be read back with SQLAlchemy tooling.
+* JSON columns are reflected as VARCHAR.
+* VARCHAR precision is accepted in DDL but not stored by DuckDB.
+* Parquet files are loaded with batch INSERT statements: ADBC ingestion is not implemented for this dialect.
+
 ## Notes on other dialects
-We tested this destination on **mysql**, **sqlite**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
+We tested this destination on **mysql**, **sqlite**, **duckdb**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.

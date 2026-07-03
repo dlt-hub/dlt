@@ -1,4 +1,4 @@
-name: common | common
+name: dashboard
 
 on:
   workflow_call:
@@ -15,48 +15,56 @@ env:
 
 jobs:
   run_common:
-    name: test
+    name: ${{ matrix.display_name }}
     strategy:
       fail-fast: false
       matrix:
         include:
 
           # macos tests
-          - os: blacksmith-12vcpu-macos-latest
+          - display_name: macos-3.12
+            os: blacksmith-12vcpu-macos-latest
             python-version: "3.12"
             shell: bash
 
           # linux tests
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - display_name: linux-3.10
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.10"
             shell: bash
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - display_name: linux-3.11
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - display_name: linux-3.12
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.12"
             shell: bash
-          - os: blacksmith-8vcpu-ubuntu-2404
+          - display_name: linux-3.13
+            os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.13"
             shell: bash
 
           # linux test with minimal dependencies
           # disabled due to flakiness
-          # - os: blacksmith-8vcpu-ubuntu-2404
+          # - display_name: linux-3.11-mindeps
+          #   os: blacksmith-8vcpu-ubuntu-2404
           #   python-version: "3.11"
           #   shell: bash
           #   uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
 
           # mac test with newest available allowed packages (will update lockfile, should not be committed if run locally)
           # TODO: revert to linux
-          - os: blacksmith-12vcpu-macos-latest
+          - display_name: macos-3.11-upgrade
+            os: blacksmith-12vcpu-macos-latest
             python-version: "3.11"
             shell: bash
             uv_sync_args: '--upgrade' # could also be 'direct'
 
 
           # windows tests
-          - os: blacksmith-8vcpu-windows-2025
+          - display_name: windows-3.12
+            os: blacksmith-8vcpu-windows-2025
             python-version: "3.12"
             shell: cmd
 
@@ -107,12 +115,11 @@ jobs:
 
       # Run workspace dashboard e2e tests
       - name: Run dashboard e2e
-        run: |
-          pytest --browser chromium tests/e2e
+        run: make test-e2e-dashboard
         if: matrix.python-version != '3.14.0-beta.4'
 
   matrix_job_required_check:
-    name: common | common tests
+    name: dashboard-check
     needs: run_common
     runs-on: blacksmith-2vcpu-ubuntu-2404
     if: always()

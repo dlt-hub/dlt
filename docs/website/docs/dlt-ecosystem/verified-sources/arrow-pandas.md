@@ -100,7 +100,7 @@ as it requires processing the table row by row and rewriting data to disk.
 The output file format is chosen automatically based on the destination's capabilities, so you can load arrow, pandas, or polars frames to any destination, but performance will vary.
 
 ### Destinations that support parquet natively for direct loading
-* duckdb & motherduck
+* duckdb / motherduck / ducklake
 * redshift
 * bigquery
 * snowflake
@@ -109,6 +109,7 @@ The output file format is chosen automatically based on the destination's capabi
 * databricks
 * dremio
 * synapse
+* lance/lancedb
 
 
 ## Handling schema mismatches across batches
@@ -119,9 +120,11 @@ The `arrow_concat_promote_options` setting controls how type differences are res
 
 | Value | Behavior |
 |-------|----------|
-| `"none"` (default) | Requires identical schemas. Zero-copy concatenation. |
-| `"default"` | Fills missing columns with nulls. Promotes `null`-typed columns to concrete types. Rejects cross-family type differences. |
-| `"permissive"` | Full type promotion (e.g., `int64` → `float64`). Fills missing columns with nulls. |
+| `"none"` (default) | Requires identical schemas (zero-copy concatenation). Any schema difference — type **or** nullability — fails with a clear error and the file is **not** rotated. |
+| `"default"` | Reconciles nullability but allows **no** type differences: a parquet file is rotated on any type change. Lossless. |
+| `"permissive"` | If a unified schema exists (a common type exists for every column across all schemas), performs an **unsafe** cast of each batch into the first encountered schema — which may lose data/precision. Rotates only when no unified schema exists (e.g. cross-family types such as `timestamp` vs `int`). |
+
+In every mode the **first schema written to a file wins** — later batches are cast into it (or rotated to a new file) — and that first schema's metadata is preserved.
 
 ```toml
 [sources.data_writer]
@@ -131,9 +134,16 @@ arrow_concat_promote_options = "permissive"
 ```sh
 DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS=permissive
 ```
+`dlt` will concatenate and cast batches according to promotion settings. 
+If schema promotion is not possible - file will be rotated and incompatible batches will be split over many parquet files. A final data
+coercion will be performed by particular destination.
 
 :::note
 Setting this to anything other than `"none"` disables zero-copy concatenation, which may increase memory usage for large batches. This maps directly to the `promote_options` parameter of [`pyarrow.concat_tables`](https://arrow.apache.org/docs/python/generated/pyarrow.concat_tables.html).
+:::
+
+:::warning
+`"permissive"` may change data: widening promotions such as `int64` → `double` lose precision for large integers. It is **not recommended for `decimal` columns** - you may lose bits of precision if first table in a batch has lower precision than later emitted tables. Use **default** and let dlt to rotate parquet files.
 :::
 
 ## Add `_dlt_load_id` and `_dlt_id` to your tables

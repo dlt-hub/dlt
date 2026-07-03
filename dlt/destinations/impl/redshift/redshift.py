@@ -83,9 +83,11 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_path: str,
         staging_credentials: Optional[CredentialsConfiguration] = None,
         staging_iam_role: str = None,
+        additional_copy_options: Optional[list[str]] = None,
     ) -> None:
         super().__init__(file_path, staging_credentials)
         self._staging_iam_role = staging_iam_role
+        self.additional_copy_options = additional_copy_options or []
         self._job_client: "RedshiftClient" = None
 
     def run(self) -> None:
@@ -116,6 +118,7 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
         file_type = ""
         dateformat = ""
         compression = ""
+        additional_copy_options = "\n                ".join(self.additional_copy_options)
         if file_format == "jsonl":
             file_type = "FORMAT AS JSON 'auto'"
             dateformat = "dateformat 'auto' timeformat 'auto'"
@@ -147,7 +150,9 @@ class RedshiftCopyFileLoadJob(CopyRemoteFileLoadJob):
                 {dateformat}
                 {compression}
                 {credentials}
-                {region} MAXERROR 0;""")
+                {region}
+                {additional_copy_options}
+                MAXERROR 0;""")
 
 
 class RedshiftMergeJob(SqlMergeFollowupJob):
@@ -216,6 +221,7 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
                 file_path,
                 staging_credentials=self.config.staging_config.credentials,
                 staging_iam_role=self.config.staging_iam_role,
+                additional_copy_options=self.config.additional_copy_options,
             )
         return job
 

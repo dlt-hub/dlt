@@ -16,13 +16,8 @@ import dlt
 from dlt.common.libs.ibis import _DltBackend
 from dlt.common.libs.pyarrow import pyarrow as pa
 
-from tests.load.lance_utils import (
-    module_lance_rest_server,  # consumed by `populated_pipeline` fixture
-)
-from tests.load.test_read_interfaces import (
-    populated_pipeline,
-    preserve_module_environ_per_destination_config,
-)
+from tests.load.read_dataset_fixtures import preserve_module_environ_per_destination_config
+from tests.load.test_read_interfaces import populated_pipeline
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.utils import (
     auto_module_test_run_context,
