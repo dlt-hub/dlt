@@ -230,11 +230,10 @@ def _extract_joined_table_aliases(
     query: sge.Query, dataset_name: Optional[str] = None
 ) -> dict[str, str]:
     alias_map: dict[str, str] = {}
+    tables: list[sge.Table] = []
     from_this = _from_source(query)
-    if not isinstance(from_this, sge.Table):
-        return alias_map
-
-    tables: list[sge.Table] = [from_this]
+    if isinstance(from_this, sge.Table):
+        tables.append(from_this)
     for join in query.args.get("joins") or []:
         if isinstance(join.this, sge.Table):
             tables.append(join.this)
@@ -275,7 +274,13 @@ def _discover_join_params(
 
     qualifier_map = _extract_joined_table_aliases(expression, dataset_name)
     if left_table not in qualifier_map:
-        raise ValueError("Join query has no base table to resolve references.")
+        # the left base table may be embedded in a derived table; join via its alias
+        if (
+            not isinstance(_from_source(expression), sge.Subquery)
+            or (left_qualifier := _left_source_qualifier(expression)) is None
+        ):
+            raise ValueError("Join query has no base table to resolve references.")
+        qualifier_map[left_table] = left_qualifier
 
     attach_qualifier = qualifier_map[left_table]
 
@@ -426,6 +431,9 @@ def _apply_join(
     query = _copy_as_select(expression)
 
     left_source_qualifier = _left_source_qualifier(query) or left_table
+    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
+    if not _is_flat_select(query) or where_must_apply_before_join:
+        query = _wrap_as_derived_table(query, left_source_qualifier)
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
     join_params, target_qualifier = _discover_join_params(
@@ -463,8 +471,11 @@ def _apply_join(
     return query
 
 
-def _qualify_physical_tables_with_dataset(expression: sge.Expression, dataset_name: str) -> None:
-    """Bind every physical table reference in `expression` to `dataset_name`."""
+def _qualify_unscoped_tables_with_dataset(expression: sge.Expression, dataset_name: str) -> None:
+    """Set the logical `dataset_name` qualifier on table references that lack one.
+
+    Skips CTE references; physical (normalized) dataset resolution happens later in `bind_query`.
+    """
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     db_identifier = sge.to_identifier(dataset_name, quoted=False)
     for table in expression.find_all(sge.Table):
@@ -561,7 +572,7 @@ def _apply_explicit_join(
         left_dataset_name: Dataset name for the left-hand side.
     """
     query = _copy_as_select(expression)
-    _qualify_physical_tables_with_dataset(query, left_dataset_name)
+    _qualify_unscoped_tables_with_dataset(query, left_dataset_name)
 
     from_this = _from_source(query)
     left_source_qualifier = _source_qualifier(from_this)
@@ -589,7 +600,7 @@ def _apply_explicit_join(
     if target.subquery is not None:
         # transformed relation: embed its query as a subquery
         rhs_inner = target.subquery.copy()
-        _qualify_physical_tables_with_dataset(rhs_inner, target.dataset_name)
+        _qualify_unscoped_tables_with_dataset(rhs_inner, target.dataset_name)
         target_expr = _aliased_subquery(rhs_inner, target_qualifier)
     else:
         target_expr = sge.Table(
