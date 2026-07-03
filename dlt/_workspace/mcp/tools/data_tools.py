@@ -47,7 +47,7 @@ def list_pipelines() -> List[str]:
     ctx = active_run_context()
     # in OSS context (no profiles), filter to pipelines created in this project
     project_dir = None if isinstance(ctx, ProfilesRunContext) else ctx.local_dir
-    _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir=project_dir)
+    _, pipelines, _ = list_local_pipelines(sort_by_trace=False, run_dir=project_dir)
     return [p["name"] for p in pipelines]
 
 

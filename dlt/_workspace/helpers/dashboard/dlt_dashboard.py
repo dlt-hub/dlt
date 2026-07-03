@@ -39,6 +39,7 @@ with app.setup:
 def home(
     dlt_profile_select: mo.ui.dropdown,
     dlt_pipeline_select: mo.ui.multiselect,
+    dlt_local_pipeline_names: List[str],
     dlt_pipelines_dir: str,
     dlt_refresh_button: mo.ui.run_button,
     dlt_pipeline_name: str,
@@ -61,7 +62,7 @@ def home(
             dlt_config = utils.pipeline.resolve_dashboard_config(dlt_pipeline)
         except Exception:
             _result = utils.home.render_pipeline_header_row(
-                dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, [dlt_refresh_button]
+                dlt_pipeline_name, dlt_profile_select, dlt_pipeline_select, []
             )
             _result.append(
                 utils.ui.error_callout(
@@ -88,9 +89,15 @@ def home(
     else:
         try:
             dlt_config = utils.pipeline.resolve_dashboard_config(None)
-            _result = utils.home.render_no_pipelines_home(
-                dlt_profile_select,
-            )
+            if dlt_local_pipeline_names:
+                _result = utils.home.render_no_pipeline_selected_home(
+                    dlt_profile_select,
+                    dlt_pipeline_select,
+                )
+            else:
+                _result = utils.home.render_no_pipelines_home(
+                    dlt_profile_select,
+                )
         except Exception:
             _result = [
                 utils.ui.error_callout(
@@ -672,7 +679,8 @@ def utils_discover_pipelines(
     # discover pipelines and build selector
     dlt_pipelines_dir: str = ""
     dlt_all_pipelines: List[TPipelineListItem] = []
-    dlt_pipelines_dir, dlt_all_pipelines = list_local_pipelines(
+    dlt_local_pipeline_names: List[str] = []
+    dlt_pipelines_dir, dlt_all_pipelines, dlt_local_pipeline_names = list_local_pipelines(
         mo_cli_arg_pipelines_dir,
         additional_pipelines=[mo_cli_arg_pipeline, mo_query_var_pipeline_name],
     )
@@ -694,7 +702,7 @@ def utils_discover_pipelines(
         on_change=lambda value: mo.query_params().set("pipeline", str(value[0]) if value else None),
     )
 
-    return dlt_all_pipelines, dlt_pipeline_select, dlt_pipelines_dir
+    return dlt_all_pipelines, dlt_local_pipeline_names, dlt_pipeline_select, dlt_pipelines_dir
 
 
 @app.cell(hide_code=True)

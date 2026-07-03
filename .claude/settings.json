@@ -15,5 +15,33 @@
       "Bash(less *secrets.toml*)",
       "Bash(more *secrets.toml*)"
     ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "if": "Bash(git *)",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.agents/rules/git-github.md\"; [ -r \"$f\" ] && jq -n --rawfile c \"$f\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:$c}}' || true"
+          },
+          {
+            "type": "command",
+            "if": "Bash(gh *)",
+            "command": "f=\"$CLAUDE_PROJECT_DIR/.agents/rules/git-github.md\"; [ -r \"$f\" ] && jq -n --rawfile c \"$f\" '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:$c}}' || true"
+          }
+        ]
+      },
+      {
+        "matcher": "Edit|Write|MultiEdit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -n '{hookSpecificOutput:{hookEventName:\"PreToolUse\",additionalContext:\"COMMENT RULE (always applies, even if surrounding code is more heavily commented): default to NO comment. At most one short line, and only for a non-obvious WHY (a constraint, gotcha, or subtle invariant). Inline comments start lowercase. No what-narration, no train-of-thought, no banner/section comments separating code blocks. When editing code that already has noisy comments, trim them to a load-bearing one-liner (or remove) as part of the change.\"}}'"
+          }
+        ]
+      }
+    ]
   }
 }

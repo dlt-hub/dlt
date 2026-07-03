@@ -224,6 +224,17 @@ class OracleDialectCapabilities(DialectCapabilities):
         return super().is_undefined_relation(e)
 
 
+class DuckdbDialectCapabilities(DialectCapabilities):
+    """Capabilities for DuckDB via duckdb_engine."""
+
+    def is_undefined_relation(self, e: Exception) -> Optional[bool]:
+        msg = str(e).lower()
+        # binder errors (ie. unknown column) also contain "not found" but are terminal
+        if "binder error" in msg:
+            return False
+        return super().is_undefined_relation(e)
+
+
 def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = False) -> str:
     from dlt.common.data_writers.escape import format_datetime_literal
 
@@ -235,3 +246,4 @@ register_dialect_capabilities("mariadb", MysqlDialectCapabilities)
 register_dialect_capabilities("trino", TrinoDialectCapabilities)
 register_dialect_capabilities("mssql", MssqlDialectCapabilities)
 register_dialect_capabilities("oracle", OracleDialectCapabilities)
+register_dialect_capabilities("duckdb", DuckdbDialectCapabilities)

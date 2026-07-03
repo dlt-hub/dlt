@@ -4,6 +4,8 @@ from pathlib import Path
 import pytest
 import tempfile
 
+from dlt._workspace.helpers.dashboard import strings
+
 from tests.workspace.helpers.dashboard.example_pipelines import (
     create_success_pipeline_duckdb,
     create_success_pipeline_filesystem,
@@ -17,6 +19,22 @@ from tests.workspace.helpers.dashboard.example_pipelines import (
     create_custom_dest_callable_pipeline,
     create_custom_dest_string_ref_pipeline,
 )
+
+
+def _visible_prefix(markdown_text: str) -> str:
+    """First plain-text run of a markdown landing string, before any markup.
+
+    marimo renders the landing strings as markdown (backticks become `<code>`,
+    links become `<a>`), so only this prefix appears verbatim in the rendered
+    output while staying tied to the source-of-truth copy in `strings.py`.
+    """
+    prefix = markdown_text.strip().split("`")[0].split(".")[0].strip()
+    assert prefix, f"no plain-text prefix in landing string: {markdown_text!r}"
+    return prefix
+
+
+NO_PIPELINES_TEXT = _visible_prefix(strings.home_no_pipelines)
+NO_TRACE_TEXT = _visible_prefix(strings.app_pipeline_no_trace)
 
 
 # resolver to resolve strings to pipelines

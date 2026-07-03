@@ -122,6 +122,13 @@ If the S3 bucket is in a different region than your Redshift cluster:
 - For Parquet files, cross-region COPY operations are not supported by Redshift, so the region setting will be ignored
 :::
 
+### Additional COPY Options
+You can append additional Redshift [COPY options/Data conversion Parameters](https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-conversion.html) to staged loads with `additional_copy_options`. For example:
+```toml
+[destination.redshift]
+additional_copy_options = ["FILLRECORD", "NULL AS 'null_string'"]
+```
+
 ## Identifier names and case sensitivity
 * Up to 127 characters
 * Case insensitive

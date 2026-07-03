@@ -179,6 +179,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         credentials: Union[RedshiftCredentials, Dict[str, Any], str] = None,
         staging_iam_role: Optional[str] = None,
         has_case_sensitive_identifiers: bool = False,
+        additional_copy_options: Optional[list[str]] = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -192,6 +193,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
                 a connection string in the format `redshift://user:password@host:port/database`. Defaults to None.
             staging_iam_role (Optional[str], optional): IAM role to use for staging data in S3. Defaults to None.
             has_case_sensitive_identifiers (bool, optional): Whether case sensitive identifiers are enabled for the database. Defaults to False.
+            additional_copy_options (Optional[list[str]], optional): Additional Redshift COPY options.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any): Additional arguments passed to the destination config.
@@ -200,6 +202,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
             credentials=credentials,
             staging_iam_role=staging_iam_role,
             has_case_sensitive_identifiers=has_case_sensitive_identifiers,
+            additional_copy_options=additional_copy_options,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

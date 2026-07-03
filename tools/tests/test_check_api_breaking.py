@@ -1,6 +1,6 @@
 """Tests for tools/check_api_breaking.py."""
 
-from pathlib import Path
+from pathlib import Path, PureWindowsPath, WindowsPath
 from types import SimpleNamespace
 from typing import Any, Type
 
@@ -20,14 +20,16 @@ def test_breakage_source_file_direct() -> None:
     obj = SimpleNamespace(
         is_alias=False, relative_package_filepath=Path("dlt/pipeline/pipeline.py")
     )
-    assert _breakage_source_file(_breakage(obj)) == "dlt/pipeline/pipeline.py"
+    assert _breakage_source_file(_breakage(obj)) == str(Path("dlt/pipeline/pipeline.py"))
 
 
 def test_breakage_source_file_alias_uses_parent() -> None:
     """An alias is attributed to its parent's file, not its own."""
-    parent = SimpleNamespace(relative_package_filepath=Path("dlt/__init__.py"))
-    alias = SimpleNamespace(is_alias=True, parent=parent)
-    assert _breakage_source_file(_breakage(alias)) == "dlt/__init__.py"
+    parent = SimpleNamespace(relative_package_filepath=Path("dlt"))
+    alias = SimpleNamespace(
+        is_alias=True, parent=parent, relative_package_filepath=Path("dlt/__init__.py")
+    )
+    assert _breakage_source_file(_breakage(alias)) == "dlt"
 
 
 @pytest.mark.parametrize("exc", [ValueError, AttributeError])
@@ -46,7 +48,7 @@ def test_public_api_reports_roots_and_sources() -> None:
     root_to_names, source_files = public_api()
     assert set(root_to_names) == set(PUBLIC_API_ROOTS)
     # every root contributes at least its own __init__.py
-    assert "dlt/__init__.py" in source_files
+    assert str(Path("dlt/__init__.py")) in source_files
     assert all(f.endswith(".py") for f in source_files)
 
 

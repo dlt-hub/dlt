@@ -210,6 +210,11 @@ def test_drop_command_resources_and_state(
 
     assert_dropped_resources(attached, ["droppable_c", "droppable_d", "droppable_no_state"])
 
+    # the drop command records the dropped tables in the trace, without a refresh mode
+    drop_package = attached.last_trace.last_load_info.load_packages[0]
+    assert drop_package.refresh is None
+    assert {"droppable_c", "droppable_d", "droppable_no_state"} <= set(drop_package.dropped_tables)
+
     # Verify extra json paths are removed from state
     sources_state = pipeline.state["sources"]
     assert sources_state["droppable"]["data_from_d"] == {"foo1": {}, "foo2": {}}

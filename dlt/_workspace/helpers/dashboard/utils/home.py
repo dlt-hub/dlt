@@ -69,6 +69,22 @@ def home_header_row(
     )
 
 
+def _render_home_callout(
+    dlt_profile_select: mo.ui.dropdown,
+    message: str,
+    right_control: Any = None,
+) -> List[mo.Html]:
+    """Shared landing scaffold: section marker, header row and an info callout."""
+    return [
+        utils.ui.section_marker(strings.app_section_name, has_content=True),
+        home_header_row(dlt_profile_select, right_control),
+        mo.callout(
+            mo.md(message),
+            kind="info",
+        ),
+    ]
+
+
 def render_no_pipelines_home(
     dlt_profile_select: mo.ui.dropdown,
 ) -> List[mo.Html]:
@@ -76,14 +92,22 @@ def render_no_pipelines_home(
 
     The pipeline dropdown is omitted because there is nothing to select.
     """
-    return [
-        utils.ui.section_marker(strings.app_section_name, has_content=True),
-        home_header_row(dlt_profile_select),
-        mo.callout(
-            mo.md(strings.home_no_pipelines),
-            kind="info",
-        ),
-    ]
+    return _render_home_callout(dlt_profile_select, strings.home_no_pipelines)
+
+
+def render_no_pipeline_selected_home(
+    dlt_profile_select: mo.ui.dropdown,
+    dlt_pipeline_select: mo.ui.multiselect,
+) -> List[mo.Html]:
+    """Render the landing shown when pipelines exist but none is selected.
+
+    The pipeline dropdown stays visible so the user can re-select a pipeline.
+    """
+    return _render_home_callout(
+        dlt_profile_select,
+        strings.home_no_pipeline_selected,
+        right_control=dlt_pipeline_select,
+    )
 
 
 def render_pipeline_header_row(

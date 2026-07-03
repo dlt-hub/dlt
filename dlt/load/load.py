@@ -650,7 +650,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         with self.get_destination_client(schema) as job_client:
             if (expected_update := self.load_storage.begin_schema_update(load_id)) is not None:
                 # init job client
-                applied_update = init_client(
+                applied_update, applied_dropped, applied_truncated = init_client(
                     job_client,
                     schema,
                     new_jobs,
@@ -688,6 +688,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             truncate_tables=truncated_tables,
                         )
                 self.load_storage.commit_schema_update(load_id, applied_update)
+                # record tables actually dropped and truncated in the destination dataset,
+                # like the applied schema update above this happens exactly once per package
+                if applied_dropped or applied_truncated:
+                    state = current_load_package()["state"]
+                    if applied_dropped:
+                        state["applied_dropped_tables"] = sorted(applied_dropped)
+                    if applied_truncated:
+                        state["applied_truncated_tables"] = sorted(applied_truncated)
+                    commit_load_package_state()
 
             # collect all unfinished jobs
             return self.resume_started_jobs(load_id, schema)

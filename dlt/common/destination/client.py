@@ -605,7 +605,7 @@ class JobClientBase(ABC):
         prepared_tables = [
             self.prepare_load_table(table_name)
             for table_name in set(
-                list(only_tables or []) + self.schema.data_table_names(seen_data_only=True)
+                list(only_tables or self.schema.data_table_names(seen_data_only=True))
             )
         ]
         if exceptions := verify_supported_data_types(

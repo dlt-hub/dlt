@@ -1,3 +1,4 @@
+import contextlib
 from typing import Iterator, Tuple, List, Generator, Optional, cast
 
 from mypy_boto3_lakeformation import LakeFormationClient
@@ -30,9 +31,6 @@ from tests.utils import (
 # These tests require Lakeformation permissions to be able to run.
 # The tests have only been run as lakeformation admin so far, since the fixtures require
 # permissions to create new tags, and grant lakeformation permissions to the current role
-
-# TODO: re-enable once the test role can register the S3 bucket in lakeformation
-pytestmark = pytest.mark.skip(reason="lakeformation S3 bucket registration permissions not set up")
 
 
 @pytest.fixture(scope="module")
@@ -100,7 +98,15 @@ def s3_bucket(
         yield f"s3://{bucket_name}"
 
     except Exception as e:
+        # the code after this block does not run when setup fails, do not leak the bucket
+        with contextlib.suppress(Exception):
+            s3_client.delete_bucket(Bucket=bucket_name)
         pytest.fail(f"Failed to create S3 bucket or register it in lakeformation: {str(e)}")
+
+    try:
+        lf_client.deregister_resource(ResourceArn=f"arn:aws:s3:::{bucket_name}")
+    except Exception as e:
+        print(f"Warning: Failed to deregister {bucket_name} from lakeformation: {str(e)}")
 
     try:
         # Delete all objects in the bucket

@@ -23,7 +23,14 @@ from typing import (
 )
 import semver
 
-from dlt.common.typing import NotRequired, TypedDict, get_args, DictStrAny, SupportsHumanize
+from dlt.common.typing import (
+    NotRequired,
+    TypedDict,
+    get_args,
+    DictStrAny,
+    SupportsHumanize,
+    TRefreshMode,
+)
 from dlt.common.pendulum import pendulum
 from dlt.common.json import json
 from dlt.common.configuration import configspec
@@ -72,6 +79,8 @@ class TPipelineStateDoc(TypedDict, total=False):
 
 
 class TLoadPackageDropTablesState(TypedDict):
+    refresh: NotRequired[TRefreshMode]
+    """Refresh mode that generated the drop/truncate lists below"""
     dropped_tables: NotRequired[List[TTableSchema]]
     """List of tables that are to be dropped from the schema and destination (i.e. when `refresh` mode is used)"""
     truncated_tables: NotRequired[List[TTableSchema]]
@@ -89,6 +98,10 @@ class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=Fals
     """private space for destinations to store state relevant only to the load package"""
     load_metrics: NotRequired[Dict[str, Any]]
     """Per-job load metrics, persisted so they survive process restarts"""
+    applied_dropped_tables: NotRequired[List[str]]
+    """Names of `dropped_tables` actually dropped at the destination by the load step"""
+    applied_truncated_tables: NotRequired[List[str]]
+    """Names of `truncated_tables` actually truncated at the destination by the load step"""
 
 
 class TLoadPackage(TypedDict, total=False):
@@ -273,6 +286,15 @@ class _LoadPackageInfo(NamedTuple):
     schema_update: TSchemaTables
     completed_at: datetime.datetime
     jobs: Dict[TPackageJobState, List[LoadJobInfo]]
+    refresh: Optional[TRefreshMode] = None
+    """Refresh mode the package was extracted with"""
+    # both lists below show tables requested via the package state; when the package is
+    # loaded they show what the load step actually dropped/truncated. regular truncation
+    # of replace tables during a normal load is not included
+    dropped_tables: Optional[Sequence[str]] = None
+    """Names of tables dropped in the destination"""
+    truncated_tables: Optional[Sequence[str]] = None
+    """Names of tables truncated in the destination"""
 
 
 class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
@@ -320,6 +342,13 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
             f" {self.state.upper()} state. It updated schema for {len(self.schema_update)} tables."
             f" {completed_msg}.\n"
         )
+        if self.refresh:
+            msg += f"The package was extracted with refresh '{self.refresh}'.\n"
+        if verbosity > 0:
+            if self.dropped_tables:
+                msg += f"Dropped tables: {', '.join(self.dropped_tables)}.\n"
+            if self.truncated_tables:
+                msg += f"Truncated tables: {', '.join(self.truncated_tables)}.\n"
         msg += "Jobs details:\n"
         msg += "\n".join(job.asstr(verbosity) for job in flatten_list_or_items(iter(self.jobs.values())))  # type: ignore
         return msg
@@ -820,6 +849,16 @@ class PackageStorage:
                 self._read_job_file_info(load_id, state, job, package_created_at) for job in jobs
             ]
 
+        # read refresh mode and drop/truncate info from package state. the load step records
+        # the tables it actually dropped/truncated, until then the requested tables are used
+        load_package_state = self.get_load_package_state(load_id)
+        dropped_tables = load_package_state.get("applied_dropped_tables") or [
+            table["name"] for table in load_package_state.get("dropped_tables", [])
+        ]
+        truncated_tables = load_package_state.get("applied_truncated_tables") or [
+            table["name"] for table in load_package_state.get("truncated_tables", [])
+        ]
+
         return LoadPackageInfo(
             load_id,
             self.storage.make_full_path(package_path),
@@ -828,6 +867,9 @@ class PackageStorage:
             applied_update,
             package_created_at,
             all_job_infos,
+            refresh=load_package_state.get("refresh"),
+            dropped_tables=dropped_tables or None,
+            truncated_tables=truncated_tables or None,
         )
 
     def get_job_failed_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:

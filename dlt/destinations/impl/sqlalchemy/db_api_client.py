@@ -205,6 +205,10 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def has_dataset(self) -> bool:
         with self._ensure_transaction():
+            if self.dialect_name == "duckdb":
+                # duckdb_engine returns catalog-qualified names from get_schema_names(),
+                # has_schema resolves the dataset within the current catalog
+                return self.dialect.has_schema(self._current_connection, self.dataset_name)  # type: ignore[attr-defined,no-any-return]
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
         return self.dataset_name in schema_names
 
@@ -338,6 +342,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         """Get a table object from metadata if it exists"""
         key = self.dataset_name + "." + table_name
         return self.metadata.tables.get(key)  # type: ignore[no-any-return]
+
+    def to_dataset_table(self, table_obj: sa.Table, staging: bool = False) -> sa.Table:
+        """Returns table_obj copied into the current or staging dataset in the shared metadata.
+        Reuses a copy already registered there to avoid duplicate table warnings.
+        """
+        dataset_name = self.staging_dataset_name if staging else self.dataset_name
+        existing: Optional[sa.Table] = self.metadata.tables.get(dataset_name + "." + table_obj.name)
+        if existing is not None:
+            return existing
+        return table_obj.to_metadata(self.metadata, schema=dataset_name)  # type: ignore[no-any-return]
 
     def create_table(self, table_obj: sa.Table) -> None:
         with self._ensure_transaction():
