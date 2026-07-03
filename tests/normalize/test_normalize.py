@@ -35,6 +35,7 @@ from tests.utils import (
     assert_no_dict_key_starts_with,
     clean_test_storage,
     init_test_logging,
+    sum_job_metrics_by_table,
 )
 from tests.normalize.utils import (
     json_case_path,
@@ -314,6 +315,33 @@ def test_multiprocessing_row_counting(
         for t, m in step_info.metrics[step_info.loads_ids[0]][0]["table_metrics"].items()
     }
     assert row_counts == step_info.row_counts
+
+
+@pytest.mark.parametrize("pool_workers", (4, 8), ids=("4 norm workers", "8 norm workers"))
+def test_parallel_normalize_table_metrics_with_file_rotation(
+    raw_normalize: Normalize, pool_workers: int
+) -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "1000"
+    os.environ["NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS"] = "1000"
+
+    row_count = 2000
+    items = [{"id": i, "friends": [f"f{j}" for j in range(i % 5)]} for i in range(row_count)]
+    schema = Schema("rotation_metrics")
+    extract_items(raw_normalize.normalize_storage, items, schema, "people", batch_size=500)
+
+    with create_pool(PoolRunnerConfiguration(pool_type="process", workers=pool_workers)) as pool:
+        raw_normalize.run(pool)
+
+    step_info = raw_normalize.get_step_info(MockPipeline("rotation_metrics", True))  # type: ignore[abstract]
+    load_id = step_info.loads_ids[0]
+    metrics = step_info.metrics[load_id][0]
+    expected_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+    friend_rows = sum(i % 5 for i in range(row_count))
+
+    assert step_info.row_counts["people"] == expected_counts["people"] == row_count
+    assert (
+        step_info.row_counts["people__friends"] == expected_counts["people__friends"] == friend_rows
+    )
 
 
 @pytest.mark.parametrize("pool_workers", (1, 2))

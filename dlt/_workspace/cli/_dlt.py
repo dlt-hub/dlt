@@ -20,6 +20,16 @@ from dlt._workspace.cli.echo import maybe_no_stdin
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
 
+_DLT_TO_DLTHUB_COMMANDS: Dict[str, str] = {
+    "init": "pipeline init",
+    "pipeline": "local pipeline",
+    "schema": "local schema",
+    "telemetry": "local telemetry",
+    "dashboard": "local show",
+    "ai": "ai",
+}
+"""Maps `dlt` commands to their `dlthub` replacements suggested in an active workspace."""
+
 
 class _LazyMarkdown:
     """Renderable wrapper that defers `rich.markdown.Markdown` instantiation"""
@@ -370,20 +380,32 @@ def main(host: str = "dlt") -> int:
     return 0
 
 
+def _print_use_dlthub_note(command: Optional[str]) -> None:
+    """Print a note pointing the user to the `dlthub` replacement of the attempted `dlt` command."""
+    if replacement := _DLT_TO_DLTHUB_COMMANDS.get(command or ""):
+        fmt.echo(
+            "`dlt %s` is not available in an active dltHub Workspace. Use %s instead."
+            % (command, fmt.bold("dlthub " + replacement)),
+            err=True,
+        )
+    else:
+        fmt.echo(
+            "Use %s as the top level command in an active dltHub Workspace. Check %s and %s"
+            " for former dlt commands."
+            % (fmt.bold("dlthub"), fmt.bold("dlthub --help"), fmt.bold("dlthub local --help")),
+            err=True,
+        )
+
+
 def _main() -> None:
     """Entry point for the `dlt` console script."""
-    # when workspace is active, dlt commands mirrors dlthub
-    if is_workspace_active():
-        host = "dlthub"
-        fmt.note(
-            "Please use %s as top level command. Check `%s` for former dlt commands. "
-            "Falling back to dlthub command set."
-            % (fmt.bold("dlthub"), fmt.bold("dlthub local --help"))
-        )
-        fmt.echo()
-    else:
-        host = "dlt"
-    exit(main(host))
+    # when workspace is active, dlt commands do not execute - the user is pointed to dlthub.
+    # only `dlt --version` still dispatches
+    if is_workspace_active() and "--version" not in sys.argv[1:]:
+        command = next((a for a in sys.argv[1:] if not a.startswith("-")), None)
+        _print_use_dlthub_note(command)
+        exit(-1)
+    exit(main("dlt"))
 
 
 def _main_dlthub() -> None:

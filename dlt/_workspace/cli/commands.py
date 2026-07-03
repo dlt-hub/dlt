@@ -729,7 +729,7 @@ def make_moved_to_dlthub_command(cmd: str, new_cmd: str) -> "type[SupportsCliCom
 
     class _Moved(SupportsCliCommand):
         command = cmd
-        help_string = f"Moved to `dlthub {new_cmd}` (run `pip install dlt[hub]`)"
+        help_string = rf"Moved to `dlthub {new_cmd}` (run `pip install dlt\[hub]`)"
         description = msg
         docs_url: Optional[str] = None
 

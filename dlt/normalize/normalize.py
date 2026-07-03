@@ -1,14 +1,12 @@
 import os
-import itertools
 from typing import List, Dict, NamedTuple, Sequence, Set, Optional, Callable
 from concurrent.futures import Future, Executor
 
 from dlt.common import logger
-from dlt.common.metrics import DataWriterMetrics
+from dlt.common.metrics import DataWriterMetrics, aggregate_job_metrics
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
-from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS
 from dlt.common.runners import TRunMetrics, Runnable, NullExecutor
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
@@ -233,12 +231,7 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
         )
         # compute metrics
         job_metrics = {ParsedLoadJobFileName.parse(m.file_path): m for m in writer_metrics}
-        table_metrics: Dict[str, DataWriterMetrics] = {
-            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
-            for table_name, metrics in itertools.groupby(
-                job_metrics.items(), lambda pair: pair[0].table_name
-            )
-        }
+        table_metrics = aggregate_job_metrics(job_metrics, lambda job: job.table_name)
         self._step_info_update_metrics(
             load_id,
             {

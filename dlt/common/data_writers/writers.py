@@ -44,7 +44,6 @@ from dlt.common.destination import (
     LOADER_FILE_FORMATS,
 )
 from dlt.common.exceptions import ValueErrorWithKnownValues
-from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItem, TDataItems
 
@@ -69,9 +68,6 @@ class FileWriterSpec(NamedTuple):
     supports_compression: bool = False
     file_max_items: Optional[int] = None
     """Set an upper limit on the number of items in one file"""
-
-
-EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
 
 
 class DataWriter(abc.ABC):
