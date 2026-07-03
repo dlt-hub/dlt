@@ -35,6 +35,7 @@ from tests.utils import (
     assert_no_dict_key_starts_with,
     clean_test_storage,
     init_test_logging,
+    sum_job_metrics_by_table,
 )
 from tests.normalize.utils import (
     json_case_path,
@@ -334,21 +335,13 @@ def test_parallel_normalize_table_metrics_with_file_rotation(
     step_info = raw_normalize.get_step_info(MockPipeline("rotation_metrics", True))  # type: ignore[abstract]
     load_id = step_info.loads_ids[0]
     metrics = step_info.metrics[load_id][0]
-    expected_counts = _sum_job_metrics_by_table(metrics["job_metrics"])
+    expected_counts = sum_job_metrics_by_table(metrics["job_metrics"])
     friend_rows = sum(i % 5 for i in range(row_count))
 
     assert step_info.row_counts["people"] == expected_counts["people"] == row_count
     assert (
         step_info.row_counts["people__friends"] == expected_counts["people__friends"] == friend_rows
     )
-
-
-def _sum_job_metrics_by_table(job_metrics: Dict[str, DataWriterMetrics]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    for job_id, metric in job_metrics.items():
-        table_name = job_id.split(".", 1)[0]
-        counts[table_name] = counts.get(table_name, 0) + metric.items_count
-    return counts
 
 
 @pytest.mark.parametrize("pool_workers", (1, 2))

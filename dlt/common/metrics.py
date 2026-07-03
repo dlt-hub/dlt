@@ -42,12 +42,7 @@ def aggregate_job_metrics(
     job_metrics: Mapping[TJobKey, DataWriterMetrics],
     key: Callable[[TJobKey], str],
 ) -> Dict[str, DataWriterMetrics]:
-    """Sum writer metrics by grouping key.
-
-    Unlike `itertools.groupby`, input order does not matter -- each group is fully aggregated.
-    Groups always go through `__add__`, even singleton ones, so `file_path` is reset to `""`
-    consistently regardless of how many jobs a group has.
-    """
+    """Sum writer metrics grouped by `key`, independent of input order."""
     result: Dict[str, DataWriterMetrics] = {}
     for job_key, metrics in job_metrics.items():
         group_key = key(job_key)

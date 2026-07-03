@@ -10,7 +10,6 @@ import pytest
 import time
 from typing import Dict, Tuple
 
-from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.schema import TTableSchema
@@ -18,6 +17,7 @@ from dlt.common.destination.capabilities import TLoaderParallelismStrategy
 from tests.pipeline.utils import (
     assert_table_column,
 )
+from tests.utils import sum_job_metrics_by_table
 
 
 def run_pipeline(
@@ -188,7 +188,7 @@ def test_step_table_metrics_with_file_rotation_and_workers(workers: int) -> None
 
     extract_load_id = extract_info.loads_ids[0]
     extract_metrics = extract_info.metrics[extract_load_id][0]
-    extract_table_counts = _sum_job_metrics_by_table(extract_metrics["job_metrics"])
+    extract_table_counts = sum_job_metrics_by_table(extract_metrics["job_metrics"])
     assert (
         extract_metrics["table_metrics"]["countries"].items_count
         == extract_table_counts["countries"]
@@ -208,7 +208,7 @@ def test_step_table_metrics_with_file_rotation_and_workers(workers: int) -> None
 
     normalize_load_id = normalize_info.loads_ids[0]
     normalize_metrics = normalize_info.metrics[normalize_load_id][0]
-    normalize_table_counts = _sum_job_metrics_by_table(normalize_metrics["job_metrics"])
+    normalize_table_counts = sum_job_metrics_by_table(normalize_metrics["job_metrics"])
     assert normalize_info.row_counts["countries"] == normalize_table_counts["countries"] == 100
     assert (
         normalize_info.row_counts["famous_people"]
@@ -229,11 +229,3 @@ def test_step_table_metrics_with_file_rotation_and_workers(workers: int) -> None
             == friend_rows
         )
     assert load_info.loads_ids == normalize_info.loads_ids
-
-
-def _sum_job_metrics_by_table(job_metrics: Dict[str, DataWriterMetrics]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    for job_id, metric in job_metrics.items():
-        table_name = job_id.split(".", 1)[0]
-        counts[table_name] = counts.get(table_name, 0) + metric.items_count
-    return counts

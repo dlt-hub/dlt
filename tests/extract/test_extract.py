@@ -23,7 +23,12 @@ from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hint
 from dlt.extract.items_transform import ValidateItem, MetricsItem
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
 
-from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
+from tests.utils import (
+    MockPipeline,
+    clean_test_storage,
+    get_test_storage_root,
+    sum_job_metrics_by_table,
+)
 from tests.extract.utils import expect_extracted_file, assert_written_tables_are_computed
 
 NESTED_DATA = [
@@ -1235,7 +1240,7 @@ def test_extract_table_and_resource_metrics_with_file_rotation() -> None:
     extract_info = pipeline.extract([alpha(), beta()])
     load_id = extract_info.loads_ids[0]
     metrics = extract_info.metrics[load_id][0]
-    expected_table_counts = _sum_extract_job_metrics_by_table(metrics["job_metrics"])
+    expected_table_counts = sum_job_metrics_by_table(metrics["job_metrics"])
 
     assert metrics["table_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
     assert metrics["table_metrics"]["beta"].items_count == expected_table_counts["beta"]
@@ -1243,12 +1248,28 @@ def test_extract_table_and_resource_metrics_with_file_rotation() -> None:
     assert metrics["resource_metrics"]["beta"].items_count == expected_table_counts["beta"]
 
 
-def _sum_extract_job_metrics_by_table(job_metrics: Dict[str, Any]) -> Dict[str, int]:
-    counts: Dict[str, int] = {}
-    for job_id, metric in job_metrics.items():
-        table_name = job_id.split(".", 1)[0]
-        counts[table_name] = counts.get(table_name, 0) + metric.items_count
-    return counts
+def test_extract_resource_metrics_with_interleaved_tables() -> None:
+    # a resource dispatching to several tables whose writers stay open interleaves its jobs with
+    # another resource's, so the same resource's tables are non-adjacent in job_metrics
+    @dlt.resource(table_name=lambda item: f"multi_{item['bucket']}")
+    def multi() -> TDataItems:
+        for i in range(1000):
+            yield {"id": i, "bucket": i % 2}
+
+    @dlt.resource
+    def other() -> TDataItems:
+        for i in range(500):
+            yield {"id": i}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([multi(), other()])
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]
+    expected_table_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+
+    expected_multi = expected_table_counts["multi_0"] + expected_table_counts["multi_1"]
+    assert metrics["resource_metrics"]["multi"].items_count == expected_multi
+    assert metrics["resource_metrics"]["other"].items_count == expected_table_counts["other"]
 
 
 @pytest.mark.parametrize(
