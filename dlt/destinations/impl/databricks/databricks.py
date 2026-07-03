@@ -675,11 +675,14 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         return ""
 
     def _should_retry_schema_update(self, ex: Exception) -> bool:
+        # delta rejects losers of concurrent metadata commits, the statement did not apply
         msg = str(ex)
-        return any(
-            marker in msg
-            for marker in ("ALREADY_EXISTS", "DELTA_METADATA_CHANGED", "DELTA_CONCURRENT")
-        )
+        return "DELTA_METADATA_CHANGED" in msg or "DELTA_CONCURRENT" in msg
+
+    def _is_schema_update_applied(self, ex: Exception) -> bool:
+        # a concurrent load added the same column first
+        msg = str(ex)
+        return "FIELDS_ALREADY_EXISTS" in msg or "COLUMN_ALREADY_EXISTS" in msg
 
     def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
         if self.capabilities.supports_create_table_if_not_exists:
@@ -795,8 +798,6 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             # Add CLUSTER BY clause
             if cluster_clause:
                 sql += f" {cluster_clause}"
-            # comment is inlined: a standalone COMMENT ON TABLE is a separate metadata write
-            # that conflicts with concurrent loads initializing the same schema
             if escaped_comment:
                 sql += f" COMMENT {escaped_comment}"
             # Add TBLPROPERTIES clause (comes after CLUSTER BY)

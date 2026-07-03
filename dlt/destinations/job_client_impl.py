@@ -655,11 +655,38 @@ WHERE """
         return fields
 
     def _should_retry_schema_update(self, ex: Exception) -> bool:
-        """Tells if a schema update that failed with `ex` may converge when rebuilt from re-read
-        storage. Destinations where concurrent loads modify table metadata without ddl
-        transactions detect their conflict errors here.
+        """Tells if a schema update statement that failed with `ex` did not apply due to a
+        concurrent schema modification and may converge when retried from re-read storage.
+        Destinations where concurrent loads modify table metadata without ddl transactions
+        detect their conflict errors here.
         """
         return False
+
+    def _is_schema_update_applied(self, ex: Exception) -> bool:
+        """Tells if a schema update statement that failed with `ex` has its effect already
+        present in the destination i.e. a concurrent load added the same column first.
+        """
+        return False
+
+    def _execute_schema_update_with_tolerance(
+        self, sql_scripts: Sequence[str]
+    ) -> Tuple[List[str], List[Exception]]:
+        """Executes statements one by one so a conflicting statement does not abort the rest.
+        Returns statements that failed on a concurrent schema modification with their errors.
+        """
+        failed: List[str] = []
+        errors: List[Exception] = []
+        for sql in sql_scripts:
+            try:
+                self.sql_client.execute_sql(sql)
+            except DatabaseException as ex:
+                if self._is_schema_update_applied(ex):
+                    continue
+                if not self._should_retry_schema_update(ex):
+                    raise
+                failed.append(sql)
+                errors.append(ex)
+        return failed, errors
 
     def _execute_schema_update_sql(
         self, only_tables: Iterable[str], store_schema: bool = True
@@ -668,25 +695,33 @@ WHERE """
         table_names = list(only_tables or self.schema.tables.keys())
         attempts = max(1, self.SCHEMA_UPDATE_MAX_ATTEMPTS)
         schema_update: TSchemaTables = {}
+        pending: List[str] = []
+        prev_round: Optional[Tuple[Tuple[str, ...], Tuple[str, ...]]] = None
         for attempt in range(attempts):
             sql_scripts, update = self._build_schema_update_sql(
                 list(self.get_storage_tables(table_names))
             )
             schema_update = schema_update or update
+            if attempts == 1:
+                self.sql_client.execute_many(sql_scripts)
+                break
+            # replay failed statements the rebuilt diff cannot regenerate
+            sql_scripts.extend(sql for sql in pending if sql not in sql_scripts)
             if not sql_scripts:
                 break
-            try:
-                self.sql_client.execute_many(sql_scripts)
-                if attempts == 1:
-                    break
-            except DatabaseException as ex:
-                if attempt == attempts - 1 or not self._should_retry_schema_update(ex):
-                    raise
+            pending, errors = self._execute_schema_update_with_tolerance(sql_scripts)
+            if pending:
+                this_round = (tuple(sql_scripts), tuple(str(ex) for ex in errors))
+                # identical statements failing identically twice is a persistent error, not a
+                # concurrent modification
+                if this_round == prev_round or attempt == attempts - 1:
+                    raise errors[0]
+                prev_round = this_round
                 logger.warning(
-                    "Schema update failed due to a concurrent schema modification, retrying"
-                    f" ({attempt + 1}/{attempts}): {ex}"
+                    f"{len(pending)} schema update statements failed on a possible concurrent"
+                    f" schema modification, retrying ({attempt + 1}/{attempts}): {errors[0]}"
                 )
-                # add jitter prevent lockstep in concurrent loads
+                # add jitter to prevent lockstep in concurrent loads
                 sleep(random.uniform(0.05, 0.25 * (attempt + 1)))
         if store_schema:
             # under concurrency an identical schema may have been stored by another load

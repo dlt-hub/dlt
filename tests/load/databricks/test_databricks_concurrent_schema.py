@@ -55,12 +55,12 @@ def test_schema_update_converges_under_concurrent_modification(empty_schema: Sch
     )
     calls: List[str] = []
 
-    def execute_many(statements: List[str], *args: str) -> None:
-        calls.append("execute:" + ";".join(statements))
+    def execute_sql(sql: str, *args: Any) -> None:
+        calls.append("execute:" + sql)
         if len(calls) == 2:
             raise DatabaseTerminalException(Exception("[DELTA_METADATA_CHANGED] concurrent update"))
 
-    client.sql_client.execute_many = mock.MagicMock(side_effect=execute_many)  # type: ignore[method-assign]
+    client.sql_client.execute_sql = mock.MagicMock(side_effect=execute_sql)  # type: ignore[method-assign]
     client.get_stored_schema_by_hash = mock.MagicMock(return_value=None)  # type: ignore[method-assign]
     client._update_schema_in_storage = mock.MagicMock(  # type: ignore[method-assign]
         side_effect=lambda schema: calls.append("store")
@@ -76,10 +76,68 @@ def test_schema_update_converges_under_concurrent_modification(empty_schema: Sch
     assert calls[-1] == "store"
 
 
+def test_schema_update_replays_dropped_hint_statements(empty_schema: Schema) -> None:
+    """A comment failing after its ALTER applied is replayed even though the rebuilt diff no
+    longer generates statements for the table."""
+    client = create_client(empty_schema, create_indexes=False)
+    table = new_table(
+        TABLE_NAME,
+        columns=[
+            {"name": "col_a", "data_type": "text"},
+            {"name": "col_b", "data_type": "bigint"},
+        ],
+    )
+    table["description"] = "test table comment"
+    client.schema.update_table(table)
+    client.get_storage_tables = mock.MagicMock(  # type: ignore[method-assign]
+        side_effect=[
+            [(TABLE_NAME, dict(COL_A))],
+            [(TABLE_NAME, dict(ALL_COLS))],
+            [(TABLE_NAME, dict(ALL_COLS))],
+        ]
+    )
+    executed: List[str] = []
+
+    def execute_sql(sql: str, *args: Any) -> None:
+        executed.append(sql)
+        if sql.startswith("COMMENT ON TABLE") and executed.count(sql) == 1:
+            raise DatabaseTerminalException(Exception("[DELTA_METADATA_CHANGED] concurrent update"))
+
+    client.sql_client.execute_sql = mock.MagicMock(side_effect=execute_sql)  # type: ignore[method-assign]
+    client.get_stored_schema_by_hash = mock.MagicMock(return_value=None)  # type: ignore[method-assign]
+    client._update_schema_in_storage = mock.MagicMock()  # type: ignore[method-assign]
+
+    client._execute_schema_update_sql([TABLE_NAME])
+
+    comments = [sql for sql in executed if sql.startswith("COMMENT ON TABLE")]
+    assert len(comments) == 2
+    client._update_schema_in_storage.assert_called_once()
+
+
+def test_schema_update_tolerates_column_added_by_concurrent_load(empty_schema: Schema) -> None:
+    client = _mocked_client(empty_schema)
+    client.get_storage_tables = mock.MagicMock(  # type: ignore[method-assign]
+        side_effect=[
+            [(TABLE_NAME, dict(COL_A))],
+            [(TABLE_NAME, dict(ALL_COLS))],
+        ]
+    )
+    client.sql_client.execute_sql = mock.MagicMock(  # type: ignore[method-assign]
+        side_effect=DatabaseTerminalException(Exception("[FIELDS_ALREADY_EXISTS] col_b"))
+    )
+    client.get_stored_schema_by_hash = mock.MagicMock(return_value=None)  # type: ignore[method-assign]
+    client._update_schema_in_storage = mock.MagicMock()  # type: ignore[method-assign]
+
+    client._execute_schema_update_sql([TABLE_NAME])
+
+    assert client.sql_client.execute_sql.call_count == 1
+    client._update_schema_in_storage.assert_called_once()
+
+
 def test_schema_update_raises_on_other_errors(empty_schema: Schema) -> None:
     client = _mocked_client(empty_schema)
     client.get_storage_tables = mock.MagicMock(return_value=[(TABLE_NAME, {})])  # type: ignore[method-assign]
-    client.sql_client.execute_many = mock.MagicMock(  # type: ignore[method-assign]
+    client.sql_client.execute_sql = mock.MagicMock(  # type: ignore[method-assign]
         side_effect=DatabaseTerminalException(Exception("[PARSE_SYNTAX_ERROR] boom"))
     )
     client._update_schema_in_storage = mock.MagicMock()  # type: ignore[method-assign]
@@ -87,7 +145,25 @@ def test_schema_update_raises_on_other_errors(empty_schema: Schema) -> None:
     with pytest.raises(DatabaseTerminalException):
         client._execute_schema_update_sql([TABLE_NAME])
 
-    assert client.sql_client.execute_many.call_count == 1
+    assert client.sql_client.execute_sql.call_count == 1
+    client._update_schema_in_storage.assert_not_called()
+
+
+def test_schema_update_bails_on_persistent_error(empty_schema: Schema) -> None:
+    """Identical statements failing identically twice raise without burning all attempts."""
+    client = _mocked_client(empty_schema)
+    client.get_storage_tables = mock.MagicMock(  # type: ignore[method-assign]
+        side_effect=lambda table_names: [(TABLE_NAME, {})]
+    )
+    client.sql_client.execute_sql = mock.MagicMock(  # type: ignore[method-assign]
+        side_effect=DatabaseTerminalException(Exception("[DELTA_METADATA_CHANGED] static failure"))
+    )
+    client._update_schema_in_storage = mock.MagicMock()  # type: ignore[method-assign]
+
+    with pytest.raises(DatabaseTerminalException):
+        client._execute_schema_update_sql([TABLE_NAME])
+
+    assert client.sql_client.execute_sql.call_count == 2
     client._update_schema_in_storage.assert_not_called()
 
 
@@ -99,28 +175,34 @@ def test_schema_update_exhausts_attempts(
     client.get_storage_tables = mock.MagicMock(  # type: ignore[method-assign]
         side_effect=lambda table_names: [(TABLE_NAME, {})]
     )
-    client.sql_client.execute_many = mock.MagicMock(  # type: ignore[method-assign]
-        side_effect=DatabaseTerminalException(Exception("[TABLE_OR_VIEW_ALREADY_EXISTS] raced"))
-    )
+    counter = iter(range(100))
+
+    def execute_sql(sql: str, *args: Any) -> None:
+        # distinct conflicting commits so the no-progress bail does not trigger
+        raise DatabaseTerminalException(
+            Exception(f"[DELTA_METADATA_CHANGED] commit {next(counter)}")
+        )
+
+    client.sql_client.execute_sql = mock.MagicMock(side_effect=execute_sql)  # type: ignore[method-assign]
     client._update_schema_in_storage = mock.MagicMock()  # type: ignore[method-assign]
 
     with pytest.raises(DatabaseTerminalException):
         client._execute_schema_update_sql([TABLE_NAME])
 
-    assert client.sql_client.execute_many.call_count == 3
+    assert client.sql_client.execute_sql.call_count == 3
     client._update_schema_in_storage.assert_not_called()
 
 
 def test_schema_update_skips_version_row_stored_by_concurrent_load(empty_schema: Schema) -> None:
     client = _mocked_client(empty_schema)
     client.get_storage_tables = mock.MagicMock(return_value=[(TABLE_NAME, dict(ALL_COLS))])  # type: ignore[method-assign]
-    client.sql_client.execute_many = mock.MagicMock()  # type: ignore[method-assign]
+    client.sql_client.execute_sql = mock.MagicMock()  # type: ignore[method-assign]
     client.get_stored_schema_by_hash = mock.MagicMock(return_value=object())  # type: ignore[method-assign]
     client._update_schema_in_storage = mock.MagicMock()  # type: ignore[method-assign]
 
     client._execute_schema_update_sql([TABLE_NAME])
 
-    client.sql_client.execute_many.assert_not_called()
+    client.sql_client.execute_sql.assert_not_called()
     client._update_schema_in_storage.assert_not_called()
 
 
