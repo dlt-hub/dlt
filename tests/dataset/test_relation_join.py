@@ -1367,6 +1367,22 @@ def test_order_by_join_output_alias_survives_select(
     assert [float(x) for x in df[f"{prefix}__amount"]] == [30.0, 200.0, 75.0, 50.0]
 
 
+def test_order_by_join_output_binds_to_source_column(
+    dataset_with_relational_tables: dlt.Dataset,
+) -> None:
+    """tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation)."""
+    rel = (
+        dataset_with_relational_tables.table("customers")
+        .join("orders", on="customers.customer_id = orders.customer_id")
+        .order_by("orders__order_id")
+    )
+    sql = rel.to_sql()
+    assert 'ORDER BY "orders"."order_id"' in sql
+    order_by = sqlglot.transpile(sql, read="duckdb", write="tsql")[0].split("ORDER BY", 1)[1]
+    assert "[orders__order_id]" not in order_by
+    assert "[orders].[order_id]" in order_by
+
+
 def test_explicit_on_projection_alias_collision_rejected(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:

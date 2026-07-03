@@ -1082,6 +1082,22 @@ def bind_query(
     qualified_query = qualified_query.copy()
     is_casefolding = casefold_identifier is not str
 
+    # bind ORDER BY references to output aliases back to their source expressions. dialects
+    # like tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation)
+    order = qualified_query.args.get("order")
+    if order is not None and isinstance(qualified_query, sge.Select):
+        alias_sources = {
+            proj.output_name: proj.this
+            for proj in qualified_query.selects
+            if isinstance(proj, sge.Alias)
+        }
+        for col in list(order.find_all(sge.Column)):
+            if col.args.get("table") is not None or col.parent_select is not qualified_query:
+                continue
+            source = alias_sources.get(col.name)
+            if source is not None and not isinstance(source, sge.Star):
+                col.replace(source.copy())
+
     # preserve "column" names in original selects which are done in dlt schema namespace
     orig_selects: Dict[int, str] = None
     if is_casefolding:
