@@ -6,10 +6,6 @@ keywords: [playground, workspace, onboarding, dlthub platform, profiles]
 
 # The Playground workspace
 
-:::note
-Use of the dltHub platform and toolkits is subject to a commercial dltHub License.
-:::
-
 ## What is the Playground workspace?
 
 The **Playground workspace** is a regular dltHub [workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) that the platform creates for you automatically when you create your account, so you always have somewhere to try dltHub without setting one up yourself. It is personal (single-member) and, unlike other workspaces, cannot be renamed or deleted.
