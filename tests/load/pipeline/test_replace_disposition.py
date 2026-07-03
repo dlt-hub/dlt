@@ -1,9 +1,11 @@
-from typing import Dict
+from typing import Any, Dict
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
 from pytest_mock import MockerFixture
 
 from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import (
     assert_load_info,
@@ -170,17 +172,11 @@ def test_replace_disposition(
         "append_items": 36,
     }
     assert_empty_tables(pipeline, "items", "items__sub_items", "items__sub_items__sub_sub_items")
-    # check trace: `items` produces no jobs, the whole chain is truncated via the package state
+    # check trace
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
+        "items": 0,
     }
-    package = info.load_packages[0]
-    assert set(package.truncated_tables) == {
-        "items",
-        "items__sub_items",
-        "items__sub_items__sub_sub_items",
-    }
-    assert package.dropped_tables is None
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
     pipeline_2 = destination_config.setup_pipeline(
@@ -344,23 +340,14 @@ def test_replace_table_clearing(
     # see if yield none clears everything
     for empty_resource in [yield_none, no_yield, yield_empty_list]:
         pipeline.run(items_with_subitems, **destination_config.run_kwargs)
-        info = pipeline.run(empty_resource, **destination_config.run_kwargs)
+        pipeline.run(empty_resource, **destination_config.run_kwargs)
         assert load_table_counts(pipeline, "static_items", "static_items__sub_items") == {
             "static_items": 1,
             "static_items__sub_items": 2,
         }
         assert_empty_tables(pipeline, "items", "other_items", "other_items__sub_items")
-        # check trace (no tables - they are truncated via package state)
-        assert pipeline.last_trace.last_normalize_info.row_counts == {}
-        # both dispatched table chains are truncated, tables of unselected resources are not
-        package = info.load_packages[0]
-        assert set(package.truncated_tables) == {
-            "items",
-            "items__sub_items",
-            "other_items",
-            "other_items__sub_items",
-        }
-        assert package.dropped_tables is None
+        # check trace
+        assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, **destination_config.run_kwargs)
@@ -688,3 +675,68 @@ def test_replace_strategy_switch_creates_staging_tables(
         "merge_items": 1,
         "nested_items": 1,
     }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_replace_staging_empty_resource_aborted_package_keeps_data(
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
+) -> None:
+    """Makes sure that insert-from-staging does not truncate upfront when no data on resource"""
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "insert-from-staging"
+    pipeline = destination_config.setup_pipeline("replace_empty_abort", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items(rows: Any) -> Any:
+        yield from rows
+
+    info = pipeline.run(items([{"id": 1}, {"id": 2}]), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # fail the replace followup so the package aborts after the 0-row job loaded to staging
+    mocker.patch.object(
+        SqlStagingReplaceFollowupJob, "generate_sql", side_effect=Exception("compute failed")
+    )
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(items([]), **destination_config.run_kwargs)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # the pending package completes once the fault is gone and the table is replaced with no rows
+    mocker.stopall()
+    info = pipeline.run(items([]), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 0}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_replace_refreshed_disposition_no_data(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """A table whose write disposition is refreshed to replace on a run without data for it is
+    truncated under every replace strategy."""
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+
+    pipeline = destination_config.setup_pipeline("replace_refresh_empty", dev_mode=True)
+
+    @dlt.resource(name="events", table_name=lambda e: e["kind"], primary_key="id")
+    def events(kinds: Any) -> Any:
+        for idx, kind in enumerate(kinds):
+            yield {"id": idx, "kind": kind}
+
+    pipeline.run(events(["a", "b"]), write_disposition="merge", **destination_config.run_kwargs)
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 1}
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
+
+    # switch to replace with data only for "a": "b" is refreshed to replace and truncated
+    pipeline.run(events(["a"]), write_disposition="replace", **destination_config.run_kwargs)
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "replace"
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}

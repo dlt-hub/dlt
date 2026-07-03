@@ -158,9 +158,7 @@ def init_client(
 
         # if there are tables to drop, we should also drop them in the staging dataset
         if all_staging_tables or drop_table_names:
-            # the staging dataset holds only staging-eligible tables so the stored schema is
-            # trimmed to that subset. version hash then detects when the subset grows without
-            # a schema change ie. after a switch to a staging replace strategy (#4152)
+            # trim the schema on staging dataset to tables that will be actually materialized
             job_client_schema = job_client.schema
             with job_client.with_staging_dataset():
                 job_client.schema = _trim_schema_to_tables(schema, all_staging_tables)

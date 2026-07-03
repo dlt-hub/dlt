@@ -1,4 +1,4 @@
-from typing import Dict, List, NamedTuple, Optional, Set, Any
+from typing import Dict, List, NamedTuple, Optional, Any
 import pytest
 import os
 
@@ -1192,28 +1192,19 @@ def _mark_seen_data(schema: dlt.Schema, *table_names: str) -> None:
         schema.tables[table_name].setdefault("x-normalizer", {})["seen-data"] = True
 
 
-class _ExtractResult(NamedTuple):
-    table_metrics: Dict[str, Any]
-    """writer metrics per table - data writes and materialized (empty-file) tables"""
-    truncated_tables: Set[str]
-    """tables registered for truncation via the load package state (a replace resource with no data)"""
-
-
 def _extract_resource(
     extract_step: Extract, schema: dlt.Schema, resource: DltResource
-) -> _ExtractResult:
+) -> Dict[str, Any]:
     """Extract a single resource into the shared `schema` (mirrors the per-run extraction) and
-    return its per-table writer metrics together with the tables registered for truncation via the
-    load package state."""
+    return its per-table writer metrics (table name -> DataWriterMetrics)."""
     source = DltSource(schema, "module", [resource])
     load_id = extract_step.extract_storage.create_load_package(schema)
     extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
     table_metrics: Dict[str, Any] = extract_step._step_info_metrics(load_id)[0]["table_metrics"]
-    truncated_tables = {table["name"] for table in extract_step._tables_to_truncate}
     extract_step.extract_storage.commit_new_load_package(load_id, schema)
     for extractor in extract_step._last_extractors.values():
         assert_written_tables_are_computed(extractor)
-    return _ExtractResult(table_metrics, truncated_tables)
+    return table_metrics
 
 
 @pytest.mark.parametrize(
@@ -1254,10 +1245,11 @@ def test_handle_empty_tables_does_not_mutate_disposition(
     assert object_extractor.tables_with_items == {expected}
     assert object_extractor.tables_with_empty == set()
 
-    # a replace table that yields no data is truncated by recording it in the load package state
-    result = _extract_resource(extract_step, schema, items_replace([]))
-    assert result.truncated_tables == {expected}
-    # an empty run computes nothing and writes no items; the truncation came from
+    # a replace table that yields no data still gets an empty file (so it is truncated): it appears
+    # in the writer metrics with zero items
+    metrics = _extract_resource(extract_step, schema, items_replace([]))
+    assert metrics[expected].items_count == 0
+    # an empty run computes nothing and writes no items; the empty file came from
     # `_handle_empty_tables`, not the extractor
     object_extractor = extract_step._last_extractors["object"]
     assert object_extractor.computed_tables == set()
@@ -1277,10 +1269,9 @@ def test_handle_empty_tables_does_not_mutate_disposition(
     def items_merge() -> Any:
         yield from []
 
-    # a non-replace table that yields no data must NOT be truncated or written
-    result = _extract_resource(extract_step, schema, items_merge())
-    assert expected not in result.truncated_tables
-    assert expected not in result.table_metrics
+    # a non-replace table that yields no data must NOT get an empty file - it is absent from metrics
+    metrics = _extract_resource(extract_step, schema, items_merge())
+    assert expected not in metrics
 
     # an empty run does NOT modify the table: the stored disposition and hints are left untouched,
     # and the new scd2 merge config (incl. validity columns) is only applied once data arrives
@@ -1359,10 +1350,11 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
 
     # run 2: replace with no data - every table (roots and pseudo-roots) is replace, so each gets an
     # empty file written (so it is truncated), and no spurious cascade table is created
-    result = _extract_resource(
+    metrics = _extract_resource(
         extract_step, schema, make_resource("replace", "replace", "replace", [])
     )
-    assert result.truncated_tables == set(all_tables)
+    for table in all_tables:
+        assert metrics[table].items_count == 0
     assert "items__sub_items__sub_items" not in schema.tables
     assert "other_items__sub_items__sub_items" not in schema.tables
     # an empty run computes nothing and writes no items - the empty files came from
@@ -1376,10 +1368,9 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
     # all with no data. nothing is replace, so no table is truncated. an empty run does not modify
     # the schema, so every stored disposition stays at its previous (replace) value - the new hints
     # would only be applied once data arrives
-    result = _extract_resource(extract_step, schema, make_resource("append", "merge", "merge", []))
+    metrics = _extract_resource(extract_step, schema, make_resource("append", "merge", "merge", []))
     for table in all_tables:
-        assert table not in result.truncated_tables
-        assert table not in result.table_metrics
+        assert table not in metrics
         assert schema.tables[table]["write_disposition"] == "replace"
     # no pseudo-root is ever recomputed as a root, so no spurious cascade tables are created
     assert "items__sub_items__sub_items" not in schema.tables
@@ -1390,7 +1381,7 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
 def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: str) -> None:
     """Event-dispatch tables - created via with_table_name marks or a dynamic table_name function -
     keep their stored write disposition unchanged on an empty run, while a replace table that gets no
-    data is truncated via the load package state."""
+    data has an empty file written so it is truncated."""
     schema = dlt.Schema("empty_tables")
 
     def make_resource(wd: TWriteDisposition, data: Any) -> DltResource:
@@ -1433,18 +1424,20 @@ def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: 
     assert object_extractor.tables_with_items == set(tables)
     assert object_extractor.tables_with_empty == set()
 
-    # run 2 (totally empty): every replace table is truncated via the package state
-    result = _extract_resource(extract_step, schema, make_resource("replace", []))
-    assert result.truncated_tables == set(tables)
+    # run 2 (totally empty): every replace table gets an empty file (so it is truncated)
+    metrics = _extract_resource(extract_step, schema, make_resource("replace", []))
+    for table in tables:
+        assert metrics[table].items_count == 0
 
-    # run 3 (only one table gets data): the table with data is loaded normally, the other is truncated
-    result = _extract_resource(
+    # run 3 (only one table gets data): the table with data is loaded normally, the other still gets
+    # an empty file
+    metrics = _extract_resource(
         extract_step, schema, make_resource("replace", [{"kind": "MyIssue", "id": 3}])
     )
-    assert result.table_metrics["my_issue"].items_count == 1
-    assert result.truncated_tables == {"my_purchase"}
+    assert metrics["my_issue"].items_count == 1
+    assert metrics["my_purchase"].items_count == 0
     # only the table that received an item is computed and tracked with items; the truncated
-    # `my_purchase` was recorded by `_handle_empty_tables`, not the extractor, so it is in
+    # `my_purchase` got its empty file from `_handle_empty_tables`, not the extractor, so it is in
     # neither set
     object_extractor = extract_step._last_extractors["object"]
     assert object_extractor.computed_tables == {"my_issue"}
@@ -1453,10 +1446,9 @@ def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: 
 
     # run 4: switch to append with no data - not truncated, and an empty run leaves the stored
     # disposition unchanged (still replace); the switch to append only takes effect once data arrives
-    result = _extract_resource(extract_step, schema, make_resource("append", []))
+    metrics = _extract_resource(extract_step, schema, make_resource("append", []))
     for table in tables:
-        assert table not in result.truncated_tables
-        assert table not in result.table_metrics
+        assert table not in metrics
         assert schema.tables[table]["write_disposition"] == "replace"
 
 
@@ -1520,10 +1512,9 @@ def test_handle_empty_tables_ignores_dynamic_write_disposition(extract_step: Ext
     assert schema.tables["my_issue"]["write_disposition"] == "replace"
 
     # no data: dynamic write disposition cannot be resolved, so the table is left untouched and is
-    # not truncated
-    result = _extract_resource(extract_step, schema, make_resource([]))
-    assert "my_issue" not in result.truncated_tables
-    assert "my_issue" not in result.table_metrics
+    # not truncated (no empty file written)
+    metrics = _extract_resource(extract_step, schema, make_resource([]))
+    assert "my_issue" not in metrics
     assert schema.tables["my_issue"]["write_disposition"] == "replace"
 
 
@@ -1604,9 +1595,9 @@ def test_handle_empty_tables_skips_tables_not_accepting_replace(
     schema.tables[member_table].pop("variant_name", None)
 
     # run 2: empty - only tables where the resource and the table both accept replace are truncated
-    result = _extract_resource(extract_step, schema, make_resource([]))
-    assert ("items" in result.truncated_tables) is root_truncated
-    assert (member_table in result.truncated_tables) is member_truncated
+    metrics = _extract_resource(extract_step, schema, make_resource([]))
+    assert ("items" in metrics) is root_truncated
+    assert (member_table in metrics) is member_truncated
 
 
 def test_handle_empty_tables_variant_not_redeclared_left_untouched(extract_step: Extract) -> None:
@@ -1662,14 +1653,16 @@ def test_handle_empty_tables_variant_not_redeclared_left_untouched(extract_step:
 
     # run 2: empty - no variant is re-declared, so none is in `_hints_variants`; the decision falls
     # back to the stored disposition
-    result = _extract_resource(extract_step, schema, make_resource(False, []))
+    metrics = _extract_resource(extract_step, schema, make_resource(False, []))
     # the stored-merge variant differs from the replace resource -> left untouched, not truncated
-    assert "other_items" not in result.truncated_tables
+    assert "other_items" not in metrics
     assert schema.tables["other_items"]["write_disposition"] == "merge"
     # the stored-replace variant, its replace pseudo-root and the replace root are all truncated
     # (the pseudo-root under the now-absent variant cannot be re-derived, yet is truncated because
     # its stored disposition is replace)
-    assert result.truncated_tables == {"replace_items", "replace_items__sub_items", "items"}
+    assert metrics["replace_items"].items_count == 0
+    assert metrics["replace_items__sub_items"].items_count == 0
+    assert metrics["items"].items_count == 0
 
 
 def test_handle_empty_tables_refresh_changed_to_replace_truncates(extract_step: Extract) -> None:
@@ -1689,12 +1682,11 @@ def test_handle_empty_tables_refresh_changed_to_replace_truncates(extract_step: 
     _mark_seen_data(schema, "items")
     assert schema.tables["items"]["write_disposition"] == "append"
 
-    # run 2: the resource switches to replace and yields no data. the fresh disposition (replace) is
-    # computed in memory to truncate the table, but the stored schema is NOT modified - the
-    # disposition stays at its previous (append) value until data arrives
-    result = _extract_resource(extract_step, schema, make_resource("replace", []))
-    assert result.truncated_tables == {"items"}
-    assert schema.tables["items"]["write_disposition"] == "append"
+    # run 2: the resource switches to replace and yields no data. the table is not computed this
+    # run, so the refresh runs, flips the stored disposition to replace, and the table is truncated
+    metrics = _extract_resource(extract_step, schema, make_resource("replace", []))
+    assert metrics["items"].items_count == 0
+    assert schema.tables["items"]["write_disposition"] == "replace"
 
 
 def test_handle_empty_tables_unseen_data_not_truncated(extract_step: Extract) -> None:
@@ -1710,15 +1702,14 @@ def test_handle_empty_tables_unseen_data_not_truncated(extract_step: Extract) ->
     _extract_resource(extract_step, schema, items([{"id": 1}]))
     assert "items" in schema.tables
 
-    # run 2: empty - the table never saw data, so it is not truncated
-    result = _extract_resource(extract_step, schema, items([]))
-    assert "items" not in result.truncated_tables
-    assert "items" not in result.table_metrics
+    # run 2: empty - the table never saw data, so it is not truncated (no empty file)
+    metrics = _extract_resource(extract_step, schema, items([]))
+    assert "items" not in metrics
 
     # once the table has seen data, an empty run truncates it
     _mark_seen_data(schema, "items")
-    result = _extract_resource(extract_step, schema, items([]))
-    assert result.truncated_tables == {"items"}
+    metrics = _extract_resource(extract_step, schema, items([]))
+    assert metrics["items"].items_count == 0
 
 
 def test_handle_empty_tables_materialized_empty_written_unconditionally(
@@ -1737,10 +1728,9 @@ def test_handle_empty_tables_materialized_empty_written_unconditionally(
     def materialized() -> Any:
         yield dlt.mark.materialize_table_schema()
 
-    result = _extract_resource(extract_step, schema, materialized())
-    # empty file written (not a package-state truncation) despite append disposition and no seen data
-    assert result.table_metrics["materialized"].items_count == 0
-    assert "materialized" not in result.truncated_tables
+    metrics = _extract_resource(extract_step, schema, materialized())
+    # empty file written despite append disposition and no prior seen data
+    assert metrics["materialized"].items_count == 0
     object_extractor = extract_step._last_extractors["object"]
     assert object_extractor.computed_tables == {"materialized"}
     assert object_extractor.tables_with_items == set()
@@ -1753,12 +1743,11 @@ def test_handle_empty_tables_materialized_empty_written_unconditionally(
     def nothing() -> Any:
         yield from []
 
-    result = _extract_resource(extract_step, schema, nothing())
-    assert "nothing" not in result.table_metrics
-    assert "nothing" not in result.truncated_tables
+    metrics = _extract_resource(extract_step, schema, nothing())
+    assert "nothing" not in metrics
 
 
-def test_handle_empty_tables_truncates_nested_chain(extract_step: Extract) -> None:
+def test_handle_empty_tables_nested_child_not_truncated(extract_step: Extract) -> None:
     schema = dlt.Schema("empty_tables")
 
     def make_resource(data: Any) -> DltResource:
@@ -1781,16 +1770,15 @@ def test_handle_empty_tables_truncates_nested_chain(extract_step: Extract) -> No
     assert is_nested_table(schema.tables["items__children"]) is True
     _mark_seen_data(schema, "items", "items__children")
 
-    # run 2: empty - the replace root and its (seen-data) nested chain are registered for truncation
-    # (the package truncate list is not chain-extended at load, so the chain is recorded here)
-    result = _extract_resource(extract_step, schema, make_resource([]))
-    assert result.truncated_tables == {"items", "items__children"}
+    # run 2: empty - only the root gets an empty file; the nested child is not truncated directly
+    metrics = _extract_resource(extract_step, schema, make_resource([]))
+    assert metrics["items"].items_count == 0
+    assert "items__children" not in metrics
 
 
-def test_handle_empty_tables_pseudo_root_truncated_without_mutating(extract_step: Extract) -> None:
-    """A pseudo-root's fresh disposition is re-derived from the current nested hints on an empty run
-    only to decide truncation: when the nested hint changes merge -> replace, the pseudo-root is
-    truncated, but its stored disposition is NOT modified."""
+def test_handle_empty_tables_pseudo_root_refreshed_then_truncated(extract_step: Extract) -> None:
+    """A pseudo-root is re-derived from the current nested hints on an empty run: when the nested hint
+    flips merge -> replace, the stored pseudo-root is updated to replace and then truncated."""
     schema = dlt.Schema("empty_tables")
 
     def make_resource(nested_wd: TWriteDisposition, data: Any) -> DltResource:
@@ -1819,9 +1807,8 @@ def test_handle_empty_tables_pseudo_root_truncated_without_mutating(extract_step
     _mark_seen_data(schema, "items", pseudo)
     assert schema.tables[pseudo]["write_disposition"] == "merge"
 
-    # run 2: the nested hint now declares replace; on the empty run the pseudo-root's fresh
-    # disposition re-derives to replace and it is truncated, but the stored schema is NOT modified
-    # (the disposition stays merge until data arrives)
-    result = _extract_resource(extract_step, schema, make_resource("replace", []))
-    assert pseudo in result.truncated_tables
-    assert schema.tables[pseudo]["write_disposition"] == "merge"
+    # run 2: the nested hint now declares replace; on the empty run the pseudo-root is re-derived,
+    # its stored disposition flips merge -> replace, and it is then truncated
+    metrics = _extract_resource(extract_step, schema, make_resource("replace", []))
+    assert schema.tables[pseudo]["write_disposition"] == "replace"
+    assert metrics[pseudo].items_count == 0

@@ -1190,41 +1190,21 @@ def test_init_client_truncate_tables() -> None:
                 all_,  # drop tables
                 drop_tables=[schema.get_table("event_user")],
             )
-        print(update_stored_schema.call_args_list)
         # drop tables trigger staging dataset schema change on top of final dataset schema change
         assert update_stored_schema.call_count == 2
-        assert "event_user" in update_stored_schema.call_args_list[0][1]["only_tables"]
-        assert "_dlt_version" in update_stored_schema.call_args_list[1][1]["only_tables"]
+        assert update_stored_schema.call_args_list[0].kwargs["force"] is True
+        assert "event_user" in update_stored_schema.call_args_list[0].kwargs["only_tables"]
+        # no staging-eligible tables so only the version table is migrated on staging
+        assert update_stored_schema.call_args_list[1].kwargs["only_tables"] == {"_dlt_version"}
         assert initialize_storage.call_count == 3
         assert initialize_storage.call_args_list[0].args == ()
         assert initialize_storage.call_args_list[1].kwargs["truncate_tables"] == {"event_user"}
         # dropped on staging dataset and final
         assert drop_tables.call_count == 2
 
-        # now we push all to stage
         initialize_storage.reset_mock()
         update_stored_schema.reset_mock()
         drop_tables.reset_mock()
-
-        with load.get_destination_client(schema) as client:
-            init_client(client, schema, [event_user, event_bot], {}, nothing_, all_, all_)
-        assert update_stored_schema.call_count == 2
-        # first call main dataset
-        assert {"event_user", "event_bot"} <= set(
-            update_stored_schema.call_args_list[0].kwargs["only_tables"]
-        )
-        # second one staging dataset
-        assert {"event_user", "event_bot"} <= set(
-            update_stored_schema.call_args_list[1].kwargs["only_tables"]
-        )
-        assert initialize_storage.call_count == 3
-        assert initialize_storage.call_args_list[0].args == ()
-        assert initialize_storage.call_args_list[1].args == ()
-        # all tables that will be used on staging must be truncated
-        assert initialize_storage.call_args_list[2].kwargs["truncate_tables"] == {
-            "event_user",
-            "event_bot",
-        }
 
         replace_ = (
             lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
@@ -1322,16 +1302,58 @@ def test_init_client_initial_truncate_tables_from_package_state() -> None:
     assert "applied_dropped_tables" not in state
 
 
+def test_init_client_replace_job_no_forced_migration() -> None:
+    """A job for a replace table (ie. the 0-row job of an empty replace resource) truncates the
+    table chain via the regular truncate filter and does not force a schema migration."""
+    load = setup_loader()
+    load_id, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    schema.tables["event_user"]["write_disposition"] = "replace"
+
+    new_jobs = [ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")]
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
+        patch.object(
+            dummy_impl.DummyClient, "update_stored_schema", return_value={}
+        ) as update_stored_schema,
+    ):
+        with Container().injectable_context(
+            LoadPackageStateInjectableContext(
+                storage=load.load_storage.normalized_packages, load_id=load_id
+            )
+        ):
+            load.initialize_package(load_id, schema, new_jobs)
+
+    assert update_stored_schema.call_args_list[0].kwargs["force"] is False
+    truncate_calls = [
+        c.kwargs["truncate_tables"]
+        for c in initialize_storage.call_args_list
+        if "truncate_tables" in c.kwargs
+    ]
+    # nested user tables carry an explicit append disposition so only the root is truncated
+    assert truncate_calls == [{"event_user"}]
+    # nothing was applied via the package state
+    state = load.load_storage.normalized_packages.get_load_package_state(load_id)
+    assert "applied_truncated_tables" not in state
+    assert "applied_dropped_tables" not in state
+
+
 def test_init_client_staging_ddl_includes_jobless_tables() -> None:
-    """Issue #2862: staging DDL includes ALL staging-eligible data tables, not just those with jobs."""
+    """Issue #2862: a staging-eligible (merge) table chain without any jobs in the package still
+    gets staging DDL so its staging tables exist when followup jobs reference them ie. after the
+    staging dataset got dropped by the user."""
     load = setup_loader()
     _, schema = prepare_load_package(
         load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
     )
     nothing_ = lambda _: False
-    all_ = lambda _: True
     event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
-    all_data = set(schema.data_table_names())
+
+    # the bot chain is merge (staging-eligible) and gets no jobs in this package
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    for table in get_nested_tables(schema.tables, "event_bot"):
+        table["write_disposition"] = "merge"
 
     with (
         patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
@@ -1339,25 +1361,26 @@ def test_init_client_staging_ddl_includes_jobless_tables() -> None:
         patch.object(dummy_impl.DummyClient, "drop_tables"),
     ):
         with load.get_destination_client(schema) as client:
-            init_client(client, schema, [event_user], {}, nothing_, all_, all_)
+            merge_ = (
+                lambda table_name: client.prepare_load_table(table_name)["write_disposition"]
+                == "merge"
+            )
+            init_client(client, schema, [event_user], {}, nothing_, merge_, nothing_)
 
         # main + staging
         assert update_stored_schema.call_count == 2
-        # main dataset: tables with jobs that have seen-data + dlt tables (always included)
+        # main dataset: tables with jobs + dlt tables (always included)
         assert update_stored_schema.call_args_list[0].kwargs["only_tables"] == {
             "event_user",
             "_dlt_loads",
             "_dlt_version",
         }
-        # staging DDL: all data tables with seen-data + _dlt_version (not just event_user)
-        # this guards agains situation where staging dataset got ie. dropped by the user
+        # staging DDL: the whole jobless merge chain; the append table with a job is not eligible
         staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
-        assert staging_ddl == all_data | {"_dlt_version"}
-        # staging truncation: only the table with a job
-        # main dataset has nothing to truncate so it makes only the bare init call (index 0),
-        # staging makes a bare init (index 1) + a truncate init (index 2)
-        staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
-        assert staging_truncate == {"event_user"}
+        assert staging_ddl == bot_chain | {"_dlt_version"}
+        # no staging-eligible table has jobs so nothing is truncated: both init calls are bare
+        assert initialize_storage.call_count == 2
+        assert all("truncate_tables" not in c.kwargs for c in initialize_storage.call_args_list)
 
 
 def test_init_client_staging_selective_filter() -> None:
@@ -1502,47 +1525,6 @@ def test_init_client_staging_dlt_tables_with_jobs() -> None:
         assert staging_truncate == {"event_user", "_dlt_loads"}
 
 
-def test_init_client_unseen_data_chain_tables_excluded() -> None:
-    """Tables with jobs always enter final DDL - the normalizer marks seen-data on every table
-    it emits jobs for. Never-seen tables are excluded from table chains (staging DDL, truncation).
-    """
-    load = setup_loader()
-    _, schema = prepare_load_package(
-        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
-    )
-    nothing_ = lambda _: False
-    all_ = lambda _: True
-    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
-    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
-    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
-    all_data = set(schema.data_table_names())
-
-    # remove seen-data from bot chain
-    for name in bot_chain:
-        schema.tables[name].pop("x-normalizer", None)
-
-    with (
-        patch.object(dummy_impl.DummyClient, "initialize_storage") as initialize_storage,
-        patch.object(dummy_impl.DummyClient, "update_stored_schema") as update_stored_schema,
-        patch.object(dummy_impl.DummyClient, "drop_tables"),
-    ):
-        with load.get_destination_client(schema) as client:
-            init_client(client, schema, [event_user, event_bot], {}, nothing_, all_, all_)
-
-        assert update_stored_schema.call_count == 2
-        # final DDL: tables with jobs are trusted and migrated, the jobless never-seen
-        # nested bot tables are not
-        final_ddl = update_stored_schema.call_args_list[0].kwargs["only_tables"]
-        assert {"event_user", "event_bot"} <= final_ddl
-        assert not ((bot_chain - {"event_bot"}) & final_ddl)
-        # staging DDL: the whole never-seen bot chain is excluded by the chain filter
-        staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
-        assert staging_ddl == (all_data - bot_chain) | {"_dlt_version"}
-        # staging truncation: only event_user
-        staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
-        assert staging_truncate == {"event_user"}
-
-
 def test_init_client_staging_destination_vs_final_destination() -> None:
     """Different staging filters for final vs staging destination produce different DDL sets."""
     load = setup_loader()
@@ -1659,10 +1641,10 @@ def test_init_client_staging_drop_tables_without_staging_eligible() -> None:
                 drop_tables=[dropped_table],
             )
 
-        # staging NOT entered: no staging-eligible tables AND drop_table_names is empty
-        # (nothing_ filter rejected the dropped table)
+        # nothing dropped anywhere: drop_staging_filter rejected the dropped table so
+        # drop_table_names is empty for both the main and the staging dataset
         assert update_stored_schema.call_count == 1
-        drop_tables.assert_not_called()  # is_storage_initialized check still gated it on main
+        drop_tables.assert_not_called()
 
 
 def test_dummy_staging_filesystem() -> None:

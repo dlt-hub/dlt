@@ -3737,16 +3737,13 @@ def test_replace_empty_resource_truncates_variant_tables() -> None:
     assert load_table_counts(pipeline, "items", "other_items") == {"items": 1, "other_items": 1}
 
     # the resource yields no data: the root and the variant are both truncated
-    info = pipeline.run(items_resource(False))
+    pipeline.run(items_resource(False))
     assert load_table_counts(pipeline, "items", "other_items") == {"items": 0, "other_items": 0}
-    package = info.load_packages[0]
-    assert set(package.truncated_tables) == {"items", "other_items"}
-    assert package.dropped_tables is None
 
 
-def test_replace_empty_resource_truncates_via_package_state() -> None:
-    """A replace resource that yields no data registers its tables in the load package
-    `truncated_tables` state instead of writing an empty-file job."""
+def test_replace_empty_resource_truncates_via_empty_job() -> None:
+    """A replace resource that yields no data writes a 0-row job for the root table and does NOT
+    register anything in the load package `truncated_tables` state."""
 
     @dlt.resource(name="items", write_disposition="replace")
     def items(emit: bool) -> Any:
@@ -3765,22 +3762,20 @@ def test_replace_empty_resource_truncates_via_package_state() -> None:
     pipeline.normalize()
     load_id = pipeline.list_normalized_load_packages()[0]
     package = pipeline.get_load_package_info(load_id)
-    # no empty-file job is written for `items`
-    assert "items" not in [job.job_file_info.table_name for job in package.jobs["new_jobs"]]
-    # instead `items` is registered for truncation via the package state
+    # an empty-file job is written for `items`
+    assert "items" in [job.job_file_info.table_name for job in package.jobs["new_jobs"]]
+    # nothing is registered for truncation via the package state
     state = pipeline.get_load_package_state(load_id)
-    assert "items" in [table["name"] for table in state.get("truncated_tables", [])]
-    # package info exposes the requested truncation, no refresh was set
+    assert "truncated_tables" not in state
     assert package.refresh is None
-    assert package.truncated_tables == ["items"]
+    assert package.truncated_tables is None
 
     # finishing the load truncates the table
     info = pipeline.load()
     assert load_table_counts(pipeline, "items") == {"items": 0}
-    # the load step recorded the actually truncated table, still without refresh
     loaded_package = info.load_packages[0]
     assert loaded_package.refresh is None
-    assert loaded_package.truncated_tables == ["items"]
+    assert loaded_package.truncated_tables is None
 
 
 def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
@@ -3829,12 +3824,10 @@ def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
 
     # empty run: the replace roots (default and variant) are emptied, but their append pseudo-roots
     # are kept - we cannot re-derive a pseudo-root's effective disposition, so it is not truncated
-    info = pipeline.run(items_resource(False))
+    pipeline.run(items_resource(False))
     assert load_table_counts(
         pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
     ) == {"items": 0, "items__sub_items": 1, "other_items": 0, "other_items__sub_items": 1}
-    # only the replace roots appear in the truncated tables record
-    assert set(info.load_packages[0].truncated_tables) == {"items", "other_items"}
 
 
 def test_replace_keeps_pseudo_root_when_root_has_data() -> None:
@@ -3911,9 +3904,8 @@ def test_replace_event_dispatch_truncates_missing_table(dispatch: str) -> None:
     pipeline.run(events(["a"]), write_disposition="replace")
     # "a" received data and is replaced with the new row
     assert load_tables_to_dicts(pipeline, "a")["a"][0]["id"] == 0
-    # tables with no data have their hints unmodified
-    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
     # missing "b" is refreshed to replace and truncated even though it received no data
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "replace"
     assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}
 
 

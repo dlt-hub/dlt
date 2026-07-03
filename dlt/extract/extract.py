@@ -2,7 +2,7 @@ import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
 import itertools
-from typing import Iterator, List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Any, Optional, cast
 import yaml
 
 from dlt.common import logger
@@ -24,6 +24,7 @@ from dlt.common.runtime.collector import Collector, NULL_COLLECTOR
 from dlt.common.schema import Schema, utils
 from dlt.common.schema.typing import (
     TAnySchemaColumns,
+    TPartialTableSchema,
     TSchemaContract,
     TTableFormat,
     TTableSchema,
@@ -306,9 +307,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     _last_extractors: Dict[TDataItemFormat, Extractor] = None
     """Most recently used extractors"""
 
-    _tables_to_truncate: List[TTableSchema]
-    """Tables to truncate via package state"""
-
     def __init__(
         self,
         schema_storage: SchemaStorage,
@@ -458,17 +456,22 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         # fall back to the stored disposition when it can't be re-derived
                         else (wd_config or table.get("write_disposition"))
                     )
+                    # apply the fresh disposition so the load package schema replaces the table
+                    if disposition == "replace" and table.get("write_disposition") != "replace":
+                        partial_table: Dict[str, Any] = {
+                            "name": table_name,
+                            "columns": {},
+                            "write_disposition": wd_config,
+                        }
+                        resource._merge_write_disposition_dict(partial_table)
+                        schema.update_table(cast(TPartialTableSchema, partial_table))
                 else:
                     disposition = table.get("write_disposition")
 
                 # table itself must accept replace
                 if disposition == "replace":
-                    # collect tables to truncate via package state
-                    self._tables_to_truncate.extend(
-                        nested_table
-                        for nested_table in utils.get_nested_tables(schema.tables, table_name)
-                        if utils.has_table_seen_data(nested_table)
-                    )
+                    # write empty file so a replace root is truncated even though it received no data
+                    json_extractor.write_empty_items_file(table_name)
 
         # collect tables that received empty materialized lists and had no items
         tables_with_empty = (
@@ -488,7 +491,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         workers: int,
     ) -> None:
         schema = source.schema
-        self._tables_to_truncate = []
         collector = self.collector
         extractors: Dict[TDataItemFormat, Extractor] = {
             "object": ObjectExtractor(
@@ -601,14 +603,6 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
-                # register replace tables that yielded no data for truncation via the load package
-                if self._tables_to_truncate:
-                    truncated = load_package.state.setdefault("truncated_tables", [])
-                    existing_names = {table["name"] for table in truncated}
-                    for table in self._tables_to_truncate:
-                        if table["name"] not in existing_names:
-                            existing_names.add(table["name"])
-                            truncated.append(table)
                 commit_load_package_state()
         return load_id
 
