@@ -542,6 +542,9 @@ def test_get_storage_table_with_all_types(
                 continue
         if client.config.destination_type == "dremio" and c["data_type"] == "json":
             continue
+        # duckdb_engine reflects JSON columns as VARCHAR
+        if client.config.destination_name == "sqlalchemy_duckdb" and c["data_type"] == "json":
+            continue
         if not client.capabilities.supports_native_boolean and c["data_type"] == "bool":
             # The reflected data type is probably either int or boolean depending on how the client is implemented
             assert expected_c["data_type"] in ("bigint", "bool")

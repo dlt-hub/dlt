@@ -4,7 +4,7 @@ from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
-from typing import List, Tuple
+from typing import Any, List, Tuple
 
 from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
@@ -15,7 +15,8 @@ from dlt.common.storages.load_package import LoadPackageStateInjectableContext, 
 from dlt.common.configuration.container import Container
 from dlt.common.storages.load_storage import JobFileFormatUnsupported
 from dlt.common.destination import AnyDestination
-from dlt.common.destination.client import RunnableLoadJob
+from dlt.common.destination.client import JobClientBase, RunnableLoadJob
+from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_nested_tables,
@@ -1298,7 +1299,12 @@ def test_init_client_initial_truncate_tables_from_package_state() -> None:
             dummy_impl.DummyClient, "update_stored_schema", return_value={}
         ) as update_stored_schema,
     ):
-        load.initialize_package(load_id, schema, new_jobs)
+        with Container().injectable_context(
+            LoadPackageStateInjectableContext(
+                storage=load.load_storage.normalized_packages, load_id=load_id
+            )
+        ):
+            load.initialize_package(load_id, schema, new_jobs)
 
     # schema migration is forced because there are tables to truncate via refresh
     assert update_stored_schema.call_args_list[0].kwargs["force"] is True
@@ -1310,6 +1316,10 @@ def test_init_client_initial_truncate_tables_from_package_state() -> None:
         if "truncate_tables" in c.kwargs
     ]
     assert truncate_calls == [{"event_bot"}]
+    # the actually truncated tables are recorded in the package state
+    state = packages.get_load_package_state(load_id)
+    assert state["applied_truncated_tables"] == ["event_bot"]
+    assert "applied_dropped_tables" not in state
 
 
 def test_init_client_staging_ddl_includes_jobless_tables() -> None:
@@ -1389,6 +1399,76 @@ def test_init_client_staging_selective_filter() -> None:
         assert staging_truncate == {"event_bot"}
 
 
+def test_init_client_staging_trimmed_schema() -> None:
+    """Checks if staging dataset holds schemas trimmed to only the tables that
+    are actually materialized in it.
+    """
+    load = setup_loader()
+    _, schema = prepare_load_package(
+        load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
+    )
+    nothing_ = lambda _: False
+    event_user = ParsedLoadJobFileName("event_user", "event_user_id", 0, "jsonl")
+    event_bot = ParsedLoadJobFileName("event_bot", "event_bot_id", 0, "jsonl")
+    bot_chain = {t["name"] for t in get_nested_tables(schema.tables, "event_bot")}
+    bot_only = lambda table_name: table_name in bot_chain
+
+    # capture the client schema at the time of each update_stored_schema call
+    seen_schemas: List[Schema] = []
+    clients: List[JobClientBase] = []
+
+    def capture_schema(*args: Any, **kwargs: Any) -> TSchemaTables:
+        seen_schemas.append(clients[0].schema)
+        return {}
+
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage"),
+        patch.object(dummy_impl.DummyClient, "update_stored_schema", side_effect=capture_schema),
+    ):
+        with load.get_destination_client(schema) as client:
+            clients.append(client)
+            init_client(client, schema, [event_user, event_bot], {}, nothing_, bot_only, nothing_)
+        # full schema restored on the client after staging init
+        assert client.schema is schema
+
+    main_schema, staging_schema = seen_schemas
+    # main dataset update uses the full package schema
+    assert main_schema is schema
+    # staging schema holds only the staging-eligible chain and dlt tables
+    assert set(staging_schema.tables.keys()) == bot_chain | set(schema.dlt_table_names())
+    # trimmed schema has consistent version and hash of its own content
+    assert not staging_schema.is_modified
+    assert staging_schema.stored_version_hash != schema.stored_version_hash
+
+    # a nested table may be staging-eligible while its ancestors are not (ie. own merge
+    # disposition under a replace root). the trimmed schema keeps such nested table without
+    # its parents, mirroring what is actually materialized in the staging dataset
+    nested_bot = next(
+        t["name"] for t in get_nested_tables(schema.tables, "event_bot") if t.get("parent")
+    )
+    nested_only = lambda table_name: table_name == nested_bot
+
+    seen_schemas.clear()
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage"),
+        patch.object(
+            dummy_impl.DummyClient, "update_stored_schema", side_effect=capture_schema
+        ) as update_stored_schema,
+    ):
+        with load.get_destination_client(schema) as client:
+            clients[0] = client
+            init_client(
+                client, schema, [event_user, event_bot], {}, nothing_, nested_only, nothing_
+            )
+
+    _, staging_schema = seen_schemas
+    assert set(staging_schema.tables.keys()) == {nested_bot} | set(schema.dlt_table_names())
+    assert not staging_schema.is_modified
+    # only the nested table is created in the staging dataset
+    staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+    assert staging_ddl == {nested_bot, "_dlt_version"}
+
+
 def test_init_client_staging_dlt_tables_with_jobs() -> None:
     """Athena regression fix: dlt tables with seen-data and jobs appear in staging DDL."""
     load = setup_loader()
@@ -1422,8 +1502,10 @@ def test_init_client_staging_dlt_tables_with_jobs() -> None:
         assert staging_truncate == {"event_user", "_dlt_loads"}
 
 
-def test_init_client_unseen_data_tables_excluded() -> None:
-    """Tables without seen-data are excluded from both final and staging datasets."""
+def test_init_client_unseen_data_chain_tables_excluded() -> None:
+    """Tables with jobs always enter final DDL - the normalizer marks seen-data on every table
+    it emits jobs for. Never-seen tables are excluded from table chains (staging DDL, truncation).
+    """
     load = setup_loader()
     _, schema = prepare_load_package(
         load.load_storage, ["event_user.b1d32c6660b242aaabbf3fc27245b7e6.0.insert_values"]
@@ -1448,14 +1530,14 @@ def test_init_client_unseen_data_tables_excluded() -> None:
             init_client(client, schema, [event_user, event_bot], {}, nothing_, all_, all_)
 
         assert update_stored_schema.call_count == 2
-        # final DDL: event_user + dlt tables, bot excluded (in tables_no_data)
+        # final DDL: tables with jobs are trusted and migrated, the jobless never-seen
+        # nested bot tables are not
         final_ddl = update_stored_schema.call_args_list[0].kwargs["only_tables"]
-        assert "event_user" in final_ddl
-        assert not (bot_chain & final_ddl)
-        # staging DDL: all data tables EXCEPT bot chain + _dlt_version
+        assert {"event_user", "event_bot"} <= final_ddl
+        assert not ((bot_chain - {"event_bot"}) & final_ddl)
+        # staging DDL: the whole never-seen bot chain is excluded by the chain filter
         staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
         assert staging_ddl == (all_data - bot_chain) | {"_dlt_version"}
-        assert not (bot_chain & staging_ddl)
         # staging truncation: only event_user
         staging_truncate = initialize_storage.call_args_list[2].kwargs["truncate_tables"]
         assert staging_truncate == {"event_user"}

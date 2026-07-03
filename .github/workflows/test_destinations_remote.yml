@@ -270,3 +270,39 @@ jobs:
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
           PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
+
+  run_vault_providers:
+    name: vault providers
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@master
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          enable-cache: true
+
+      - name: Install dependencies
+        # google-api-python-client for google secrets, botocore (s3 extra) for aws secrets manager
+        run: uv sync --group providers --extra s3
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - name: Run vault provider tests
+        run: uv run pytest tests/helpers/providers

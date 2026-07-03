@@ -170,11 +170,17 @@ def test_replace_disposition(
         "append_items": 36,
     }
     assert_empty_tables(pipeline, "items", "items__sub_items", "items__sub_items__sub_sub_items")
-    # check trace
+    # check trace: `items` produces no jobs, the whole chain is truncated via the package state
     assert pipeline.last_trace.last_normalize_info.row_counts == {
         "append_items": 12,
-        "items": 0,
     }
+    package = info.load_packages[0]
+    assert set(package.truncated_tables) == {
+        "items",
+        "items__sub_items",
+        "items__sub_items__sub_sub_items",
+    }
+    assert package.dropped_tables is None
 
     # create a pipeline with different name but loading to the same dataset as above - this is to provoke truncating non existing tables
     pipeline_2 = destination_config.setup_pipeline(
@@ -338,14 +344,23 @@ def test_replace_table_clearing(
     # see if yield none clears everything
     for empty_resource in [yield_none, no_yield, yield_empty_list]:
         pipeline.run(items_with_subitems, **destination_config.run_kwargs)
-        pipeline.run(empty_resource, **destination_config.run_kwargs)
+        info = pipeline.run(empty_resource, **destination_config.run_kwargs)
         assert load_table_counts(pipeline, "static_items", "static_items__sub_items") == {
             "static_items": 1,
             "static_items__sub_items": 2,
         }
         assert_empty_tables(pipeline, "items", "other_items", "other_items__sub_items")
-        # check trace
-        assert pipeline.last_trace.last_normalize_info.row_counts == {"items": 0, "other_items": 0}
+        # check trace (no tables - they are truncated via package state)
+        assert pipeline.last_trace.last_normalize_info.row_counts == {}
+        # both dispatched table chains are truncated, tables of unselected resources are not
+        package = info.load_packages[0]
+        assert set(package.truncated_tables) == {
+            "items",
+            "items__sub_items",
+            "other_items",
+            "other_items__sub_items",
+        }
+        assert package.dropped_tables is None
 
     # see if yielding something next to other none entries still goes into db
     pipeline.run(items_with_subitems_yield_none, **destination_config.run_kwargs)
@@ -623,3 +638,53 @@ def test_replace_chain_truncate_consistent_with_package_jobs(
     # nested table is truncated
     assert truncate_spy.call_count == 1
     assert truncate_spy.call_args.args[1] == ["items__children"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", ["insert-from-staging", "staging-optimized"])
+def test_replace_strategy_switch_creates_staging_tables(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """switching to a staging replace strategy on an existing dataset must create
+    the now-required staging tables even though the schema version hash is unchanged.
+    """
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+
+    pipeline = destination_config.setup_pipeline("replace_strategy_switch", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items():
+        yield [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+
+    # the merge table makes the first run create the staging dataset without the replace table
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def merge_items():
+        yield [{"id": 1, "val": "m"}]
+
+    # nested merge table under a replace root makes a partial staging chain: the nested table
+    # loads to the staging dataset while the root does not until the strategy switch
+    @dlt.resource(
+        write_disposition="replace",
+        primary_key="id",
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="merge")},
+    )
+    def nested_items():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "truncate-and-insert"
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # same schema, replace tables now go through the staging dataset
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "merge_items", "nested_items") == {
+        "items": 2,
+        "merge_items": 1,
+        "nested_items": 1,
+    }

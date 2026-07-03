@@ -51,15 +51,18 @@ from dlt.common.schema.typing import (
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
 from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
-from dlt.common.typing import DictStrAny, StrAny, SupportsHumanize, TColumnNames, NotRequired
+from dlt.common.typing import (
+    DictStrAny,
+    StrAny,
+    SupportsHumanize,
+    TColumnNames,
+    TRefreshMode,
+    NotRequired,
+)
 from dlt.common.data_writers.writers import TLoaderFileFormat
 from dlt.common.utils import RowCounts, merge_row_counts
 from dlt.common.versioned_state import TVersionedState
 from dlt.common.runtime.collector_base import Collector
-
-
-# TRefreshMode = Literal["full", "replace"]
-TRefreshMode = Literal["drop_sources", "drop_resources", "drop_data"]
 
 
 class _StepInfo(NamedTuple):
@@ -143,7 +146,11 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
             # complete but failed job will not raise any exceptions
             failed_jobs = load_package.jobs["failed_jobs"]
             jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
-            msg += f"\nLoad package {load_package.load_id} is {cstr} and contains {jobs_str}"
+            refresh_str = f" with refresh '{load_package.refresh}'" if load_package.refresh else ""
+            msg += (
+                f"\nLoad package {load_package.load_id}{refresh_str} is {cstr} and contains"
+                f" {jobs_str}"
+            )
             if verbosity > 0:
                 for failed_job in failed_jobs:
                     msg += (
@@ -151,7 +158,7 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
                     )
             if verbosity > 1:
                 msg += "\nPackage details:\n"
-                msg += load_package.asstr() + "\n"
+                msg += load_package.asstr(verbosity) + "\n"
         return msg
 
     @staticmethod

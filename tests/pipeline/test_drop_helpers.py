@@ -66,7 +66,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     if seen_data:
         assert {t["name"] for t in package_state["dropped_tables"]} == tables_to_drop
     else:
-        assert package_state == {}
+        assert package_state == {"refresh": "drop_sources"}
     assert source_clone.schema.data_tables(include_incomplete=True) == []
 
     # drop only selected resources
@@ -94,7 +94,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     if seen_data:
         assert {t["name"] for t in package_state["dropped_tables"]} == tables_to_drop
     else:
-        assert package_state == {}
+        assert package_state == {"refresh": "drop_resources"}
     assert set(source_clone.schema.data_table_names(include_incomplete=True)) == left_in_schema
 
     # truncate only
@@ -130,7 +130,7 @@ def test_drop_helper_utils(seen_data: bool) -> None:
     if seen_data:
         assert {t["name"] for t in package_state["truncated_tables"]} == tables_to_truncate
     else:
-        assert package_state == {}
+        assert package_state == {"refresh": "drop_data"}
     assert set(source_clone.schema.data_table_names(include_incomplete=True)) == all_in_schema
 
 
@@ -149,7 +149,8 @@ def test_drop_unknown_resource() -> None:
     package_state = prepare_refresh_source(
         pipeline, source.with_resources("💰Budget"), refresh="drop_resources"
     )
-    assert package_state == {}
+    # refresh mode is recorded even when there is nothing to drop
+    assert package_state == {"refresh": "drop_resources"}
 
     info = pipeline.run(source.with_resources("💰Budget"), refresh="drop_resources")
     # nothing loaded
@@ -176,8 +177,11 @@ def test_modified_state_in_package() -> None:
     info = pipeline.extract(airtable_emojis().with_resources("🦚Peacock"), refresh="drop_resources")
     normalize_storage = pipeline._get_normalize_storage()
     package_state = normalize_storage.extracted_packages.get_load_package_state(info.loads_ids[0])
-    # nothing to drop
+    # nothing to drop but the refresh mode is recorded and exposed on the package info
     assert "dropped_tables" not in package_state
+    assert package_state["refresh"] == "drop_resources"
+    assert info.load_packages[0].refresh == "drop_resources"
+    assert info.load_packages[0].dropped_tables is None
     pipeline_state = decompress_state(package_state["pipeline_state"]["state"])
     # the state was reset to the original
     assert pipeline_state["sources"]["airtable_emojis"] == {

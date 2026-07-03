@@ -182,7 +182,7 @@ def prepare_refresh_source(
         state_paths="*" if refresh == "drop_sources" else [],
         state_only=only_truncate,
     )
-    load_package_state: TLoadPackageDropTablesState = {}
+    load_package_state: TLoadPackageDropTablesState = {"refresh": refresh}
     if drop_result.modified_tables:
         if only_truncate:
             load_package_state["truncated_tables"] = drop_result.modified_tables

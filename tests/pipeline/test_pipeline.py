@@ -3737,8 +3737,50 @@ def test_replace_empty_resource_truncates_variant_tables() -> None:
     assert load_table_counts(pipeline, "items", "other_items") == {"items": 1, "other_items": 1}
 
     # the resource yields no data: the root and the variant are both truncated
-    pipeline.run(items_resource(False))
+    info = pipeline.run(items_resource(False))
     assert load_table_counts(pipeline, "items", "other_items") == {"items": 0, "other_items": 0}
+    package = info.load_packages[0]
+    assert set(package.truncated_tables) == {"items", "other_items"}
+    assert package.dropped_tables is None
+
+
+def test_replace_empty_resource_truncates_via_package_state() -> None:
+    """A replace resource that yields no data registers its tables in the load package
+    `truncated_tables` state instead of writing an empty-file job."""
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items(emit: bool) -> Any:
+        if emit:
+            yield [{"id": 1}, {"id": 2}]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="replace_truncate_state_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    # seed the table so it has seen data
+    pipeline.run(items(True))
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # no data: inspect the normalized load package before loading
+    pipeline.extract(items(False))
+    pipeline.normalize()
+    load_id = pipeline.list_normalized_load_packages()[0]
+    package = pipeline.get_load_package_info(load_id)
+    # no empty-file job is written for `items`
+    assert "items" not in [job.job_file_info.table_name for job in package.jobs["new_jobs"]]
+    # instead `items` is registered for truncation via the package state
+    state = pipeline.get_load_package_state(load_id)
+    assert "items" in [table["name"] for table in state.get("truncated_tables", [])]
+    # package info exposes the requested truncation, no refresh was set
+    assert package.refresh is None
+    assert package.truncated_tables == ["items"]
+
+    # finishing the load truncates the table
+    info = pipeline.load()
+    assert load_table_counts(pipeline, "items") == {"items": 0}
+    # the load step recorded the actually truncated table, still without refresh
+    loaded_package = info.load_packages[0]
+    assert loaded_package.refresh is None
+    assert loaded_package.truncated_tables == ["items"]
 
 
 def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
@@ -3787,10 +3829,12 @@ def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
 
     # empty run: the replace roots (default and variant) are emptied, but their append pseudo-roots
     # are kept - we cannot re-derive a pseudo-root's effective disposition, so it is not truncated
-    pipeline.run(items_resource(False))
+    info = pipeline.run(items_resource(False))
     assert load_table_counts(
         pipeline, "items", "items__sub_items", "other_items", "other_items__sub_items"
     ) == {"items": 0, "items__sub_items": 1, "other_items": 0, "other_items__sub_items": 1}
+    # only the replace roots appear in the truncated tables record
+    assert set(info.load_packages[0].truncated_tables) == {"items", "other_items"}
 
 
 def test_replace_keeps_pseudo_root_when_root_has_data() -> None:
@@ -3867,8 +3911,9 @@ def test_replace_event_dispatch_truncates_missing_table(dispatch: str) -> None:
     pipeline.run(events(["a"]), write_disposition="replace")
     # "a" received data and is replaced with the new row
     assert load_tables_to_dicts(pipeline, "a")["a"][0]["id"] == 0
+    # tables with no data have their hints unmodified
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
     # missing "b" is refreshed to replace and truncated even though it received no data
-    assert pipeline.default_schema.tables["b"]["write_disposition"] == "replace"
     assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}
 
 
@@ -5915,6 +5960,49 @@ def test_no_coercion_normalizer_creates_variant_columns() -> None:
     assert rows[1][2] == 42
     assert rows[1][3] is None
     assert rows[1][4] == "not_a_number"
+
+
+def test_upsert_on_seen_data_table_empty_incremental_run() -> None:
+    """A merge/delete-insert resource loads a row without a primary key (only a warning), then the
+    resource switches to upsert but an incremental run selects no rows. The fully-filtered run
+    yields None, so the table is not recomputed: the stored delete-insert strategy and keyless `id`
+    are left unchanged and the run still loads cleanly.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name="upsert_seen_data" + uniq_id(),
+        destination="duckdb",
+        dataset_name="upsert_seen_data",
+    )
+
+    # 1st run: delete-insert merge with no primary key declared. loading a row only warns about the
+    # missing key, so `store` is created with seen-data and `id` as a plain (keyless) column.
+    @dlt.resource(name="store", write_disposition="merge")
+    def store_delete_insert():
+        yield [{"id": 1, "ts": 1, "val": "a"}]
+
+    pipeline.run(store_delete_insert())
+    assert pipeline.default_schema.tables["store"]["columns"]["id"].get("primary_key") is None
+
+    # 2nd run: switch to upsert with the correct key, but the incremental selects no rows
+    # (initial_value is past the only row). the table is not recomputed, and `_handle_empty_tables`
+    # no longer mutates it, so the stored disposition stays merge/delete-insert and the run succeeds.
+    @dlt.resource(
+        name="store",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+    )
+    def store_upsert(updated=dlt.sources.incremental("ts", initial_value=10)):
+        yield [{"id": 1, "ts": 1, "val": "a"}]
+
+    info = pipeline.run(store_upsert())
+    assert_load_info(info)
+    # the fully-filtered incremental yields None, so the table is not recomputed: the stored
+    # delete-insert strategy stays and the primary key is not applied
+    store = pipeline.default_schema.tables["store"]
+    assert store.get("x-merge-strategy") != "upsert"
+    assert store["columns"]["id"].get("primary_key") is None
+    # the row loaded by the first run is intact
+    assert load_table_counts(pipeline, "store")["store"] == 1
 
 
 def test_cleanup() -> None:
