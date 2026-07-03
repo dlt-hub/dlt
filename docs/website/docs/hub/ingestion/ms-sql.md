@@ -333,9 +333,15 @@ Replicated data allows for NULLs for not nullable columns when a record is delet
 
 ### Soft deletes
 
-If `hard_delete` is set to `False`, soft deletes are performed, i.e., rows deleted in the source will be marked as deleted but not physically removed from the destination.
+If `hard_delete` is set to `False`, soft deletes are performed: rows deleted in the source are kept in the destination and marked with `_dlt_deleted = 'D'` instead of being physically removed.
 
-In this case, the destination schema must accept NULLs for the replicated columns, so make sure you pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
+:::warning
+Soft delete keeps the **row**, not its values. Change Tracking (unlike CDC) stores no before-image of a deleted row, so a delete event carries only the primary key. The soft-deleted row therefore lands as **primary key + `_dlt_deleted = 'D'` with every other column set to NULL**, and because the write disposition is `merge`, this overwrites the values previously loaded for that row.
+
+If you need to retain a deleted row's last-known values, do not rely on soft delete — keep history in a separate table (e.g. via a snapshot/append pattern) before the delete is processed.
+:::
+
+Because deleted rows carry NULLs, the destination schema must accept NULLs for the replicated columns. Pass the `remove_nullability_adapter` adapter to the `sql_table` resource:
 
 ```py
 from dlthub.sources.mssql import remove_nullability_adapter
