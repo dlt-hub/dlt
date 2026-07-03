@@ -665,12 +665,26 @@ def test_replace_strategy_switch_creates_staging_tables(
     def merge_items():
         yield [{"id": 1, "val": "m"}]
 
+    # nested merge table under a replace root makes a partial staging chain: the nested table
+    # loads to the staging dataset while the root does not until the strategy switch
+    @dlt.resource(
+        write_disposition="replace",
+        primary_key="id",
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="merge")},
+    )
+    def nested_items():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
     os.environ["DESTINATION__REPLACE_STRATEGY"] = "truncate-and-insert"
-    info = pipeline.run([items(), merge_items()], **destination_config.run_kwargs)
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
     assert_load_info(info)
 
-    # same schema, replace table now goes through the staging dataset
+    # same schema, replace tables now go through the staging dataset
     os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
-    info = pipeline.run([items(), merge_items()], **destination_config.run_kwargs)
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(pipeline, "items", "merge_items") == {"items": 2, "merge_items": 1}
+    assert load_table_counts(pipeline, "items", "merge_items", "nested_items") == {
+        "items": 2,
+        "merge_items": 1,
+        "nested_items": 1,
+    }

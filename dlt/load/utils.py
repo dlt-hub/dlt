@@ -245,15 +245,11 @@ def _trim_schema_to_tables(schema: Schema, table_names: Iterable[str]) -> Schema
     """Clones `schema` keeping only `table_names` and dlt tables, with version and hash bumped
     to the trimmed content.
     """
-    keep_tables = set(table_names)
+    keep_tables = set(table_names) | set(schema.dlt_table_names())
     trimmed_schema = schema.clone()
-    trimmed_schema.drop_tables(
-        [
-            name
-            for name in trimmed_schema.data_table_names(include_incomplete=True)
-            if name not in keep_tables
-        ]
-    )
+    for name in list(trimmed_schema.tables):
+        if name not in keep_tables:
+            del trimmed_schema.tables[name]
     trimmed_schema._bump_version()
     return trimmed_schema
 

@@ -1440,6 +1440,34 @@ def test_init_client_staging_trimmed_schema() -> None:
     assert not staging_schema.is_modified
     assert staging_schema.stored_version_hash != schema.stored_version_hash
 
+    # a nested table may be staging-eligible while its ancestors are not (ie. own merge
+    # disposition under a replace root). the trimmed schema keeps such nested table without
+    # its parents, mirroring what is actually materialized in the staging dataset
+    nested_bot = next(
+        t["name"] for t in get_nested_tables(schema.tables, "event_bot") if t.get("parent")
+    )
+    nested_only = lambda table_name: table_name == nested_bot
+
+    seen_schemas.clear()
+    with (
+        patch.object(dummy_impl.DummyClient, "initialize_storage"),
+        patch.object(
+            dummy_impl.DummyClient, "update_stored_schema", side_effect=capture_schema
+        ) as update_stored_schema,
+    ):
+        with load.get_destination_client(schema) as client:
+            clients[0] = client
+            init_client(
+                client, schema, [event_user, event_bot], {}, nothing_, nested_only, nothing_
+            )
+
+    _, staging_schema = seen_schemas
+    assert set(staging_schema.tables.keys()) == {nested_bot} | set(schema.dlt_table_names())
+    assert not staging_schema.is_modified
+    # only the nested table is created in the staging dataset
+    staging_ddl = update_stored_schema.call_args_list[1].kwargs["only_tables"]
+    assert staging_ddl == {nested_bot, "_dlt_version"}
+
 
 def test_init_client_staging_dlt_tables_with_jobs() -> None:
     """Athena regression fix: dlt tables with seen-data and jobs appear in staging DDL."""
