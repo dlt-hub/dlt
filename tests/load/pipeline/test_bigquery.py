@@ -2,6 +2,8 @@ from typing import Any, Dict, Iterator, List
 import pytest
 import io
 
+from pytest_mock import MockerFixture
+
 import dlt
 from dlt.common import Decimal, json, pendulum
 from dlt.common.typing import TLoaderFileFormat
@@ -9,8 +11,13 @@ from dlt.common.typing import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 from dlt.destinations.adapters import bigquery_adapter
 from dlt.extract.resource import DltResource
-from tests.pipeline.utils import assert_load_info
-from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.pipeline.utils import (
+    assert_load_info,
+    assert_empty_tables,
+    load_table_counts,
+    load_tables_to_dicts,
+)
+from tests.load.utils import destinations_configs, DestinationTestConfiguration, GCS_BUCKET
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -396,3 +403,101 @@ def test_adapter_autodetect_schema_with_merge(
 
     assert len(pipeline.dataset().items.df()) == 7
     assert len(pipeline.dataset().items__nested.df()) == 7
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_staging_configs=True,
+        subset=["bigquery"],
+        bucket_subset=(GCS_BUCKET,),
+    ),
+    ids=lambda x: x.name,
+)
+def test_atomic_replace(
+    destination_config: DestinationTestConfiguration,
+    mocker: MockerFixture,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """enable_atomic_replace over GCS staging: a deep nested chain is replaced atomically via
+    WRITE_TRUNCATE_DATA, jobless members (a child and a subchild) are truncated by zero-row loads,
+    a fully empty resource clears everything, and the table's description and out-of-band label
+    survive every replace."""
+    from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
+    from dlt.common.storages.load_storage import ParsedLoadJobFileName
+
+    monkeypatch.setenv("DESTINATION__REPLACE_STRATEGY", "truncate-and-insert")
+    monkeypatch.setenv("DESTINATION__BIGQUERY__ENABLE_ATOMIC_REPLACE", "true")
+    followup_spy = mocker.spy(BigQueryClient, "_create_atomic_replace_followup_jobs")
+
+    pipeline = destination_config.setup_pipeline("bq_atomic_replace", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace", primary_key="id")
+    def load_items(offset: int, child_b: bool, sub: bool, empty: bool = False):
+        if empty:
+            return
+        for i in range(offset, offset + 3):
+            child_a: Dict[str, Any] = {"cid": i}
+            if sub:
+                child_a["sub"] = [{"sid": i * 10}]
+            row: Dict[str, Any] = {"id": i, "child_a": [child_a]}
+            if child_b:
+                row["child_b"] = [{"bid": i}]
+            yield row
+
+    res = bigquery_adapter(load_items, table_description="preserve me across replace")
+    all_tables = ["items", "items__child_a", "items__child_a__sub", "items__child_b"]
+
+    # first load populates the whole chain
+    info = pipeline.run(res(0, child_b=True, sub=True), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert followup_spy.call_count >= 1
+    assert load_table_counts(pipeline, *all_tables) == {
+        "items": 3,
+        "items__child_a": 3,
+        "items__child_a__sub": 3,
+        "items__child_b": 3,
+    }
+
+    # a label is never managed by dlt: only an object-preserving replace keeps it
+    with pipeline.sql_client() as c:
+        fqtn = c.make_qualified_table_name("items", quote=False)
+        table = c.native_connection.get_table(fqtn)
+        table.labels = {"env": "test"}
+        c.native_connection.update_table(table, ["labels"])
+
+    # replace load: root and child_a get data; child_b and child_a__sub (subchild) get none
+    followup_spy.reset_mock()
+    info = pipeline.run(res(100, child_b=False, sub=False), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # jobless members carry no source files, so their aggregated job truncates via a zero-row load
+    truncated = {
+        ParsedLoadJobFileName.parse(job.new_file_path()).table_name
+        for job in followup_spy.spy_return
+        if not job._remote_paths
+    }
+    assert truncated == {"items__child_a__sub", "items__child_b"}
+    assert load_table_counts(pipeline, "items", "items__child_a") == {
+        "items": 3,
+        "items__child_a": 3,
+    }
+    assert {int(r["id"]) for r in load_tables_to_dicts(pipeline, "items")["items"]} == {
+        100,
+        101,
+        102,
+    }
+    assert_empty_tables(pipeline, "items__child_a__sub", "items__child_b")
+
+    # a fully empty resource clears every table (root via an empty-file WRITE_TRUNCATE_DATA)
+    info = pipeline.run(
+        res(0, child_b=False, sub=False, empty=True), **destination_config.run_kwargs
+    )
+    assert_load_info(info)
+    assert_empty_tables(pipeline, *all_tables)
+
+    # description and label survived all replaces
+    with pipeline.sql_client() as c:
+        table = c.native_connection.get_table(c.make_qualified_table_name("items", quote=False))
+        assert table.description == "preserve me across replace"
+        assert table.labels.get("env") == "test"
