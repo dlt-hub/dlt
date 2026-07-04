@@ -379,12 +379,13 @@ PHYSICAL_DEST_CASES = [
     pytest.param(
         lambda: _athena_config("us-west-2", "cat"), "us-west-2/cat", id="athena_region_catalog"
     ),
+    # no region available: fall back to the catalog so same-catalog datasets stay joinable
     pytest.param(
         lambda: AthenaClientConfiguration(
             credentials=AwsCredentials(),
             aws_data_catalog="cat",
         ),
-        "",
+        "cat",
         id="athena_no_region",
     ),
     pytest.param(
@@ -816,6 +817,7 @@ ATHENA_JOIN_CASES = [
         True,
         id="athena_catalog_case_insensitive",
     ),
+    # same catalog with region unspecified on both sides: treated as co-located
     pytest.param(
         lambda: AthenaClientConfiguration(
             credentials=AwsCredentials(),
@@ -825,7 +827,7 @@ ATHENA_JOIN_CASES = [
             credentials=AwsCredentials(),
             aws_data_catalog="cat",
         ),
-        False,
+        True,
         id="athena_no_region",
     ),
 ]
