@@ -28,6 +28,8 @@ from dlt.destinations.impl.athena.configuration import (
 )
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.athena.athena import AthenaClient
 
 
@@ -177,6 +179,17 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         from dlt.destinations.impl.athena.athena import AthenaClient
 
         return AthenaClient
+
+    def create_ibis_backend(
+        self, client: "AthenaClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis athena backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        return ibis.athena.connect(
+            schema_name=client.sql_client.dataset_name,
+            **client.config.to_connector_params(),
+        )
 
     @classmethod
     def adjust_capabilities(

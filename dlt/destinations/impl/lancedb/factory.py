@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Sequence, Type, Union, TYPE_CHECKING
 
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -24,6 +24,8 @@ def _get_type_mapper() -> Type[DataTypeMapper]:
 
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
     from lancedb import DBConnection
 
@@ -67,6 +69,25 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
         return LanceDBClient
+
+    def create_ibis_backend(
+        self, client: "LanceDBClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend that maps the lancedb tables as in-memory views."""
+        from dlt.helpers.ibis import ibis
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        sql_client = client.sql_client
+        assert isinstance(sql_client, LanceDBSQLClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable the destructor so the connection survives handover to ibis
+        client.sql_client = None
+        sql_client.memory_db = None
+        return con
 
     def __init__(
         self,

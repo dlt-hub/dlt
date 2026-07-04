@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -15,6 +15,8 @@ from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
 
@@ -168,6 +170,16 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         from dlt.destinations.impl.mssql.mssql import MsSqlJobClient
 
         return MsSqlJobClient
+
+    def create_ibis_backend(
+        self, client: "MsSqlJobClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis mssql backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        ms_credentials = client.config.credentials.to_native_representation()
+        ms_credentials = ms_credentials.replace("synapse://", "mssql://")
+        return ibis.connect(ms_credentials, driver=client.config.credentials.driver)
 
     def __init__(
         self,

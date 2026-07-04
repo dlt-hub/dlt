@@ -1,4 +1,4 @@
-from typing import Any, Type, TYPE_CHECKING, Optional
+from typing import Any, Sequence, Type, TYPE_CHECKING, Optional
 
 from dlt.common import logger
 from dlt.common.destination.typing import PreparedTableSchema
@@ -22,6 +22,8 @@ from dlt.destinations.utils import parse_db_data_type_str_with_precision
 
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
 
@@ -169,6 +171,19 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         from dlt.destinations.impl.bigquery.bigquery import BigQueryClient
 
         return BigQueryClient
+
+    def create_ibis_backend(
+        self, client: "BigQueryClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis bigquery backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        return ibis.bigquery.connect(
+            credentials=client.config.credentials.to_native_credentials(),
+            project_id=client.sql_client.project_id,
+            dataset_id=client.sql_client.fully_qualified_dataset_name(quote=False),
+            location=client.sql_client.location,
+        )
 
     def __init__(
         self,
