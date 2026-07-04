@@ -32,7 +32,7 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     """Allow BigQuery to autodetect schemas and create data tables"""
     ignore_unknown_values: bool = False
     """Ignore unknown values in the data"""
-    enable_atomic_replace: bool = True
+    enable_atomic_replace: bool = False
     """Replace `truncate-and-insert` tables with a single metadata-preserving WRITE_TRUNCATE_DATA
     load job. Requires a GCS filesystem staging destination."""
 
