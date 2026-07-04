@@ -1,6 +1,8 @@
 import os
+import warnings
 from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple, cast
+from urllib.parse import urlparse
 
 import google.cloud.bigquery as bigquery  # noqa: I250
 from google.api_core import exceptions as api_core_exceptions
@@ -22,7 +24,7 @@ from dlt.common.runtime.signals import sleep
 from dlt.common.schema import TColumnSchema, Schema, TTableSchemaColumns
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_inherited_table_hint, get_columns_names_with_prop
-from dlt.common.storages.load_package import destination_state
+from dlt.common.storages.load_package import destination_state, LoadJobInfo
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.typing import DictStrAny
 from dlt.common.data_writers.escape import escape_bigquery_literal
@@ -50,13 +52,25 @@ from dlt.destinations.impl.bigquery.configuration import BigQueryClientConfigura
 from dlt.destinations.impl.bigquery.warnings import per_column_cluster_hint_deprecated
 from dlt.destinations.impl.bigquery.sql_client import BigQuerySqlClient, BQ_TERMINAL_REASONS
 from dlt.destinations.job_client_impl import SqlJobClientWithStagingDataset
-from dlt.destinations.job_impl import DestinationJsonlLoadJob, DestinationParquetLoadJob
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.job_impl import (
+    DestinationJsonlLoadJob,
+    DestinationParquetLoadJob,
+    FinalizedLoadJobWithFollowupJobs,
+    ReferenceFollowupJobRequest,
+)
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 
 
-class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
+# file_id prefix marking the single aggregated reference job that atomic replace loads with
+# WRITE_TRUNCATE_DATA. The uniq suffix keeps the derived BigQuery job id unique per run.
+ATOMIC_REPLACE_FILE_ID_PREFIX = "atomic_"
+GCS_SCHEMES = ("gs", "gcs")
+
+
+class _BigQueryLoadJobBase(RunnableLoadJob):
+    """BigQuery load job polling logic shared by per-file and aggregated atomic replace jobs."""
+
     def __init__(
         self,
         file_path: str,
@@ -147,6 +161,15 @@ class BigQueryLoadJob(RunnableLoadJob, HasFollowupJobs):
         return Path(file_path).name.replace(".", "_")
 
 
+class BigQueryLoadJob(_BigQueryLoadJobBase, HasFollowupJobs):
+    """Per-file load job. Completing it triggers the table-chain followup hook."""
+
+
+class BigQueryAtomicReplaceLoadJob(_BigQueryLoadJobBase):
+    """Aggregated atomic replace job. Not `HasFollowupJobs` so completing it never re-fires the
+    table-chain hook."""
+
+
 class BigQueryMergeJob(SqlMergeFollowupJob):
     @classmethod
     def _gen_table_setup_clauses(
@@ -207,6 +230,84 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
     ) -> List[FollowupJobRequest]:
         return [BigQueryMergeJob.from_table_chain(table_chain, self.sql_client)]
 
+    def _use_atomic_replace(self, table: PreparedTableSchema) -> bool:
+        """Whether `table` is replaced with a single atomic WRITE_TRUNCATE_DATA load job.
+
+        The replace-strategy conflict is validated once in `BigQueryClientConfiguration.on_resolved`;
+        the GCS staging precondition is checked here because staging is only injected on the load
+        client, not on every config resolution."""
+        return (
+            self.config.enable_atomic_replace
+            and table["write_disposition"] == "replace"
+            and table.get("x-replace-strategy") == "truncate-and-insert"
+            and self._has_gcs_staging()
+        )
+
+    def _has_gcs_staging(self) -> bool:
+        staging = self.config.staging_config
+        return bool(staging and staging.bucket_url) and (
+            urlparse(staging.bucket_url).scheme in GCS_SCHEMES
+        )
+
+    def should_truncate_table_before_load(self, table_name: str) -> bool:
+        table = self.prepare_load_table(table_name)
+        if (
+            table["write_disposition"] == "replace"
+            and table.get("x-replace-strategy") == "truncate-and-insert"
+        ):
+            if self._use_atomic_replace(table):
+                # atomic replace truncates inside the load job, so skip the upfront truncate
+                return False
+            if self.config.enable_atomic_replace:
+                # flag on for a truncate-and-insert table but atomic did not engage: no GCS staging
+                warnings.warn(
+                    "BigQuery atomic replace (enable_atomic_replace) requires a Google Cloud"
+                    " Storage staging destination; none is configured. Falling back to the standard"
+                    " truncate-and-insert replace.",
+                    UserWarning,
+                    stacklevel=2,
+                )
+            return True
+        return False
+
+    def create_table_chain_completed_followup_jobs(
+        self,
+        table_chain: Sequence[PreparedTableSchema],
+        completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
+    ) -> List[FollowupJobRequest]:
+        root_table = table_chain[0]
+        if root_table["write_disposition"] == "replace" and self._use_atomic_replace(root_table):
+            return self._create_atomic_replace_followup_jobs(
+                table_chain, completed_table_chain_jobs or []
+            )
+        return super().create_table_chain_completed_followup_jobs(
+            table_chain, completed_table_chain_jobs
+        )
+
+    def _create_atomic_replace_followup_jobs(
+        self,
+        table_chain: Sequence[PreparedTableSchema],
+        completed_table_chain_jobs: Sequence[LoadJobInfo],
+    ) -> List[FollowupJobRequest]:
+        """Emits one WRITE_TRUNCATE_DATA reference job per chain table. A table with staged files
+        is replaced by them; a table that received no data is truncated by a zero-row load."""
+        jobs: List[FollowupJobRequest] = []
+        for table in table_chain:
+            # collect the per-file reference job paths; they are resolved at execution time when
+            # all jobs have moved to completed_jobs (like the filesystem delta/iceberg jobs do).
+            # an empty list still yields a job that truncates the table.
+            reference_paths = [
+                job.file_path
+                for job in completed_table_chain_jobs
+                if job.job_file_info.table_name == table["name"]
+                and job.job_file_info.file_format == "reference"
+            ]
+            file_id = f"{ATOMIC_REPLACE_FILE_ID_PREFIX}{ParsedLoadJobFileName.new_file_id()}"
+            jobs.append(
+                ReferenceFollowupJobRequest(f"{table['name']}.{file_id}.0.jsonl", reference_paths)
+            )
+        return jobs
+
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         truncate_tables = truncate_tables or []
 
@@ -226,6 +327,16 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         job = super().create_load_job(table, file_path, load_id)
 
         if not job:
+            if ReferenceFollowupJobRequest.is_reference_job(file_path):
+                parsed = ParsedLoadJobFileName.parse(file_path)
+                if parsed.file_id.startswith(ATOMIC_REPLACE_FILE_ID_PREFIX):
+                    return BigQueryAtomicReplaceLoadJob(
+                        file_path, self.config.http_timeout, self.config.retry_deadline
+                    )
+                if self._use_atomic_replace(table):
+                    # per-file reference is a no-op that drives the chain to its aggregated job
+                    return FinalizedLoadJobWithFollowupJobs.from_file_path(file_path)
+
             insert_api = table.get("x-insert-api", "default")
             if insert_api == "streaming":
                 if table["write_disposition"] != "append":
@@ -488,12 +599,28 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         # append to table for merge loads (append to stage) and regular appends.
         table_name = table["name"]
 
-        # determine whether we load from local or url
-        bucket_path = None
+        # a reference job loads one or more staged urls; a local file is uploaded directly
+        source_uris: Optional[List[str]] = None
+        is_atomic_replace = False
+        # literal string keeps the google-cloud-bigquery floor (enum added in 3.32)
+        write_disposition: str = bigquery.WriteDisposition.WRITE_APPEND
         ext: str = os.path.splitext(file_path)[1][1:]
         if ReferenceFollowupJobRequest.is_reference_job(file_path):
-            bucket_path = ReferenceFollowupJobRequest.resolve_reference(file_path)
-            ext = os.path.splitext(bucket_path)[1][1:]
+            if ParsedLoadJobFileName.parse(file_path).file_id.startswith(
+                ATOMIC_REPLACE_FILE_ID_PREFIX
+            ):
+                is_atomic_replace = True
+                write_disposition = "WRITE_TRUNCATE_DATA"
+                # the aggregated job references the per-file reference jobs; resolve each to its url
+                source_uris = [
+                    ReferenceFollowupJobRequest.resolve_reference(reference_path)
+                    for reference_path in ReferenceFollowupJobRequest.resolve_references(file_path)
+                    if reference_path
+                ]
+            else:
+                source_uris = [ReferenceFollowupJobRequest.resolve_reference(file_path)]
+            if source_uris:
+                ext = os.path.splitext(source_uris[0])[1][1:]
 
         # Select a correct source format
         source_format = bigquery.SourceFormat.NEWLINE_DELIMITED_JSON
@@ -506,7 +633,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         job_id = BigQueryLoadJob.get_job_id_from_file_path(file_path)
         job_config = bigquery.LoadJobConfig(
             autodetect=False,
-            write_disposition=bigquery.WriteDisposition.WRITE_APPEND,
+            write_disposition=write_disposition,
             create_disposition=bigquery.CreateDisposition.CREATE_NEVER,
             source_format=source_format,
             decimal_target_types=decimal_target_types,
@@ -517,10 +644,21 @@ SELECT {",".join(self._get_storage_table_query_columns())}
             # Allow BigQuery to infer and evolve the schema, note that dlt is not creating such tables at all.
             job_config = self._set_user_hints_with_schema_autodetection(table, job_config)
 
-        if bucket_path:
+        qualified_table_name = self.sql_client.make_qualified_table_name(table_name, quote=False)
+        if source_uris:
             return self.sql_client.native_connection.load_table_from_uri(
-                bucket_path,
-                self.sql_client.make_qualified_table_name(table_name, quote=False),
+                source_uris,
+                qualified_table_name,
+                job_id=job_id,
+                job_config=job_config,
+                timeout=self.config.file_upload_timeout,
+            )
+
+        if is_atomic_replace:
+            # no staged files: truncate the table with a zero-row load, preserving schema+metadata
+            return self.sql_client.native_connection.load_table_from_json(
+                [],
+                qualified_table_name,
                 job_id=job_id,
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,
@@ -529,7 +667,7 @@ SELECT {",".join(self._get_storage_table_query_columns())}
         with open(file_path, "rb") as f:
             return self.sql_client.native_connection.load_table_from_file(
                 f,
-                self.sql_client.make_qualified_table_name(table_name, quote=False),
+                qualified_table_name,
                 job_id=job_id,
                 job_config=job_config,
                 timeout=self.config.file_upload_timeout,

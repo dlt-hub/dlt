@@ -175,6 +175,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         credentials: GcpServiceAccountCredentials = None,
         location: str = None,
         has_case_sensitive_identifiers: bool = None,
+        enable_atomic_replace: bool = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -188,6 +189,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
                 a dict or string with service accounts credentials as used in the Google Cloud
             location (str, optional): A location where the datasets will be created, eg. "EU". The default is "US"
             has_case_sensitive_identifiers (bool, optional): Is the dataset case-sensitive, defaults to True
+            enable_atomic_replace (bool, optional): Replace `truncate-and-insert` tables with a single metadata-preserving WRITE_TRUNCATE_DATA load job. Requires a GCS staging destination.
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
@@ -196,6 +198,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
             credentials=credentials,
             location=location,
             has_case_sensitive_identifiers=has_case_sensitive_identifiers,
+            enable_atomic_replace=enable_atomic_replace,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

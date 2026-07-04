@@ -123,6 +123,35 @@ All write dispositions are supported.
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables.
 
+### Atomic, metadata-preserving replace
+
+`staging-optimized` drops and recreates the table, which loses table-level access controls, column policy tags, primary key constraints, row access policies, and breaks dependent materialized views. If you need a full refresh that keeps all of this, enable `enable_atomic_replace`:
+
+```toml
+[destination.bigquery]
+enable_atomic_replace = true
+```
+
+When enabled, the `truncate-and-insert` replace strategy loads a table's staged files with a single BigQuery load job using `write_disposition=WRITE_TRUNCATE_DATA`. This replaces the data **in place**: the table object is kept, so its schema, descriptions, labels, column policy tags, primary key constraints, and row access policies survive the refresh, dependent materialized views keep working, and there is no empty-table window (the truncate and load are atomic).
+
+Requirements and behavior:
+
+- Requires a [Google Cloud Storage staging destination](#staging-support) (`gs://` bucket). With no staging, or a non-GCS staging bucket, `dlt` logs a warning and falls back to the regular `truncate-and-insert` (which briefly empties the table).
+- Active only when the replace strategy is `truncate-and-insert` (the default). Other strategies are unaffected.
+- Atomicity is **per table**: every table in a nested chain is replaced by its own atomic load job, not the whole chain as a single transaction.
+
+You can also enable it in code:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    "bq_pipeline",
+    destination=dlt.destinations.bigquery(enable_atomic_replace=True),
+    staging="filesystem",
+)
+```
+
 ## Data loading
 
 `dlt` uses `BigQuery` load jobs that send files from the local filesystem or GCS buckets.
