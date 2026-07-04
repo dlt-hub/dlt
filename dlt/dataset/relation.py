@@ -24,7 +24,14 @@ import sqlglot.expressions as sge
 
 import dlt
 from dlt.common.destination.dataset import TFilterOperation
-from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
+from dlt.common.libs.sqlglot import (
+    to_sqlglot_type,
+    build_typed_literal,
+    migrate_order_and_limit,
+    DLT_SUBQUERY_NAME,
+    TSqlGlotDialect,
+    has_pure_column_projection,
+)
 from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
     TTableSchema,
@@ -53,7 +60,7 @@ from dlt.dataset._join import (
     _extract_joined_table_aliases,
     _JoinTarget,
     _left_source_qualifier,
-    _qualify_physical_tables_with_dataset,
+    _qualify_unscoped_tables_with_dataset,
 )
 
 
@@ -268,12 +275,15 @@ class Relation(WithSqlClient):
             self._opened_sql_client = None
 
     def to_sql(self, pretty: bool = False, *, _raw_query: bool = False) -> str:
-        """Get the normalize query string in the correct sql dialect for this relation"""
+        """Get the query string in the destination dialect. `pretty` flattens subqueries and formats the SQL."""
 
         if self._execute_raw_query or _raw_query:
             query = self.sqlglot_expression
         else:
             _, _qualified_query = _get_relation_output_columns_schema(self)
+            if pretty:
+                # optimize only for readable output; executed SQL stays as constructed
+                _qualified_query = _optimize_query(_qualified_query)
             query = bind_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._relation_sqlglot_schema(),
@@ -340,16 +350,21 @@ class Relation(WithSqlClient):
         """
         return self.limit(limit)
 
-    def select(self, *columns: str, _allow_merge_subqueries: bool = True) -> Self:
+    def select(self, *columns: str) -> Self:
         """Create a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
-        subquery = self.sqlglot_expression.subquery()
-        new_expr = sge.select(*proj).from_(subquery)
         rel = self.__copy__()
-        if _allow_merge_subqueries:
-            rel._sqlglot_expression = merge_subqueries(new_expr)
-        else:
-            rel._sqlglot_expression = new_expr
+        if has_pure_column_projection(self.sqlglot_expression):
+            expr = self.sqlglot_expression.copy()
+            expr.set("expressions", proj)
+            rel._sqlglot_expression = expr
+            return rel
+        # a defining projection (aliases, expressions, distinct, group) must become a derived table
+        qualifier = _left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
+        subquery = self.sqlglot_expression.subquery(qualifier)
+        new_expr = sge.select(*proj).from_(subquery)
+        migrate_order_and_limit(subquery.this, new_expr, qualifier)
+        rel._sqlglot_expression = new_expr
         return rel
 
     def order_by(self, column_name: str, direction: TSortOrder = "asc") -> Self:
@@ -367,22 +382,12 @@ class Relation(WithSqlClient):
                 f"`{direction}` is an invalid sort order, allowed values are: `asc` and `desc`"
             )
         order_expr = sge.Ordered(
-            this=self._resolve_output_column(column_name),
+            this=sge.Column(this=sge.to_identifier(column_name, quoted=True)),
             desc=(direction == "desc"),
         )
         rel = self.__copy__()
         rel._sqlglot_expression = rel.sqlglot_expression.order_by(order_expr)
         return rel
-
-    def _resolve_output_column(self, column_name: str) -> sge.Expression:
-        """Resolve an output column name to its projected source expression."""
-        for proj in self.sqlglot_expression.selects:
-            if isinstance(proj, sge.Star) or proj.output_name != column_name:
-                continue
-            source = proj.this if isinstance(proj, sge.Alias) else proj
-            if not isinstance(source, sge.Star):
-                return source.copy()
-        return sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
     @overload
     def join(
@@ -494,7 +499,7 @@ class Relation(WithSqlClient):
                 left_dataset_name=self._dataset.dataset_name,
             )
 
-        _qualify_physical_tables_with_dataset(query, self._dataset.dataset_name)
+        _qualify_unscoped_tables_with_dataset(query, self._dataset.dataset_name)
 
         rel = self.__copy__()
         rel._sqlglot_expression = query
@@ -537,12 +542,12 @@ class Relation(WithSqlClient):
                     f" '{target_dataset.destination_client.config}'"
                 )
 
-            dataset_same_name = this_dataset.dataset_name == target_dataset.dataset_name
-            # at this moment we cannot join datasets with the same name on two different locations
+            # unreachable until `can_read_from` is relaxed for attached locations: same-named
+            # datasets on two locations cannot be disambiguated by the dataset name alone
             if (
-                this_dataset.destination_client.config.physical_location()
-                != other._dataset.destination_client.config.physical_location()
-                and dataset_same_name
+                this_dataset.dataset_name == target_dataset.dataset_name
+                and this_dataset.destination_client.config.physical_location()
+                != target_dataset.destination_client.config.physical_location()
             ):
                 raise ValueError(
                     "Cannot join datasets with the same name located on two different destinations"
@@ -671,13 +676,12 @@ class Relation(WithSqlClient):
             self.sqlglot_expression, self._dataset.dataset_name
         ):
             raise ValueError(
-                f"Incremental cursor `{incremental.cursor_path}` requires a "
-                f"base-table relation to resolve the join to `{table_name}`. "
-                f"This relation is derived from base table `{self._table_name}` "
-                "(e.g. via `.from_loads()`, `dataset.table(load_ids=...)`, or "
-                "`.select()`), so a dotted cursor cannot be applied. Use a "
-                f"cursor on a column of `{self._table_name}` instead, or drop "
-                "the derivation."
+                f"Incremental cursor `{incremental.cursor_path}` requires base table "
+                f"`{self._table_name}` to stay directly in the FROM clause to resolve the join "
+                f"to `{table_name}`, but this relation embeds it in a subquery (e.g. a projection "
+                "with aliases or aggregates, or a raw `dataset(query)` relation). Use a cursor on "
+                f"a column of `{self._table_name}` instead, or apply `.incremental()` before the "
+                "step that wrapped the base table."
             )
 
         query = _apply_join(
@@ -976,7 +980,7 @@ class Relation(WithSqlClient):
         return (
             filtered_rel_with_load_id
             if add_load_id_column
-            else filtered_rel_with_load_id.select(*initial_columns, _allow_merge_subqueries=False)
+            else filtered_rel_with_load_id.select(*initial_columns)
         )
 
     # TODO move this to the WithSqlClient / data accessor mixin.
@@ -1084,3 +1088,8 @@ def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTabl
         if table_name in schema.tables:
             return schema.get_table_columns(table_name)
     raise ValueError(f"Table `{table_name}` not found in dataset schema")
+
+
+def _optimize_query(qualified_query: sge.Query) -> sge.Query:
+    """Flatten a qualified query for readable SQL output."""
+    return merge_subqueries(qualified_query)

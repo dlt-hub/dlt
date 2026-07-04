@@ -747,30 +747,35 @@ def test_incremental_chained_call_raises(incremental_dataset: dlt.Dataset) -> No
 
 
 @pytest.mark.parametrize(
-    "build_relation",
+    "build_relation,expected_rows",
     [
         pytest.param(
             lambda ds, load_ids, incremental: ds.table(
-                "events", load_ids=load_ids, incremental=incremental
+                "events", load_ids=load_ids[:1], incremental=incremental
             ),
+            len(EVENTS_LOAD_0),
             id="kwargs",
         ),
         pytest.param(
             lambda ds, load_ids, incremental: ds.table("events")
-            .from_loads(load_ids)
+            .from_loads(load_ids[:1])
             .incremental(incremental),
+            len(EVENTS_LOAD_0),
             id="chained",
+        ),
+        pytest.param(
+            lambda ds, load_ids, incremental: ds.table("events")
+            .select("id", "value")
+            .incremental(incremental),
+            len(EVENTS_LOAD_0) + len(EVENTS_LOAD_1),
+            id="after-select",
         ),
     ],
 )
-def test_incremental_dotted_cursor_after_from_loads_raises(
-    incremental_pipeline: dlt.Pipeline, build_relation: Any
+def test_incremental_dotted_cursor_on_derived_relation(
+    incremental_pipeline: dlt.Pipeline, build_relation: Any, expected_rows: int
 ) -> None:
-    """`.from_loads()` wraps FROM in a subquery, so a subsequent dotted-cursor
-    `.incremental()` cannot resolve the join. Both the kwargs combo on
-    `dataset.table()` and the chained form must fail with a clear, user-facing
-    message rather than the internal `_discover_join_params` error.
-    """
+    """Root-table derivations keep the base table in FROM, so a dotted cursor still applies."""
     dataset = incremental_pipeline.dataset()
     load_ids = dataset.load_ids()
     assert load_ids, "fixture must produce at least one load"
@@ -780,8 +785,8 @@ def test_incremental_dotted_cursor_after_from_loads_raises(
         initial_value=pendulum.datetime(2026, 1, 1, tz="UTC"),
         end_value=END_VALUE_DT,
     )
-    with pytest.raises(ValueError, match="dotted cursor cannot be applied"):
-        build_relation(dataset, load_ids, incremental)
+    relation = build_relation(dataset, load_ids, incremental)
+    assert len(relation.fetchall()) == expected_rows
 
 
 @pytest.mark.parametrize(

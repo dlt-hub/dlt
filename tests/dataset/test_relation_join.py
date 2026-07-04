@@ -7,7 +7,9 @@ import sqlglot
 import sqlglot.expressions as sge
 
 import dlt
+from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.schema.typing import TTableReference
+from dlt.dataset.exceptions import LineageFailedException
 from dlt.dataset._join import (
     _build_join_condition_from_pairs,
     _resolve_reference_chain,
@@ -248,7 +250,9 @@ def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsF
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
 
 
-def test_join_rejects_same_name_on_different_physical_destinations() -> None:
+def test_join_rejects_same_name_on_different_physical_destinations(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         shared_dataset_name = "same_name_diff_dest"
@@ -279,6 +283,13 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
 
         assert "a.duckdb" in str(exc_info.value)
         assert "b.duckdb" in str(exc_info.value)
+
+        # once `can_read_from` is relaxed (e.g. duckdb ATTACH), the same-name guard must hold
+        monkeypatch.setattr(
+            DestinationClientConfiguration, "can_read_from", lambda self, other: True
+        )
+        with pytest.raises(ValueError, match="same name located on two different destinations"):
+            ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
 
 
 @pytest.mark.parametrize(
@@ -404,12 +415,6 @@ def test_resolve_reference_chain_matrix(
             "users__orders",
             "no base table",
             id="query-relation-not-joinable",
-        ),
-        pytest.param(
-            lambda ds: ds.table("users__orders").limit(5).select("order_id"),
-            "users",
-            "no base table to resolve references",
-            id="subquery-hides-base-table",
         ),
     ],
 )
@@ -541,24 +546,6 @@ def test_join_does_not_project_incomplete_target_columns(
     assert len(rows) == 3
 
 
-_MAGIC_LIMIT_LEAKS_PAST_JOIN = pytest.mark.xfail(
-    reason=(
-        "magic join does not wrap a limited left relation as a derived table, so LIMIT is "
-        "rendered on the joined query instead of the limited left relation"
-    ),
-    strict=True,
-)
-
-
-_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
-    reason=(
-        "magic join does not wrap a filtered left relation as a derived table, so its WHERE is "
-        "evaluated after the join and drops unmatched right-side rows of right/full joins"
-    ),
-    strict=True,
-)
-
-
 @pytest.mark.parametrize(
     "build_rel,expected_session_ids",
     [
@@ -566,7 +553,6 @@ _MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
             lambda ds: ds.table("users").order_by("id").limit(1).join("user_sessions"),
             ["s1", "s2"],
             id="limit-magic",
-            marks=_MAGIC_LIMIT_LEAKS_PAST_JOIN,
         ),
         pytest.param(
             lambda ds: ds.table("users")
@@ -592,13 +578,11 @@ _MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN = pytest.mark.xfail(
             lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="right"),
             ["s1", "s2", "s3"],
             id="filter-magic-right",
-            marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
         ),
         pytest.param(
             lambda ds: ds.table("users").where("id", "eq", 1).join("user_sessions", kind="full"),
             ["s1", "s2", "s3"],
             id="filter-magic-full",
-            marks=_MAGIC_WHERE_LEAKS_PAST_OUTER_JOIN,
         ),
         pytest.param(
             lambda ds: ds.table("users")
@@ -1041,6 +1025,22 @@ def test_select_then_join_preserves_narrow_projection(dataset_with_loads: TLoads
     assert "users__name" in df.columns
 
 
+def test_limit_and_select_then_magic_join(dataset_with_loads: TLoadsFixture) -> None:
+    """LIMIT and select() on the left relation apply before the magic join."""
+    dataset, _, _ = dataset_with_loads
+    limited = dataset.table("users__orders").order_by("order_id").limit(1)
+
+    joined = limited.select("order_id", "_dlt_parent_id").join("users")
+    df = joined.df()
+    assert len(df) == 1
+    assert "order_id" in df.columns
+    assert "users__name" in df.columns
+
+    # a projection that drops the join key cannot be joined once LIMIT seals it
+    with pytest.raises(LineageFailedException, match="_dlt_parent_id"):
+        limited.select("order_id").join("users").df()
+
+
 @pytest.mark.parametrize(
     "build_joined",
     [
@@ -1349,56 +1349,36 @@ def test_explicit_on_projection_prefix(
     assert right_aliases == expected
 
 
-def _order_by_sort_key(rel: dlt.Relation) -> sge.Column:
-    """Return the single ORDER BY sort-key column of a relation."""
-    order = rel.sqlglot_expression.args.get("order")
-    assert order is not None and len(order.expressions) == 1
-    sort_key = order.expressions[0].this
-    assert isinstance(sort_key, sge.Column)
-    return sort_key
-
-
-@pytest.mark.parametrize(
-    "build_join,order_column",
-    [
-        pytest.param(
-            lambda ds: ds.table("customers").join(
-                "orders", on="customers.customer_id = orders.customer_id"
-            ),
-            "orders__order_id",
-            id="default-prefix",
-        ),
-        pytest.param(
-            lambda ds: ds.table("customers").join(
-                "orders", on="customers.customer_id = orders.customer_id", alias="o"
-            ),
-            "o__order_id",
-            id="custom-alias",
-        ),
-    ],
-)
-def test_order_by_join_output_resolves_to_source_column(
+@pytest.mark.parametrize("alias", [None, "o"], ids=["default-prefix", "custom-alias"])
+def test_order_by_join_output_alias_survives_select(
     dataset_with_relational_tables: dlt.Dataset,
-    build_join: Callable[[dlt.Dataset], dlt.Relation],
-    order_column: str,
+    alias: Optional[str],
 ) -> None:
-    rel = build_join(dataset_with_relational_tables).order_by(order_column)
-    sort_key = _order_by_sort_key(rel)
-    assert sort_key.table == "orders"
-    assert sort_key.name == "order_id"
+    """Ordering by a join output alias survives a later projection change."""
+    prefix = alias or "orders"
+    rel = (
+        dataset_with_relational_tables.table("customers")
+        .join("orders", on="customers.customer_id = orders.customer_id", alias=alias)
+        .order_by(f"{prefix}__order_id", "desc")
+        .select("name", f"{prefix}__amount")
+    )
+    df = rel.df()
+    assert list(df.columns) == ["name", f"{prefix}__amount"]
+    assert [float(x) for x in df[f"{prefix}__amount"]] == [30.0, 200.0, 75.0, 50.0]
 
 
-def test_order_by_join_output_renders_resolvable_tsql(
+def test_order_by_join_output_binds_to_source_column(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:
+    """tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation)."""
     rel = (
         dataset_with_relational_tables.table("customers")
         .join("orders", on="customers.customer_id = orders.customer_id")
         .order_by("orders__order_id")
     )
-    order_by = sqlglot.transpile(rel.to_sql(), read="duckdb", write="tsql")[0].split("ORDER BY", 1)[
-        1
-    ]
+    sql = rel.to_sql()
+    assert 'ORDER BY "orders"."order_id"' in sql
+    order_by = sqlglot.transpile(sql, read="duckdb", write="tsql")[0].split("ORDER BY", 1)[1]
     assert "[orders__order_id]" not in order_by
     assert "[orders].[order_id]" in order_by
 
