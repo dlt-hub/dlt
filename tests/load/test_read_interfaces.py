@@ -781,6 +781,14 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
 
 
 @pytest.mark.no_load
+def test_distinct_order_by(populated_pipeline: Pipeline) -> None:
+    """DISTINCT restricts ORDER BY to output columns; strict engines (databricks) reject a source column."""
+    query = "SELECT DISTINCT id FROM items ORDER BY id"
+    ids = [row[0] for row in populated_pipeline.dataset()(query).limit(5).fetchall()]
+    assert ids == list(range(5))
+
+
+@pytest.mark.no_load
 @pytest.mark.essential
 def test_where(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)

@@ -758,6 +758,21 @@ def test_select_projection_shapes(mock_dataset: dlt.Dataset) -> None:
     assert kept.sqlglot_expression.args.get("limit") is None
 
 
+def test_order_by_output_alias_binding(mock_dataset: dlt.Dataset) -> None:
+    """ORDER BY an output alias binds to its source, except under DISTINCT/GROUP BY."""
+    # plain select: bind resolves the alias to its source column (tsql/snowflake need this)
+    plain = mock_dataset("SELECT col1 FROM my_table ORDER BY col1").to_sql()
+    assert 'ORDER BY "my_table"."col1"' in plain
+
+    # DISTINCT: sort key must stay the output column (databricks rejects a source column here)
+    distinct = mock_dataset("SELECT DISTINCT col1 FROM my_table ORDER BY col1").to_sql()
+    assert 'ORDER BY "col1"' in distinct
+    assert "my_table" not in distinct.split("ORDER BY")[1]
+
+    grouped = mock_dataset("SELECT col1 FROM my_table GROUP BY col1 ORDER BY col1").to_sql()
+    assert "my_table" not in grouped.split("ORDER BY")[1]
+
+
 def test_copy_and_chaining() -> None:
     dataset = dlt.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),

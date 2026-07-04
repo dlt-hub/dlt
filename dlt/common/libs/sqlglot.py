@@ -1083,9 +1083,15 @@ def bind_query(
     is_casefolding = casefold_identifier is not str
 
     # bind ORDER BY references to output aliases back to their source expressions. dialects
-    # like tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation)
+    # like tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation).
+    # under DISTINCT/GROUP BY the sort key must stay an output column (source is out of scope)
     order = qualified_query.args.get("order")
-    if order is not None and isinstance(qualified_query, sge.Select):
+    if (
+        order is not None
+        and isinstance(qualified_query, sge.Select)
+        and not qualified_query.args.get("distinct")
+        and not qualified_query.args.get("group")
+    ):
         alias_sources = {
             proj.output_name: proj.this
             for proj in qualified_query.selects
