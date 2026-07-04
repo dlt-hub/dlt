@@ -431,9 +431,7 @@ def _apply_join(
     query = _copy_as_select(expression)
 
     left_source_qualifier = _left_source_qualifier(query) or left_table
-    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
-    if not _is_flat_select(query) or where_must_apply_before_join:
-        query = _wrap_as_derived_table(query, left_source_qualifier)
+    query = _seal_left_side(query, left_source_qualifier, kind)
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 
     join_params, target_qualifier = _discover_join_params(
@@ -544,6 +542,18 @@ def _wrap_as_derived_table(query: sge.Select, qualifier: str) -> sge.Select:
     )
 
 
+def _seal_left_side(query: sge.Select, left_source_qualifier: str, kind: TJoinType) -> sge.Select:
+    """Seal the left side in a derived table when its rows must be fixed before the join.
+
+    A non-flat left side (LIMIT/OFFSET/DISTINCT/GROUP/aggregate), or a WHERE that must precede a
+    RIGHT/FULL join, would otherwise leak past the join and change which rows survive.
+    """
+    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
+    if not _is_flat_select(query) or where_must_apply_before_join:
+        return _wrap_as_derived_table(query, left_source_qualifier)
+    return query
+
+
 def _apply_explicit_join(
     expression: sge.Query,
     target: _JoinTarget,
@@ -576,9 +586,7 @@ def _apply_explicit_join(
             "in its FROM clause (a base table or an aliased derived table)."
         )
 
-    where_must_apply_before_join = kind in ("right", "full") and query.args.get("where") is not None
-    if not _is_flat_select(query) or where_must_apply_before_join:
-        query = _wrap_as_derived_table(query, left_source_qualifier)
+    query = _seal_left_side(query, left_source_qualifier, kind)
 
     _qualify_unscoped_predicate_columns(query, left_source_qualifier)
 

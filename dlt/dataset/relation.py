@@ -24,7 +24,14 @@ import sqlglot.expressions as sge
 
 import dlt
 from dlt.common.destination.dataset import TFilterOperation
-from dlt.common.libs.sqlglot import to_sqlglot_type, build_typed_literal, TSqlGlotDialect
+from dlt.common.libs.sqlglot import (
+    to_sqlglot_type,
+    build_typed_literal,
+    migrate_order_and_limit,
+    DLT_SUBQUERY_NAME,
+    TSqlGlotDialect,
+    has_pure_column_projection,
+)
 from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
     TTableSchema,
@@ -347,16 +354,16 @@ class Relation(WithSqlClient):
         """Create a `Relation` with the selected columns using a `SELECT` clause."""
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         rel = self.__copy__()
-        if _has_pure_column_projection(self.sqlglot_expression):
+        if has_pure_column_projection(self.sqlglot_expression):
             expr = self.sqlglot_expression.copy()
             expr.set("expressions", proj)
             rel._sqlglot_expression = expr
             return rel
         # a defining projection (aliases, expressions, distinct, group) must become a derived table
-        qualifier = _left_source_qualifier(self.sqlglot_expression) or "subquery"
+        qualifier = _left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
         subquery = self.sqlglot_expression.subquery(qualifier)
         new_expr = sge.select(*proj).from_(subquery)
-        _hoist_order_and_limit(subquery.this, new_expr, qualifier)
+        migrate_order_and_limit(subquery.this, new_expr, qualifier)
         rel._sqlglot_expression = new_expr
         return rel
 
@@ -669,13 +676,12 @@ class Relation(WithSqlClient):
             self.sqlglot_expression, self._dataset.dataset_name
         ):
             raise ValueError(
-                f"Incremental cursor `{incremental.cursor_path}` requires a "
-                f"base-table relation to resolve the join to `{table_name}`. "
-                f"This relation is derived from base table `{self._table_name}` "
-                "(e.g. via `.from_loads()`, `dataset.table(load_ids=...)`, or "
-                "`.select()`), so a dotted cursor cannot be applied. Use a "
-                f"cursor on a column of `{self._table_name}` instead, or drop "
-                "the derivation."
+                f"Incremental cursor `{incremental.cursor_path}` requires base table "
+                f"`{self._table_name}` to stay directly in the FROM clause to resolve the join "
+                f"to `{table_name}`, but this relation embeds it in a subquery (e.g. a projection "
+                "with aliases or aggregates, or a raw `dataset(query)` relation). Use a cursor on "
+                f"a column of `{self._table_name}` instead, or apply `.incremental()` before the "
+                "step that wrapped the base table."
             )
 
         query = _apply_join(
@@ -1087,66 +1093,3 @@ def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTabl
 def _optimize_query(qualified_query: sge.Query) -> sge.Query:
     """Flatten a qualified query for readable SQL output."""
     return merge_subqueries(qualified_query)
-
-
-def _has_pure_column_projection(query: sge.Query) -> bool:
-    """True when every projection is a plain column or star, so it defines no output names."""
-    if not isinstance(query, sge.Select):
-        return False
-    # with multiple sources an unqualified replacement column turns ambiguous
-    if query.args.get("joins"):
-        return False
-    if any(query.args.get(key) for key in ("group", "having", "qualify", "distinct")):
-        return False
-    return all(
-        isinstance(sel, sge.Star)
-        or (isinstance(sel, sge.Column) and isinstance(sel.this, (sge.Identifier, sge.Star)))
-        for sel in query.selects
-    )
-
-
-def _hoist_order_and_limit(inner: sge.Query, outer: sge.Select, qualifier: str) -> None:
-    """Move ORDER BY / LIMIT / OFFSET from a wrapped query onto the wrapping select."""
-    order = inner.args.get("order")
-    if order is not None:
-        exposed_names = {proj.output_name for proj in inner.selects}
-        has_star = any(
-            isinstance(proj, sge.Star)
-            or (isinstance(proj, sge.Column) and isinstance(proj.this, sge.Star))
-            for proj in inner.selects
-        )
-        hoisted: list[sge.Expression] = []
-        for ordered in order.expressions:
-            sort_key = ordered.this
-            if isinstance(sort_key, sge.Column) and sort_key.args.get("table") is None:
-                if not has_star and sort_key.name not in exposed_names:
-                    # a sort key dropped by the projection cannot survive the wrap, keep the unit inside
-                    return
-                hoisted.append(ordered.copy())
-                continue
-            # a qualified or computed sort key is only visible outside the wrap by its output name
-            output_name = next(
-                (
-                    proj.output_name
-                    for proj in inner.selects
-                    if (proj.this if isinstance(proj, sge.Alias) else proj) == sort_key
-                ),
-                None,
-            )
-            if output_name is None:
-                return
-            rewritten = ordered.copy()
-            rewritten.set(
-                "this",
-                sge.Column(
-                    table=sge.to_identifier(qualifier),
-                    this=sge.to_identifier(output_name, quoted=True),
-                ),
-            )
-            hoisted.append(rewritten)
-        outer.set("order", sge.Order(expressions=hoisted))
-        inner.set("order", None)
-    for clause in ("limit", "offset"):
-        if (value := inner.args.get(clause)) is not None:
-            outer.set(clause, value)
-            inner.set(clause, None)

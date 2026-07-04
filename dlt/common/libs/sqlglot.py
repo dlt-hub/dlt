@@ -1144,3 +1144,66 @@ def bind_query(
                 qualified_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
 
     return qualified_query
+
+
+def has_pure_column_projection(query: sge.Query) -> bool:
+    """True when every projection is a plain column or star, so it defines no output names."""
+    if not isinstance(query, sge.Select):
+        return False
+    # with multiple sources an unqualified replacement column turns ambiguous
+    if query.args.get("joins"):
+        return False
+    if any(query.args.get(key) for key in ("group", "having", "qualify", "distinct")):
+        return False
+    return all(
+        isinstance(sel, sge.Star)
+        or (isinstance(sel, sge.Column) and isinstance(sel.this, (sge.Identifier, sge.Star)))
+        for sel in query.selects
+    )
+
+
+def migrate_order_and_limit(inner: sge.Query, outer: sge.Select, qualifier: str) -> None:
+    """Move ORDER BY / LIMIT / OFFSET from a wrapped query onto the wrapping select."""
+    order = inner.args.get("order")
+    if order is not None:
+        exposed_names = {proj.output_name for proj in inner.selects}
+        has_star = any(
+            isinstance(proj, sge.Star)
+            or (isinstance(proj, sge.Column) and isinstance(proj.this, sge.Star))
+            for proj in inner.selects
+        )
+        hoisted: List[sge.Expression] = []
+        for ordered in order.expressions:
+            sort_key = ordered.this
+            if isinstance(sort_key, sge.Column) and sort_key.args.get("table") is None:
+                if not has_star and sort_key.name not in exposed_names:
+                    # a sort key dropped by the projection cannot survive the wrap, keep the unit inside
+                    return
+                hoisted.append(ordered.copy())
+                continue
+            # a qualified or computed sort key is only visible outside the wrap by its output name
+            output_name = next(
+                (
+                    proj.output_name
+                    for proj in inner.selects
+                    if (proj.this if isinstance(proj, sge.Alias) else proj) == sort_key
+                ),
+                None,
+            )
+            if output_name is None:
+                return
+            rewritten = ordered.copy()
+            rewritten.set(
+                "this",
+                sge.Column(
+                    table=sge.to_identifier(qualifier),
+                    this=sge.to_identifier(output_name, quoted=True),
+                ),
+            )
+            hoisted.append(rewritten)
+        outer.set("order", sge.Order(expressions=hoisted))
+        inner.set("order", None)
+    for clause in ("limit", "offset"):
+        if (value := inner.args.get(clause)) is not None:
+            outer.set(clause, value)
+            inner.set(clause, None)
