@@ -356,6 +356,17 @@ def test_root_child_reference_from_child(schema: dlt.Schema) -> None:
     assert all(ref.get("label") == "_dlt_root" for ref in [nested_ref1, nested_ref2])
 
 
+def test_root_child_reference_without_root_key(schema: dlt.Schema) -> None:
+    """`create_root_child_reference()` on a nested table missing a `root_key`
+    column should raise a message that names the offending table.
+    """
+    del schema.tables["root_table1__child1"]["columns"]["_dlt_root_id"]
+
+    with pytest.raises(ValueError) as e:
+        create_root_child_reference(schema.tables, "root_table1__child1")
+    assert e.match("No `root_key` found for table `root_table1__child1`.")
+
+
 def test_get_all_root_child_references_from_root(schema: dlt.Schema) -> None:
     nested_ref1 = create_root_child_reference(schema.tables, "root_table1__child1")
     nested_ref2 = create_root_child_reference(schema.tables, "root_table1__child1__child2")
