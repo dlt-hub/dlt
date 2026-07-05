@@ -427,8 +427,8 @@ def test_datetime_to_timestamp_helpers(
         ("2024-10-20", "%Y-%m-%d"),  # Date only
         ("2024-10", "%Y-%m"),  # Year and month
         ("2024", "%Y"),  # Year only
-        ("2024-W42", "%Y-W%W"),  # Week-based date
-        ("2024-W42-5", "%Y-W%W-%u"),  # Week-based date with day
+        ("2024-W42", "%G-W%V"),  # Week-based date
+        ("2024-W42-5", "%G-W%V-%u"),  # Week-based date with day
         ("2024-293", "%Y-%j"),  # Ordinal date
         ("20241020", "%Y%m%d"),  # Compact date format
         # ("202410", "%Y%m"),  # Compact year and month format NOTE: does not pass with pendulum < 3.0.0
@@ -437,6 +437,28 @@ def test_datetime_to_timestamp_helpers(
 def test_detect_datetime_format(value, expected_format) -> None:
     assert detect_datetime_format(value) == expected_format
     assert ensure_pendulum_datetime_utc(value) is not None
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        # ISO week dates around year boundaries where the ISO week-numbering year
+        # differs from the calendar year. `%W`/`%Y` produce the wrong week here,
+        # only `%V`/`%G` round-trip.
+        "2026-W01",  # ISO week 1 of 2026 starts 2025-12-29
+        "2026-W01-1",
+        "2020-W53",  # 2020 has 53 ISO weeks
+        "2021-W01",
+        "2024-W42",
+        "2024-W42-5",
+    ],
+)
+def test_detect_datetime_format_week_roundtrip(value: str) -> None:
+    # the detected format must reproduce the original string when used to render
+    # the value parsed from it (this is how lag re-serializes string cursors)
+    fmt = detect_datetime_format(value)
+    parsed = ensure_pendulum_datetime_non_utc(value)
+    assert datetime_obj_to_str(parsed, fmt) == value
 
 
 @pytest.mark.parametrize(

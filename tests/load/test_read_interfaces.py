@@ -24,16 +24,17 @@ from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
-from tests.load.lance_utils import module_lance_rest_server
+from tests.load.read_dataset_fixtures import (
+    destination_config,
+    preserve_module_environ_per_destination_config,
+    skip_if_unsupported_filesystem_format,
+)
 from tests.load.utils import (
     DestinationTestConfiguration,
-    MEMORY_BUCKET,
-    SFTP_BUCKET,
     destinations_configs,
     drop_pipeline_data,
 )
 from tests.utils import (
-    _preserve_environ,
     auto_module_test_run_context,
     auto_module_test_storage,
 )
@@ -146,46 +147,16 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
     return source()
 
 
-@pytest.fixture(
-    scope="module",
-    params=destinations_configs(
-        default_sql_configs=True,
-        read_only_sqlclient_configs=True,
-        bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-    ),
-    ids=lambda x: x.name,
-)
-def destination_config(
-    request: pytest.FixtureRequest,
-) -> DestinationTestConfiguration:
-    return cast(DestinationTestConfiguration, request.param)
-
-
-@pytest.fixture(scope="module")
-def preserve_module_environ_per_destination_config(
-    destination_config: DestinationTestConfiguration,
-) -> Any:
-    yield from _preserve_environ()
-
-
 @pytest.fixture(scope="module")
 def populated_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage,
     preserve_module_environ_per_destination_config,
     auto_module_test_run_context,
 ) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
-    if (
-        destination_config.file_format not in ["parquet", "jsonl"]
-        and destination_config.destination_type == "filesystem"
-    ):
-        pytest.skip(
-            "Test only works for jsonl and parquet on filesystem destination, given:"
-            f" {destination_config.file_format}"
-        )
+    skip_if_unsupported_filesystem_format(destination_config)
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline", dataset_name="read_test", dev_mode=True
@@ -314,6 +285,7 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.duckdb",  # vector sizes started to vary
         "dlt.destinations.lancedb",  # default is 200
         "dlt.destinations.lance",
     ]
@@ -809,6 +781,14 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
 
 
 @pytest.mark.no_load
+def test_distinct_order_by(populated_pipeline: Pipeline) -> None:
+    """DISTINCT restricts ORDER BY to output columns; strict engines (databricks) reject a source column."""
+    query = "SELECT DISTINCT id FROM items ORDER BY id"
+    ids = [row[0] for row in populated_pipeline.dataset()(query).limit(5).fetchall()]
+    assert ids == list(range(5))
+
+
+@pytest.mark.no_load
 @pytest.mark.essential
 def test_where(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -913,6 +893,15 @@ def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) 
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
+    if populated_pipeline.destination.destination_type == "dlt.destinations.dremio":
+        # dremio 26.x answers MAX/MIN on iceberg tables from column metadata and decodes the
+        # bounds of a numeric-looking VARCHAR as a DOUBLE. MAX("_dlt_load_id") then loses
+        # precision (eg. '1780221885.501048' -> '1780221885.50105') and the `_dlt_load_id = ...`
+        # filter below matches no rows. MAX on regular (non-numeric) strings is unaffected.
+        # forcing a string expression - MAX(CONCAT(col, '')) or MAX(col || '') - returns the
+        # correct value. still broken as of 26.1.8, no known fixed version.
+        pytest.skip("dremio coerces numeric-like VARCHAR to double in MAX, see comment")
+
     items = populated_pipeline.dataset().items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -922,8 +911,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert all(row[0] < 10 for row in filtered_items_sql)
 
     load_id = items.select("_dlt_load_id").max().fetchscalar()
-    # NOTE: query below tests dremio wrong MAX behavior where strings are casted to decimals, we locked dremio container to 25.0 tag
-    # f'SELECT MAX(CONCAT(\'_\', "_dlt_load_id")) AS "_col_0" FROM "nas"."{populated_pipeline.dataset_name}"."items" AS "items"')
     all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
     assert len(all_items) == total_records
 
@@ -1323,14 +1310,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             table_name_prefix = dataset_name + "___"
             dataset_name = None
             additional_tables += ["dlt_sentinel_table"]
-
-        # filesystem uses duckdb and views to map know tables. for other ibis will list
-        # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.lancedb",
-        ]:
-            # from aleph schema
-            additional_tables += ["digits"]
+        # from aleph schema
+        additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
 
@@ -1673,7 +1654,6 @@ def _src_gamma():
 @pytest.fixture(scope="module")
 def overlap_pipeline(
     destination_config: DestinationTestConfiguration,
-    module_lance_rest_server: None,
     auto_module_test_storage,
     preserve_module_environ_per_destination_config,
     auto_module_test_run_context,
@@ -1682,14 +1662,7 @@ def overlap_pipeline(
     'events' table with shared columns (id, name) and unique columns.
     Tests select schema subsets via ``pipeline.dataset(schema=[...])``.
     """
-    if (
-        destination_config.file_format not in ["parquet", "jsonl"]
-        and destination_config.destination_type == "filesystem"
-    ):
-        pytest.skip(
-            "Test only works for jsonl and parquet on filesystem destination, given:"
-            f" {destination_config.file_format}"
-        )
+    skip_if_unsupported_filesystem_format(destination_config)
 
     pipeline = destination_config.setup_pipeline(
         "overlap_pipeline", dataset_name="overlap_test", dev_mode=True
@@ -1780,6 +1753,7 @@ def test_multi_schema_ibis(overlap_pipeline: Pipeline) -> None:
     if overlap_pipeline.destination.destination_type not in (
         "dlt.destinations.duckdb",
         "dlt.destinations.filesystem",
+        "dlt.destinations.lance",
     ):
         pytest.skip("ibis multi-schema test only on duckdb and filesystem")
 

@@ -18,6 +18,31 @@ dlthub workspace info
 
 The command returns the workspace name, job count, latest run status, and the latest deployment and configuration versions. See [`dlthub workspace info`](../command-line-interface.md#dlthub-workspace-info).
 
+## Inspect jobs
+
+```sh
+dlthub job list                    # all jobs
+dlthub job list "tag:ingest"       # jobs matching selector
+dlthub job list batch              # only batch jobs
+dlthub job info <name>             # details for one job
+dlthub job show <name>             # open the job page in the dashboard
+```
+
+## Inspect runs
+
+List, inspect, and open runs from the CLI:
+
+```sh
+# list runs (optionally filter by job name or selector)
+dlthub job runs list [name_or_selector] [--running]
+
+# exit status, timing, and metadata of a run (defaults to latest)
+dlthub job runs info <name> [run#]
+
+# open the run page in the web dashboard
+dlthub job runs show <name> [run#]
+```
+
 ## View logs
 
 ### From the CLI
@@ -59,10 +84,26 @@ Select any run on the Jobs page to open its **run detail page**, which provides:
 
 ## Diagnose a failed run
 
+From the CLI:
+
+1. `dlthub job runs info <name> [run#]` — check exit status and timing
+2. `dlthub job logs <name> [run#]` — read the error output
+
+From the Web UI:
+
 1. **Inspect the logs** — the log viewer on the run detail page contains the full execution output, including stack traces.
 2. **Review the pipeline runs** — the pipeline-runs table on the run detail page lists each dlt pipeline executed during the job and its outcome. Open an individual pipeline run for detailed load information (tables loaded, row counts, bytes, duration).
 3. **Consult the dashboard** — the Dashboard and Pipelines pages surface success-rate trends that help identify recurring issues.
 4. **Verify the deployment** — the Deployment & Config page indicates the currently deployed code version. Sync the latest changes with [`dlthub deploy`](../command-line-interface.md#dlthub-deploy).
+
+Common causes of failures:
+
+- **Missing dependencies** in `pyproject.toml` — all packages must be declared, not just locally installed (run `dlthub local run <job>` first to catch this)
+- **Secrets not configured for the `prod` profile** — the platform uses `prod` for batch jobs; check `.dlt/prod.secrets.toml`
+- **Script missing `if __name__ == "__main__":`** — the job does nothing without it
+- **`dev_mode=True` left in** — drops and recreates the dataset on every run, destroying production data
+- **Wrong destination credentials** — the `prod` profile may point to a different destination than `dev`
+- **Job timeout** — default is 120 minutes; override with `execute={"timeout": "6h"}` (see [Execution constraints](job-configuration.md#execution-constraints))
 
 ## Cancel an active run
 
@@ -107,6 +148,28 @@ The same [pipeline and dataset troubleshooting dashboard](../ingestion/dashboard
 ## Known limitations
 
 Batch jobs have a configurable **maximum runtime**. Jobs exceeding this limit are automatically cancelled. See [Platform limits](overview.md#platform-limits) for details.
+
+## Troubleshooting
+
+### No 'access' profile detected
+
+Your interactive notebooks will use the `prod` (or default) configuration. Create `access.config.toml` and `access.secrets.toml` with read-only credentials.
+
+### No 'prod' profile detected
+
+Batch jobs will use the default configuration. Create `prod.config.toml` and `prod.secrets.toml` with read/write credentials.
+
+### Job not using latest code
+
+The CLI does not yet detect whether local code differs from remote. Run `dlthub workspace deployment sync` (or any `run` / `serve` / `deploy`) to ensure your latest code is deployed.
+
+### Logs not appearing
+
+Logs typically lag a few seconds during execution and are guaranteed complete after the run finishes. Wait for the run to complete, or stream them in real time:
+
+```sh
+dlthub job logs my_pipeline.py --follow
+```
 
 ## See also
 

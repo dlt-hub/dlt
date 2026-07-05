@@ -77,7 +77,7 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::iterating_fetch_chunks-->
 
-The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](./sql-client.md#supported-methods-on-the-cursor) guide for more information.
+The methods available on the Relation correspond to the methods available on the cursor returned by the SQL client. Please refer to the [SQL client](../../dlt-ecosystem/transformations/sql.md#supported-methods-on-the-cursor) guide for more information.
 
 ## Connection Handling
 
@@ -175,35 +175,80 @@ See [Incremental transformations](../../hub/transformations/index.md#incremental
 
 ### Join related tables
 
-The `join()` method follows relationships already defined in the dlt schema. It can resolve direct schema references between tables as well as multi-hop parent/child paths when one table is an ancestor or descendant of the other. This makes `join()` well suited for navigating nested tables created by dlt and tables connected by explicit references. Joined columns are appended from the target table only and are prefixed with the target table name, or with the alias you provide.
+The `join()` method appends a related table to the current relation. It works in two modes:
+
+- [Auto-join via schema references](#auto-join-via-schema-references): dlt builds the join condition from parent/child relationships dlt creates during loading, plus any `references` you declared on a resource.
+- [Explicit `on` predicate](#explicit-join-condition): when you pass `on=`, you write the join condition yourself. Use it for any join the auto mode cannot do, including [joins across two datasets](#cross-dataset-joins) on the same physical destination.
 
 By default, `join()` creates an `inner` join. Use `kind="left"`, `"right"`, or `"full"` to choose another SQL join type.
 
-When you do not specify an alias, joined columns use the joined table name as their prefix. For example, `dataset["users"].join("users__orders")` adds columns such as `users__orders__order_id`. When you pass `alias="orders"`, the same column is projected as `orders__order_id` instead. Use `alias` to make result columns easier to read or to avoid output name conflicts.
+When you do not specify an `alias`, joined columns use the target table name as their prefix. For example, `dataset["users"].join("users__orders")` adds columns such as `users__orders__order_id`. When you pass `alias="orders"`, the same column is projected as `orders__order_id` instead. Use `alias` to make result columns easier to read or to avoid output name conflicts.
+
+#### Auto-join via schema references
+
+With no `on` argument, `join()` follows relationships already defined in the dlt schema. It can resolve direct schema references between tables as well as multi-hop parent/child paths when one table is an ancestor or descendant of the other. This makes the auto mode well suited for navigating nested tables created by dlt and tables connected by explicit references. Joined columns are appended from the target table only and are prefixed with the target table name, or with the alias you provide.
 
 <!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_related_tables-->
 
-**Limits:** `join()` only works when dlt can resolve a supported schema-defined path between the current relation's base table and the target table. Both sides must be base-table relations, for example `dataset["users"].join("users__orders")`. You cannot call `join()` after transforming a relation with methods such as `select()` or `where()`.
+The auto mode works on relations from `dataset[name]` or `dataset.table(name)`, and on relations chained from them with `where()`, `select()`, `order_by()`, and similar methods. It does not work on relations from `dataset.query("...")`, use the explicit form below for those cases.
 
-`join()` does not support:
+The auto mode does not support:
 
 - arbitrary join conditions
-- joins on columns that are not defined as schema references
+- joins on columns that you pick yourself
 - self-joins
 - joins across different datasets
 - joins between tables that are only related indirectly through a shared ancestor or another non-linear schema path
 
-In practice, this means `join()` supports ancestor/descendant navigation, but not general graph traversal across the schema.
-
-For example:
+In practice, this means the auto mode supports ancestor/descendant navigation, but not general graph traversal across the schema:
 
 - `dataset["users__orders__items"].join("users")` works because `users` is an ancestor in the nested table hierarchy
 - joining two sibling tables just because both descend from `users` does not work
-- joining two tables on a custom predicate such as `orders.customer_email = customers.email` does not work unless that relationship is defined in the schema
+- joining two tables on a custom predicate such as `orders.customer_email = customers.email` does not work: use the explicit form below instead
 
-When `join()` needs intermediate tables to reach the target, those tables are used only to build the join path. Their columns are not added to the result automatically. Only columns from the explicitly joined target table are appended.
+When the auto mode needs intermediate tables to reach the target, those tables are used only to build the join path. Their columns are not added to the result automatically. Only columns from the explicitly joined target table are appended.
 
-For arbitrary join logic, use Ibis.
+#### Explicit join condition
+
+Pass `on=` to write the join condition yourself, as a SQL string or a `sqlglot` expression. Use this form whenever the auto mode does not work for your tables: for example, when joining two top-level tables that dlt did not create from a parent/child relationship.
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_explicit_on-->
+
+The right-hand side can be a table name, a table relation, or a relation you already transformed with `select()`, `where()`, etc. When you pass a transformed relation, its filters and column selection carry over to the joined result.
+
+Refer to the right-hand side in `on` by its source qualifier: the joined table's name, or the alias you gave it in a `dataset.query(...)`. A relation with no identifiable source, for example a constant `dataset.query("SELECT 1 AS id")` that has no `FROM` is exposed under the qualifier `subquery`, so write `subquery.<column>` in `on`.
+
+The left-hand side can be a table relation, a relation chained from one with `where()`, `select()`, `order_by()`, and similar methods, or a `dataset.query("...")` that reads from a single table or an aliased derived table (for example `FROM (SELECT ...) AS totals`).
+
+:::note
+Write the column and table names in `on` using their dlt schema names: the normalized identifiers you pass to `dataset.table(...)` and see in the dataset's schema, not the original field names from your source. With the default snake_case naming the two usually match, but under a name-mutating [naming convention](../naming-convention.md) you must use the normalized form.
+:::
+
+Self-joins work with explicit `on`, but the two instances of the table need distinct SQL qualifiers so the predicate can tell them apart. Alias one side with a `dataset.query(...)` and refer to that alias in `on`:
+
+```py
+# attach each employee's manager from the same table
+managers = dataset.query("SELECT * FROM employees AS managers")
+with_managers = dataset["employees"].join(
+    managers, on="employees.manager_id = managers.id", kind="left"
+)
+```
+
+Joining a base table directly to itself (as in `dataset["employees"].join("employees", ...)`) is rejected, because both sides would share the `employees` qualifier.
+
+#### Cross-dataset joins
+
+When you pass `on`, the right-hand side may be a `Relation` from a different `dlt.Dataset`, as long as both datasets share the same physical destination — for example, two pipelines that write to the same DuckDB file, or to the same database server with different dataset/schema names.
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_cross_dataset-->
+
+Cross-dataset joins:
+
+- require an explicit `on` condition: the auto mode does not span datasets
+- are rejected when the two relations live on different physical destinations
+- are not supported on filesystem destinations or on SQLite (via the `sqlalchemy` destination)
+
+When two datasets share table names that would otherwise clash in the join (for example, both have a `users` table), give one side a stable alias in your SQL, e.g. with `dataset.query("SELECT * FROM users AS alias_name")`, and refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and will raise.
 
 ### Chain operations
 
@@ -279,11 +324,11 @@ df = joined_relation.df()
 All SQL and filesystem destinations supported by `dlt` can utilize this data access interface.
 
 ### Reading data from filesystem
-For filesystem destinations, `dlt` [uses **DuckDB** under the hood](./sql-client.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
+For filesystem destinations, `dlt` [uses **DuckDB** under the hood](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client) to create views on iceberg and delta tables or from Parquet, JSONL and csv files. This allows you to query data stored in files using the same interface as you would with SQL databases. If you plan on accessing data in buckets or the filesystem a lot this way, it is advised to load data into delta or iceberg tables, as **DuckDB** is able to only load the parts of the data actually needed for the query to work.
 
 :::tip
 By default `dlt` will not autorefresh views created on iceberg tables and files when new data is loaded. This prevents wasting resources on
-file globbing and reloading iceberg metadata for every query. You can [change this behavior](sql-client.md#control-data-freshness) with `always_refresh_views` flag.
+file globbing and reloading iceberg metadata for every query. You can [change this behavior](../../dlt-ecosystem/transformations/sql.md#control-data-freshness) with `always_refresh_views` flag.
 
 Note: `delta` tables are by default on autorefresh which is implemented by delta core and seems to be pretty efficient.
 :::
@@ -485,7 +530,7 @@ Ibis is a powerful portable Python dataframe library. Learn more about what it i
 `dlt` provides an easy way to hand over your loaded dataset to an Ibis backend connection.
 
 :::tip
-Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](./sql-client#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
+Not all destinations supported by `dlt` have an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination is supported via the [Filesystem SQL client](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client); please install the DuckDB backend for Ibis to use it. Mutating data with Ibis on the filesystem will not result in any actual changes to the persisted files.
 :::
 
 ### Prerequisites
@@ -529,7 +574,7 @@ print(table.limit(10).execute())
 
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
 
-This page shows how dlt + marimo + [ibis](./ibis-backend.md) provide a rich environment to explore loaded data, write data transformations, and create data applications.
+This page shows how dlt + marimo + [ibis](../../dlt-ecosystem/transformations/python.md#using-ibis) provide a rich environment to explore loaded data, write data transformations, and create data applications.
 
 ### Prerequisites
 

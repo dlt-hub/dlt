@@ -17,7 +17,7 @@ catalog as other (native) tables. On top of that, Snowflake provides table maint
 
 **Snowflake Open Catalog** (Polaris) is [fully supported](#syncing-snowflake-managed-iceberg-tables-to-snowflake-open-catalog) via `CATALOG SYNC` option. Both new data and all schema migrations performed by `dlt` are visible in it without any additional code or setup.
 
-All [data access](../../general-usage/dataset-access/) methods (pandas, arrow, Ibis, SQL etc.) that `dlt` supports via `pipeline.dataset()` are available.
+All [data access](../../general-usage/dataset-access/dataset.md) methods (pandas, arrow, Ibis, SQL etc.) that `dlt` supports via `pipeline.dataset()` are available.
 
 :::tip
 You can [link](https://docs.snowflake.com/LIMITEDACCESS/iceberg/tables-iceberg-externally-managed-writes#label-tables-iceberg-external-writes-create-cld) any catalog (Lakekeeper, Glue, S3Tables or Open Catalog/Polaris) used by `dlt` [Iceberg](iceberg.md) destination to a Snowflake database.
@@ -54,7 +54,7 @@ Once the `snowflake` extra is installed, you can configure a pipeline to use `sn
 GRANT USAGE ON EXTERNAL VOLUME <external_volume_name> TO ROLE <role_name>;
 ```
 
-5. If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-start@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Snowflake pipeline:
+5. If you don't have a dltHub workspace yet, scaffold one with `uvx dlthub-init@latest` (see the [installation guide](../getting-started/installation.md)). Then, from inside the workspace, add a Snowflake pipeline:
 
 ```sh
 dlthub pipeline init sql_database snowflake

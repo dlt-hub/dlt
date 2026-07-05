@@ -1,9 +1,11 @@
-from typing import Dict
+from typing import Any, Dict
 import dlt, os, pytest
 from dlt.common.utils import uniq_id
 from pytest_mock import MockerFixture
 
 from dlt.common.schema.typing import REPLACE_STRATEGIES, TLoaderReplaceStrategy
+from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.pipeline.utils import (
     assert_load_info,
@@ -61,7 +63,6 @@ def test_replace_disposition(
         # will produce 3 jobs for the main table with 40 items each
         # 6 jobs for the sub_items
         # 3 jobs for the sub_sub_items
-        nonlocal offset
         for _, index in enumerate(range(offset, offset + 120), 1):
             yield {
                 "id": index,
@@ -84,7 +85,6 @@ def test_replace_disposition(
     # append resource to see if we do not drop any tables
     @dlt.resource(write_disposition="append", table_format=destination_config.table_format)
     def append_items():
-        nonlocal offset
         for _, index in enumerate(range(offset, offset + 12), 1):
             yield {
                 "id": index,
@@ -410,6 +410,11 @@ def test_replace_sql_queries(
 
         destination_spy = mocker.spy(MsSqlStagingReplaceJob, "generate_sql")
 
+    elif dest_type == "clickhouse":
+        from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseStagingReplaceJob
+
+        destination_spy = mocker.spy(ClickHouseStagingReplaceJob, "generate_sql")
+
     pipeline = destination_config.setup_pipeline(
         f"insert_from_staging_test_{uniq_id()}", dev_mode=True
     )
@@ -441,7 +446,7 @@ def test_replace_sql_queries(
             )
 
     elif replace_strategy == "staging-optimized":
-        if dest_type in ["postgres", "mssql"]:
+        if dest_type in ["postgres", "mssql", "clickhouse"]:
             assert destination_spy.call_count == 1
         else:
             assert clone_sql_generator_spy.call_count == 1
@@ -525,3 +530,213 @@ def test_snowflake_atomic_swap_replace(
     info = pipeline.run(load_items_empty(), **destination_config.run_kwargs)
     assert_load_info(info)
     assert_empty_tables(pipeline, "items", "items__sub_items")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        local_filesystem_configs=True,
+        table_format_local_configs=True,
+        subset=["duckdb", "filesystem"],
+    ),
+    ids=lambda x: x.name,
+)
+def test_replace_chain_jobless_nested_tables(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Nested tables of a replace resource that receive no data in a run get no load job and
+    must still be emptied."""
+    pipeline = destination_config.setup_pipeline("replace_jobless", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items(children: bool):
+        if children:
+            yield {"id": 1, "children": [{"cid": 1}, {"cid": 2}]}
+        else:
+            yield {"id": 2}
+
+    info = pipeline.run(items(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "items__children") == {
+        "items": 1,
+        "items__children": 2,
+    }
+
+    info = pipeline.run(items(False), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 1}
+    assert_empty_tables(pipeline, "items__children")
+    if destination_config.table_format == "delta":
+        from dlt.common.libs.deltalake import get_delta_tables
+
+        # delta truncation is transactional: the nested table is kept and empty
+        dt = get_delta_tables(pipeline, "items__children")["items__children"]
+        assert dt.to_pyarrow_table().num_rows == 0
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(table_format_local_configs=True, with_table_format="delta"),
+    ids=lambda x: x.name,
+)
+def test_replace_chain_truncate_consistent_with_package_jobs(
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
+) -> None:
+    """Locks the contract the truncation skip in `initialize_storage` relies on: `verify_schema`
+    receives exactly the new jobs stored in the load package, so tables with data jobs and replace
+    disposition are left to their atomic overwrite while jobless chain tables are truncated.
+    """
+    from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
+
+    verify_spy = mocker.spy(FilesystemClient, "verify_schema")
+    truncate_spy = mocker.spy(FilesystemClient, "truncate_tables")
+
+    pipeline = destination_config.setup_pipeline("replace_chain_contract", dev_mode=True)
+
+    @dlt.resource(name="items", write_disposition="replace")
+    def items(children: bool):
+        if children:
+            yield {"id": 1, "children": [{"cid": 1}, {"cid": 2}]}
+        else:
+            yield {"id": 2}
+
+    info = pipeline.run(items(True), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    verify_spy.reset_mock()
+    truncate_spy.reset_mock()
+    info = pipeline.run(items(False), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # verify_schema got the very same new jobs that the load step executed from the package
+    assert verify_spy.call_count == 1
+    spied_jobs = {job.job_id() for job in verify_spy.call_args.kwargs["new_jobs"]}
+    package_jobs = {
+        job.job_file_info.job_id()
+        for jobs in pipeline.get_load_package_info(info.loads_ids[0]).jobs.values()
+        for job in jobs
+        # reference jobs are followups created while the package runs
+        if job.job_file_info.file_format != "reference"
+    }
+    assert spied_jobs == package_jobs
+
+    # the root replace table has a data job and is overwritten atomically, only the jobless
+    # nested table is truncated
+    assert truncate_spy.call_count == 1
+    assert truncate_spy.call_args.args[1] == ["items__children"]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", ["insert-from-staging", "staging-optimized"])
+def test_replace_strategy_switch_creates_staging_tables(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """switching to a staging replace strategy on an existing dataset must create
+    the now-required staging tables even though the schema version hash is unchanged.
+    """
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+
+    pipeline = destination_config.setup_pipeline("replace_strategy_switch", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items():
+        yield [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+
+    # the merge table makes the first run create the staging dataset without the replace table
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def merge_items():
+        yield [{"id": 1, "val": "m"}]
+
+    # nested merge table under a replace root makes a partial staging chain: the nested table
+    # loads to the staging dataset while the root does not until the strategy switch
+    @dlt.resource(
+        write_disposition="replace",
+        primary_key="id",
+        nested_hints={"list": dlt.mark.make_nested_hints(write_disposition="merge")},
+    )
+    def nested_items():
+        yield [{"id": 1, "list": [1, 2, 3]}]
+
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "truncate-and-insert"
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # same schema, replace tables now go through the staging dataset
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+    info = pipeline.run([items(), merge_items(), nested_items()], **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items", "merge_items", "nested_items") == {
+        "items": 2,
+        "merge_items": 1,
+        "nested_items": 1,
+    }
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_replace_staging_empty_resource_aborted_package_keeps_data(
+    destination_config: DestinationTestConfiguration, mocker: MockerFixture
+) -> None:
+    """Makes sure that insert-from-staging does not truncate upfront when no data on resource"""
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "insert-from-staging"
+    pipeline = destination_config.setup_pipeline("replace_empty_abort", dev_mode=True)
+
+    @dlt.resource(write_disposition="replace")
+    def items(rows: Any) -> Any:
+        yield from rows
+
+    info = pipeline.run(items([{"id": 1}, {"id": 2}]), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # fail the replace followup so the package aborts after the 0-row job loaded to staging
+    mocker.patch.object(
+        SqlStagingReplaceFollowupJob, "generate_sql", side_effect=Exception("compute failed")
+    )
+    with pytest.raises(PipelineStepFailed):
+        pipeline.run(items([]), **destination_config.run_kwargs)
+    assert load_table_counts(pipeline, "items") == {"items": 2}
+
+    # the pending package completes once the fault is gone and the table is replaced with no rows
+    mocker.stopall()
+    info = pipeline.run(items([]), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(pipeline, "items") == {"items": 0}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("replace_strategy", REPLACE_STRATEGIES)
+def test_replace_refreshed_disposition_no_data(
+    destination_config: DestinationTestConfiguration, replace_strategy: TLoaderReplaceStrategy
+) -> None:
+    """A table whose write disposition is refreshed to replace on a run without data for it is
+    truncated under every replace strategy."""
+    skip_if_unsupported_replace_strategy(destination_config, replace_strategy)
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = replace_strategy
+
+    pipeline = destination_config.setup_pipeline("replace_refresh_empty", dev_mode=True)
+
+    @dlt.resource(name="events", table_name=lambda e: e["kind"], primary_key="id")
+    def events(kinds: Any) -> Any:
+        for idx, kind in enumerate(kinds):
+            yield {"id": idx, "kind": kind}
+
+    pipeline.run(events(["a", "b"]), write_disposition="merge", **destination_config.run_kwargs)
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 1}
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "merge"
+
+    # switch to replace with data only for "a": "b" is refreshed to replace and truncated
+    pipeline.run(events(["a"]), write_disposition="replace", **destination_config.run_kwargs)
+    assert pipeline.default_schema.tables["b"]["write_disposition"] == "replace"
+    assert load_table_counts(pipeline, "a", "b") == {"a": 1, "b": 0}

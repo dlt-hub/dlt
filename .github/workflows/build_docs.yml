@@ -6,12 +6,12 @@ on:
 
 jobs:
   build_docs:
-    name: docs | build docs
+    name: build
     runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
       - name: Check out
-        uses: actions/checkout@master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       - uses: pnpm/action-setup@v2
         with:

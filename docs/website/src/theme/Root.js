@@ -6,15 +6,8 @@ export default function Root({children}) {
   return <>{children}<Overlay /></>;
 }
 
-// overlay config
-const overlays = {
-    "/docs/walkthroughs/create-a-pipeline": {
-        buttonTitle: "Create a pipeline with GPT-4",
-        title: "Create a pipeline with GPT-4",
-        loomId: "2afe43660dbc4ab9b633cd5fd5d81a1c",
-        text: "Create dlt pipeline using the data source of your liking and let the GPT-4 write the resource functions and help you to debug the code."
-    }
-}
+// overlay config: maps URL paths to {buttonTitle, title, loomId, text}
+const overlays = {}
 
 function Overlay() {
 

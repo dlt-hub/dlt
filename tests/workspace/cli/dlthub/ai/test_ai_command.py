@@ -88,7 +88,7 @@ def test_ai_status_with_toolkits(capsys: pytest.CaptureFixture[str]) -> None:
     if sys.version_info < (3, 10):
         # fastmcp requires Python >=3.10, so the MCP warning must appear
         assert "mcp server cannot be started" in out.lower()
-        assert "workspace" in out.lower(), "MCP warning should suggest workspace extras"
+        assert "fastmcp" in out.lower(), "MCP warning should suggest fastmcp dependency"
     else:
         assert "mcp server cannot be started" not in out.lower()
     assert "rest-api-pipeline" in out

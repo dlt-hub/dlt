@@ -55,11 +55,11 @@ def test_list_pipelines(pokemon_pipeline_context: RunContextBase) -> None:
 
 def test_list_pipelines_project_dir_filter(pokemon_pipeline_context: RunContextBase) -> None:
     local_dir = pokemon_pipeline_context.local_dir
-    _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir=local_dir)
+    _, pipelines, _ = list_local_pipelines(sort_by_trace=False, run_dir=local_dir)
     assert any(p["name"] == "rest_api_pokemon" for p in pipelines)
 
     # a different project_dir should filter it out
-    _, pipelines = list_local_pipelines(sort_by_trace=False, run_dir="/nonexistent/path")
+    _, pipelines, _ = list_local_pipelines(sort_by_trace=False, run_dir="/nonexistent/path")
     assert not any(p["name"] == "rest_api_pokemon" for p in pipelines)
 
 

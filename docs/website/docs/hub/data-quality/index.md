@@ -8,7 +8,7 @@ keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 This feature is in public preview
 :::
 
-dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and allow to catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
+dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and help catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
 
 This page covers the basics of metrics and checks. You should notice a lot of symmetry (for example, `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both. 
 
@@ -19,7 +19,7 @@ A **data quality metric** or **metric** a function applied to data that returns 
 ### Define metrics
 #### Static
 
-You can define metrics along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_metrics`. It is available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
+You can define metrics along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_metrics`. It's available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
 
 The next snippet defines 3 metrics on the `customers` resource: the mean of the `amount` column, the number of null values in the `email` column, and the total number of rows in the table. 
 
@@ -127,25 +127,28 @@ If you have built-in metrics requests, let us know. Custom metrics are planned.
 
 ### Compute metrics
 
-Pass the pipeline to `dq.enable_data_quality()` to enable metrics. This will set a flag on the pipeline state to compute metrics and write results to destination after each `pipeline.run()` call.
+After loading data, call `dq.run_metrics()` on your pipeline to compute every metric registered via `@with_metrics` and persist the results to the destination:
 
 ```python
 pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
-
-dq.enable_data_quality(pipeline)
-
 pipeline.run(customers)
+
+# compute metrics and persist them to the destination
+dq.run_metrics(pipeline)
 ```
 
-Since the flag is stored on the pipeline state, instantiating this pipeline from another script or notebook will remember that metrics are enabled and compute metrics when `pipeline.run()` is called.
+`run_metrics` is dispatched on the argument type — pass either the pipeline or a `dlt.Dataset`:
 
 ```python
-# another_file.py
+# alternative: compute metrics against the loaded dataset
+# (for example, after re-attaching from another script or notebook)
 pipeline = dlt.attach("my_pipeline")
-
-# this will compute metrics too
-pipeline.run(customers)
+dq.run_metrics(pipeline.dataset())
 ```
+
+:::note
+Each call to `run_metrics` writes a fresh snapshot to the `_dlt_dq_metrics` table — one row per registered metric, with columns `_dlt_load_id`, `loaded_at`, `table_name` (null for dataset-level metrics), `column_name` (null for table- and dataset-level metrics), `metric_name`, and the computed `metric_value`. Successive calls append; nothing is overwritten.
+:::
 
 
 ### Read metrics
@@ -178,9 +181,15 @@ dq.read_metric(
 ).arrow()
 ```
 
+`read_metric` returns rows **ordered newest-first by `_dlt_load_id`** — so the first row in the result is the most recent snapshot. To grab the current value of a metric, for example, the row count of a table:
+
+```py
+latest = dq.read_metric(dataset, table="customers", metric="row_count").df()
+latest_row_count = latest["metric_value"].iloc[0]
+```
 
 ## Checks
-A **data quality check** or **check** is a function applied to data that returns a **check result** or **result** (can be boolean, integer, float, etc.). The result that is converted to a success / fail **check outcome** or **outcome** (boolean) based on a **decision**.
+A **data quality check** or **check** is a function applied to data that returns a **check result** or **result** (can be boolean, integer, float, etc.). The result is converted to a success / fail **check outcome** or **outcome** (boolean) based on a **decision**.
 
 :::info
 A **test** verifies that **code** behaves as expected. A **check** verifies that the **data** meets some expectations. Code tests enable you to make changes with confidence and data checks help monitor your live systems.
@@ -191,7 +200,7 @@ A **test** verifies that **code** behaves as expected. A **check** verifies that
 
 You can define checks along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_checks` available under the `dlt.hub.data_quality` module. Inside the decorator, you can set the individual checks available through `dq.checks.`.
 
-This snippet shows a single `is_in()` check being ran against the `orders` table.
+This snippet shows a single `is_in()` check being run against the `orders` table.
 
 ```py
 import dlt
@@ -240,25 +249,61 @@ dq.checks.case("col < 0")  # row-wise check
 
 ### Compute checks
 
-Pass the pipeline to `dq.enable_data_quality()` to enable checks. This will set a flag on the pipeline state to compute checks and write results to destination after each `pipeline.run()` call.
+After loading data, call `dq.run_checks()` and pass the `checks=` mapping explicitly. Unlike `run_metrics`, `run_checks` doesn't auto-discover decorator-registered checks — you pass them at run time, keyed by table name:
 
 ```python
 pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
+pipeline.run(orders)
 
-dq.enable_data_quality(pipeline)
-
-pipeline.run(customers)
+# compute checks and persist results to the destination
+dq.run_checks(pipeline, checks={
+    "orders": [
+        dq.checks.is_in("payment_method", ["card", "cash", "voucher"]),
+        dq.checks.is_not_null("order_id"),
+    ],
+})
 ```
 
-Since the flag is stored on the pipeline state, instantiating this pipeline from another script or notebook will remember that metrics are enabled and compute checks when `pipeline.run()` is called.
+`@with_checks` is still useful as metadata — it documents the intent alongside the resource — but the same check objects must be passed to `run_checks` at execution time.
 
-```python
-# another_file.py
-pipeline = dlt.attach("my_pipeline")
+:::note
+Each call to `run_checks` writes results to the `_dlt_checks` table — one row per check, with columns `_dlt_load_id`, `loaded_at`, `table_name`, `check_qualified_name`, `row_count`, `success_count`, and `success_rate`. Each `check_qualified_name` is formatted as `<column>__<check_name>` (for example `payment_method__is_in`). Successive calls append; nothing is overwritten.
+:::
 
-# this will compute checks too
-pipeline.run(customers)
+### Explore failing rows with `CheckSuite`
+
+`run_checks` is the persistence path — it writes a summary row per check to `_dlt_checks`, which is what dashboards and `read_check` read from. To inspect the actual rows that failed a check, use `dq.CheckSuite`. It runs the same check objects against a dataset without persisting anything, and exposes the failing and passing rows as `dlt.Relation` objects:
+
+```py
+import dlt
+from dlt.hub import data_quality as dq
+
+orders_dataset = dlt.attach("orders_pipeline").dataset()
+
+suite = dq.CheckSuite(
+    orders_dataset,
+    checks={
+        "orders": [
+            dq.checks.is_in("payment_method", ["card", "cash", "voucher"]),
+            dq.checks.is_not_null("order_id"),
+        ],
+    },
+)
+
+# Inspect the failing rows for one check
+suite.get_failures("orders", "payment_method__is_in").df()
+# ... or the passing rows
+suite.get_successes("orders", "payment_method__is_in").df()
 ```
+
+`CheckSuite` does not write to `_dlt_checks`, so dashboards and `read_check` won't see its results. Pick the pattern that matches your goal:
+
+| Pattern | Persists to `_dlt_checks` | Best for |
+|---|---|---|
+| `dq.run_checks(pipeline, checks={...})` | Yes | Scheduled jobs, monitoring history, dashboards |
+| `dq.CheckSuite(dataset, checks={...}).get_failures(...)` | No | Interactive notebooks, debugging row-level failures |
+
+Both APIs accept the same check objects, so you can register checks once and use either path.
 
 ### Read checks
 
@@ -268,11 +313,25 @@ The function produces a `dlt.Relation` which can be converted to a list, pandas 
 
 ```python
 dataset = pipeline.dataset()
-dq.read_check(
-    dataset,
-    table="orders",
-    column="payment_method", 
-).df()
+all_checks = dq.read_check(dataset, table="orders").df()
+```
+
+`read_check` returns rows **ordered newest-first by `_dlt_load_id`** — so the first row is the most recent check result. To grab the latest `success_rate` for a specific check:
+
+```py
+all_checks = dq.read_check(dataset, table="orders").df()
+latest_success_rate = all_checks[
+    all_checks["check_qualified_name"] == "payment_method__is_in"
+]["success_rate"].iloc[0]
+```
+
+To look at all checks for a specific column, filter by the column prefix:
+
+```python
+# checks on the `payment_method` column only
+payment_checks = all_checks[
+    all_checks["check_qualified_name"].str.startswith("payment_method__")
+]
 ```
 
 ## Lifecycle
@@ -346,10 +405,10 @@ sequenceDiagram
 Work in progress. Currently unavailable.
 :::
 
-The pre-load execution in-memory will execute checks using `duckdb` against the load packages (i.e., temporary files) stored on the machine that runs `dlt`. This allows you to trigger actions before data is loaded into the destination.
+The pre-load execution in-memory executes checks using `duckdb` against the load packages (i.e., temporary files) stored on the machine that runs `dlt`. This allows you to trigger actions before data is loaded into the destination.
 
 :::note
-This is equivalent to using a staging destination that is the local filesystem. This section highlights the trade-offs of this choice.
+This is equivalent to using a staging destination that's the local filesystem. This section highlights the trade-offs of this choice.
 :::
 
 Properties:

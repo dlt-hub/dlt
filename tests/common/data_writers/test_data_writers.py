@@ -5,7 +5,7 @@ from typing import Iterator, Any
 
 from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
-from dlt.common.metrics import DataWriterMetrics
+from dlt.common.metrics import DataWriterMetrics, EMPTY_DATA_WRITER_METRICS
 from dlt.common.typing import AnyFun
 
 from dlt.common.data_writers.escape import (
@@ -30,7 +30,6 @@ from dlt.common.data_writers.writers import (
     ArrowToTypedJsonlListWriter,
     CsvWriter,
     DataWriter,
-    EMPTY_DATA_WRITER_METRICS,
     ImportFileWriter,
     InsertValuesWriter,
     JsonlWriter,
@@ -284,7 +283,7 @@ def test_escape_bigquery_identifier() -> None:
 def test_data_writer_metrics_add() -> None:
     now = time.time()
     metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
-    add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS  # type: ignore[assignment]
+    add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS
     assert add_m == DataWriterMetrics("", 10, 100, now, now + 10)
     # will keep "file" because it is in both
     assert metrics + metrics == DataWriterMetrics("file", 20, 200, now, now + 10)
@@ -292,7 +291,7 @@ def test_data_writer_metrics_add() -> None:
         "", 30, 300, now, now + 10
     )
     # time range extends when added
-    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
+    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)
     assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)
 
 

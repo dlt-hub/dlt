@@ -19,7 +19,7 @@ single API. The most common approach is to define it in a separate Python module
 ## Declare sources
 
 You declare a source by decorating an (optionally async) function that returns or yields one or more resources with `@dlt.source`. Our
-[Create a pipeline](../walkthroughs/create-a-pipeline.md) how-to guide teaches you how to do that.
+[Create a pipeline](../tutorial/load-data-from-an-api.md) how-to guide teaches you how to do that.
 
 ### Create resources dynamically
 

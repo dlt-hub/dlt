@@ -1,4 +1,5 @@
 from typing import (
+    Iterator,
     Tuple,
     cast,
     Any,
@@ -7,7 +8,6 @@ from typing import (
     Sequence,
     Mapping,
     List,
-    NamedTuple,
 )
 from typing_extensions import Self
 
@@ -40,6 +40,7 @@ from dlt.common.schema.utils import (
     migrate_complex_types,
     new_column,
     new_table,
+    normalize_table_identifiers,
     remove_compound_props,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
@@ -254,18 +255,24 @@ class DltResourceHints:
     def parent_table_name(self) -> Optional[TTableHintTemplate[str]]:
         return None if self._hints is None else self._hints.get("parent_table_name")
 
+    def _get_root_table_template(self, meta: Any = None) -> Tuple[TResourceHints, str, str]:
+        if isinstance(meta, TableNameMeta):
+            # look for variant
+            default_table_name = meta.table_name
+            root_table_template = self._hints_variants.get(meta.table_name, self._hints)
+            variant_name = meta.table_name if meta.table_name in self._hints_variants else None
+        else:
+            root_table_template = self._hints
+            variant_name = None
+            default_table_name = self.name
+        return root_table_template, variant_name, default_table_name
+
     def compute_table_schema(self, item: TDataItem = None, meta: Any = None) -> TTableSchema:
         """Computes the table schema based on hints and column definitions passed during resource creation.
         `item` parameter is used to resolve table hints based on data.
         `meta` parameter is taken from Pipe and may further specify table name if variant is to be used
         """
-        if isinstance(meta, TableNameMeta):
-            # look for variant
-            default_table_name = meta.table_name
-            root_table_template = self._hints_variants.get(default_table_name, self._hints)
-        else:
-            default_table_name = self.name
-            root_table_template = self._hints
+        root_table_template, variant_name, default_table_name = self._get_root_table_template(meta)
 
         if not root_table_template:
             return new_table(default_table_name, resource=self.name)
@@ -277,11 +284,11 @@ class DltResourceHints:
 
         # if table template present and has dynamic hints, the data item must be provided.
         if self._table_name_hint_fun and item is None:
-            raise DataItemRequiredForDynamicTableHints(self.name)
+            raise DataItemRequiredForDynamicTableHints(self.name, "name")
 
         # resolve
         resolved_template: TResourceHints = {
-            k: self._resolve_hint(item, v)
+            k: self._resolve_hint(k, item, v)
             for k, v in root_table_template.items()
             if k not in NATURAL_CALLABLES
         }  # type: ignore
@@ -294,6 +301,8 @@ class DltResourceHints:
         table_schema = self._hints_to_table_schema(resolved_template)
         if not is_nested_table(table_schema):
             table_schema["resource"] = self.name
+        if variant_name:
+            table_schema["variant_name"] = variant_name
         migrate_complex_types(table_schema, warn=True)
         validate_dict_ignoring_xkeys(
             spec=TTableSchema,
@@ -302,6 +311,48 @@ class DltResourceHints:
         )
 
         return table_schema
+
+    def get_nested_hints(
+        self,
+        root_table_name: str,
+        naming: NamingConvention,
+        item: TDataItem = None,
+        meta: Any = None,
+    ) -> Iterator[Tuple[str, str, TResourceNestedHints]]:
+        # allow for nested hints to be a part of a table variant
+        root_table_template, _, _ = self._get_root_table_template(meta)
+
+        # no nested hints if no table template
+        if root_table_template is None:
+            return
+
+        nested_hints = root_table_template.get("nested_hints")
+        if not nested_hints:
+            return
+        # resolve dynamic hint with actual data item
+        nested_hints = self._resolve_hint("nested_hints", item, nested_hints)
+
+        # make sure shorter paths go first
+        sorted_items = sorted(
+            nested_hints.items(), key=lambda item: len(item[0]) if isinstance(item[0], tuple) else 1
+        )
+        for sub_path, hints in sorted_items:
+            # both str and sequence is supported
+            full_path = list(
+                map(
+                    naming.normalize_table_identifier,
+                    (
+                        (root_table_name, sub_path)
+                        if isinstance(sub_path, str)
+                        else (root_table_name, *sub_path)
+                    ),
+                )
+            )
+            yield (
+                naming.shorten_fragments(*full_path),
+                naming.shorten_fragments(*full_path[:-1]),
+                hints,
+            )
 
     def compute_nested_table_schemas(
         self,
@@ -313,37 +364,14 @@ class DltResourceHints:
         """Compute the table schema based on the current and all nested hints.
         Nested hints are resolved recursively.
         """
-        # allow for nested hints to be a part of a table variant
-        if isinstance(meta, TableNameMeta):
-            root_table_template = self._hints_variants.get(root_table_name, self._hints)
-        else:
-            root_table_template = self._hints
-        # no nested hints if no table template
-        if root_table_template is None:
-            return []
-
-        nested_hints = root_table_template.get("nested_hints")
-        if not nested_hints:
-            return []
-        # resolve dynamic hint with actual data item
-        nested_hints = self._resolve_hint(item, nested_hints)
-
         nested_table_schemas = []
-        # make sure shorter paths go first
-        sorted_items = sorted(
-            nested_hints.items(), key=lambda item: len(item[0]) if isinstance(item[0], tuple) else 1
-        )
-        for sub_path, hints in sorted_items:
-            # both str and sequence is supported
-            if isinstance(sub_path, str):
-                full_path: Tuple[str, ...] = (root_table_name, sub_path)
-            else:
-                full_path = (root_table_name, *sub_path)
-            table_name = naming.shorten_fragments(*full_path)
+        for table_name, parent_table, hints in self.get_nested_hints(
+            root_table_name, naming, item, meta
+        ):
             nested_table_template = self._clone_hints(hints)
 
             resolved_template: TResourceHints = {
-                k: self._resolve_hint(item, v)
+                k: self._resolve_hint(k, item, v)
                 for k, v in nested_table_template.items()
                 if k not in NATURAL_CALLABLES
             }  # type: ignore
@@ -357,11 +385,12 @@ class DltResourceHints:
             # in very rare cases parent may be explicitly defined for a nested table
             if "parent" not in nested_table_schema and may_be_nested(nested_table_schema):
                 # we add default parent linking if table is eligible
-                nested_table_schema["parent"] = naming.shorten_fragments(*full_path[:-1])
+                nested_table_schema["parent"] = parent_table
 
             if not is_nested_table(nested_table_schema):
                 nested_table_schema["resource"] = self.name
             elif nested_write_disposition := nested_table_schema.get("write_disposition"):
+                root_table_template, _, _ = self._get_root_table_template(meta)
                 write_disposition = root_table_template.get("write_disposition")
                 # TODO: write_disposition may also be a callable, in that case generate warning as well
                 if nested_write_disposition != write_disposition:
@@ -391,6 +420,23 @@ class DltResourceHints:
         #     nested_table_schemas.insert(0, placeholder_table_schema)
 
         return nested_table_schemas
+
+    def compute_tables(
+        self, naming: NamingConvention, item: TDataItem = None, meta: Any = None
+    ) -> List[TTableSchema]:
+        """Computes normalized root and nested table schemas for this resource.
+
+        Raises `DataItemRequiredForDynamicTableHints` when the table name is dynamic and `item` is
+        not provided.
+        """
+        root_table_schema = self.compute_table_schema(item, meta)
+        nested_tables_schema = self.compute_nested_table_schemas(
+            root_table_schema["name"], naming, item, meta
+        )
+        return [
+            normalize_table_identifiers(table_schema, naming)
+            for table_schema in (root_table_schema, *nested_tables_schema)
+        ]
 
     def apply_hints(
         self,
@@ -619,10 +665,15 @@ class DltResourceHints:
         # creates a deep copy of dict structure without actually copying the objects
         return clone_dict_nested(hints_template)
 
-    @staticmethod
-    def _resolve_hint(item: TDataItem, hint: TTableHintTemplate[TAny]) -> TAny:
+    def _resolve_hint(
+        self, hint_name: str, item: TDataItem, hint: TTableHintTemplate[TAny]
+    ) -> TAny:
         """Calls each dynamic hint passing a data item"""
-        return hint(item) if callable(hint) else hint  # type: ignore[no-any-return]
+        if callable(hint):
+            if item is None:
+                raise DataItemRequiredForDynamicTableHints(self.name, hint_name)
+            return hint(item)  # type: ignore[no-any-return]
+        return hint
 
     @staticmethod
     def _merge_key(hint: TColumnProp, keys: TColumnNames, partial: TPartialTableSchema) -> None:

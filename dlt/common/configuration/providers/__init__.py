@@ -12,6 +12,7 @@ from .toml import (
 from .doc import CustomLoaderDocProvider
 from .vault import SECRETS_TOML_KEY, VaultDocProvider
 from .google_secrets import GoogleSecretsProvider
+from .aws_secrets import AwsSecretsManagerProvider
 from .context import ContextProvider
 
 __all__ = [
@@ -29,5 +30,6 @@ __all__ = [
     "CustomLoaderDocProvider",
     "VaultDocProvider",
     "GoogleSecretsProvider",
+    "AwsSecretsManagerProvider",
     "EXPLICIT_VALUES_PROVIDER_NAME",
 ]

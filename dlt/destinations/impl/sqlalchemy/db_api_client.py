@@ -103,7 +103,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self._current_connection: Optional[Connection] = None
         self._current_transaction: Optional[SqlaTransactionWrapper] = None
         self.metadata = sa.MetaData()
-        # Keep a list of datasets already attached on the current connection
+        self._main_dataset_name = dataset_name
+        # keep a list of datasets already attached on the current connection
         self._sqlite_attached_datasets: Set[str] = set()
 
     @property
@@ -122,7 +123,11 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         if self._current_connection is None:
             self._current_connection = self.credentials.managed_engine.borrow_conn()
             if self.dialect_name == "sqlite":
-                self._sqlite_reattach_dataset_if_exists(self.dataset_name)
+                # attach the main dataset: `dataset_name` may be swapped to a staging/alternative
+                # dataset, but queries (eg. merge) still reference the main one
+                self._sqlite_reattach_dataset_if_exists(self._main_dataset_name)
+                if self.dataset_name != self._main_dataset_name:
+                    self._sqlite_reattach_dataset_if_exists(self.dataset_name)
         return self._current_connection
 
     def close_connection(self) -> None:
@@ -200,6 +205,10 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def has_dataset(self) -> bool:
         with self._ensure_transaction():
+            if self.dialect_name == "duckdb":
+                # duckdb_engine returns catalog-qualified names from get_schema_names(),
+                # has_schema resolves the dataset within the current catalog
+                return self.dialect.has_schema(self._current_connection, self.dataset_name)  # type: ignore[attr-defined,no-any-return]
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
         return self.dataset_name in schema_names
 
@@ -217,7 +226,8 @@ class SqlalchemyClient(SqlClientBase[Connection]):
 
     def _sqlite_reattach_dataset_if_exists(self, dataset_name: str) -> None:
         """Re-attach previously created databases for a new sqlite connection"""
-        if self._sqlite_is_memory_db():
+        # `main` (the default sqlite database) and empty dataset live in the base db file, never attached
+        if dataset_name in ("main", "") or self._sqlite_is_memory_db():
             return
         new_db_fn = self._sqlite_dataset_filename(dataset_name)
         if Path(new_db_fn).exists():
@@ -264,13 +274,14 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         self, dataset_name: str
     ) -> Iterator[SqlClientBase[Connection]]:
         with super().with_alternative_dataset_name(dataset_name):
-            if self.dialect_name == "sqlite" and dataset_name not in self._sqlite_attached_datasets:
-                if not self.native_connection:
-                    # opening connection attaches dataset
-                    with self:
-                        pass
-                else:
-                    self._sqlite_reattach_dataset_if_exists(dataset_name)
+            # attach the alternative dataset to an already open connection. when no connection
+            # is open, the next open_connection attaches it together with the main dataset
+            if (
+                self.dialect_name == "sqlite"
+                and self.native_connection
+                and dataset_name not in self._sqlite_attached_datasets
+            ):
+                self._sqlite_reattach_dataset_if_exists(dataset_name)
             yield self
 
     def create_dataset(self) -> None:
@@ -332,24 +343,38 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         key = self.dataset_name + "." + table_name
         return self.metadata.tables.get(key)  # type: ignore[no-any-return]
 
+    def to_dataset_table(self, table_obj: sa.Table, staging: bool = False) -> sa.Table:
+        """Returns table_obj copied into the current or staging dataset in the shared metadata.
+        Reuses a copy already registered there to avoid duplicate table warnings.
+        """
+        dataset_name = self.staging_dataset_name if staging else self.dataset_name
+        existing: Optional[sa.Table] = self.metadata.tables.get(dataset_name + "." + table_obj.name)
+        if existing is not None:
+            return existing
+        return table_obj.to_metadata(self.metadata, schema=dataset_name)  # type: ignore[no-any-return]
+
     def create_table(self, table_obj: sa.Table) -> None:
         with self._ensure_transaction():
             table_obj.create(self._current_connection)
 
     def make_qualified_table_name_path(
-        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+        self,
+        table_name: Optional[str],
+        quote: bool = True,
+        casefold: bool = True,
+        dataset_name: Optional[str] = None,
     ) -> List[str]:
         path: List[str] = []
         # no catalog for sqlalchemy
         if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
 
-        dataset_name = self.dataset_name
+        effective_dataset = dataset_name or self.dataset_name
         if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
-            dataset_name = str(self.dialect.normalize_name(dataset_name))  # type: ignore[func-returns-value]
+            effective_dataset = str(self.dialect.normalize_name(effective_dataset))  # type: ignore[func-returns-value]
         if quote:
-            dataset_name = self.dialect.identifier_preparer.quote_identifier(dataset_name)  # type: ignore[attr-defined]
-        path.append(dataset_name)
+            effective_dataset = self.dialect.identifier_preparer.quote_identifier(effective_dataset)  # type: ignore[attr-defined]
+        path.append(effective_dataset)
         if table_name:
             if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
                 table_name = str(self.dialect.normalize_name(table_name))  # type: ignore[func-returns-value]

@@ -110,3 +110,21 @@ def test_gcp_service_account_credentials_pyiceberg_export() -> None:
     # from_pyiceberg_fileio_config should still raise exception for service account
     with pytest.raises(UnsupportedAuthenticationMethodException):
         GcpServiceAccountCredentialsWithoutDefaults.from_pyiceberg_fileio_config({})
+
+
+@pytest.mark.parametrize(
+    "creds_cls",
+    [GcpServiceAccountCredentials, GcpOAuthCredentials],
+    ids=["service_account", "oauth"],
+)
+def test_gcp_pyiceberg_hands_over_default(creds_cls: Any) -> None:
+    """Default (ADC) credentials are handed over to pyarrow's GcsFileSystem, which refreshes via
+    Google ADC - no frozen oauth token is emitted (it would otherwise expire on long loads)."""
+    creds = creds_cls()
+    creds.project_id = "test-project"
+    # handover does not touch the credential, so a placeholder is enough
+    creds._set_default_credentials(object())
+    assert creds.has_default_credentials()
+
+    config = creds.to_pyiceberg_fileio_config()
+    assert config == {"gcs.project-id": "test-project"}

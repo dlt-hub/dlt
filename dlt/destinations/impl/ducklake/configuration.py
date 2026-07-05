@@ -13,7 +13,6 @@ from dlt.common.storages.configuration import (
     FilesystemConfigurationWithLocalFiles,
     WithLocalFiles,
 )
-from dlt.common.utils import digest128
 from dlt.destinations.impl.duckdb.configuration import DuckDbConnectionPool, DuckDbBaseCredentials
 from dlt.destinations.impl.duckdb.factory import _set_duckdb_raw_capabilities
 
@@ -144,10 +143,43 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
     """When true, attaches with `AUTOMATIC_MIGRATION true` so DuckDB migrates an older DuckLake catalog schema on attach."""
 
     def fingerprint(self) -> str:
-        """Use fingerprint of underlying storage. This is precise to bucket level"""
-        if self.credentials.storage is None:
+        """Returns a fingerprint of the underlying storage."""
+        if not self.credentials or self.credentials.storage is None:
             return ""
         return self.credentials.storage.fingerprint()
+
+    def physical_location(self) -> str:
+        """Returns credential-free catalog identity which locates the ducklake."""
+        if not self.credentials or not self.credentials.catalog:
+            return ""
+
+        catalog = self.credentials.catalog
+        drivername = catalog.drivername or ""
+        # attach statement converts `postgresql` to duckdb-known `postgres`
+        if drivername == "postgresql":
+            drivername = "postgres"
+
+        # TODO: motherduck catalog has no non-secret account identity
+        if drivername == "md":
+            return ""
+
+        # file catalogs: the database file is the lake, attach name is just an alias
+        if drivername in ("duckdb", "sqlite"):
+            if catalog.database:
+                return f"{drivername}://{catalog.database}"
+            return ""
+
+        # sql catalogs host one lake per metadata schema which defaults to ducklake name
+        if catalog.host and catalog.database:
+            metadata_schema = (
+                self.credentials.metadata_schema
+                or self.credentials.ducklake_name
+                or DEFAULT_DUCKLAKE_NAME
+            )
+            # NOTE: ports must be specified (or not) consistently across configs to match
+            port_str = f":{catalog.port}" if catalog.port else ""
+            return f"{drivername}://{catalog.host}{port_str}/{catalog.database}#{metadata_schema}"
+        return ""
 
     def on_resolved(self) -> None:
         # redirect local catalog database file to `local_dir`

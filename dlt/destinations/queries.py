@@ -1,5 +1,4 @@
-from functools import partial
-from typing import Any, List
+from typing import Any, Callable, Dict, List, Optional
 
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema
@@ -7,6 +6,33 @@ from sqlglot.schema import Schema as SQLGlotSchema
 from dlt.common.destination.capabilities import TCasefoldIdentifier
 from dlt.common.libs.sqlglot import bind_query
 from dlt.destinations.sql_client import SqlClientBase
+
+
+def make_expand_table_name(
+    sql_client: SqlClientBase[Any],
+    logical_to_physical: Optional[Dict[str, str]] = None,
+) -> Callable[[str, Optional[str]], List[str]]:
+    """Create a `bind_query` table name expander bound to `sql_client`.
+
+    Args:
+        sql_client (SqlClientBase[Any]): Client whose dataset name and identifier rules
+            build the qualified path.
+        logical_to_physical (Optional[Dict[str, str]]): Maps a logical dataset qualifier
+            to the physical dataset name in the database.
+    """
+    mapping = logical_to_physical or {}
+
+    def _expand(table_name: str, db: Optional[str] = None) -> List[str]:
+        if db is None:
+            # omit dataset name if not provided for backward compatibility
+            return sql_client.make_qualified_table_name_path(
+                table_name, quote=False, casefold=False
+            )
+        return sql_client.make_qualified_table_name_path(
+            table_name, quote=False, casefold=False, dataset_name=mapping.get(db, db)
+        )
+
+    return _expand
 
 
 def _normalize_query(
@@ -23,9 +49,7 @@ def _normalize_query(
     return bind_query(
         qualified_query,
         sqlglot_schema,
-        expand_table_name=partial(
-            sql_client.make_qualified_table_name_path, quote=False, casefold=False
-        ),
+        expand_table_name=make_expand_table_name(sql_client),
         casefold_identifier=casefold_identifier,
     )
 

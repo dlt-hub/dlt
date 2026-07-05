@@ -58,7 +58,6 @@ def config_root_logger() -> None:
     & remove duplicate handlers for request instrumentation logging.
     Please made sure that you call this after you called "logging.basicConfig() or logging.getLogger()
     """
-    global _default_formatter
     update_formatter_for_loggers([logging.root], _default_formatter)
 
 

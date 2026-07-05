@@ -308,19 +308,29 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
         self._set_query_tags(operation="update_stored_schema")
-        super().update_stored_schema(only_tables, expected_update)
+        super().update_stored_schema(only_tables, expected_update, force)
         applied_update: TSchemaTables = {}
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
-        if schema_info is None:
-            logger.info(
-                f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
-                " upgrading"
-            )
+        if schema_info is None or force:
+            if schema_info is None:
+                logger.info(
+                    f"Schema with hash {self.schema.stored_version_hash} not found in the storage."
+                    " upgrading"
+                )
+            else:
+                logger.info(
+                    f"Schema with hash {self.schema.stored_version_hash} found in storage but"
+                    " update is enforced (tables to truncate/drop), applying DDL"
+                )
 
             with self.maybe_ddl_transaction():
-                applied_update = self._execute_schema_update_sql(only_tables)
+                # do not write a duplicate version row when the hash is already stored
+                applied_update = self._execute_schema_update_sql(
+                    only_tables, store_schema=schema_info is None
+                )
         else:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} inserted at"
@@ -639,7 +649,9 @@ WHERE """
             fields += ["numeric_precision", "numeric_scale"]
         return fields
 
-    def _execute_schema_update_sql(self, only_tables: Iterable[str]) -> TSchemaTables:
+    def _execute_schema_update_sql(
+        self, only_tables: Iterable[str], store_schema: bool = True
+    ) -> TSchemaTables:
         # Only `only_tables` are included, or all if None.
         sql_scripts, schema_update = self._build_schema_update_sql(
             list(self.get_storage_tables(only_tables or self.schema.tables.keys()))
@@ -648,7 +660,9 @@ WHERE """
         # Some DB backends use bytes not characters, so decrease the limit by half,
         # assuming most of the characters in DDL encoded into single bytes.
         self.sql_client.execute_many(sql_scripts)
-        self._update_schema_in_storage(self.schema)
+        # skip writing the version row when the schema is already stored (enforced update)
+        if store_schema:
+            self._update_schema_in_storage(self.schema)
         return schema_update
 
     def _build_schema_update_sql(

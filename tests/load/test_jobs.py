@@ -1,4 +1,4 @@
-from typing import List, Optional, Tuple
+from typing import Any, List, Optional, Tuple
 
 import pytest
 
@@ -86,6 +86,12 @@ def test_runnable_job_results() -> None:
 
 class MockClient:
     def prepare_load_job_execution(self, j: RunnableLoadJob) -> None:
+        pass
+
+    def __enter__(self) -> "MockClient":
+        return self
+
+    def __exit__(self, exc_type: Any, exc_val: Any, exc_tb: Any) -> None:
         pass
 
 

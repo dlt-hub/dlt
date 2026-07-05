@@ -15,7 +15,7 @@ dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the 
 
 ## Iceberg dependencies
 
-You need Python version 3.9 or higher and the `pyiceberg` package to use this format:
+You need Python version 3.10 or higher and the `pyiceberg` package to use this format:
 
 ```sh
 pip install "dlt[pyiceberg]"
@@ -94,6 +94,16 @@ s3.region = "eu-fr-1"                                 # DLT_ICEBERG_CATALOG__ICE
 ```
 
 That's it!
+
+## Table truncation and drop
+How dlt empties or drops Iceberg tables depends on the catalog:
+
+- **Persistent catalog** (configured as above): truncation — with [`refresh="drop_data"`](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) or for tables in a `replace` chain that receive no data — is a transactional delete that keeps the table registered and its snapshot history intact. Dropping a table (e.g. with `refresh="drop_sources"`) removes it from the catalog and dlt deletes the table files itself. Set `destination.filesystem.iceberg_use_catalog_purge` to `true` to delegate file deletion to the catalog's `purge_table` instead — note that catalogs may then leave files in place (Polaris rejects purge unless `DROP_WITH_PURGE_ENABLED` is set, Nessie defers file cleanup to its GC, others purge asynchronously).
+- **Ephemeral catalog** (the default in-memory fallback): dlt deletes the table files directly, removing the table entirely; it is recreated on the next load.
+
+:::caution
+With `iceberg_use_catalog_purge` enabled, dlt recreates dropped tables at the same name and location while the catalog may still be cleaning them up. Behavior depends on the catalog: when files are left in place (Nessie, rejected purge) the next load re-registers the old table metadata and resurrects its data; catalogs with soft deletes or asynchronous cleanup may reject the recreation with a conflict (Lakekeeper, Gravitino) or, for Lakekeeper hard deletes, purge the recreated table's files. Keep `iceberg_use_catalog_purge` disabled unless you understand your catalog's drop semantics.
+:::
 
 ## Set table format
 

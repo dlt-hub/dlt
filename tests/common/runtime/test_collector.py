@@ -1,7 +1,8 @@
+import io
 from collections import defaultdict
 
 import pytest
-from dlt.common.runtime.collector import NullCollector, DictCollector, Collector
+from dlt.common.runtime.collector import NullCollector, DictCollector, LogCollector, Collector
 
 
 def test_null_collector() -> None:
@@ -46,3 +47,27 @@ def test_dict_collector_reset_counters():
 
     with DictCollector()("test2") as collector:
         assert collector.counters == defaultdict(int)
+
+
+def test_log_collector_respects_log_period() -> None:
+    # adding more counters do not dump them all immediately
+    clock = [0.0]
+    buf = io.StringIO()
+    collector = LogCollector(log_period=10.0, logger=buf, dump_system_stats=False)
+    collector._clock = lambda: clock[0]  # type: ignore[assignment]
+
+    with collector("Extract"):
+        # first update logs immediately so the step shows up at once
+        collector.update("resource_0", inc=1)
+        assert buf.getvalue().count("Extract") == 1
+        # many new counters within the same period add no further logs
+        for i in range(1, 100):
+            collector.update(f"resource_{i}", inc=1)
+        assert buf.getvalue().count("Extract") == 1
+        # crossing log_period emits exactly one more log
+        clock[0] = 10.0
+        collector.update("resource_100", inc=1)
+        assert buf.getvalue().count("Extract") == 2
+
+    # _stop always emits a final log
+    assert buf.getvalue().count("Extract") == 3

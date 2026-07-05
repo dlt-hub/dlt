@@ -719,6 +719,60 @@ def test_query_builder(mock_dataset: dlt.Dataset) -> None:
     )
 
 
+def test_select_projection_shapes(mock_dataset: dlt.Dataset) -> None:
+    relation = mock_dataset.my_table
+
+    # pure column projections are replaced in place; ORDER BY column may be unprojected
+    selected = relation.order_by("col1", "desc").limit(3).select("col2")
+    expr = selected.sqlglot_expression
+    assert expr.find(sge.Subquery) is None
+    assert [sel.output_name for sel in expr.selects] == ["col2"]
+    assert expr.args.get("order") is not None
+    assert expr.args.get("limit") is not None
+
+    # aggregate applies at the same level
+    agg = relation.select("col1").max()
+    assert isinstance(agg.sqlglot_expression.selects[0], sge.Max)
+    assert agg.sqlglot_expression.find(sge.Subquery) is None
+
+    # a defining projection wraps as a derived table; ORDER BY and LIMIT hoist onto the wrap
+    defining = mock_dataset("SELECT col1 AS c FROM my_table ORDER BY c LIMIT 3").select("c")
+    expr = defining.sqlglot_expression
+    derived = expr.find(sge.Subquery)
+    assert derived is not None
+    assert derived.this.args.get("order") is None
+    assert derived.this.args.get("limit") is None
+    assert expr.args.get("order") is not None
+    assert expr.args.get("limit") is not None
+
+    # select over the wrap replaces its projection in place, no second wrap
+    chained = defining.select("c")
+    assert chained.sqlglot_expression.find(sge.Subquery).this.find(sge.Subquery) is None
+
+    # a sort key dropped by the projection keeps ORDER BY and LIMIT inside the wrap
+    kept = mock_dataset("SELECT col1 AS c FROM my_table ORDER BY col2 LIMIT 3").select("c")
+    derived = kept.sqlglot_expression.find(sge.Subquery)
+    assert derived.this.args.get("order") is not None
+    assert derived.this.args.get("limit") is not None
+    assert kept.sqlglot_expression.args.get("order") is None
+    assert kept.sqlglot_expression.args.get("limit") is None
+
+
+def test_order_by_output_alias_binding(mock_dataset: dlt.Dataset) -> None:
+    """ORDER BY an output alias binds to its source, except under DISTINCT/GROUP BY."""
+    # plain select: bind resolves the alias to its source column (tsql/snowflake need this)
+    plain = mock_dataset("SELECT col1 FROM my_table ORDER BY col1").to_sql()
+    assert 'ORDER BY "my_table"."col1"' in plain
+
+    # DISTINCT: sort key must stay the output column (databricks rejects a source column here)
+    distinct = mock_dataset("SELECT DISTINCT col1 FROM my_table ORDER BY col1").to_sql()
+    assert 'ORDER BY "col1"' in distinct
+    assert "my_table" not in distinct.split("ORDER BY")[1]
+
+    grouped = mock_dataset("SELECT col1 FROM my_table GROUP BY col1 ORDER BY col1").to_sql()
+    assert "my_table" not in grouped.split("ORDER BY")[1]
+
+
 def test_copy_and_chaining() -> None:
     dataset = dlt.dataset(
         dlt.destinations.duckdb(destination_name="duck_db"),

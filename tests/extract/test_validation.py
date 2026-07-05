@@ -255,6 +255,28 @@ def test_validation_with_contracts(yield_list: bool) -> None:
     assert "c" not in items[2]
 
 
+def test_validator_returns_none_when_fully_filtered() -> None:
+    # a discard_row validator drops invalid items. when it consumes an entire batch it must return
+    # None - exactly like FilterItem and a filtered-out single item - so the empty batch does not
+    # reach the extractor. an incoming empty list is passed through unchanged.
+    r: DltResource = dlt.resource(
+        [{"a": 1, "b": "x"}], name="some_data", schema_contract="discard_row", columns=SimpleModel
+    )
+    validator: PydanticValidator[SimpleModel] = r.validator  # type: ignore[assignment]
+    validator.bind(r._pipe)  # extractor binds the validator to the pipe (sets table_name)
+
+    invalid = {"a": "not_int", "b": "x"}
+    # single invalid item -> None
+    assert validator(invalid) is None
+    # non-empty list fully consumed by validation -> None (not an empty list)
+    assert validator([invalid, {"a": "also_bad", "b": "y"}]) is None
+    # a partially valid list keeps the surviving rows
+    assert validator([invalid, {"a": 1, "b": "ok"}]) == [{"a": 1, "b": "ok"}]
+    # an incoming empty list is passed through unchanged (same object, type preserved)
+    empty: TDataItems = []
+    assert validator(empty) is empty
+
+
 @pytest.mark.parametrize("return_models", [True, False])
 @pytest.mark.parametrize("yield_models", [True, False])
 @pytest.mark.parametrize("yield_list", [True, False])

@@ -138,6 +138,18 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
         with self._dataset.query(query)._cursor() as cur:
             yield cur
 
+    def raw_sql(self, query: Union[str, ir.Expr], **kwargs: Any) -> SupportsDataAccess:
+        """Execute `query` and return an open dlt cursor.
+
+        dlt owns the connection lifecycle: the cursor exposes `fetchall`/`df`/`arrow` and its
+        connection is released when the cursor is garbage collected, so there is no `close()`.
+        """
+        cursor_manager = self._dataset.query(query)._cursor()
+        cursor = cursor_manager.__enter__()
+        # keep the context manager alive on the cursor so the connection is released on GC
+        cursor._dlt_cursor_manager = cursor_manager  # type: ignore[attr-defined]
+        return cursor
+
     def compile(  # noqa
         self,
         expr: ir.Expr,
@@ -207,6 +219,33 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     ) -> ir.Table:
         raise NotImplementedError
 
+    def create_view(
+        self,
+        name: str,
+        /,
+        obj: ir.Table,
+        *,
+        database: Optional[str] = None,
+        overwrite: bool = False,
+    ) -> ir.Table:
+        # dlt owns the destination schema; the lazy backend is read-only
+        raise NotImplementedError
+
+    def drop_table(
+        self,
+        name: str,
+        /,
+        *,
+        database: Union[tuple[str, str], str, None] = None,
+        force: bool = False,
+    ) -> None:
+        raise NotImplementedError
+
+    def drop_view(
+        self, name: str, /, *, database: Union[str, None] = None, force: bool = False
+    ) -> None:
+        raise NotImplementedError
+
     def _register_in_memory_table(self, op: ops.InMemoryTable) -> None:
         """Required to subclass SQLBackend"""
         raise NotImplementedError
@@ -247,9 +286,31 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
             table.rename_columns(list(table_expr.columns)).cast(arrow_schema)
         )
 
-    # TODO: implement native arrow batches
-    # @util.experimental
-    # def to_pyarrow_batches(
+    @ibis_util.experimental
+    def to_pyarrow_batches(
+        self,
+        expr: ir.Expr,
+        /,
+        *,
+        params: Optional[Mapping[ir.Scalar, Any]] = None,
+        limit: Union[int, str, None] = None,
+        chunk_size: int = 1_000_000,
+        **kwargs: Any,
+    ) -> "pa.ipc.RecordBatchReader":
+        # stream native arrow chunks from the dlt cursor instead of the row-wise SQLBackend default
+        pyarrow = self._import_pyarrow()
+        self._run_pre_execute_hooks(expr)
+        table_expr = expr.as_table()
+        arrow_schema = table_expr.schema().to_pyarrow()
+        columns = list(table_expr.columns)
+        sql = self.compile(expr, limit=limit, params=params)
+
+        def _batches() -> Generator[Any, None, None]:
+            with self._safe_raw_sql(sql) as cur:
+                for chunk in cur.iter_arrow(chunk_size):
+                    yield from chunk.rename_columns(columns).cast(arrow_schema).to_batches()
+
+        return pyarrow.ipc.RecordBatchReader.from_batches(arrow_schema, _batches())
 
 
 def _to_ibis_schema(table_schema: TTableSchema) -> sch.Schema:

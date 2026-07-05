@@ -8,9 +8,12 @@ from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     CredentialsConfiguration,
 )
-from dlt.common.destination.client import DestinationClientDwhConfiguration
-from dlt.common.utils import digest128
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.storages.configuration import WithLocalFiles
+from dlt.common.utils import digest128
 
 from dlt.destinations.impl.qdrant.exceptions import InvalidInMemoryQdrantCredentials
 from dlt.destinations.impl.qdrant.warnings import location_on_credentials_deprecated
@@ -70,7 +73,7 @@ class QdrantClientOptions(BaseConfiguration):
 
 @configspec
 class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="qdrant", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="qdrant", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: QdrantCredentials = None
     "Qdrant connection credentials"
     qd_location: Optional[str] = None
@@ -147,10 +150,25 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
             self.qd_path = self.make_location(self.qd_path, "%s.qdrant")
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of a connection string"""
+        """Returns a fingerprint of the connection location."""
         if self.qd_location:
             return digest128(self.qd_location)
         return ""
+
+    def physical_location(self) -> str:
+        """Returns the Qdrant connection location."""
+        return self.qd_location or ""
+
+    # TODO: qdrant supports cross collection (and cross instance) writes via point streaming
+    # (scroll -> upsert, see `qdrant_client.migrate`). this is not SQL so it requires a
+    # qdrant specific model job and a non-SQL transformation input to be useful.
+    def can_write_from(self, other: DestinationClientConfiguration) -> bool:
+        """Qdrant cannot execute SQL models."""
+        return False
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Qdrant does not support dlt SQL joins."""
+        return False
 
     def __str__(self) -> str:
         """Return displayable destination location"""

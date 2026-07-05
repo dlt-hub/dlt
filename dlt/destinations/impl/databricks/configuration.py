@@ -20,7 +20,6 @@ from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 if TYPE_CHECKING:
     from zerobus import ArrowStreamConfigurationOptions, IPCCompression
 
-
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
 DEFAULT_DATABRICKS_INSERT_API: TDatabricksInsertApi = "copy_into"
 # ZSTD was fastest in my benchmarks out of the three `ipc_compression` options
@@ -287,7 +286,14 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
             )
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
+        """Returns a fingerprint of the physical Databricks location."""
+        physical_location = self.physical_location()
+        if physical_location:
+            return digest128(physical_location)
+        return ""
+
+    def physical_location(self) -> str:
+        """Returns the server hostname."""
         if self.credentials and self.credentials.server_hostname:
-            return digest128(self.credentials.server_hostname)
+            return self.credentials.server_hostname
         return ""

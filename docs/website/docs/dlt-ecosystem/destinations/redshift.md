@@ -78,11 +78,11 @@ Use the PostgreSQL driver for PostgreSQL-based setups or the Amazon Redshift dri
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
 ## Supported file formats
-[SQL Insert](../file-formats/insert-format) is used by default.
+[SQL Insert](../file-formats.md#sql-insert) is used by default.
 
 When staging is enabled:
-* [JSONL](../file-formats/jsonl.md) is used by default.
-* [Parquet](../file-formats/parquet.md) is supported.
+* [JSONL](../file-formats.md#jsonl) is used by default.
+* [Parquet](../file-formats.md#parquet) is supported.
 
 :::warning
 - **Redshift cannot load `VARBYTE` columns from JSON files**. `dlt` will fail such jobs permanently. Switch to Parquet to load binaries.
@@ -121,6 +121,13 @@ If the S3 bucket is in a different region than your Redshift cluster:
 - You must set `region_name` in `[destination.filesystem.credentials]` in your `config.toml` file to ensure proper access
 - For Parquet files, cross-region COPY operations are not supported by Redshift, so the region setting will be ignored
 :::
+
+### Additional COPY Options
+You can append additional Redshift [COPY options/Data conversion Parameters](https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-conversion.html) to staged loads with `additional_copy_options`. For example:
+```toml
+[destination.redshift]
+additional_copy_options = ["FILLRECORD", "NULL AS 'null_string'"]
+```
 
 ## Identifier names and case sensitivity
 * Up to 127 characters

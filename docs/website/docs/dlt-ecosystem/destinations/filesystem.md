@@ -112,7 +112,7 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
 
 #### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google
+To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Tigris](https://www.tigrisdata.com), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/), or [Google
 Cloud Storage](https://cloud.google.com/storage/docs/interoperability), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
@@ -124,6 +124,8 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpoint URL here
 ```
+
+For Tigris, set `endpoint_url = "https://t3.storage.dev"` and use your Tigris access key ID (prefixed `tid_`) and secret access key (prefixed `tsec_`). Tigris uses a single global endpoint and doesn't charge egress fees, which matters when warehouses in different regions load from the same staging bucket.
 
 #### Adding additional configuration
 
@@ -659,9 +661,9 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
-* [JSONL](../file-formats/jsonl) is used by default
-* [Parquet](../file-formats/parquet) is supported
-* [CSV](../file-formats/csv) is supported
+* [JSONL](../file-formats.md#jsonl) is used by default
+* [Parquet](../file-formats.md#parquet) is supported
+* [CSV](../file-formats.md#csv) is supported
 
 ## Supported table formats
 
@@ -679,7 +681,7 @@ When a load generates a new state, for example when using incremental loads, a n
 :::
 
 ## Data access
-`filesystem` implements [`sql_client`](../../general-usage/dataset-access/sql-client#the-filesystem-sql-client) which provides read only
+`filesystem` implements [`sql_client`](../transformations/sql.md#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
 By default views that are created are "frozen" to minimize reading from bucket.

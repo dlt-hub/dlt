@@ -4,12 +4,11 @@ from typing import Callable, Optional, Tuple
 import pytest
 
 from dlt.common.configuration import resolve_configuration
-from dlt.common.utils import custom_environ, digest128
-from dlt.common.utils import uniq_id
+from dlt.common.utils import custom_environ, uniq_id
 from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient, ClickHouseMergeJob
 from dlt.destinations.impl.clickhouse.configuration import (
-    ClickHouseCredentials,
     ClickHouseClientConfiguration,
+    ClickHouseCredentials,
 )
 from dlt.common.schema.utils import new_table, pipeline_state_table
 from tests.load.clickhouse.utils import clickhouse_client
@@ -32,15 +31,6 @@ def test_clickhouse_configuration() -> None:
         C = resolve_configuration(ClickHouseCredentials(), sections=("destination", "clickhouse"))
         assert C.database == "mydb"
         assert C.password == "fuss_do_rah"
-
-    # Check fingerprint.
-    assert ClickHouseClientConfiguration().fingerprint() == ""
-    # Based on host.
-    c = resolve_configuration(
-        ClickHouseCredentials(),
-        explicit_value="clickhouse://user1:pass@host1/db1",
-    )
-    assert ClickHouseClientConfiguration(credentials=c).fingerprint() == digest128("host1")
 
 
 def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:

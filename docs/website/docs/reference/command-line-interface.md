@@ -56,7 +56,7 @@ dlt [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 * [`init`](#dlt-init) - Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
 * [`deploy`](#dlt-deploy) - Creates a deployment package for a selected pipeline script
 * [`dashboard`](#dlt-dashboard) - Shows the dlthub workspace dashboard
-* [`ai`](#dlt-ai) - Moved to `dlthub ai` (run `pip install dlt[hub]`)
+* [`ai`](#dlt-ai) - Moved to `dlthub ai` (run `pip install dlt\[hub]`)
 
 </details>
 
@@ -704,7 +704,7 @@ Inherits arguments from [`dlt`](#dlt).
 
 ## `dlt ai`
 
-Moved to `dlthub ai` (run `pip install dlt[hub]`).
+Moved to `dlthub ai` (run `pip install dlt\[hub]`).
 
 **Usage**
 ```sh

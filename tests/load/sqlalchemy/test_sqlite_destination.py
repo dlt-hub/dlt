@@ -113,3 +113,41 @@ def test_file_based_database_with_engine_kwargs() -> None:
         assert actual_values == expected_values
     finally:
         verify_engine.dispose()
+
+
+def test_merge_with_main_dataset() -> None:
+    """`main` dataset must not be attached. the regular/default sqlite db file is used"""
+    local_dir = dlt.current.run_context().local_dir
+    db_path = os.path.join(local_dir, "test_main.db")
+    credentials = f"sqlite:///{db_path}"
+
+    @dlt.resource(name="items", primary_key="id", write_disposition="merge")
+    def items(data):
+        yield data
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_sqlite_main_merge" + uniq_id(),
+        destination=dlt_sqlalchemy(credentials),
+        dataset_name="main",
+    )
+
+    def list_db_files():
+        return sorted(
+            f for f in os.listdir(local_dir) if f.startswith("test_main") and f.endswith(".db")
+        )
+
+    # first run inserts two rows
+    info = pipeline.run(items([{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]))
+    assert_load_info(info)
+    # only the base (main) and staging (main_staging) db files exist
+    assert list_db_files() == ["test_main.db", "test_main__main_staging.db"]
+
+    # second run reopens main, updates id=2 and inserts id=3
+    info = pipeline.run(items([{"id": 2, "val": "b2"}, {"id": 3, "val": "c"}]))
+    assert_load_info(info)
+    # still only the same two db files
+    assert list_db_files() == ["test_main.db", "test_main__main_staging.db"]
+
+    # verify merge result via the dataset interface
+    rows = pipeline.dataset().items.select("id", "val").order_by("id").fetchall()
+    assert [tuple(row) for row in rows] == [(1, "a"), (2, "b2"), (3, "c")]

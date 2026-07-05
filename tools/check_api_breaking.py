@@ -20,12 +20,14 @@ Exit codes:
     2 - usage error
 """
 
-import subprocess
 import sys
 import types
 from pathlib import Path
-from typing import Dict, List, Set, Tuple
+from typing import Any, Dict, List, Optional, Set, Tuple
 
+import griffe
+
+import dlt
 from tools.git_utils import detect_base_ref
 
 # top-level packages whose __all__ (or public attrs) define public API
@@ -48,8 +50,6 @@ def public_api() -> Tuple[Dict[str, Dict[str, str]], Set[str]]:
     package to {name: source_module}, and source_files is the set of relative
     file paths containing public API symbols.
     """
-    import dlt
-
     repo_root = Path(dlt.__file__).resolve().parent.parent
     root_to_names: Dict[str, Dict[str, str]] = {}
     source_files: Set[str] = set()
@@ -108,35 +108,21 @@ def cmd_list() -> int:
     return 0
 
 
-def classify_griffe_output(output: str, source_files: Set[str]) -> Tuple[List[str], List[str]]:
-    """Classify griffe output lines into public API hits and pruned lines.
-
-    Args:
-        output (str): Raw griffe stdout+stderr combined.
-        source_files (Set[str]): Relative file paths of public API modules.
-
-    Returns:
-        Tuple[List[str], List[str]]: (kept, pruned) lists of issue lines.
-    """
-    kept: List[str] = []
-    pruned: List[str] = []
-
-    for line in output.splitlines():
-        line = line.strip()
-        if not line or line.startswith("warning:"):
-            continue
-        # griffe output format: "path/to/file.py:LINE: message"
-        if any(line.startswith(prefix) for prefix in source_files):
-            kept.append(line)
-        else:
-            pruned.append(line)
-
-    return kept, pruned
+def _breakage_source_file(breakage: Any) -> Optional[str]:
+    """Relative package file path of the module a breakage applies to, or `None`."""
+    obj = breakage.obj
+    # an alias has no file of its own; attribute it to its parent, like griffe does
+    located = obj.parent if obj.is_alias else obj
+    try:
+        return str(located.relative_package_filepath)
+    except (ValueError, AttributeError):
+        return None
 
 
 def cmd_check(against: str, verbose: bool = False) -> int:
-    """Run griffe check filtered to public API modules."""
+    """Report public API breaking changes against a git ref, filtered to public modules."""
     _, source_files = public_api()
+    repo_root = Path(dlt.__file__).resolve().parent.parent
 
     print(f"Checking {len(source_files)} public API source files against {against}:")
     if verbose:
@@ -144,19 +130,23 @@ def cmd_check(against: str, verbose: bool = False) -> int:
             print(f"  {f}")
         print()
 
-    result = subprocess.run(
-        ["griffe", "check", "dlt", "--against", against],
-        capture_output=True,
-        text=True,
+    # static load of `dlt` at the base ref and the working tree; a bad ref or parse
+    # failure raises here rather than being swallowed and reported as "no changes"
+    old = griffe.load_git(
+        "dlt", ref=against, repo=str(repo_root), submodules=True, allow_inspection=False
     )
+    new = griffe.load("dlt", submodules=True, allow_inspection=False)
 
-    kept, pruned = classify_griffe_output(result.stdout + result.stderr, source_files)
+    kept: List[str] = []
+    ignored = 0
+    for breakage in griffe.find_breaking_changes(old, new):
+        if _breakage_source_file(breakage) in source_files:
+            kept.append(breakage.explain(griffe.ExplanationStyle.ONE_LINE))
+        else:
+            ignored += 1
 
-    if pruned:
-        print(f"Pruned {len(pruned)} issue(s) in non-public modules:")
-        for line in pruned:
-            print(f"  [pruned] {line}")
-        print()
+    if ignored:
+        print(f"Ignored {ignored} breaking change(s) outside public API modules.\n")
 
     if not kept:
         print("No breaking changes detected in public API.")

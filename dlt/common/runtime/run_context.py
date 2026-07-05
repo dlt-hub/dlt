@@ -202,7 +202,8 @@ def global_dir() -> str:
             else:
                 warnings.warn(
                     f"XDG_DATA_HOME is set to {os.environ['XDG_DATA_HOME']} but ~/.dlt already"
-                    " exists. Using ~/.dlt"
+                    " exists. Using ~/.dlt",
+                    stacklevel=2,
                 )
 
         # else default to ~/.dlt

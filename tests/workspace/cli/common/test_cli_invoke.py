@@ -6,6 +6,7 @@ from pytest_console_scripts import ScriptRunner
 from unittest.mock import MagicMock, patch
 
 import dlt
+from dlt.version import __version__
 from dlt.common.runners.venv import Venv
 from dlt.common import known_env
 
@@ -402,22 +403,70 @@ def test_hub_pipeline_show_passes_check_when_found(
     assert rc == -1
 
 
-def test_main_in_workspace_prints_dlthub_handoff_note(
+@pytest.mark.parametrize(
+    "argv, expected",
+    [
+        (["dlt", "init", "pokemon", "duckdb"], "dlthub pipeline init"),
+        (["dlt", "pipeline", "my_pipe", "trace"], "dlthub local pipeline"),
+        (["dlt", "schema", "--format", "json", "schema.yaml"], "dlthub local schema"),
+        (["dlt", "telemetry"], "dlthub local telemetry"),
+        (["dlt", "dashboard"], "dlthub local show"),
+        (["dlt", "ai", "init"], "dlthub ai"),
+        (["dlt", "--debug", "pipeline", "my_pipe"], "dlthub local pipeline"),
+        (["dlt", "deploy", "pipe.py", "airflow-composer"], "dlthub local --help"),
+        (["dlt", "--help"], "dlthub local --help"),
+        (["dlt"], "dlthub local --help"),
+    ],
+    ids=[
+        "init",
+        "pipeline",
+        "schema-with-flag",
+        "telemetry",
+        "dashboard",
+        "ai",
+        "pipeline-after-flag",
+        "deploy-generic",
+        "help-generic",
+        "bare-generic",
+    ],
+)
+def test_main_in_workspace_prints_dlthub_replacement(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+    argv: List[str],
+    expected: str,
+) -> None:
+    """`_main()` inside a workspace does not execute and shows the `dlthub` replacement prefix."""
+    dispatch = MagicMock()
+    monkeypatch.setattr("dlt._workspace.cli._dlt.main", dispatch)
+    monkeypatch.setattr("sys.argv", argv)
+    with pytest.raises(SystemExit) as ei:
+        _main()
+    assert ei.value.code == -1
+    # nothing got executed
+    dispatch.assert_not_called()
+    captured = capsys.readouterr()
+    # note goes to stderr so stdout stays clean for redirection
+    assert captured.out == ""
+    assert "dltHub Workspace" in captured.err
+    assert expected in captured.err
+    # user args are never spliced into the suggestion
+    assert "my_pipe" not in captured.err
+    assert "schema.yaml" not in captured.err
+
+
+def test_main_in_workspace_version_works(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """`_main()` inside a workspace tells the user to use the `dlthub` command."""
-    # short-circuit the inner dispatch so we only exercise the handoff branch
-    monkeypatch.setattr("dlt._workspace.cli._dlt.main", lambda host: 0)
+    """`dlt --version` inside a workspace executes normally without the migration note."""
     monkeypatch.setattr("sys.argv", ["dlt", "--version"])
     with pytest.raises(SystemExit) as ei:
         _main()
     assert ei.value.code == 0
     captured = capsys.readouterr()
-    combined = captured.out + captured.err
-    assert "Please use" in combined
-    assert "dlthub" in combined
-    assert "dlthub local --help" in combined
+    assert __version__ in captured.out
+    assert "dltHub Workspace" not in captured.out + captured.err
 
 
 def test_main_outside_workspace_no_handoff_note(
@@ -425,15 +474,32 @@ def test_main_outside_workspace_no_handoff_note(
     monkeypatch: pytest.MonkeyPatch,
     capsys: pytest.CaptureFixture[str],
 ) -> None:
-    """In OSS context (no workspace), `_main()` does NOT emit the handoff note."""
+    """In OSS context (no workspace), `_main()` executes and does NOT emit the dlthub note."""
     monkeypatch.setattr("dlt._workspace.cli._dlt.main", lambda host: 0)
-    monkeypatch.setattr("sys.argv", ["dlt", "--version"])
+    monkeypatch.setattr("sys.argv", ["dlt", "pipeline", "--list-pipelines"])
     with pytest.raises(SystemExit) as ei:
         _main()
     assert ei.value.code == 0
     captured = capsys.readouterr()
     combined = captured.out + captured.err
-    assert "Please use" not in combined
+    assert "dltHub Workspace" not in combined
+
+
+def test_main_outside_workspace_help_no_migration_note(
+    legacy_workspace_context,
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """In OSS context (no workspace), `dlt --help` shows full help without the migration note."""
+    monkeypatch.setattr("sys.argv", ["dlt", "--help"])
+    with pytest.raises(SystemExit) as ei:
+        _main()
+    assert ei.value.code == 0
+    captured = capsys.readouterr()
+    assert "Usage: dlt" in captured.out
+    assert "dltHub Workspace" not in captured.out + captured.err
+    # moved `ai` command renders the full extras spec in help (rich markup `[hub]` is escaped)
+    assert "dlt[hub]" in captured.out
 
 
 @pytest.mark.parametrize(

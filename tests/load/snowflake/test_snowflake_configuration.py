@@ -4,9 +4,11 @@ from tests.utils import skip_if_not_active
 skip_if_not_active("snowflake")
 
 import os
-import pytest
 from pathlib import Path
+from typing import Optional
 from unittest.mock import patch
+
+import pytest
 
 from dlt.common.configuration.utils import add_config_to_env
 from tests.utils import TEST_DICT_CONFIG_PROVIDER, get_test_storage_root, test_storage
@@ -429,12 +431,27 @@ def test_snowflake_provided_oauth_token(test_storage: FileStorage) -> None:
                 assert creds.token != "SNOW_TOK"
 
 
-def test_snowflake_configuration() -> None:
-    # def empty fingerprint
-    assert SnowflakeClientConfiguration().fingerprint() == ""
-    # based on host
-    c = resolve_configuration(
-        SnowflakeCredentials(),
-        explicit_value="snowflake://user1:pass@host1/db1?warehouse=warehouse1&role=role1",
-    )
-    assert SnowflakeClientConfiguration(credentials=c).fingerprint() == digest128("host1")
+@pytest.mark.parametrize(
+    "connection_string,expected_fingerprint",
+    [
+        pytest.param("", "", id="empty"),
+        pytest.param(
+            "snowflake://user1:pass@host1/db1?warehouse=warehouse1&role=role1",
+            digest128("host1"),
+            id="legacy_host_only",
+        ),
+    ],
+)
+def test_snowflake_fingerprint(connection_string: str, expected_fingerprint: str) -> None:
+    credentials: Optional[SnowflakeCredentials]
+    if connection_string:
+        credentials = resolve_configuration(
+            SnowflakeCredentials(),
+            explicit_value=connection_string,
+        )
+    else:
+        credentials = None
+
+    config = SnowflakeClientConfiguration(credentials=credentials)
+
+    assert config.fingerprint() == expected_fingerprint

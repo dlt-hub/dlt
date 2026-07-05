@@ -6,12 +6,14 @@ from typing import (
     ClassVar,
     List,
     Optional,
+    Sequence,
     Type,
     Union,
     Dict,
     Any,
     TypeVar,
     Generic,
+    TYPE_CHECKING,
 )
 from typing_extensions import TypeAlias
 import inspect
@@ -32,6 +34,9 @@ from dlt.common.schema.schema import Schema
 from dlt.common.typing import is_subclass
 from dlt.common.utils import get_full_callable_name, simple_repr, without_none
 from dlt.common.reflection.ref import object_from_ref
+
+if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
 
 
 TDestinationConfig = TypeVar("TDestinationConfig", bound="DestinationClientConfiguration")
@@ -193,6 +198,26 @@ class Destination(ABC, Generic[TDestinationConfig, TDestinationClient]):
                 caps.max_column_identifier_length or caps.max_identifier_length,
             )
         return self.client_class(schema, config, caps)
+
+    def create_ibis_backend(
+        self, client: TDestinationClient, read_only: bool = False, schemas: Sequence[Schema] = ()
+    ) -> "BaseBackend":
+        """Create an ibis backend for this destination bound to `client`'s dataset.
+
+        Args:
+            client (TDestinationClient): The destination job client holding credentials and sql client.
+            read_only (bool): Open the backend read-only where the destination supports it.
+            schemas (Sequence[Schema]): Schemas to expose, used by table-scanner backends.
+
+        Returns:
+            BaseBackend: A connected ibis backend.
+
+        Raises:
+            NotImplementedError: If the destination does not support an ibis backend.
+        """
+        raise NotImplementedError(
+            f"Destination type `{self.destination_type}` is not supported by the Ibis backend."
+        )
 
     @classmethod
     def adjust_capabilities(

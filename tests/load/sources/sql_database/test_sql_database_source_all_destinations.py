@@ -174,13 +174,14 @@ def test_load_sql_schema_loads_all_tables_parallel_connectorx_arrow_stream(
     assert pa.types.is_timestamp(col_field.type)
     assert col_field.type.unit == "us"
 
-    # verify all values are millisecond multiples
-    # since arrow_stream returns timestamp columns as date64[ms] and we cast them to
-    # timestamps with microsecond precision
+    # connectorx arrow_stream now returns timestamp columns as timestamp[ns] (older versions
+    # returned date64[ms]); we cast them to timestamp[us]. postgres has microsecond precision,
+    # so it must be preserved here - values are NOT truncated to milliseconds.
     micros = pa.compute.cast(data_["datetime_ntz_col"], pa.int64()).combine_chunks()
     for i in range(len(micros)):
         assert micros[i].is_valid
-        assert micros[i].as_py() % 1000 == 0
+    # at least one value carries sub-millisecond microseconds, proving the precision survived
+    assert any(micros[i].as_py() % 1000 != 0 for i in range(len(micros)))
 
 
 @pytest.mark.parametrize(

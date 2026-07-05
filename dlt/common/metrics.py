@@ -1,6 +1,18 @@
 import datetime  # noqa: I251
-from typing import Any, Dict, List, NamedTuple, Optional, Tuple  # noqa: 251
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    NamedTuple,
+    Optional,
+    Tuple,
+    TypeVar,
+)  # noqa: 251
 from dlt.common.typing import TypedDict
+
+TJobKey = TypeVar("TJobKey")
 
 
 class DataWriterMetrics(NamedTuple):
@@ -10,7 +22,7 @@ class DataWriterMetrics(NamedTuple):
     created: float
     last_modified: float
 
-    def __add__(self, other: Tuple[object, ...], /) -> Tuple[object, ...]:  # type: ignore[override]
+    def __add__(self, other: Tuple[object, ...], /) -> "DataWriterMetrics":
         if isinstance(other, DataWriterMetrics):
             return DataWriterMetrics(
                 self.file_path if self.file_path == other.file_path else "",
@@ -21,6 +33,21 @@ class DataWriterMetrics(NamedTuple):
                 max(self.last_modified, other.last_modified),
             )
         return NotImplemented
+
+
+EMPTY_DATA_WRITER_METRICS = DataWriterMetrics("", 0, 0, 2**32, 0.0)
+
+
+def aggregate_job_metrics(
+    job_metrics: Mapping[TJobKey, DataWriterMetrics],
+    key: Callable[[TJobKey], str],
+) -> Dict[str, DataWriterMetrics]:
+    """Sum writer metrics grouped by `key`, independent of input order."""
+    result: Dict[str, DataWriterMetrics] = {}
+    for job_key, metrics in job_metrics.items():
+        group_key = key(job_key)
+        result[group_key] = result.get(group_key, EMPTY_DATA_WRITER_METRICS) + metrics
+    return result
 
 
 class DataWriterAndCustomMetrics(DataWriterMetrics):

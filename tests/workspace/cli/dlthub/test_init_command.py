@@ -195,6 +195,8 @@ def test_init_dlthub_workspace_writes_full_scaffold(
     config = tomlkit.parse(_read(tmp_path / ".dlt" / "config.toml"))
     assert config["workspace"]["settings"]["name"] == "my-fancy-proj"  # type: ignore[index]
     assert "runtime" in config
+    # workspaces always emit _dlt_load_id, incl. for arrow/parquet data
+    assert config["normalize"]["parquet_normalizer"]["add_dlt_load_id"] is True  # type: ignore[index]
 
     # no pipelines, no deployment module
     assert not (tmp_path / "__deployment__.py").exists()

@@ -89,6 +89,8 @@ class wait_exponential_retry_after(wait_exponential):
                 return None
             retry_date = mktime_tz(retry_date_tuple)
             seconds = retry_date - time.time()
+        if seconds <= 0:
+            return None
         return max(self.min, min(self.max, seconds))
 
     def _get_retry_after(self, retry_state: RetryCallState) -> Optional[float]:

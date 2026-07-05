@@ -283,9 +283,16 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             if use_staging_client
             else self.get_destination_client(schema)
         )
-        with active_job_client as client:
-            with self.maybe_with_staging_dataset(client, use_staging_dataset):
+        try:
+            with self.maybe_with_staging_dataset(active_job_client, use_staging_dataset):
                 job.run_managed(active_job_client, self._done_event)
+        except Exception as e:
+            logger.exception(f"worker {job.__class__} died in uncontrollable manner")
+            # release only if job is still running - if this exception comes from _release()
+            # itself - job._state will be already set
+            if job._state == "running":
+                job._exception = e
+                job._release("retry")
 
     def start_new_jobs(
         self, load_id: str, schema: Schema, running_jobs: Sequence[LoadJob]
@@ -301,6 +308,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         available_slots = get_available_worker_slots(self.config, caps, running_jobs)
         if available_slots <= 0:
             return []
+        logger.debug(f"Free worker slots: {available_slots}")
 
         # get a list of jobs eligible to be started
         load_files = filter_new_jobs(
@@ -634,14 +642,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # get dropped and truncated tables that were added in the extract step if refresh was requested
         # NOTE: if naming convention was updated those names correspond to the old naming convention
         # and they must be like that in order to drop existing tables
-        dropped_tables = current_load_package()["state"].get("dropped_tables", [])
-        truncated_tables = current_load_package()["state"].get("truncated_tables", [])
+        package_state = self.load_storage.normalized_packages.get_load_package_state(load_id)
+        dropped_tables = package_state.get("dropped_tables", [])
+        truncated_tables = package_state.get("truncated_tables", [])
 
         # initialize analytical storage ie. create dataset required by passed schema
         with self.get_destination_client(schema) as job_client:
             if (expected_update := self.load_storage.begin_schema_update(load_id)) is not None:
                 # init job client
-                applied_update = init_client(
+                applied_update, applied_dropped, applied_truncated = init_client(
                     job_client,
                     schema,
                     new_jobs,
@@ -679,6 +688,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                             truncate_tables=truncated_tables,
                         )
                 self.load_storage.commit_schema_update(load_id, applied_update)
+                # record tables actually dropped and truncated in the destination dataset,
+                # like the applied schema update above this happens exactly once per package
+                if applied_dropped or applied_truncated:
+                    state = current_load_package()["state"]
+                    if applied_dropped:
+                        state["applied_dropped_tables"] = sorted(applied_dropped)
+                    if applied_truncated:
+                        state["applied_truncated_tables"] = sorted(applied_truncated)
+                    commit_load_package_state()
 
             # collect all unfinished jobs
             return self.resume_started_jobs(load_id, schema)

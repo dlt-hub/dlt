@@ -7,7 +7,7 @@ keywords: [how to, deploy a pipeline, airflow, gcp]
 # Deploy a pipeline with Airflow and Google Composer
 
 Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.md)
-and [create a pipeline](../create-a-pipeline.md).
+and [create a pipeline](../../tutorial/load-data-from-an-api.md).
 
 
 :::tip

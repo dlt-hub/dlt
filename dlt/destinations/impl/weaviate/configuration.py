@@ -1,11 +1,14 @@
 import dataclasses
-from typing import Dict, Literal, Optional, Final
+from typing import Dict, Final, Literal, Optional
 from typing_extensions import Annotated
 from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration
-from dlt.common.destination.client import DestinationClientDwhConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
+)
 from dlt.common.utils import digest128
 
 TWeaviateBatchConsistency = Literal["ONE", "QUORUM", "ALL"]
@@ -29,7 +32,7 @@ class WeaviateCredentials(CredentialsConfiguration):
 
 @configspec
 class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
-    destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore
+    destination_type: Final[str] = dataclasses.field(default="weaviate", init=False, repr=False, compare=False)  # type: ignore[misc]
     # make it optional so empty dataset is allowed
     dataset_name: Annotated[Optional[str], NotResolved()] = dataclasses.field(
         default=None, init=False, repr=False, compare=False
@@ -63,9 +66,19 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
     )
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of host part of a connection string"""
-
+        """Returns a fingerprint of the connection host."""
         if self.credentials and self.credentials.url:
             hostname = urlparse(self.credentials.url).hostname
-            return digest128(hostname)
+            if hostname:
+                return digest128(hostname)
         return ""
+
+    def physical_location(self) -> str:
+        """Returns the host part of the connection URL."""
+        if self.credentials and self.credentials.url:
+            return urlparse(self.credentials.url).hostname or ""
+        return ""
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Weaviate does not support dlt SQL joins."""
+        return False
