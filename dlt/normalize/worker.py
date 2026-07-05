@@ -276,6 +276,8 @@ def w_normalize_files(
             new_jobs = [
                 ParsedLoadJobFileName.parse(metrics.file_path) for metrics in writer_metrics
             ]
+            # model and reference jobs carry no typed data file, so they have no format to check
+            new_jobs = [job for job in new_jobs if job.file_format not in ("model", "reference")]
             verified_tables = {job.table_name for job in new_jobs}
             prepared_tables = [
                 prepare_load_table(schema.tables, schema.tables[table_name], destination_caps)
