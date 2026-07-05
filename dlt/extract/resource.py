@@ -480,7 +480,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         Args:
             new_incremental: The Incremental instance/hint to set or replace
-            from_hints: If the incremental is set from hints. Defaults to False.
         """
         if new_incremental is Incremental.EMPTY:
             new_incremental = None
