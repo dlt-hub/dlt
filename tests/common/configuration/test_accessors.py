@@ -1,4 +1,5 @@
 import datetime  # noqa: 251
+import os
 from typing import Any
 import pytest
 
@@ -10,7 +11,10 @@ from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.toml import (
     CONFIG_TOML,
     SECRETS_TOML,
+    ConfigTomlProvider,
     CustomLoaderDocProvider,
+    SecretsTomlProvider,
+    SettingsTomlProvider,
 )
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs import (
@@ -23,7 +27,7 @@ from dlt.common.runners.configuration import PoolRunnerConfiguration
 from dlt.common.typing import AnyType, ConfigValue, SecretValue, TSecretValue
 
 
-from tests.utils import preserve_environ
+from tests.utils import inject_providers, preserve_environ
 from tests.common.configuration.utils import environment, toml_providers
 
 
@@ -210,6 +214,52 @@ def test_setter(toml_providers: ConfigProvidersContainer, environment: Any) -> N
         "workers": 21,
         "run_sleep": 0.1,
     }
+
+
+@pytest.mark.parametrize("writable_kind", ["toml", "doc"])
+def test_values_context_manager(writable_kind: str, environment: Any) -> None:
+    settings_dir = os.path.abspath("./tests/common/cases/configuration/.dlt")
+    if writable_kind == "toml":
+        # config.toml keeps a dict and a synced tomlkit document (SettingsTomlProvider.preserve)
+        writable: CustomLoaderDocProvider = ConfigTomlProvider(settings_dir=settings_dir)
+    else:
+        # a plain doc provider exercises the base BaseDocProvider.preserve
+        writable = CustomLoaderDocProvider("test_config_doc", dict, supports_secrets=False)
+    providers = [EnvironProvider(), SecretsTomlProvider(settings_dir=settings_dir), writable]
+
+    with inject_providers(providers):
+        assert dlt.config.writable_provider is writable
+        assert isinstance(writable, SettingsTomlProvider) == (writable_kind == "toml")
+
+        # an unset key is applied within the block and removed afterwards, leaving no residue
+        assert dlt.config.get("scoped.flag") is None
+        with dlt.config.values({"scoped.flag": True, "scoped.count": 3}):
+            assert dlt.config["scoped.flag"] is True
+            assert dlt.config["scoped.count"] == 3
+        assert dlt.config.get("scoped.flag") is None
+        assert dlt.config.get("scoped.count") is None
+        assert "scoped" not in writable._config_doc
+        if isinstance(writable, SettingsTomlProvider):
+            # the dict and the tomlkit document that set_value keeps in sync are both restored
+            assert "scoped" not in writable.to_toml()
+            assert writable._config_doc == writable._config_toml.unwrap()
+
+        # a preset key is restored to its previous value on exit
+        dlt.config["existing"] = "before"
+        with dlt.config.values({"existing": "during"}):
+            assert dlt.config["existing"] == "during"
+        assert dlt.config["existing"] == "before"
+
+        # the previous state is restored even when the block raises
+        with pytest.raises(RuntimeError):
+            with dlt.config.values({"scoped.flag": False}):
+                raise RuntimeError("boom")
+        assert dlt.config.get("scoped.flag") is None
+
+        # the secrets accessor writes to and restores from its own writable provider
+        with dlt.secrets.values({"scoped.token": "shhh"}):
+            assert dlt.secrets["scoped.token"] == "shhh"
+        assert dlt.secrets.get("scoped.token") is None
 
 
 def test_secrets_separation(toml_providers: ConfigProvidersContainer) -> None:

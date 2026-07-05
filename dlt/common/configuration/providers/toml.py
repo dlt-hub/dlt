@@ -2,7 +2,8 @@ import os
 import tomlkit
 import tomlkit.exceptions
 import tomlkit.items
-from typing import Any, Optional, List
+from contextlib import contextmanager
+from typing import Any, Iterator, Optional, List
 
 from dlt.common.utils import update_dict_nested
 from dlt.common.configuration.exceptions import ConfigProviderException
@@ -111,6 +112,16 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         if hasattr(value, "unwrap"):
             value = value.unwrap()
         super().set_value(key, value, pipeline_name, *sections)
+
+    @contextmanager
+    def preserve(self) -> Iterator[None]:
+        # set_value writes the tomlkit document in sync with the dict, so restore it too
+        saved_toml = tomlkit.parse(tomlkit.dumps(self._config_toml))
+        with super().preserve():
+            try:
+                yield
+            finally:
+                self._config_toml = saved_toml
 
     @property
     def is_empty(self) -> bool:

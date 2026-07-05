@@ -180,12 +180,7 @@ class PipelineTasksGroup(TaskGroup):
         return task_name
 
     def _resolve_truncate_staging_destination(self, decompose: str) -> Optional[bool]:
-        """Resolve the staging-destination truncation setting for a given decomposition.
-
-        Returns the forced value when `truncate_staging_destination` is set, otherwise
-        disables truncation (False) for parallel decompositions and leaves it unset (None)
-        for single or serialized runs.
-        """
+        """Resolve the staging-destination truncation setting for a given decomposition."""
         if self.truncate_staging_destination is not None:
             return self.truncate_staging_destination
         if decompose in ("parallel", "parallel-isolated"):
@@ -301,19 +296,21 @@ class PipelineTasksGroup(TaskGroup):
             if hasattr(ti, "log"):
                 logger.LOGGER = ti.log
 
+        # apply run-specific config for this run only, with no process-global side effects
+        run_config_values: Dict[str, Any] = {}
         # set global number of buffered items
         if dlt.config.get("data_writer.buffer_max_items") is None and self.buffer_max_items > 0:
-            dlt.config["data_writer.buffer_max_items"] = self.buffer_max_items
+            run_config_values["data_writer.buffer_max_items"] = self.buffer_max_items
             logger.info(f"Set data_writer.buffer_max_items to {self.buffer_max_items}")
 
         if self.abort_task_if_any_job_failed is not None:
-            dlt.config["load.raise_on_failed_jobs"] = self.abort_task_if_any_job_failed
+            run_config_values["load.raise_on_failed_jobs"] = self.abort_task_if_any_job_failed
             logger.info(
                 f"Set load.abort_task_if_any_job_failed to {self.abort_task_if_any_job_failed}"
             )
 
         if truncate_staging_destination is not None:
-            dlt.config["destination.truncate_tables_on_staging_destination_before_load"] = (
+            run_config_values["destination.truncate_tables_on_staging_destination_before_load"] = (
                 truncate_staging_destination
             )
             logger.info(
@@ -335,46 +332,47 @@ class PipelineTasksGroup(TaskGroup):
                 )
 
         try:
-            if on_before_run is not None:
-                on_before_run()
+            with dlt.config.values(run_config_values):
+                if on_before_run is not None:
+                    on_before_run()
 
-            if callable(data):
-                data = data()
+                if callable(data):
+                    data = data()
 
-            # retry with given policy on selected pipeline steps
-            for attempt in self.retry_policy.copy(
-                retry=retry_if_exception(
-                    retry_load(retry_on_pipeline_steps=self.retry_pipeline_steps)
-                ),
-                after=log_after_attempt,
-            ):
-                with attempt:
-                    logger.info(
-                        "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
-                    )
-                    load_info = task_pipeline.run(
-                        data,
-                        table_name=table_name,
-                        write_disposition=write_disposition,
-                        loader_file_format=loader_file_format,
-                        schema_contract=schema_contract,
-                    )
-                    logger.info(str(load_info))
-                    # save load and trace
-                    if self.save_load_info:
-                        logger.info("Saving the load info in the destination")
-                        task_pipeline.run(
-                            [load_info],
-                            table_name="_load_info",
-                            loader_file_format=loader_file_format,
+                # retry with given policy on selected pipeline steps
+                for attempt in self.retry_policy.copy(
+                    retry=retry_if_exception(
+                        retry_load(retry_on_pipeline_steps=self.retry_pipeline_steps)
+                    ),
+                    after=log_after_attempt,
+                ):
+                    with attempt:
+                        logger.info(
+                            "Running the pipeline, attempt=%s" % attempt.retry_state.attempt_number
                         )
-                    if self.save_trace_info:
-                        logger.info("Saving the trace in the destination")
-                        task_pipeline.run(
-                            [task_pipeline.last_trace],
-                            table_name="_trace",
+                        load_info = task_pipeline.run(
+                            data,
+                            table_name=table_name,
+                            write_disposition=write_disposition,
                             loader_file_format=loader_file_format,
+                            schema_contract=schema_contract,
                         )
+                        logger.info(str(load_info))
+                        # save load and trace
+                        if self.save_load_info:
+                            logger.info("Saving the load info in the destination")
+                            task_pipeline.run(
+                                [load_info],
+                                table_name="_load_info",
+                                loader_file_format=loader_file_format,
+                            )
+                        if self.save_trace_info:
+                            logger.info("Saving the trace in the destination")
+                            task_pipeline.run(
+                                [task_pipeline.last_trace],
+                                table_name="_trace",
+                                loader_file_format=loader_file_format,
+                            )
 
         finally:
             # always completely wipe out pipeline folder, in case of success and failure
