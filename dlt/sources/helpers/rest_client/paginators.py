@@ -178,7 +178,7 @@ class RangePaginator(BasePaginator):
 
                 try:
                     total = int(total)
-                except ValueError:
+                except (ValueError, TypeError):
                     self._handle_invalid_total(total)
 
             self.current_value += self.value_step
