@@ -4,6 +4,7 @@ import time as _time
 import orjson
 import base64
 from contextlib import contextmanager
+from copy import copy
 from types import TracebackType
 from typing import (
     ClassVar,
@@ -937,6 +938,14 @@ class FilesystemClient(
                 dirs_to_create = self.get_table_dirs(table_names)
                 for _, directory in zip(table_names, dirs_to_create):
                     self.fs_client.makedirs(directory, exist_ok=True)
+                # When expected_update is empty then normalize did not detect
+                # schema changes (arrow data resolves columns at extract time).
+                # Compute the real update by diffing against previously stored schema.
+                if expected_update is not None and not expected_update:
+                    applied_update = self._compute_schema_update_from_stored(
+                        only_tables
+                    )
+
                 # do not write a duplicate schema file when the hash is already stored
                 if not stored:
                     self._update_schema_in_storage(self.schema)
@@ -944,6 +953,54 @@ class FilesystemClient(
         # we assume that expected_update == applied_update so table schemas in dest were not
         # externally changed
         return applied_update
+
+    def _compute_schema_update_from_stored(
+        self,
+        only_tables: Iterable[str] = None,
+    ) -> TSchemaTables:
+        """Compute schema update by comparing current schema against the
+        previously stored schema.
+
+        This handles the case where normalize produces an empty expected_update
+        because columns were already resolved at extract time (e.g. arrow data).
+        """
+        stored_schema_info = self._get_stored_schema_by_hash_or_newest(
+            schema_name=self.schema.name
+        )
+
+        # Build lookup of stored table names and columns
+        stored_table_names: set = set()
+        stored_columns_by_table: Dict[str, TTableSchemaColumns] = {}
+
+        if stored_schema_info:
+            stored_schema_dict = json.loads(stored_schema_info.schema)
+            for t in stored_schema_dict.get("tables", []):
+                stored_table_names.add(t["name"])
+                stored_columns_by_table[t["name"]] = t.get("columns", {})
+
+        case_sensitive = self.capabilities.generates_case_sensitive_identifiers()
+        table_names = only_tables or list(self.schema.tables.keys())
+
+        schema_update: TSchemaTables = {}
+        for table_name in table_names:
+            if table_name not in stored_table_names:
+                # New table — include all columns
+                partial_table = copy(self.prepare_load_table(table_name))
+                schema_update[table_name] = partial_table
+            else:
+                # Existing table — check for new columns
+                stored_columns = stored_columns_by_table.get(table_name, {})
+                new_columns = self.schema.get_new_table_columns(
+                    table_name,
+                    stored_columns,
+                    case_sensitive=case_sensitive,
+                )
+                if new_columns:
+                    partial_table = copy(self.prepare_load_table(table_name))
+                    partial_table["columns"] = {c["name"]: c for c in new_columns}
+                    schema_update[table_name] = partial_table
+
+        return schema_update
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         table = super().prepare_load_table(table_name)
