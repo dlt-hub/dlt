@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Sequence, Tuple, Union, cast
+from typing import Any, Dict, Mapping, Optional, Sequence, Tuple, Union, cast
 
 import sqlglot.expressions as sge
 
@@ -25,7 +25,7 @@ from dlt.dataset.exceptions import LineageFailedException
 
 
 def create_sqlglot_schema(
-    schema_map: Dict[str, Sequence[dlt.Schema]],
+    schema_map: Mapping[str, Sequence[dlt.Schema]],
     dialect: TSqlGlotDialect,
 ) -> SQLGlotSchema:
     """Create an SQLGlot schema from multiple dlt schemas grouped by dataset name.
