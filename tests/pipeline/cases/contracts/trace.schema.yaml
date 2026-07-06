@@ -1,5 +1,6 @@
-version: 13
-version_hash: JPyWY81x+lB6dVBEvUD5A67wl16qwvd2QQIoDhevaBw=
+# always bump TRACE_ENGINE_VERSION in dlt/pipeline/trace.py when you change this schema contract
+version: 14
+version_hash: eDaULREi928XF66TW4zt8u6f76m+JVyhny6cYIqATTc=
 engine_version: 11
 name: trace
 tables:
@@ -81,12 +82,12 @@ tables:
         description: dlt library version
         data_type: text
         nullable: true
-      execution_context__plus__name:
-        description: dlthub plus library name (if installed)
+      execution_context__dlthub__name:
+        description: dlthub library name (if installed)
         data_type: text
         nullable: true
-      execution_context__plus__version:
-        description: dlthub plus library version (if installed)
+      execution_context__dlthub__version:
+        description: dlthub library version (if installed)
         data_type: text
         nullable: true
       execution_context__run_context:
@@ -1000,6 +1001,57 @@ tables:
         unique: true
         row_key: true
     parent: trace__steps__extract_info__resource_metrics
+  trace__steps__extract_info__resource_metrics__lineage:
+    columns:
+      dataset_name:
+        data_type: text
+        nullable: true
+      schema_name:
+        data_type: text
+        nullable: true
+      schema_version_hash:
+        data_type: text
+        nullable: true
+      destination_type:
+        data_type: text
+        nullable: true
+      destination_name:
+        data_type: text
+        nullable: true
+      destination_fingerprint:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__resource_metrics
+  trace__steps__extract_info__resource_metrics__lineage__tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__resource_metrics__lineage
   trace__steps__step_info__load_packages__dropped_tables:
     columns:
       value:
@@ -1060,6 +1112,7 @@ normalizers:
     module: dlt.common.normalizers.json.relational
   use_break_path_on_normalize: false
 previous_hashes:
+- JPyWY81x+lB6dVBEvUD5A67wl16qwvd2QQIoDhevaBw=
 - QRhfna2wTZv+INSEUUmkKiH+Upb6yGg1cDBBbR8kEMo=
 - txv310BO0KgmKJ/8I/spuLPaMMOt+TarI8ytKq19cjo=
 - 7I1eufBNCdmIem6hEiD0CjKgFQNlg0MCHkJgCTtghxk=
@@ -1069,4 +1122,3 @@ previous_hashes:
 - z//eAZyEIH4IFhc95OmWN6Uv4QBb8o4o9puK23yw9Ww=
 - zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
 - JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
-- 9Ysjq/W0xpxkI/vBiYm8Qbr2nDP3JMt6KvGKUS/FCyI=

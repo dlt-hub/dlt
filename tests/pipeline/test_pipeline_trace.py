@@ -26,6 +26,7 @@ from dlt.destinations import dummy, filesystem
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import (
+    TRACE_ENGINE_VERSION,
     PipelineTrace,
     SerializableResolvedValueTrace,
     load_trace,
@@ -68,6 +69,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     extract_info = pipeline.extract(inject_tomls())
     trace = pipeline.last_trace
     assert trace is not None
+    assert trace.engine_version == TRACE_ENGINE_VERSION == 2
     # assert p._trace is None
     assert len(trace.steps) == 1
     step = trace.steps[0]
@@ -380,7 +382,7 @@ def test_trace_schema() -> None:
     inferred_contract_str = inferred_trace_contract.to_pretty_yaml(remove_processing_hints=True)
 
     # NOTE: this saves actual inferred contract (schema) to schema storage, move it to test cases if you update
-    # trace shapes
+    # trace shapes. always bump TRACE_ENGINE_VERSION when you change this schema contract
     # TODO: create a proper schema for dlt trace and tables/columns
     pipeline._schema_storage.storage.save("trace.schema.yaml", inferred_contract_str)
     # print(pipeline._schema_storage.storage.storage_path)

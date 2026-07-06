@@ -594,7 +594,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 prev = self._job_metrics[cid]
                                 existing = prev.followup_jobs or []
                                 self._job_metrics[cid] = prev._replace(
-                                    followup_jobs=existing + chain_fups
+                                    followup_jobs=list(existing) + chain_fups
                                 )
                 self._job_metrics[job.job_id()] = metrics
 
