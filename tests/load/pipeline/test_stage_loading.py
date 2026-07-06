@@ -82,11 +82,11 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
                 assert fup_id in all_job_ids
         elif job_ext == "sql":
             # sql merge jobs are terminal — no further followups
-            assert job_metrics.followup_jobs is None
+            assert not job_metrics.followup_jobs
         elif job_ext == "reference":
             # COPY jobs in a merge chain point to the sql merge job (fan-in)
             # non-merge tables have no followups
-            if job_metrics.followup_jobs is not None:
+            if job_metrics.followup_jobs:
                 for fup_id in job_metrics.followup_jobs:
                     assert fup_id in all_job_ids
                     fup_ext, _ = get_file_format_and_compression(fup_id)

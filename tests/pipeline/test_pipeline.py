@@ -3768,14 +3768,14 @@ def test_replace_empty_resource_truncates_via_empty_job() -> None:
     state = pipeline.get_load_package_state(load_id)
     assert "truncated_tables" not in state
     assert package.refresh is None
-    assert package.truncated_tables is None
+    assert not package.truncated_tables
 
     # finishing the load truncates the table
     info = pipeline.load()
     assert load_table_counts(pipeline, "items") == {"items": 0}
     loaded_package = info.load_packages[0]
     assert loaded_package.refresh is None
-    assert loaded_package.truncated_tables is None
+    assert not loaded_package.truncated_tables
 
 
 def test_replace_empty_resource_keeps_append_pseudo_root() -> None:

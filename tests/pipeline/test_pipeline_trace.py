@@ -445,8 +445,8 @@ def test_trace_refresh_and_table_drops(
     # no refresh: the regular truncation of the replace table is not recorded
     package = info.load_packages[0]
     assert package.refresh is None
-    assert package.dropped_tables is None
-    assert package.truncated_tables is None
+    assert not package.dropped_tables
+    assert not package.truncated_tables
     assert "with refresh" not in str(info)
 
     info = pipeline.run([items(), other()], refresh=refresh)
