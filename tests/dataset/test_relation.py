@@ -370,6 +370,27 @@ def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> Non
     assert schema_names == {"crm", "inventory"}
 
 
+def test_relation_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:
+    # relation over a multi-schema dataset: single (primary) entry keyed by the dataset name
+    schema_map = multi_schema_dataset.table("users")._all_schemas()
+    assert list(schema_map.keys()) == [multi_schema_dataset.dataset_name]
+    schemas = schema_map[multi_schema_dataset.dataset_name]
+    # schemas are ordered with the default schema first and match the `schemas` property
+    assert schemas[0].name == multi_schema_dataset.schema.name
+    assert [s.name for s in schemas] == [s.name for s in multi_schema_dataset.schemas]
+
+
+def test_relation_foreign_dataset_schemas(cross_dataset_duckdb: Any) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+    joined = ds_crm.table("users").join(
+        ds_inv.table("purchases"), on="users.id = purchases.user_id"
+    )
+    schema_map = joined._all_schemas()
+    # the relation's own dataset is primary (first), the foreign dataset follows
+    assert list(schema_map.keys()) == [ds_crm.dataset_name, ds_inv.dataset_name]
+    assert schema_map[ds_crm.dataset_name][0].name == ds_crm.schema.name
+
+
 def test_multi_schema_tables_includes_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:
     tables = multi_schema_dataset.tables
     expected = set(
