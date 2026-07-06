@@ -7,6 +7,7 @@ from typing import (
     Mapping,
     NamedTuple,
     Optional,
+    Sequence,
     Tuple,
     TypeVar,
 )  # noqa: 251
@@ -129,7 +130,7 @@ class LoadJobMetrics(NamedTuple):
     state: str
     remote_url: Optional[str]
     retry_count: int = 0
-    followup_jobs: Optional[List[str]] = None
+    followup_jobs: Optional[Sequence[str]] = ()
 
 
 class LoadMetrics(StepMetrics):
