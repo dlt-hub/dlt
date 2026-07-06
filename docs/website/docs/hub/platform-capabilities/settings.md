@@ -61,6 +61,29 @@ Key properties:
 The plaintext value is displayed only once, at creation. It cannot be retrieved later — if you lose it, delete the key and create a new one.
 :::
 
+#### Use a key
+
+A client authenticates by supplying the plaintext value as the `RUNTIME__API_KEY` setting. It is resolved like any other dlt runtime setting, so you can provide it two ways:
+
+Environment variable (recommended for CI and headless runs):
+
+```sh
+export RUNTIME__API_KEY="dlt_..."
+```
+
+Or in `secrets.toml` under the `[runtime]` section:
+
+```toml
+[runtime]
+api_key = "dlt_..."
+```
+
+When an API key is set, the CLI uses it for every request and skips the interactive OAuth flow, so you do not need to run `dlthub login`. See [Workspace setup](../pipeline-operations/workspace-setup.md) for the full runtime configuration.
+
+:::note
+Because API key mode is non-interactive, the CLI never opens the workspace picker. Target a workspace explicitly: either run `dlthub workspace connect <name>` once, or set `RUNTIME__WORKSPACE_ID` alongside the key.
+:::
+
 #### Delete a key
 
 Existing keys can be deleted at any time. Once deleted, the key can no longer authenticate and any clients using it will start failing immediately.
