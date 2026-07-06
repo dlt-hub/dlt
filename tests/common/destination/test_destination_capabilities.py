@@ -275,6 +275,39 @@ def test_verify_capabilities_data_types() -> None:
     assert len(exceptions) == 1
     assert isinstance(exceptions[0], TerminalValueError)
 
+    # snowflake: unbound decimal maps to DECFLOAT when use_decfloat is on, not supported on parquet
+    from dlt.destinations import snowflake
+
+    schema_decfloat = Schema("decfloat")
+    table = new_table(
+        "table",
+        write_disposition="append",
+        columns=[
+            {"name": "unbound", "data_type": "decimal"},
+            {"name": "bound", "data_type": "decimal", "precision": 10, "scale": 2},
+        ],
+    )
+    schema_decfloat.update_table(table, normalize_identifiers=False)
+    exceptions = verify_supported_data_types(
+        schema_decfloat.tables.values(),  # type: ignore[arg-type]
+        new_jobs_parquet,
+        snowflake(use_decfloat=True).capabilities(),
+        "snowflake",
+    )
+    assert len(exceptions) == 1
+    assert isinstance(exceptions[0], UnsupportedDataType)
+    assert exceptions[0].column == "unbound"
+    assert set(exceptions[0].available_in_formats) == {"model", "csv", "jsonl"}
+    # bound decimal is not affected, jsonl is unaffected, and use_decfloat off is unaffected
+    exceptions = verify_supported_data_types(
+        schema_decfloat.tables.values(), new_jobs_jsonl, snowflake(use_decfloat=True).capabilities(), "snowflake"  # type: ignore[arg-type]
+    )
+    assert len(exceptions) == 0
+    exceptions = verify_supported_data_types(
+        schema_decfloat.tables.values(), new_jobs_parquet, snowflake().capabilities(), "snowflake"  # type: ignore[arg-type]
+    )
+    assert len(exceptions) == 0
+
 
 def test_prepare_load_table_drops_unsupported_precision_hints() -> None:
     schema = Schema("foo")

@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Dict, Sequence, Tuple, Type, Union, TYPE_CHECKING, Optional
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
@@ -6,7 +7,9 @@ from dlt.common.data_writers.escape import escape_snowflake_identifier
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.schema.typing import TColumnSchema, TColumnType
+from dlt.common.typing import TLoaderFileFormat
 
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.snowflake.configuration import (
@@ -119,6 +122,24 @@ class SnowflakeTypeMapper(TypeMapperImpl):
             return "DECFLOAT"
         return super().to_db_decimal_type(column)
 
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        # DECFLOAT columns can only be loaded from text-based staging formats
+        if (
+            loader_file_format == "parquet"
+            and column["data_type"] == "decimal"
+            and self.use_decfloat
+            and self.decimal_precision(column.get("precision"), column.get("scale")) is None
+        ):
+            raise TerminalValueError(
+                "DECFLOAT is not supported in parquet files, use jsonl or csv instead",
+                column["data_type"],
+            )
+
 
 class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
     spec = SnowflakeClientConfiguration
@@ -159,6 +180,18 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         caps.sqlglot_dialect = "snowflake"
 
         return caps
+
+    @classmethod
+    def adjust_capabilities(
+        cls,
+        caps: DestinationCapabilitiesContext,
+        config: SnowflakeClientConfiguration,
+        naming: Optional[NamingConvention],
+    ) -> DestinationCapabilitiesContext:
+        # bind use_decfloat so the type mapper obtained via `get_type_mapper()` (ie. during
+        # schema verification) matches the one used when actually loading data
+        caps.type_mapper = partial(SnowflakeTypeMapper, use_decfloat=config.use_decfloat)
+        return super().adjust_capabilities(caps, config, naming)
 
     @property
     def client_class(self) -> Type["SnowflakeClient"]:

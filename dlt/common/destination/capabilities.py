@@ -10,7 +10,6 @@ from typing import (
     Tuple,
     Set,
     Protocol,
-    Type,
     TYPE_CHECKING,
 )
 
@@ -151,7 +150,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     """Callable that adapts `preferred_loader_file_format` and `supported_loader_file_formats` at runtime."""
     preferred_table_format: TTableFormat = None
     supported_table_formats: Sequence[TTableFormat] = None
-    type_mapper: Optional[Type[DataTypeMapper]] = None
+    type_mapper: Optional[Callable[..., DataTypeMapper]] = None
     recommended_file_size: Optional[int] = None
     """Recommended file size in bytes when writing extract/load files"""
     preferred_staging_file_format: Optional[TLoaderFileFormat] = None
