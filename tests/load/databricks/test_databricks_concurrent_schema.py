@@ -209,15 +209,15 @@ def test_schema_update_skips_version_row_stored_by_concurrent_load(empty_schema:
 N_WORKERS = 4
 
 
-TClientGen = Generator[DatabricksClient, None, None]
-
-
-def _new_client(dataset_name: str) -> Tuple[DatabricksClient, TClientGen]:
+def _new_client(dataset_name: str) -> DatabricksClient:
     # connection is opened later, inside the worker thread
     gen = cast(
-        TClientGen, yield_client("databricks", dataset_name=dataset_name, enter_client=False)
+        Generator[DatabricksClient, None, None],
+        yield_client("databricks", dataset_name=dataset_name, enter_client=False),
     )
-    return next(gen), gen
+    client = next(gen)
+    gen.close()
+    return client
 
 
 def _sync_after_storage_read(client: DatabricksClient, barrier: threading.Barrier) -> None:
@@ -238,10 +238,10 @@ def _sync_after_storage_read(client: DatabricksClient, barrier: threading.Barrie
 
 
 def _run_concurrent_update(
-    clients_gens: List[Tuple[DatabricksClient, TClientGen]],
+    clients: List[DatabricksClient],
     mutate: Callable[[Schema, int], Any],
 ) -> Dict[int, BaseException]:
-    barrier = threading.Barrier(len(clients_gens))
+    barrier = threading.Barrier(len(clients))
     errors: Dict[int, BaseException] = {}
 
     def run(i: int, client: DatabricksClient) -> None:
@@ -254,7 +254,7 @@ def _run_concurrent_update(
         except Exception as e:
             errors[i] = e
 
-    threads = [threading.Thread(target=run, args=(i, c)) for i, (c, _) in enumerate(clients_gens)]
+    threads = [threading.Thread(target=run, args=(i, c)) for i, c in enumerate(clients)]
     for t in threads:
         t.start()
     for t in threads:
@@ -263,14 +263,12 @@ def _run_concurrent_update(
 
 
 def _drop_dataset(dataset_name: str) -> None:
-    client, gen = _new_client(dataset_name)
+    client = _new_client(dataset_name)
     try:
         with client:
             client.sql_client.drop_dataset()
     except Exception:
         pass
-    finally:
-        gen.close()
 
 
 def test_concurrent_create_table_converges() -> None:
@@ -281,28 +279,24 @@ def test_concurrent_create_table_converges() -> None:
         {"name": "val", "data_type": "text"},
     ]
 
-    setup, setup_gen = _new_client(dataset)
+    setup = _new_client(dataset)
     with setup:
         setup.initialize_storage()
         setup.update_stored_schema()
-    setup_gen.close()
 
-    clients_gens = [_new_client(dataset) for _ in range(N_WORKERS)]
+    clients = [_new_client(dataset) for _ in range(N_WORKERS)]
     try:
         errors = _run_concurrent_update(
-            clients_gens, lambda schema, i: schema.update_table(new_table(raced, columns=columns))
+            clients, lambda schema, i: schema.update_table(new_table(raced, columns=columns))
         )
         assert errors == {}, "concurrent CREATE raced: " + str(
             {i: str(e)[:140] for i, e in errors.items()}
         )
-        verify, verify_gen = _new_client(dataset)
+        verify = _new_client(dataset)
         with verify:
             _, storage_columns = list(verify.get_storage_tables([raced]))[0]
-        verify_gen.close()
         assert {"id", "val"} <= set(storage_columns)
     finally:
-        for _, gen in clients_gens:
-            gen.close()
         _drop_dataset(dataset)
 
 
@@ -310,18 +304,17 @@ def test_concurrent_divergent_add_column_converges() -> None:
     dataset = "conc_addcol_" + uniq_id()
     raced = "raced_" + uniq_id()
 
-    setup, setup_gen = _new_client(dataset)
+    setup = _new_client(dataset)
     with setup:
         setup.initialize_storage()
         setup.schema.update_table(new_table(raced, columns=[{"name": "id", "data_type": "bigint"}]))
         setup.schema._bump_version()
         setup.update_stored_schema()
-    setup_gen.close()
 
-    clients_gens = [_new_client(dataset) for _ in range(N_WORKERS)]
+    clients = [_new_client(dataset) for _ in range(N_WORKERS)]
     try:
         errors = _run_concurrent_update(
-            clients_gens,
+            clients,
             lambda schema, i: schema.update_table(
                 new_table(raced, columns=[{"name": f"col_{i}", "data_type": "bigint"}])
             ),
@@ -329,13 +322,10 @@ def test_concurrent_divergent_add_column_converges() -> None:
         assert errors == {}, "divergent ADD COLUMN raced: " + str(
             {i: str(e)[:140] for i, e in errors.items()}
         )
-        verify, verify_gen = _new_client(dataset)
+        verify = _new_client(dataset)
         with verify:
             _, storage_columns = list(verify.get_storage_tables([raced]))[0]
-        verify_gen.close()
         expected = {"id"} | {f"col_{i}" for i in range(N_WORKERS)}
         assert expected <= set(storage_columns)
     finally:
-        for _, gen in clients_gens:
-            gen.close()
         _drop_dataset(dataset)

@@ -68,7 +68,11 @@ from dlt.common.storages.load_package import (
     group_jobs_by_table_name,
 )
 from dlt.common.utils import uniq_id
-from dlt.destinations.exceptions import LoadJobTerminalException, LoadJobTransientException
+from dlt.destinations.exceptions import (
+    DatabaseException,
+    LoadJobTerminalException,
+    LoadJobTransientException,
+)
 from dlt.destinations.file_batching import (
     JsonlFileBatchIterator,
     ParquetFileBatchIterator,
@@ -673,6 +677,13 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             return constraints_sql
 
         return ""
+
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        try:
+            super().initialize_storage(truncate_tables=truncate_tables)
+        except DatabaseException as ex:
+            if "SCHEMA_ALREADY_EXISTS" not in str(ex):
+                raise
 
     def _should_retry_schema_update(self, ex: Exception) -> bool:
         # delta rejects losers of concurrent metadata commits, the statement did not apply
