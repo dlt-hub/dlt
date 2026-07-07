@@ -1,11 +1,13 @@
 import os
 import pytest
 import datetime  # noqa: I251
-from typing import Iterator, Any, Tuple, Type, Union
+from contextlib import contextmanager
+from typing import ContextManager, Iterator, Any, Optional, Sequence, Tuple, Type, Union
 from threading import Thread, Event
 from time import sleep
 
 from dlt.common import pendulum, Decimal
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
@@ -40,9 +42,59 @@ TEST_NAMING_CONVENTIONS = (
 )
 
 
+class RecordingSqlClient(SqlClientBase[Any]):
+    def __init__(self, capabilities: DestinationCapabilitiesContext) -> None:
+        super().__init__(None, "dataset", "dataset_staging", capabilities)
+        self.statements: list[str] = []
+
+    def open_connection(self) -> None:
+        return None
+
+    def close_connection(self) -> None:
+        return None
+
+    @contextmanager
+    def begin_transaction(self) -> Iterator[None]:
+        yield None
+
+    @property
+    def native_connection(self) -> None:
+        return None
+
+    def execute_sql(self, sql: str, *args: Any, **kwargs: Any) -> Optional[Sequence[Sequence[Any]]]:
+        self.statements.append(sql)
+        return None
+
+    def execute_query(self, query: str, *args: Any, **kwargs: Any) -> ContextManager[DBApiCursor]:
+        raise NotImplementedError
+
+    @staticmethod
+    def _make_database_exception(ex: Exception) -> Exception:
+        return ex
+
+
 @pytest.fixture
 def file_storage() -> FileStorage:
     return FileStorage(get_test_storage_root(), file_type="b", makedirs=True)
+
+
+@pytest.mark.parametrize(
+    ("supports_create_schema_if_not_exists", "expected_sql"),
+    [
+        (False, "CREATE SCHEMA dataset"),
+        (True, "CREATE SCHEMA IF NOT EXISTS dataset"),
+    ],
+)
+def test_create_dataset_uses_schema_idempotency_capability(
+    supports_create_schema_if_not_exists: bool, expected_sql: str
+) -> None:
+    capabilities = DestinationCapabilitiesContext.generic_capabilities()
+    capabilities.supports_create_schema_if_not_exists = supports_create_schema_if_not_exists
+    sql_client = RecordingSqlClient(capabilities)
+
+    sql_client.create_dataset()
+
+    assert sql_client.statements == [expected_sql]
 
 
 @pytest.mark.parametrize(

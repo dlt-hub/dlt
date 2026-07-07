@@ -180,6 +180,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     # use naming convention in the schema
     naming_convention: TNamingConventionReferenceArg = None
     alter_add_multi_column: bool = True
+    supports_create_schema_if_not_exists: bool = False
     supports_create_table_if_not_exists: bool = True
     supports_truncate_command: bool = True
     schema_supports_numeric_precision: bool = True

@@ -145,6 +145,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
         caps.alter_add_multi_column = True
+        caps.supports_create_schema_if_not_exists = True
         caps.supports_clone_table = True
         caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
         caps.supported_replace_strategies = [
