@@ -24,6 +24,7 @@ from .azure_credentials import (
     AzureCredentialsWithoutDefaults,
     AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
+    AzureKeyVaultCredentials,
     AnyAzureCredentials,
 )
 from .hf_credentials import HfCredentials
@@ -65,6 +66,7 @@ __all__ = [
     "AzureCredentialsWithoutDefaults",
     "AzureServicePrincipalCredentials",
     "AzureServicePrincipalCredentialsWithoutDefaults",
+    "AzureKeyVaultCredentials",
     "AnyAzureCredentials",
     "GcpClientCredentials",
     "GcpClientCredentialsWithDefault",
