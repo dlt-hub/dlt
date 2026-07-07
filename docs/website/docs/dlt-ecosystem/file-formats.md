@@ -36,6 +36,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 
 - `flavor`: Sanitize schema or set other compatibility options to work with various target systems. Defaults to None, which is the **pyarrow** default.
 - `version`: Determine which Parquet logical types are available for use, whether the reduced set from the Parquet 1.x.x format or the expanded logical types added in later format versions. `dlt` defaults to "2.4".
+- `compression`: Select the internal Parquet compression codec. Choose from `"snappy"`, `"gzip"`, `"brotli"`, `"zstd"`, `"lz4"`, or `"none"`. Defaults to `"snappy"`. Make sure that your database can decompress the codec you select here.
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None, which is the **pyarrow** default.
 - `row_group_size`: Set the number of rows in a row group. [See here](#row-group-size) how this can optimize parallel processing of queries on your destination over the default setting of `pyarrow`.
 - `timestamp_timezone`: A string specifying the timezone, default is UTC.
@@ -60,6 +61,7 @@ Example:
 # example values
 flavor="spark"
 version="2.4"
+compression="zstd"
 data_page_size=1048576
 timestamp_timezone="Europe/Berlin"
 ```
@@ -69,6 +71,7 @@ Or using environment variables:
 ```sh
 DATA_WRITER__FLAVOR
 DATA_WRITER__VERSION
+DATA_WRITER__COMPRESSION
 DATA_WRITER__DATA_PAGE_SIZE
 DATA_WRITER__TIMESTAMP_TIMEZONE
 DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS
@@ -78,7 +81,9 @@ DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS
 You can apply data writer settings to parquet created in normalize stage only:
 `NORMALIZE__DATA_WRITER__FLAVOR=spark`
 
-or when your source/resource yields arrow tables / pandas DataFrames / polars DataFrames, you can control settings per source
+To set the Parquet codec for normalize-stage files, use `NORMALIZE__DATA_WRITER__COMPRESSION=zstd`. This setting applies to Parquet's internal codec only. It does not change `jsonl`, `csv`, or other text file compression; use `data_writer.disable_compression` to disable their gzip wrapper.
+
+When your source/resource yields arrow tables / pandas DataFrames / polars DataFrames, you can control settings per source:
 `SOURCES__<SOURCE_MODULE>__<SOURCE_NAME>__DATA_WRITER__FLAVOR=spark`
 
 Find more similar examples [here](../reference/performance.md#extract)
