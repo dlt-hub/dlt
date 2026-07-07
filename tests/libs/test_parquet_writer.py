@@ -176,8 +176,21 @@ def test_parquet_writer_size_file_rotation() -> None:
         assert table.column("col1").to_pylist() == list(range(4 * i_per_file, 5 * i_per_file))
 
 
+def test_parquet_writer_default_compression() -> None:
+    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
+        with get_writer(ParquetDataWriter, file_max_bytes=2**8, buffer_max_items=2) as writer:
+            writer.write_data_item([{"col1": 1}], {"col1": new_column("col1", "bigint")})
+            writer._flush_items()
+
+            assert writer._writer.parquet_format.compression == "snappy"
+
+        with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
+            assert reader.metadata.row_group(0).column(0).compression == "SNAPPY"
+
+
 def test_parquet_writer_config() -> None:
     os.environ["NORMALIZE__DATA_WRITER__VERSION"] = "1.0"
+    os.environ["NORMALIZE__DATA_WRITER__COMPRESSION"] = "gzip"
     os.environ["NORMALIZE__DATA_WRITER__DATA_PAGE_SIZE"] = str(1024 * 512)
     os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "America/New York"
     os.environ["NORMALIZE__DATA_WRITER__WRITE_PAGE_INDEX"] = "true"
@@ -194,6 +207,7 @@ def test_parquet_writer_config() -> None:
 
             # flavor can't be tested
             assert writer._writer.parquet_format.version == "1.0"
+            assert writer._writer.parquet_format.compression == "gzip"
             assert writer._writer.parquet_format.data_page_size == 1024 * 512
             assert writer._writer.parquet_format.timestamp_timezone == "America/New York"
             assert writer._writer.parquet_format.write_page_index is True
@@ -211,6 +225,7 @@ def test_parquet_writer_config() -> None:
             # page index is written (https://github.com/apache/parquet-format/blob/master/PageIndex.md)
             assert reader.metadata.row_group(0).column(0).has_column_index is True
             assert reader.metadata.row_group(0).column(0).has_offset_index is True
+            assert reader.metadata.row_group(0).column(0).compression == "GZIP"
 
 
 def test_parquet_writer_config_spark() -> None:
