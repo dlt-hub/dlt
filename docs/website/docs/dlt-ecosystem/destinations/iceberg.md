@@ -133,7 +133,7 @@ Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/lat
 2. Using column-level [`partition`](#using-column-level-partition-property) property - for simple identity partitioning
 
 :::note
-Iceberg uses [hidden partioning](https://iceberg.apache.org/docs/latest/partitioning/).
+Iceberg uses [hidden partitioning](https://iceberg.apache.org/docs/latest/partitioning/).
 :::
 
 :::warning

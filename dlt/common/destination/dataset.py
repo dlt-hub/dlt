@@ -27,7 +27,7 @@ class SupportsDataAccess(Protocol):
     def columns_schema(self) -> TTableSchemaColumns:
         """
         Returns the expected columns schema for the result of the relation. Column types are discovered with
-        sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refere to <docs-page> for more details.
+        sql glot query analysis and lineage. dlt hints for columns are kept in some cases. Refer to <docs-page> for more details.
         """
         ...
 

@@ -46,7 +46,7 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
     """
 
     # Set to False by default because the PRIMARY KEY and UNIQUE constraints
-    # are tricky in Synapse: they are NOT ENFORCED and can lead to innacurate
+    # are tricky in Synapse: they are NOT ENFORCED and can lead to inaccurate
     # results if the user does not ensure all column values are unique.
     # https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-table-constraints
     create_indexes: bool = False

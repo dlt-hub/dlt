@@ -157,7 +157,7 @@ def _text_to_wei(value: str) -> Wei:
 
 
 def _float_to_decimal(value: float) -> Decimal:
-    """Uses `str` that produces most precise stable decimal representaion of given `value`"""
+    """Uses `str` that produces most precise stable decimal representation of given `value`"""
     return Decimal(str(value))
 
 

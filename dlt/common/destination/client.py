@@ -192,7 +192,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns true if `self` can write data from `other`
         In case of SQL engines it is an ability to INSERT FROM
         """
-        # in most destinations, ability to read is also the same as abilty to write
+        # in most destinations, ability to read is also the same as ability to write
         return self.can_read_from(other)
 
     def __str__(self) -> str:

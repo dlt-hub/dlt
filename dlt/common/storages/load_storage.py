@@ -200,7 +200,7 @@ class LoadStorage(VersionedStorage):
             return self.normalized_packages.get_load_package_info(load_id)
 
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
-        """Gets state of normlized or loaded package with given load_id, all jobs and their statuses."""
+        """Gets state of normalized or loaded package with given load_id, all jobs and their statuses."""
         try:
             return self.loaded_packages.get_load_package_state(load_id)
         except LoadPackageNotFound:
