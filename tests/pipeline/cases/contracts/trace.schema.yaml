@@ -1,4 +1,3 @@
-# always bump TRACE_ENGINE_VERSION in dlt/pipeline/trace.py when you change this schema contract
 version: 19
 version_hash: cmZ/fKGtDKNuPqgqgbNV5tl5FQg8vlj2+d5RyrgB22I=
 engine_version: 11

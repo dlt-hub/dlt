@@ -404,7 +404,7 @@ def test_trace_schema() -> None:
     inferred_contract_str = inferred_trace_contract.to_pretty_yaml(remove_processing_hints=True)
 
     # NOTE: this saves actual inferred contract (schema) to schema storage, move it to test cases if you update
-    # trace shapes. always bump TRACE_ENGINE_VERSION when you change this schema contract
+    # trace shapes
     # TODO: create a proper schema for dlt trace and tables/columns
     pipeline._schema_storage.storage.save("trace.schema.yaml", inferred_contract_str)
     # print(pipeline._schema_storage.storage.storage_path)

@@ -1,7 +1,6 @@
 from __future__ import annotations
 from collections.abc import Collection, Sequence
 from typing import (
-    List,
     overload,
     Union,
     Any,
@@ -1049,10 +1048,10 @@ class Relation(WithSqlClient):
         rel._foreign_physical_names = dict(self._foreign_physical_names)
         return rel
 
-    def _all_schemas(self) -> dict[str, List[dlt.Schema]]:
+    def _all_schemas(self) -> dict[str, list[dlt.Schema]]:
         """Schemas the relation resolves against, keyed by dataset name.
 
-        Relation primary dataset goes first, first schema is an default schema.
+        Relation primary dataset goes first, first schema is the default schema.
         """
         return {
             self._dataset.dataset_name: list(self._dataset.schemas),

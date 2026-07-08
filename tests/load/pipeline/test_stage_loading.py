@@ -76,7 +76,7 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
             assert remote_url.startswith(bucket_uri)
             # staging copy jobs should have followup_jobs pointing to reference jobs
-            assert job_metrics.followup_jobs is not None
+            assert job_metrics.followup_jobs
             assert len(job_metrics.followup_jobs) >= 1
             for fup_id in job_metrics.followup_jobs:
                 assert fup_id in all_job_ids

@@ -1700,7 +1700,7 @@ def test_followup_job_ids_in_metrics() -> None:
             assert not m.followup_jobs
         else:
             # this is an original job - should reference its followup
-            assert m.followup_jobs is not None
+            assert m.followup_jobs
             assert len(m.followup_jobs) == 1
             assert m.followup_jobs[0] in dummy_impl.CREATED_FOLLOWUP_JOBS
 
@@ -1726,7 +1726,7 @@ def test_table_chain_followup_ids_in_metrics() -> None:
             assert not m.followup_jobs
         else:
             # every original job should reference its chain followup
-            assert m.followup_jobs is not None
+            assert m.followup_jobs
             assert len(m.followup_jobs) == 1
             assert m.followup_jobs[0] in chain_followup_ids
 
