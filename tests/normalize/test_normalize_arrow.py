@@ -1,3 +1,4 @@
+import os
 from typing import Any, Iterator
 
 import pytest
@@ -23,6 +24,7 @@ from tests.normalize.test_normalize import (  # noqa: F401
     default_caps,
     logger_autouse,
     normalize_pending,
+    init_normalize,
 )
 
 pyarrow = pytest.importorskip("pyarrow")
@@ -107,3 +109,38 @@ def test_normalize_empty_arrow_input_parquet_output(
     assert all(pyarrow.parquet.read_table(storage.make_full_path(f)).num_rows == 0 for f in files)
     step_info = raw_normalize.get_step_info(MockPipeline("arrow_parquet_pipeline", True))  # type: ignore[abstract]
     assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+
+
+def test_normalize_empty_arrow_input_with_dlt_id(
+    parquet_caps: DestinationCapabilitiesContext,
+) -> None:
+    """Regression test for https://github.com/dlt-hub/dlt/issues/4175.
+
+    When `add_dlt_id` is on, an empty arrow batch must not crash with
+    `pyarrow.lib.ArrowInvalid: Field type did not match data type` — the generated
+    `_dlt_id` array has to be typed as string even when there are zero rows to fill it.
+
+    NOTE: `add_dlt_id` must be set via env var *before* `Normalize` is constructed
+    (config is resolved at construction time), so this test builds its own `Normalize`
+    instance via `init_normalize()` instead of the shared `raw_normalize` fixture.
+    """
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "true"
+    try:
+        raw_normalize = next(init_normalize())
+        schema = _items_schema(write_disposition="merge")
+        empty = pyarrow.table({"id": pyarrow.array([], type=pyarrow.int64())})
+        load_id = extract_arrow_items(raw_normalize.normalize_storage, empty, schema, "items")
+        normalize_pending(raw_normalize)
+
+        files = raw_normalize.load_storage.list_new_jobs(load_id)
+        assert {ParsedLoadJobFileName.parse(f).table_name for f in files} == {"items"}
+        storage = raw_normalize.load_storage.normalized_packages.storage
+        assert all(storage.has_file(f) for f in files)
+        for f in files:
+            table = pyarrow.parquet.read_table(storage.make_full_path(f))
+            assert table.num_rows == 0
+            assert table.schema.field("_dlt_id").type == pyarrow.string()
+        step_info = raw_normalize.get_step_info(MockPipeline("arrow_dlt_id_pipeline", True))  # type: ignore[abstract]
+        assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
+    finally:
+        del os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"]
