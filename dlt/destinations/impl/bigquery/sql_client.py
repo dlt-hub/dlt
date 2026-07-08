@@ -94,7 +94,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         ] = credentials
         self.location = location
         self.project_id = project_id or self.credentials.project_id
-        self._auth_project_id = self.credentials.project_id
         self.http_timeout = http_timeout
         super().__init__(self.project_id, dataset_name, staging_dataset_name, capabilities)
 
@@ -107,7 +106,6 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
     @raise_open_connection_error
     def open_connection(self) -> bigquery.Client:
         self._client = bigquery.Client(
-            self._auth_project_id,
             credentials=self.credentials.to_native_credentials(),
             location=self.location,
         )
