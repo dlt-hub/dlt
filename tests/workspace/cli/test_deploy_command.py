@@ -23,12 +23,40 @@ from dlt._workspace.cli.exceptions import CliCommandException
 # from tests.utils import reset_providers
 from tests.workspace.cli.utils import WORKSPACE_CLI_CASES_DIR
 
-
 DEPLOY_PARAMS = [
     ("github-action", {"schedule": "*/30 * * * *", "run_on_push": True, "run_manually": True}),
     ("airflow-composer", {"secrets_format": "toml"}),
     ("airflow-composer", {"secrets_format": "env"}),
 ]
+
+
+from dlt._workspace.cli._deploy_command import (
+    AirflowDeployment,
+    GithubActionDeployment,
+)
+
+
+@pytest.mark.parametrize(
+    "deployment_class,deployment_method",
+    [
+        (GithubActionDeployment, "github-action"),
+        (AirflowDeployment, "airflow-composer"),
+    ],
+)
+def test_get_origin_error_names_deployment_method(deployment_class, deployment_method) -> None:
+    # A non-github origin must raise an error that names the actual deployment
+    # method, not always "github actions" (https://github.com/dlt-hub/dlt/issues/2159).
+    deployment = deployment_class.__new__(deployment_class)
+    deployment.repo = object()
+    with patch(
+        "dlt._workspace.cli._deploy_command_helpers.get_origin",
+        return_value="https://gitlab.com/acme/repo.git",
+    ):
+        with pytest.raises(CliCommandInnerException) as py_ex:
+            deployment._get_origin()
+    message = str(py_ex.value)
+    assert deployment_method in message
+    assert "github actions" not in message
 
 
 @pytest.mark.parametrize("deployment_method,deployment_args", DEPLOY_PARAMS)
