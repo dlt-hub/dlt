@@ -69,7 +69,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     extract_info = pipeline.extract(inject_tomls())
     trace = pipeline.last_trace
     assert trace is not None
-    assert trace.engine_version == TRACE_ENGINE_VERSION == 2
+    assert trace.engine_version == TRACE_ENGINE_VERSION == 1
     # assert p._trace is None
     assert len(trace.steps) == 1
     step = trace.steps[0]
@@ -300,7 +300,27 @@ def test_trace_schema() -> None:
         def data(id_=dlt.sources.incremental("id")):
             yield [{"id": 1, "multi": "1.2"}, {"id": 2}, {"id": 3}]
 
-        return data()
+        # dict-shaped write_disposition (merge) and schema_contract, so the trace contract
+        # captures the nested hint columns
+        @dlt.resource(
+            write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+            primary_key="id",
+            schema_contract={"tables": "evolve", "columns": "evolve", "data_type": "evolve"},
+        )
+        def merge_data():
+            yield [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+
+        # dict-shaped replace write_disposition
+        @dlt.resource(write_disposition={"disposition": "replace"})
+        def replace_data():
+            yield [{"id": 1}, {"id": 2}]
+
+        # scd2 merge strategy as a dict
+        @dlt.resource(write_disposition={"disposition": "merge", "strategy": "scd2"})
+        def scd2_data():
+            yield [{"id": 1, "val": "x"}, {"id": 2, "val": "y"}]
+
+        return data(), merge_data(), replace_data(), scd2_data()
 
     @dlt.source
     def github():
@@ -335,7 +355,9 @@ def test_trace_schema() -> None:
         return data()
 
     # create pipeline with staging to get remote_url in load step job_metrics
-    dummy_dest = dummy(completed_prob=1.0)
+    dummy_dest = dummy(
+        completed_prob=1.0, supported_merge_strategies=["delete-insert", "upsert", "scd2"]
+    )
     pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema",
         destination=dummy_dest,
