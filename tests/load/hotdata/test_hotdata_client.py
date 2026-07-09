@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import inspect
 import os
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
@@ -8,7 +9,8 @@ import pytest
 
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.resolve import resolve_configuration
-from dlt.common.libs.pyarrow import pyarrow as pa
+from dlt.common.destination.client import JobClientBase
+from dlt.common.libs.pyarrow import get_py_arrow_numeric, pyarrow as pa
 
 from dlt.destinations.impl.hotdata.configuration import (
     HotdataClientConfiguration,
@@ -20,6 +22,7 @@ from dlt.destinations.impl.hotdata.errors import (
     HotdataTransientError,
     classify_sdk_error,
 )
+from dlt.destinations.impl.hotdata.hotdata import HotdataClient
 from dlt.destinations.impl.hotdata.merge import (
     combine_tables,
     merge_rows,
@@ -82,6 +85,23 @@ def test_hotdata_capabilities_defaults() -> None:
     assert "insert-only" in caps.supported_merge_strategies
     assert "upsert" in caps.supported_merge_strategies
     assert "truncate-and-insert" in caps.supported_replace_strategies
+    # numeric precision must be set or parquet normalization of decimal/wei columns crashes
+    assert caps.decimal_precision == (38, 9)
+    assert caps.wei_precision == (78, 0)
+
+
+def test_hotdata_capabilities_numeric_maps_to_arrow() -> None:
+    """The numeric precision caps must map to arrow decimal types.
+
+    A bare `DestinationCapabilitiesContext` leaves `decimal_precision`/`wei_precision` as `None`,
+    which crashed parquet normalization of decimal/wei columns with `'NoneType' object is not
+    subscriptable`.
+    """
+    from dlt.destinations import hotdata as hotdata_factory
+
+    caps = hotdata_factory()._raw_capabilities()
+    assert pa.types.is_decimal(get_py_arrow_numeric(caps.decimal_precision))
+    assert pa.types.is_decimal(get_py_arrow_numeric(caps.wei_precision))
 
 
 def test_hotdata_capabilities_config_override() -> None:
@@ -91,6 +111,15 @@ def test_hotdata_capabilities_config_override() -> None:
     caps = dest.capabilities()
     assert caps.max_table_nesting == 2
     assert caps.loader_parallelism_strategy == "row-parallel"
+
+
+def test_hotdata_update_stored_schema_signature() -> None:
+    """The load path calls `update_stored_schema(..., force=...)` for replace/refresh loads, so
+    the override must accept every parameter the base client declares."""
+    base = set(inspect.signature(JobClientBase.update_stored_schema).parameters)
+    override = set(inspect.signature(HotdataClient.update_stored_schema).parameters)
+    assert "force" in override
+    assert base <= override
 
 
 def test_hotdata_configuration_str() -> None:
@@ -215,7 +244,9 @@ def test_combine_tables(disposition: str, has_existing: bool, expected_len: int)
 def test_combine_tables_insert_only_skips_existing() -> None:
     existing = _make_table([{"_dlt_id": "a", "v": "old"}, {"_dlt_id": "b", "v": "old"}])
     incoming = _make_table([{"_dlt_id": "b", "v": "new"}, {"_dlt_id": "c", "v": "new"}])
-    result = combine_tables(disposition="insert-only", existing=existing, incoming=incoming, primary_key=None)
+    result = combine_tables(
+        disposition="insert-only", existing=existing, incoming=incoming, primary_key=None
+    )
     by_id = {r["_dlt_id"]: r for r in result.to_pylist()}
     assert by_id["a"]["v"] == "old"
     assert by_id["b"]["v"] == "old"  # not updated — insert-only
@@ -225,21 +256,27 @@ def test_combine_tables_insert_only_skips_existing() -> None:
 
 def test_combine_tables_insert_only_no_existing() -> None:
     incoming = _make_table([{"_dlt_id": "a"}, {"_dlt_id": "b"}])
-    result = combine_tables(disposition="insert-only", existing=None, incoming=incoming, primary_key=None)
+    result = combine_tables(
+        disposition="insert-only", existing=None, incoming=incoming, primary_key=None
+    )
     assert len(result) == 2
 
 
 def test_combine_tables_insert_only_all_duplicate() -> None:
     existing = _make_table([{"_dlt_id": "a"}])
     incoming = _make_table([{"_dlt_id": "a"}])
-    result = combine_tables(disposition="insert-only", existing=existing, incoming=incoming, primary_key=None)
+    result = combine_tables(
+        disposition="insert-only", existing=existing, incoming=incoming, primary_key=None
+    )
     assert len(result) == 1
 
 
 def test_combine_tables_append_schema_drift() -> None:
     existing = _make_table([{"id": 1}])
     incoming = _make_table([{"id": 2, "extra_col": "x"}])
-    result = combine_tables(disposition="append", existing=existing, incoming=incoming, primary_key=None)
+    result = combine_tables(
+        disposition="append", existing=existing, incoming=incoming, primary_key=None
+    )
     assert len(result) == 2
     assert "extra_col" in result.schema.names
 
@@ -297,7 +334,8 @@ def test_table_contract_from_schema() -> None:
 
 
 def test_table_contract_nested_table() -> None:
-    schema = {"name": "items", "parent": "orders"}
+    """dlt schema names for nested tables already contain the full path — no parent re-prefixing."""
+    schema = {"name": "orders__items", "parent": "orders"}
     contract = TableContract.from_table_schema(schema, database_name="db", schema="s")
     assert contract.table_name == "orders__items"
 
@@ -318,9 +356,9 @@ def test_declared_table_names_deduplicates() -> None:
 
 def test_nested_table_name_normalized() -> None:
     """TableContract normalizes nested table names to parent__child, not parent▶child."""
-    schema = {"name": "items", "parent": "orders"}
+    schema = {"name": "orders▶items", "parent": "orders"}
     contract = TableContract.from_table_schema(schema, database_name="db", schema="s")
-    assert contract.table_name == "orders__items"
+    assert contract.table_name == "orders_items"
     assert "▶" not in contract.table_name
 
 

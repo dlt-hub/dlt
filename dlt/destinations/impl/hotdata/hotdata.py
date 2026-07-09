@@ -29,6 +29,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 from dlt.destinations.impl.hotdata.configuration import HotdataClientConfiguration
 from dlt.destinations.impl.hotdata.contracts import TableContract
 from dlt.destinations.impl.hotdata.errors import (
@@ -174,7 +175,7 @@ class HotdataLoadJob(RunnableLoadJob):
             raise DestinationTransientException(str(exc)) from exc
 
 
-class HotdataClient(JobClientBase, WithStateSync):
+class HotdataClient(JobClientBase, WithStateSync, WithSqlClient):
     """dlt job client for the Hotdata managed-database destination."""
 
     def __init__(
@@ -185,6 +186,31 @@ class HotdataClient(JobClientBase, WithStateSync):
     ) -> None:
         super().__init__(schema, config, capabilities)
         self.config: HotdataClientConfiguration = config
+        self._sql_client: SqlClientBase[Any] = None
+
+    @property
+    def sql_client_class(self) -> Type[SqlClientBase[Any]]:
+        from dlt.destinations.impl.hotdata.sql_client import HotdataSqlClient
+
+        return HotdataSqlClient
+
+    @property
+    def sql_client(self) -> SqlClientBase[Any]:
+        """Returns a duckdb sql client over parquet snapshots of the remote tables.
+
+        Note: every remote table referenced in a query is downloaded in full, so
+        operations touching all tables (e.g. `Dataset.row_counts()`) fetch the
+        whole dataset.
+        """
+        from dlt.destinations.impl.hotdata.sql_client import HotdataSqlClient
+
+        if not self._sql_client:
+            self._sql_client = HotdataSqlClient(self)
+        return self._sql_client
+
+    @sql_client.setter
+    def sql_client(self, client: SqlClientBase[Any]) -> None:
+        self._sql_client = client
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         internal = [
@@ -235,8 +261,9 @@ class HotdataClient(JobClientBase, WithStateSync):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
-        result = super().update_stored_schema(only_tables, expected_update)
+        result = super().update_stored_schema(only_tables, expected_update, force)
         try:
             self._write_schema_to_storage()
         except HotdataTerminalError as exc:

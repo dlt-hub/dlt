@@ -32,19 +32,11 @@ class TableContract:
         database_name: str,
         schema: str,
     ) -> "TableContract":
-        table_name = normalize_identifier(table["name"])
-        parent_name = table.get("parent")
-        parent_table_name = normalize_identifier(parent_name) if parent_name else ""
-
-        if parent_table_name:
-            normalized_table_name = f"{parent_table_name}__{table_name}"
-        else:
-            normalized_table_name = table_name
-
+        # dlt table names already contain the full nested path (`parent__child`)
         return cls(
             database_name=normalize_identifier(database_name),
             schema=normalize_identifier(schema),
-            table_name=normalized_table_name,
+            table_name=normalize_identifier(table["name"]),
         )
 
     @classmethod

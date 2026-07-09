@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import typing as t
 
+from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.normalizers.naming import NamingConvention
+from dlt.common.wei import EVM_DECIMAL_PRECISION
 
 from dlt.destinations.impl.hotdata.configuration import (
     HotdataClientConfiguration,
@@ -25,10 +27,13 @@ class hotdata(Destination[HotdataClientConfiguration, "HotdataClient"]):
         caps.supported_staging_file_formats = []
         caps.loader_parallelism_strategy = "table-sequential"
         caps.max_table_nesting = 1000
-        caps.naming_convention = "direct"
+        caps.naming_convention = "snake_case"
         caps.has_case_sensitive_identifiers = False
         caps.max_identifier_length = 255
         caps.max_column_identifier_length = 255
+        # required to map decimal/wei columns without explicit hints to parquet numeric types
+        caps.decimal_precision = (DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE)
+        caps.wei_precision = (EVM_DECIMAL_PRECISION, 0)
         caps.supports_ddl_transactions = False
         caps.supported_merge_strategies = ["upsert", "insert-only"]
         caps.supported_replace_strategies = ["truncate-and-insert"]
@@ -62,6 +67,7 @@ class hotdata(Destination[HotdataClientConfiguration, "HotdataClient"]):
         write_disposition: str = None,
         declared_tables: t.Optional[t.List[str]] = None,
         create_database_if_missing: bool = None,
+        always_refresh_views: bool = None,
         api_base_url: str = None,
         max_retries: int = None,
         retry_backoff_seconds: float = None,
@@ -78,6 +84,7 @@ class hotdata(Destination[HotdataClientConfiguration, "HotdataClient"]):
             write_disposition=write_disposition,
             declared_tables=declared_tables,
             create_database_if_missing=create_database_if_missing,
+            always_refresh_views=always_refresh_views,
             api_base_url=api_base_url,
             max_retries=max_retries,
             retry_backoff_seconds=retry_backoff_seconds,

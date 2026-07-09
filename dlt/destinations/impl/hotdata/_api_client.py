@@ -160,9 +160,7 @@ class HotdataApiClient:
     # table status
     # ------------------------------------------------------------------
 
-    def _table_is_synced(
-        self, connection_id: str, *, schema: str, table: str
-    ) -> bool:
+    def _table_is_synced(self, connection_id: str, *, schema: str, table: str) -> bool:
         from hotdata.api.information_schema_api import InformationSchemaApi
 
         resp = InformationSchemaApi(self._api).information_schema(
@@ -179,68 +177,58 @@ class HotdataApiClient:
     # data fetch
     # ------------------------------------------------------------------
 
-    def fetch_table(
-        self, *, database: str, schema: str, table: str
-    ) -> Optional["pyarrow.Table"]:
+    def fetch_table(self, *, database: str, schema: str, table: str) -> Optional["pyarrow.Table"]:
         """Fetch table contents as an Arrow table, or None if never loaded."""
 
         def operation() -> Optional[Any]:
             from hotdata.api.query_api import QueryApi
-            from hotdata.api.query_runs_api import QueryRunsApi
             from hotdata.arrow import ResultsApi as ArrowResultsApi
-            from hotdata.models.async_query_response import AsyncQueryResponse
             from hotdata.models.query_request import QueryRequest
-            from hotdata.models.query_response import QueryResponse
 
             db = self._resolve_database(database)
             if not self._table_is_synced(db.connection_id, schema=schema, table=table):
                 return None
 
             sql = f'SELECT * FROM "default"."{schema}"."{table}"'
-            raw = QueryApi(self._api).query(
-                QueryRequest(sql=sql),
+            response = QueryApi(self._api).query(
+                QueryRequest(sql=sql, database_id=db.id),
                 x_database_id=db.id,
             )
 
-            if isinstance(raw, QueryResponse):
-                result_id = raw.result_id
-            elif isinstance(raw, AsyncQueryResponse):
-                result_id = self._poll_query_run(raw.query_run_id)
-            else:
+            # a synchronous response carries the result id directly; an async one
+            # only exposes a query run id that resolves to the result once it completes
+            result_id = getattr(response, "result_id", None)
+            if result_id is None:
+                result_id = self._poll_query_run(response.query_run_id, database_id=db.id)
+            if result_id is None:
                 return None
 
-            if result_id is None:
-                return None
-            result_id = self._wait_result_ready(result_id)
-            if result_id is None:
-                return None
-            return ArrowResultsApi(self._api).get_result_arrow(result_id)
+            self._wait_result_ready(result_id, database_id=db.id)
+            return ArrowResultsApi(self._api).get_result_arrow(result_id, db.id)
 
         return self._request_with_retry(operation)
 
-    def _poll_query_run(self, query_run_id: str) -> Optional[str]:
+    def _poll_query_run(self, query_run_id: str, *, database_id: str) -> Optional[str]:
         from hotdata.api.query_runs_api import QueryRunsApi
 
         runs = QueryRunsApi(self._api)
         deadline = time.monotonic() + _QUERY_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
-            run = runs.get_query_run(query_run_id)
+            run = runs.get_query_run(query_run_id, database_id)
             if run.status == "succeeded":
                 return run.result_id
             if run.status in ("failed", "cancelled"):
                 raise RuntimeError(run.error_message or f"Query run {run.status}")
             time.sleep(0.5)
-        raise TimeoutError(
-            f"Managed database query timed out after {_QUERY_TIMEOUT_SECONDS}s"
-        )
+        raise TimeoutError(f"Managed database query timed out after {_QUERY_TIMEOUT_SECONDS}s")
 
-    def _wait_result_ready(self, result_id: str) -> Optional[str]:
+    def _wait_result_ready(self, result_id: str, *, database_id: str) -> Optional[str]:
         from hotdata.api.results_api import ResultsApi
 
         results = ResultsApi(self._api)
         deadline = time.monotonic() + _QUERY_TIMEOUT_SECONDS
         while time.monotonic() < deadline:
-            r = results.get_result(result_id)
+            r = results.get_result(result_id, database_id)
             if r.status == "ready":
                 return result_id
             if r.status in ("failed", "cancelled"):
@@ -256,10 +244,10 @@ class HotdataApiClient:
         """Upload a parquet file and return its upload ID."""
 
         def operation() -> str:
-            from hotdata.api.uploads_api import UploadsApi
+            from hotdata.uploads import UploadsApi
 
-            resp = UploadsApi(self._api).upload_file(body=path)
-            return resp.id
+            resp = UploadsApi(self._api).upload_file(path, content_type="application/parquet")
+            return resp.upload_id
 
         return self._request_with_retry(operation)
 
@@ -282,6 +270,7 @@ class HotdataApiClient:
                 table=table,
                 load_managed_table_request=LoadManagedTableRequest(
                     mode="replace",
+                    format="parquet",
                     upload_id=upload_id,
                 ),
             )

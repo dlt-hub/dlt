@@ -37,6 +37,8 @@ class HotdataClientConfiguration(DestinationClientConfiguration):
     """Explicit list of table names for multi-table pipelines."""
     create_database_if_missing: bool = True
     """Create the managed database automatically if it does not exist."""
+    always_refresh_views: bool = False
+    """Refetch remote tables on every sql_client query instead of once per session."""
     max_retries: int = 5
     retry_backoff_seconds: float = 1.0
     max_table_nesting: Optional[int] = None
