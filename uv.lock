@@ -2501,7 +2501,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.28.1"
+version = "1.28.2"
 source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -2843,7 +2843,7 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
     { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.27.0,<0.29" },
-    { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.27.7,<0.29" },
+    { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.1" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -3063,7 +3063,7 @@ wheels = [
 
 [[package]]
 name = "dlthub-client"
-version = "0.27.7"
+version = "0.28.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -3074,9 +3074,9 @@ dependencies = [
     { name = "pyjwt" },
     { name = "tabulate" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/73/28/a8b3a1b3a5557ca0bf819fce52697ccdb9731ea73bda96b352a1f65ef3f1/dlthub_client-0.27.7.tar.gz", hash = "sha256:85ee09a03e4c4a505c1d12fd1f514d03bd26e1cec74d7b6b1f6397e926577177", size = 132851, upload-time = "2026-06-11T19:43:57.897Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/ff/87/53412615805aadf53d3c95e9d94e7f703b33a8fe8f441ff3bf9d73e0f7ea/dlthub_client-0.28.1.tar.gz", hash = "sha256:2a47d950aa5e1ba77409655b2cecb5f3e626a2964a3952fb32a9d3292e6ba1db", size = 146048, upload-time = "2026-07-07T11:09:04.182Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/de/bd/026ee4fa2d489a9aaf8cf058ed15173baa2d4cec1cfaccefe42f80fdd1f9/dlthub_client-0.27.7-py3-none-any.whl", hash = "sha256:35b32a8350bab9feed00c1ed1cb5349b7819ba0fd84dfcd71e561db54550fb3e", size = 296295, upload-time = "2026-06-11T19:43:56.71Z" },
+    { url = "https://files.pythonhosted.org/packages/ee/93/453841023154ef23d8def64cc4d48ee4e61a76451303a3046fe405230bb6/dlthub_client-0.28.1-py3-none-any.whl", hash = "sha256:04f7b86181e09db69714ac297ad7fa829c7c939096bbc2a65cb781df511082bf", size = 336690, upload-time = "2026-07-07T11:09:02.927Z" },
 ]
 
 [[package]]
@@ -8380,14 +8380,14 @@ wheels = [
 
 [[package]]
 name = "pyjwt"
-version = "2.12.1"
+version = "2.13.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c2/27/a3b6e5bf6ff856d2509292e95c8f57f0df7017cf5394921fc4e4ef40308a/pyjwt-2.12.1.tar.gz", hash = "sha256:c74a7a2adf861c04d002db713dd85f84beb242228e671280bf709d765b03672b", size = 102564, upload-time = "2026-03-13T19:27:37.25Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/3b/81/58d0ac84e1ef3a3843791d6954d94c0b33d526c75eeb1efbce9d0a4c4077/pyjwt-2.13.0.tar.gz", hash = "sha256:41571c89ca91598c79e8ef18a2d07367d4810fbbd6f637794879baf1b7703423", size = 107515, upload-time = "2026-05-21T19:54:36.618Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/e5/7a/8dd906bd22e79e47397a61742927f6747fe93242ef86645ee9092e610244/pyjwt-2.12.1-py3-none-any.whl", hash = "sha256:28ca37c070cad8ba8cd9790cd940535d40274d22f80ab87f3ac6a713e6e8454c", size = 29726, upload-time = "2026-03-13T19:27:35.677Z" },
+    { url = "https://files.pythonhosted.org/packages/a3/5e/ecf12fdb62546d64385c158514e9b2b671f7832108ef2ecd2020ce0af2d1/pyjwt-2.13.0-py3-none-any.whl", hash = "sha256:66adcc2aff09b3f1bbd95fc1e1577df8ac8723c978552fd43304c8a290ac5728", size = 31274, upload-time = "2026-05-21T19:54:35.362Z" },
 ]
 
 [package.optional-dependencies]

@@ -3,8 +3,9 @@
 # flake8: noqa: T201
 """Check that hub extras version requirements match the dlt version.
 
-When dlt is bumped from X.Y to X.Z, the hub extras (dlthub, dlt-runtime) should
-also be bumped to require version 0.Z.
+When dlt is bumped from X.Y to X.Z, the version-coupled hub extras (dlthub) should
+also be bumped to require version 0.Z. Extras listed in INFO_ONLY_PKGS are displayed
+but not checked.
 
 This ensures that dlt and its hub plugins are released together with matching versions.
 """
@@ -18,6 +19,9 @@ from packaging.version import Version
 
 from dlt.common.runtime.run_context import ensure_plugin_version_match
 from dlt.version import __version__ as dlt_version, DLT_PKG_NAME
+
+# hub extras not version-coupled to dlt: shown for info, version match never enforced
+INFO_ONLY_PKGS = {"dlthub-client"}
 
 
 class HubExtraInfo(NamedTuple):
@@ -36,13 +40,10 @@ def get_hub_extras() -> List[HubExtraInfo]:
     extras = []
     for req_str in dist.requires:
         req = Requirement(req_str)
-        # Check if this requirement is for the "hub" extra by looking for
-        # 'extra == "hub"' in the marker string. We can't use marker.evaluate()
-        # because on Python 3.9, markers like 'extra == "hub" and python_version >= "3.10"'
-        # would evaluate to False due to the python_version constraint.
+        # match the hub extra on the marker string instead of marker.evaluate() so that
+        # hub deps gated on python_version stay visible on any interpreter
         if req.marker:
             marker_str = str(req.marker)
-            # Check for extra == "hub" or "hub" == extra patterns
             if 'extra == "hub"' in marker_str or '"hub" == extra' in marker_str:
                 extras.append(HubExtraInfo(pkg_name=req.name, requirement=req))
 
@@ -90,6 +91,10 @@ def check_hub_extras() -> int:
 
     errors = []
     for extra in hub_extras:
+        if extra.pkg_name in INFO_ONLY_PKGS:
+            print(f"Checking {extra.pkg_name}: {extra.requirement.specifier}")
+            print("  ✓ not version-coupled to dlt, any version accepted")
+            continue
         print(f"Checking {extra.pkg_name}: {extra.requirement.specifier}")
 
         try:
@@ -115,7 +120,6 @@ def check_hub_extras() -> int:
         print("When bumping dlt version, also update hub extras in pyproject.toml.")
         print("For example, if dlt is 1.20.0, hub extras should allow 0.20.x:")
         print('  "dlthub>=0.20.0a0,<0.21"')
-        print('  "dlt-runtime>=0.20.0a0,<0.21"')
         return 1
     else:
         print("SUCCESS: All hub extras version requirements match dlt version!")
