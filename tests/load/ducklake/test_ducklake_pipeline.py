@@ -94,6 +94,53 @@ def test_all_catalogs(catalog: str) -> None:
             ), f"expected SQLite-format catalog, got: {header!r}"
 
 
+@pytest.mark.parametrize(
+    "catalog",
+    (
+        None,
+        "duckdb:///catalog.duckdb",
+        "postgres://loader:loader@localhost:5432/dlt_data",
+    ),
+    ids=["default-sqlite", "duckdb", "postgres"],
+)
+def test_truncate_staging_dataset(catalog: str) -> None:
+    """Staging dataset is truncated after load when truncate_staging_dataset is set."""
+    ducklake_name = "trunc_" + uniq_id(4)
+    if catalog is None:
+        credentials = DuckLakeCredentials(ducklake_name=ducklake_name)
+    else:
+        credentials = DuckLakeCredentials(ducklake_name=ducklake_name, catalog=catalog)
+    pipeline = dlt.pipeline(
+        "ducklake_truncate_staging",
+        destination=ducklake(credentials=credentials),
+        dataset_name="lake_schema",
+        dev_mode=True,
+    )
+    dlt.config["truncate_staging_dataset"] = True
+
+    @dlt.resource(write_disposition="merge", merge_key="id")
+    def items():
+        yield [{"id": 1, "value": "A"}, {"id": 2, "value": "B"}]
+
+    try:
+        load_info = pipeline.run(items)
+    except PipelineStepFailed as conn_ex:
+        # skip gracefully if local postgres catalog is not running
+        if catalog is None or "postgres" not in catalog or "localhost" not in str(conn_ex):
+            raise
+        pytest.skip(f"Requires localhost postgres running: {catalog}")
+    assert_load_info(load_info)
+
+    # data lands in the final dataset
+    assert len(pipeline.dataset().items.fetchall()) == 2
+
+    # staging dataset is emptied
+    with pipeline.sql_client() as client:
+        with client.with_staging_dataset():
+            staging_items = client.make_qualified_table_name("items")
+        assert len(client.execute_sql(f"SELECT * FROM {staging_items}")) == 0
+
+
 def _all_bucket_configs() -> List[DestinationTestConfiguration]:
     # enable filesystem to be able to collect bucket cases, won't be enabled on
     # ci for ducklake tests

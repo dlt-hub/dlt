@@ -861,9 +861,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
 
         try:
-            with self.get_destination_client(schema) as client:
-                with client.with_staging_dataset():  # type: ignore
-                    client.initialize_storage(truncate_tables=tables)
+            with job_client.with_staging_dataset() as staging_client:
+                staging_client.initialize_storage(truncate_tables=tables)
 
         except Exception as exc:
             logger.warn(
