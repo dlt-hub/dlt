@@ -5557,6 +5557,7 @@ def test_pending_package_exception_warning() -> None:
     # none of the jobs passed so we have pending package but not partial
     assert pip_ex.value.step == "load"
     assert "Pending packages" in str(pip_ex.value)
+    assert "ephemeral storage" in str(pip_ex.value)
     assert "partially loaded" not in str(pip_ex.value)
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is False
