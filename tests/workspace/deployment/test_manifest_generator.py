@@ -129,6 +129,19 @@ def test_batch_only_deployment() -> None:
         assert j["entry_point"]["job_type"] == "batch"
 
 
+def test_lazy_all_via_module_getattr() -> None:
+    """Jobs exposed through module-level __getattr__ (PEP 562) and listed in
+    __all__ are discovered, not dropped as 'not found in module'."""
+    mod = import_module(f"{WORKSPACE}.deployment_lazy")
+    manifest, warnings = generate_manifest(mod)
+
+    job_refs = {j["job_ref"] for j in _user_jobs(manifest["jobs"])}
+    assert "jobs.batch_jobs.backfill" in job_refs
+    assert "jobs.batch_jobs.daily_ingest" in job_refs
+    assert len(_user_jobs(manifest["jobs"])) == 2
+    assert not any("not found in module" in w for w in warnings)
+
+
 def test_deployment_with_unknown_warns() -> None:
     """Unknown items in __all__ produce warnings."""
     mod = import_module(f"{WORKSPACE}.deployment_with_unknown")

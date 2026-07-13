@@ -517,7 +517,9 @@ def generate_manifest(
             names = list(deployment_module.__dict__.keys())
 
         for name in names:
-            obj = deployment_module.__dict__.get(name)
+            # use getattr so names exposed via module-level __getattr__ (PEP 562)
+            # are resolved, not just those present in __dict__
+            obj = getattr(deployment_module, name, None)
             if obj is None and iterate_all:
                 warnings.append(f"name {name!r} listed in __all__ but not found in module")
                 continue
