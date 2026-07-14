@@ -112,6 +112,8 @@ select_sequential_consistency = 1                       # Ensures read-after-wri
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be atomically swapped with the staging tables via [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange) (requires `Atomic` or `Shared` database engine).
+
 ## Data loading
 
 Data is loaded into ClickHouse using the most efficient method depending on the data source:
@@ -132,6 +134,12 @@ your configuration:
 select_sequential_consistency = 0
 ```
 
+### Merge on replicated clusters
+
+When merging tables that have nested children, `dlt` creates short-lived temp tables to stage delete
+keys and insert keys. The temp tables follow the configured `table_engine_type` so the staged rows replicate the same way the destination tables do. Single-table merges use lightweight `DELETE` directly
+and don't need temp tables.
+
 ## Datasets
 
 ClickHouse does not support multiple datasets in one database; dlt relies on datasets to exist for multiple reasons.
@@ -148,8 +156,8 @@ tables will still be prefixed with `_staging` (or other name that you configure)
 
 ## Supported file formats
 
-- [JSONL](../file-formats/jsonl.md) is the preferred format for both direct loading and staging.
-- [Parquet](../file-formats/parquet.md) is supported for both direct loading and staging.
+- [JSONL](../file-formats.md#jsonl) is the preferred format for both direct loading and staging.
+- [Parquet](../file-formats.md#parquet) is supported for both direct loading and staging.
 
 The `clickhouse` destination has a few specific deviations from the default SQL destinations:
 
@@ -465,7 +473,7 @@ The ClickHouse GCS table function only supports authentication using Hash-based 
 To enable this, GCS provides an S3
 compatibility mode that emulates the S3 API, allowing ClickHouse to access GCS buckets via its S3 integration.
 
-For detailed instructions on setting up S3-compatible storage with dlt, including AWS S3, MinIO, and Cloudflare R2, refer to
+For detailed instructions on setting up S3-compatible storage with dlt, including AWS S3, MinIO, Tigris, and Cloudflare R2, refer to
 the [dlt documentation on filesystem destinations](../../dlt-ecosystem/destinations/filesystem#using-s3-compatible-storage).
 
 To set up GCS staging with HMAC authentication in dlt:

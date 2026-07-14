@@ -1,4 +1,5 @@
 from collections.abc import MutableMapping
+from pathlib import Path
 import pickle
 from typing import Dict
 
@@ -144,7 +145,8 @@ def test_factory_config_injection(environment: Dict[str, str]) -> None:
     environment["DESTINATION__LOCAL__BUCKET_URL"] = abs_path
     init_config = FilesystemDestinationClientConfiguration()._bind_dataset_name(dataset_name="test")
     configured_bucket_url = filesystem_.client(Schema("test"), init_config).config.bucket_url
-    assert configured_bucket_url.endswith(test_root_storage)
+    # compare against the POSIX form to stay cross-platform
+    assert configured_bucket_url.endswith(Path(test_root_storage).as_posix())
 
 
 def test_import_module_by_path() -> None:
@@ -597,3 +599,22 @@ def test_destination_repr() -> None:
     assert callable(getattr(destination, "spec", sentinel))
     # we need to be able to **unpack the spec() object
     assert isinstance(destination.spec(), MutableMapping)
+
+
+def test_create_ibis_backend_dispatch() -> None:
+    """Every destination dispatches `create_ibis_backend` through its factory: a
+    `NotImplementedError` means the destination offers no ibis backend, any other outcome means the
+    call reached the destination's own override (which then fails only on the `None` client)."""
+    implemented: list[str] = []
+    not_implemented: list[str] = []
+    for dest_type in sorted(IMPLEMENTED_DESTINATIONS):
+        factory = Destination.from_reference(f"dlt.destinations.{dest_type}")
+        try:
+            factory.create_ibis_backend(None)
+            implemented.append(dest_type)
+        except NotImplementedError:
+            not_implemented.append(dest_type)
+        except Exception:
+            implemented.append(dest_type)
+    # the dispatch discriminates: some destinations provide an ibis backend, some do not
+    assert implemented and not_implemented

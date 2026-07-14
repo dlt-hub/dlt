@@ -1,3 +1,5 @@
+from typing import cast
+
 import pytest
 
 # this try/except should trigger for python <3.10 because ibis is not supported
@@ -14,39 +16,39 @@ import dlt
 from dlt.common.libs.ibis import _DltBackend
 from dlt.common.libs.pyarrow import pyarrow as pa
 
-from tests.load.test_read_interfaces import populated_pipeline, configs
+from tests.load.read_dataset_fixtures import preserve_module_environ_per_destination_config
+from tests.load.test_read_interfaces import populated_pipeline
+from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.utils import (
-    preserve_module_environ,
-    auto_module_test_storage,
     auto_module_test_run_context,
+    auto_module_test_storage,
 )
 
 
-duckdb_conf = [c for c in configs if c.destination_type == "duckdb" and c.file_format is None]
+# NOTE: this fixture is consumed by `populated_pipeline`, and overrides the `destination_config`
+# fixture from `test_read_interfaces.py` to limit to `duckdb` destination for this module
+@pytest.fixture(
+    scope="module",
+    params=destinations_configs(
+        default_sql_configs=True,
+        subset=["duckdb"],
+        file_format=None,
+    ),
+    ids=lambda x: x.name,
+)
+def destination_config(request: pytest.FixtureRequest) -> DestinationTestConfiguration:
+    return cast(DestinationTestConfiguration, request.param)
 
 
 def test_instantiate_backend():
     _DltBackend()
 
 
-# TODO test for all destinations
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_connect_to_backend(populated_pipeline: dlt.Pipeline):
     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     assert isinstance(backend, _DltBackend)
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_list_tables(populated_pipeline: dlt.Pipeline):
     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_table_names = [
@@ -62,12 +64,6 @@ def test_list_tables(populated_pipeline: dlt.Pipeline):
     assert backend.list_tables() == expected_table_names
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_get_schema(populated_pipeline: dlt.Pipeline):
     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_schema = ibis.Schema(
@@ -75,6 +71,7 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
             "id": ibis.dtype("int64", nullable=True),
             "decimal": ibis.dtype("decimal", nullable=True),
             "other_decimal": ibis.dtype("decimal", nullable=True),
+            "created_at": ibis.dtype("timestamp", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
         }
@@ -85,12 +82,6 @@ def test_get_schema(populated_pipeline: dlt.Pipeline):
     assert expected_schema.equals(ibis_schema)
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_get_bound_table(populated_pipeline: dlt.Pipeline):
     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_schema = ibis.Schema(
@@ -98,6 +89,7 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
             "id": ibis.dtype("int64", nullable=True),
             "decimal": ibis.dtype("decimal", nullable=True),
             "other_decimal": ibis.dtype("decimal", nullable=True),
+            "created_at": ibis.dtype("timestamp", nullable=True),
             "_dlt_load_id": ibis.dtype("string", nullable=False),
             "_dlt_id": ibis.dtype("string", nullable=False),
         }
@@ -109,12 +101,6 @@ def test_get_bound_table(populated_pipeline: dlt.Pipeline):
     assert table.schema().equals(expected_schema)
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_execute_expression(populated_pipeline: dlt.Pipeline):
     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
     expected_schema = ibis.Schema(
@@ -133,12 +119,6 @@ def test_execute_expression(populated_pipeline: dlt.Pipeline):
     assert set(table2.columns) == set(expected_schema.names)
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_user_workflow(populated_pipeline: dlt.Pipeline):
     expected_columns = ["_dlt_id", "id"]
 
@@ -155,14 +135,8 @@ def test_user_workflow(populated_pipeline: dlt.Pipeline):
         con.disconnect()
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_table_to_pandas(populated_pipeline: dlt.Pipeline):
-    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+    expected_columns = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
     dataset = populated_pipeline.dataset()
     con = dataset.ibis()
@@ -175,14 +149,8 @@ def test_table_to_pandas(populated_pipeline: dlt.Pipeline):
         con.disconnect()
 
 
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    duckdb_conf,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_table_to_pyarrow(populated_pipeline: dlt.Pipeline):
-    expected_columns = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+    expected_columns = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
     dataset = populated_pipeline.dataset()
     con = dataset.ibis()
@@ -193,3 +161,35 @@ def test_table_to_pyarrow(populated_pipeline: dlt.Pipeline):
         assert set(result.column_names) == set(expected_columns)
     finally:
         con.disconnect()
+
+
+def test_raw_sql(populated_pipeline: dlt.Pipeline) -> None:
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
+    cursor = backend.raw_sql("SELECT id FROM items ORDER BY id")
+    rows = cursor.fetchall()
+    assert len(rows) > 0
+    assert [row[0] for row in rows] == sorted(row[0] for row in rows)
+
+
+def test_to_pyarrow_batches(populated_pipeline: dlt.Pipeline) -> None:
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
+    table = backend.table("items")
+    # small chunk_size forces multiple native batches from the dlt cursor
+    batches = list(backend.to_pyarrow_batches(table, chunk_size=2))
+    assert len(batches) > 1
+    assert batches[0].schema.names == list(table.columns)
+    total = sum(batch.num_rows for batch in batches)
+    assert total == backend.to_pyarrow(table).num_rows > 0
+
+
+def test_mutating_ops_not_supported(populated_pipeline: dlt.Pipeline) -> None:
+    backend = _DltBackend.from_dataset(populated_pipeline.dataset())
+    table = backend.table("items")
+    with pytest.raises(NotImplementedError):
+        backend.create_table("new_table", table)
+    with pytest.raises(NotImplementedError):
+        backend.create_view("new_view", table)
+    with pytest.raises(NotImplementedError):
+        backend.drop_table("items")
+    with pytest.raises(NotImplementedError):
+        backend.drop_view("items")

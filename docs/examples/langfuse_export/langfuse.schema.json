@@ -1,0 +1,2737 @@
+{
+  "version": 2,
+  "version_hash": "bsxTAxmbRGV29fefv3NIfsTHr8meNMN4j8wAcwFmCVQ=",
+  "engine_version": 11,
+  "name": "sql_database",
+  "tables": {
+    "_dlt_version": {
+      "name": "_dlt_version",
+      "columns": {
+        "version": {
+          "name": "version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "engine_version": {
+          "name": "engine_version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "name": "inserted_at",
+          "data_type": "timestamp",
+          "nullable": false
+        },
+        "schema_name": {
+          "name": "schema_name",
+          "data_type": "text",
+          "nullable": false
+        },
+        "version_hash": {
+          "name": "version_hash",
+          "data_type": "text",
+          "nullable": false
+        },
+        "schema": {
+          "name": "schema",
+          "data_type": "text",
+          "nullable": false
+        }
+      },
+      "write_disposition": "skip",
+      "resource": "_dlt_version",
+      "description": "Created by DLT. Tracks schema updates"
+    },
+    "_dlt_loads": {
+      "name": "_dlt_loads",
+      "columns": {
+        "load_id": {
+          "name": "load_id",
+          "data_type": "text",
+          "nullable": false,
+          "precision": 64
+        },
+        "schema_name": {
+          "name": "schema_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "status": {
+          "name": "status",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "inserted_at": {
+          "name": "inserted_at",
+          "data_type": "timestamp",
+          "nullable": false
+        },
+        "schema_version_hash": {
+          "name": "schema_version_hash",
+          "data_type": "text",
+          "nullable": true
+        }
+      },
+      "write_disposition": "skip",
+      "resource": "_dlt_loads",
+      "description": "Created by DLT. Tracks completed loads"
+    },
+    "_prisma_migrations": {
+      "columns": {
+        "logs": {
+          "name": "logs",
+          "nullable": true
+        },
+        "rolled_back_at": {
+          "name": "rolled_back_at",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "checksum": {
+          "name": "checksum",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "nullable": true,
+          "data_type": "timestamp"
+        },
+        "migration_name": {
+          "name": "migration_name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "started_at": {
+          "name": "started_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "applied_steps_count": {
+          "name": "applied_steps_count",
+          "nullable": false,
+          "data_type": "bigint"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "name": "_prisma_migrations",
+      "resource": "_prisma_migrations",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "users": {
+      "columns": {
+        "email_verified": {
+          "name": "email_verified",
+          "nullable": true
+        },
+        "image": {
+          "name": "image",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "email": {
+          "name": "email",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "password": {
+          "name": "password",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "admin": {
+          "name": "admin",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "v4_beta_enabled": {
+          "name": "v4_beta_enabled",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "name": "users",
+      "resource": "users",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "projects": {
+      "columns": {
+        "deleted_at": {
+          "name": "deleted_at",
+          "nullable": true
+        },
+        "retention_days": {
+          "name": "retention_days",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "org_id": {
+          "name": "org_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "has_traces": {
+          "name": "has_traces",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "organizations",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "org_id"
+          ]
+        }
+      ],
+      "name": "projects",
+      "resource": "projects",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "organizations": {
+      "columns": {
+        "cloud_billing_cycle_updated_at": {
+          "name": "cloud_billing_cycle_updated_at",
+          "nullable": true
+        },
+        "cloud_current_cycle_usage": {
+          "name": "cloud_current_cycle_usage",
+          "nullable": true
+        },
+        "cloud_free_tier_usage_threshold_state": {
+          "name": "cloud_free_tier_usage_threshold_state",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "ai_features_enabled": {
+          "name": "ai_features_enabled",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "cloud_billing_cycle_anchor": {
+          "name": "cloud_billing_cycle_anchor",
+          "nullable": true,
+          "data_type": "timestamp"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "name": "organizations",
+      "resource": "organizations",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "score_configs": {
+      "columns": {
+        "min_value": {
+          "name": "min_value",
+          "nullable": true
+        },
+        "max_value": {
+          "name": "max_value",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "data_type": {
+          "name": "data_type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "is_archived": {
+          "name": "is_archived",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "description": {
+          "name": "description",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "score_configs",
+      "resource": "score_configs",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "api_keys": {
+      "columns": {
+        "note": {
+          "name": "note",
+          "nullable": true
+        },
+        "last_used_at": {
+          "name": "last_used_at",
+          "nullable": true
+        },
+        "expires_at": {
+          "name": "expires_at",
+          "nullable": true
+        },
+        "organization_id": {
+          "name": "organization_id",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "public_key": {
+          "name": "public_key",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "hashed_secret_key": {
+          "name": "hashed_secret_key",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "display_secret_key": {
+          "name": "display_secret_key",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "fast_hashed_secret_key": {
+          "name": "fast_hashed_secret_key",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "scope": {
+          "name": "scope",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "organizations",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "organization_id"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "api_keys",
+      "resource": "api_keys",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "organization_memberships": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "org_id": {
+          "name": "org_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "user_id": {
+          "name": "user_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "role": {
+          "name": "role",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "users",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "referenced_table": "organizations",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "org_id"
+          ]
+        }
+      ],
+      "name": "organization_memberships",
+      "resource": "organization_memberships",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "datasets": {
+      "columns": {
+        "remote_experiment_url": {
+          "name": "remote_experiment_url",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "description": {
+          "name": "description",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "remote_experiment_enabled": {
+          "name": "remote_experiment_enabled",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "metadata__foo": {
+          "name": "metadata__foo",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "datasets",
+      "resource": "datasets",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items": {
+      "columns": {
+        "valid_to": {
+          "name": "valid_to",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "source_observation_id": {
+          "name": "source_observation_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "dataset_id": {
+          "name": "dataset_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "status": {
+          "name": "status",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "source_trace_id": {
+          "name": "source_trace_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "is_deleted": {
+          "name": "is_deleted",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "valid_from": {
+          "name": "valid_from",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "timestamp"
+        },
+        "metadata__resource_attributes__service_name": {
+          "name": "metadata__resource_attributes__service_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__resource_attributes__telemetry_sdk_name": {
+          "name": "metadata__resource_attributes__telemetry_sdk_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__resource_attributes__telemetry_sdk_version": {
+          "name": "metadata__resource_attributes__telemetry_sdk_version",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__resource_attributes__telemetry_sdk_language": {
+          "name": "metadata__resource_attributes__telemetry_sdk_language",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_system": {
+          "name": "metadata__attributes__gen_ai_system",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__operation_cost": {
+          "name": "metadata__attributes__operation_cost",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__server_address": {
+          "name": "metadata__attributes__server_address",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_agent_name": {
+          "name": "metadata__attributes__gen_ai_agent_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_response_id": {
+          "name": "metadata__attributes__gen_ai_response_id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__logfire_json_schema": {
+          "name": "metadata__attributes__logfire_json_schema",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_agent_call_id": {
+          "name": "metadata__attributes__gen_ai_agent_call_id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_provider_name": {
+          "name": "metadata__attributes__gen_ai_provider_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_request_model": {
+          "name": "metadata__attributes__gen_ai_request_model",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_operation_name": {
+          "name": "metadata__attributes__gen_ai_operation_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_response_model": {
+          "name": "metadata__attributes__gen_ai_response_model",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_conversation_id": {
+          "name": "metadata__attributes__gen_ai_conversation_id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_tool_definitions": {
+          "name": "metadata__attributes__gen_ai_tool_definitions",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__model_request_parameters": {
+          "name": "metadata__attributes__model_request_parameters",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_usage_input_tokens": {
+          "name": "metadata__attributes__gen_ai_usage_input_tokens",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_usage_output_tokens": {
+          "name": "metadata__attributes__gen_ai_usage_output_tokens",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_response_finish_reasons": {
+          "name": "metadata__attributes__gen_ai_response_finish_reasons",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__scope__name": {
+          "name": "metadata__scope__name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__scope__version": {
+          "name": "metadata__scope__version",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        },
+        "expected_output": {
+          "name": "expected_output",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__logfire_msg": {
+          "name": "metadata__attributes__logfire_msg",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__tool_response": {
+          "name": "metadata__attributes__tool_response",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__tool_arguments": {
+          "name": "metadata__attributes__tool_arguments",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_tool_name": {
+          "name": "metadata__attributes__gen_ai_tool_name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "metadata__attributes__gen_ai_tool_call_id": {
+          "name": "metadata__attributes__gen_ai_tool_call_id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "input__square": {
+          "name": "input__square",
+          "data_type": "bigint",
+          "nullable": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "datasets",
+          "referenced_columns": [
+            "id",
+            "project_id"
+          ],
+          "columns": [
+            "dataset_id",
+            "project_id"
+          ]
+        }
+      ],
+      "name": "dataset_items",
+      "resource": "dataset_items",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "trace_sessions": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "bookmarked": {
+          "name": "bookmarked",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "public": {
+          "name": "public",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "environment": {
+          "name": "environment",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "trace_sessions",
+      "resource": "trace_sessions",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "models": {
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "model_name": {
+          "name": "model_name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "match_pattern": {
+          "name": "match_pattern",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "start_date": {
+          "name": "start_date",
+          "nullable": true,
+          "data_type": "timestamp"
+        },
+        "input_price": {
+          "name": "input_price",
+          "nullable": true,
+          "data_type": "decimal"
+        },
+        "output_price": {
+          "name": "output_price",
+          "nullable": true,
+          "data_type": "decimal"
+        },
+        "unit": {
+          "name": "unit",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "tokenizer_id": {
+          "name": "tokenizer_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "tokenizer_config__tokens_per_name": {
+          "name": "tokenizer_config__tokens_per_name",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "tokenizer_config__tokenizer_model": {
+          "name": "tokenizer_config__tokenizer_model",
+          "data_type": "text",
+          "nullable": true
+        },
+        "tokenizer_config__tokens_per_message": {
+          "name": "tokenizer_config__tokens_per_message",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        },
+        "total_price": {
+          "name": "total_price",
+          "nullable": true,
+          "data_type": "decimal"
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "models",
+      "resource": "models",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "audit_logs": {
+      "columns": {
+        "api_key_id": {
+          "name": "api_key_id",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "user_id": {
+          "name": "user_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "resource_type": {
+          "name": "resource_type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "resource_id": {
+          "name": "resource_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "action": {
+          "name": "action",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "after": {
+          "name": "after",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "org_id": {
+          "name": "org_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "user_org_role": {
+          "name": "user_org_role",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "type": {
+          "name": "type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "user_project_role": {
+          "name": "user_project_role",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "before": {
+          "name": "before",
+          "nullable": true,
+          "data_type": "text"
+        }
+      },
+      "write_disposition": "append",
+      "name": "audit_logs",
+      "resource": "audit_logs",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "eval_templates": {
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "nullable": true
+        },
+        "model": {
+          "name": "model",
+          "nullable": true
+        },
+        "provider": {
+          "name": "provider",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "version": {
+          "name": "version",
+          "nullable": false,
+          "data_type": "bigint"
+        },
+        "prompt": {
+          "name": "prompt",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "output_schema__score": {
+          "name": "output_schema__score",
+          "data_type": "text",
+          "nullable": true
+        },
+        "output_schema__reasoning": {
+          "name": "output_schema__reasoning",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        },
+        "partner": {
+          "name": "partner",
+          "nullable": true,
+          "data_type": "text"
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "eval_templates",
+      "resource": "eval_templates",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "comments": {
+      "columns": {
+        "data_field": {
+          "name": "data_field",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "object_type": {
+          "name": "object_type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "object_id": {
+          "name": "object_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "content": {
+          "name": "content",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "author_user_id": {
+          "name": "author_user_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "comments",
+      "resource": "comments",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "annotation_queues": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "description": {
+          "name": "description",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "annotation_queues",
+      "resource": "annotation_queues",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "annotation_queue_items": {
+      "columns": {
+        "locked_at": {
+          "name": "locked_at",
+          "nullable": true
+        },
+        "locked_by_user_id": {
+          "name": "locked_by_user_id",
+          "nullable": true
+        },
+        "annotator_user_id": {
+          "name": "annotator_user_id",
+          "nullable": true
+        },
+        "completed_at": {
+          "name": "completed_at",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "queue_id": {
+          "name": "queue_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "object_id": {
+          "name": "object_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "object_type": {
+          "name": "object_type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "status": {
+          "name": "status",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "annotation_queues",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "queue_id"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        },
+        {
+          "referenced_table": "users",
+          "referenced_columns": [
+            "id",
+            "id"
+          ],
+          "columns": [
+            "locked_by_user_id",
+            "annotator_user_id"
+          ]
+        }
+      ],
+      "name": "annotation_queue_items",
+      "resource": "annotation_queue_items",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "background_migrations": {
+      "columns": {
+        "failed_at": {
+          "name": "failed_at",
+          "nullable": true
+        },
+        "failed_reason": {
+          "name": "failed_reason",
+          "nullable": true
+        },
+        "locked_at": {
+          "name": "locked_at",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "script": {
+          "name": "script",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "finished_at": {
+          "name": "finished_at",
+          "nullable": true,
+          "data_type": "timestamp"
+        },
+        "worker_id": {
+          "name": "worker_id",
+          "nullable": true,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        },
+        "state__max_date": {
+          "name": "state__max_date",
+          "data_type": "timestamp",
+          "nullable": true
+        },
+        "state__offset": {
+          "name": "state__offset",
+          "data_type": "bigint",
+          "nullable": true
+        }
+      },
+      "write_disposition": "append",
+      "name": "background_migrations",
+      "resource": "background_migrations",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "prices": {
+      "columns": {
+        "project_id": {
+          "name": "project_id",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "model_id": {
+          "name": "model_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "usage_type": {
+          "name": "usage_type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "price": {
+          "name": "price",
+          "nullable": false,
+          "data_type": "decimal"
+        },
+        "pricing_tier_id": {
+          "name": "pricing_tier_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "pricing_tiers",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "pricing_tier_id"
+          ]
+        },
+        {
+          "referenced_table": "models",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "model_id"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "prices",
+      "resource": "prices",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "pricing_tiers": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "model_id": {
+          "name": "model_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "is_default": {
+          "name": "is_default",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "priority": {
+          "name": "priority",
+          "nullable": false,
+          "data_type": "bigint"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "models",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "model_id"
+          ]
+        }
+      ],
+      "name": "pricing_tiers",
+      "resource": "pricing_tiers",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dashboard_widgets": {
+      "columns": {
+        "created_by": {
+          "name": "created_by",
+          "nullable": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "nullable": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "description": {
+          "name": "description",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "view": {
+          "name": "view",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "chart_type": {
+          "name": "chart_type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "min_version": {
+          "name": "min_version",
+          "nullable": false,
+          "data_type": "bigint"
+        },
+        "chart_config__type": {
+          "name": "chart_config__type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        },
+        "chart_config__row_limit": {
+          "name": "chart_config__row_limit",
+          "data_type": "bigint",
+          "nullable": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "users",
+          "referenced_columns": [
+            "id",
+            "id"
+          ],
+          "columns": [
+            "updated_by",
+            "created_by"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "dashboard_widgets",
+      "resource": "dashboard_widgets",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dashboards": {
+      "columns": {
+        "created_by": {
+          "name": "created_by",
+          "nullable": true
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "nullable": true
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "name": {
+          "name": "name",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "description": {
+          "name": "description",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "users",
+          "referenced_columns": [
+            "id",
+            "id"
+          ],
+          "columns": [
+            "updated_by",
+            "created_by"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "dashboards",
+      "resource": "dashboards",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "annotation_queue_assignments": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "user_id": {
+          "name": "user_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "queue_id": {
+          "name": "queue_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "annotation_queues",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "queue_id"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        },
+        {
+          "referenced_table": "users",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "user_id"
+          ]
+        }
+      ],
+      "name": "annotation_queue_assignments",
+      "resource": "annotation_queue_assignments",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "notification_preferences": {
+      "columns": {
+        "id": {
+          "name": "id",
+          "nullable": false,
+          "primary_key": true,
+          "data_type": "text"
+        },
+        "user_id": {
+          "name": "user_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "project_id": {
+          "name": "project_id",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "channel": {
+          "name": "channel",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "type": {
+          "name": "type",
+          "nullable": false,
+          "data_type": "text"
+        },
+        "enabled": {
+          "name": "enabled",
+          "nullable": false,
+          "data_type": "bool"
+        },
+        "created_at": {
+          "name": "created_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "nullable": false,
+          "data_type": "timestamp"
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "references": [
+        {
+          "referenced_table": "users",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "user_id"
+          ]
+        },
+        {
+          "referenced_table": "projects",
+          "referenced_columns": [
+            "id"
+          ],
+          "columns": [
+            "project_id"
+          ]
+        }
+      ],
+      "name": "notification_preferences",
+      "resource": "notification_preferences",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "_dlt_pipeline_state": {
+      "columns": {
+        "version": {
+          "name": "version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "engine_version": {
+          "name": "engine_version",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "pipeline_name": {
+          "name": "pipeline_name",
+          "data_type": "text",
+          "nullable": false
+        },
+        "state": {
+          "name": "state",
+          "data_type": "text",
+          "nullable": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "data_type": "timestamp",
+          "nullable": false
+        },
+        "version_hash": {
+          "name": "version_hash",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_load_id": {
+          "name": "_dlt_load_id",
+          "data_type": "text",
+          "nullable": false,
+          "precision": 64
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "write_disposition": "append",
+      "file_format": "preferred",
+      "name": "_dlt_pipeline_state",
+      "resource": "_dlt_pipeline_state",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "eval_templates__vars": {
+      "name": "eval_templates__vars",
+      "columns": {
+        "value": {
+          "name": "value",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "eval_templates",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "score_configs__categories": {
+      "name": "score_configs__categories",
+      "columns": {
+        "label": {
+          "name": "label",
+          "data_type": "text",
+          "nullable": true
+        },
+        "value": {
+          "name": "value",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "score_configs",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dashboard_widgets__dimensions": {
+      "name": "dashboard_widgets__dimensions",
+      "columns": {
+        "field": {
+          "name": "field",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dashboard_widgets",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dashboard_widgets__metrics": {
+      "name": "dashboard_widgets__metrics",
+      "columns": {
+        "agg": {
+          "name": "agg",
+          "data_type": "text",
+          "nullable": true
+        },
+        "measure": {
+          "name": "measure",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dashboard_widgets",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "annotation_queues__score_config_ids": {
+      "name": "annotation_queues__score_config_ids",
+      "columns": {
+        "value": {
+          "name": "value",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "annotation_queues",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "pricing_tiers__conditions": {
+      "name": "pricing_tiers__conditions",
+      "columns": {
+        "value": {
+          "name": "value",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "operator": {
+          "name": "operator",
+          "data_type": "text",
+          "nullable": true
+        },
+        "case_sensitive": {
+          "name": "case_sensitive",
+          "data_type": "bool",
+          "nullable": true
+        },
+        "usage_detail_pattern": {
+          "name": "usage_detail_pattern",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "pricing_tiers",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items__expected_output": {
+      "name": "dataset_items__expected_output",
+      "columns": {
+        "role": {
+          "name": "role",
+          "data_type": "text",
+          "nullable": true
+        },
+        "finish_reason": {
+          "name": "finish_reason",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dataset_items",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items__expected_output__parts": {
+      "name": "dataset_items__expected_output__parts",
+      "columns": {
+        "id": {
+          "name": "id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "name": {
+          "name": "name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "type": {
+          "name": "type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "arguments": {
+          "name": "arguments",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dataset_items__expected_output",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items__input__tools": {
+      "name": "dataset_items__input__tools",
+      "columns": {
+        "name": {
+          "name": "name",
+          "data_type": "text",
+          "nullable": true
+        },
+        "type": {
+          "name": "type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "description": {
+          "name": "description",
+          "data_type": "text",
+          "nullable": true
+        },
+        "parameters__type": {
+          "name": "parameters__type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "parameters__additional_properties": {
+          "name": "parameters__additional_properties",
+          "data_type": "bool",
+          "nullable": true
+        },
+        "parameters__properties__square__type": {
+          "name": "parameters__properties__square__type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dataset_items",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items__input__tools__parameters__required": {
+      "name": "dataset_items__input__tools__parameters__required",
+      "columns": {
+        "value": {
+          "name": "value",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dataset_items__input__tools",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items__input__messages": {
+      "name": "dataset_items__input__messages",
+      "columns": {
+        "role": {
+          "name": "role",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dataset_items",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dataset_items__input__messages__parts": {
+      "name": "dataset_items__input__messages__parts",
+      "columns": {
+        "type": {
+          "name": "type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "content": {
+          "name": "content",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dataset_items__input__messages",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    },
+    "dashboards__definition__widgets": {
+      "name": "dashboards__definition__widgets",
+      "columns": {
+        "x": {
+          "name": "x",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "y": {
+          "name": "y",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "id": {
+          "name": "id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "type": {
+          "name": "type",
+          "data_type": "text",
+          "nullable": true
+        },
+        "x_size": {
+          "name": "x_size",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "y_size": {
+          "name": "y_size",
+          "data_type": "bigint",
+          "nullable": true
+        },
+        "widget_id": {
+          "name": "widget_id",
+          "data_type": "text",
+          "nullable": true
+        },
+        "_dlt_parent_id": {
+          "name": "_dlt_parent_id",
+          "data_type": "text",
+          "nullable": false,
+          "parent_key": true
+        },
+        "_dlt_list_idx": {
+          "name": "_dlt_list_idx",
+          "data_type": "bigint",
+          "nullable": false
+        },
+        "_dlt_id": {
+          "name": "_dlt_id",
+          "data_type": "text",
+          "nullable": false,
+          "unique": true,
+          "row_key": true
+        }
+      },
+      "parent": "dashboards",
+      "x-normalizer": {
+        "seen-data": true
+      }
+    }
+  },
+  "settings": {
+    "detections": [
+      "iso_timestamp"
+    ],
+    "default_hints": {
+      "not_null": [
+        "_dlt_id",
+        "_dlt_root_id",
+        "_dlt_parent_id",
+        "_dlt_list_idx",
+        "_dlt_load_id"
+      ],
+      "parent_key": [
+        "_dlt_parent_id"
+      ],
+      "root_key": [
+        "_dlt_root_id"
+      ],
+      "unique": [
+        "_dlt_id"
+      ],
+      "row_key": [
+        "_dlt_id"
+      ]
+    }
+  },
+  "normalizers": {
+    "names": "snake_case",
+    "json": {
+      "module": "dlt.common.normalizers.json.relational"
+    }
+  },
+  "previous_hashes": [
+    "O+Uv7haRNH57CDz3R7E+1fpNdo0XFvdE29DvGR+MYk8=",
+    "PcvbLe0gcasuC4sP3ccefMjBQ6M7teP95Doonb8hwzE="
+  ]
+}

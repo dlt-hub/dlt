@@ -14,5 +14,4 @@ def disable_debug() -> None:
 
 
 def is_debug_enabled() -> bool:
-    global _DEBUG_FLAG
     return _DEBUG_FLAG

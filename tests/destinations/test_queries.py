@@ -1,5 +1,4 @@
-from functools import partial
-from typing import cast
+from typing import Any, Iterator, List, Optional, cast
 
 import duckdb
 import pytest
@@ -10,8 +9,25 @@ from sqlglot.schema import MappingSchema as SQLGlotSchema
 import dlt
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.lineage import compute_columns_schema
-from dlt.destinations.queries import build_row_counts_expr, build_select_expr, bind_query
+from dlt.destinations.queries import (
+    build_row_counts_expr,
+    build_select_expr,
+    bind_query,
+    make_expand_table_name,
+)
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
+
+
+@pytest.fixture
+def duckdb_sql_client() -> Iterator[SqlClientBase[Any]]:
+    """In-memory duckdb sql client bound to `dataset_name`."""
+    con = duckdb.connect(":memory:")
+    destination_client = dlt.destinations.duckdb(con).client(
+        dlt.Schema("foobar"), DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
+    )
+    with destination_client.sql_client as sql_client:
+        yield sql_client
 
 
 def test_basic() -> None:
@@ -102,7 +118,7 @@ ORDER BY i.id ASC
     assert qualified_query == expected_qualified_query
 
 
-def test_normalize_query():
+def test_normalize_query(duckdb_sql_client: SqlClientBase[Any]) -> None:
     sqlglot_schema = SQLGlotSchema(
         {"dataset_name": {"items": {"id": str}, "double_items": {"double_id": str, "id": str}}}
     )
@@ -123,21 +139,35 @@ ORDER BY i.id ASC
         ' "i"."id" < 20 ORDER BY "i"."id" ASC'
     )
 
-    con = duckdb.connect(":memory:")
-    duckdb_dest = dlt.destinations.duckdb(con)
-    duckdb_destination_client = duckdb_dest.client(
-        dlt.Schema("foobar"), DuckDbClientConfiguration()._bind_dataset_name("dataset_name")
+    normalized_query_expr = bind_query(
+        qualified_query=cast(sge.Query, qualified_query_expr),
+        sqlglot_schema=sqlglot_schema,
+        expand_table_name=make_expand_table_name(duckdb_sql_client),
+        casefold_identifier=duckdb_sql_client.capabilities.casefold_identifier,
     )
 
-    with duckdb_destination_client.sql_client as sql_client:
-        normalized_query_expr = bind_query(
-            qualified_query=cast(sge.Query, qualified_query_expr),
-            sqlglot_schema=sqlglot_schema,
-            expand_table_name=partial(
-                sql_client.make_qualified_table_name_path, quote=False, casefold=False
-            ),
-            casefold_identifier=sql_client.capabilities.casefold_identifier,
-        )
-        normalized_query = normalized_query_expr.sql()
+    assert normalized_query_expr.sql() == expected_normalized_query
 
-    assert normalized_query == expected_normalized_query
+
+def test_expand_table_name_with_legacy_path_signature(
+    duckdb_sql_client: SqlClientBase[Any],
+) -> None:
+    """Sql clients overriding `make_qualified_table_name_path` without the `dataset_name`
+    parameter keep working for tables without a dataset qualifier."""
+
+    class _LegacyPathClient:
+        def make_qualified_table_name_path(
+            self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+        ) -> List[str]:
+            return duckdb_sql_client.make_qualified_table_name_path(
+                table_name, quote=quote, casefold=casefold
+            )
+
+    expand = make_expand_table_name(cast(SqlClientBase[Any], _LegacyPathClient()))
+
+    assert expand("items", None) == duckdb_sql_client.make_qualified_table_name_path(
+        "items", quote=False, casefold=False
+    )
+    # a dataset qualifier requires the `dataset_name` parameter on the override
+    with pytest.raises(TypeError, match="dataset_name"):
+        expand("items", "other_dataset")

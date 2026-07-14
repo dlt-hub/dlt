@@ -20,7 +20,6 @@ def example_schema(autouse_test_storage) -> Schema:
                 "name": {  #  type: ignore[typeddict-unknown-key]
                     "data_type": "text",
                     "name": "name",
-                    "x-annotation-pii": True,
                     "x-annotation-pii": True,  # not propagated
                 },
                 "email": {"data_type": "text", "name": "email", "nullable": True},
@@ -54,7 +53,7 @@ def test_various_queries(destination_config: DestinationTestConfiguration, examp
     destination = destination_config.destination_factory(dataset_name="d1")
     caps = destination.client(example_schema).sql_client.capabilities
     dialect = caps.sqlglot_dialect
-    sqlglot_schema = lineage.create_sqlglot_schema(example_schema, "d1", dialect)
+    sqlglot_schema = lineage.create_sqlglot_schema({"d1": [example_schema]}, dialect)
 
     # test star select
     sql_query = "SELECT * FROM customers"

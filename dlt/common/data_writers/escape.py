@@ -1,14 +1,16 @@
 import re
 import base64
 from typing import Any, Dict
-from datetime import date, datetime, time  # noqa: I251
+from datetime import date, datetime, time, timezone  # noqa: I251
 
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
 from dlt.common.time import reduce_pendulum_datetime_precision
 
 # use regex to escape characters in single pass
-SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
+# NUL (\x00) is stripped: postgres/redshift cannot store it in text and duckdb cannot parse it
+# inside an inline string literal (the query is a NUL-terminated string)
+SQL_ESCAPE_DICT = {"'": "''", "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\x00": ""}
 
 
 def _make_sql_escape_re(escape_dict: Dict[str, str]) -> re.Pattern:  # type: ignore[type-arg]
@@ -270,18 +272,23 @@ def escape_bigquery_literal(v: Any) -> Any:
 escape_bigquery_identifier = escape_hive_identifier
 
 
-def format_datetime_literal(v: pendulum.DateTime, precision: int = 6, no_tz: bool = False) -> str:
-    """Converts `v` to ISO string, optionally without timezone spec (in UTC) and with given `precision`"""
-    if no_tz:
-        v = v.in_timezone(tz="UTC").replace(tzinfo=None)
+def format_datetime_value(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
+    """ISO datetime string at given `precision`, optionally UTC-naive."""
+    if no_tz and v.tzinfo is not None:
+        v = v.astimezone(tz=timezone.utc).replace(tzinfo=None)
     v = reduce_pendulum_datetime_precision(v, precision)
-    # yet another precision translation
-    timespec: str = "microseconds"
-    if precision < 6:
-        timespec = "milliseconds"
-    elif precision < 3:
+    if precision < 3:
         timespec = "seconds"
-    return "'" + v.isoformat(sep=" ", timespec=timespec) + "'"
+    elif precision < 6:
+        timespec = "milliseconds"
+    else:
+        timespec = "microseconds"
+    return v.isoformat(sep=" ", timespec=timespec)
+
+
+def format_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
+    """Quoted SQL datetime literal."""
+    return "'" + format_datetime_value(v, precision, no_tz) + "'"
 
 
 def format_bigquery_datetime_literal(

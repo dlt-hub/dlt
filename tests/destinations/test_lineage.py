@@ -6,24 +6,27 @@ import pytest
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.schema import TTableSchemaColumns
 from dlt.dataset import lineage
 from dlt.dataset.exceptions import LineageFailedException
 
 
+DIALECT: TSqlGlotDialect = "duckdb"
+
+
 @pytest.fixture
 def sqlglot_schema() -> SQLGlotSchema:
-    dialect = "duckdb"
     return ensure_schema(
         {
             "db": {
                 "table_1": {
-                    "col_varchar": sge.DataType.build("VARCHAR", dialect=dialect),
-                    "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
+                    "col_varchar": sge.DataType.build("VARCHAR", dialect=DIALECT),
+                    "col_bool": sge.DataType.build("BOOLEAN", dialect=DIALECT),
                 },
                 "table_2": {
-                    "col_int": sge.DataType.build("BIGINT", dialect=dialect),
-                    "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
+                    "col_int": sge.DataType.build("BIGINT", dialect=DIALECT),
+                    "col_bool": sge.DataType.build("BOOLEAN", dialect=DIALECT),
                 },
             }
         }
@@ -64,6 +67,10 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
     JOIN table_unknown
     ON table_1.col_bool = table_unknown.col_unknown_2
     """
+# `table_1` qualified with the catalog/db prefix that the sqlglot schema is keyed under
+QUERY_DB_QUALIFIED_TABLE_STAR_SELECT = "SELECT * FROM db.table_1"
+# the same table qualified with a prefix that is NOT in the sqlglot schema
+QUERY_UNKNOWN_DB_QUALIFIED_TABLE_STAR_SELECT = "SELECT * FROM unknown_db.table_1"
 
 
 @pytest.mark.parametrize(
@@ -162,6 +169,28 @@ QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT = """\
                 "col_unknown_1": {"name": "col_unknown_1"},
             },
         ),
+        # table qualified with the known catalog/db prefix resolves exactly like the unqualified name
+        (
+            QUERY_DB_QUALIFIED_TABLE_STAR_SELECT,
+            {"allow_partial": False},
+            {
+                "col_varchar": {"name": "col_varchar", "data_type": "text"},
+                "col_bool": {"name": "col_bool", "data_type": "bool"},
+            },
+        ),
+        # same query qualified with an UNKNOWN prefix: the table no longer matches `db.table_1`, so
+        # the `*` cannot be resolved. with `allow_partial` we silently get an empty column schema
+        (
+            QUERY_UNKNOWN_DB_QUALIFIED_TABLE_STAR_SELECT,
+            {"allow_partial": True},
+            {},
+        ),
+        # ... and without it the unresolved `*` raises
+        (
+            QUERY_UNKNOWN_DB_QUALIFIED_TABLE_STAR_SELECT,
+            {"allow_partial": False},
+            LineageFailedException(),
+        ),
     ],
 )
 def test_compute_columns_schema(
@@ -175,7 +204,7 @@ def test_compute_columns_schema(
             lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,  # type: ignore[arg-type]
+                dialect=DIALECT,
                 **config,
             )
     else:
@@ -184,7 +213,7 @@ def test_compute_columns_schema(
             == lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,  # type: ignore[arg-type]
+                dialect=DIALECT,
                 **config,
             )[0]
         )

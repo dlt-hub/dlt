@@ -76,17 +76,17 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
                 bucket_uri = FilesystemConfiguration.make_file_url(bucket_uri)
             assert remote_url.startswith(bucket_uri)
             # staging copy jobs should have followup_jobs pointing to reference jobs
-            assert job_metrics.followup_jobs is not None
+            assert job_metrics.followup_jobs
             assert len(job_metrics.followup_jobs) >= 1
             for fup_id in job_metrics.followup_jobs:
                 assert fup_id in all_job_ids
         elif job_ext == "sql":
             # sql merge jobs are terminal — no further followups
-            assert job_metrics.followup_jobs is None
+            assert not job_metrics.followup_jobs
         elif job_ext == "reference":
             # COPY jobs in a merge chain point to the sql merge job (fan-in)
             # non-merge tables have no followups
-            if job_metrics.followup_jobs is not None:
+            if job_metrics.followup_jobs:
                 for fup_id in job_metrics.followup_jobs:
                     assert fup_id in all_job_ids
                     fup_ext, _ = get_file_format_and_compression(fup_id)
@@ -305,7 +305,6 @@ def test_all_data_types(destination_config: DestinationTestConfiguration) -> Non
     # apply the exact columns definitions so we process nested and wei types correctly!
     @dlt.resource(table_name="data_types", write_disposition="merge", columns=column_schemas)
     def my_resource():
-        nonlocal data_types
         yield [data_types] * 10
 
     @dlt.source(max_table_nesting=0)

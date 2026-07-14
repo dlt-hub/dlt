@@ -1,9 +1,9 @@
 [project]
 name = "dlt"
-version = "1.24.0"
+version = "1.29.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
-requires-python = ">=3.9.2, <3.15"
+requires-python = ">=3.10, <3.15"
 readme = "README.md"
 license = "Apache-2.0"
 maintainers = [
@@ -19,11 +19,11 @@ classifiers = [
     "License :: OSI Approved :: Apache Software License",
     "Topic :: Software Development :: Libraries",
     "Typing :: Typed",
-    "Programming Language :: Python :: 3.9",
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: MacOS :: MacOS X",
     "Operating System :: POSIX :: Linux",
     "Operating System :: Microsoft :: Windows",
@@ -51,8 +51,7 @@ dependencies = [
     "orjson>=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "orjson>=3.11.0 ; python_version > '3.13'",
     "tenacity>=8.0.2",
-    # 1.8.0 wraps Child/Descendants str() in parens, breaking resolve_paths round-trip in drop.py
-    "jsonpath-ng>=1.5.3,<1.8",
+    "jsonpath-ng>=1.8.0",
     "fsspec>=2022.4.0",
     "packaging>=21.1",
     "pluggy>=1.3.0",
@@ -64,8 +63,8 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.21.1,<0.25 ; python_version >= '3.10'",
-    "dlt-runtime>=0.21.2,<0.25 ; python_version >= '3.10'",
+    "dlthub>=0.29.0, <0.30",
+    "dlthub-client>=0.28.1",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -88,6 +87,9 @@ redshift = [
 ]
 parquet = [
     "pyarrow>=16.0.0",
+]
+polars = [
+    "polars>=1.0.0",
 ]
 duckdb = [
     "duckdb>=0.9"
@@ -115,12 +117,16 @@ hf = [
     "pyarrow>=21.0.0",  # minimum version that supports CDC (https://huggingface.co/blog/parquet-cdc)
 ]
 sftp = [
-    "paramiko>=3.3.0"
+    # paramiko 5.0.0 dropped GSSAPI support and broke SFTP filesystem (#3931). cap until upgrade evaluated.
+    "paramiko>=3.3.0,<5"
 ]
 http = [
     "aiohttp>3.9.0"
 ]
-snowflake = ["snowflake-connector-python>=3.5.0"]
+snowflake = [
+    "snowflake-connector-python>=3.5.0",
+    "snowflake-connector-python>=4.4.0 ; python_version >= '3.14'",
+]
 motherduck = [
     "duckdb>=0.9",
     "pyarrow>=16.0.0",
@@ -156,12 +162,14 @@ oracle = [
     "oracledb>=3.4.1"
 ]
 qdrant = [
-    "qdrant-client[fastembed]>=1.8"
+    "qdrant-client[fastembed]>=1.8 ; python_version <= '3.13'",
+    "qdrant-client>=1.8 ; python_version > '3.13'"
 ]
 databricks = [
     "databricks-sql-connector>=2.9.3 ; python_version <= '3.12'",
     "databricks-sql-connector>=3.6.0 ; python_version >= '3.13'",
     "databricks-sdk>=0.38.0",
+    "databricks-zerobus-ingest-sdk>=1.2.0 ; (platform_system == 'Linux' and (platform_machine == 'x86_64' or platform_machine == 'aarch64')) or (platform_system == 'Windows' and (platform_machine == 'AMD64' or platform_machine == 'x86_64'))",
 ]
 clickhouse = [
    "clickhouse-driver>=0.2.7",
@@ -179,7 +187,14 @@ lancedb = [
     "pyarrow>=16.0.0",
     "duckdb>=1.4.3",
     # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
-    "ibis-framework>=12.0.0 ; python_version >= '3.10'"
+    "ibis-framework>=12.0.0"
+]
+lance = [
+    "pylance>=6.0.1,<8",
+    "lancedb>=0.33.0",
+    "pyarrow>=16.0.0",
+    "duckdb>=1.4.3",
+    "ibis-framework>=12.0.0"
 ]
 deltalake = [
     "deltalake>=0.25.1",
@@ -199,16 +214,7 @@ pyiceberg = [
 postgis = [
     "psycopg2-binary>=2.9.1"
 ]
-workspace = [
-    "duckdb>=0.9",
-    "ibis-framework>=12.0.0 ; python_version >= '3.10'",
-    "pyarrow>=16.0.0",
-    "marimo>=0.14.5",
-    "fastmcp>=3.0.0 ; python_version >= '3.10'",
-    "mowidgets>=0.2.1 ; python_version >= '3.11'",
-    "pathspec>=0.11.2",
-    "pydbml>=1.2.0",
-]
+
 dbml = [
     "pydbml"
 ]
@@ -219,6 +225,7 @@ Repository = "https://github.com/dlt-hub/dlt"
 
 [project.scripts]
 dlt = "dlt._workspace.cli._dlt:_main"
+dlthub = "dlt._workspace.cli._dlt:_main_dlthub"
 
 [dependency-groups]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
@@ -232,13 +239,14 @@ dev = [
     "pytest-console-scripts>=1.4.1,<2",
     "pytest>=7.4.4,<8",
     "pytest-xdist>=3.5,<4",
+    "pytest-rerunfailures>=14,<16",
     "pytest-timeout>=2.3.1,<3",
     "mypy>=1.11.0",
     "flake8>=7.0.0,<8",
     "bandit>=1.7.0,<2",
     "black[jupyter]>=23.7.0,<24",
     "isort>=5.12.0,<6",
-    "flake8-bugbear>=22.0.0,<23",
+    "flake8-bugbear>=25.0.0",
     "pytest-order>=1.0.0",
     "pytest-cases>=3.8.6",
     "pytest-forked>=1.3.0",
@@ -258,6 +266,7 @@ dev = [
     "pytest-asyncio>=0.23.5,<0.24",
     "types-sqlalchemy>=1.4.53.38,<2",
     "types-pytz>=2024.1.0.20240203",
+    "types-croniter>=6.0.0",
     "ruff>=0.3.2,<0.4",
     "pyjwt>=2.8.0,<3",
     "pytest-mock>=3.14.0,<4",
@@ -272,8 +281,7 @@ dev = [
 
 # NOTE: those dependencies are used to test built in sources
 sources = [
-    "connectorx>=0.4.2 ; python_version >= '3.10'",
-    "connectorx<0.4.2 ; python_version < '3.10'",
+    "connectorx>=0.4.2",
     "pymysql>=1.1.0,<2",
     "openpyxl>=3,<4",
     "mimesis>=7.0.0,<8",
@@ -283,10 +291,11 @@ sources = [
 # NOTE: those dependencies are used to test pipelines, do not include what is in extras for destinations
 pipeline = [
     "cffi>=1.16",
+    "cffi>=1.18 ; python_version >= '3.14'",
     "greenlet>=3.1",
     "regex>=2024.10",
     "sqlalchemy<2",
-    "cryptography>=41.0.7,<42",
+    "cryptography>=41.0.7",
     "shapely>=2.0.6",
     "tqdm>=4.65.0,<5",
     "enlighten>=1.11.2,<2",
@@ -294,16 +303,16 @@ pipeline = [
     "pydantic>=2.10",
     "pyarrow>=16.0.0",
     # this pandas and above has functional numpy dependency
-    "pandas>=2.1.4",
+    "pandas>=2.3.0,<3",
     "datasets>=4.5.0",
     "mmh3>5.0.0",
 ]
 airflow = ["apache-airflow>=2.8.0,<3 ; python_version < '3.13'"]
 ibis = [
-    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version >= '3.10' and python_version < '3.13'",
+    "ibis-framework[duckdb, postgres, bigquery, snowflake, mssql, clickhouse, databricks]>=12.0.0 ; python_version < '3.13'",
     "ibis-framework[duckdb, postgres, bigquery, snowflake, clickhouse, databricks]>=12.0.0 ; python_version >= '3.13'"
 ]
-ibis-bare = ["ibis-framework>=12.0.0 ; python_version >= '3.10'"]
+ibis-bare = ["ibis-framework>=12.0.0"]
 dashboard-tests = [
     "playwright>=1.58.0,<2",
     "pytest-playwright>=0.7.1,<1",
@@ -311,19 +320,33 @@ dashboard-tests = [
 # NOTE: required to use google secrets config provider
 providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
+streamlit = ["streamlit>1.50"]
 dbt = [
     "dbt-core>=1.7.0",
-    "dbt-redshift>=1.7.0",
+    "dbt-redshift>=1.7.0; python_version < '3.14'",
     "dbt-bigquery>=1.7.0",
     "dbt-duckdb>=1.7.0",
     "dbt-snowflake>=1.7.0",
-    "dbt-athena-community>=1.7.0",
+    "dbt-athena-community>=1.7.0; python_version < '3.14'",
     "dbt-sqlserver>=1.7.0 ; python_version < '3.13'",
     "dbt-fabric>=1.7.0 ; python_version < '3.13'",
 ]
 adbc = [
     "dbc>=0.1.0",
     "adbc-driver-manager>=1.8.0",
+]
+
+workspace-deps = [
+    "duckdb>=0.9",
+    "ibis-framework>=12.0.0",
+    "pyarrow>=16.0.0",
+    "marimo>=0.14.5",
+    "fastmcp>=3.0.0",
+    "mowidgets>=0.2.1 ; python_version >= '3.11'",
+    "pathspec>=0.11.2",
+    "pydbml>=1.2.0",
+    "croniter>=6.0.0",
+    "s3fs>=2022.4.0",
 ]
 
 [project.entry-points.dlt]
@@ -336,7 +359,8 @@ override-dependencies = ["docstring-parser ; sys_platform == 'never'"]
 
 [tool.uv.sources]
 flake8-encodings = { git = "https://github.com/dlt-hub/flake8-encodings.git", branch = "disable_jedi_support" }
-# dlthub = { path = "../dlt-plus/packages/dlthub", editable = true }
+# dlthub = { path = "../../../dlt-plus/packages/dlthub", editable = true }
+# dlthub-client = { path = "../../../runtime/cli", editable = true }
 
 [tool.hatch.build.targets.sdist]
 packages = ["dlt"]
@@ -360,7 +384,7 @@ build-backend = "hatchling.build"
 
 [tool.ruff]
 line-length = 100
-target-version = "py39"
+target-version = "py310"
 src = ["dlt"]
 include = [
     "dlt/**/*.py",
@@ -409,6 +433,107 @@ line_length = 100
 profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
+
+[tool.mypy]
+python_version = "3.10"
+ignore_missing_imports = false
+strict_optional = false
+warn_redundant_casts = true
+disallow_any_generics = true
+disallow_untyped_defs = true
+check_untyped_defs = true
+warn_return_any = true
+namespace_packages = true
+warn_unused_ignores = true
+show_error_codes = true
+exclude = [
+    "docs/examples/archive/",
+    "tests/reflection/module_cases/",
+    "tests/common/reflection/cases/modules/",
+    "dlt/helpers/marimo/_",
+    "tests/workspace/deployment/cases/local_workspace/*",
+    "tests/workspace/cases/workspaces/launcher_flat/*",
+    "tests/workspace/cases/workspaces/launcher_package/*",
+]
+
+[[tool.mypy.overrides]]
+module = ["tests.*"]
+disallow_untyped_defs = false
+warn_return_any = false
+
+[[tool.mypy.overrides]]
+module = ["examples.*", "docs.*", "snippets.*", "dlt._workspace._templates._single_file_templates.*"]
+disallow_untyped_defs = false
+
+[[tool.mypy.overrides]]
+module = [
+    "jsonpath_ng.*",
+    "google.oauth2.*",
+    "google.auth.*",
+    "fsspec.*",
+    "json_logging.*",
+    "enlighten.*",
+    "alive_progress.*",
+    "googleapiclient.*",
+    "pyarrow.*",
+    "giturlparse.*",
+    "requests_oauthlib.*",
+    "google_auth_oauthlib.*",
+    "streamlit.*",
+    "marimo.*",
+    "mowidgets.*",
+    "logbook.*",
+    # TODO: Stubs are included but seem to not be installed correctly with pyodbc 4.x.x
+    # Might be fixed in pyodbc 5
+    "pyodbc.*",
+    "prometheus_client.*",
+    "weaviate.*",
+    "psycopg2cffi.*",
+    "cron_descriptor.*",
+    "altair.*",
+    "pandas.*",
+    "numpy.*",
+    "apiclient.*",
+    "sources.*",
+    "utils.*",
+    "connectorx",
+    "s3fs.*",
+    "win_precise_time",
+    "google.*",
+    "openai.*",
+    "dotenv.*",
+    "pytz.*",
+    "sentry_sdk.*",
+    "tornado.*",
+    "adlfs.*",
+    "snowflake.*",
+    "pendulum.*",
+    "time_machine.*",
+    "pyiceberg.*",
+    "airflow.*",
+    "dlthub.*",
+    "ibis.*",
+    "adbc_driver_postgresql.*",
+    "adbc_driver_manager.*",
+    "playwright.*",
+    "lancedb.*",
+    "zerobus.*",
+    # TODO: py.typed dropped in 1.x, restoration tracked in https://github.com/ClickHouse/clickhouse-connect/issues/692
+    "clickhouse_connect.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "databricks.*",
+    "mcp.*",
+    "pymongo.*",
+    "fastmcp.*",
+    "dbt.*",
+    "streamlit.*",
+]
+follow_imports = "skip"
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 pythonpath = ["dlt"]

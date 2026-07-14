@@ -6,15 +6,21 @@ help: ## Shows this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Prepares development environment for docs tooling
-	uv sync 
+	uv sync
 
-lint: lint-core lint-embedded-snippets lint-notebooks ## Runs all linters
+lint: lint-core lint-embedded-snippets lint-notebooks lint-website check-orphan-docs ## Runs all linters
+
+lint-website: ## Lints the docusaurus website JS/TS sources with Biome
+	cd website && npm run lint
+
+check-orphan-docs: ## Checks that all docs pages are reachable from website sidebars or marked unlisted
+	cd website && npm run check-orphan-docs
 
 # Generated example test files (docs/examples/**/test_*.py) are gitignored and
 # created by prepare-examples-tests, so exclude them from mypy
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy --config-file ../mypy.ini docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
+	uv run mypy --config-file ../pyproject.toml docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
 	uv run flake8 --max-line-length=200 docs_tools examples website/docs --exclude docs_tools/snippets/lint_setup
 	uv run black docs_tools website examples --check --diff --color
 
@@ -23,7 +29,7 @@ lint-embedded-snippets: ## Lints all embedded snippets in the docs
 
 lint-notebooks: ## Lints the notebooks in the education folder
 	uv run nbqa flake8 education --extend-ignore=D,F704 --max-line-length=200
-	uv run nbqa mypy  education \
+	uv run nbqa mypy education \
 	--ignore-missing-imports \
 	--no-strict-optional \
 	--disable-error-code=no-redef \
@@ -38,7 +44,7 @@ test-snippets: ## Tests the snippets in the snippets folder
 
 format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black docs_tools website examples
-	uv run black education/*/*.ipynb --ipynb 
+	uv run black education/*/*.ipynb --ipynb
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
 	cd docs_tools/api_docs && uv run pydoc-markdown
@@ -61,4 +67,4 @@ build-molabs: ## Format the notebooks files first and build Molabs
 	uv run marimo check education/*/*.py --fix --quiet
 
 validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
-	git diff --quiet --exit-code -- education/
+	git diff --exit-code -- education/

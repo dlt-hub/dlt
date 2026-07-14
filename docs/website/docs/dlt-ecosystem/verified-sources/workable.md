@@ -84,8 +84,6 @@ To get started with your data pipeline, follow these steps:
 1. After running this command, a new directory will be created with the necessary files and
    configuration settings to get started.
 
-For more information, read the guide on [how to add a verified source.](../../walkthroughs/add-a-verified-source).
-
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
@@ -268,4 +266,3 @@ To create your data pipeline using single loading and [incremental data loading]
 1. To use incremental loading for the candidates endpoint, maintain the same pipeline and destination dataset names. The pipeline name helps retrieve the [state](../../general-usage/state) of the last run, essential for incremental data loading. Changing these names might trigger a [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting metadata tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA workable-->
-

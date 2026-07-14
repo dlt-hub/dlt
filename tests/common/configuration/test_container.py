@@ -15,6 +15,7 @@ from dlt.common.configuration.exceptions import (
 )
 
 from tests.common.configuration.utils import environment
+from tests.utils import preserve_container
 
 
 @configspec
@@ -83,14 +84,10 @@ class EmbeddedWithNoDefaultInjectableOptionalContext(BaseConfiguration):
 
 @pytest.fixture()
 def container() -> Iterator[Container]:
-    container = Container._INSTANCE
-    # erase singleton
-    Container._INSTANCE = None
-    try:
+    with preserve_container():
+        # erase singleton so the test gets a fresh container
+        Container._INSTANCE = None
         yield Container()
-    finally:
-        # restore the old container
-        Container._INSTANCE = container
 
 
 def test_singleton(container: Container) -> None:

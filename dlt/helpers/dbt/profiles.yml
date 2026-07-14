@@ -1,7 +1,3 @@
-config:
-  # do not track usage, do not create .user.yml
-  send_anonymous_usage_stats: False
-
 redshift:
   target: analytics
   outputs:

@@ -1,6 +1,8 @@
 # flake8: noqa
 import dlt
 import pytest
+from pathlib import Path
+from typing import Any, Generator
 
 from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
     fruitshop as fruitshop_source,
@@ -200,6 +202,106 @@ def aggregate_snippet(default_dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_END aggregate
 
 
+def join_related_tables_snippet(tmp_path: Path) -> None:
+    @dlt.resource(primary_key="id")
+    def users() -> Generator[list[dict[str, Any]], None, None]:
+        yield [
+            {
+                "id": 1,
+                "name": "Alice",
+                "orders": [
+                    {"order_id": 101, "total": 42},
+                    {"order_id": 102, "total": 14},
+                ],
+            },
+            {"id": 2, "name": "Bob", "orders": [{"order_id": 103, "total": 20}]},
+        ]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="dataset_join_snippet",
+        destination=dlt.destinations.duckdb(
+            str(tmp_path / "dataset_join_snippet.duckdb")
+        ),
+        dataset_name="dataset_join_snippet_data",
+    )
+    pipeline.run(users())
+    dataset = pipeline.dataset()
+
+    # @@@DLT_SNIPPET_START join_related_tables
+    users_with_orders = dataset["users"].join(
+        "users__orders", alias="orders", kind="left"
+    )
+    df = users_with_orders.select("name", "orders__order_id", "orders__total").df()
+    # @@@DLT_SNIPPET_END join_related_tables
+
+
+def join_explicit_on_snippet(dataset: dlt.Dataset) -> None:
+    # @@@DLT_SNIPPET_START join_explicit_on
+    # `customers` and `purchases` are two top-level tables connected
+    # by `purchases.customer_id` and `customers.id`. There is no schema
+    # reference between them, so we provide the join condition ourselves.
+    customers_with_purchases = dataset["customers"].join(
+        "purchases",
+        on="customers.id = purchases.customer_id",
+        kind="left",
+    )
+
+    # the right-hand side can also be a transformed relation; its filters
+    # are preserved when it is embedded as a subquery.
+    big_purchases = dataset["purchases"].where("quantity", "gt", 3)
+    customers_with_big_purchases = dataset["customers"].join(
+        big_purchases,
+        on="customers.id = purchases.customer_id",
+        alias="big",
+    )
+
+    df = customers_with_big_purchases.select("name", "big__id", "big__quantity").df()
+    # @@@DLT_SNIPPET_END join_explicit_on
+
+
+def join_cross_dataset_snippet(tmp_path: Path) -> None:
+    # @@@DLT_SNIPPET_START join_cross_dataset
+    # two pipelines that write to the same DuckDB file under different
+    # dataset names — both datasets share one physical destination.
+    db_path = str(tmp_path / "shop.duckdb")
+
+    crm_pipeline = dlt.pipeline(
+        pipeline_name="crm",
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="crm_data",
+    )
+    crm_pipeline.run(
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}],
+        table_name="users",
+    )
+
+    sales_pipeline = dlt.pipeline(
+        pipeline_name="sales",
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="sales_data",
+    )
+    sales_pipeline.run(
+        [
+            {"id": 10, "user_id": 1, "sku": "W-001", "quantity": 2},
+            {"id": 11, "user_id": 1, "sku": "G-001", "quantity": 1},
+            {"id": 12, "user_id": 2, "sku": "W-001", "quantity": 1},
+        ],
+        table_name="purchases",
+    )
+
+    crm = crm_pipeline.dataset()
+    sales = sales_pipeline.dataset()
+
+    # pass the right-hand side as a Relation from the other dataset;
+    # `on` is required for cross-dataset joins.
+    users_with_purchases = crm["users"].join(
+        sales["purchases"],
+        on="users.id = purchases.user_id",
+    )
+    df = users_with_purchases.df()
+    # @@@DLT_SNIPPET_END join_cross_dataset
+
+
 def chain_operations_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.table("customers")
 
@@ -315,9 +417,9 @@ def custom_sql_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START custom_sql
     # Join 'customers' and 'purchases' tables and filter by quantity
     query = """
-    SELECT *  
-        FROM customers 
-    JOIN purchases 
+    SELECT *
+        FROM customers
+    JOIN purchases
         ON customers.id = purchases.customer_id
     WHERE purchases.quantity > 1
     """

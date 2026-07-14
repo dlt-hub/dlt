@@ -5,6 +5,7 @@ from typing import Any, Dict, Iterator
 import pytest
 import pandas as pd
 import pyarrow
+import pyarrow.parquet
 from fsspec import AbstractFileSystem
 
 from dlt.common import pendulum, json
@@ -36,8 +37,8 @@ def _create_parquet_file(data: list[dict[str, Any]], tmp_path: pathlib.Path) -> 
     file_name = "data.parquet"
     full_file_path = tmp_path / file_name
 
-    df = pd.DataFrame(data)
-    df.to_parquet(full_file_path, engine="pyarrow")
+    table = pyarrow.Table.from_pylist(data)
+    pyarrow.parquet.write_table(table, full_file_path)
 
     file_item = FileItem(
         file_name=file_name,

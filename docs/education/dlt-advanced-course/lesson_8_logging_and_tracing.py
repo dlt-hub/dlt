@@ -398,7 +398,7 @@ def _(Union, logging):
                 ).name  # decorator provided by loguru that catches any exceptions in the decorated function and logs them
             except ValueError:
                 level = record.levelno
-            (frame, depth) = (
+            frame, depth = (
                 sys._getframe(6),
                 6,
             )  # Get corresponding Loguru level if it exists.

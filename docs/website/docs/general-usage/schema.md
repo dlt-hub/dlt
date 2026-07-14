@@ -200,6 +200,12 @@ On the other hand, if the `id` field was already a string, then introducing new 
 
 Now go ahead and try to add a new record where `id` is a float number; you should see a new field `id__v_double` in the schema.
 
+#### Float to decimal coercion
+
+When coercing a Python `float` (IEEE 754 double-precision binary) to `decimal` or `wei`, `dlt` converts via `str()` first to avoid binary expansion artifacts. For example, `34.7` as a float would expand to `34.700000000000002842...` if passed directly to `Decimal()`, so `dlt` uses `Decimal(str(34.7))` which preserves `34.7`.
+
+This follows user intent when a decimal type is explicitly chosen over float, but it is **not mathematically precise** — the `str()` conversion finds the first stable decimal representation and discards the unstable binary tail. If your decimals represent currency or require exact precision, avoid storing them as floats in the source data. Use `Decimal('34.70')` or strings instead.
+
 #### No-coercion normalizer
 
 If you use `relational_no_coercion` (see [Data normalizer](#data-normalizer)), **every** type mismatch produces a variant column. No cross-type conversion is attempted. For example, sending `"200"` to a `bigint` column creates `col__v_text` instead of parsing it as an integer. This gives you stricter schema control: the original values are always preserved exactly as received, and mismatches are immediately visible as separate columns.
@@ -287,7 +293,7 @@ Unlike column-level hints, direct key hints provided through `apply_hints` are t
 
 ### Handling of timestamp and time zones
 By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set 
-explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas) and Python objects:
+explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas/polars) and Python objects:
 
 | input timestamp | `timezone` hint | normalized timestamp  |
 | --------------- | --------------- | --------------------- |
@@ -317,8 +323,8 @@ The precision for **bigint** is mapped to available integer types, i.e., TINYINT
 
 Selected destinations honor precision hint on **timestamp**. Precision is a numeric value in range of 0 (seconds) to 9 (nanoseconds) and sets the fractional
 number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow setting precision. Additionally, `duckdb` and `filesystem` (via parquet) allow for nanosecond precision if:
-* you configure [parquet version](../dlt-ecosystem/file-formats/parquet.md#writer-settings) to **2.6**
-* you yield tabular data (arrow tables/pandas). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
+* you configure [parquet version](../dlt-ecosystem/file-formats.md#writer-settings) to **2.6**
+* you yield tabular data (arrow tables/pandas/polars). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
 ### Handling nulls
 In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:

@@ -7,3 +7,10 @@
 # dlt repo
 - we use `uv` and `uv run`. look in @Makefile
 - we branch from `devel` for feature branches
+
+# Commit messages (all agents)
+- [Conventional Commits](https://www.conventionalcommits.org/): `type:` or `type(scope):`, lowercase imperative subject, no trailing period.
+- Subject line only for the vast majority of commits; add a body line only for a non-obvious *why* (max ~3 lines total).
+- No footers — no `Co-Authored-By`, no "Generated with ...". No emojis.
+- When squash-merging, clean the squash message down to a single subject line.
+- Full rules (enforced per-agent via git/gh hooks under `.claude/`, `.cursor/`, `.codex/`): @.agents/rules/git-github.md

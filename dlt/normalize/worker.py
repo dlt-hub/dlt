@@ -186,7 +186,7 @@ def w_normalize_files(
             logger.info(
                 f"Created items normalizer {cls.__name__} with writer"
                 f" {item_storage.writer_cls.__name__} for item format {item_format} and file"
-                f" format {item_storage.writer_spec.file_format}"
+                f" format {item_storage.writer_spec.file_format} on table {table_name}"
             )
 
             norm = item_normalizers[normalizer_key] = cls(

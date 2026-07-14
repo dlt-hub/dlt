@@ -3,7 +3,6 @@ import base64
 import hashlib
 import warnings
 import yaml
-from argparse import Namespace
 from copy import deepcopy, copy
 from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
 
@@ -1211,13 +1210,31 @@ def get_all_parent_child_references_from_root(
     return children_refs
 
 
+def get_all_parent_references_to_root(
+    tables: TSchemaTables, table_name: str
+) -> list[TTableReference]:
+    """Start from table {table_name} and iterate over ancestry to root table.
+
+    Returns an ordered list of parent-child references from current {table_name}
+    to root, excluding the current {table_name}
+    """
+    if table_name not in tables:
+        raise ValueError(f"Table `{table_name}` not found in tables: `{list(tables.keys())}`")
+    # this is a root table already
+    if not is_nested_table(tables[table_name]):
+        return []
+
+    parents = []
+    while parent := tables[table_name].get("parent"):
+        parents.append(create_parent_child_reference(tables, table_name))
+        table_name = parent
+    return parents
+
+
 def create_load_table_reference(
-    table: TTableSchema, *, naming: NamingConvention = None
+    table: TTableSchema, *, naming: NamingConvention
 ) -> TTableReference:
     """Create a Reference between `{table}._dlt_load_id` and `_dlt_loads.load_id`"""
-    # TODO temporary solution; refactor caller to always explicitly pass `naming`
-    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
-
     load_id_column = naming.normalize_identifier(C_DLT_LOAD_ID)
     if table["columns"].get(load_id_column) is None:
         raise ValueError(
@@ -1229,24 +1246,21 @@ def create_load_table_reference(
         cardinality="many_to_one",
         table=table["name"],
         columns=[load_id_column],
-        referenced_table=naming.normalize_identifier(LOADS_TABLE_NAME),
+        referenced_table=naming.normalize_table_identifier(LOADS_TABLE_NAME),
         referenced_columns=[naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID)],
     )
 
 
 def create_version_and_loads_hash_reference(
-    tables: TSchemaTables, *, naming: NamingConvention = None
+    tables: TSchemaTables, *, naming: NamingConvention
 ) -> TTableReference:
-    # TODO temporary solution; refactor caller to always explicitly pass `naming`
-    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
-
-    version_table_name = naming.normalize_identifier(VERSION_TABLE_NAME)
+    version_table_name = naming.normalize_table_identifier(VERSION_TABLE_NAME)
     if version_table_name not in tables:
         raise ValueError(
             f"Table `{version_table_name}` not found in tables: `{list(tables.keys())}`"
         )
 
-    load_table_name = naming.normalize_identifier(LOADS_TABLE_NAME)
+    load_table_name = naming.normalize_table_identifier(LOADS_TABLE_NAME)
     if load_table_name not in tables:
         raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
 
@@ -1261,18 +1275,15 @@ def create_version_and_loads_hash_reference(
 
 
 def create_version_and_loads_schema_name_reference(
-    tables: TSchemaTables, *, naming: NamingConvention = None
+    tables: TSchemaTables, *, naming: NamingConvention
 ) -> TTableReference:
-    # TODO temporary solution; refactor caller to always explicitly pass `naming`
-    naming = naming if naming else Namespace(normalize_identifier=lambda x: x)  # type: ignore[assignment]
-
-    version_table_name = naming.normalize_identifier(VERSION_TABLE_NAME)
+    version_table_name = naming.normalize_table_identifier(VERSION_TABLE_NAME)
     if version_table_name not in tables:
         raise ValueError(
             f"Table `{version_table_name}` not found in tables: `{list(tables.keys())}`"
         )
 
-    load_table_name = naming.normalize_identifier(LOADS_TABLE_NAME)
+    load_table_name = naming.normalize_table_identifier(LOADS_TABLE_NAME)
     if load_table_name not in tables:
         raise ValueError(f"Table `{load_table_name}` not found in tables: `{list(tables.keys())}`")
 

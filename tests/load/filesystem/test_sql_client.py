@@ -24,7 +24,9 @@ from tests.load.utils import (
 from dlt.destinations import filesystem
 from tests.utils import get_test_storage_root
 from tests.cases import arrow_table_all_data_types
-from dlt.destinations.exceptions import DatabaseUndefinedRelation
+import duckdb
+
+from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseUndefinedRelation
 
 
 @pytest.fixture(scope="function", autouse=True)
@@ -198,10 +200,10 @@ def _run_dataset_checks(
         loader_file_format=destination_config.file_format,
     )
     # and recreate views because autorefresh is not enabled by default
+    fs_sql_client.remote_client.config.always_refresh_views = True
     with fs_sql_client as sql_client:
-        sql_client.create_view(
-            "arrow_all_types", pipeline.default_schema.get_table("arrow_all_types")  # type: ignore
-        )
+        sql_client.create_views_for_tables({"arrow_all_types": "arrow_all_types"})
+    fs_sql_client.remote_client.config.always_refresh_views = False
 
     # duckdb changed the return type of `.arrow()` from pyarrow.Table to pyarrow.RecordBatchReader
     # between 1.3.2 and 1.4.3. We need to catch this explicitly
@@ -456,3 +458,110 @@ def test_evolving_filesystem(
     # check df and arrow access
     assert len(pipeline.dataset().items.df().index) == 50
     assert pipeline.dataset().items.arrow().num_rows == 50
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_auto_views_not_created_for_other_dataset_qualified_table(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """The scanner only creates views for tables that belong to its own dataset. A query that
+    references a same-named table qualified with a different schema (i.e. another dataset) must read
+    that table directly and must NOT trigger creation of a scanner view for the dataset's table."""
+    if destination_config.file_format not in ["parquet", "jsonl"]:
+        pytest.skip(
+            f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
+        )
+
+    pipeline = destination_config.setup_pipeline(
+        "read_pipeline",
+        dataset_name="test_other_dataset_no_view",
+        dev_mode=True,
+    )
+
+    # the dataset has its own `items` table - a view would be created for it on a matching query
+    @dlt.resource(name="items")
+    def items():
+        yield [{"id": 1, "value": "hello"}]
+
+    pipeline.run(items(), **destination_config.run_kwargs)
+
+    dataset = pipeline.dataset()
+    with dataset:
+        conn: duckdb.DuckDBPyConnection = dataset.sql_client.native_connection
+        # a real table named `items` living in another schema, i.e. a different dataset
+        conn.execute("CREATE SCHEMA manual_schema")
+        conn.execute("CREATE TABLE manual_schema.items(id INTEGER)")
+        conn.execute("INSERT INTO manual_schema.items VALUES (42)")
+
+        # querying the table qualified with the other schema reads it directly
+        rows = dataset.query(
+            "SELECT * FROM manual_schema.items ORDER BY id", _execute_raw_query=True
+        ).fetchall()
+        assert rows == [(42,)]
+
+        # the scanner must not have created a view for `items`: the reference was qualified with a
+        # schema that is not the dataset name, so the dataset's own `items` table is left untouched
+        views = conn.execute("SELECT view_name FROM duckdb_views()").fetchall()
+        assert "items" not in [v[0] for v in views]
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_pipeline_sql_client_exposes_all_pipeline_schemas(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """`pipeline.sql_client()` must register every pipeline schema so the scanner creates views for
+    tables that live in a non-default schema of the same dataset."""
+    if destination_config.file_format not in ["parquet", "jsonl"]:
+        pytest.skip(
+            f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
+        )
+
+    pipeline = destination_config.setup_pipeline(
+        "multi_schema_pipeline",
+        dataset_name="test_multi_schema_sql_client",
+        dev_mode=True,
+    )
+
+    @dlt.source(name="schema_a")
+    def source_a():
+        @dlt.resource(name="items_a")
+        def items_a():
+            yield [{"id": i} for i in range(3)]
+
+        return items_a
+
+    @dlt.source(name="schema_b")
+    def source_b():
+        @dlt.resource(name="items_b")
+        def items_b():
+            yield [{"id": i} for i in range(5)]
+
+        return items_b
+
+    # both sources land in the same dataset under different schemas
+    pipeline.run(source_a(), **destination_config.run_kwargs)
+    pipeline.run(source_b(), **destination_config.run_kwargs)
+    assert {"schema_a", "schema_b"}.issubset(set(pipeline.schema_names))
+
+    # the default-schema client must resolve tables from every schema of the dataset
+    with pipeline.sql_client() as c:
+        for table_name, expected in [("items_a", 3), ("items_b", 5)]:
+            qualified = c.make_qualified_table_name(table_name)
+            with c.execute_query(f"SELECT COUNT(*) FROM {qualified}") as cursor:
+                assert cursor.fetchone()[0] == expected
+
+    # an explicit schema_name keeps its own default while still exposing the other schema's views
+    with pipeline.sql_client(schema_name="schema_b") as c:
+        qualified = c.make_qualified_table_name("items_a")
+        with c.execute_query(f"SELECT COUNT(*) FROM {qualified}") as cursor:
+            assert cursor.fetchone()[0] == 3

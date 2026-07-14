@@ -98,7 +98,13 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     ]
 
     def fingerprint(self) -> str:
-        """Returns a fingerprint of the host part of a connection string."""
+        """Returns a fingerprint of the configured host."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
+        return ""
+
+    def physical_location(self) -> str:
+        """Returns host:port."""
+        if self.credentials and self.credentials.host:
+            return f"{self.credentials.host}:{self.credentials.port}"
         return ""

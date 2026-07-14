@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Sequence, Type, Union, TYPE_CHECKING
 
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -10,16 +10,22 @@ from dlt.destinations.impl.lancedb.configuration import (
     TEmbeddingProvider,
 )
 
-LanceDBTypeMapper: Type[DataTypeMapper]
-try:
-    # lancedb type mapper cannot be used without pyarrow installed
-    from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
-except MissingDependencyException:
-    # assign mock type mapper if no arrow
-    from dlt.common.destination.capabilities import UnsupportedTypeMapper as LanceDBTypeMapper
+
+def _get_type_mapper() -> Type[DataTypeMapper]:
+    # lancedb type mapper cannot be used without pyarrow installed; load on demand
+    try:
+        from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
+
+        return LanceDBTypeMapper
+    except MissingDependencyException:
+        from dlt.common.destination.capabilities import UnsupportedTypeMapper
+
+        return UnsupportedTypeMapper
 
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
     from lancedb import DBConnection
 
@@ -31,7 +37,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["parquet", "reference"]
-        caps.type_mapper = LanceDBTypeMapper
+        caps.type_mapper = _get_type_mapper()
 
         caps.max_identifier_length = 200
         caps.max_column_identifier_length = 1024
@@ -42,6 +48,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps.supports_ddl_transactions = False
 
         caps.decimal_precision = (38, 18)
+        caps.wei_precision = (38, 0)
         caps.timestamp_precision = 6
         caps.supported_replace_strategies = ["truncate-and-insert"]
 
@@ -62,6 +69,25 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
         return LanceDBClient
+
+    def create_ibis_backend(
+        self, client: "LanceDBClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend that maps the lancedb tables as in-memory views."""
+        from dlt.helpers.ibis import ibis
+        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+
+        sql_client = client.sql_client
+        assert isinstance(sql_client, LanceDBSQLClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable the destructor so the connection survives handover to ibis
+        client.sql_client = None
+        sql_client.memory_db = None
+        return con
 
     def __init__(
         self,

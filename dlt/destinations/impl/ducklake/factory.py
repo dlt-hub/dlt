@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Optional, TYPE_CHECKING
+from typing import Any, Optional, Sequence, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.normalizers.naming import NamingConvention
@@ -12,6 +12,8 @@ from dlt.destinations.impl.ducklake.configuration import (
 )
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 
 
@@ -32,6 +34,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
     def __init__(
         self,
         credentials: Optional[DuckLakeCredentials] = None,
+        automatic_migration: bool = False,
         destination_name: Optional[str] = None,
         environment: Optional[str] = None,
         **kwargs: Any,
@@ -44,6 +47,8 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
             credentials(Optional[DuckLakeCredentials]): DuckLake credentials or instantiated connection to a DuckLake
                 client (which is a duckdb instance). The DuckLake credentials include
                 catalog name, catalog, and storage
+            automatic_migration (bool, optional): When true, attaches with `AUTOMATIC_MIGRATION true` so DuckDB migrates
+                an older DuckLake catalog schema on attach. Defaults to False.
             destination_name(Optional[str]): Name of a destination which. May be used as ducklake name, if
                 explicit name is not set in `credentials`.
             environment (Optional[str]): Environment of the destination
@@ -51,6 +56,7 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
         """
         super().__init__(
             credentials=credentials,
+            automatic_migration=automatic_migration,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
@@ -65,6 +71,21 @@ class ducklake(Destination[DuckLakeClientConfiguration, "DuckLakeClient"]):
         from dlt.destinations.impl.ducklake.ducklake import DuckLakeClient
 
         return DuckLakeClient
+
+    def create_ibis_backend(
+        self, client: "DuckLakeClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend over the ducklake connection."""
+        from dlt.helpers.ibis import ibis
+
+        # ducklake keeps its own connection and does not close it in the destructor
+        conn = client.sql_client.open_connection()
+        try:
+            client.sql_client.use_dataset()
+        except Exception:
+            client.sql_client.close_connection()
+            raise
+        return ibis.duckdb.from_connection(conn)
 
     @classmethod
     def adjust_capabilities(

@@ -1,12 +1,13 @@
 import os
 import pytest
 from unittest import mock
-from typing import Iterator, List
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 from dlt.common.runners.pool_runner import get_default_start_method
 from dlt.common.runtime.exec_info import is_running_in_airflow_task
 
 pytest.importorskip("airflow")
+
 from airflow import DAG
 from airflow.decorators import dag
 from airflow.models import BaseOperator, TaskInstance
@@ -253,6 +254,72 @@ def test_regular_run() -> None:
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
 
 
+@pytest.mark.parametrize(
+    "group_kwargs, decompose, expected",
+    [
+        ({}, "none", None),
+        ({}, "serialize", None),
+        ({}, "parallel", False),
+        ({}, "parallel-isolated", False),
+        ({"truncate_staging_destination": True}, "parallel-isolated", True),
+        ({"truncate_staging_destination": False}, "none", False),
+        ({"truncate_staging_destination": True}, "none", True),
+    ],
+    ids=[
+        "auto-none",
+        "auto-serialize",
+        "auto-parallel",
+        "auto-parallel-isolated",
+        "forced-true-parallel-isolated",
+        "forced-false-none",
+        "forced-true-none",
+    ],
+)
+def test_truncate_staging_destination(
+    group_kwargs: Dict[str, Any],
+    decompose: Literal["none", "serialize", "parallel", "parallel-isolated"],
+    expected: Optional[bool],
+) -> None:
+    """Staging-destination truncation is disabled automatically for parallel runs and can be forced
+    on or off with the `truncate_staging_destination` group argument.
+    """
+    config_key = "destination.truncate_tables_on_staging_destination_before_load"
+    seen_during_run: List[Optional[bool]] = []
+
+    def record_config() -> None:
+        seen_during_run.append(dlt.config.get(config_key))
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_truncate() -> None:
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_truncate",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
+            **group_kwargs,
+        )
+        pipeline = dlt.pipeline(
+            pipeline_name="pipeline_dag_truncate",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+        )
+        tasks.add_run(
+            pipeline,
+            mock_data_source(),
+            decompose=decompose,
+            trigger_rule="all_done",
+            retries=0,
+            on_before_run=record_config,
+        )
+
+    dag_def = dag_truncate()
+    dag_def.test()
+    # each task sees the resolved setting while running; None means the config was left unset
+    assert seen_during_run
+    assert all(seen == expected for seen in seen_during_run)
+    # the setting is scoped to the run and not left in process config afterwards
+    assert dlt.config.get(config_key) is None
+
+
 def test_run() -> None:
     task: BaseOperator = None
 
@@ -364,11 +431,8 @@ def test_parallel_incremental():
     )
     pipeline_standalone.run(mock_data_incremental_source())
 
-    tasks_list: List[BaseOperator] = None
-
     @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
     def dag_parallel():
-        nonlocal tasks_list
         tasks = PipelineTasksGroup(
             "pipeline_dag_parallel",
             local_data_folder=get_test_storage_root(),
@@ -1016,3 +1080,36 @@ def test_on_before_run() -> None:
                 mock.call(f'on_before_run test: {pendulum.tomorrow().format("YYYY-MM-DD")}'),
             ]
         )
+
+
+def test_pipeline_created_before_task_group_raises() -> None:
+    # creating dlt.pipeline before PipelineTasksGroup uses a pipelines_dir that does not
+    # match the per-worker random dir set by PipelineTasksGroup. add_run must surface a
+    # clear error pointing at the ordering and the workaround.
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_wrong_order():
+        early_pipeline = dlt.pipeline(
+            pipeline_name="pipeline_wrong_order",
+            dataset_name="mock_data_" + uniq_id(),
+            destination=dlt.destinations.duckdb(credentials=":pipeline:"),
+        )
+        tasks = PipelineTasksGroup(
+            "pipeline_wrong_order",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
+        )
+        with pytest.raises(ValueError) as exc_info:
+            tasks.add_run(
+                early_pipeline,
+                mock_data_source(),
+                decompose="none",
+                trigger_rule="all_done",
+                retries=0,
+            )
+        message = str(exc_info.value)
+        assert "PipelineTasksGroup" in message
+        assert "BEFORE creating the Pipeline" in message
+        assert "DLT_DATA_DIR" in message
+        assert "pipelines_dir" in message
+
+    dag_wrong_order()

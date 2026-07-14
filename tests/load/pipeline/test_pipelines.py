@@ -314,7 +314,8 @@ def test_attach_edgecases(destination_config: DestinationTestConfiguration) -> N
     p._wipe_working_folder()
     with pytest.raises(CannotRestorePipelineException) as exc_info:
         dlt.attach("test_attach_edgecases")
-    assert "no destination was provided to restore from" in str(exc_info.value)
+    assert "No local pipeline state found" in str(exc_info.value)
+    assert "dlt can restore pipeline state from a destination" in str(exc_info.value)
     # no working folder left behing
     assert not p._pipeline_storage.has_folder("")
 
@@ -323,9 +324,7 @@ def test_attach_edgecases(destination_config: DestinationTestConfiguration) -> N
     with pytest.raises(CannotRestorePipelineException) as exc_info:
         dlt.attach("test_attach_edgecases", destination="duckdb", dataset_name="incorrect")
     # no working folder left behing
-    assert "provided destination and dataset do not contain state for this pipeline" in str(
-        exc_info.value
-    )
+    assert "No state found for this pipeline in either location" in str(exc_info.value)
     assert not p._pipeline_storage.has_folder("")
 
     # re-attaching with destination and dataset name will work
@@ -709,8 +708,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         columns=columns_schema,
     )
     def my_resource():
-        nonlocal datetime_data
-
         start_idx = cast(int, datetime_data["col1"])
         for idx, item in enumerate([datetime_data] * 10):
             item = deepcopy(item)
@@ -795,8 +792,7 @@ def test_dataset_name_change(destination_config: DestinationTestConfiguration) -
         ds_2_counts = load_table_counts(p, "lists", "lists__value")
         assert ds_1_counts == ds_2_counts
         # set name and run to another dataset
-        p.dataset_name = ds_3_name
-        info = p.run(s(), **destination_config.run_kwargs)
+        info = p.run(s(), dataset_name=ds_3_name, **destination_config.run_kwargs)
         assert_load_info(info)
         assert info.dataset_name.startswith(dataset_normalizer(ds_3_name))
         ds_3_counts = load_table_counts(p, "lists", "lists__value")
@@ -1284,7 +1280,6 @@ def test_pipeline_with_named_destination_via_factory_initializer() -> None:
     calls: List[Tuple[TDataItems, TTableSchema]] = []
 
     def local_sink_func(items: TDataItems, table: TTableSchema, my_val=dlt.config.value, /) -> None:
-        nonlocal calls
         assert my_val == "something"
         calls.append((items, table))
 

@@ -1,4 +1,5 @@
 import contextlib
+import logging
 from http import HTTPStatus
 import http.server
 import multiprocessing
@@ -9,7 +10,7 @@ import sys
 from functools import partial
 from os import environ
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Literal, Optional, Union, get_args, List
+from typing import Any, Dict, Iterable, Iterator, Literal, Optional, Union, get_args, List
 from unittest.mock import patch
 
 import pytest
@@ -40,17 +41,34 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import StrAny, TDataItem, PathLike
 from dlt.common.utils import set_working_dir
 
 
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
-STORAGE_ROOT_PREFIX = "_storage"
+STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
 
 
 def get_test_worker_id() -> str:
-    return os.environ.get(PYTEST_XDIST_WORKER, "gw0")
+    wid = os.environ.get(PYTEST_XDIST_WORKER)
+    # under xdist `PYTEST_XDIST_TESTRUNUID` is set in every process (controller + workers);
+    # the per-worker `PYTEST_XDIST_WORKER` is only set in workers. if we fall through to
+    # the "gw0" default while xdist is active, workers will share `_storage_gw0` and rmtree
+    # each other's state — fail loudly instead.
+    if wid is None and "PYTEST_XDIST_TESTRUNUID" in os.environ:
+        raise RuntimeError(
+            "running under xdist but PYTEST_XDIST_WORKER is not set — test storage would"
+            " collide across workers"
+        )
+    return wid or "gw0"
+
+
+def get_test_worker_idx() -> int:
+    worker_id = get_test_worker_id()
+    assert worker_id.startswith("gw")
+    return int(worker_id.removeprefix("gw"))
 
 
 def compute_test_storage_root() -> str:
@@ -88,6 +106,7 @@ IMPLEMENTED_DESTINATIONS = {
     "mssql",
     "qdrant",
     "lancedb",
+    "lance",
     "destination",
     "synapse",
     "databricks",
@@ -102,6 +121,7 @@ NON_SQL_DESTINATIONS = {
     "dummy",
     "qdrant",
     "lancedb",
+    "lance",
     "destination",
 }
 
@@ -301,23 +321,37 @@ def _preserve_environ() -> Iterator[None]:
     try:
         yield
     finally:
-        environ.clear()
+        environ.clear()  # clear Python-level env vars
         environ.update(saved_environ)
         for key_, value_ in known_environ.items():
-            if value_ is not None or key_ not in environ:
-                environ[key_] = value_ or ""
+            if value_ is None:
+                os.unsetenv(key_)  # unset C-level env var
             else:
-                del environ[key_]
+                environ[key_] = value_
+
+
+@contextlib.contextmanager
+def preserve_container() -> Iterator[None]:
+    """Saves and restores the whole Container singleton (instance and main thread id)."""
+    saved_instance = Container._INSTANCE
+    saved_main_thread_id = Container._MAIN_THREAD_ID
+    try:
+        yield
+    finally:
+        Container._INSTANCE = saved_instance
+        Container._MAIN_THREAD_ID = saved_main_thread_id
 
 
 @pytest.fixture(autouse=True)
 def preserve_run_context() -> Iterator[None]:
-    """Restores initial run context when test completes"""
+    """Restores run context and container singleton when a test completes."""
     ctx_plug = Container()[PluggableRunContext]
     cookie = ctx_plug.push_context()
     try:
-        yield
+        with preserve_container():
+            yield
     finally:
+        # preserve_container has restored the singleton; the original run context must be back
         assert ctx_plug is Container()[PluggableRunContext], "PluggableRunContext was replaced"
         ctx_plug.pop_context(cookie)
 
@@ -432,6 +466,21 @@ def setup_secret_providers_to_current_module(request):
             yield
         finally:
             sys.path.pop(0)
+
+
+def unload_modules_at_path(path: str) -> None:
+    abs_dir = os.path.realpath(path)
+    for name in list(sys.modules.keys()):
+        mod = sys.modules.get(name)
+        mod_file = getattr(mod, "__file__", None) if mod else None
+        if not mod_file:
+            continue
+        try:
+            mod_abs = os.path.realpath(mod_file)
+        except (OSError, ValueError):
+            continue
+        if mod_abs.startswith(abs_dir):
+            del sys.modules[name]
 
 
 def data_to_item_format(
@@ -574,10 +623,22 @@ def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
 
 
-def skip_if_not_active(destination: str) -> None:
-    assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
-    if destination not in ACTIVE_DESTINATIONS:
-        pytest.skip(f"{destination} not in ACTIVE_DESTINATIONS", allow_module_level=True)
+def sum_job_metrics_by_table(job_metrics: Dict[str, DataWriterMetrics]) -> Dict[str, int]:
+    """Sum `items_count` per table from step info `job_metrics` (keyed by job id)."""
+    counts: Dict[str, int] = {}
+    for job_id, metric in job_metrics.items():
+        table_name = job_id.split(".", 1)[0]
+        counts[table_name] = counts.get(table_name, 0) + metric.items_count
+    return counts
+
+
+def skip_if_not_active(*destinations: str) -> None:
+    for destination in destinations:
+        assert destination in IMPLEMENTED_DESTINATIONS, f"Unknown skipped destination {destination}"
+    if all(d not in ACTIVE_DESTINATIONS for d in destinations):
+        pytest.skip(
+            f"{', '.join(destinations)} not in ACTIVE_DESTINATIONS", allow_module_level=True
+        )
 
 
 def is_running_in_github_fork() -> bool:
@@ -650,3 +711,17 @@ def _inject_providers(providers: List[ConfigProvider]) -> Iterator[ConfigProvide
         yield ctx
     finally:
         container[PluggableRunContext].providers = old_providers
+
+
+@contextlib.contextmanager
+def capture_dlt_logger(
+    caplog: pytest.LogCaptureFixture, level: int = logging.WARNING
+) -> Iterator[pytest.LogCaptureFixture]:
+    """Temporarily enables propagation on `dlt` logger so `caplog` can capture logs."""
+    dlt_logger = logging.getLogger("dlt")
+    dlt_logger.propagate = True
+    try:
+        with caplog.at_level(level, logger="dlt"):
+            yield caplog
+    finally:
+        dlt_logger.propagate = False

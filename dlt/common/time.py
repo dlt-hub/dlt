@@ -19,6 +19,9 @@ from dlt.common.warnings import deprecated
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
+UNIX_EPOCH_DATE = datetime.date(1970, 1, 1)
+
+DEFAULT_TIMESTAMP_PRECISION = 6
 
 precise_time: Callable[[], float] = None
 """A precise timer using win_precise_time library on windows and time.time on other systems"""
@@ -161,6 +164,58 @@ ensure_pendulum_datetime = deprecated("Use ensure_pendulum_datetime_utc instead"
 )
 
 
+def ensure_datetime_utc(
+    value: TAnyDateTime, default_tz: datetime.tzinfo = datetime.timezone.utc
+) -> datetime.datetime:
+    """Coerce a date/time value to a stdlib `datetime.datetime` in UTC.
+
+    Naive inputs are interpreted in `default_tz` (UTC by default). Tz-aware inputs are converted to UTC.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+        default_tz: Timezone used to interpret naive inputs before converting to UTC. Defaults to UTC.
+
+    Returns:
+        A stdlib `datetime.datetime` in UTC timezone.
+    """
+    dt = ensure_datetime(value)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=default_tz)
+    return dt.astimezone(datetime.timezone.utc)
+
+
+def ensure_datetime(value: TAnyDateTime) -> datetime.datetime:
+    """Coerce a date/time value to a stdlib `datetime.datetime`, preserving original timezone.
+
+    Tz-awareness is preserved. Naive datetimes remain naive. Tz-aware datetimes keep their original timezone.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+
+    Returns:
+        A stdlib `datetime.datetime` that preserves original timezone.
+    """
+    return to_py_datetime(ensure_pendulum_datetime_non_utc(value))
+
+
+def ensure_datetime_in_tz(value: TAnyDateTime, tz: datetime.tzinfo) -> datetime.datetime:
+    """Coerce a date/time value to a stdlib `datetime.datetime` in `tz`.
+
+    Naive inputs are interpreted as wall-clock in `tz`. Tz-aware inputs are converted to `tz`.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+        tz: Target timezone (e.g. `ZoneInfo("Europe/Berlin")`, `timezone.utc`).
+
+    Returns:
+        A stdlib `datetime.datetime` with `tzinfo == tz`.
+    """
+    dt = ensure_datetime(value)
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=tz)
+    return dt.astimezone(tz)
+
+
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     """Coerce a date/time value to a `pendulum.DateTime` object.
 
@@ -230,6 +285,11 @@ def datetime_obj_to_str(
         raise ValueError(f"Invalid timezone format in datetime string: `{datetime_str}`")
 
     return datatime.strftime(datetime_format)
+
+
+def date_to_epoch_days(value: datetime.date) -> int:
+    """Converts date value to number of days since Unix epoch."""
+    return value.toordinal() - UNIX_EPOCH_DATE.toordinal()
 
 
 def ensure_pendulum_time(value: Union[str, int, float, datetime.time, timedelta]) -> pendulum.Time:
@@ -323,9 +383,9 @@ def detect_datetime_format(value: str) -> Optional[str]:
         re.compile(r"^\d{4}-\d{2}-\d{2}$"): "%Y-%m-%d",  # Date only
         re.compile(r"^\d{4}-\d{2}$"): "%Y-%m",  # Year and month
         re.compile(r"^\d{4}$"): "%Y",  # Year only
-        # Week-based date formats
-        re.compile(r"^\d{4}-W\d{2}$"): "%Y-W%W",  # Week-based date
-        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%Y-W%W-%u",  # Week-based date with day
+        # Week-based date formats (ISO 8601: week-numbering year %G + ISO week %V)
+        re.compile(r"^\d{4}-W\d{2}$"): "%G-W%V",  # Week-based date
+        re.compile(r"^\d{4}-W\d{2}-\d{1}$"): "%G-W%V-%u",  # Week-based date with day
         # Ordinal date formats (day of year)
         re.compile(r"^\d{4}-\d{3}$"): "%Y-%j",  # Ordinal date
         # Compact formats (no dashes)
@@ -387,6 +447,10 @@ def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]
     return int(moment.timestamp() * 1000)
 
 
+def datetime_to_timestamp_us(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
+    return datetime_to_timestamp(moment) * 1_000_000 + moment.microsecond
+
+
 def _datetime_from_ts_or_iso(
     value: Union[int, float, str]
 ) -> Union[pendulum.DateTime, pendulum.Date, pendulum.Time]:
@@ -419,7 +483,7 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
     return td
 
 
-TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[pendulum.DateTime, pendulum.Time])
+TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[datetime.datetime, datetime.time])
 
 
 def reduce_pendulum_datetime_precision(

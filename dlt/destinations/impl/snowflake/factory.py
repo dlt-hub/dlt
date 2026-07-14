@@ -1,4 +1,4 @@
-from typing import Any, Dict, Tuple, Type, Union, TYPE_CHECKING, Optional
+from typing import Any, Dict, Sequence, Tuple, Type, Union, TYPE_CHECKING, Optional
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -15,6 +15,8 @@ from dlt.destinations.impl.snowflake.configuration import (
 )
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.snowflake.snowflake import SnowflakeClient
 
 
@@ -164,6 +166,18 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
 
         return SnowflakeClient
 
+    def create_ibis_backend(
+        self, client: "SnowflakeClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis snowflake backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        return ibis.snowflake.connect(
+            schema=client.sql_client.fully_qualified_dataset_name(),
+            **client.config.credentials.to_connector_params(),
+            create_object_udfs=False,
+        )
+
     def __init__(
         self,
         credentials: Union[SnowflakeCredentials, Dict[str, Any], str] = None,
@@ -188,7 +202,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             stage_name (Optional[str], optional): Name of an existing stage to use for loading data. Default uses implicit stage per table
             keep_staged_files (bool, optional): Whether to delete or keep staged files after loading
             csv_format (Optional[CsvFormatConfiguration]): Optional csv format configuration
-            query_tag (Optional[str]): A tag with placeholders to tag sessions executing jobs
+            query_tag (Optional[str]): A template with placeholders used to tag Snowflake sessions for dlt operations
             create_indexes (bool, optional): Whether UNIQUE or PRIMARY KEY constrains should be created
             use_decfloat (bool, optional): Whether to use DECFLOAT type for unbound decimals. DECFLOAT stores
                 exact decimal values with up to 36 significant digits and a dynamic exponent.

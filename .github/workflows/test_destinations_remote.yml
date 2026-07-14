@@ -1,5 +1,5 @@
 
-name: dest | remote
+name: remote
 
 on:
   workflow_call:
@@ -24,59 +24,62 @@ env:
 jobs:
 
   run_destinations_remote:
-    name: dest | remote
+    name: ${{ matrix.display_name }}
     strategy:
         fail-fast: false
         matrix:
           include:
 
             # Athena
-            - name: athena
+            - display_name: athena
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena-iceberg\", \"athena-s3-tables\"]"
               extras: "--extra athena"
 
-            - name: athena iceberg
+            - display_name: athena iceberg
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-s3-tables\"]"
               extras: "--extra athena"
 
-            - name: athena s3 tables
+            - display_name: athena s3 tables
               destinations: "[\"athena\"]"
               filesystem_drivers: "[\"memory\"]"
               excluded_destination_test_configuration_ids: "[\"athena\", \"athena-iceberg\"]"
               extras: "--extra athena"
 
             # BigQuery
-            - name: bigquery
+            - display_name: bigquery
               destinations: "[\"bigquery\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra bigquery --extra parquet"
 
             # Clickhouse
-            - name: clickhouse
+            # NOTE: pins the old pre-1.1 clickhouse-connect for back-compat coverage, local tests run the newest driver
+            - display_name: clickhouse
               destinations: "[\"clickhouse\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--extra clickhouse --extra parquet"
+              post_install_commands: "uv run pip install clickhouse-connect==0.8.17"
 
 
             # Databricks
-            - name: databricks
+            - display_name: databricks
               destinations: "[\"databricks\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra databricks --extra s3 --extra gs --extra az --extra parquet"
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun=ConnectionResetError --only-rerun=RequestError"
 
             # Filesystem
-            - name: filesystem_s3_local
+            - display_name: filesystem_s3_local
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]" # excludes sftp which is run in local tests
               extras: "--extra s3 --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
-            - name: filesystem_az
+            - display_name: filesystem_az
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
@@ -84,14 +87,14 @@ jobs:
               post_install_commands: | # uv run pip install due to minimum version required by `pyiceberg`
                 uv run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
-            - name: filesystem_gs_gdrive
+            - display_name: filesystem_gs_gdrive
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"gs\", \"gdrive\"]" # excludes sftp which is run in local tests
               extras: "--extra gs --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
-            - name: filesystem_hf
+            - display_name: filesystem_hf
               destinations: "[\"filesystem\"]"
               filesystem_drivers: "[\"memory\", \"hf\"]"
               # although, `hf` does not support delta/iceberg, we include `deltalake`/`pyiceberg` extras to prevent missing imports in tests
@@ -99,29 +102,49 @@ jobs:
               post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             # LanceDB
-            - name: lancedb
+            - display_name: lancedb
               destinations: "[\"lancedb\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra lancedb --extra parquet"
               post_install_commands: "uv run pip install openai"
               always_run_all_tests: true
 
+            # Lance — file and s3 protocols only, no need to test az and gs as all cloud storages go
+            # through same code paths thanks to `object_store` Rust crate
+            - display_name: lance_local
+              destinations: "[\"lance\"]"
+              filesystem_drivers: "[\"file\"]"
+              extras: "--extra lance"
+              post_install_commands: "uv run pip install openai"
+              always_run_all_tests: true
+
+            - display_name: lance_s3
+              destinations: "[\"lance\"]"
+              filesystem_drivers: "[\"s3\"]"
+              extras: "--extra lance --extra s3"
+              post_install_commands: "uv run pip install openai"
+
             # Motherduck
-            - name: motherduck
+            - display_name: motherduck
               destinations: "[\"motherduck\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra motherduck --extra s3 --extra gs --extra az --extra parquet"
               xdist_workers: 1
+              # motherduck tests fail almost exclusively as xdist worker crashes (the worker
+              # segfaults). pytest-rerunfailures always retries worker crashes when
+              # --reruns > 0, independent of --only-rerun. We need --only-rerun sentinel below so
+              # only crashes are retried and genuine failures still fail fast
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun=__worker_crash_only__"
 
             # Ducklake
-            - name: ducklake
+            - display_name: ducklake
               destinations: "[\"ducklake\"]"
               filesystem_drivers: "[\"s3\", \"gs\", \"abfss\"]"
               extras: "--extra ducklake --extra s3 --extra gs --extra az --extra parquet"
               always_run_all_tests: true
 
             # MSSQL
-            - name: mssql
+            - display_name: mssql
               destinations: "[\"mssql\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --group adbc"
@@ -130,26 +153,27 @@ jobs:
               always_run_all_tests: true
 
             # Synapse
-            - name: synapse
+            - display_name: synapse
               destinations: "[\"synapse\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra synapse --extra parquet"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
 
             # Fabric
-            - name: fabric
+            - display_name: fabric
               destinations: "[\"fabric\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra fabric"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              post_secrets_commands: "uv run python tests/load/fabric/refresh_spn_fabric_token.py"
 
             # Postgres and Redshift (used to be test_destinations.yml)
-            - name: redshift
+            - display_name: redshift
               destinations: "[\"redshift\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra redshift --extra postgis --extra s3 --extra gs --extra az --extra parquet --extra duckdb"
 
-            - name: postgres
+            - display_name: postgres
               destinations: "[\"postgres\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra postgis --extra parquet --extra duckdb"
@@ -164,7 +188,7 @@ jobs:
             #   extras: "--extra qdrant --extra parquet"
 
             # Snowflake
-            - name: snowflake
+            - display_name: snowflake
               destinations: "[\"snowflake\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra snowflake --extra s3 --extra gs --extra az --extra parquet"
@@ -177,7 +201,7 @@ jobs:
     defaults:
       run:
         shell: bash
-    runs-on: "ubuntu-latest"
+    runs-on: ${{ matrix.runs_on || 'ubuntu-latest' }}
 
     services:
       # we need local postgres to run ducklake tests quickly
@@ -199,9 +223,12 @@ jobs:
     steps:
 
       - name: Check out
-        uses: actions/checkout@master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
+          persist-credentials: false
+          # fork code runs by design, gated by per-run `fork-ci` environment approval
+          allow-unsafe-pr-checkout: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -213,7 +240,8 @@ jobs:
         with:
           python-version: "3.11"
           activate-environment: true
-          enable-cache: true
+          # fork runs (pull_request_target) must not write the default-branch cache scope
+          enable-cache: ${{ github.event_name != 'pull_request_target' }}
 
       - name: Run pre install commands
         run: ${{ matrix.pre_install_commands }}
@@ -229,14 +257,60 @@ jobs:
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
+      - name: Run post secrets commands
+        run: ${{ matrix.post_secrets_commands }}
+        if: ${{ matrix.post_secrets_commands }}
+
       # NOTE: essential tests are always run
       - name: Run essential tests Linux
         run: make test-dest-remote-essential
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
+          PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
 
       - name: Run non-essential tests Linux
         if: ${{ always() && (inputs.run_full_test_suite || matrix.always_run_all_tests) }}
         run: make test-dest-remote-nonessential
         env:
           PYTEST_XDIST_N: ${{ matrix.xdist_workers || env.PYTEST_XDIST_N }}
+          PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
+
+  run_vault_providers:
+    name: vault providers
+    defaults:
+      run:
+        shell: bash
+    runs-on: ubuntu-latest
+
+    steps:
+
+      - name: Check out
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.ref }}
+          persist-credentials: false
+          # fork code runs by design, gated by per-run `fork-ci` environment approval
+          allow-unsafe-pr-checkout: true
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.11"
+          activate-environment: true
+          # fork runs (pull_request_target) must not write the default-branch cache scope
+          enable-cache: ${{ github.event_name != 'pull_request_target' }}
+
+      - name: Install dependencies
+        # google-api-python-client for google secrets, botocore (s3 extra) for aws secrets manager
+        run: uv sync --group providers --extra s3
+
+      - name: create secrets.toml
+        run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
+
+      - name: Run vault provider tests
+        run: uv run pytest tests/helpers/providers

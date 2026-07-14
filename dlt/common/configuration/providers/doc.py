@@ -1,9 +1,10 @@
 import tomlkit
 import yaml
-from typing import Any, Callable, Dict, MutableMapping, Sequence, Optional, Tuple, Type
+from contextlib import contextmanager
+from typing import Any, Callable, Dict, Iterator, MutableMapping, Sequence, Optional, Tuple, Type
 
 from dlt.common.configuration.utils import auto_cast, auto_config_fragment
-from dlt.common.utils import update_dict_nested
+from dlt.common.utils import clone_dict_nested, update_dict_nested
 
 from .provider import ConfigProvider, get_key_name
 
@@ -58,6 +59,15 @@ class BaseDocProvider(ConfigProvider):
             self._config_doc, key, value_or_fragment, pipeline_name, *sections
         )
 
+    @contextmanager
+    def preserve(self) -> Iterator[None]:
+        """Restores the config doc on exit, undoing any values written within the context."""
+        saved = clone_dict_nested(self._config_doc)
+        try:
+            yield
+        finally:
+            self._config_doc = saved
+
     def to_toml(self) -> str:
         return tomlkit.dumps(self._config_doc)
 
@@ -92,8 +102,15 @@ class BaseDocProvider(ConfigProvider):
             if not isinstance(master, dict):
                 raise KeyError(k)
             if k not in master:
+                if value is None:
+                    # nothing to delete, and don't materialise empty intermediate sections
+                    return
                 master[k] = {}
             master = master[k]
+        # value=None is the unambiguous "delete this key" signal — TOML can't represent None
+        if value is None:
+            master.pop(key, None)
+            return
         if isinstance(value, dict):
             # remove none values, TODO: we need recursive None removal
             value = {k: v for k, v in value.items() if v is not None}

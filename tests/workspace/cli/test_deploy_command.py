@@ -3,8 +3,10 @@ import io
 import contextlib
 import shutil
 from subprocess import CalledProcessError
+from unittest.mock import patch
 from git import InvalidGitRepositoryError, NoSuchPathError
 import pytest
+from pytest_console_scripts import ScriptRunner
 
 import dlt
 from dlt._workspace._workspace_context import WorkspaceRunContext
@@ -193,3 +195,116 @@ def test_deploy_command(deployment_method: str, deployment_args: StrAny) -> None
                     **deployment_args,
                 )
             assert ex._excinfo[1].error_code == -5
+
+
+def test_invoke_deploy_project(legacy_workspace_context, script_runner: ScriptRunner) -> None:
+    result = script_runner.run(
+        ["dlt", "deploy", "debug_pipeline.py", "github-action", "--schedule", "@daily"]
+    )
+    assert result.returncode == -5
+    assert "The pipeline script does not exist" in result.stderr
+    result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
+    assert result.returncode == -5
+    assert "The pipeline script does not exist" in result.stderr
+    # now init
+    result = script_runner.run(["dlt", "init", "chess", "dummy"])
+    assert result.returncode == 0
+    result = script_runner.run(
+        ["dlt", "deploy", "chess_pipeline.py", "github-action", "--schedule", "@daily"]
+    )
+    assert "NOTE: You must run the pipeline locally" in result.stdout
+    result = script_runner.run(["dlt", "deploy", "chess_pipeline.py", "airflow-composer"])
+    assert "NOTE: You must run the pipeline locally" in result.stdout
+
+
+def test_invoke_deploy_mock(legacy_workspace_context, script_runner: ScriptRunner) -> None:
+    # NOTE: you can mock only once per test with ScriptRunner !!
+    with patch("dlt._workspace.cli._deploy_command.deploy_command") as _deploy_command_mock:
+        script_runner.run(
+            [
+                "dlt",
+                "--debug",
+                "deploy",
+                "debug_pipeline.py",
+                "github-action",
+                "--schedule",
+                "@daily",
+            ]
+        )
+        assert _deploy_command_mock.called
+        assert _deploy_command_mock.call_args[1] == {
+            "pipeline_script_path": "debug_pipeline.py",
+            "deployment_method": "github-action",
+            "no_pwd": False,
+            "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
+            "branch": None,
+            "command": "deploy",
+            "schedule": "@daily",
+            "run_manually": True,
+            "run_on_push": False,
+        }
+
+        _deploy_command_mock.reset_mock()
+        script_runner.run(
+            [
+                "dlt",
+                "deploy",
+                "debug_pipeline.py",
+                "github-action",
+                "--schedule",
+                "@daily",
+                "--location",
+                "folder",
+                "--branch",
+                "branch",
+                "--run-on-push",
+            ]
+        )
+        assert _deploy_command_mock.called
+        assert _deploy_command_mock.call_args[1] == {
+            "pipeline_script_path": "debug_pipeline.py",
+            "deployment_method": "github-action",
+            "no_pwd": False,
+            "repo_location": "folder",
+            "branch": "branch",
+            "command": "deploy",
+            "schedule": "@daily",
+            "run_manually": True,
+            "run_on_push": True,
+        }
+        # no schedule fails
+        _deploy_command_mock.reset_mock()
+        result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "github-action"])
+        assert not _deploy_command_mock.called
+        assert result.returncode != 0
+        assert "the following arguments are required: --schedule" in result.stderr
+        # airflow without schedule works
+        _deploy_command_mock.reset_mock()
+        result = script_runner.run(["dlt", "deploy", "debug_pipeline.py", "airflow-composer"])
+        assert _deploy_command_mock.called
+        assert result.returncode == 0
+        assert _deploy_command_mock.call_args[1] == {
+            "pipeline_script_path": "debug_pipeline.py",
+            "deployment_method": "airflow-composer",
+            "no_pwd": False,
+            "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
+            "branch": None,
+            "command": "deploy",
+            "secrets_format": "toml",
+        }
+        # env secrets format
+        _deploy_command_mock.reset_mock()
+        result = script_runner.run(
+            ["dlt", "deploy", "debug_pipeline.py", "airflow-composer", "--secrets-format", "env"]
+        )
+        assert _deploy_command_mock.called
+        assert result.returncode == 0
+        assert _deploy_command_mock.call_args[1] == {
+            "pipeline_script_path": "debug_pipeline.py",
+            "deployment_method": "airflow-composer",
+            "no_pwd": False,
+            "repo_location": "https://github.com/dlt-hub/dlt-deploy-template.git",
+            "branch": None,
+            "command": "deploy",
+            "secrets_format": "env",
+        }

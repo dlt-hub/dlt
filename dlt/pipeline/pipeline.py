@@ -98,14 +98,18 @@ from dlt.common.pipeline import (
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, DltDeprecationWarning
-from dlt.common.versioned_state import json_encode_state, json_decode_state
+from dlt.common.versioned_state import (
+    json_encode_state,
+    json_decode_state,
+    generate_state_version_hash,
+)
 
 from dlt.extract import DltSource
 from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient, WithSchemas
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import get_destination_clients
@@ -162,7 +166,9 @@ def with_state_sync(may_extract_state: bool = False) -> Callable[[TFun], TFun]:
 
             # backup and restore state
             should_extract_state = may_extract_state and self.config.restore_from_destination
-            with self.managed_state(extract_state=should_extract_state):
+            with self.managed_state(extract_state=should_extract_state) as state:
+                # refresh props from the freshly read state
+                self._state_to_props(state)
                 return f(self, *args, **kwargs)
 
         return _wrap  # type: ignore
@@ -198,8 +204,9 @@ def with_schemas_sync(f: TFun) -> TFun:
                 self._schema_storage.save_import_schema_if_not_exists(schema)
                 # only now save the schema, already linked to itself if saved as import schema
                 self._schema_storage.commit_live_schema(name)
-            # refresh list of schemas if any new schemas are added
-            self.schema_names = self._list_schemas_sorted()
+            # refresh only when default_schema_name is aleady set
+            if self.default_schema_name:
+                self.schema_names = self._list_schemas_sorted()
             return rv
 
     return _wrap  # type: ignore
@@ -424,8 +431,8 @@ class Pipeline(SupportsPipeline):
         return self
 
     @with_runtime_trace()
-    @with_schemas_sync  # this must precede with_state_sync
     @with_state_sync(may_extract_state=True)
+    @with_schemas_sync
     @with_config_section((known_sections.EXTRACT,))
     def extract(
         self,
@@ -555,6 +562,12 @@ class Pipeline(SupportsPipeline):
                 config=normalize_config,
                 schema_storage=self._schema_storage,
             )
+            if not normalize_step.normalize_storage.is_storage_ready():
+                logger.info(
+                    f"Normalize step storage not yet created for pipeline {self.pipeline_name}, try"
+                    " again when extract step is completed."
+                )
+                return None
             try:
                 with (
                     signals.intercepted_signals()
@@ -618,6 +631,13 @@ class Pipeline(SupportsPipeline):
             initial_client_config=client.config,
             initial_staging_client_config=staging_client.config if staging_client else None,
         )
+        if not load_step.load_storage.is_storage_ready():
+            logger.info(
+                f"Load step storage not yet created for pipeline {self.pipeline_name}, try again"
+                " when normalize step is completed."
+            )
+            return None
+
         try:
             with (
                 signals.intercepted_signals()
@@ -1033,34 +1053,58 @@ class Pipeline(SupportsPipeline):
     )
     def list_extracted_resources(self) -> Sequence[str]:
         """Returns a list of all the files with extracted resources that will be normalized."""
-        return self._get_normalize_storage().list_files_to_normalize_sorted()
+        storage = self._get_normalize_storage()
+        if storage.is_storage_ready():
+            return storage.list_files_to_normalize_sorted()
+        return []
 
     def list_extracted_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be normalized."""
-        return self._get_normalize_storage().extracted_packages.list_packages()
+        storage = self._get_normalize_storage()
+        if storage.is_storage_ready():
+            return storage.extracted_packages.list_packages()
+        return []
 
     def list_normalized_load_packages(self) -> Sequence[str]:
         """Returns a list of all load packages ids that are or will be loaded."""
-        return self._get_load_storage().list_normalized_packages()
+        storage = self._get_load_storage()
+        if storage.is_storage_ready():
+            return storage.list_normalized_packages()
+        return []
 
     def list_completed_load_packages(self) -> Sequence[str]:
         """Returns a list of all load package ids that are completely loaded"""
-        return self._get_load_storage().list_loaded_packages()
+        storage = self._get_load_storage()
+        if storage.is_storage_ready():
+            return storage.list_loaded_packages()
+        return []
 
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
         try:
-            return self._get_load_storage().get_load_package_info(load_id)
+            load_storage = self._get_load_storage()
+            if load_storage.is_storage_ready():
+                return load_storage.get_load_package_info(load_id)
+            raise LoadPackageNotFound(load_id)
         except LoadPackageNotFound:
-            return self._get_normalize_storage().extracted_packages.get_load_package_info(load_id)
+            normalize_storage = self._get_normalize_storage()
+            if normalize_storage.is_storage_ready():
+                return normalize_storage.extracted_packages.get_load_package_info(load_id)
+            raise
 
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         """Returns information on extracted/normalized/completed package with given load_id, all jobs and their statuses."""
-        return self._get_load_storage().get_load_package_state(load_id)
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.get_load_package_state(load_id)
+        raise LoadPackageNotFound(load_id)
 
     def list_failed_jobs_in_package(self, load_id: str) -> Sequence[LoadJobInfo]:
         """List all failed jobs and associated error messages for a specified `load_id`"""
-        return self._get_load_storage().get_load_package_info(load_id).jobs.get("failed_jobs", [])
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.get_load_package_info(load_id).jobs.get("failed_jobs", [])
+        raise LoadPackageNotFound(load_id)
 
     def list_pending_retry_jobs_in_package(
         self,
@@ -1123,15 +1167,20 @@ class Pipeline(SupportsPipeline):
         )
         # delete normalized packages
         load_storage = self._get_load_storage()
-        for load_id in load_storage.normalized_packages.list_packages():
-            package_info = load_storage.normalized_packages.get_load_package_info(load_id)
-            if PackageStorage.is_package_partially_loaded(package_info) and not with_partial_loads:
-                continue
-            load_storage.normalized_packages.delete_package(load_id)
+        if load_storage.is_storage_ready():
+            for load_id in load_storage.normalized_packages.list_packages():
+                package_info = load_storage.normalized_packages.get_load_package_info(load_id)
+                if (
+                    PackageStorage.is_package_partially_loaded(package_info)
+                    and not with_partial_loads
+                ):
+                    continue
+                load_storage.normalized_packages.delete_package(load_id)
         # delete extracted files
         normalize_storage = self._get_normalize_storage()
-        for load_id in normalize_storage.extracted_packages.list_packages():
-            normalize_storage.extracted_packages.delete_package(load_id)
+        if normalize_storage.is_storage_ready():
+            for load_id in normalize_storage.extracted_packages.list_packages():
+                normalize_storage.extracted_packages.delete_package(load_id)
 
     def abort_packages(
         self,
@@ -1238,7 +1287,13 @@ class Pipeline(SupportsPipeline):
         schema = self._get_schema_or_create(schema_name)
         client = self._get_destination_clients(schema)[0]
         if isinstance(client, WithSqlClient):
-            return client.sql_client
+            sql_client = client.sql_client
+            if isinstance(sql_client, WithSchemas):
+                # expose views for all pipeline schemas so cross-schema tables resolve; `schema`
+                # stays first as the default that sets the qualified-name search path
+                other = [self.schemas[name] for name in self.schema_names if name != schema.name]
+                sql_client.set_schemas([schema, *other])
+            return sql_client
         else:
             raise SqlClientNotAvailable(
                 "pipeline", self.pipeline_name, self._destination.destination_name
@@ -1338,11 +1393,11 @@ class Pipeline(SupportsPipeline):
             return Schema(self.pipeline_name)
 
     def _get_normalize_storage(self) -> NormalizeStorage:
-        return NormalizeStorage(True, self._normalize_storage_config())
+        return NormalizeStorage(False, self._normalize_storage_config())
 
     def _get_load_storage(self) -> LoadStorage:
         return LoadStorage(
-            True,
+            False,
             [],
             self._load_storage_config(),
         )
@@ -1696,7 +1751,7 @@ class Pipeline(SupportsPipeline):
             destination_needs_dataset = False
             if destination and issubclass(destination.spec, DestinationClientDwhConfiguration):
                 destination_needs_dataset = destination.spec.needs_dataset_name()
-            # if destination is not specified - generate dataset
+            # set default dataset name if destination is specified and requires it
             if destination_needs_dataset:
                 new_dataset_name = self.pipeline_name + self.DEFAULT_DATASET_SUFFIX
 
@@ -1836,6 +1891,10 @@ class Pipeline(SupportsPipeline):
         Makes the state to be available via StateInjectableContext
         """
         state = self._get_state()
+        # compute full hash to save local state only if changed
+        full_hash = ""
+        if self._pipeline_storage.has_file(Pipeline.STATE_FILE):
+            full_hash = generate_state_version_hash(state)
         try:
             # add the state to container as a context
             with self._container.injectable_context(StateInjectableContext(state=state)):
@@ -1849,8 +1908,9 @@ class Pipeline(SupportsPipeline):
         else:
             # this modifies state in place
             self._bump_version_and_extract_state(state, extract_state)
-            # so we save modified state here
-            self._save_state(state)
+            # save only when state actually changed or was never persisted
+            if generate_state_version_hash(state) != full_hash:
+                self._save_state(state)
 
     def _state_to_props(self, state: TPipelineState) -> None:
         """Write `state` to pipeline props."""
@@ -1900,7 +1960,10 @@ class Pipeline(SupportsPipeline):
         if self._staging:
             state["staging_type"] = self._staging.destination_type
             state["staging_name"] = self._staging.configured_name
-        state["schema_names"] = self._list_schemas_sorted()
+        # update schemas only when default_schema_name is aleady set
+        # prevents race condition (another process writes schemas)
+        if self.default_schema_name:
+            state["schema_names"] = self._list_schemas_sorted()
         return state
 
     def _save_and_extract_state_and_schema(
@@ -1989,11 +2052,14 @@ class Pipeline(SupportsPipeline):
     # NOTE: I expect that we'll merge all relations into one. and then we'll be able to get rid
     #  of overload and dataset_type
 
-    def dataset(self, schema: Union[Schema, str, None] = None) -> dlt.Dataset:
+    def dataset(self, schema: Union[Schema, str, Sequence[Schema], None] = None) -> dlt.Dataset:
         """Returns a dataset object for querying the destination data.
 
         Args:
-            schema (Union[Schema, str, None]): Schema name or Schema object to use. If None, uses the default schema if set.
+            schema (Union[Schema, str, Sequence[Schema], None]): Schema object(s) or name to use.
+                If None, uses the default schema. When ``use_single_dataset`` is True and the
+                pipeline has multiple schemas, all schemas are included automatically.
+
         Returns:
             dlt.Dataset: A dataset object that supports querying the destination data.
         """
@@ -2024,10 +2090,18 @@ class Pipeline(SupportsPipeline):
                 )
             else:
                 schema = self.schemas[schema]
-
+        elif isinstance(schema, Sequence) and not isinstance(schema, str):
+            schema_name = schema[0].name if schema else None
         elif self.default_schema_name:
-            schema = self.default_schema
             schema_name = self.default_schema_name
+            if self.config.use_single_dataset and len(self.schema_names) > 1:
+                # collect all schemas, default first
+                all_names = [self.default_schema_name] + [
+                    n for n in self.schema_names if n != self.default_schema_name
+                ]
+                schema = [self.schemas[n] for n in all_names]
+            else:
+                schema = self.default_schema
 
         try:
             dataset = dlt.dataset(
@@ -2035,7 +2109,6 @@ class Pipeline(SupportsPipeline):
                 self.dataset_name,
                 schema=schema,
             )
-            # allow dataset to lazily resolve schema from pipeline state
             dataset._pipeline_name = self.pipeline_name
             success = True
             return dataset

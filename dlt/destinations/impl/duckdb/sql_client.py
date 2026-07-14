@@ -18,8 +18,10 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Tuple,
     Generator,
     Type,
+    TYPE_CHECKING,
     cast,
 )
 
@@ -28,10 +30,15 @@ from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.configuration.specs import (
     AwsCredentials,
+    AzureCredentials,
+    AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.destination.client import JobClientBase
+from dlt.common.destination.utils import prepare_load_table as _prepare_load_table
+from dlt.common.schema import Schema
+from dlt.common.schema.utils import merge_columns
 from dlt.common.destination.dataset import DBApiCursor
 
 from dlt.common.destination.typing import PreparedTableSchema
@@ -42,13 +49,18 @@ from dlt.destinations.exceptions import (
     DatabaseUndefinedRelation,
 )
 from dlt.destinations.impl.duckdb.exceptions import IcebergViewException
-from dlt.destinations.typing import DBApi, DBTransaction, DataFrame, ArrowTable
+from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
+    WithSchemas,
     raise_database_error,
     raise_open_connection_error,
 )
+
+if TYPE_CHECKING:
+    from pandas import DataFrame
+    from pyarrow import Table as ArrowTable
 
 from dlt.destinations.impl.duckdb.configuration import (
     DuckDbBaseCredentials,
@@ -69,7 +81,7 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
             return 1
         return math.floor(chunk_size / self.vector_size)
 
-    def iter_df(self, chunk_size: int) -> Generator[DataFrame, None, None]:
+    def iter_df(self, chunk_size: int) -> Generator["DataFrame", None, None]:
         # full frame
         if not chunk_size:
             yield self.native_cursor.fetch_df()
@@ -81,13 +93,21 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
                 break
             yield df
 
-    def iter_arrow(self, chunk_size: int) -> Generator[ArrowTable, None, None]:
+    def iter_arrow(self, chunk_size: int) -> Generator["ArrowTable", None, None]:
         if not chunk_size:
             yield self.native_cursor.fetch_arrow_table()
             return
+        # resolve pa at runtime; `ArrowTable` is a TYPE_CHECKING-only alias above
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
         # iterate
-        for item in self.native_cursor.fetch_record_batch(chunk_size):
-            yield ArrowTable.from_batches([item])
+        method = (
+            "to_arrow_reader"
+            if Version(duckdb.__version__) >= Version("1.5.0")
+            else "fetch_record_batch"
+        )
+        for item in getattr(self.native_cursor, method)(chunk_size):
+            yield pa.Table.from_batches([item])
 
     def close(self, *args: Any, **kwargs: Any) -> None:
         # duckdb cursor is just original connection so we cannot close it
@@ -293,15 +313,34 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         if "@" in scope:
             scope = scope.split("@")[0]
 
+        sql = self._build_secret_statements(
+            scope, credentials, secret_name, persistent_stmt, persist_secrets
+        )
+        if not sql:
+            # could not create secret - the filesystem client falls back to fsspec
+            return False
+        self._conn.sql(";\n".join(sql))
+        return True
+
+    @staticmethod
+    def _build_secret_statements(
+        scope: str,
+        credentials: FileSystemCredentials,
+        secret_name: str,
+        persistent_stmt: str,
+        persist_secrets: bool,
+    ) -> List[str]:
+        """Builds `CREATE SECRET` statements for `scope`/`credentials`, empty when none apply.
+
+        Default credentials hand over to DuckDB's `credential_chain` (which refreshes); static
+        and external-session credentials are frozen.
+        """
         protocol = urlparse(scope).scheme
         sql: List[str] = []
 
         # add secrets required for creating views
         if protocol == "s3":
             aws_creds = cast(AwsCredentials, credentials)
-            session_token = (
-                "" if aws_creds.aws_session_token is None else aws_creds.aws_session_token
-            )
 
             use_ssl = "true"
             endpoint = aws_creds.endpoint_url or "s3.amazonaws.com"
@@ -312,11 +351,36 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 endpoint = aws_creds.endpoint_url.replace("https://", "")
 
             s3_url_style = aws_creds.s3_url_style or "path"
-            sql.append(f"""
+
+            if (
+                isinstance(aws_creds, AwsCredentials)
+                and aws_creds.has_default_credentials()
+                and not aws_creds.is_external_session()
+            ):
+                # hand over to DuckDB's credential_chain (REFRESH auto re-resolves the AWS
+                # chain on expiry, added in 1.1.0); external sessions are frozen below
+                refresh_stmt = (
+                    "REFRESH auto," if Version(duckdb.__version__) >= Version("1.1.0") else ""
+                )
+                sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE S3,
-                    KEY_ID '{aws_creds.aws_access_key_id}',
-                    SECRET '{aws_creds.aws_secret_access_key}',
+                    PROVIDER credential_chain,
+                    {refresh_stmt}
+                    REGION '{aws_creds.region_name}',
+                    ENDPOINT '{endpoint}',
+                    SCOPE '{scope}',
+                    URL_STYLE '{s3_url_style}',
+                    USE_SSL {use_ssl}
+                )""")
+            else:
+                sess_creds = aws_creds.to_session_credentials()
+                session_token = sess_creds["aws_session_token"] or ""
+                sql.append(f"""
+                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                    TYPE S3,
+                    KEY_ID '{sess_creds["aws_access_key_id"]}',
+                    SECRET '{sess_creds["aws_secret_access_key"]}',
                     SESSION_TOKEN '{session_token}',
                     REGION '{aws_creds.region_name}',
                     ENDPOINT '{endpoint}',
@@ -331,7 +395,37 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
             # see duckdb docs
             sql.append("SET azure_transport_option_type = 'curl'")
 
-            if isinstance(credentials, AzureCredentialsWithoutDefaults):
+            if (
+                isinstance(credentials, (AzureCredentials, AzureServicePrincipalCredentials))
+                and credentials.has_default_credentials()
+            ):
+                if credentials.is_external_session():
+                    # DuckDB's chain cannot resolve a user-passed credential, so freeze a bearer
+                    access_token = (
+                        credentials.default_credentials()
+                        .get_token("https://storage.azure.com/.default")
+                        .token
+                    )
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER access_token,
+                        ACCESS_TOKEN '{access_token}',
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+                else:
+                    # hand over to DuckDB's azure credential_chain (env / workload / managed
+                    # identity / az-cli), which refreshes; static branches can't express defaults
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER credential_chain,
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+
+            elif isinstance(credentials, AzureCredentialsWithoutDefaults):
                 sql.append(f"""
                 CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
                     TYPE AZURE,
@@ -366,11 +460,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 f" `{protocol}`. If you are trying to use persistent secrets"
                 " with gs/gcs, please use the s3 compatibility layer."
             )
-        else:
-            # could not create secret
-            return False
-        self._conn.sql(";\n".join(sql))
-        return True
+
+        return sql
 
     def use_dataset(self) -> None:
         """Makes duckdb schema corresponding to dataset_name the default"""
@@ -456,7 +547,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         return isinstance(ex, duckdb.Error)
 
 
-class WithTableScanners(DuckDbSqlClient):
+class WithTableScanners(DuckDbSqlClient, WithSchemas):
     memory_db: duckdb.DuckDBPyConnection = None
     """Internally created in-mem database in case external is not provided"""
 
@@ -495,6 +586,7 @@ class WithTableScanners(DuckDbSqlClient):
         )
         self.remote_client = remote_client
         self.schema = remote_client.schema
+        self.schemas: Dict[str, Schema] = {remote_client.schema.name: remote_client.schema}
         self.persist_secrets = persist_secrets
         self._global_config.update(
             {
@@ -537,7 +629,14 @@ class WithTableScanners(DuckDbSqlClient):
         pass
 
     @abstractmethod
-    def create_view(self, view_name: str, table_schema: PreparedTableSchema) -> None:
+    def create_view_select(
+        self, table_schema: PreparedTableSchema, schema: Schema = None
+    ) -> Optional[Tuple[str, str]]:
+        """Build the SELECT SQL for a view backed by destination data.
+
+        Returns ``(data_location, select_sql)`` or ``None`` when the view
+        cannot be created (e.g. unsupported file format).
+        """
         pass
 
     @abstractmethod
@@ -545,38 +644,99 @@ class WithTableScanners(DuckDbSqlClient):
         """Tells if a view for a table `table_schema` can be created"""
         pass
 
+    def set_schemas(self, schemas: Sequence[Schema]) -> None:
+        """Register schemas for multi-schema view creation."""
+        self.schemas = {s.name: s for s in schemas}
+
+    def _schemas_for_table(self, table_name: str) -> List[Schema]:
+        """Return all schemas that contain `table_name`, in dict order."""
+        return [s for s in self.schemas.values() if table_name in s.tables]
+
     def create_views_for_all_tables(self) -> None:
-        self.create_views_for_tables({v: v for v in self.schema.tables.keys()})
+        all_tables: Dict[str, str] = {}
+        for s in self.schemas.values():
+            for table_name in s.tables.keys():
+                all_tables.setdefault(table_name, table_name)
+        self.create_views_for_tables(all_tables)
 
+    @raise_database_error
     def create_views_for_tables(self, tables: Dict[str, str]) -> None:
-        """Add the required tables as views to the duckdb in memory instance"""
+        """Add the required tables as views to the duckdb in memory instance.
 
-        # this also gets all views
-        existing_tables = [tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall()]
-        # map only tables with data
-        tables_with_data = self.schema.dlt_table_names() + self.schema.data_table_names(
-            seen_data_only=True
-        )
+        When a table name appears in multiple schemas, views are grouped by
+        physical data location.  Co-located schemas get their columns merged
+        into a single SELECT; different locations are combined with
+        ``UNION ALL BY NAME``.
+        """
+        existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
 
-        for table_name in tables.keys():
-            view_name = tables[table_name]
+        # TODO: existing table schemas and sql statements can be cached so we do not have to recompute everything
+        #  with every query
+        tables_with_data: set[str] = set()
+        for s in self.schemas.values():
+            tables_with_data.update(s.dlt_table_names())
+            tables_with_data.update(s.data_table_names(seen_data_only=True))
 
+        # first pass: build SELECT SQL for every table, grouped by location
+        pending_views: List[Tuple[str, str]] = []  # (qualified_view_name, final_sql)
+
+        for table_name, view_name in tables.items():
             if table_name not in tables_with_data:
-                # unknown views will not be created
                 continue
-            # NOTE: if this is staging configuration then `prepare_load_table` will remove some info
-            # from table schema, if we ever extend this to handle staging destination, this needs to change
-            schema_table = self.remote_client.prepare_load_table(table_name)
 
-            needs_replace = self.should_replace_view(view_name, schema_table)
-            # skip if view already exists and does not need to be replaced each time
+            owning_schemas = self._schemas_for_table(table_name)
+            if not owning_schemas:
+                continue
+
+            location_sql: Dict[str, str] = {}
+            location_schema: Dict[str, Schema] = {}
+            location_table: Dict[str, PreparedTableSchema] = {}
+
+            for s in owning_schemas:
+                schema_table = _prepare_load_table(
+                    s.tables,
+                    s.get_table(table_name),
+                    self.remote_client.capabilities,
+                )
+                if not self.can_create_view(schema_table):
+                    continue
+
+                result = self.create_view_select(schema_table, s)
+                if result is None:
+                    continue
+                location, select_sql = result
+
+                if location in location_sql:
+                    # same physical data — merge columns and regenerate SELECT
+                    merge_columns(
+                        location_table[location]["columns"],
+                        schema_table.get("columns", {}),
+                    )
+                    regen = self.create_view_select(
+                        location_table[location], location_schema[location]
+                    )
+                    if regen:
+                        location_sql[location] = regen[1]
+                else:
+                    location_sql[location] = select_sql
+                    location_schema[location] = s
+                    location_table[location] = schema_table
+
+            if not location_sql:
+                continue
+
+            any_table = next(iter(location_table.values()))
+            needs_replace = self.should_replace_view(view_name, any_table)
             if view_name in existing_tables and not needs_replace:
                 continue
 
-            if not self.can_create_view(schema_table):
-                continue
+            final_sql = " UNION ALL BY NAME ".join(location_sql.values())
+            q_view = self.make_qualified_table_name(view_name)
+            pending_views.append((q_view, final_sql))
 
-            self.create_view(view_name, schema_table)
+        # second pass: execute all CREATE VIEW statements
+        for q_view, final_sql in pending_views:
+            self._conn.execute(f"CREATE OR REPLACE VIEW {q_view} AS {final_sql}")
 
     @contextmanager
     @raise_database_error
@@ -594,8 +754,8 @@ class WithTableScanners(DuckDbSqlClient):
             if not table.this:
                 continue
             schema = table.db
-            # add only tables from the dataset schema
-            if schema or schema.lower() != self.dataset_name.lower():
+            # add only tables that do not have schema prefix or schema prefix is actual dataset
+            if not schema or schema.lower() == self.dataset_name.lower():
                 load_tables[table.name] = table.name
 
         if load_tables:

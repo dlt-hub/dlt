@@ -1,6 +1,6 @@
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Literal, Optional, List, Sequence, cast
+from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
@@ -20,7 +20,7 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.typing import TColumnType
+from dlt.common.schema.typing import TColumnType, C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID
 from dlt.common import logger
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -31,6 +31,8 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
@@ -62,7 +64,7 @@ from dlt.destinations.job_client_impl import (
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_client import SqlClientBase
-from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingReplaceFollowupJob
 from dlt.destinations.utils import get_deterministic_temp_table_name
 from dlt.destinations.path_utils import get_file_format_and_compression
 
@@ -120,8 +122,9 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 endpoint=self._staging_credentials.endpoint_url,
                 use_https=self._config.staging_use_https,
             )
-            access_key_id = self._staging_credentials.aws_access_key_id
-            secret_access_key = self._staging_credentials.aws_secret_access_key
+            sess_creds = self._staging_credentials.to_session_credentials()
+            access_key_id = sess_creds["aws_access_key_id"]
+            secret_access_key = sess_creds["aws_secret_access_key"]
             auth = "NOSIGN"
             if self._config.credentials.s3_extra_credentials:
                 # use extra credentials for S3 compatible storage
@@ -132,7 +135,7 @@ class ClickHouseLoadJob(RunnableLoadJob, HasFollowupJobs):
                 ]
                 auth = f"extra_credentials({', '.join(extra_credential_args)})"
             elif access_key_id and secret_access_key:
-                session_token = self._staging_credentials.aws_session_token
+                session_token = sess_creds["aws_session_token"]
                 if session_token:
                     auth = f"'{access_key_id}','{secret_access_key}','{session_token}'"
                 else:
@@ -236,15 +239,27 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
                 )
             )
 
+    # temp table engine should match configured table engine
+    TEMP_TABLE_ENGINE: Dict[TTableEngineType, str] = {
+        "merge_tree": "MergeTree",
+        "replacing_merge_tree": "MergeTree",
+        "shared_merge_tree": "SharedMergeTree",
+        "replicated_merge_tree": "ReplicatedMergeTree",
+    }
+
     @classmethod
-    def _to_temp_table(cls, select_sql: str, temp_table_name: str, unique_column: str) -> str:
-        # Use CREATE OR REPLACE to avoid slow DROP TABLE ... SYNC on replicated ClickHouse clusters.
-        # The Atomic database engine (default since ClickHouse 20.5) handles this via atomic swap
-        # using renameat2(), which is nearly instant. The old table is cleaned up asynchronously.
-        # See: https://github.com/dlt-hub/dlt/issues/3562
+    def _to_temp_table(
+        cls,
+        select_sql: str,
+        temp_table_name: str,
+        unique_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> str:
+        # CREATE OR REPLACE avoids slow DROP TABLE ... SYNC on replicated clusters.
+        engine = cls.TEMP_TABLE_ENGINE.get(sql_client.config.table_engine_type, "MergeTree")
         return (
             f"CREATE OR REPLACE TABLE {temp_table_name} ENGINE ="
-            f" MergeTree PRIMARY KEY {unique_column} AS {select_sql}"
+            f" {engine} PRIMARY KEY {unique_column} AS {select_sql}"
         )
 
     @classmethod
@@ -258,8 +273,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     ) -> List[str]:
         if for_delete:
             # ClickHouse lightweight DELETE doesn't support table aliases or
-            # correlated subqueries with qualified column references. Use IN
-            # with one DELETE per key group (like BigQuery's OR-split pattern).
+            # correlated subqueries with qualified column references.
             sql: List[str] = []
             for cols in (primary_keys, merge_keys):
                 if cols:
@@ -282,6 +296,29 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
         return False
+
+
+class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
+    """Atomic staging-optimized replace via `EXCHANGE TABLES`.
+
+    Requires the destination database to use the `Atomic` or `Shared` engine.
+    The previous destination data lands in the staging slot after the swap; dlt
+    truncates staging tables at the start of the next load.
+    """
+
+    @classmethod
+    def generate_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        sql: List[str] = []
+        for table in table_chain:
+            with sql_client.with_staging_dataset():
+                staging_table_name = sql_client.make_qualified_table_name(table["name"])
+            table_name = sql_client.make_qualified_table_name(table["name"])
+            sql.append(f"EXCHANGE TABLES {staging_table_name} AND {table_name}")
+        return sql
 
 
 class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
@@ -310,6 +347,8 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
     def prepare_load_table(self, table_name: str) -> Optional[PreparedTableSchema]:
         table = super().prepare_load_table(table_name)
 
+        self._set_internal_table_sort_hints(table)
+
         if SORT_HINT not in table:
             table[SORT_HINT] = get_columns_names_with_prop(table, "sort")  # type: ignore[typeddict-unknown-key]
 
@@ -318,10 +357,55 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         return table
 
+    def _set_internal_table_sort_hints(self, table: PreparedTableSchema) -> None:
+        # Match dlt metadata access patterns to avoid ORDER BY tuple() full scans
+        if SORT_HINT in table:
+            return
+        if table["name"] == self.schema.version_table_name:
+            table[SORT_HINT] = ["schema_name", "inserted_at"]  # type: ignore[typeddict-unknown-key]
+        elif table["name"] == self.schema.state_table_name:
+            table[SORT_HINT] = ["pipeline_name", C_DLT_LOAD_ID]  # type: ignore[typeddict-unknown-key]
+        elif table["name"] == self.schema.loads_table_name:
+            table[SORT_HINT] = [C_DLT_LOADS_TABLE_LOAD_ID]  # type: ignore[typeddict-unknown-key]
+
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
         return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+
+    def _create_replace_followup_jobs(
+        self, table_chain: Sequence[PreparedTableSchema]
+    ) -> List[FollowupJobRequest]:
+        root_table = table_chain[0]
+        if root_table["x-replace-strategy"] == "staging-optimized":  # type: ignore[typeddict-item]
+            return [ClickHouseStagingReplaceJob.from_table_chain(table_chain, self.sql_client)]
+        return super()._create_replace_followup_jobs(table_chain)
+
+    def verify_schema(
+        self,
+        only_tables: Iterable[str] = None,
+        new_jobs: Iterable[ParsedLoadJobFileName] = None,
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # probe the database engine early so staging-optimized fails fast at init,
+        # before any data is extracted or loaded into staging
+        if any(table.get("x-replace-strategy") == "staging-optimized" for table in loaded_tables):
+            self._verify_database_supports_exchange()
+        return loaded_tables
+
+    def _verify_database_supports_exchange(self) -> None:
+        # `EXCHANGE TABLES` is only supported on Atomic and Shared database engines
+        result = self.sql_client.execute_sql(
+            "SELECT engine FROM system.databases WHERE name = currentDatabase()"
+        )
+        engine = result[0][0] if result else "unknown"
+        if engine not in ("Atomic", "Shared"):
+            raise DestinationTerminalException(
+                "ClickHouse replace_strategy='staging-optimized' requires the Atomic or Shared"
+                f" database engine to use EXCHANGE TABLES (current: {engine}). Either choose"
+                " 'insert-from-staging' or 'truncate-and-insert', or recreate the database with"
+                " ENGINE = Atomic."
+            )
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
         # Build column definition.

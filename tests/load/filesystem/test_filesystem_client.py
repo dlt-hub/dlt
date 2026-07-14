@@ -1,4 +1,4 @@
-from typing import List, Union, Dict
+from typing import Dict, List, Optional, Union
 import posixpath
 import os
 import json
@@ -76,17 +76,24 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
 
 
 @pytest.mark.parametrize(
-    "url, exp",
-    (
-        (None, ""),
-        ("/path/path2", digest128("")),
-        ("file:///home/ducklake.d", digest128("file://")),
-        ("s3://cool", digest128("s3://cool")),
-        ("s3://cool.domain/path/path2", digest128("s3://cool.domain")),
-    ),
+    "bucket_url,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param("/path/path2", digest128(""), id="local_absolute_path"),
+        pytest.param("lake", digest128(""), id="local_relative_path"),
+        pytest.param("file:///home/ducklake.d", digest128("file://"), id="file_scheme"),
+        pytest.param("s3://cool", digest128("s3://cool"), id="remote_bucket"),
+        pytest.param(
+            "s3://cool.domain/path/path2",
+            digest128("s3://cool.domain"),
+            id="remote_bucket_path_ignored",
+        ),
+    ],
 )
-def test_filesystem_destination_configuration(url, exp) -> None:
-    assert FilesystemDestinationClientConfiguration(bucket_url=url).fingerprint() == exp
+def test_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint: str) -> None:
+    config = FilesystemDestinationClientConfiguration(bucket_url=bucket_url)
+
+    assert config.fingerprint() == expected_fingerprint
 
 
 def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:

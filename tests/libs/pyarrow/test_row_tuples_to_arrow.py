@@ -1,3 +1,5 @@
+import sys
+import types
 from datetime import date, datetime, timezone, time, timedelta  # noqa: I251
 from uuid import uuid4
 from typing import List, Tuple, Any
@@ -8,14 +10,16 @@ from numpy.testing import assert_equal
 
 from dlt.common import Decimal
 from dlt.common.data_types.type_helpers import json_to_str
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.libs.pyarrow import (
     PyToArrowConversionException,
     transpose_rows_to_columns,
-    convert_numpy_to_arrow,
+    convert_array_to_arrow,
     row_tuples_to_arrow,
     serialize_type,
+    uuid_to_string,
 )
 
 
@@ -119,6 +123,8 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
     assert pa.types.is_float64(result[2].type)
     assert pa.types.is_boolean(result[3].type)
     assert pa.types.is_date(result[4].type)
+    # dlt always coerces UUIDs to canonical hyphenated string regardless of
+    # whether pyarrow inferred them as string (<24) or `arrow.uuid` (>=24)
     assert pa.types.is_string(result[5].type)
     assert pa.types.is_timestamp(result[6].type)
     assert pa.types.is_list(result[7].type)
@@ -133,7 +139,7 @@ def test_row_tuples_to_arrow_unknown_types(all_unknown: bool, leading_nulls: boo
 
 
 def test_convert_to_arrow_json_is_string():
-    """json data_type should be serialized to string by row_tuples_to_arrow and convert_numpy_to_arrow."""
+    """json data_type should be serialized to string by row_tuples_to_arrow and convert_array_to_arrow."""
     column_name = "json_col"
     columns_schema: TTableSchemaColumns = {column_name: {"name": column_name, "data_type": "json"}}
     value1 = {"foo": "bar"}
@@ -148,7 +154,7 @@ def test_convert_to_arrow_json_is_string():
     column = columns[column_name]
     assert_equal(columns[column_name], (expected_column))
 
-    arrow_array = convert_numpy_to_arrow(
+    arrow_array = convert_array_to_arrow(
         column,
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
@@ -161,6 +167,120 @@ def test_convert_to_arrow_json_is_string():
     assert pa.types.is_string(arrow_table[column_name].type)
 
 
+def test_uuid_to_string_from_fixed_size_binary() -> None:
+    """uuid_to_string accepts fixed_size_binary[16] and returns canonical strings."""
+    uuids = [uuid4() for _ in range(5)]
+    fsb = pa.array([u.bytes for u in uuids], type=pa.binary(16))
+
+    result = uuid_to_string(fsb)
+
+    assert pa.types.is_string(result.type)
+    assert result.to_pylist() == [str(u) for u in uuids]
+
+
+def _pyarrow_infers_uuid() -> bool:
+    """True if `pa.array([uuid4()])` infers the `arrow.uuid` extension (pyarrow >=24)."""
+    try:
+        arr = pa.array([uuid4()])
+    except pa.ArrowInvalid:
+        return False
+    return getattr(arr.type, "extension_name", None) == "arrow.uuid"
+
+
+@pytest.mark.skipif(
+    not _pyarrow_infers_uuid(), reason="pyarrow does not infer arrow.uuid extension at this version"
+)
+def test_uuid_to_string_from_arrow_uuid_extension() -> None:
+    """uuid_to_string accepts the pyarrow >=24 `arrow.uuid` extension array."""
+    uuids = [uuid4() for _ in range(5)]
+    arr = pa.array(uuids)
+    assert getattr(arr.type, "extension_name", None) == "arrow.uuid"
+
+    result = uuid_to_string(arr)
+
+    assert pa.types.is_string(result.type)
+    assert result.to_pylist() == [str(u) for u in uuids]
+
+
+def test_uuid_to_string_preserves_nulls() -> None:
+    """Null entries survive both numpy and Python paths."""
+    uuids: List[Any] = [uuid4(), None, uuid4(), None, uuid4()]
+    fsb = pa.array([u.bytes if u is not None else None for u in uuids], type=pa.binary(16))
+
+    result = uuid_to_string(fsb)
+
+    expected = [str(u) if u is not None else None for u in uuids]
+    assert result.to_pylist() == expected
+
+
+def test_uuid_to_string_handles_sliced_array() -> None:
+    """Sliced inputs (`storage.offset != 0`) yield correctly aligned strings."""
+    uuids: List[Any] = [uuid4(), None, uuid4(), uuid4(), None, uuid4()]
+    fsb = pa.array([u.bytes if u is not None else None for u in uuids], type=pa.binary(16))
+
+    # slice that starts past offset 0 and skips the tail — exercises both the
+    # data-buffer offset and the bit-packed validity offset
+    sliced = fsb.slice(2, 3)
+    assert sliced.offset != 0
+
+    result = uuid_to_string(sliced)
+
+    expected = [str(u) if u is not None else None for u in uuids[2:5]]
+    assert result.to_pylist() == expected
+
+
+def test_uuid_to_string_python_fallback_matches_numpy(monkeypatch: pytest.MonkeyPatch) -> None:
+    """When numpy is missing, the pure-Python fallback produces identical output."""
+    uuids: List[Any] = [uuid4(), None, uuid4(), uuid4(), None, uuid4()]
+    fsb = pa.array([u.bytes if u is not None else None for u in uuids], type=pa.binary(16))
+
+    # numpy path output (real numpy is installed in the dev env)
+    numpy_result = uuid_to_string(fsb)
+
+    # force the fallback: replace `dlt.common.libs.numpy` with a stub whose
+    # `numpy` attribute raises MissingDependencyException, mirroring an
+    # environment where numpy isn't installed
+    class _NumpyStub(types.ModuleType):
+        def __getattr__(self, name: str) -> Any:
+            if name == "numpy":
+                raise MissingDependencyException("dlt numpy Helpers", ["numpy"])
+            raise AttributeError(name)
+
+    monkeypatch.setitem(sys.modules, "dlt.common.libs.numpy", _NumpyStub("dlt.common.libs.numpy"))
+
+    python_result = uuid_to_string(fsb)
+
+    # cross-path equivalence: both paths must produce byte-identical output
+    assert numpy_result.to_pylist() == python_result.to_pylist()
+    expected = [str(u) if u is not None else None for u in uuids]
+    assert python_result.to_pylist() == expected
+
+
+def test_convert_uuid_is_string() -> None:
+    """convert_array_to_arrow yields a string array for UUID columns regardless of pyarrow version."""
+    column_name = "uuid_col"
+    columns_schema: TTableSchemaColumns = {column_name: {"name": column_name}}
+    uuids = [uuid4(), uuid4(), uuid4()]
+    rows = [(u,) for u in uuids]
+
+    columns = transpose_rows_to_columns(rows, columns_schema)
+    arrow_array = convert_array_to_arrow(
+        columns[column_name],
+        DestinationCapabilitiesContext().generic_capabilities(),
+        columns_schema[column_name],
+        "UTC",
+        True,
+    )
+
+    assert pa.types.is_string(arrow_array.type)
+    assert arrow_array.to_pylist() == [str(u) for u in uuids]
+
+    # round-trip through row_tuples_to_arrow as well
+    arrow_table = row_tuples_to_arrow(rows, _caps(), columns_schema, "UTC")
+    assert pa.types.is_string(arrow_table[column_name].type)
+    assert arrow_table[column_name].to_pylist() == [str(u) for u in uuids]
+
+
 def test_convert_to_arrow_null_column_is_not_removed():
     column_name = "null_col"
     columns_schema: TTableSchemaColumns = {
@@ -170,7 +290,7 @@ def test_convert_to_arrow_null_column_is_not_removed():
     rows = [(1, None), (2, None)]
 
     columns = transpose_rows_to_columns(rows, columns_schema)
-    arrow_array = convert_numpy_to_arrow(
+    arrow_array = convert_array_to_arrow(
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
@@ -193,7 +313,7 @@ def test_convert_to_arrow_null_column_with_data_type_is_not_removed():
     rows = [(1, None), (2, None)]
 
     columns = transpose_rows_to_columns(rows, columns_schema)
-    arrow_array = convert_numpy_to_arrow(
+    arrow_array = convert_array_to_arrow(
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
@@ -216,7 +336,7 @@ def test_convert_to_arrow_cast_string_to_decimal():
     rows = [("2.00001",), (None,), ("3.00001",)]
 
     columns = transpose_rows_to_columns(rows, columns_schema)
-    arrow_array = convert_numpy_to_arrow(
+    arrow_array = convert_array_to_arrow(
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
@@ -237,7 +357,7 @@ def test_convert_to_arrow_cast_float_to_decimal():
     rows = [(2.00001,), (None,), (3.00001,)]
 
     columns = transpose_rows_to_columns(rows, columns_schema)
-    arrow_array = convert_numpy_to_arrow(
+    arrow_array = convert_array_to_arrow(
         columns[column_name],
         DestinationCapabilitiesContext().generic_capabilities(),
         columns_schema[column_name],
@@ -559,7 +679,7 @@ def test_row_tuples_to_arrow_detects_range_type() -> None:
 def test_json_fallback_to_string_for_non_coercible_nested_objects() -> None:
     """ensure json columns fall back to string when nested values cannot be coerced to a uniform nested type.
 
-    this exercises convert_numpy_to_arrow fallback case 2: values are encoded to json strings.
+    this exercises convert_array_to_arrow fallback case 2: values are encoded to json strings.
     """
     # mix incompatible python container types across rows: list in one row, dict in another
     rows = [([1, 2, 3],), (None,), ({"a": 1},)]
@@ -608,3 +728,132 @@ def test_json_with_nested_type_hint_produces_real_nested_type() -> None:
     assert pa.types.is_struct(col_type)
     # ensure it is exactly the hinted type
     assert col_type == hinted_type
+
+
+def test_row_tuples_to_arrow_struct_fast_path(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Fully typed schemas use the single-pass struct conversion and produce
+    the same table as the per-column path."""
+    import dlt.common.libs.pyarrow as pyarrow_libs
+
+    columns: TTableSchemaColumns = {
+        "int_col": {"name": "int_col", "data_type": "bigint"},
+        "float_col": {"name": "float_col", "data_type": "double"},
+        "text_col": {"name": "text_col", "data_type": "text"},
+        "bool_col": {"name": "bool_col", "data_type": "bool", "nullable": False},
+        "ts_col": {"name": "ts_col", "data_type": "timestamp"},
+        "date_col": {"name": "date_col", "data_type": "date"},
+        "dec_col": {"name": "dec_col", "data_type": "decimal", "precision": 10, "scale": 2},
+    }
+    rows = [
+        (
+            1,
+            1.5,
+            "a",
+            True,
+            datetime(2024, 1, 1, tzinfo=timezone.utc),
+            date(2024, 1, 1),
+            Decimal("1.23"),
+        ),
+        (None, None, None, True, None, None, None),
+    ]
+
+    # reference result from the per-column path
+    with monkeypatch.context() as m:
+        m.setattr(pyarrow_libs, "_row_tuples_to_arrow_struct", lambda *args: None)
+        expected = row_tuples_to_arrow(rows, _caps(), columns, "UTC")
+
+    # fast path must not transpose
+    def _no_transpose(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("per-column path used")
+
+    with monkeypatch.context() as m:
+        m.setattr(pyarrow_libs, "transpose_rows_to_columns", _no_transpose)
+        tbl = row_tuples_to_arrow(rows, _caps(), columns, "UTC")
+
+    assert tbl.schema == expected.schema
+    assert tbl.equals(expected)
+
+
+def test_row_tuples_to_arrow_struct_fallback_to_per_column() -> None:
+    """json columns (struct path ineligible) and values failing the fused
+    conversion (struct path aborts) use per-column strategies."""
+    # json columns skip the struct path
+    columns: TTableSchemaColumns = {
+        "int_col": {"name": "int_col", "data_type": "bigint"},
+        "json_col": {"name": "json_col", "data_type": "json"},
+    }
+    rows = [(1, {"k": 1}), (2, {"k": 2})]
+    tbl = row_tuples_to_arrow(rows, _caps(), columns, "UTC")
+    assert tbl["int_col"].to_pylist() == [1, 2]
+    assert pa.types.is_string(tbl["json_col"].type)
+    assert tbl["json_col"].to_pylist() == [json_to_str({"k": 1}), json_to_str({"k": 2})]
+
+    # numeric strings fail the fused conversion to double, per-column infer+cast converts them
+    columns = {"float_col": {"name": "float_col", "data_type": "double"}}
+    tbl = row_tuples_to_arrow([("1.5",), ("2.5",)], _caps(), columns, "UTC")
+    assert tbl["float_col"].type == pa.float64()
+    assert tbl["float_col"].to_pylist() == [1.5, 2.5]
+
+
+class _DriverRow:
+    """Mimics a non-tuple driver row (e.g. sqlalchemy Row): sequence protocol only."""
+
+    def __init__(self, *values: Any) -> None:
+        self._values = values
+
+    def __iter__(self) -> Any:
+        return iter(self._values)
+
+    def __len__(self) -> int:
+        return len(self._values)
+
+    def __getitem__(self, idx: int) -> Any:
+        return self._values[idx]
+
+
+@pytest.mark.parametrize("row_shape", ["list", "driver_row"], ids=["list-rows", "driver-rows"])
+def test_row_tuples_to_arrow_non_tuple_rows_use_struct_path(
+    row_shape: str, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Non-tuple row shapes are normalized to tuples and take the single-pass
+    struct conversion, producing the same table as plain tuple rows."""
+    import dlt.common.libs.pyarrow as pyarrow_libs
+
+    columns: TTableSchemaColumns = {
+        "int_col": {"name": "int_col", "data_type": "bigint"},
+        "text_col": {"name": "text_col", "data_type": "text"},
+    }
+    base_rows = [(1, "a"), (2, None)]
+    rows: List[Any] = (
+        [list(r) for r in base_rows] if row_shape == "list" else [_DriverRow(*r) for r in base_rows]
+    )
+
+    expected = row_tuples_to_arrow(base_rows, _caps(), columns, "UTC")
+
+    # normalized rows must take the struct path, not the transpose
+    def _no_transpose(*args: Any, **kwargs: Any) -> None:
+        raise AssertionError("per-column path used")
+
+    with monkeypatch.context() as m:
+        m.setattr(pyarrow_libs, "transpose_rows_to_columns", _no_transpose)
+        tbl = row_tuples_to_arrow(rows, _caps(), columns, "UTC")
+
+    assert tbl.schema == expected.schema
+    assert tbl.equals(expected)
+
+
+@pytest.mark.parametrize("typed", [True, False], ids=["typed_schema", "untyped_schema"])
+def test_row_tuples_to_arrow_empty_rows(typed: bool) -> None:
+    """Empty result sets produce an empty table with all schema columns present."""
+    columns: TTableSchemaColumns = {
+        "a": {"name": "a", "data_type": "bigint"} if typed else {"name": "a"},
+        "b": {"name": "b", "data_type": "text"} if typed else {"name": "b"},
+    }
+
+    tbl = row_tuples_to_arrow([], _caps(), columns, "UTC")
+
+    assert tbl.num_rows == 0
+    assert tbl.column_names == ["a", "b"]
+    if typed:
+        assert tbl.schema.field("a").type == pa.int64()
+        assert tbl.schema.field("b").type == pa.string()

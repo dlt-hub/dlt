@@ -158,6 +158,13 @@ def test_generate_json_like_data():
     assert len(data) == 10
 
 
+def test_mssql_adbc_copy_job_opts_into_per_rowgroup_ingest() -> None:
+    from dlt.destinations.impl.mssql.mssql import MssqlParquetCopyJob
+
+    # mssql ADBC driver buffers the full stream — per row-group ingest is required to bound memory
+    assert MssqlParquetCopyJob._ingest_per_rowgroup is True
+
+
 def test_mssql_complex_json_loading() -> None:
     """Test loading jsonDB-like data into MSSQL with different sequences"""
     dest = mssql(create_indexes=True)

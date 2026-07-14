@@ -163,9 +163,37 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
-    def fingerprint(self) -> str:
-        """Returns a destination fingerprint which is a hash of selected configuration fields. ie. host in case of connection string"""
+    def physical_location(self) -> str:
+        """Returns a non-secret physical location identity, or "" when unavailable."""
         return ""
+
+    # TODO: If we ever clean up fingerprinting across all destinations, consider making
+    # the default `digest128(self.physical_location())`. This will break telemetry
+    # semantics, so it must be a deliberate cutover.
+    def fingerprint(self) -> str:
+        """Returns a destination fingerprint derived from selected configuration fields."""
+        return ""
+
+    def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
+        """Returns True if `self` can read data from `other`.
+        In case of SQL engines it is an ability to SELECT / JOIN
+        """
+        if not isinstance(other, DestinationClientConfiguration):
+            return False
+        if self.destination_type != other.destination_type:
+            return False
+        self_loc = self.physical_location()
+        other_loc = other.physical_location()
+        if self_loc and other_loc and self_loc == other_loc:
+            return True
+        return False
+
+    def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
+        """Returns true if `self` can write data from `other`
+        In case of SQL engines it is an ability to INSERT FROM
+        """
+        # in most destinations, ability to read is also the same as abilty to write
+        return self.can_read_from(other)
 
     def __str__(self) -> str:
         """Return displayable destination location"""
@@ -446,25 +474,36 @@ class RunnableLoadJob(LoadJob, ABC):
         self._done_event = done_event
 
         # filepath is now moved to running
+        next_state: TLoadJobState = None
         try:
             self._state = "running"
-            self._job_client.prepare_load_job_execution(self)
-            self.run()
-            self._state = "completed"
+            # open client connection only when running
+            with self._job_client:
+                self._job_client.prepare_load_job_execution(self)
+                self.run()
+            next_state = "completed"
         except (TerminalException, AssertionError) as e:
-            self._state = "failed"
+            next_state = "failed"
             self._exception = e
             logger.exception(f"Terminal exception in job {self.job_id()} in file {self._file_path}")
         except (DestinationTransientException, Exception) as e:
-            self._state = "retry"
+            next_state = "retry"
             self._exception = e
             logger.exception(
                 f"Transient exception in job {self.job_id()} in file {self._file_path}"
             )
         finally:
-            # sanity check
-            assert self._state in ("completed", "retry", "failed")
-            if self._state != "retry":
+            # skip exception not caught above ie. KeyboardInterrupt
+            if next_state is not None:
+                self._release(next_state)
+
+    def _release(self, next_state: TLoadJobState) -> None:
+        """Release job from polling"""
+        # sanity check
+        assert next_state in ("completed", "retry", "failed")
+        # skip on "retry", including releasing event
+        try:
+            if next_state != "retry":
                 # persist terminal state so resume can skip re-execution
                 if self._on_completed:
                     if self._exception:
@@ -477,12 +516,15 @@ class RunnableLoadJob(LoadJob, ABC):
                         )
                     else:
                         failed_message = None
-                    self._on_completed(self._state, failed_message)
+                    self._on_completed(next_state, failed_message)
                 self._finished_at = pendulum.now()
-                # wake up waiting threads
-                if self._done_event:
-                    with contextlib.suppress(ValueError):
-                        self._done_event.release()
+        finally:
+            # set final job state after callback and _finished_at to prevent races with completion loop
+            self._state = next_state
+        # wake up waiting threads
+        if self._done_event and next_state != "retry":
+            with contextlib.suppress(ValueError):
+                self._done_event.release()
 
     @abstractmethod
     def run(self) -> None:
@@ -563,7 +605,7 @@ class JobClientBase(ABC):
         prepared_tables = [
             self.prepare_load_table(table_name)
             for table_name in set(
-                list(only_tables or []) + self.schema.data_table_names(seen_data_only=True)
+                list(only_tables or self.schema.data_table_names(seen_data_only=True))
             )
         ]
         if exceptions := verify_supported_data_types(
@@ -582,6 +624,7 @@ class JobClientBase(ABC):
         self,
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
+        force: bool = False,
     ) -> Optional[TSchemaTables]:
         """Updates storage to the current schema.
 
@@ -591,6 +634,7 @@ class JobClientBase(ABC):
         Args:
             only_tables (Sequence[str], optional): Updates only listed tables. Defaults to None.
             expected_update (TSchemaTables, optional): Update that is expected to be applied to the destination
+            force (bool): force full schema migration regardless of previous updates
         Returns:
             Optional[TSchemaTables]: Returns an update that was applied at the destination.
         """
@@ -621,7 +665,7 @@ class JobClientBase(ABC):
     def prepare_load_job_execution(  # noqa: B027, optional override
         self, job: RunnableLoadJob
     ) -> None:
-        """Prepare the connected job client for the execution of a load job (used for query tags in sql clients)"""
+        """Prepare the connected job client for a load job, including load-specific query-tag context when supported."""
         pass
 
     def should_truncate_table_before_load(self, table_name: str) -> bool:

@@ -9,6 +9,7 @@ from dlt.common.configuration.providers import (
     ContextProvider,
 )
 from dlt.common.configuration.specs import (
+    AwsCredentials,
     GcpServiceAccountCredentials,
     BaseConfiguration,
     configspec,
@@ -27,10 +28,17 @@ class VaultProviderConfiguration(BaseConfiguration):
 
 
 @configspec
+class AwsSecretsProviderConfiguration(VaultProviderConfiguration):
+    secret_name_prefix: str = "dlt/"
+    "Prepended verbatim to all secret names and used to filter secret listing, empty to disable"
+
+
+@configspec
 class ConfigProvidersConfiguration(BaseConfiguration):
     # TODO: set to False in 2.0
     enable_airflow_secrets: bool = True
     enable_google_secrets: bool = False
+    enable_aws_secrets: bool = False
 
     airflow_secrets: VaultProviderConfiguration = VaultProviderConfiguration(
         only_secrets=False, only_toml_fragments=False, list_secrets=False
@@ -39,6 +47,9 @@ class ConfigProvidersConfiguration(BaseConfiguration):
         only_secrets=True, only_toml_fragments=True, list_secrets=False
     )  # None  # dataclasses.field(default_factory=lambda: dict(only_secrets=True, only_toml_fragments=True, list_secrets=False))
     # VaultProviderConfiguration(only_secrets=True, only_toml_fragments=True, list_secrets=False)
+    aws_secrets: AwsSecretsProviderConfiguration = AwsSecretsProviderConfiguration(
+        only_secrets=True, only_toml_fragments=True, list_secrets=False
+    )
     # always look in providers
     __section__: ClassVar[str] = known_sections.PROVIDERS
 
@@ -97,6 +108,8 @@ def _extra_providers() -> List[ConfigProvider]:
         extra_providers.extend(_airflow_providers(providers_config.airflow_secrets))
     if providers_config.enable_google_secrets:
         extra_providers.append(_google_secrets_provider(providers_config.google_secrets))
+    if providers_config.enable_aws_secrets:
+        extra_providers.append(_aws_secrets_provider(providers_config.aws_secrets))
     return extra_providers
 
 
@@ -108,6 +121,14 @@ def _google_secrets_provider(settings: VaultProviderConfiguration) -> ConfigProv
         GcpServiceAccountCredentials(), sections=(known_sections.PROVIDERS, "google_secrets")
     )
     return GoogleSecretsProvider(c, **dict(settings))
+
+
+def _aws_secrets_provider(settings: AwsSecretsProviderConfiguration) -> ConfigProvider:
+    from dlt.common.configuration.resolve import resolve_configuration
+    from dlt.common.configuration.providers.aws_secrets import AwsSecretsManagerProvider
+
+    c = resolve_configuration(AwsCredentials(), sections=(known_sections.PROVIDERS, "aws_secrets"))
+    return AwsSecretsManagerProvider(c, **dict(settings))
 
 
 def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvider]:

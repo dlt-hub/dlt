@@ -180,6 +180,25 @@ destination = dlt.destinations.ducklake(
 
 See the [DuckLake docs on connecting](https://ducklake.select/docs/stable/duckdb/usage/connecting) for more details on `OVERRIDE_DATA_PATH`.
 
+### Automatic migration
+When you attach a catalog that was created by an older `ducklake` extension version, DuckDB raises a catalog version mismatch error. Set `automatic_migration` to `True` to attach with `AUTOMATIC_MIGRATION true`, which makes DuckDB migrate the catalog schema to the installed extension's version on attach. The default is `False`, matching DuckDB's own default.
+
+```toml
+[destination.ducklake]
+automatic_migration=true
+```
+
+Or via environment variable `DESTINATION__DUCKLAKE__AUTOMATIC_MIGRATION=true`, or in code:
+```py
+import dlt
+
+destination = dlt.destinations.ducklake(automatic_migration=True)
+```
+
+:::caution
+Migration mutates the catalog schema irreversibly. This does not help with read-only / pre-release (v0.x) catalogs, which DuckDB cannot migrate in place — migrate those through a writable intermediate catalog instead.
+:::
+
 ### Configure in code
 You can create ducklake destination instance and configure it in code. In most cases you will just set additional options while still using the configuration:
 ```py

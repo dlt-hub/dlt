@@ -135,14 +135,12 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
     @dlt.resource(table_name="table1")
     def sync_resource1():
         for l_ in ["a", "b", "c"]:
-            nonlocal execution_order
             execution_order.append("one")
             yield {"letter": l_}
 
     @dlt.resource(table_name="table2")
     def sync_resource2():
         for l_ in ["e", "f", "g"]:
-            nonlocal execution_order
             execution_order.append("two")
             yield {"letter": l_}
 
@@ -150,7 +148,6 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
     async def async_resource1():
         for l_ in ["a", "b", "c"]:
             await asyncio.sleep(1)
-            nonlocal execution_order
             execution_order.append("one")
             yield {"letter": l_}
 
@@ -159,7 +156,6 @@ def test_parallel_async_generators(next_item_mode: str, resource_mode: str) -> N
         await asyncio.sleep(0.5)
         for l_ in ["e", "f", "g"]:
             await asyncio.sleep(1)
-            nonlocal execution_order
             execution_order.append("two")
             yield {"letter": l_}
 

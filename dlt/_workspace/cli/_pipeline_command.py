@@ -35,7 +35,7 @@ def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
                    - 0: Only show count summary
                    - 1+: Show full list with last run times
     """
-    pipelines_dir, pipelines = utils.list_local_pipelines(pipelines_dir)
+    pipelines_dir, pipelines, _ = utils.list_local_pipelines(pipelines_dir)
 
     if len(pipelines) > 0:
         if verbosity == 0:
@@ -75,6 +75,9 @@ def pipeline_command(
 
     # we may open the dashboard for a pipeline without checking if it exists
     if operation == "show":
+        if not utils.is_hub_available():
+            return
+
         from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
         run_dashboard(pipeline_name, edit=command_kwargs.get("edit"), pipelines_dir=pipelines_dir)
@@ -144,6 +147,9 @@ def pipeline_command(
 
     # launch mcp server before outputting to stdout
     if operation == "mcp":
+        if not utils.is_hub_available():
+            return
+
         from dlt._workspace.mcp import PipelineMCP
 
         if command_kwargs["stdio"]:
@@ -262,8 +268,8 @@ def pipeline_command(
             fmt.echo("Pipeline does not have last run trace.")
         else:
             fmt.echo(
-                "Pipeline has last run trace. Use 'dlt pipeline %s trace' to inspect "
-                % pipeline_name
+                "Pipeline has last run trace. Use '%s' to inspect "
+                % fmt.cli_cmd(f"pipeline {pipeline_name} trace")
             )
 
     if operation == "trace":
@@ -481,7 +487,7 @@ def pipeline_command(
                 "Could not select any resources to drop and no resource/source state to reset. Use"
                 " the command below to inspect the pipeline:"
             )
-            fmt.echo(f"dlt pipeline -v {p.pipeline_name} info")
+            fmt.echo(fmt.cli_cmd(f"pipeline -v {p.pipeline_name} info"))
             if len(drop.info["warnings"]):
                 fmt.echo("Additional warnings are available")
                 for warning in drop.info["warnings"]:
@@ -548,7 +554,6 @@ def pipeline_command(
             drop()
 
 
-@utils.track_command("pipeline", True, "operation")
 def pipeline_command_wrapper(
     operation: str, pipeline_name: str, pipelines_dir: str, verbosity: int, **command_kwargs: Any
 ) -> None:
@@ -558,6 +563,6 @@ def pipeline_command_wrapper(
         fmt.secho(str(ex), err=True, fg="red")
         fmt.secho(
             "Try command %s to restore the pipeline state from destination"
-            % fmt.bold(f"dlt pipeline {pipeline_name} sync")
+            % fmt.bold(fmt.cli_cmd(f"pipeline {pipeline_name} sync"))
         )
         raise CliCommandException(error_code=-2)

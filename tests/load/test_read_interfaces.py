@@ -1,13 +1,17 @@
+from datetime import timedelta  # noqa: I251
 from typing import Any, cast, Tuple, List
 import re
 import pytest
 import dlt
 import os
+import sqlglot.expressions as sge
+from copy import copy
 
 from dlt import Pipeline
 from dlt.common import Decimal
+from dlt.common.incremental.typing import IncrementalColumnState
+from dlt.common.pendulum import pendulum
 
-from typing import List
 from functools import reduce
 
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
@@ -16,23 +20,29 @@ from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 
 from dlt.common.utils import uniq_id
+from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
+from tests.load.read_dataset_fixtures import (
+    destination_config,
+    preserve_module_environ_per_destination_config,
+    skip_if_unsupported_filesystem_format,
+)
 from tests.load.utils import (
-    destinations_configs,
     DestinationTestConfiguration,
-    SFTP_BUCKET,
-    MEMORY_BUCKET,
+    destinations_configs,
+    drop_pipeline_data,
 )
 from tests.utils import (
-    preserve_module_environ,
-    auto_module_test_storage,
     auto_module_test_run_context,
+    auto_module_test_storage,
 )
-from tests.load.utils import drop_pipeline_data
 
-EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+EXPECTED_COLUMNS = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
+
+# items.created_at is generated as `ITEMS_EPOCH + timedelta(seconds=i)` for i in range(total_records)
+ITEMS_EPOCH = pendulum.datetime(2024, 1, 1, 0, 0, 0, tz="UTC")
 
 
 def _total_records(destination_type: str) -> int:
@@ -80,15 +90,21 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
                 # we add a decimal with precision to see wether the hints are preserved
                 "decimal": {"data_type": "decimal", "precision": 10, "scale": 3},
                 "other_decimal": {"data_type": "decimal", "precision": 12, "scale": 3},
+                "created_at": {"data_type": "timestamp"},
             },
         )
-        def items():
+        def items(
+            cursor=dlt.sources.incremental[pendulum.DateTime](  # noqa: B008
+                "created_at", initial_value=ITEMS_EPOCH
+            ),
+        ):
             yield from [
                 {
                     "id": i,
                     "children": [{"id": i + 100}, {"id": i + 1000}],
                     "decimal": Decimal("10.433"),
                     "other_decimal": Decimal("10.433"),
+                    "created_at": ITEMS_EPOCH + timedelta(seconds=i),
                 }
                 for i in range(total_records)
             ]
@@ -133,19 +149,14 @@ def create_test_source(destination_type: str, table_format: TTableFormat) -> Dlt
 
 @pytest.fixture(scope="module")
 def populated_pipeline(
-    request, auto_module_test_storage, preserve_module_environ, auto_module_test_run_context
+    destination_config: DestinationTestConfiguration,
+    auto_module_test_storage,
+    preserve_module_environ_per_destination_config,
+    auto_module_test_run_context,
 ) -> Any:
     """fixture that returns a pipeline object populated with the example data"""
 
-    destination_config = cast(DestinationTestConfiguration, request.param)
-    if (
-        destination_config.file_format not in ["parquet", "jsonl"]
-        and destination_config.destination_type == "filesystem"
-    ):
-        pytest.skip(
-            "Test only works for jsonl and parquet on filesystem destination, given:"
-            f" {destination_config.file_format}"
-        )
+    skip_if_unsupported_filesystem_format(destination_config)
 
     pipeline = destination_config.setup_pipeline(
         "read_pipeline", dataset_name="read_test", dev_mode=True
@@ -158,7 +169,6 @@ def populated_pipeline(
     # create a second schema in the pipeline
     # NOTE: that generates additional load package and then another one for the state
     # NOTE: "aleph" schema is now the newest schema in the dataset and we assume that later in the tests
-    # TODO: we need some kind of idea for multi-schema datasets
     pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
     print(pipeline.last_trace.last_normalize_info)
 
@@ -170,23 +180,8 @@ def populated_pipeline(
         drop_pipeline_data(pipeline)
 
 
-# NOTE: we collect all destination configs centrally, this way the session based
-# pipeline population per fixture setup will work and save a lot of time
-configs = destinations_configs(
-    default_sql_configs=True,
-    read_only_sqlclient_configs=True,
-    bucket_exclude=[SFTP_BUCKET, MEMORY_BUCKET],
-)
-
-
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> None:
     # no need to test on all destinations
     if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
@@ -205,8 +200,10 @@ def test_str_and_repr_on_dataset_and_relation(populated_pipeline: Pipeline) -> N
     # dataset
     assert (
         _replace_variable_content(str(dataset_))
-        == "Dataset `dataset_name` at `duckdb[<destination_config>]` with tables in dlt schema"
-        " `source`:\nitems, double_items, orderable_in_chain, items__children"
+        == "Dataset `dataset_name` at `duckdb[<destination_config>]` "
+        "with schemas:\n"
+        "  source: items, double_items, orderable_in_chain, items__children\n"
+        "  aleph: digits"
     )
 
     dataset_repr = _replace_variable_content(repr(dataset_))
@@ -231,12 +228,6 @@ Columns:
 
 
 @pytest.mark.no_load
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_fetchscalar(populated_pipeline: Pipeline) -> None:
     assert populated_pipeline.dataset()(
         "SELECT COUNT(*) FROM items"
@@ -249,17 +240,11 @@ def test_fetchscalar(populated_pipeline: Pipeline) -> None:
 
     with pytest.raises(ValueError) as ex:
         populated_pipeline.dataset()["items"].limit(1).limit(1).fetchscalar()
-    assert "got 1 row with 5 columns" in str(ex.value)
+    assert "got 1 row with 6 columns" in str(ex.value)
 
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_arrow_access(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -290,12 +275,6 @@ def test_arrow_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_dataframe_access(populated_pipeline: Pipeline) -> None:
     # access via key
     table_relationship = populated_pipeline.dataset()["items"]
@@ -306,7 +285,9 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
         "dlt.destinations.filesystem",
         "dlt.destinations.snowflake",
         "dlt.destinations.ducklake",  # vector size seems to not be consistent, typically 700
+        "dlt.destinations.duckdb",  # vector sizes started to vary
         "dlt.destinations.lancedb",  # default is 200
+        "dlt.destinations.lance",
     ]
 
     # full frame
@@ -334,12 +315,6 @@ def test_dataframe_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
     # check fetch accessors
     table_relationship = populated_pipeline.dataset().items
@@ -369,12 +344,6 @@ def test_db_cursor_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_hint_preservation(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     # check that hints are carried over to arrow table
@@ -401,12 +370,6 @@ def test_hint_preservation(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_loads_table_access(populated_pipeline: Pipeline) -> None:
     # check loads table access, we should have 3 entires
     # - first source (default schema)
@@ -418,12 +381,6 @@ def test_loads_table_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_row_counts(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
@@ -445,6 +402,10 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
         (
             "orderable_in_chain",
             total_records,
+        ),
+        (
+            "digits",
+            3,
         ),
     }
     # get only one data table
@@ -506,17 +467,15 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
             "orderable_in_chain",
             total_records,
         ),
+        (
+            "digits",
+            3,
+        ),
     }
 
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_sql_queries(populated_pipeline: Pipeline) -> None:
     dataset_name = populated_pipeline.dataset_name
 
@@ -598,12 +557,6 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_limit_and_head(populated_pipeline: Pipeline) -> None:
     dataset_ = populated_pipeline.dataset()
 
@@ -666,12 +619,6 @@ def test_limit_and_head(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipeline) -> None:
     # no clients exist yet
     dataset = populated_pipeline.dataset()
@@ -731,19 +678,15 @@ def test_dataset_client_caching_and_connection_handling(populated_pipeline: Pipe
     assert dataset_._opened_sql_client is None
 
     # check that if the schema needs to be fetched, no opened client is left
-    dataset_._schema = None
+    dataset_._schemas.clear()
+    dataset_._default_schema_name = None
+    dataset_._resolved = False
     assert dataset_.schema
     assert dataset_._opened_sql_client is None
 
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
     columns = ["_dlt_load_id", "other_decimal"]
@@ -792,12 +735,6 @@ def test_column_selection(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
     table_relationship = populated_pipeline.dataset().items
 
@@ -817,12 +754,6 @@ def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_order_by(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     table_relationship = populated_pipeline.dataset().items
@@ -850,13 +781,15 @@ def test_order_by(populated_pipeline: Pipeline) -> None:
 
 
 @pytest.mark.no_load
+def test_distinct_order_by(populated_pipeline: Pipeline) -> None:
+    """DISTINCT restricts ORDER BY to output columns; strict engines (databricks) reject a source column."""
+    query = "SELECT DISTINCT id FROM items ORDER BY id"
+    ids = [row[0] for row in populated_pipeline.dataset()(query).limit(5).fetchall()]
+    assert ids == list(range(5))
+
+
+@pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_where(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
     items = populated_pipeline.dataset().items
@@ -894,13 +827,81 @@ def test_where(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
+def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) -> None:
+    """End-to-end: dataset.table('items').incremental(<datetime cursor>) on every destination."""
+    items = populated_pipeline.dataset().items
+    total_records = _total_records(populated_pipeline.destination.destination_type)
+    last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
+
+    # post-run state matches what `bind()` persisted: start_value snapshot == last_value
+    cached_state: IncrementalColumnState = {
+        "initial_value": ITEMS_EPOCH,
+        "last_value": last_dt,
+        "start_value": last_dt,
+        "unique_hashes": [],
+    }
+
+    def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
+        incr._cached_state = copy(cached_state)
+        incr.start_value = instance_start_value if instance_start_value is not None else last_dt
+        return incr
+
+    # 1. bound, no lag, no end_value — lower = last_dt, no upper, keeps the last row
+    incr = _bind(dlt.sources.incremental[pendulum.DateTime]("created_at"))
+    assert len(items.incremental(incr).fetchall()) == 1
+
+    # 2. lag — start_value = last_dt - 5s; no upper bound; includes last_dt itself
+    lagged_start = last_dt - timedelta(seconds=5)
+    incr_lag = _bind(
+        dlt.sources.incremental[pendulum.DateTime]("created_at", lag=5.0),
+        instance_start_value=lagged_start,
+    )
+    assert len(items.incremental(incr_lag).fetchall()) == 6
+
+    # 3. unbound, initial_value only
+    incr_unbound = dlt.sources.incremental[pendulum.DateTime](
+        "created_at", initial_value=ITEMS_EPOCH
+    )
+    assert len(items.incremental(incr_unbound).fetchall()) == total_records
+
+    # 4. unbound with range modifiers and explicit end_value
+    range_start_dt = ITEMS_EPOCH + timedelta(seconds=10)
+    range_end_dt = ITEMS_EPOCH + timedelta(seconds=20)
+    incr_range = dlt.sources.incremental[pendulum.DateTime](
+        "created_at",
+        initial_value=range_start_dt,
+        end_value=range_end_dt,
+        range_start="open",
+        range_end="closed",
+    )
+    arrow_tbl = items.incremental(incr_range).select("created_at").order_by("created_at").arrow()
+    actual_dts = arrow_tbl["created_at"].to_pylist()
+    expected_dts = [ITEMS_EPOCH + timedelta(seconds=i) for i in range(11, 21)]
+
+    # normalize to Unix int_timestamp — destinations differ in how they return tz
+    # information (naive vs aware, timezone class), so compare instants
+    def _ts(d: Any) -> int:
+        if isinstance(d, str):
+            d = pendulum.parse(d)
+        if d.tzinfo is None:
+            d = d.replace(tzinfo=pendulum.UTC)
+        return int(d.timestamp())
+
+    assert [_ts(d) for d in actual_dts] == [_ts(d) for d in expected_dts]
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
 def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
+    if populated_pipeline.destination.destination_type == "dlt.destinations.dremio":
+        # dremio 26.x answers MAX/MIN on iceberg tables from column metadata and decodes the
+        # bounds of a numeric-looking VARCHAR as a DOUBLE. MAX("_dlt_load_id") then loses
+        # precision (eg. '1780221885.501048' -> '1780221885.50105') and the `_dlt_load_id = ...`
+        # filter below matches no rows. MAX on regular (non-numeric) strings is unaffected.
+        # forcing a string expression - MAX(CONCAT(col, '')) or MAX(col || '') - returns the
+        # correct value. still broken as of 26.1.8, no known fixed version.
+        pytest.skip("dremio coerces numeric-like VARCHAR to double in MAX, see comment")
+
     items = populated_pipeline.dataset().items
     orderable_in_chain = populated_pipeline.dataset().orderable_in_chain
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -910,8 +911,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
     assert all(row[0] < 10 for row in filtered_items_sql)
 
     load_id = items.select("_dlt_load_id").max().fetchscalar()
-    # NOTE: query below tests dremio wrong MAX behavior where strings are casted to decimals, we locked dremio container to 25.0 tag
-    # f'SELECT MAX(CONCAT(\'_\', "_dlt_load_id")) AS "_col_0" FROM "nas"."{populated_pipeline.dataset_name}"."items" AS "items"')
     all_items = items.where(f"_dlt_load_id = '{load_id}'").fetchall()
     assert len(all_items) == total_records
 
@@ -944,12 +943,6 @@ def test_where_expr_or_str(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_min_max(populated_pipeline: Pipeline) -> None:
     items = populated_pipeline.dataset().items
     total_records = _total_records(populated_pipeline.destination.destination_type)
@@ -968,12 +961,6 @@ def test_min_max(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
     match = "Table `unknown_table` not found"
     dataset = populated_pipeline.dataset()
@@ -992,12 +979,6 @@ def test_unknown_table_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_schema_arg(populated_pipeline: Pipeline) -> None:
     """Simple test to ensure schemas may be selected via schema arg"""
 
@@ -1025,12 +1006,6 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
     import ibis
@@ -1120,7 +1095,7 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
         return re.sub(r"\s+", " ", query), columns
 
     # test all functions discussed here: https://ibis-project.org/tutorials/ibis-for-sql-users
-    ALL_COLUMNS = ["id", "decimal", "other_decimal", "_dlt_load_id", "_dlt_id"]
+    ALL_COLUMNS = ["id", "decimal", "other_decimal", "created_at", "_dlt_load_id", "_dlt_id"]
 
     # selecting two columns
     assert sql_from_expr(items_table.select("id", "decimal")) == (
@@ -1133,8 +1108,8 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table) == (
         (
             'SELECT "items"."id" AS "id", "items"."decimal" AS "decimal", "items"."other_decimal"'
-            ' AS "other_decimal", "items"."_dlt_load_id" AS "_dlt_load_id", "items"."_dlt_id" AS'
-            ' "_dlt_id" FROM "dataset"."items" AS "items"'
+            ' AS "other_decimal", "items"."created_at" AS "created_at", "items"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "items"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "items"'
         ),
         ALL_COLUMNS,
     )
@@ -1175,8 +1150,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.filter(items_table.id < 10)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' "t0"."id" < 10'
         ),
         ALL_COLUMNS,
     )
@@ -1191,8 +1167,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.filter(items_table.id < 10).filter(items_table.id > 5)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE "t0"."id" < 10 AND "t0"."id" > 5'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' "t0"."id" < 10 AND "t0"."id" > 5'
         ),
         ALL_COLUMNS,
     )
@@ -1201,8 +1178,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.filter((items_table.id < 10) | (items_table.id > 5))) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE ("t0"."id" < 10) OR ("t0"."id" > 5)'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' ("t0"."id" < 10) OR ("t0"."id" > 5)'
         ),
         ALL_COLUMNS,
     )
@@ -1225,8 +1203,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.order_by("id", "decimal").limit(10)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" ORDER BY'
+            ' "t0"."id" ASC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -1235,8 +1214,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.order_by(ibis.desc("id"), ibis.asc("decimal")).limit(10)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" ORDER BY'
+            ' "t0"."id" DESC, "t0"."decimal" ASC LIMIT 10'
         ),
         ALL_COLUMNS,
     )
@@ -1245,8 +1225,9 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     assert sql_from_expr(items_table.order_by("id").limit(10, offset=5)) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" ORDER BY "t0"."id" ASC LIMIT 10 OFFSET 5'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" ORDER BY'
+            ' "t0"."id" ASC LIMIT 10 OFFSET 5'
         ),
         ALL_COLUMNS,
     )
@@ -1270,9 +1251,10 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     ) == (
         (
             'SELECT "t0"."id" AS "id", "t0"."decimal" AS "decimal", "t0"."other_decimal" AS'
-            ' "other_decimal", "t0"."_dlt_load_id" AS "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id"'
-            ' FROM "dataset"."items" AS "t0" WHERE "t0"."decimal" IN (SELECT "t1"."di_decimal" AS'
-            ' "di_decimal" FROM "dataset"."double_items" AS "t1")'
+            ' "other_decimal", "t0"."created_at" AS "created_at", "t0"."_dlt_load_id" AS'
+            ' "_dlt_load_id", "t0"."_dlt_id" AS "_dlt_id" FROM "dataset"."items" AS "t0" WHERE'
+            ' "t0"."decimal" IN (SELECT "t1"."di_decimal" AS "di_decimal" FROM'
+            ' "dataset"."double_items" AS "t1")'
         ),
         ALL_COLUMNS,
     )
@@ -1291,12 +1273,6 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
     # NOTE: we could generalize this with a context for certain deps
 
@@ -1334,15 +1310,8 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
             table_name_prefix = dataset_name + "___"
             dataset_name = None
             additional_tables += ["dlt_sentinel_table"]
-
-        # filesystem uses duckdb and views to map know tables. for other ibis will list
-        # all available tables so both schemas tables are visible
-        if populated_pipeline.destination.destination_type not in [
-            "dlt.destinations.filesystem",
-            "dlt.destinations.lancedb",
-        ]:
-            # from aleph schema
-            additional_tables += ["digits"]
+        # from aleph schema
+        additional_tables += ["digits"]
 
         add_table_prefix = lambda x: table_name_prefix + x
 
@@ -1368,6 +1337,7 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
                     + additional_tables
                 )
             }
+            print(table_names_in_ibis)
             assert set(table_names_in_ibis) == expected_table_names
 
         table_name = add_table_prefix(map_i("items"))
@@ -1387,12 +1357,6 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 @pytest.mark.skip("enable when we standardize behavior for non existing datasets")
 def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
     try:
@@ -1412,12 +1376,6 @@ def test_ibis_no_dataset(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
@@ -1430,7 +1388,7 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
     )
 
     # dataset.schema is only set once first accessed
-    assert dataset._schema == populated_pipeline.default_schema_name
+    assert dataset._schema_arg == populated_pipeline.default_schema_name
     dataset.schema
     assert isinstance(dataset.schema, dlt.Schema)
 
@@ -1490,11 +1448,6 @@ def test_standalone_dataset(populated_pipeline: Pipeline) -> None:
 
 
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "destination_config",
-    configs,
-    ids=lambda x: x.name,
-)
 def test_read_not_materialized_table(destination_config: DestinationTestConfiguration):
     # TODO lancedb destination faills unreliably on the 2nd `pipeline.run()` because
     # of the dltSentinel table. The test parallelization PR should solve this issue
@@ -1584,12 +1537,6 @@ def test_naming_convention_propagation(destination_config: DestinationTestConfig
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_read_unified_schema(populated_pipeline: Pipeline) -> None:
     """Test that a unified schema allows querying tables from all schemas."""
     default_schema = populated_pipeline.default_schema
@@ -1620,12 +1567,6 @@ def test_read_unified_schema(populated_pipeline: Pipeline) -> None:
 
 @pytest.mark.no_load
 @pytest.mark.essential
-@pytest.mark.parametrize(
-    "populated_pipeline",
-    configs,
-    indirect=True,
-    ids=lambda x: x.name,
-)
 def test_read_unified_schema_ibis(populated_pipeline: Pipeline) -> None:
     """Test that ibis works with a unified schema dataset."""
     try:
@@ -1672,3 +1613,156 @@ def test_read_unified_schema_ibis(populated_pipeline: Pipeline) -> None:
     # digits has values 1, 2, 3 — so join produces 3 rows
     assert len(result) == 3
     assert [row[0] for row in result] == [1, 2, 3]
+
+
+@dlt.source
+def _src_alpha():
+    @dlt.resource(name="events")
+    def events_alpha():
+        yield [
+            {"id": 1, "name": "click", "alpha_detail": "a1"},
+            {"id": 2, "name": "view", "alpha_detail": "a2"},
+        ]
+
+    return [events_alpha]
+
+
+@dlt.source
+def _src_beta():
+    @dlt.resource(name="events")
+    def events_beta():
+        yield [
+            {"id": 3, "name": "scroll", "beta_metric": 100},
+            {"id": 4, "name": "hover", "beta_metric": 200},
+        ]
+
+    return [events_beta]
+
+
+@dlt.source
+def _src_gamma():
+    @dlt.resource(name="events")
+    def events_gamma():
+        yield [
+            {"id": 5, "name": "submit", "gamma_flag": True},
+            {"id": 6, "name": "cancel", "gamma_flag": False},
+        ]
+
+    return [events_gamma]
+
+
+@pytest.fixture(scope="module")
+def overlap_pipeline(
+    destination_config: DestinationTestConfiguration,
+    auto_module_test_storage,
+    preserve_module_environ_per_destination_config,
+    auto_module_test_run_context,
+) -> Any:
+    """Pipeline with three schemas (alpha, beta, gamma) that each have an
+    'events' table with shared columns (id, name) and unique columns.
+    Tests select schema subsets via ``pipeline.dataset(schema=[...])``.
+    """
+    skip_if_unsupported_filesystem_format(destination_config)
+
+    pipeline = destination_config.setup_pipeline(
+        "overlap_pipeline", dataset_name="overlap_test", dev_mode=True
+    )
+    pipeline.run(_src_alpha())
+    pipeline.run(_src_beta())
+    pipeline.run(_src_gamma())
+
+    try:
+        yield pipeline
+    finally:
+        drop_pipeline_data(pipeline)
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+def test_multi_schema_load_ids_and_compatible_overlap(
+    overlap_pipeline: Pipeline,
+) -> None:
+    """Two-schema subset: load_ids per schema and unified column visibility."""
+    p = overlap_pipeline
+    alpha = p.schemas["_src_alpha"]
+    beta = p.schemas["_src_beta"]
+    ds = p.dataset(schema=[alpha, beta])
+
+    assert len(ds.schemas) == 2
+
+    # load_ids per schema
+    alpha_ids = ds.load_ids()
+    assert len(alpha_ids) >= 1
+    beta_ids = ds.load_ids(schema_name="_src_beta")
+    assert len(beta_ids) >= 1
+    assert set(alpha_ids).isdisjoint(set(beta_ids))
+
+    alpha_latest = ds.latest_load_id()
+    assert alpha_latest == alpha_ids[-1]
+    beta_latest = ds.latest_load_id(schema_name="_src_beta")
+    assert beta_latest == beta_ids[-1]
+
+    # unified events table has columns from both selected schemas
+    sg_columns = ds.sqlglot_schema.column_names(sge.Table(this=sge.to_identifier("events")))
+    assert "alpha_detail" in sg_columns
+    assert "beta_metric" in sg_columns
+    # gamma_flag must NOT be visible — that schema was not selected
+    assert "gamma_flag" not in sg_columns
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+def test_three_schema_overlap(overlap_pipeline: Pipeline) -> None:
+    """All three schemas: unified view has all rows and all unique columns."""
+    ds = overlap_pipeline.dataset()
+    assert len(ds.schemas) == 3
+
+    sg_columns = ds.sqlglot_schema.column_names(sge.Table(this=sge.to_identifier("events")))
+    assert "alpha_detail" in sg_columns
+    assert "beta_metric" in sg_columns
+    assert "gamma_flag" in sg_columns
+
+    rows = ds.events.fetchall()
+    assert len(rows) == 6  # 2 + 2 + 2
+    ids = sorted(row[0] for row in rows)
+    assert ids == [1, 2, 3, 4, 5, 6]
+
+    # row_counts per load_id: filtering by each schema's load_ids must
+    # partition the events — no double-counting, sum equals total
+    total_events = 0
+    all_load_ids: set[str] = set()
+    for s in ds.schemas:
+        for lid in ds.load_ids(schema_name=s.name):
+            # load_ids across schemas must be disjoint
+            assert lid not in all_load_ids, f"load_id {lid} appears in multiple schemas"
+            all_load_ids.add(lid)
+            counts = dict(ds.row_counts(load_id=lid).fetchall())
+            total_events += counts.get("events", 0)
+    assert total_events == 6
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+def test_multi_schema_ibis(overlap_pipeline: Pipeline) -> None:
+    """Ibis backend sees all schemas' tables and merged columns."""
+    try:
+        import ibis  # noqa: F401
+    except ImportError:
+        pytest.skip("ibis not installed")
+
+    if overlap_pipeline.destination.destination_type not in (
+        "dlt.destinations.duckdb",
+        "dlt.destinations.filesystem",
+        "dlt.destinations.lance",
+    ):
+        pytest.skip("ibis multi-schema test only on duckdb and filesystem")
+
+    ds = overlap_pipeline.dataset()
+    ib = ds.ibis()
+
+    events = ib.table("events")
+    cols = events.columns
+    assert "alpha_detail" in cols
+    assert "beta_metric" in cols
+    assert "gamma_flag" in cols
+    assert events.count().execute() == 6

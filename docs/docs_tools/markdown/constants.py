@@ -48,7 +48,6 @@ SELECTED_CAPABILITIES_ATTRIBUTES = {
 }
 
 CAPABILITIES_DOC_LINK_PATTERNS = [
-    ("table", "../table-formats/"),
     ("file_format", "../file-formats/"),
     ("merge", "../../general-usage/merge-loading#merge-strategies"),
     (

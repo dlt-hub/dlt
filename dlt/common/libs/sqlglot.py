@@ -1,13 +1,30 @@
-from typing import Callable, Dict, List, Optional, Tuple, Union, Set, Any, Iterable, Literal
+from datetime import date, datetime  # noqa: I251
+from typing import (
+    Callable,
+    Dict,
+    List,
+    Optional,
+    Tuple,
+    Union,
+    Set,
+    Any,
+    Iterable,
+    Literal,
+    TYPE_CHECKING,
+)
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.optimizer.scope import build_scope
 
+from dlt.common.time import DEFAULT_TIMESTAMP_PRECISION
 from dlt.common.utils import without_none
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema, TTableSchemaColumns
 from dlt.common.schema.exceptions import CannotCoerceNullException
+
+if TYPE_CHECKING:
+    from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 
 
 TSqlGlotDialect = Literal[
@@ -17,6 +34,7 @@ TSqlGlotDialect = Literal[
     "databricks",
     "doris",
     "drill",
+    "dremio",
     "druid",
     "duckdb",
     "dune",
@@ -636,6 +654,88 @@ def build_typed_literal(
         return _literal(value)
 
 
+def resolve_timestamp_cast(
+    lower: Any,
+    upper: Any,
+    caps: Optional["DestinationCapabilitiesContext"],
+) -> Tuple[Optional[sge.DataType], Any, Any]:
+    """Resolve the cast type and ISO-string bounds for a timestamp pair.
+
+    Tunes the SQLGlot DataType and the bound literals to the destination's
+    quirks: precision, tz-aware-in-CAST support, dialect-specific dropouts
+    (sqlite). Non-datetime bounds pass through unchanged.
+
+    Args:
+        lower (Any): Lower bound; a `datetime` is reformatted, anything else
+            is returned as-is (including `None`).
+        upper (Any): Upper bound; same handling as `lower`.
+        caps (Optional[DestinationCapabilitiesContext]): Destination caps used
+            to pick precision and decide tz / cast behavior. When `None`, a
+            generic tz-aware cast is emitted.
+
+    Returns:
+        Tuple[Optional[sge.DataType], Any, Any]: `(sqlglot_type, lower, upper)`,
+            where `sqlglot_type` is `None` when no cast should be emitted
+            (sqlite's numeric-affinity TIMESTAMP).
+    """
+    # lazy import — `dlt.common.data_writers` reaches back into
+    # `dlt.common.destination`, which imports this module at load time
+    from dlt.common.data_writers.escape import format_datetime_value
+
+    dialect = caps.sqlglot_dialect if caps is not None else None
+    precision = caps.timestamp_precision if caps is not None else DEFAULT_TIMESTAMP_PRECISION
+
+    # tz-awareness comes from the actual bound value — needed so dialects that
+    # split timestamp/timestamptz (bigquery DATETIME vs TIMESTAMP) emit the
+    # right cast and don't reject the comparison
+    tz_sample = (
+        lower if isinstance(lower, datetime) else (upper if isinstance(upper, datetime) else None)
+    )
+    timezone: Optional[bool] = None
+    if tz_sample is not None:
+        timezone = tz_sample.tzinfo is not None
+
+    # naive cast when destination can't store tz-aware (dremio, athena) or its
+    # tz-aware CAST rejects offset literals (clickhouse via the `_in_cast`
+    # override); sqlite emits no cast, but its literal still needs UTC-naive
+    # form to match TEXT-affinity column storage
+    if timezone and caps is not None:
+        cast_tz_ok = (
+            caps.supports_tz_aware_datetime_in_cast
+            if caps.supports_tz_aware_datetime_in_cast is not None
+            else caps.supports_tz_aware_datetime
+        )
+        if not cast_tz_ok or dialect == "sqlite":
+            timezone = False
+
+    # cast precision on athena depends on table format: iceberg supports TIMESTAMP(6)
+    # while regular tables are TIMESTAMP(3). `_dlt_loads` (and other dlt internal
+    # tables) are always iceberg, so a JOIN against them needs microsecond
+    # precision. Below we use (6) for hive tables as well which is proven to work
+    # with them.
+    cast_precision: Optional[int] = precision
+    if dialect == "athena":
+        cast_precision = DEFAULT_TIMESTAMP_PRECISION
+        precision = DEFAULT_TIMESTAMP_PRECISION
+
+    sqlglot_type = to_sqlglot_type(
+        dlt_type="timestamp", timezone=timezone, precision=cast_precision
+    )
+
+    naive = timezone is False
+    if isinstance(lower, datetime):
+        lower = format_datetime_value(lower, precision, no_tz=naive)
+    if isinstance(upper, datetime):
+        upper = format_datetime_value(upper, precision, no_tz=naive)
+
+    # sqlite's CAST AS TIMESTAMP/TIMESTAMPTZ goes through NUMERIC affinity and
+    # parses only leading digits — drop the cast so text comparison works
+    if dialect == "sqlite":
+        sqlglot_type = None
+
+    return sqlglot_type, lower, upper
+
+
 DLT_SUBQUERY_NAME = "_dlt_subquery"
 
 
@@ -948,7 +1048,7 @@ def bind_query(
     qualified_query: sge.Query,
     sqlglot_schema: Any,  # SQLGlotSchema
     *,
-    expand_table_name: Callable[[str], List[str]],
+    expand_table_name: Callable[[str, Optional[str]], List[str]],
     casefold_identifier: Callable[[str], str],
 ) -> sge.Query:
     """Binds a logical query (compliant with dlt schema) to physical tables in the destination dataset.
@@ -971,7 +1071,9 @@ def bind_query(
     Args:
         qualified_query: SQLGlot query expression with qualified table/column references
         sqlglot_schema: Schema mapping for name validation and column resolution
-        expand_table_name: Function that expands table name to fully qualified path [catalog, schema, table]
+        expand_table_name: Function `(table_name, dataset_name | None) -> [catalog, schema, table]`
+            that expands a table name to a fully qualified path. The second argument is the
+            dataset qualifier from the query (`node.db`), or `None` for the default dataset.
         casefold_identifier: Case transformation function (`str`, `str.upper`, or `str.lower`)
 
     Returns:
@@ -979,6 +1081,28 @@ def bind_query(
     """
     qualified_query = qualified_query.copy()
     is_casefolding = casefold_identifier is not str
+
+    # bind ORDER BY references to output aliases back to their source expressions. dialects
+    # like tsql cannot resolve a select alias inside an ORDER BY expression (NULLS emulation).
+    # under DISTINCT/GROUP BY the sort key must stay an output column (source is out of scope)
+    order = qualified_query.args.get("order")
+    if (
+        order is not None
+        and isinstance(qualified_query, sge.Select)
+        and not qualified_query.args.get("distinct")
+        and not qualified_query.args.get("group")
+    ):
+        alias_sources = {
+            proj.output_name: proj.this
+            for proj in qualified_query.selects
+            if isinstance(proj, sge.Alias)
+        }
+        for col in list(order.find_all(sge.Column)):
+            if col.args.get("table") is not None or col.parent_select is not qualified_query:
+                continue
+            source = alias_sources.get(col.name)
+            if source is not None and not isinstance(source, sge.Star):
+                col.replace(source.copy())
 
     # preserve "column" names in original selects which are done in dlt schema namespace
     orig_selects: Dict[int, str] = None
@@ -993,7 +1117,7 @@ def bind_query(
             # expand named of known tables. this is currently clickhouse things where
             # we use dataset.table in queries but render those as dataset___table
             if sqlglot_schema.column_names(node):
-                expanded_path = expand_table_name(node.name)
+                expanded_path = expand_table_name(node.name, node.db or None)
                 # set the table name
                 if node.name != expanded_path[-1]:
                     node.this.set("this", expanded_path[-1])
@@ -1020,3 +1144,66 @@ def bind_query(
                 qualified_query.selects[i] = sge.alias_(sel_expr, orig, quoted=True)
 
     return qualified_query
+
+
+def has_pure_column_projection(query: sge.Query) -> bool:
+    """True when every projection is a plain column or star, so it defines no output names."""
+    if not isinstance(query, sge.Select):
+        return False
+    # with multiple sources an unqualified replacement column turns ambiguous
+    if query.args.get("joins"):
+        return False
+    if any(query.args.get(key) for key in ("group", "having", "qualify", "distinct")):
+        return False
+    return all(
+        isinstance(sel, sge.Star)
+        or (isinstance(sel, sge.Column) and isinstance(sel.this, (sge.Identifier, sge.Star)))
+        for sel in query.selects
+    )
+
+
+def migrate_order_and_limit(inner: sge.Query, outer: sge.Select, qualifier: str) -> None:
+    """Move ORDER BY / LIMIT / OFFSET from a wrapped query onto the wrapping select."""
+    order = inner.args.get("order")
+    if order is not None:
+        exposed_names = {proj.output_name for proj in inner.selects}
+        has_star = any(
+            isinstance(proj, sge.Star)
+            or (isinstance(proj, sge.Column) and isinstance(proj.this, sge.Star))
+            for proj in inner.selects
+        )
+        hoisted: List[sge.Expression] = []
+        for ordered in order.expressions:
+            sort_key = ordered.this
+            if isinstance(sort_key, sge.Column) and sort_key.args.get("table") is None:
+                if not has_star and sort_key.name not in exposed_names:
+                    # a sort key dropped by the projection cannot survive the wrap, keep the unit inside
+                    return
+                hoisted.append(ordered.copy())
+                continue
+            # a qualified or computed sort key is only visible outside the wrap by its output name
+            output_name = next(
+                (
+                    proj.output_name
+                    for proj in inner.selects
+                    if (proj.this if isinstance(proj, sge.Alias) else proj) == sort_key
+                ),
+                None,
+            )
+            if output_name is None:
+                return
+            rewritten = ordered.copy()
+            rewritten.set(
+                "this",
+                sge.Column(
+                    table=sge.to_identifier(qualifier),
+                    this=sge.to_identifier(output_name, quoted=True),
+                ),
+            )
+            hoisted.append(rewritten)
+        outer.set("order", sge.Order(expressions=hoisted))
+        inner.set("order", None)
+    for clause in ("limit", "offset"):
+        if (value := inner.args.get(clause)) is not None:
+            outer.set(clause, value)
+            inner.set(clause, None)

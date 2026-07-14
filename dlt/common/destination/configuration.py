@@ -5,6 +5,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.time import get_precision_from_datetime_unit
 
 CsvQuoting = Literal["quote_all", "quote_needed", "quote_minimal", "quote_none"]
+ParquetCompression = Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"]
 
 
 @configspec
@@ -13,10 +14,13 @@ class CsvFormatConfiguration(BaseConfiguration):
     include_header: bool = True
     quoting: CsvQuoting = "quote_needed"
     lineterminator: str = "\n"
+    encoding: str = "utf-8"
+    """Encoding used to write csv files and to decode them when a destination loads them."""
+    encoding_errors: str = "strict"
+    """How characters not representable in `encoding` are treated when writing csv files: a Python error handler name, e.g. `strict` (default, raises), `replace` or `backslashreplace`."""
 
     # read options
     on_error_continue: bool = False
-    encoding: str = "utf-8"
 
     __section__: ClassVar[str] = known_sections.DATA_WRITER
 
@@ -25,6 +29,7 @@ class CsvFormatConfiguration(BaseConfiguration):
 class ParquetFormatConfiguration(BaseConfiguration):
     flavor: Optional[str] = None  # could be ie. "spark"
     version: Optional[str] = "2.4"
+    compression: Optional[ParquetCompression] = "snappy"
     data_page_size: Optional[int] = None
     timestamp_timezone: str = "UTC"
     row_group_size: Optional[int] = None

@@ -18,7 +18,6 @@ from tests.load.utils import (
     GCS_BUCKET,
 )
 from tests.pipeline.utils import assert_table_counts
-from dlt.destinations.dataset.dataset import ReadableDBAPIDataset
 
 
 @pytest.mark.parametrize(

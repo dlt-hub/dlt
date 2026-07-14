@@ -204,6 +204,8 @@ class ClickHouseSqlClient(
     def insert_file(
         self, file_path: str, table_name: str, file_format: str, compression: str
     ) -> QuerySummary:
+        # driver expects unqualified names
+        database_name, table_name = self.make_qualified_table_name_path(table_name, quote=False)
         with clickhouse_connect.create_client(
             host=self.credentials.host,
             port=self.credentials.http_port,
@@ -214,9 +216,10 @@ class ClickHouseSqlClient(
         ) as clickhouse_connect_client:
             return clk_insert_file(
                 clickhouse_connect_client,
-                self.make_qualified_table_name(table_name),
+                table_name,
                 file_path,
                 fmt=file_format,
+                database=database_name,
                 settings={
                     "allow_experimental_lightweight_delete": 1,
                     "enable_http_compression": 1,
@@ -287,14 +290,21 @@ class ClickHouseSqlClient(
         return database_name
 
     def make_qualified_table_name_path(
-        self, table_name: Optional[str], quote: bool = True, casefold: bool = True
+        self,
+        table_name: Optional[str],
+        quote: bool = True,
+        casefold: bool = True,
+        dataset_name: Optional[str] = None,
     ) -> List[str]:
         # get catalog and dataset
-        path = super().make_qualified_table_name_path(None, quote=quote, casefold=casefold)
+        path = super().make_qualified_table_name_path(
+            None, quote=quote, casefold=casefold, dataset_name=dataset_name
+        )
+        effective_dataset = dataset_name or self.dataset_name
         if table_name:
             # table name combines dataset name and table name
-            if self.dataset_name:
-                table_name = f"{self.dataset_name}{self.config.dataset_table_separator}{table_name}"
+            if effective_dataset:
+                table_name = f"{effective_dataset}{self.config.dataset_table_separator}{table_name}"
             else:
                 # without dataset just use the table name
                 pass

@@ -51,12 +51,11 @@ def change_telemetry_status_command(enabled: bool) -> None:
     Container()[PluggableRunContext].reload_providers()
 
 
-@utils.track_command("telemetry", False)
 def telemetry_status_command_wrapper() -> None:
     telemetry_status_command()
 
 
-@utils.track_command("telemetry_switch", False, "enabled")
+@utils.track_command("telemetry.switch", False, "enabled")
 def telemetry_change_status_command_wrapper(enabled: bool) -> None:
     try:
         change_telemetry_status_command(enabled)

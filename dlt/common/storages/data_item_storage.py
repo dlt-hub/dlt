@@ -1,4 +1,4 @@
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from abc import ABC, abstractmethod
 
 from dlt.common import logger
@@ -22,9 +22,7 @@ class DataItemStorage(ABC):
     def _get_writer(
         self, load_id: str, schema_name: str, table_name: str
     ) -> BufferedDataWriter[DataWriter]:
-        # unique writer id
-        writer_id = f"{load_id}.{schema_name}.{table_name}"
-        writer = self.buffered_writers.get(writer_id, None)
+        writer_id, writer = self.get_active_writer(load_id, schema_name, table_name)
         if not writer:
             # assign a writer for each table
             kwargs = {}
@@ -34,6 +32,13 @@ class DataItemStorage(ABC):
             writer = BufferedDataWriter(self.writer_spec, path, **kwargs)
             self.buffered_writers[writer_id] = writer
         return writer
+
+    def get_active_writer(
+        self, load_id: str, schema_name: str, table_name: str
+    ) -> Tuple[str, BufferedDataWriter[DataWriter]]:
+        # unique writer id
+        writer_id = f"{load_id}.{schema_name}.{table_name}"
+        return writer_id, self.buffered_writers.get(writer_id, None)
 
     def write_data_item(
         self,

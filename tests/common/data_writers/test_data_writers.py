@@ -5,7 +5,7 @@ from typing import Iterator, Any
 
 from dlt.common import pendulum, json
 from dlt.common.data_writers.exceptions import DataWriterNotFound, SpecLookupFailed
-from dlt.common.metrics import DataWriterMetrics
+from dlt.common.metrics import DataWriterMetrics, EMPTY_DATA_WRITER_METRICS
 from dlt.common.typing import AnyFun
 
 from dlt.common.data_writers.escape import (
@@ -16,6 +16,8 @@ from dlt.common.data_writers.escape import (
     escape_duckdb_literal,
     escape_bigquery_literal,
     escape_bigquery_identifier,
+    format_datetime_literal,
+    format_datetime_value,
 )
 
 # import all writers here to check if it can be done without all the dependencies
@@ -28,7 +30,6 @@ from dlt.common.data_writers.writers import (
     ArrowToTypedJsonlListWriter,
     CsvWriter,
     DataWriter,
-    EMPTY_DATA_WRITER_METRICS,
     ImportFileWriter,
     InsertValuesWriter,
     JsonlWriter,
@@ -154,6 +155,47 @@ def test_string_nested_escape(escaper: AnyFun) -> None:
         assert escaped == escaper(json.dumps(doc))
 
 
+@pytest.mark.parametrize(
+    "precision,tz_form,naive_input,expected",
+    [
+        # naive input — no_tz toggle has no effect
+        (6, "naive", False, "2024-03-04 05:06:07.123456"),
+        (3, "naive", False, "2024-03-04 05:06:07.123"),
+        (0, "naive", False, "2024-03-04 05:06:07"),
+        # tz-aware UTC — no_tz=False keeps the offset
+        (6, "utc", False, "2024-03-04 05:06:07.123456+00:00"),
+        (3, "utc", False, "2024-03-04 05:06:07.123+00:00"),
+        (0, "utc", False, "2024-03-04 05:06:07+00:00"),
+        # tz-aware UTC — no_tz=True strips the offset, value unchanged
+        (6, "utc", True, "2024-03-04 05:06:07.123456"),
+        (3, "utc", True, "2024-03-04 05:06:07.123"),
+        # tz-aware non-UTC — no_tz=True converts to UTC then strips
+        # 05:06:07 Europe/Berlin (UTC+1, CET, no DST in March before the last Sunday) -> 04:06:07 UTC
+        (6, "berlin", True, "2024-03-04 04:06:07.123456"),
+        (3, "berlin", True, "2024-03-04 04:06:07.123"),
+        # tz-aware non-UTC — no_tz=False keeps original offset
+        (6, "berlin", False, "2024-03-04 05:06:07.123456+01:00"),
+    ],
+    ids=lambda v: str(v),
+)
+def test_format_datetime_value(
+    precision: int, tz_form: str, naive_input: bool, expected: str
+) -> None:
+    if tz_form == "naive":
+        v = pendulum.naive(2024, 3, 4, 5, 6, 7, 123456)
+    elif tz_form == "utc":
+        v = pendulum.datetime(2024, 3, 4, 5, 6, 7, 123456, tz="UTC")
+    elif tz_form == "berlin":
+        v = pendulum.datetime(2024, 3, 4, 5, 6, 7, 123456, tz="Europe/Berlin")
+    else:
+        pytest.fail(f"unknown tz_form {tz_form}")
+
+    value = format_datetime_value(v, precision=precision, no_tz=naive_input)
+    assert value == expected
+    # format_datetime_literal is a thin wrapper that adds quotes
+    assert format_datetime_literal(v, precision=precision, no_tz=naive_input) == f"'{expected}'"
+
+
 def test_identifier_escape() -> None:
     assert (
         escape_redshift_identifier(", NULL'); DROP TABLE\" -\\-")
@@ -241,7 +283,7 @@ def test_escape_bigquery_identifier() -> None:
 def test_data_writer_metrics_add() -> None:
     now = time.time()
     metrics = DataWriterMetrics("file", 10, 100, now, now + 10)
-    add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS  # type: ignore[assignment]
+    add_m: DataWriterMetrics = metrics + EMPTY_DATA_WRITER_METRICS
     assert add_m == DataWriterMetrics("", 10, 100, now, now + 10)
     # will keep "file" because it is in both
     assert metrics + metrics == DataWriterMetrics("file", 20, 200, now, now + 10)
@@ -249,7 +291,7 @@ def test_data_writer_metrics_add() -> None:
         "", 30, 300, now, now + 10
     )
     # time range extends when added
-    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)  # type: ignore[assignment]
+    add_m = metrics + DataWriterMetrics("fileX", 99, 120, now - 10, now + 20)
     assert add_m == DataWriterMetrics("", 109, 220, now - 10, now + 20)
 
 

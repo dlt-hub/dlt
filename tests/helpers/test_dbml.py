@@ -8,6 +8,7 @@ from pydbml import PyDBML  # type: ignore[import-untyped]
 from pydbml.classes import Reference, Table, Column  # type: ignore[import-untyped]
 
 import dlt
+from dlt.common.schema.normalizers import naming_from_reference
 from dlt.common.schema.typing import TColumnSchema, TStoredSchema, TTableReference, TTableSchema
 from dlt.common.schema.utils import remove_column_defaults
 from dlt.helpers.dbml import (
@@ -279,7 +280,7 @@ def test_schema_to_dbml_skips_incomplete_tables_and_columns() -> None:
         },
     )
 
-    dbml = schema_to_dbml(stored_schema)
+    dbml = schema_to_dbml(stored_schema, naming=naming_from_reference("snake_case"))
 
     # complete_table present with only typed columns
     table_names = [t.name for t in dbml.tables]
@@ -405,13 +406,15 @@ def test_schema_to_dbml(example_schema: dlt.Schema) -> None:
         }""")
 
     stored_schema = example_schema.to_dict()
-    dbml_schema = schema_to_dbml(stored_schema, group_by_resource=True)
+    dbml_schema = schema_to_dbml(
+        stored_schema, naming=example_schema.naming, group_by_resource=True
+    )
     assert dbml_schema.dbml == expected_dbml
 
 
 def test_group_tables_by_resource(example_schema: dlt.Schema) -> None:
     stored_schema = example_schema.to_dict()
-    dbml_schema = schema_to_dbml(stored_schema)
+    dbml_schema = schema_to_dbml(stored_schema, naming=example_schema.naming)
     dbml_table_groups = _group_tables_by_resource(schema=stored_schema, db=dbml_schema)
 
     assert len(dbml_table_groups) == 3
@@ -439,7 +442,7 @@ def test_group_tables_by_resource(example_schema: dlt.Schema) -> None:
 
 def test_export_to_dbml_as_string(example_schema: dlt.Schema) -> None:
     stored_schema = example_schema.to_dict()
-    dbml_schema = schema_to_dbml(stored_schema)
+    dbml_schema = schema_to_dbml(stored_schema, naming=example_schema.naming)
     expected_output = PyDBML(dbml_schema.dbml)
 
     output = export_to_dbml(example_schema, path=None)
@@ -452,7 +455,7 @@ def test_export_to_dbml_as_string(example_schema: dlt.Schema) -> None:
 
 def test_export_to_dbml_to_file(example_schema: dlt.Schema, tmp_path: pathlib.Path) -> None:
     stored_schema = example_schema.to_dict()
-    dbml_schema = schema_to_dbml(stored_schema)
+    dbml_schema = schema_to_dbml(stored_schema, naming=example_schema.naming)
     expected_output = PyDBML(dbml_schema.dbml)
 
     file_path = tmp_path / "my_schema.dbml"

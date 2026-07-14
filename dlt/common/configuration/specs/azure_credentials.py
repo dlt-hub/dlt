@@ -1,3 +1,4 @@
+import os
 from copy import copy
 from typing import Optional, Dict, Any, Union
 
@@ -9,11 +10,33 @@ from dlt.common.configuration.specs import (
     CredentialsWithDefault,
     configspec,
 )
+from dlt.common.configuration.specs.exceptions import (
+    InvalidAzureCredential,
+    UnsupportedAuthenticationMethodException,
+)
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials, WithPyicebergConfig
 from dlt import version
 from dlt.common.utils import without_none
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
+_AZURE_STORAGE_SCOPE = "https://storage.azure.com/.default"
+
+
+def _object_store_will_refresh_default() -> bool:
+    """True for configurations that object store crate can refresh with current
+    dlt consumers (lance, delta).
+    * AKS workload identity or an env client-secret service principal.
+    """
+    try:
+        from azure.identity._constants import EnvironmentVariables
+    except ImportError:
+        return False
+    # reuses azure-identity's own env var groupings
+    # cert / username-password are excluded (no object_store provider); managed identity is excluded
+    # (not detectable from env without probing IMDS).
+    return all(os.environ.get(v) for v in EnvironmentVariables.WORKLOAD_IDENTITY_VARS) or all(
+        os.environ.get(v) for v in EnvironmentVariables.CLIENT_SECRET_VARS
+    )
 
 
 @configspec
@@ -22,24 +45,75 @@ class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredential
     azure_account_host: Optional[str] = None
     """Alternative host when accessing blob storage endpoint ie. my_account.dfs.core.windows.net"""
 
+    def is_external_session(self) -> bool:
+        """Tells if default credentials are an azure-identity credential passed by the user"""
+        return getattr(self, "_external_session", False)
+
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         pass
 
     def to_object_store_rs_credentials(self) -> Dict[str, str]:
         # https://docs.rs/object_store/latest/object_store/azure
         creds: Dict[str, Any] = without_none(self.to_adlfs_credentials())  # type: ignore[assignment]
-        # only string options accepted
+        # object_store accepts only string options - the live credential and adlfs hint are dropped
         creds.pop("anon", None)
+        creds.pop("credential", None)
 
         if isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
-            dc = self.default_credentials()
-
-            # https://learn.microsoft.com/en-us/azure/storage/blobs/authorize-access-azure-active-directory#microsoft-authentication-library-msal
-            creds["azure_storage_token"] = dc.get_token("https://storage.azure.com/.default").token
-
-            return creds
+            if self.is_external_session():
+                # object_store cannot resolve a user-passed credential, so freeze a bearer token.
+                # NOTE: relies on the consumer merging AZURE_* env into the passed options - verified
+                # for both delta-rs (AzureConfigHelper) and lance (with_env_azure, unconditional)
+                creds["azure_storage_token"] = (
+                    self.default_credentials().get_token(_AZURE_STORAGE_SCOPE).token
+                )
 
         return creds
+
+
+class _AzureExternalSession:
+    """Mixin enabling azure credentials with defaults to accept a user-passed azure-identity
+    credential (e.g. `DefaultAzureCredential`) as an always-frozen external session."""
+
+    def parse_native_representation(self, native_value: Any) -> None:
+        """Imports an azure-identity credential exposing `get_token`"""
+        if not hasattr(native_value, "get_token"):
+            raise InvalidAzureCredential(self.__class__, native_value)
+        self._set_default_credentials(native_value)  # type: ignore[attr-defined]
+        self._external_session = True
+        self.__is_resolved__ = True
+
+    @classmethod
+    def from_credential(cls, credential: Any) -> Self:
+        self = cls()
+        self.parse_native_representation(credential)
+        return self
+
+    def to_adlfs_credentials(self) -> Dict[str, Any]:
+        base_kwargs: Dict[str, Any] = super().to_adlfs_credentials()  # type: ignore[misc]
+        if self.is_external_session():  # type: ignore[attr-defined]
+            # pass the user's credential object - adlfs uses and refreshes it in-process
+            base_kwargs["credential"] = self.default_credentials()  # type: ignore[attr-defined]
+        elif self.has_default_credentials():  # type: ignore[attr-defined]
+            # adlfs resolves and refreshes via its own default chain
+            base_kwargs["anon"] = False
+        return base_kwargs
+
+    def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        if self.is_external_session():  # type: ignore[attr-defined]
+            raise UnsupportedAuthenticationMethodException(
+                "An external azure session cannot be used with pyiceberg on Azure. Configure a"
+                " static account key, SAS token or service principal, or use default credentials"
+                " with AZURE_STORAGE_ANON=false so adlfs resolves the same credential chain itself."
+            )
+        if self.has_default_credentials():  # type: ignore[attr-defined]
+            # hand over: pass only the account name so adlfs (used by pyiceberg for ADLS) resolves
+            # and refreshes through its own DefaultAzureCredential. pyiceberg forwards no `anon` flag
+            # to adlfs, so this requires AZURE_STORAGE_ANON=false in the environment - otherwise
+            # adlfs defaults to anonymous access and the read fails.
+            return {"adls.account-name": self.azure_storage_account_name}  # type: ignore[attr-defined]
+        config: Dict[str, Any] = super().to_pyiceberg_fileio_config()  # type: ignore[misc]
+        return config
 
 
 @configspec
@@ -50,6 +124,8 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
     azure_storage_sas_token: TSecretStrValue = None
     azure_sas_token_permissions: str = "racwdl"
     """Permissions to use when generating a SAS token. Ignored when sas token is provided directly"""
+    azure_sas_token_expiration_hours: float = 24.0
+    """Lifetime in hours of the account SAS token minted from an account key. The minted SAS does not auto-refresh."""
 
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed as kwargs to adlfs"""
@@ -98,7 +174,7 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
             account_key=self.azure_storage_account_key,
             resource_types=ResourceTypes(container=True, object=True),
             permission=self.azure_sas_token_permissions,
-            expiry=pendulum.now().add(days=1),
+            expiry=pendulum.now().add(seconds=int(self.azure_sas_token_expiration_hours * 3600)),
         )
 
     def on_partial(self) -> None:
@@ -145,7 +221,9 @@ class AzureServicePrincipalCredentialsWithoutDefaults(AzureCredentialsBase, With
 
 
 @configspec
-class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
+class AzureCredentials(
+    _AzureExternalSession, AzureCredentialsWithoutDefaults, CredentialsWithDefault
+):
     def on_partial(self) -> None:
         try:
             from azure.identity import DefaultAzureCredential
@@ -159,16 +237,10 @@ class AzureCredentials(AzureCredentialsWithoutDefaults, CredentialsWithDefault):
         else:
             super().on_partial()
 
-    def to_adlfs_credentials(self) -> Dict[str, Any]:
-        base_kwargs = super().to_adlfs_credentials()
-        if self.has_default_credentials():
-            base_kwargs["anon"] = False
-        return base_kwargs
-
 
 @configspec
 class AzureServicePrincipalCredentials(
-    AzureServicePrincipalCredentialsWithoutDefaults, CredentialsWithDefault
+    _AzureExternalSession, AzureServicePrincipalCredentialsWithoutDefaults, CredentialsWithDefault
 ):
     def on_partial(self) -> None:
         try:
@@ -179,12 +251,6 @@ class AzureServicePrincipalCredentials(
         self._set_default_credentials(DefaultAzureCredential())
         if self.azure_storage_account_name:
             self.resolve()
-
-    def to_adlfs_credentials(self) -> Dict[str, Any]:
-        base_kwargs = super().to_adlfs_credentials()
-        if self.has_default_credentials():
-            base_kwargs["anon"] = False
-        return base_kwargs
 
 
 AnyAzureCredentials = Union[

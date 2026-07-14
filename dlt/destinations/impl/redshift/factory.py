@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
@@ -19,6 +19,8 @@ from dlt.destinations.impl.redshift.configuration import (
 )
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.redshift.redshift import RedshiftClient
 else:
     RedshiftClient = Any
@@ -174,11 +176,42 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
 
         return RedshiftClient
 
+    def create_ibis_backend(
+        self, client: "RedshiftClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis postgres backend for the redshift client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        try:
+            import psycopg  # type: ignore[import-not-found, unused-ignore]
+
+            old_fetch = psycopg.types.TypeInfo.fetch
+
+            def _ignore_hstore(conn: Any, name: Any) -> Any:
+                if name == "hstore":
+                    raise TypeError("HSTORE")
+                return old_fetch(conn, name)
+
+            psycopg.types.TypeInfo.fetch = _ignore_hstore  # type: ignore[method-assign, unused-ignore]
+        except Exception:
+            pass
+        ibis_version = tuple(map(int, ibis.__version__.split(".")))
+        if ibis_version >= (0, 10, 4):
+            raise NotImplementedError(
+                "Redshift is not properly supported by ibis as of version 0.10.4. "
+                "Please use an older version of ibis."
+            )
+        credentials = client.config.credentials.copy()
+        # ibis resolves the schema from the database path; its `schema` argument is overridden
+        credentials.database = credentials.database + "/" + client.sql_client.dataset_name
+        return ibis.connect(credentials.to_native_representation())
+
     def __init__(
         self,
         credentials: Union[RedshiftCredentials, Dict[str, Any], str] = None,
         staging_iam_role: Optional[str] = None,
         has_case_sensitive_identifiers: bool = False,
+        additional_copy_options: Optional[list[str]] = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -192,6 +225,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
                 a connection string in the format `redshift://user:password@host:port/database`. Defaults to None.
             staging_iam_role (Optional[str], optional): IAM role to use for staging data in S3. Defaults to None.
             has_case_sensitive_identifiers (bool, optional): Whether case sensitive identifiers are enabled for the database. Defaults to False.
+            additional_copy_options (Optional[list[str]], optional): Additional Redshift COPY options.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
             **kwargs (Any): Additional arguments passed to the destination config.
@@ -200,6 +234,7 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
             credentials=credentials,
             staging_iam_role=staging_iam_role,
             has_case_sensitive_identifiers=has_case_sensitive_identifiers,
+            additional_copy_options=additional_copy_options,
             destination_name=destination_name,
             environment=environment,
             **kwargs,
