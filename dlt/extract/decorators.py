@@ -119,6 +119,37 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         """Adds a callback that receives and returns a DltSource after it is created."""
         self._postprocessors.append(func)
 
+    def add_limit(
+        self,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+        count_rows: Optional[bool] = False,
+    ) -> Self:
+        """Limits selected resources on every source created by this factory.
+
+        Same semantics as DltSource.add_limit. Returns the factory for chaining;
+        call the factory to obtain a source, e.g. ``factory.add_limit(10)()``.
+        """
+
+        def _limit_postprocessor(
+            src: Union[TDltSourceImpl, Awaitable[TDltSourceImpl]],
+        ) -> Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]:
+            if inspect.isawaitable(src):
+
+                async def _limit_async() -> TDltSourceImpl:
+                    source = await src  # type: ignore[misc]
+                    return source.add_limit(
+                        max_items, max_time=max_time, count_rows=count_rows
+                    )
+
+                return _limit_async()
+            return src.add_limit(  # type: ignore[union-attr]
+                max_items, max_time=max_time, count_rows=count_rows
+            )
+
+        self.add_postprocessor(_limit_postprocessor)  # type: ignore[arg-type]
+        return self
+
     def _apply_postprocessors(self, source: TDltSourceImpl) -> TDltSourceImpl:
         for func in self._postprocessors:
             source = func(source)  # type: ignore[assignment]
