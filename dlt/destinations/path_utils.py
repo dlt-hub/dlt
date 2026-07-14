@@ -235,12 +235,12 @@ def create_path(
     datetime_params = prepare_datetime_params(current_datetime, load_package_timestamp)
     params.update(datetime_params)
 
-    placeholders, _ = check_layout(layout, params)
+    _, placeholders = check_layout(layout, params)
     path = layout.format(**params)
 
     # if extension is not defined, we append it at the end
     if "ext" not in placeholders:
-        path = job_info.full_extension()
+        path += f".{job_info.full_extension()}"
 
     return path
 
