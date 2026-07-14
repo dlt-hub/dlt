@@ -1837,3 +1837,39 @@ async def test_async_source_postprocessor() -> None:
     assert "alpha" in source.selected_resources
     assert "beta" not in source.selected_resources
     assert list(source) == [1, 2, 3]
+
+
+def test_source_factory_add_limit() -> None:
+    @dlt.source
+    def limited_factory():
+        return dlt.resource([1, 2, 3], name="data")
+
+    assert limited_factory.add_limit(1) is limited_factory
+    assert list(limited_factory()) == [1]
+
+
+def test_source_factory_add_limit_preserved_on_clone() -> None:
+    @dlt.source
+    def limited_factory():
+        return dlt.resource([1, 2, 3], name="data")
+
+    cloned = limited_factory.add_limit(1).clone(section="new_section")
+    assert list(cloned()) == [1]
+
+
+@pytest.mark.asyncio
+async def test_async_source_factory_add_limit() -> None:
+    @dlt.source
+    async def async_limited_factory():
+        return dlt.resource([1, 2, 3], name="data")
+
+    source = await async_limited_factory.add_limit(1)()  # type: ignore[misc]
+    assert list(source) == [1]
+
+
+def test_source_instance_add_limit_still_works() -> None:
+    @dlt.source
+    def unlimited_factory():
+        return dlt.resource([1, 2, 3], name="data")
+
+    assert list(unlimited_factory().add_limit(1)) == [1]
