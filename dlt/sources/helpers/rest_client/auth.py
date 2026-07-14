@@ -210,11 +210,11 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
         else:
             data["client_id"] = client_id_str
             data["client_secret"] = client_secret_str
-        return{
+        return {
             "headers": headers,
             "data": data,
-        }    
-    
+        }
+
     def parse_expiration_in_seconds(self, response_json: Any) -> int:
         return int(response_json.get("expires_in", self.default_token_expiration))
 
