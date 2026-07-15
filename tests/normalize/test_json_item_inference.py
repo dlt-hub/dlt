@@ -314,6 +314,32 @@ def test_coerce_timestamp_timezone_existing_column_normalize_utc(
     assert new_table_2 is None
 
 
+def test_coerce_timestamp_timezone_existing_column_happy_path(
+    item_normalizer: JsonLItemsNormalizer,
+):
+    """Existing timestamp column + a value whose inferred type already matches
+    ("happy path", no type coercion needed) must still get timezone-normalized,
+    the same as a value that does need coercion.
+    """
+    # create the column first, then force it to timezone=False (naive)
+    row_1 = {"event_time": "2022-05-10T00:17:15.300000+02:00"}
+    _, new_table = item_normalizer._coerce_row("events", None, row_1)
+    new_table["columns"]["event_time"]["timezone"] = False
+    item_normalizer.schema.update_table(new_table)
+
+    # row_2's value is already a pendulum.DateTime, so its inferred type equals
+    # the column's type exactly -- this takes the "happy path", not the
+    # type-coercion path that the sibling test above exercises
+    row_2 = {"event_time": pendulum.parse("2022-05-10T05:30:45.500000-03:00")}
+    coerced_row_2, new_table_2 = item_normalizer._coerce_row("events", None, row_2)
+
+    expected_utc = ensure_pendulum_datetime_non_utc("2022-05-10T08:30:45.500000+00:00")
+    expected_naive = expected_utc.naive()
+    assert coerced_row_2["event_time"] == expected_naive
+    assert coerced_row_2["event_time"].tzinfo is None
+    assert new_table_2 is None
+
+
 def test_coerce_timestamp_timezone_incomplete_column(item_normalizer: JsonLItemsNormalizer):
     """Test timezone normalization when column exists but is incomplete (no data_type)."""
     # Create an incomplete column first
