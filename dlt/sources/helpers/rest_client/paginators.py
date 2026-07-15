@@ -903,7 +903,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
             elif not isinstance(has_more, bool):
                 self._handle_invalid_has_more(has_more)
 
-            self._has_next_page = has_more
+            self._has_next_page = self._has_next_page and has_more
 
     def _handle_invalid_has_more(self, has_more: Any) -> None:
         raise ValueError(
