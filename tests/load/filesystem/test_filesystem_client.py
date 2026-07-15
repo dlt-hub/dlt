@@ -159,6 +159,37 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
         assert client.get_table_prefix("letters").endswith("_data/letters.")
 
 
+def test_table_prefix_resolves_schema_name_extra_placeholder() -> None:
+    client = _client_factory(
+        filesystem(
+            bucket_url=get_test_storage_root(),
+            layout="{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+            extra_placeholders={"schema_name": "custom", "load_id": "custom_load_id"},
+        )
+    )
+
+    assert client.get_table_prefix("letters").endswith("/custom/letters/")
+
+    def custom_schema_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_callable"
+
+    client.config.extra_placeholders["schema_name"] = custom_schema_name
+    assert client.get_table_prefix("letters").endswith("/custom_callable/letters/")
+
+
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:

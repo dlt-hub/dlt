@@ -990,8 +990,14 @@ class FilesystemClient(
             # it is crucial to append and keep "/" at the end
             table_prefix = self.pathlib.join(table_name, "")
         else:
+            params = path_utils.prepare_params(
+                extra_placeholders=self.config.extra_placeholders,
+                schema_name=schema_name or self.schema.name,
+                table_name=table_name,
+            )
             table_prefix = self.table_prefix_layout.format(
-                schema_name=schema_name or self.schema.name, table_name=table_name
+                schema_name=params.get("schema_name", schema_name or self.schema.name),
+                table_name=table_name,
             )
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)

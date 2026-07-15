@@ -130,9 +130,9 @@ def prepare_params(
     job_info: Optional[ParsedLoadJobFileName] = None,
     schema_name: Optional[str] = None,
     load_id: Optional[str] = None,
+    table_name: Optional[str] = None,
 ) -> Dict[str, Any]:
     params: Dict[str, Any] = {}
-    table_name = None
     file_id = None
     ext = None
     if job_info:
@@ -146,6 +146,8 @@ def prepare_params(
                 "ext": ext,
             }
         )
+    elif table_name:
+        params["table_name"] = table_name
 
     if schema_name:
         params["schema_name"] = schema_name
