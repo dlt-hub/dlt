@@ -349,6 +349,20 @@ class TestRangePaginator:
 
         assert paginator.has_next_page is False
 
+    def test_has_more_does_not_override_total(self) -> None:
+        paginator = RangePaginator(
+            param_name="page",
+            initial_value=0,
+            value_step=1,
+            total_path="total",
+            has_more_path="has_more",
+        )
+        response = Mock(Response, json=lambda: {"total": 1, "has_more": True})
+
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+        assert paginator.has_next_page is False
+
 
 @pytest.mark.usefixtures("mock_api_server")
 class TestOffsetPaginator:
