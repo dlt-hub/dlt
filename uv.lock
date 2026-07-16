@@ -2504,8 +2504,6 @@ name = "dlt"
 version = "1.29.0"
 source = { editable = "." }
 dependencies = [
-    { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
-    { name = "click", version = "8.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "fsspec" },
     { name = "gitpython" },
     { name = "giturlparse" },
@@ -2749,7 +2747,6 @@ dev = [
     { name = "ruff" },
     { name = "sqlfluff" },
     { name = "types-cachetools" },
-    { name = "types-click" },
     { name = "types-croniter" },
     { name = "types-deprecated" },
     { name = "types-paramiko" },
@@ -2831,7 +2828,6 @@ requires-dist = [
     { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 'filesystem'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 's3'", specifier = ">=1.28" },
-    { name = "click", specifier = ">=7.1" },
     { name = "clickhouse-connect", marker = "extra == 'clickhouse'", specifier = ">=0.7.7" },
     { name = "clickhouse-driver", marker = "extra == 'clickhouse'", specifier = ">=0.2.7" },
     { name = "cron-descriptor", marker = "extra == 'cli'", specifier = ">=1.2.32" },
@@ -2986,7 +2982,6 @@ dev = [
     { name = "ruff", specifier = ">=0.3.2,<0.4" },
     { name = "sqlfluff", specifier = ">=2.3.2,<3" },
     { name = "types-cachetools", specifier = ">=4.2.9" },
-    { name = "types-click", specifier = ">=7.1.8,<8" },
     { name = "types-croniter", specifier = ">=6.0.0" },
     { name = "types-deprecated", specifier = ">=1.2.9.2,<2" },
     { name = "types-paramiko", specifier = ">=3.5.0.20250708" },
@@ -10385,15 +10380,6 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/03/d0/55ff0eeda141436c1bd2142cd026906870c661b3f7755070d6da7ea7210f/types_cachetools-6.0.0.20250525.tar.gz", hash = "sha256:baf06f234cac3aeb44c07893447ba03ecdb6c0742ba2607e28a35d38e6821b02", size = 8925, upload-time = "2025-05-25T03:13:53.498Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/47/8c/4ab0a17ece30fe608270b89cf066387051862899fff9f54ab12511fc7fdd/types_cachetools-6.0.0.20250525-py3-none-any.whl", hash = "sha256:1de8f0fe4bdcb187a48d2026c1e3672830f67943ad2bf3486abe031b632f1252", size = 8938, upload-time = "2025-05-25T03:13:52.406Z" },
-]
-
-[[package]]
-name = "types-click"
-version = "7.1.8"
-source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/00/ff/0e6a56108d45c80c61cdd4743312d0304d8192482aea4cce96c554aaa90d/types-click-7.1.8.tar.gz", hash = "sha256:b6604968be6401dc516311ca50708a0a28baa7a0cb840efd7412f0dbbff4e092", size = 10015, upload-time = "2021-11-23T12:28:01.701Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/ee/ad/607454a5f991c5b3e14693a7113926758f889138371058a5f72f567fa131/types_click-7.1.8-py3-none-any.whl", hash = "sha256:8cb030a669e2e927461be9827375f83c16b8178c365852c060a34e24871e7e81", size = 12929, upload-time = "2021-11-23T12:27:59.493Z" },
 ]
 
 [[package]]

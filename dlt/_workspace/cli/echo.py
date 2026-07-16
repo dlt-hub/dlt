@@ -1,9 +1,30 @@
 """CLI prompting and output helpers."""
 
-import sys
 import contextlib
-from typing import Any, Iterable, Iterator, Optional, ContextManager
-import click
+import sys
+from typing import IO, Any, ContextManager, Iterable, Iterator, Optional
+
+from rich.console import Console
+from rich.text import Text
+
+_ANSI_COLORS = {
+    "black": 30,
+    "red": 31,
+    "green": 32,
+    "yellow": 33,
+    "blue": 34,
+    "magenta": 35,
+    "cyan": 36,
+    "white": 37,
+    "bright_black": 90,
+    "bright_red": 91,
+    "bright_green": 92,
+    "bright_yellow": 93,
+    "bright_blue": 94,
+    "bright_magenta": 95,
+    "bright_cyan": 96,
+    "bright_white": 97,
+}
 
 
 ALWAYS_CHOOSE_DEFAULT = False
@@ -28,7 +49,7 @@ def cli_cmd(rest: str = "") -> str:
     """Formats an example command line prefixed with the active CLI host name.
 
     Args:
-        rest: Argument string to append after the host name.
+        rest (str): Argument string to append after the host name.
 
     Returns:
         str: The full example, e.g. `"dlt pipeline my_pipe info"` or
@@ -63,9 +84,9 @@ def always_choose(
     """Temporarily answer all confirmations and prompts with preset values.
 
     Args:
-        always_choose_default: When True, confirm/prompt calls return their default.
-        always_choose_value: When set, confirm/prompt calls return this value instead.
-        always_confirm: When True, confirm calls always return True, regardless of
+        always_choose_default (bool): When True, confirm/prompt calls return their default.
+        always_choose_value (Any): When set, confirm/prompt calls return this value instead.
+        always_confirm (bool): When True, confirm calls always return True, regardless of
             `always_choose_default` and `always_choose_value`.
     """
     global ALWAYS_CHOOSE_DEFAULT, ALWAYS_CHOOSE_VALUE, ALWAYS_CONFIRM
@@ -110,29 +131,82 @@ def maybe_no_stdin() -> ContextManager[None]:
     )
 
 
-echo = click.echo
-secho = click.secho
-style = click.style
+def style(
+    text: Any,
+    fg: Optional[str] = None,
+    bold: Optional[bool] = None,
+    reset: bool = True,
+) -> str:
+    """Apply ANSI foreground color and bold styling to ``text``."""
+    codes = []
+    if fg is not None:
+        try:
+            codes.append(str(_ANSI_COLORS[fg]))
+        except KeyError as ex:
+            raise TypeError(f"Unknown color {fg!r}") from ex
+    if bold is not None:
+        codes.append("1" if bold else "22")
+
+    value = str(text)
+    if not codes:
+        return value
+    value = f"\033[{';'.join(codes)}m{value}"
+    return value + "\033[0m" if reset else value
+
+
+def echo(
+    message: Any = None,
+    file: Optional[IO[Any]] = None,
+    nl: bool = True,
+    err: bool = False,
+    color: Optional[bool] = None,
+) -> None:
+    """Write a message to stdout or stderr."""
+    output = file or (sys.stderr if err else sys.stdout)
+    value = "" if message is None else str(message)
+    console = Console(file=output, force_terminal=color)
+    console.print(Text.from_ansi(value), end="\n" if nl else "", soft_wrap=True)
+
+
+def secho(
+    message: Any = None,
+    file: Optional[IO[Any]] = None,
+    nl: bool = True,
+    err: bool = False,
+    color: Optional[bool] = None,
+    fg: Optional[str] = None,
+    bold: Optional[bool] = None,
+) -> None:
+    """Style a message and write it with :func:`echo`."""
+    echo(style(message if message is not None else "", fg=fg, bold=bold), file, nl, err, color)
 
 
 def bold(msg: str) -> str:
-    return click.style(msg, bold=True, reset=False) + click.style("", bold=False, reset=False)
+    return style(msg, bold=True, reset=False) + style("", bold=False, reset=False)
 
 
 def warning_style(msg: str) -> str:
-    return click.style(msg, fg="yellow", reset=True)
+    return style(msg, fg="yellow", reset=True)
 
 
 def error(msg: str) -> None:
-    click.secho("ERROR: " + msg, fg="red")
+    secho("ERROR: " + msg, fg="red")
 
 
 def warning(msg: str) -> None:
-    click.secho("WARNING: " + msg, fg="yellow")
+    secho("WARNING: " + msg, fg="yellow")
 
 
 def note(msg: str) -> None:
-    click.secho("NOTE: " + msg, fg="green")
+    secho("NOTE: " + msg, fg="green")
+
+
+def _read_input(label: str) -> str:
+    try:
+        return input(label)
+    except (EOFError, KeyboardInterrupt):
+        echo(err=True)
+        raise
 
 
 def _raise_no_default(text: str) -> None:
@@ -156,7 +230,16 @@ def confirm(text: str, default: Optional[bool] = None) -> bool:
         if default is None:
             _raise_no_default(text)
         return default
-    return click.confirm(text, default=default)
+    choices = "Y/n" if default is True else "y/N" if default is False else "y/n"
+    while True:
+        value = _read_input(f"{text} [{choices}]: ").strip().lower()
+        if not value and default is not None:
+            return default
+        if value in ("y", "yes"):
+            return True
+        if value in ("n", "no"):
+            return False
+        echo("Error: invalid input")
 
 
 def prompt(
@@ -173,21 +256,30 @@ def prompt(
         if default is None:
             _raise_no_default(text)
         return default
-    click_choices = click.Choice(choices)
-    return click.prompt(
-        text,
-        type=click_choices,
-        default=default,
-        show_choices=show_choices,
-        show_default=show_default,
-    )
+    available = tuple(choices)
+    label = text
+    if show_choices:
+        label += f" ({', '.join(available)})"
+    if show_default and default is not None:
+        label += f" [{default}]"
+    label += ": "
+
+    while True:
+        value = _read_input(label)
+        if not value and default is not None:
+            return default
+        if value in available:
+            return value
+        echo(f"Error: invalid choice: {value}. (choose from {', '.join(available)})")
 
 
-def text_input(text: str, default: str = None) -> str:
+def text_input(text: str, default: Optional[str] = None) -> str:
     if ALWAYS_CHOOSE_VALUE is not None:
         return str(ALWAYS_CHOOSE_VALUE)
     if ALWAYS_CHOOSE_DEFAULT or ALWAYS_CONFIRM:
         if default is None:
             _raise_no_default(text)
         return default
-    return click.prompt(text, default=default)  # type: ignore[no-any-return]
+    label = f"{text} [{default}]: " if default is not None else f"{text}: "
+    value = _read_input(label)
+    return default if not value and default is not None else value

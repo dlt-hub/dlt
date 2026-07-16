@@ -39,7 +39,6 @@ dependencies = [
     "tomlkit>=0.11.3",
     "pathvalidate>=2.5.2",
     "typing-extensions>=4.8.0",
-    "click>=7.1",
     "requirements-parser>=0.5.0",
     "setuptools>=65.6.0",
     "humanize>=4.4.0",
@@ -233,7 +232,6 @@ dlthub = "dlt._workspace.cli._dlt:_main_dlthub"
 # here you'll break everything
 dev = [
     "requests-mock>=1.10.0,<2",
-    "types-click>=7.1.8,<8",
     "sqlfluff>=2.3.2,<3",
     "types-deprecated>=1.2.9.2,<2",
     "pytest-console-scripts>=1.4.1,<2",
