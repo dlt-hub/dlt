@@ -428,3 +428,46 @@ def test_lance_commit_job_retry_idempotency(
         client = cast(LanceClient, client)
         ds = client.open_lance_dataset("items")
         assert sorted(r["id"] for r in ds.to_table().to_pylist()) == list(range(5))
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    lance_destination_configs,
+    ids=lambda x: x.name,
+)
+def test_lance_pipeline_read_via_dataset(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Reads tables back through the duckdb read layer. A REST catalog attaches the dataset
+    namespace via `ATTACH ... (TYPE LANCE)` (which vends storage credentials); a dir catalog
+    scans table URIs through `__lance_scan()`."""
+    from dlt.destinations.impl.lance.sql_client import LanceSQLClient
+
+    # explicit dataset_name -> a (non-root) namespace, required for the REST ATTACH path
+    pipe = destination_config.setup_pipeline(
+        "test_lance_read_" + uniq_id(),
+        dataset_name="read_ds_" + uniq_id(),
+        dev_mode=True,
+    )
+    pipe.run(
+        [{"id": 1, "name": "a"}, {"id": 2, "name": "b"}, {"id": 3, "name": "c"}],
+        table_name="characters",
+    )
+
+    assert sorted(pipe.dataset()["characters"].df()["id"].tolist()) == [1, 2, 3]
+
+    with pipe.destination_client() as client:
+        client = cast(LanceClient, client)
+        sql_client = cast(LanceSQLClient, client.sql_client)
+        if client.config.capabilities.duckdb_attach_catalog:
+            assert sql_client._attach_catalog is True
+            sql_client.open_connection()
+            attached = [
+                row[0]
+                for row in sql_client._conn.execute(
+                    "SELECT database_name FROM duckdb_databases()"
+                ).fetchall()
+            ]
+            assert sql_client.database_name in attached
+        else:
+            assert sql_client._attach_catalog is False

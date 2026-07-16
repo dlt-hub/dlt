@@ -6,6 +6,7 @@ import pytest
 from lance.namespace import DirectoryNamespace
 from lance_namespace import NamespaceExistsRequest, TableExistsRequest
 from lance_namespace.errors import (
+    InternalError,
     NamespaceNotFoundError,
     PermissionDeniedError,
     TableNotFoundError,
@@ -61,6 +62,16 @@ def test_lance_exists_methods_raise(tmp_path: Path) -> None:
         ),
         pytest.param(TableNotFoundError("Table not found: x"), None, True, id="typed-table"),
         pytest.param(PermissionDeniedError("denied"), None, False, id="typed-not-a-not-found"),
+        # LanceDB Enterprise reports a missing table as a generic InternalError
+        pytest.param(
+            InternalError("Internal error: Not found: table camelot$_dlt_version not found"),
+            None,
+            True,
+            id="enterprise-internal-not-found",
+        ),
+        pytest.param(
+            InternalError("Internal error: connection reset"), None, False, id="internal-unrelated"
+        ),
         pytest.param(
             RuntimeError("Namespace error: Table does not exist: x"), None, True, id="untyped"
         ),

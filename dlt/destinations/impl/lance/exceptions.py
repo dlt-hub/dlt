@@ -63,7 +63,11 @@ def is_lance_undefined_entity_exception(
     from lance_namespace.errors import LanceNamespaceError
 
     if isinstance(e, LanceNamespaceError):
-        return type(e).__name__.endswith("NotFoundError")
+        # typed not-found, or a server that reports a missing table/namespace as a generic error
+        # (LanceDB Enterprise raises `InternalError: Not found: table <id> ... not found`)
+        return type(e).__name__.endswith("NotFoundError") or bool(
+            LANCE_UNDEFINED_ENTITY_PATTERN.search(str(e))
+        )
     return isinstance(e, (RuntimeError, ValueError, OSError)) and bool(
         LANCE_UNDEFINED_ENTITY_PATTERN.search(str(e))
     )

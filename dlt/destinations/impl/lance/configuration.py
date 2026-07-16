@@ -180,19 +180,33 @@ class RestCatalogCredentials(CredentialsConfiguration):
     """API key to authenticate to the Lance REST Namespace server. Mapped to `x-api-key` HTTP header."""
     auth_token: Optional[str] = None
     """Bearer token to authenticate to the Lance REST Namespace server. Mapped to `Authorization: Bearer <auth_token>` HTTP header."""
+    database: Optional[str] = None
+    """LanceDB Enterprise/Cloud database to target when one endpoint serves several. Sent as the `x-lancedb-database` HTTP header. Not part of the open Lance Namespace spec."""
+    headers: Optional[Dict[str, str]] = None
+    """Extra HTTP headers sent to the REST Namespace server."""
 
-    __config_gen_annotations__: ClassVar[List[str]] = ["uri", "api_key", "auth_token"]
+    __config_gen_annotations__: ClassVar[List[str]] = ["uri", "database", "api_key", "auth_token"]
 
-    def to_namespace_properties(self) -> dict[str, str]:
-        props = {"uri": self.uri}
-
+    def _http_headers(self) -> Dict[str, str]:
         # https://lance.org/format/namespace/rest/catalog-spec/#identity-header-mapping
+        headers: Dict[str, str] = dict(self.headers or {})
+        if self.database and "x-lancedb-database" not in headers:
+            headers["x-lancedb-database"] = self.database
         if self.api_key:
-            props["header.x-api-key"] = self.api_key
+            headers["x-api-key"] = self.api_key
         if self.auth_token:
-            props["header.Authorization"] = f"Bearer {self.auth_token}"
+            headers["Authorization"] = f"Bearer {self.auth_token}"
+        return headers
 
+    def to_namespace_properties(self) -> Dict[str, str]:
+        props = {"uri": self.uri}
+        for header, value in self._http_headers().items():
+            props[f"header.{header}"] = value
         return props
+
+    def to_duckdb_header(self) -> Optional[str]:
+        """Renders headers as a `;`-joined `key=value` string for the duckdb lance `ATTACH ... HEADER` option."""
+        return ";".join(f"{k}={v}" for k, v in self._http_headers().items()) or None
 
 
 LanceCredentials = Union[DirectoryCatalogCredentials, RestCatalogCredentials]
@@ -204,6 +218,8 @@ class LanceCatalogCapabilities(BaseConfiguration):
     max_identifier_length: int = 200
     max_column_identifier_length: int = 1024
     supports_nested_namespaces: bool = True
+    duckdb_attach_catalog: bool = False
+    """Whether reads attach the catalog to duckdb via `ATTACH ... (TYPE LANCE)` instead of scanning table URIs directly."""
 
 
 @configspec
@@ -220,7 +236,7 @@ class DirectoryCatalogCapabilities(LanceCatalogCapabilities):
 
 @configspec
 class RestCatalogCapabilities(LanceCatalogCapabilities):
-    pass
+    duckdb_attach_catalog: bool = True
 
 
 @configspec

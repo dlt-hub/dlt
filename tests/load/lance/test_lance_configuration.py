@@ -243,6 +243,7 @@ def test_lance_client_configuration_catalog_dispatch() -> None:
     assert isinstance(c.storage, LanceStorageConfiguration)
     assert c.capabilities.manifest_enabled is True
     assert c.capabilities.dir_listing_enabled is True
+    assert c.capabilities.duckdb_attach_catalog is False
     assert isinstance(c.make_namespace(), DirectoryNamespace)
 
     # catalog_type "rest" routes to RestCatalog* resolved types
@@ -256,8 +257,43 @@ def test_lance_client_configuration_catalog_dispatch() -> None:
     assert c.catalog_type == "rest"
     assert isinstance(c.credentials, RestCatalogCredentials)
     assert isinstance(c.capabilities, RestCatalogCapabilities)
+    assert c.capabilities.duckdb_attach_catalog is True
     assert c.storage is None
     assert isinstance(c.make_namespace(), RestNamespace)
+
+
+def test_rest_catalog_credentials_headers() -> None:
+    creds = RestCatalogCredentials(uri="https://ent.example.com")
+    creds.api_key = "sk_secret"
+    creds.auth_token = "tok"
+    creds.database = "prod"  # top-level field -> x-lancedb-database header
+    creds.headers = {"x-custom": "v"}
+
+    # namespace props use the `header.<name>` prefix expected by the lance rust client
+    props = creds.to_namespace_properties()
+    assert props["uri"] == "https://ent.example.com"
+    assert props["header.x-api-key"] == "sk_secret"
+    assert props["header.Authorization"] == "Bearer tok"
+    assert props["header.x-lancedb-database"] == "prod"
+    assert props["header.x-custom"] == "v"
+
+    # duckdb ATTACH HEADER option is a `;`-joined `k=v` string
+    header = creds.to_duckdb_header()
+    assert set(header.split(";")) == {
+        "x-lancedb-database=prod",
+        "x-custom=v",
+        "x-api-key=sk_secret",
+        "Authorization=Bearer tok",
+    }
+
+    # an explicit `x-lancedb-database` header wins over the `database` field
+    override = RestCatalogCredentials(uri="https://ent.example.com")
+    override.database = "prod"
+    override.headers = {"x-lancedb-database": "staging"}
+    assert override.to_namespace_properties()["header.x-lancedb-database"] == "staging"
+
+    # no auth -> no header option
+    assert RestCatalogCredentials(uri="http://127.0.0.1:2333").to_duckdb_header() is None
 
 
 def test_directory_catalog_credentials_inherit_from_storage() -> None:

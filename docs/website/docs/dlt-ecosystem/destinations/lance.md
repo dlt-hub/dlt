@@ -16,7 +16,7 @@ Optionally, the destination can generate **vector embeddings** using the [LanceD
 :::note Lance vs. LanceDB destination
 dlt ships two Lance-related destinations:
 
-- **`lance`** (this page) — stores data on local disk or cloud object storage (S3, GCS, Azure). Uses the [`lance`](https://github.com/lancedb/lance) library for table management and, optionally, the [`lancedb`](https://github.com/lancedb/lancedb) library for embedding generation.
+- **`lance`** (this page) — stores data on local disk, cloud object storage (S3, GCS, Azure), or a [Lance REST Namespace](#rest-namespace-experimental) server such as a LanceDB Enterprise/Cloud cluster. Uses the [`lance`](https://github.com/lancedb/lance) library for table management and, optionally, the [`lancedb`](https://github.com/lancedb/lancedb) library for embedding generation.
 - **`lancedb`** ([docs](lancedb.md)) — stores data locally or on [LanceDB Cloud](https://docs.lancedb.com/cloud/index). Uses the `lancedb` library exclusively for all operations.
 
 The `lancedb` destination will be phased out in favor of `lance`.
@@ -204,7 +204,56 @@ uri = "http://127.0.0.1:2333"
 # Optional auth, sent as HTTP headers
 api_key = "..."      # sent as x-api-key
 auth_token = "..."   # sent as Authorization: Bearer <auth_token>
+database = "..."     # sent as x-lancedb-database (LanceDB Enterprise/Cloud)
+
+# Optional extra HTTP headers
+[destination.lance.credentials.headers]
+x-custom-header = "value"
 ```
+
+`database` selects a LanceDB Enterprise/Cloud database when one endpoint serves several — it is a
+LanceDB deployment concept that sits above the namespace hierarchy, not part of the open Lance
+Namespace spec.
+
+Unlike the `dir` catalog, a `rest` catalog does not need a `storage` configuration: the namespace
+server owns the table locations and vends storage credentials to dlt on demand.
+
+#### LanceDB Enterprise / Cloud
+
+A [LanceDB Enterprise](https://docs.lancedb.com/namespaces) or Cloud cluster is a Lance REST
+Namespace server, so you connect to it with the `rest` catalog. Point `uri` at the cluster
+endpoint (the `host_override` value used by the `lancedb` client), authenticate with `api_key`
+(sent as `x-api-key`), and set `database` when the endpoint serves more than one (sent as the
+`x-lancedb-database` header). Leave `storage` unset — the cluster vends per-request credentials
+for the underlying object store.
+
+```toml
+[destination.lance]
+catalog_type = "rest"
+
+[destination.lance.credentials]
+uri = "https://<your-cluster-endpoint>"
+api_key = "sk_..."
+database = "my_database"
+```
+
+```py
+import dlt
+
+# a `dataset_name` maps to a namespace under the cluster and is required to read back
+pipeline = dlt.pipeline("my_pipeline", destination="lance", dataset_name="my_dataset")
+pipeline.run([{"id": 1, "vector": [0.1, 0.2, 0.3, 0.4]}], table_name="characters")
+
+# read back through duckdb: dlt attaches the namespace and uses the cluster's vended credentials
+print(pipeline.dataset()["characters"].df())
+```
+
+:::note
+Reading data back through `pipeline.dataset()` attaches the namespace to an in-memory DuckDB
+instance (`ATTACH ... (TYPE LANCE)`), which fetches the vended storage credentials automatically.
+This requires `duckdb >= 1.5` with the `lance` extension and a `dataset_name` (the REST catalog
+cannot attach the root namespace). Writing data does not require DuckDB.
+:::
 
 
 ## Branching
