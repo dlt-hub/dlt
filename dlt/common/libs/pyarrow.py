@@ -694,7 +694,7 @@ def add_dlt_load_id_column(
     idx = item.schema.get_field_index(dlt_load_id_col_name)
     # if the column already exists, get rid of it
     if idx != -1:
-        item = remove_columns(item, dlt_load_id_col_name)
+        item = remove_columns(item, [dlt_load_id_col_name])
 
     # get pyarrow.string() type
     pyarrow_string = get_py_arrow_datatype(
