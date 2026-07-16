@@ -975,6 +975,12 @@ class TestJSONResponseCursorPaginator:
             excinfo.value
         )
 
+    def test_update_state_when_cursor_path_is_empty_string(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
+        response = Mock(Response, json=lambda: {"next_cursor": "", "results": []})
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
     def test_has_more_does_not_override_missing_cursor(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor", has_more_path="has_more")
         response = Mock(Response, json=lambda: {"next_cursor": "", "results": [], "has_more": True})
