@@ -237,6 +237,20 @@ def test_normalize_table_identifiers_merge_columns() -> None:
     }
 
 
+def test_normalize_table_identifiers_column_without_inner_name() -> None:
+    # stored schemas keep the column name only as the dict key (remove_defaults strips the
+    # inner "name"); normalize_table_identifiers must fall back to the key instead of raising
+    table: TTableSchema = {
+        "name": "my_table",
+        "columns": {"col_1": {"data_type": "text", "nullable": True}},
+    }
+    norm_table = utils.normalize_table_identifiers(table, Schema("norm").naming)
+    assert "col_1" in norm_table["columns"]
+    assert norm_table["columns"]["col_1"]["name"] == "col_1"
+    # input is not mutated
+    assert "name" not in table["columns"]["col_1"]
+
+
 def test_normalize_table_identifiers_table_reference() -> None:
     table: TTableSchema = {
         "name": "playlist_track",

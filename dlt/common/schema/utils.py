@@ -678,10 +678,12 @@ def normalize_table_identifiers(table: TTableSchema, naming: NamingConvention) -
     columns = table.get("columns")
     if columns:
         new_columns: TTableSchemaColumns = {}
-        for c in columns.values():
+        for col_name, c in columns.items():
             c = copy(c)
-            origin_c_name = c["name"]
-            new_col_name = c["name"] = naming.normalize_path(c["name"])
+            # the inner "name" is stripped from stored schemas by remove_defaults;
+            # fall back to the dict key, which is the authoritative column name
+            origin_c_name = c.get("name", col_name)
+            new_col_name = c["name"] = naming.normalize_path(origin_c_name)
             # re-index columns as the name changed, if name space was reduced then
             # some columns now collide with each other. so make sure that we merge columns that are already there
             if new_col_name in new_columns:

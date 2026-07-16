@@ -531,7 +531,9 @@ def _get_dataset_schema_from_destination_using_schema_name(
         if isinstance(client, WithStateSync):
             stored_schema = client.get_stored_schema(schema_name)
             if stored_schema:
-                schema = dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+                schema = dlt.Schema.from_dict(
+                    json.loads(stored_schema.schema), validate_schema=False
+                )
             else:
                 schema = dlt.Schema(schema_name)
 
@@ -581,14 +583,19 @@ def _get_dataset_schemas_from_dataset_dlt_tables(
                             stored_schema = client.get_stored_schema(name)
                             if stored_schema:
                                 schemas.append(
-                                    dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))
+                                    dlt.Schema.from_dict(
+                                        json.loads(stored_schema.schema),
+                                        validate_schema=False,
+                                    )
                                 )
                         if schemas:
                             return schemas
             # fall back to most recently stored schema
             stored_schema = client.get_stored_schema()
             if stored_schema:
-                return [dlt.Schema.from_stored_schema(json.loads(stored_schema.schema))]
+                return [
+                    dlt.Schema.from_dict(json.loads(stored_schema.schema), validate_schema=False)
+                ]
     return None
 
 
