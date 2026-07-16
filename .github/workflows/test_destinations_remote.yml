@@ -178,6 +178,7 @@ jobs:
               destinations: "[\"redshift\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra redshift --extra postgis --extra s3 --extra gs --extra az --extra parquet --extra duckdb"
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='connection to server' --only-rerun=DatabaseTransientException"
 
             - display_name: postgres
               destinations: "[\"postgres\"]"
