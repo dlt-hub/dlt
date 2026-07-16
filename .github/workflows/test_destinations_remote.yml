@@ -69,7 +69,7 @@ jobs:
               destinations: "[\"databricks\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra databricks --extra s3 --extra gs --extra az --extra parquet"
-              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun=ConnectionResetError --only-rerun=RequestError"
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun=ConnectionResetError --only-rerun=RequestError --only-rerun=DatabaseTransientException"
 
             # Filesystem
             - display_name: filesystem_s3_local
@@ -151,6 +151,8 @@ jobs:
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
               post_install_commands: "uv run dbc install mssql"
               always_run_all_tests: true
+              # Azure SQL / ODBC sometimes has transient connection errors (e.g. 40613 "is not currently available")
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='is not currently available' --only-rerun='Communication link failure' --only-rerun='Login timeout expired' --only-rerun=DatabaseTransientException"
 
             # Synapse
             - display_name: synapse
@@ -158,6 +160,8 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra synapse --extra parquet"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
+              # see mssql: Azure SQL / ODBC transient connection errors
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='is not currently available' --only-rerun='Communication link failure' --only-rerun='Login timeout expired' --only-rerun=DatabaseTransientException"
 
             # Fabric
             - display_name: fabric
@@ -166,12 +170,15 @@ jobs:
               extras: "--extra fabric"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
               post_secrets_commands: "uv run python tests/load/fabric/refresh_spn_fabric_token.py"
+              # see mssql: Azure SQL / ODBC transient connection errors
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='is not currently available' --only-rerun='Communication link failure' --only-rerun='Login timeout expired' --only-rerun=DatabaseTransientException"
 
             # Postgres and Redshift (used to be test_destinations.yml)
             - display_name: redshift
               destinations: "[\"redshift\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--group adbc --extra postgres --extra redshift --extra postgis --extra s3 --extra gs --extra az --extra parquet --extra duckdb"
+              rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='connection to server' --only-rerun=DatabaseTransientException"
 
             - display_name: postgres
               destinations: "[\"postgres\"]"
