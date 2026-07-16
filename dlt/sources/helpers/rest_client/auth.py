@@ -227,7 +227,8 @@ class OAuthJWTAuth(BearerTokenAuth):
     session: Annotated[BaseSession, NotResolved()] = None
 
     def __post_init__(self) -> None:
-        self.scopes = self.scopes if isinstance(self.scopes, str) else " ".join(self.scopes)
+        if self.scopes is not None and not isinstance(self.scopes, str):
+            self.scopes = " ".join(self.scopes)
         self.token = None
         self.token_expiry: Optional[pendulum.DateTime] = None
         # use default system session unless specified otherwise
@@ -270,14 +271,16 @@ class OAuthJWTAuth(BearerTokenAuth):
 
     def create_jwt_payload(self) -> Dict[str, Union[str, int]]:
         now = pendulum.now()
-        return {
+        payload: Dict[str, Union[str, int]] = {
             "iss": self.client_id,
             "sub": self.client_id,
             "aud": self.auth_endpoint,
             "exp": math.floor((now.add(hours=1)).timestamp()),
             "iat": math.floor(now.timestamp()),
-            "scope": cast(str, self.scopes),
         }
+        if self.scopes is not None:
+            payload["scope"] = cast(str, self.scopes)
+        return payload
 
     def load_private_key(self) -> "PrivateKeyTypes":
         try:
