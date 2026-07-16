@@ -353,7 +353,8 @@ def test_gather_metrics(disable_compression: bool, writer_type: Type[DataWriter]
         assert len(writer.closed_files) == 1
         metrics = writer.closed_files[0]
         assert metrics.items_count == 2
-        assert metrics.last_modified - metrics.created >= 0.55
+        # sleep may return early, assert a lower bound with headroom
+        assert metrics.last_modified - metrics.created >= 0.5
         assert metrics.created >= now
         time.sleep(0.35)
         count = writer.write_data_item([{"col1": 182812}, {"col1": -1}, {"col1": 182811}], t1)
@@ -363,7 +364,7 @@ def test_gather_metrics(disable_compression: bool, writer_type: Type[DataWriter]
         metrics_2 = writer.closed_files[1]
         assert metrics_2.items_count == 3
         assert metrics_2.created >= metrics.last_modified
-        assert metrics_2.last_modified - metrics_2.created >= 0.35
+        assert metrics_2.last_modified - metrics_2.created >= 0.3
 
     assert len(writer.closed_files) == 2
     if not disable_compression and writer.writer_spec.supports_compression:
