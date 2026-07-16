@@ -1,5 +1,4 @@
-from typing import Sequence, Tuple, Optional, List, Union, cast
-import operator
+from typing import Sequence, Tuple, Optional, List, cast
 from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common.typing import TAnyDateTime
@@ -335,20 +334,6 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             return sa.true()  # type: ignore[no-any-return]
 
     @classmethod
-    def _gen_concat_sqla(
-        cls, columns: Sequence[sa.Column]
-    ) -> Union[sa.sql.elements.BinaryExpression, sa.Column]:
-        # Use col1 + col2 + col3 ... to generate a dialect specific concat expression
-        result = columns[0]
-        if len(columns) == 1:
-            return result
-        # Cast because CONCAT is only generated for string columns
-        result = sa.cast(result, sa.String)
-        for col in columns[1:]:
-            result = operator.add(result, sa.cast(col, sa.String))
-        return result  # type: ignore[no-any-return]
-
-    @classmethod
     def gen_scd2_sql(
         cls,
         table_chain: Sequence[PreparedTableSchema],
@@ -400,12 +385,18 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         merge_keys = get_columns_names_with_prop(root_table, "merge_key")
         if merge_keys:
-            root_merge_key_cols = [root_table_obj.c[key] for key in merge_keys]
-            staging_merge_key_cols = [staging_root_table_obj.c[key] for key in merge_keys]
-
             update_statement = update_statement.where(
-                cls._gen_concat_sqla(root_merge_key_cols).in_(
-                    sa.select(cls._gen_concat_sqla(staging_merge_key_cols))
+                sa.exists(
+                    sa.select(sa.literal(1))
+                    .where(
+                        sa.and_(
+                            *[
+                                root_table_obj.c[key] == staging_root_table_obj.c[key]
+                                for key in merge_keys
+                            ]
+                        )
+                    )
+                    .select_from(staging_root_table_obj)
                 )
             )
 
