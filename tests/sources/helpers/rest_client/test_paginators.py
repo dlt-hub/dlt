@@ -335,6 +335,34 @@ class TestRangePaginator:
         with pytest.raises(ValueError, match="body_path.*must not be empty"):
             RangePaginator._update_request_with_body_path(request, "", 0)
 
+    def test_has_more_does_not_override_maximum_value(self) -> None:
+        paginator = RangePaginator(
+            param_name="page",
+            initial_value=0,
+            value_step=1,
+            maximum_value=1,
+            has_more_path="has_more",
+        )
+        response = Mock(Response, json=lambda: {"has_more": True})
+
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+        assert paginator.has_next_page is False
+
+    def test_has_more_does_not_override_total(self) -> None:
+        paginator = RangePaginator(
+            param_name="page",
+            initial_value=0,
+            value_step=1,
+            total_path="total",
+            has_more_path="has_more",
+        )
+        response = Mock(Response, json=lambda: {"total": 1, "has_more": True})
+
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+        assert paginator.has_next_page is False
+
 
 @pytest.mark.usefixtures("mock_api_server")
 class TestOffsetPaginator:
@@ -950,6 +978,12 @@ class TestJSONResponseCursorPaginator:
     def test_update_state_when_cursor_path_is_empty_string(self):
         paginator = JSONResponseCursorPaginator(cursor_path="next_cursor")
         response = Mock(Response, json=lambda: {"next_cursor": "", "results": []})
+        paginator.update_state(response)
+        assert paginator.has_next_page is False
+
+    def test_has_more_does_not_override_missing_cursor(self):
+        paginator = JSONResponseCursorPaginator(cursor_path="next_cursor", has_more_path="has_more")
+        response = Mock(Response, json=lambda: {"next_cursor": "", "results": [], "has_more": True})
         paginator.update_state(response)
         assert paginator.has_next_page is False
 
