@@ -406,6 +406,13 @@ class TestOffsetPaginator:
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
 
+    def test_update_state_with_non_scalar_total(self):
+        paginator = OffsetPaginator(0, 10)
+        for total in ({"count": 5}, [100]):
+            response = Mock(Response, json=lambda total=total: {"total": total})
+            with pytest.raises(ValueError, match="is not an `int`"):
+                paginator.update_state(response, data=NON_EMPTY_PAGE)
+
     def test_update_state_without_total(self):
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {})
@@ -734,6 +741,13 @@ class TestPageNumberPaginator:
         response = Mock(Response, json=lambda: {"total_pages": "invalid"})
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+    def test_update_state_with_non_scalar_total_pages(self):
+        paginator = PageNumberPaginator(base_page=1, page=1)
+        for total in ({"count": 5}, [100]):
+            response = Mock(Response, json=lambda total=total: {"total": total})
+            with pytest.raises(ValueError, match="is not an `int`"):
+                paginator.update_state(response, data=NON_EMPTY_PAGE)
 
     def test_update_state_without_total_pages(self):
         paginator = PageNumberPaginator(base_page=1, page=1)
