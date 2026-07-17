@@ -52,7 +52,7 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
-    LoadClientJobRetryPending,
+    LoadClientJobTerminalRetry,
     LoadClientJobRetry,
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
@@ -542,7 +542,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.load_storage.normalized_packages.retry_job(
                         load_id, job.file_name(), failed_message, "terminal"
                     )
-                    pending_exception = LoadClientJobRetryPending(
+                    pending_exception = LoadClientJobTerminalRetry(
                         load_id,
                         job.job_file_info().job_id(),
                         failed_message,
@@ -792,7 +792,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self.complete_package(load_id, schema, aborted=True)
                     # raise exception with continuous backtrace into client exception
                     raise pending_exception from pending_exception.client_exception
-            elif isinstance(pending_exception, LoadClientJobRetryPending):
+            elif isinstance(pending_exception, LoadClientJobTerminalRetry):
                 # created only with raise_on_failed_jobs set, package stays pending.
                 # gather package info so retried jobs and their exceptions reach the trace
                 self.gather_metrics(load_id, finished=False)

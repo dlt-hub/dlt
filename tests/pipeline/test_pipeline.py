@@ -68,7 +68,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.extract import ExtractStorage, data_to_sources
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
-from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobRetryPending
+from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobTerminalRetry
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import (
@@ -1835,7 +1835,7 @@ def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
         assert py_ex.value.is_package_partially_loaded is True
         package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
         assert package_info.state == "normalized"
-        assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+        assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
         assert isinstance(py_ex.value.__context__, DestinationTerminalException)
         # retried jobs and their exceptions are present in the last trace
         trace_step = [step for step in p.last_trace.steps if step.step == "load"][-1]
@@ -1849,7 +1849,7 @@ def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
         # next call reraises
         with pytest.raises(PipelineStepFailed) as py_ex:
             p.run()
-        assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+        assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
     else:
         load_info = p.run(s)
         assert load_info.has_failed_jobs is True
@@ -1923,7 +1923,7 @@ def test_abort_package() -> None:
     # first run fails with terminal error, package stays pending
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.run(s)
-    assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+    assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
     assert isinstance(py_ex.value.__context__, DestinationTerminalException)
 
     # package is still pending (normalized state)
@@ -1979,7 +1979,7 @@ def test_abort_package_wipes_other_packages() -> None:
     # first run fails with terminal error, package stays pending
     with pytest.raises(PipelineStepFailed) as py_ex:
         p.run(s1)
-    assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
+    assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
     failed_load_id = py_ex.value.step_info.loads_ids[0]
 
     # extract and normalize another package (this one will also be pending)
@@ -2076,7 +2076,7 @@ def test_abort_package_restores_state(has_snapshot: bool) -> None:
                 ]
             )
     assert exc_info.value.is_package_partially_loaded is True
-    assert isinstance(exc_info.value.exception, LoadClientJobRetryPending)
+    assert isinstance(exc_info.value.exception, LoadClientJobTerminalRetry)
 
     assert (
         p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]

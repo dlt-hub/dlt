@@ -24,7 +24,7 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
         )
 
 
-class LoadClientJobRetryPending(DestinationTerminalException, LoadClientJobException):
+class LoadClientJobTerminalRetry(DestinationTerminalException, LoadClientJobException):
     def __init__(
         self, load_id: str, job_id: str, failed_message: str, exception: BaseException
     ) -> None:
