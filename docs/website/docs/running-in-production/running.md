@@ -338,7 +338,7 @@ The full behavior matrix:
 |---|---|---|---|---|
 | `true` | `true` | moved to `failed_jobs` | aborted | `LoadClientJobFailed` raised (default) |
 | `true` | `false` | moved to `failed_jobs` | aborted | none |
-| `false` | `true` | queued for retry | stays pending | `LoadClientJobRetryPending` raised |
+| `false` | `true` | queued for retry | stays pending | `LoadClientJobTerminalRetry` raised |
 | `false` | `false` | moved to `failed_jobs` | completed as loaded | none |
 
 Here is an example `config.toml` that disables both the exception and the automatic abort:
@@ -379,10 +379,9 @@ import dlt
 
 pipeline = dlt.attach("my_pipeline")
 load_id = pipeline.list_normalized_load_packages()[0]
-# list (job file, folder) tuples of retried jobs, optionally filtered by
-# "terminal" or "transient" exception type. folder is "new_jobs", or "started_jobs"
+# list (job file, folder) tuples of retried jobs. folder is "new_jobs", or "started_jobs"
 # for jobs interrupted by a crashed load
-jobs = pipeline.list_pending_retry_jobs_in_package(load_id, exception_type="terminal")
+jobs = pipeline.list_pending_retry_jobs_in_package(load_id)
 job_file, folder = jobs[0]
 # give up on a job: move it to failed_jobs together with its exception message
 pipeline.fail_pending_job(load_id, os.path.basename(job_file))
@@ -403,26 +402,24 @@ cursors) to the point at which the aborted package started. The whole operation 
 destination access and the aborted package stays in the local `loaded` storage together with its
 failed jobs and exception messages. Pass `abort_packages(load_id=...)` to abort at a specific
 package: packages older than it are left intact and stay loadable. The `drop-pending-packages`
-CLI command and `Pipeline.drop_pending_packages` are deprecated in favor of aborting: they delete
-packages silently without recording failed jobs or restoring the pipeline state.
+CLI command and `Pipeline.drop_pending_packages` are deprecated aliases that now abort: they emit
+a deprecation warning and otherwise behave like `abort_packages`.
 
 ### Partially loaded packages
 
-1. you'll see it in exception
-2. do dlthub local pipeline load-package abort_demo_daeedef9e701f30197a0f9a03a7cf177 <load_id> and if you see it
-3. confirm
--- show how to use cli to get row counts for the package and how to 
-check if package is partially loaded
+A load package is *partially loaded* when some of its jobs committed data to the destination while others did not — for example, one table of a multi-table load succeeded, the destination schema was migrated, or a job was retried after an earlier attempt may already have written. When this happens, `dlt` flags the raised `PipelineStepFailed` with a `WARNING` that the package is partially loaded and the destination may be in an inconsistent state.
 
-if you see that there are rows for that package but load package is incomplete (_dlt_load_id not in _dlt_loads) your data is inconsistent
+To inspect a suspected package, count its rows in the destination and check whether it completed:
 
-4. remedy
-- retry the load phase (run pipeline again) - best via tenacity
-- if that's not possible then
-a. abort the package
-b. delete all rows from "append" root and nested tables for package load id
-c. do not delete merge and replace - instead you must run the pipeline again
-c. run the pipeline again: abort restores a "checkpoint" form which the aborted package was created.
+```sh
+dlt pipeline <pipeline_name> load-package <load_id> row-counts
+```
+
+This reports the row count per table for that `load_id` (including `_dlt` tables) and whether the package is recorded as completed in `_dlt_loads`. It works even after the package is gone from the working directory. If there are rows for the `load_id` but the package is **not** in `_dlt_loads`, the load did not finish and your data is inconsistent.
+
+Retrying the load is always the safest remedy: run the pipeline again (ideally wrapped in `tenacity`, see below) and `dlt` resumes the pending package and completes it. If retrying is not possible, the remedy depends on the write disposition. For `merge` and `replace` tables, do not delete rows by hand — abort the package with `pipeline.abort_packages()`, which restores the local checkpoint the package was created from, then run the pipeline again. For `append` tables you can instead remove the partially-loaded rows yourself. Attach the pipeline, take the `load_id` of the partially-loaded package, and set `root_table` to the affected append table. The root table carries `_dlt_load_id`, while nested tables link to it through `_dlt_parent_id`, so rows are deleted deepest-first with a subquery that walks up to the root:
+
+<!--@@@DLT_SNIPPET ./running_snippets/running-snippets.py::delete_append_load_id-->
 
 :::tip
 Here's how to lower the chances of having your destination dataset in
