@@ -885,7 +885,7 @@ class Pipeline(SupportsPipeline):
                     # on merge schemas are replaced so we delete all old versions
                     self._schema_storage.clear_storage()
                 for schema in restored_schemas:
-                    self._schema_storage.save_schema(schema)
+                    self._schema_storage.save_schema(schema, link_import_schema=False)
                 # if the remote state is present then unset first run and update last run context
                 if remote_state is not None:
                     self._update_last_run_context()

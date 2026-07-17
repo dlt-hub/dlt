@@ -23,7 +23,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import get_test_storage_root
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
-from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V10, yml_case_path as common_yml_case_path
+from tests.common.utils import yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import assert_query_column
 from tests.load.utils import (
@@ -543,7 +543,7 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
 def test_restore_schemas_while_import_schemas_exist(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    # restored schema should attach itself to imported schema and it should not get overwritten
+    # restored schemas should preserve the import link that matches their imported version
     import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
     export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
     pipeline_name = "pipe_" + uniq_id()
@@ -583,6 +583,11 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
 
+    # publish a newer import schema after the destination schema was saved
+    imported_after_restore = schema.naming.normalize_table_identifier("imported_after_restore")
+    schema.update_table(utils.new_table(imported_after_restore))
+    imported_version_hash = p._schema_storage._export_schema(schema, import_schema_path)
+
     # wipe the working dir and restore
 
     print("----> wipe")
@@ -602,9 +607,10 @@ def test_restore_schemas_while_import_schemas_exist(
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
+    assert imported_after_restore in schema.tables
 
     # check if attached to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
+    assert schema._imported_version_hash == imported_version_hash
     # extract some data with restored pipeline
     p.run(["C", "D", "E"], table_name="blacklist", **destination_config.run_kwargs)
     assert normalized_labels in schema.tables
