@@ -71,13 +71,15 @@ class PipelineStepFailed(PipelineException):
         )
         if isinstance(step_info, (NormalizeInfo, LoadInfo)):
             if self.has_pending_data:
+                from dlt._workspace.cli.echo import cli_cmd
+
                 msg += (
                     "\n\nPending packages are left in the pipeline and will be re-tried on the"
                     " next pipeline run."
                     " If you pass new data to extract to next run, it will be ignored. Run "
-                    f"`dlt pipeline {pipeline.pipeline_name} info` for more information or `dlt"
-                    f" pipeline {pipeline.pipeline_name} drop-pending-packages` to drop pending"
-                    " packages."
+                    f"`{cli_cmd(f'pipeline {pipeline.pipeline_name} info')}` for more information"
+                    f" or `{cli_cmd(f'pipeline {pipeline.pipeline_name} abort-packages')}` to"
+                    " abort pending packages."
                 )
             if load_id and step_info and load_id in step_info.loads_ids and step == "load":
                 # get package info
@@ -89,16 +91,7 @@ class PipelineStepFailed(PipelineException):
                         package_info
                     )
                     if self.is_package_partially_loaded:
-                        msg += (
-                            f"\nWARNING: package `{load_id}` is partially loaded. Data in"
-                            " destination could be modified by one of completed load jobs while"
-                            " others were not yet executed or were retried. Data in the"
-                            " destination may be in inconsistent state. We recommend that you"
-                            " retry the load or  review the incident before dropping pending"
-                            " packages. See"
-                            " https://dlthub.com/docs/running-in-production/running#partially-loaded-packages"
-                            " for details"
-                        )
+                        msg += "\nWARNING: " + PackageStorage.partially_loaded_warning(load_id)
 
         super().__init__(pipeline.pipeline_name, msg)
 
@@ -129,21 +122,26 @@ class PipelineStateEngineNoUpgradePathException(PipelineException):
 
 class PipelineHasPendingDataException(PipelineException):
     def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        from dlt._workspace.cli.echo import cli_cmd
+
         msg = (
             f" Operation failed because pipeline with `{pipeline_name=:}` and `{pipelines_dir=:}`"
-            " contains pending extracted files or load packages. Use `dlt pipeline sync`"
-            " to reset the local state then run this operation again."
+            " contains pending extracted files or load packages. Use"
+            f" `{cli_cmd(f'pipeline {pipeline_name} sync')}` to reset the local state then run"
+            " this operation again."
         )
         super().__init__(pipeline_name, msg)
 
 
 class PipelineNeverRan(PipelineException):
     def __init__(self, pipeline_name: str, pipelines_dir: str) -> None:
+        from dlt._workspace.cli.echo import cli_cmd
+
         msg = (
             f" Operation failed because pipeline with `{pipeline_name=:}` and `{pipelines_dir=:}`"
-            " was never run or was never synced with destination. Use `dlt pipeline sync`"
-            " or call `pipeline.sync_destination()` to get pipeline state and set of"
-            " schemas from destination."
+            " was never run or was never synced with destination. Use"
+            f" `{cli_cmd(f'pipeline {pipeline_name} sync')}` or call `pipeline.sync_destination()`"
+            " to get pipeline state and set of schemas from destination."
         )
         super().__init__(pipeline_name, msg)
 
