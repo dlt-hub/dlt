@@ -13,7 +13,7 @@ def _remove_none_values(value: Any) -> Any:
     if isinstance(value, dict):
         return {k: _remove_none_values(v) for k, v in value.items() if v is not None}
     if isinstance(value, (list, tuple)):
-        return type(value)(_remove_none_values(v) for v in value)
+        return [_remove_none_values(v) for v in value]
     return value
 
 
