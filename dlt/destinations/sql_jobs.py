@@ -380,8 +380,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         staging_root_table_name: str,
         merge_keys: Sequence[str],
     ) -> str:
-        key_match = " AND ".join(f"{root_table_name}.{key} = s.{key}" for key in merge_keys)
-        return f"EXISTS (SELECT 1 FROM {staging_root_table_name} AS s WHERE {key_match})"
+        staging_alias = "s_" if root_table_name.strip('"`[]').casefold() == "s" else "s"
+        key_match = " AND ".join(
+            f"{root_table_name}.{key} = {staging_alias}.{key}" for key in merge_keys
+        )
+        return (
+            f"EXISTS (SELECT 1 FROM {staging_root_table_name} AS {staging_alias} WHERE {key_match})"
+        )
 
     @classmethod
     def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:

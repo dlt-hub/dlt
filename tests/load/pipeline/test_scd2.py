@@ -913,6 +913,7 @@ def test_merge_key_compound_natural_key(
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
+        name="s",  # ensure the staging alias cannot shadow the root table name
         merge_key=["first_name", "last_name"],
         write_disposition={"disposition": "merge", "strategy": "scd2"},
     )
@@ -942,9 +943,9 @@ def test_merge_key_compound_natural_key(
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 3
+    assert load_table_counts(p, "s")["s"] == 3
     # all records should be active (i.e. not retired)
-    assert [row[TO] for row in get_table(p, "dim_test_compound")] == [None, None, None]
+    assert [row[TO] for row in get_table(p, "s")] == [None, None, None]
 
     # load 2 — "Dodo" and the colliding key are absent, while the first record has changed
     dim_snap = [
@@ -952,12 +953,12 @@ def test_merge_key_compound_natural_key(
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 4
+    assert load_table_counts(p, "s")["s"] == 4
     ts3 = get_load_package_created_at(p, info)
     # the changed key should have two records; unrelated absent keys must stay active
     actual = [
         {k: v for k, v in row.items() if k in ("first_name", "last_name", TO)}
-        for row in get_table(p, "dim_test_compound", ts_columns=[FROM, TO])
+        for row in get_table(p, "s", ts_columns=[FROM, TO])
     ]
     expected = [
         {"first_name": first_name, "last_name": last_name, TO: ts3},
