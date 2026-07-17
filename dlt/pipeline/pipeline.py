@@ -1214,6 +1214,18 @@ class Pipeline(SupportsPipeline):
         )
         self.abort_packages()
 
+    def _delete_pending_packages(self) -> None:
+        """Deletes all extracted and normalized packages without recording an abort or restoring
+        state; used to clean up after a failed drop so the command can run again."""
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            for load_id in load_storage.normalized_packages.list_packages():
+                load_storage.normalized_packages.delete_package(load_id)
+        normalize_storage = self._get_normalize_storage()
+        if normalize_storage.is_storage_ready():
+            for load_id in normalize_storage.extracted_packages.list_packages():
+                normalize_storage.extracted_packages.delete_package(load_id)
+
     def abort_packages(self, load_id: str = None, dry_run: bool = False) -> AbortPackagesResult:
         """Aborts pending load packages and restores local pipeline state and schemas to the
         point at which the aborted package started.
