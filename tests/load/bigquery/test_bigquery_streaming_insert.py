@@ -3,7 +3,7 @@ import pytest
 import dlt
 from dlt.common.pipeline import LoadInfo
 from dlt.destinations.adapters import bigquery_adapter
-from dlt.load.exceptions import LoadClientJobFailed
+from dlt.load.exceptions import LoadClientJobTerminalRetry
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.pipeline.utils import assert_load_info
 
@@ -48,7 +48,7 @@ def test_bigquery_streaming_wrong_disposition():
     assert isinstance(pip_ex.value.step_info, LoadInfo)
     assert pip_ex.value.step_info.has_failed_jobs
     # pick the failed job
-    assert isinstance(pip_ex.value.__cause__, LoadClientJobFailed)
+    assert isinstance(pip_ex.value.__cause__, LoadClientJobTerminalRetry)
     assert (
         "BigQuery streaming insert can only be used with `write_disposition='append'`."
         " Resource received `write_disposition=merge`"

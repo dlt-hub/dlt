@@ -325,35 +325,47 @@ def check(ex: Exception):
 ### Failed jobs
 
 Two options control what happens when a job in the package **fails terminally**:
-`raise_on_failed_jobs` (default `true`) and `auto_abort_on_terminal_error` (default `true`).
+`raise_on_failed_jobs` (default `true`) and `auto_abort_on_terminal_error` (default `false`).
 
-By default, on the first failed job the job is moved to the `failed_jobs` folder, the load package
-is **aborted** and `LoadClientJobFailed` (terminal exception) is raised. Such a package is completed
-but its load id is not added to the `_dlt_loads` table. All the jobs that were running in parallel
-are completed before raising. The dlt state, if present, will not be visible to `dlt`.
+By default, on the first failed job the job is queued for retry (moved back to `new_jobs` with an
+increased retry count), the load package stays **pending** and `LoadClientJobTerminalRetry`
+(terminal exception) is raised. All the jobs that were running in parallel are completed before
+raising. Because the package is not committed, its load id is not added to the `_dlt_loads` table
+and the dlt state, if present, stays at the point the package was created. You can then retry the
+package (`pipeline.load()`), give up on the job, or abort the whole package (see below).
 
 The full behavior matrix:
 
 | `auto_abort_on_terminal_error` | `raise_on_failed_jobs` | job | package | exception |
 |---|---|---|---|---|
-| `true` | `true` | moved to `failed_jobs` | aborted | `LoadClientJobFailed` raised (default) |
-| `true` | `false` | moved to `failed_jobs` | aborted | none |
-| `false` | `true` | queued for retry | stays pending | `LoadClientJobTerminalRetry` raised |
+| `false` | `true` | queued for retry | stays pending | `LoadClientJobTerminalRetry` raised (default) |
 | `false` | `false` | moved to `failed_jobs` | completed as loaded | none |
+| `true` | `true` | moved to `failed_jobs` | aborted | `LoadClientJobFailed` raised |
+| `true` | `false` | moved to `failed_jobs` | aborted | none |
 
-Here is an example `config.toml` that disables both the exception and the automatic abort:
+Set `auto_abort_on_terminal_error=true` to make dlt abort the package on the first terminal failure
+instead of keeping it pending. Here is an example `config.toml` that also disables the exception so
+a package with failed jobs completes as loaded:
 
 ```toml
-# I hope you know what you are doing by setting these to false
+# I hope you know what you are doing by setting this to false
 load.raise_on_failed_jobs=false
-load.auto_abort_on_terminal_error=false
 ```
 
 :::caution Breaking change
-Before `auto_abort_on_terminal_error` was introduced, setting `raise_on_failed_jobs=false` alone
-made packages with failed jobs complete as loaded. Since `auto_abort_on_terminal_error` defaults
-to `true`, such packages are now aborted instead. Set `auto_abort_on_terminal_error=false` to
-restore the old behavior.
+Previously a terminally failed job aborted the load package and raised `LoadClientJobFailed`; such a
+package could not be retried. Now dlt keeps the package pending, queues the failed job for retry and
+raises `LoadClientJobTerminalRetry`.
+:::
+
+:::tip Restore the previous behavior
+To make dlt abort the package on the first terminal failure (and raise `LoadClientJobFailed`) as it
+did before, set `auto_abort_on_terminal_error` back to `true`:
+
+```toml
+[load]
+auto_abort_on_terminal_error=true
+```
 :::
 
 If you prefer dlt not to raise a terminal exception on failed jobs, then you can manually check for failed jobs and raise an exception by checking the load info as follows:
@@ -367,11 +379,11 @@ load_info.raise_on_failed_jobs()
 
 #### Retry, fail, or abort pending packages manually
 
-With `auto_abort_on_terminal_error=false` and `raise_on_failed_jobs=true`, a terminally failed job
-is moved back to `new_jobs` with an increased retry count and the package stays pending. The
-exception message of every retry (terminal and transient) is saved in the `.exceptions` folder of
-the load package, with the first line indicating `retry: terminal` or `retry: transient`. You can
-then decide what to do with the package:
+With the default settings (`auto_abort_on_terminal_error=false`, `raise_on_failed_jobs=true`), a
+terminally failed job is moved back to `new_jobs` with an increased retry count and the package
+stays pending. The exception message of every retry (terminal and transient) is saved in the
+`.exceptions` folder of the load package, with the first line indicating `retry: terminal` or
+`retry: transient`. You can then decide what to do with the package:
 
 ```py
 import os

@@ -2287,7 +2287,7 @@ def test_pipeline_job_management() -> None:
 
 
 def test_load_info_raise_on_failed_jobs() -> None:
-    # By default, raises terminal error on a failed job and aborts load. This pipeline does not fail
+    # By default, raises a terminal error on a failed job. This pipeline does not fail
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
@@ -2307,6 +2307,7 @@ def test_load_info_raise_on_failed_jobs() -> None:
 
     # Test automatic raising on a failed job which aborts the load. Let pipeline fail
     os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
     with pytest.raises(PipelineStepFailed) as py_ex_2:
         p.run([1, 2, 3], table_name="numbers")
     load_info = py_ex_2.value.step_info  # type: ignore[assignment]
@@ -6025,8 +6026,8 @@ def test_pending_package_exception_warning() -> None:
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run()
 
-    # one of the job failed and package is aborted. sometimes the other
-    # job completed, sometimes is still pending so we disable pending test
+    # one job failed terminally; the default does not abort so the package stays pending.
+    # sometimes the other job completed, sometimes is still pending so we disable pending test
     assert pip_ex.value.step == "load"
     # assert "Pending packages" not in str(pip_ex.value)
     assert "partially loaded" in str(pip_ex.value)

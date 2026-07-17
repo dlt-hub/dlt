@@ -5,9 +5,13 @@ def test_delete_append_load_id() -> None:
     import dlt
     from dlt.common.utils import uniq_id
 
-    pipeline = dlt.pipeline("delete_demo_" + uniq_id(), destination="duckdb", dev_mode=True)
+    pipeline = dlt.pipeline(
+        "delete_demo_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
     # load append data with nested tables twice; delete the first package, keep the second
-    load_info = pipeline.run([{"id": 1, "items": [{"x": 1}, {"x": 2}]}], table_name="my_table")
+    load_info = pipeline.run(
+        [{"id": 1, "items": [{"x": 1}, {"x": 2}]}], table_name="my_table"
+    )
     other_info = pipeline.run([{"id": 2, "items": [{"x": 3}]}], table_name="my_table")
     load_id = load_info.loads_ids[0]
     other_load_id = other_info.loads_ids[0]
@@ -36,7 +40,9 @@ def test_delete_append_load_id() -> None:
         # delete the deepest nested tables first so parent links still resolve
         for table in reversed(get_nested_tables(schema.tables, root_table)):
             table_name = client.make_qualified_table_name(table["name"])
-            client.execute_sql(f"DELETE FROM {table_name} WHERE {load_id_filter(table['name'])}")
+            client.execute_sql(
+                f"DELETE FROM {table_name} WHERE {load_id_filter(table['name'])}"
+            )
     # @@@DLT_SNIPPET_END delete_append_load_id
 
     # the deleted package has no rows left, the other package is intact
