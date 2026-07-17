@@ -317,7 +317,7 @@ def filter_new_jobs(
     running_jobs: Sequence[LoadJob],
     available_slots: int,
 ) -> Sequence[str]:
-    """Filters the list of new jobs to adhere to max_workers and parallellism strategy"""
+    """Filters the list of new jobs to adhere to max_workers and parallelism strategy"""
     """NOTE: in the current setup we only filter based on settings for the final destination"""
     """Support for differentiating staging destination jobs might come in the future if we need it"""
 

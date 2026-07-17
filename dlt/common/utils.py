@@ -622,7 +622,7 @@ def increase_row_count(row_counts: RowCounts, counter_name: str, count: int) -> 
 
 def merge_row_counts(row_counts_1: RowCounts, row_counts_2: RowCounts) -> None:
     """merges row counts_2 into row_counts_1"""
-    # only keys present in row_counts_2 are modifed
+    # only keys present in row_counts_2 are modified
     for counter_name in row_counts_2.keys():
         row_counts_1[counter_name] = row_counts_1.get(counter_name, 0) + row_counts_2[counter_name]
 

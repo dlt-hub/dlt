@@ -6004,6 +6004,7 @@ def test_pending_package_exception_warning() -> None:
     assert pip_ex.value.step == "load"
     assert "Pending packages" in str(pip_ex.value)
     assert "partially loaded" in str(pip_ex.value)
+    assert "ephemeral storage" in str(pip_ex.value)
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is True
     assert pip_ex.value.has_pending_data is True

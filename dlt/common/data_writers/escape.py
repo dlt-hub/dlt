@@ -305,6 +305,6 @@ def format_bigquery_datetime_literal(
 def format_clickhouse_datetime_literal(
     v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
 ) -> str:
-    """Returns clickhouse compatibel function"""
+    """Returns clickhouse compatible function"""
     datetime = format_datetime_literal(v, precision, True)
     return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"

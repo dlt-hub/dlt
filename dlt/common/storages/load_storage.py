@@ -209,7 +209,7 @@ class LoadStorage(VersionedStorage):
         return self.get_package_storage(load_id).get_load_package_info(load_id)
 
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
-        """Gets state of normlized or loaded package with given load_id, all jobs and their statuses."""
+        """Gets state of normalized or loaded package with given load_id, all jobs and their statuses."""
         return self.get_package_storage(load_id).get_load_package_state(load_id)
 
     def migrate_storage(self, from_version: semver.Version, to_version: semver.Version) -> None:

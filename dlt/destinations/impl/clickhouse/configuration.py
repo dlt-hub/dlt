@@ -21,7 +21,7 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Native port ClickHouse server is bound to. Defaults to 9440."""
     http_port: int = 8443
     """HTTP Port to connect to ClickHouse server's HTTP interface.
-    The HTTP port is additionaly needed for loading files without a staging destination.
+    The HTTP port is additionally needed for loading files without a staging destination.
     Defaults to 8443."""
     username: str = "default"
     """Database user. Defaults to 'default'."""

@@ -61,7 +61,6 @@ The static egress IPs for the **EU region** are:
 - 18.156.57.4
 - 63.183.227.2
 - 63.182.151.74
-- 18.197.112.47
 
 The static egress IPs for the **US region** are:
 - 34.205.113.62

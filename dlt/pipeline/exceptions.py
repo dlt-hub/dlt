@@ -75,11 +75,13 @@ class PipelineStepFailed(PipelineException):
 
                 msg += (
                     "\n\nPending packages are left in the pipeline and will be re-tried on the"
-                    " next pipeline run."
-                    " If you pass new data to extract to next run, it will be ignored. Run "
-                    f"`{cli_cmd(f'pipeline {pipeline.pipeline_name} info')}` for more information"
-                    f" or `{cli_cmd(f'pipeline {pipeline.pipeline_name} abort-packages')}` to"
-                    " abort pending packages."
+                    " next pipeline run. If you pass new data to extract to next run, it will be"
+                    f" ignored. Run `{cli_cmd(f'pipeline {pipeline.pipeline_name} info')}` for more"
+                    " information or"
+                    f" `{cli_cmd(f'pipeline {pipeline.pipeline_name} abort-packages')}` to abort"
+                    " pending packages.\n\nNote: If the pipeline working directory is on ephemeral"
+                    " storage (e.g. dltHub platform jobs, serverless functions, or CI runners"
+                    " without persistent volumes), pending packages are lost and not retried."
                 )
             if load_id and step_info and load_id in step_info.loads_ids and step == "load":
                 # get package info
