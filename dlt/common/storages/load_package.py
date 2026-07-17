@@ -46,6 +46,7 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.exceptions import (
     LoadPackageAlreadyCompleted,
     LoadPackageCancelled,
+    LoadPackageInconsistent,
     LoadPackageNotCompleted,
     LoadPackageNotFound,
     CurrentLoadPackageStateNotAvailable,
@@ -66,6 +67,10 @@ TJobFileFormat = Literal["sql", "reference", TLoaderFileFormat]
 
 JOB_EXCEPTION_EXTENSION = ".exception"
 TExceptionType = Literal["terminal", "transient"]
+
+PARTIAL_LOAD_DOCS_URL = (
+    "https://dlthub.com/docs/running-in-production/running#partially-loaded-packages"
+)
 
 
 class TPipelineStateDoc(TypedDict, total=False):
@@ -260,9 +265,6 @@ class LoadJobInfo(NamedTuple):
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
-        failed_msg = (
-            "The job FAILED TERMINALLY and cannot be restarted." if self.failed_message else ""
-        )
         elapsed_msg = (
             humanize.precisedelta(pendulum.duration(seconds=self.elapsed))
             if self.elapsed
@@ -277,10 +279,8 @@ class LoadJobInfo(NamedTuple):
             f" {humanize.naturalsize(self.file_size, binary=True, gnu=True)}. "
         )
         msg += f"Started on: {self.created_at} and completed in {elapsed_msg}."
-        if failed_msg:
-            msg += "\nThe job FAILED TERMINALLY and cannot be restarted."
-            if verbosity > 0:
-                msg += "\n" + self.failed_message
+        if self.failed_message and verbosity > 0:
+            msg += "\n" + self.failed_message
         return msg
 
     def __str__(self) -> str:
@@ -304,6 +304,8 @@ class _LoadPackageInfo(NamedTuple):
     """Names of tables dropped in the destination"""
     truncated_tables: Optional[Sequence[str]] = ()
     """Names of tables truncated in the destination"""
+    has_pending_transitions: bool = False
+    """True when jobs committed to the destination but were not yet moved (crash mid-load)"""
 
 
 class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
@@ -315,12 +317,18 @@ class LoadPackageInfo(SupportsHumanize, _LoadPackageInfo):
     def schema_hash(self) -> str:
         return self.schema.version_hash
 
+    @property
+    def schema_migrated(self) -> bool:
+        """True when the schema was applied (migrated) at the destination for this package."""
+        return bool(self.schema_update)
+
     def asdict(self) -> DictStrAny:
         d = self._asdict()
         # job as list
         d["jobs"] = [job.asdict() for job in flatten_list_or_items(iter(self.jobs.values()))]  # type: ignore
         d["schema_hash"] = self.schema_hash
         d["schema_name"] = self.schema_name
+        d["schema_migrated"] = self.schema_migrated
         # flatten update into list of columns
         tables: List[DictStrAny] = deepcopy(list(self.schema_update.values()))  # type: ignore
         for table in tables:
@@ -371,7 +379,7 @@ class PackageStorage:
     FAILED_JOBS_FOLDER: ClassVar[TPackageJobState] = "failed_jobs"
     STARTED_JOBS_FOLDER: ClassVar[TPackageJobState] = "started_jobs"
     COMPLETED_JOBS_FOLDER: ClassVar[TPackageJobState] = "completed_jobs"
-    EXCEPTIONS_FOLDER: ClassVar[str] = "exceptions"
+    EXCEPTIONS_FOLDER: ClassVar[str] = ".exceptions"
 
     SCHEMA_FILE_NAME: ClassVar[str] = "schema.json"
     SCHEMA_UPDATES_FILE_NAME = (  # updates to the tables in schema created by normalizer
@@ -389,6 +397,9 @@ class PackageStorage:
     CANCEL_PACKAGE_FILE_NAME = "_cancelled"
     PENDING_TRANSITIONS_FOLDER: ClassVar[str] = ".pending_transitions"
     PROGRESS_DIR = ".progress"
+    RESTORE_FOLDER: ClassVar[str] = ".restore"
+    RESTORE_SCHEMAS_FOLDER: ClassVar[str] = ".restore/schemas"
+    RESTORE_STATE_FILE_NAME: ClassVar[str] = "state.json"
 
     def __init__(self, storage: FileStorage, initial_state: TLoadPackageStatus) -> None:
         """Creates storage that manages load packages with root at `storage` and initial package state `initial_state`"""
@@ -440,28 +451,22 @@ class PackageStorage:
             if not file.endswith(JOB_EXCEPTION_EXTENSION)
         ]
 
-    def list_pending_jobs(
-        self, load_id: str, exception_type: Optional[TExceptionType] = None
-    ) -> Sequence[str]:
-        """List all jobs in new_jobs that have been retried (retry_count > 0).
-
-        Args:
-            load_id: Load package ID
-            exception_type: "terminal" or "transient". If None, returns all retried jobs.
-
-        Returns:
-            List of job file names that are pending retry.
-        """
-        retry_jobs: List[str] = []
+    def list_retried_new_jobs(self, load_id: str) -> Sequence[Tuple[str, TPackageJobState]]:
+        """Lists (job file, folder) tuples of jobs pending a retry. Reads pending transitions
+        but does not resolve them."""
+        retry_jobs: List[Tuple[str, TPackageJobState]] = []
         for job_file in self.list_new_jobs(load_id):
             job = ParsedLoadJobFileName.parse(job_file)
             if job.retry_count == 0:
                 continue
-            if exception_type is not None:
-                job_exc_type, _ = self.get_pending_job_exception(load_id, job)
-                if job_exc_type != exception_type:
-                    continue
-            retry_jobs.append(job_file)
+            retry_jobs.append((job_file, "new_jobs"))
+        # started jobs without a recorded completed/failed outcome are pending a retry
+        # (interrupted or retry transition)
+        for job_file in self.list_started_jobs(load_id):
+            pending = self.load_pending_transition(load_id, os.path.basename(job_file))
+            if pending is not None and pending[0] in ("completed", "failed"):
+                continue
+            retry_jobs.append((job_file, "started_jobs"))
         return retry_jobs
 
     def list_job_with_states_for_table(
@@ -540,13 +545,13 @@ class PackageStorage:
             file_name,
         )
 
-    def fail_pending_job(self, load_id: str, file_name: str) -> str:
+    def fail_retried_job(self, load_id: str, file_name: str) -> str:
         """
-        Fails a job that is currently in new_jobs (pending retry).
-        Reads the exception from exceptions/ folder and copies it to failed_jobs/.
+        Fails a retried job that is currently in new_jobs. Copies the last exception to
+        failed_jobs/; the full per-retry history is kept in the exceptions folder.
         """
         source_fn = ParsedLoadJobFileName.parse(file_name)
-        _, failed_message = self.get_pending_job_exception(load_id, source_fn)
+        _, failed_message = self.get_last_job_exception(load_id, source_fn)
         if failed_message:
             self.storage.save(
                 self.get_job_file_path(
@@ -554,8 +559,6 @@ class PackageStorage:
                 ),
                 failed_message,
             )
-
-        self._remove_pending_job_exceptions(load_id, file_name)
 
         return self._move_job(
             load_id,
@@ -571,8 +574,7 @@ class PackageStorage:
         failed_message: str,
         exception_type: TExceptionType,
     ) -> str:
-        # save the exception to the exceptions folder
-        self._save_pending_job_exception(
+        self._save_job_exception(
             load_id,
             file_name,
             failed_message,
@@ -606,7 +608,7 @@ class PackageStorage:
             self.storage.delete(failed_exception_path)
 
         if exception_message:
-            self._save_pending_job_exception(
+            self._save_job_exception(
                 load_id,
                 file_name,
                 exception_message,
@@ -694,6 +696,7 @@ class PackageStorage:
         self.storage.create_folder(os.path.join(load_id, PackageStorage.STARTED_JOBS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.EXCEPTIONS_FOLDER))
         self.storage.create_folder(os.path.join(load_id, PackageStorage.PENDING_TRANSITIONS_FOLDER))
+        # `.restore` is created lazily by save_pipeline_state; its presence means a snapshot exists
         # use initial state or create a new by loading non existing state
         state = self.get_load_package_state(load_id) if initial_state is None else initial_state
         if not state.get("created_at"):
@@ -714,6 +717,11 @@ class PackageStorage:
         if from_version == "1.0.0" and from_version < to_version:
             self.storage.create_folder(
                 os.path.join(load_id, PackageStorage.PENDING_TRANSITIONS_FOLDER), exists_ok=True
+            )
+            from_version = semver.Version.parse("1.0.1")
+        if from_version == "1.0.1" and from_version < to_version:
+            self.storage.create_folder(
+                os.path.join(load_id, PackageStorage.EXCEPTIONS_FOLDER), exists_ok=True
             )
 
     def complete_loading_package(self, load_id: str, load_state: TLoadPackageStatus) -> str:
@@ -926,20 +934,72 @@ class PackageStorage:
         state.pop("abort_requested", None)
         self.save_load_package_state(load_id, state)
 
+    def save_pipeline_state(
+        self, load_id: str, state_blob: Optional[str], schema_blobs: Dict[str, str]
+    ) -> bool:
+        """Saves local pipeline state and schema blobs taken at package start to `.restore`.
+        No-op when a snapshot already exists. Returns True when the snapshot was written."""
+        if self.can_restore_pipeline_state(load_id):
+            return False
+        restore_path = os.path.join(load_id, PackageStorage.RESTORE_FOLDER)
+        # create the folder so an empty snapshot (no state, no schemas) is still recorded
+        self.storage.create_folder(restore_path)
+        if state_blob is not None:
+            self.storage.save(
+                os.path.join(restore_path, PackageStorage.RESTORE_STATE_FILE_NAME), state_blob
+            )
+        if schema_blobs:
+            self.storage.create_folder(os.path.join(load_id, PackageStorage.RESTORE_SCHEMAS_FOLDER))
+        for name, blob in schema_blobs.items():
+            self.storage.save(
+                os.path.join(load_id, PackageStorage.RESTORE_SCHEMAS_FOLDER, f"{name}.schema.json"),
+                blob,
+            )
+        return True
+
+    def can_restore_pipeline_state(self, load_id: str) -> bool:
+        # a snapshot is written into a temporary package and promoted atomically, so it is never
+        # partially visible - the presence of the `.restore` folder means the snapshot exists
+        return self.storage.has_folder(os.path.join(load_id, PackageStorage.RESTORE_FOLDER))
+
+    def load_pipeline_state(self, load_id: str) -> Tuple[Optional[str], Dict[str, str]]:
+        """Loads (state blob, schema blobs by name) from `.restore` of a package.
+
+        Raises:
+            FileNotFoundError: If the package has no completed snapshot.
+        """
+        if not self.can_restore_pipeline_state(load_id):
+            raise FileNotFoundError(os.path.join(load_id, PackageStorage.RESTORE_FOLDER))
+        state_blob: Optional[str] = None
+        state_path = os.path.join(
+            load_id, PackageStorage.RESTORE_FOLDER, PackageStorage.RESTORE_STATE_FILE_NAME
+        )
+        if self.storage.has_file(state_path):
+            state_blob = self.storage.load(state_path)
+        schema_blobs: Dict[str, str] = {}
+        schemas_path = os.path.join(load_id, PackageStorage.RESTORE_SCHEMAS_FOLDER)
+        with contextlib.suppress(FileNotFoundError):
+            for schema_file in self.storage.list_folder_files(schemas_path, to_root=False):
+                name = schema_file[: -len(".schema.json")]
+                schema_blobs[name] = self.storage.load(os.path.join(schemas_path, schema_file))
+        return state_blob, schema_blobs
+
     #
     # Abort package
     #
     def abort_package(self, load_id: str) -> None:
-        """Abort a package by moving all pending jobs to failed_jobs.
-
-        This moves:
-        - All pending retry jobs (jobs that were retried, have exceptions)
-
-        Does NOT complete the package - that's the loader's responsibility.
-        """
-        for job_file in self.list_pending_jobs(load_id):
-            job_file_name = os.path.basename(job_file)
-            self.fail_pending_job(load_id, job_file_name)
+        """Aborts a package by moving all retried jobs in new_jobs to failed_jobs. Raises
+        `LoadPackageInconsistent` when jobs are still in started_jobs. Does NOT complete
+        the package - that's the loader's responsibility."""
+        if started_jobs := self.list_started_jobs(load_id):
+            # loader replays pending transitions of started jobs before aborting
+            raise LoadPackageInconsistent(
+                load_id,
+                f"{len(started_jobs)} started jobs must be resolved before the package can be"
+                " aborted. run the pipeline to replay their pending transitions",
+            )
+        for job_file, _ in self.list_retried_new_jobs(load_id):
+            self.fail_retried_job(load_id, os.path.basename(job_file))
         self.clear_abort_flag(load_id)
 
     #
@@ -1023,6 +1083,7 @@ class PackageStorage:
             refresh=load_package_state.get("refresh"),
             dropped_tables=dropped_tables or [],
             truncated_tables=truncated_tables or [],
+            has_pending_transitions=bool(self.list_pending_transitions(load_id)),
         )
 
     def get_job_failed_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:
@@ -1035,29 +1096,65 @@ class PackageStorage:
             failed_message = self.storage.load(rel_path + JOB_EXCEPTION_EXTENSION)
         return failed_message
 
-    def get_pending_job_exception(
+    def get_last_job_exception(
         self, load_id: str, job: ParsedLoadJobFileName
-    ) -> Tuple[Optional[TExceptionType], Optional[str]]:
-        """Get exception type and message of a job that is currently in new_jobs (pending retry)"""
+    ) -> Tuple[TExceptionType, Optional[str]]:
+        """Gets exception type and message saved at the last retry of a job in new_jobs.
+        Exception type defaults to `transient` when unknown - such job may be retried."""
         rel_path = self.get_job_file_path(load_id, "new_jobs", job.file_name())
         if not self.storage.has_file(rel_path):
             raise FileNotFoundError(rel_path)
-        # Exception was saved at previous retry count
+        # exception was saved at previous retry count
         prev_retry_job = job._replace(retry_count=job.retry_count - 1)
-        exception_file_name = prev_retry_job.to_exception_file_name()
         exception_path = os.path.join(
             self.get_package_path(load_id),
             PackageStorage.EXCEPTIONS_FOLDER,
-            exception_file_name,
+            prev_retry_job.to_exception_file_name(),
         )
-        exception_type: Optional[TExceptionType] = None
+        exception_type: TExceptionType = "transient"
         failed_message: Optional[str] = None
-        with contextlib.suppress(FileNotFoundError, ValueError, IndexError):
-            content = self.storage.load(exception_path)
-            first_line, message = content.split("\n", 1)
-            exception_type = first_line.split(": ", 1)[1]
-            failed_message = message
+        with contextlib.suppress(FileNotFoundError):
+            exception_type, failed_message = self._parse_job_exception(
+                self.storage.load(exception_path)
+            )
         return exception_type, failed_message
+
+    def list_job_exceptions(
+        self, load_id: str, job: ParsedLoadJobFileName
+    ) -> List[Tuple[int, TExceptionType, str]]:
+        """Reads all exception messages recorded for a job across its retries, oldest first,
+        as (retry number, exception type, message) tuples."""
+        exceptions_folder = os.path.join(
+            self.get_package_path(load_id), PackageStorage.EXCEPTIONS_FOLDER
+        )
+        job_prefix = f"{job.table_name}.{job.file_id}."
+        result: List[Tuple[int, TExceptionType, str]] = []
+        with contextlib.suppress(FileNotFoundError):
+            for exc_file in self.storage.list_folder_files(exceptions_folder, to_root=False):
+                if not (
+                    exc_file.startswith(job_prefix) and exc_file.endswith(JOB_EXCEPTION_EXTENSION)
+                ):
+                    continue
+                retry_part = exc_file[len(job_prefix) : -len(JOB_EXCEPTION_EXTENSION)]
+                if not retry_part.isdigit():
+                    continue
+                exc_type, message = self._parse_job_exception(
+                    self.storage.load(os.path.join(exceptions_folder, exc_file))
+                )
+                result.append((int(retry_part), exc_type, message))
+        return sorted(result)
+
+    @staticmethod
+    def _parse_job_exception(content: str) -> Tuple[TExceptionType, str]:
+        """Parses a `.exception` file: first line `retry: <type>`, remainder the message.
+        Unknown type defaults to `transient`."""
+        exception_type: TExceptionType = "transient"
+        message = content
+        with contextlib.suppress(ValueError, IndexError):
+            first_line, message = content.split("\n", 1)
+            if first_line.split(": ", 1)[1] == "terminal":
+                exception_type = "terminal"
+        return exception_type, message
 
     def job_to_job_info(
         self, load_id: str, state: TPackageJobState, job: ParsedLoadJobFileName
@@ -1087,6 +1184,9 @@ class PackageStorage:
         failed_message = None
         if state == "failed_jobs":
             failed_message = self.get_job_failed_message(load_id, job)
+        elif state == "new_jobs" and job.retry_count > 0:
+            # exception recorded at the last retry
+            _, failed_message = self.get_last_job_exception(load_id, job)
         full_path = os.path.join(
             self.storage.storage_path, self.get_job_file_path(load_id, state, job.file_name())
         )
@@ -1126,7 +1226,7 @@ class PackageStorage:
         schema_path = os.path.join(load_id, PackageStorage.SCHEMA_FILE_NAME)
         return json.loads(self.storage.load(schema_path))  # type: ignore[no-any-return]
 
-    def _save_pending_job_exception(
+    def _save_job_exception(
         self,
         load_id: str,
         file_name: str,
@@ -1155,28 +1255,6 @@ class PackageStorage:
         content = f"{first_line}\n{exception_message}"
         self.storage.save(exception_path, content)
 
-    def _remove_pending_job_exceptions(
-        self,
-        load_id: str,
-        file_name: str,
-    ) -> None:
-        """Remove all exception files for a job from the exceptions/ folder.
-
-        Args:
-            load_id: Load package ID
-            file_name: Job file name (any retry count - we match by table_name.file_id prefix)
-        """
-        job_info = ParsedLoadJobFileName.parse(file_name)
-        exceptions_folder = os.path.join(
-            self.get_package_path(load_id),
-            PackageStorage.EXCEPTIONS_FOLDER,
-        )
-        job_prefix = f"{job_info.table_name}.{job_info.file_id}."
-        with contextlib.suppress(FileNotFoundError):
-            for exc_file in self.storage.list_folder_files(exceptions_folder, to_root=False):
-                if exc_file.startswith(job_prefix) and exc_file.endswith(JOB_EXCEPTION_EXTENSION):
-                    self.storage.delete(os.path.join(exceptions_folder, exc_file))
-
     @staticmethod
     def build_job_file_name(
         table_name: str,
@@ -1195,12 +1273,34 @@ class PackageStorage:
 
     @staticmethod
     def is_package_partially_loaded(package_info: LoadPackageInfo) -> bool:
-        """Checks if package is partially loaded - has jobs that are completed and jobs that are not."""
+        """Checks if a package may have modified the destination: some jobs completed while
+        others did not, the schema was migrated at the destination while jobs remained, a
+        pending new job was retried more than once (an earlier attempt may have written), or
+        a job committed but was not yet moved."""
+        if package_info.has_pending_transitions:
+            return True
         all_jobs_count = sum(len(package_info.jobs[job_state]) for job_state in WORKING_FOLDERS)
         completed_jobs_count = len(package_info.jobs["completed_jobs"])
-        if completed_jobs_count and all_jobs_count - completed_jobs_count > 0:
+        not_completed = all_jobs_count - completed_jobs_count
+        # some jobs completed, or the schema was migrated at the destination, while others did not
+        if not_completed > 0 and (completed_jobs_count or package_info.schema_update):
             return True
+        # a pending job retried more than once may have written on an earlier attempt
+        for job in package_info.jobs["new_jobs"]:
+            if job.job_file_info.retry_count > 1:
+                return True
         return False
+
+    @staticmethod
+    def partially_loaded_warning(load_id: str) -> str:
+        """Warning shown for a package that may have modified the destination inconsistently."""
+        return (
+            f"Package {load_id} is partially loaded. Data in the destination could be modified by"
+            " one of the completed load jobs while others were not yet executed or were retried, so"
+            " the destination may be in an inconsistent state. We recommend that you retry the load"
+            f" or review the incident before dropping pending packages. See {PARTIAL_LOAD_DOCS_URL}"
+            " for details."
+        )
 
     @staticmethod
     def _job_elapsed_time_seconds(file_path: str, now_ts: float = None) -> float:

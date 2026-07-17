@@ -8,6 +8,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Dict,
     List,
     Iterator,
     Optional,
@@ -141,16 +142,18 @@ from dlt.pipeline.trace import (
 from dlt.pipeline.track import on_first_dataset_access
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
-    PIPELINE_STATE_ENGINE_VERSION,
     bump_pipeline_state_version_if_modified,
     load_pipeline_state_from_destination,
     mark_state_extracted,
-    migrate_pipeline_state,
+    migrate_state_to_current,
     state_resource,
     default_pipeline_state,
 )
-from dlt.pipeline.abort import prepare_abort_packages, _AbortDryRunResult
-from dlt.common.storages.load_package import TLoadPackageState, TExceptionType
+from dlt.pipeline.abort import prepare_abort_packages, AbortPackagesResult
+from dlt.common.storages.load_package import (
+    TLoadPackageState,
+    TPackageJobState,
+)
 from dlt.pipeline.helpers import prepare_refresh_source
 
 
@@ -873,24 +876,20 @@ class Pipeline(SupportsPipeline):
                     restored_schemas = self._get_schemas_from_destination(
                         state["schema_names"], always_download=False
                     )
-                # commit all the changes locally
                 if state_changed:
-                    # use remote state as state
+                    # use remote state as state, keep the local section
                     remote_state["_local"] = state["_local"]
                     state = remote_state
-                    # preserve the user's dataset_name over the remote state value
-                    state["dataset_name"] = self.dataset_name
-                    # set the pipeline props from merged state
-                    self._state_to_props(state)
                     # add that the state is already extracted
                     mark_state_extracted(state, state["_version_hash"])
-                    # on merge schemas are replaced so we delete all old versions
-                    self._schema_storage.clear_storage()
-                for schema in restored_schemas:
-                    self._schema_storage.save_schema(schema)
-                # if the remote state is present then unset first run and update last run context
-                if remote_state is not None:
-                    self._update_last_run_context()
+                # unset first run and update last run context when remote state was found
+                self._install_state_and_schemas(
+                    state,
+                    restored_schemas or [],
+                    replace=state_changed,
+                    update_last_run_context=remote_state is not None,
+                )
+                return
             except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
@@ -911,33 +910,75 @@ class Pipeline(SupportsPipeline):
                             self._schema_storage_config.export_schema_path,
                             False,
                         )
-            # write the state back
-            self._props_to_state(state)
-            # verify state
-            if state_default_schema_name := state.get("default_schema_name"):
-                # at least empty list is present
-                state_schemas = state["schema_names"]
-                if state_default_schema_name not in state_schemas:
-                    new_default_schema_name: Optional[str] = (
-                        state_schemas[0] if len(state_schemas) > 0 else None
-                    )
-                    logger.warning(
-                        f"Pipeline {self.pipeline_name} was restored from destination with"
-                        " inconsistent state. Default schema name"
-                        f" {state_default_schema_name} could not be found and downloaded from the"
-                        " destination. "
-                        + (
-                            f"Default schema was set to {new_default_schema_name}."
-                            if new_default_schema_name
-                            else "Default schema was removed."
-                        )
-                    )
-                    self.default_schema_name = new_default_schema_name  # type: ignore[assignment]
-                    state["default_schema_name"] = new_default_schema_name
-            bump_pipeline_state_version_if_modified(state)
-            self._save_state(state)
+            self._install_state_and_schemas(state, restored_schemas or [], replace=state_changed)
         except (Exception, KeyboardInterrupt) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
+
+    def _install_state_and_schemas(
+        self,
+        state: TPipelineState,
+        schemas: Sequence[Schema],
+        replace: bool,
+        update_last_run_context: bool = False,
+    ) -> None:
+        """Commits a restored (state, schemas) pair to the working dir. Caller keeps the
+        current `_local` section in `state`. With `replace`, existing schemas are wiped first."""
+        if replace:
+            # preserve the user's dataset_name over the restored value
+            state["dataset_name"] = self.dataset_name
+            self._state_to_props(state)
+            self._schema_storage.clear_storage()
+        for schema in schemas:
+            self._schema_storage.save_schema(schema)
+        # must run after _state_to_props so first_run is not overwritten from restored state
+        if update_last_run_context:
+            self._update_last_run_context()
+        # write the state back
+        self._props_to_state(state)
+        # verify state
+        if state_default_schema_name := state.get("default_schema_name"):
+            # at least empty list is present
+            state_schemas = state["schema_names"]
+            if state_default_schema_name not in state_schemas:
+                new_default_schema_name: Optional[str] = (
+                    state_schemas[0] if len(state_schemas) > 0 else None
+                )
+                logger.warning(
+                    f"Pipeline {self.pipeline_name} was restored with inconsistent state."
+                    f" Default schema name {state_default_schema_name} could not be found in"
+                    " restored schemas. "
+                    + (
+                        f"Default schema was set to {new_default_schema_name}."
+                        if new_default_schema_name
+                        else "Default schema was removed."
+                    )
+                )
+                self.default_schema_name = new_default_schema_name  # type: ignore[assignment]
+                state["default_schema_name"] = new_default_schema_name
+        bump_pipeline_state_version_if_modified(state)
+        self._save_state(state)
+
+    @with_schemas_sync
+    def _restore_from_snapshot(
+        self, state_blob: Optional[str], schema_blobs: Dict[str, str]
+    ) -> None:
+        """Replaces local pipeline state and schemas with a `.restore` package snapshot,
+        rewinding the working dir to the point at which that package started."""
+        current_state = self._get_state()
+        if state_blob is None:
+            # package started on a first run, restore to a fresh state
+            state = default_pipeline_state()
+            state["pipeline_name"] = self.pipeline_name
+        else:
+            decoded_state = json_decode_state(state_blob)
+            state = migrate_state_to_current(self.pipeline_name, decoded_state)
+        # keep the local section: its `_last_extracted_hash` avoids re-committing unchanged state
+        state["_local"] = current_state["_local"]
+        schemas = [
+            Schema.from_dict(json.loads(blob), validate_schema=False)
+            for blob in schema_blobs.values()
+        ]
+        self._install_state_and_schemas(state, schemas, replace=True)
 
     def activate(self) -> None:
         """Activates the pipeline
@@ -1109,22 +1150,22 @@ class Pipeline(SupportsPipeline):
     def list_pending_retry_jobs_in_package(
         self,
         load_id: str,
-        exception_type: Optional[TExceptionType] = None,
-    ) -> Sequence[str]:
-        """List retried jobs still pending in a normalized package.
+    ) -> Sequence[Tuple[str, TPackageJobState]]:
+        """List jobs pending a retry in a normalized package.
 
         Args:
             load_id (str): Load package ID.
-            exception_type (Optional[TExceptionType]): Filter by `"terminal"` or `"transient"`.
-                Returns all retried jobs when `None`.
 
         Returns:
-            Sequence[str]: Job file names that can be passed to `fail_pending_job` or
-                `retry_failed_job`.
+            Sequence[Tuple[str, TPackageJobState]]: Tuples of job file and the folder the
+                job is in. Only `"new_jobs"` entries can be passed to `fail_pending_job`;
+                `"started_jobs"` entries (e.g. after a crashed load) are resolved by the
+                next `load()` or by aborting the package.
         """
-        return self._get_load_storage().normalized_packages.list_pending_jobs(
-            load_id, exception_type
-        )
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.normalized_packages.list_retried_new_jobs(load_id)
+        raise LoadPackageNotFound(load_id)
 
     def fail_pending_job(self, load_id: str, job_file_name: str) -> str:
         """Move a retried pending job to failed_jobs.
@@ -1139,7 +1180,10 @@ class Pipeline(SupportsPipeline):
         Returns:
             str: New file path of the job in failed_jobs.
         """
-        return self._get_load_storage().normalized_packages.fail_pending_job(load_id, job_file_name)
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.normalized_packages.fail_retried_job(load_id, job_file_name)
+        raise LoadPackageNotFound(load_id)
 
     def retry_failed_job(self, load_id: str, job_file_name: str) -> str:
         """Move a failed job back to new_jobs for retry.
@@ -1154,70 +1198,83 @@ class Pipeline(SupportsPipeline):
         Returns:
             str: New file path of the job in new_jobs.
         """
-        return self._get_load_storage().normalized_packages.retry_failed_job(load_id, job_file_name)
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.normalized_packages.retry_failed_job(load_id, job_file_name)
+        raise LoadPackageNotFound(load_id)
 
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
-        """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
+        """Deprecated alias for `abort_packages`, kept for backward compatibility."""
         warnings.warn(
             DltDeprecationWarning(
                 "drop_pending_packages is deprecated. Use abort_packages instead",
-                since="1.24.0",
+                since="1.30.0",
             ),
             stacklevel=2,
         )
-        # delete normalized packages
-        load_storage = self._get_load_storage()
-        if load_storage.is_storage_ready():
-            for load_id in load_storage.normalized_packages.list_packages():
-                package_info = load_storage.normalized_packages.get_load_package_info(load_id)
-                if (
-                    PackageStorage.is_package_partially_loaded(package_info)
-                    and not with_partial_loads
-                ):
-                    continue
-                load_storage.normalized_packages.delete_package(load_id)
-        # delete extracted files
-        normalize_storage = self._get_normalize_storage()
-        if normalize_storage.is_storage_ready():
-            for load_id in normalize_storage.extracted_packages.list_packages():
-                normalize_storage.extracted_packages.delete_package(load_id)
+        self.abort_packages()
 
-    def abort_packages(
-        self,
-        load_ids: Sequence[str] = (),
-        abort_all: bool = False,
-        dry_run: bool = False,
-    ) -> _AbortDryRunResult:
-        """Marks pending normalized packages for abort. Abort is processed on next `load()`.
+    def abort_packages(self, load_id: str = None, dry_run: bool = False) -> AbortPackagesResult:
+        """Aborts pending load packages and restores local pipeline state and schemas to the
+        point at which the aborted package started.
+
+        The oldest pending normalized package (the one being loaded) is aborted with a record:
+        its retried jobs move to failed_jobs and the package completes as aborted via `load()`.
+        All other pending packages, extracted ones included, are deleted. When `load_id` is
+        passed, packages older than it are left intact and stay loadable; a `load_id` package
+        that is not being loaded is deleted without a record.
 
         Args:
-            load_ids (Sequence[str]): Specific load package IDs to abort. If empty and
-                `abort_all` is `False`, nothing is aborted.
-            abort_all (bool): If `True`, abort all pending normalized packages
-                (overrides `load_ids`).
+            load_id (str): Package to abort at. Defaults to `None` which aborts all
+                pending packages.
             dry_run (bool): If `True`, return abort info without applying any changes.
 
         Returns:
-            _AbortDryRunResult: Result containing information about packages to abort,
-                delete, and extracted packages to delete.
+            AbortPackagesResult: Information on aborted and deleted packages and `load_info`
+                of the load run that processed the abort.
         """
         load_storage = self._get_load_storage()
         normalize_storage = self._get_normalize_storage()
 
-        result = prepare_abort_packages(
-            load_storage,
-            normalize_storage,
-            load_ids=list(load_ids) if load_ids else None,
-            abort_all=abort_all,
-        )
+        result = prepare_abort_packages(load_storage, normalize_storage, load_id)
+        if dry_run:
+            return result
 
-        if not dry_run:
-            for lid in result.info["extracted_packages_to_delete"]:
-                normalize_storage.extracted_packages.delete_package(lid)
-            for lid in result.info["packages_to_delete"]:
-                load_storage.normalized_packages.delete_package(lid)
-            for lid in result.info["packages_to_abort"]:
-                load_storage.normalized_packages.set_abort_flag(lid)
+        info = result.info
+        package_to_abort = info["package_to_abort"]
+        # the aborted package is the oldest removed one, state rewinds to its start; capture
+        # the snapshot before deletions, without normalized packages use the oldest extracted
+        restore_id: Optional[str] = None
+        if package_to_abort:
+            restore_id = package_to_abort["load_id"]
+        elif info["packages_to_delete"]:
+            restore_id = min(info["packages_to_delete"])
+        elif info["extracted_packages_to_delete"]:
+            restore_id = min(info["extracted_packages_to_delete"])
+        restore_snapshot = None
+        if restore_id is not None:
+            for packages in (
+                load_storage.normalized_packages,
+                normalize_storage.extracted_packages,
+            ):
+                if packages.can_restore_pipeline_state(restore_id):
+                    restore_snapshot = packages.load_pipeline_state(restore_id)
+                    break
+
+        for lid in info["extracted_packages_to_delete"]:
+            normalize_storage.extracted_packages.delete_package(lid)
+        for lid in info["packages_to_delete"]:
+            load_storage.normalized_packages.delete_package(lid)
+        if package_to_abort:
+            load_storage.normalized_packages.set_abort_flag(package_to_abort["load_id"])
+            result.load_info = self.load()
+        if restore_id is not None:
+            if restore_snapshot is not None:
+                self._restore_from_snapshot(*restore_snapshot)
+            else:
+                # legacy package without a snapshot, wipe and restore from the destination
+                self.drop()
+                self.sync_destination()
 
         return result
 
@@ -1545,6 +1602,10 @@ class Pipeline(SupportsPipeline):
         load_id = extract.extract(
             source, max_parallel_items, workers, load_package_state_update=load_package_state_update
         )
+        # save pipeline state to the load package using persisted state and schemas which are
+        # not modified during extract phase
+        if not extract.extract_storage.new_packages.can_restore_pipeline_state(load_id):
+            self._save_restore_snapshot(extract.extract_storage.new_packages, load_id)
 
         # update live schema but not update the store yet
         source.schema = self._schema_storage.set_live_schema(source.schema)
@@ -1794,12 +1855,7 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            migrated_state = migrate_pipeline_state(
-                self.pipeline_name,
-                state,
-                state["_state_engine_version"],
-                PIPELINE_STATE_ENGINE_VERSION,
-            )
+            migrated_state = migrate_state_to_current(self.pipeline_name, state)
             # TODO: move to a migration. this change is local and too small to justify
             # engine upgrade
             _local = migrated_state["_local"]
@@ -2036,6 +2092,20 @@ class Pipeline(SupportsPipeline):
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""
         return sorted(self._schema_storage.list_schemas())
+
+    def _save_restore_snapshot(self, package_storage: PackageStorage, load_id: str) -> None:
+        """Snapshots on-disk pipeline state and the schemas it references into `.restore`."""
+        state_blob: Optional[str] = None
+        schema_blobs: Dict[str, str] = {}
+        if self._pipeline_storage.has_file(Pipeline.STATE_FILE):
+            state_blob = self._pipeline_storage.load(Pipeline.STATE_FILE)
+            # snapshot only the schemas the state references, as committed store blobs
+            schema_store = self._schema_storage.storage
+            for schema_name in json_decode_state(state_blob).get("schema_names") or []:
+                schema_file = self._schema_storage._file_name_in_store(schema_name, "json")
+                if schema_store.has_file(schema_file):
+                    schema_blobs[schema_name] = schema_store.load(schema_file)
+        package_storage.save_pipeline_state(load_id, state_blob, schema_blobs)
 
     def _save_state(self, state: TPipelineState) -> None:
         self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))
