@@ -338,14 +338,12 @@ class DltResourceHints:
         )
         for sub_path, hints in sorted_items:
             # both str and sequence is supported
+            if isinstance(sub_path, str):
+                sub_path = naming.break_path(sub_path)
             full_path = list(
                 map(
                     naming.normalize_table_identifier,
-                    (
-                        (root_table_name, sub_path)
-                        if isinstance(sub_path, str)
-                        else (root_table_name, *sub_path)
-                    ),
+                    (root_table_name, *sub_path),
                 )
             )
             yield (
