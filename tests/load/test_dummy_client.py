@@ -9,7 +9,12 @@ from typing import Any, List, Tuple
 from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
-from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages import (
+    FileStorage,
+    NormalizeStorage,
+    PackageStorage,
+    ParsedLoadJobFileName,
+)
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import LoadPackageStateInjectableContext, TPackageJobState
 from dlt.common.configuration.container import Container
@@ -37,6 +42,7 @@ from dlt.load.exceptions import (
     FollowupJobCreationFailedException,
 )
 from dlt.load.utils import get_completed_table_chain, init_client, _extend_tables_with_table_chain
+from dlt.pipeline.abort import prepare_abort_packages
 
 from tests.utils import (
     MockPipeline,
@@ -595,6 +601,55 @@ def test_resume_without_pending_transition() -> None:
     # dummy client returns failed for unknown jobs (not in JOBS dict)
     for j in jobs:
         assert j.state() == "failed"
+
+
+def test_abort_package_replays_started_jobs() -> None:
+    """Abort moves started jobs with a pending transition to their recorded terminal
+    state (the destination already committed them) and fails jobs without a marker."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    files = packages.list_new_jobs(load_id)
+    assert len(files) == 2
+    file_names = sorted(FileStorage.get_file_name_from_file_path(f) for f in files)
+    for fn in file_names:
+        packages.start_job(load_id, fn)
+    # first job committed to the destination before the crash, second did not
+    packages.save_pending_transition(load_id, file_names[0], "completed")
+
+    # dry run tells the truth about started jobs without resolving them
+    abort_info = prepare_abort_packages(load.load_storage, NormalizeStorage(True))
+    job_info = abort_info.info["package_to_abort"]
+    assert job_info is not None
+    assert job_info["load_id"] == load_id
+    assert [os.path.basename(f) for f in job_info["committed_jobs"]] == [file_names[0]]
+    assert [os.path.basename(f) for f in job_info["interrupted_jobs"]] == [file_names[1]]
+    assert job_info["terminal_jobs"] == []
+    assert job_info["transient_jobs"] == []
+    assert len(packages.list_started_jobs(load_id)) == 2
+
+    packages.set_abort_flag(load_id)
+    load.run(None)
+
+    package_info = load.load_storage.get_load_package_info(load_id)
+    assert package_info.state == "aborted"
+    jobs_by_state = {
+        state: [job.job_file_info for job in jobs] for state, jobs in package_info.jobs.items()
+    }
+    # committed job replayed to completed_jobs without re-execution
+    assert [j.file_name() for j in jobs_by_state["completed_jobs"]] == [file_names[0]]
+    # interrupted job failed with retry count increased
+    assert len(jobs_by_state["failed_jobs"]) == 1
+    failed_job = jobs_by_state["failed_jobs"][0]
+    assert (
+        failed_job.file_name()
+        == ParsedLoadJobFileName.parse(file_names[1]).with_retry().file_name()
+    )
+    failed_message = load.load_storage.loaded_packages.get_job_failed_message(load_id, failed_job)
+    assert "job interrupted by package abort" in failed_message
+    assert len(jobs_by_state["started_jobs"]) == 0
+    assert len(jobs_by_state["new_jobs"]) == 0
 
 
 def test_pending_transition_with_followup_jobs() -> None:

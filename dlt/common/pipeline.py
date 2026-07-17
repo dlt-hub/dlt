@@ -146,11 +146,18 @@ class StepInfo(SupportsHumanize, Generic[TStepMetricsCo]):
             # complete but failed job will not raise any exceptions
             failed_jobs = load_package.jobs["failed_jobs"]
             jobs_str = "no failed jobs" if not failed_jobs else f"{len(failed_jobs)} FAILED job(s)!"
+            retried_jobs = [
+                job for job in load_package.jobs["new_jobs"] if job.job_file_info.retry_count > 0
+            ]
+            if retried_jobs:
+                jobs_str += f" and {len(retried_jobs)} job(s) pending retry"
             refresh_str = f" with refresh '{load_package.refresh}'" if load_package.refresh else ""
             msg += (
                 f"\nLoad package {load_package.load_id}{refresh_str} is {cstr} and contains"
                 f" {jobs_str}"
             )
+            if load_package.has_pending_transitions:
+                msg += ". Some jobs finished but were not yet moved (pending transitions)"
             if verbosity > 0:
                 for failed_job in failed_jobs:
                     msg += (
@@ -359,14 +366,26 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
         return d
 
     def asstr(self, verbosity: int = 0) -> str:
-        msg = f"Pipeline {self.pipeline.pipeline_name} load step completed in "
-        if self.started_at:
-            elapsed = self.finished_at - self.started_at
-            msg += humanize.precisedelta(elapsed)
+        name = self.pipeline.pipeline_name
+        if self.started_at and self.finished_at:
+            elapsed = humanize.precisedelta(self.finished_at - self.started_at)
+            msg = f"Pipeline {name} load step finished in {elapsed}"
+        elif self.started_at:
+            elapsed = humanize.precisedelta(
+                datetime.datetime.now(datetime.timezone.utc) - self.started_at
+            )
+            msg = f"Pipeline {name} load step started {elapsed} ago and did not finish"
         else:
-            msg += "---"
+            msg = f"Pipeline {name} load step did not start"
+        loaded_count = sum(1 for package in self.load_packages if package.state == "loaded")
+        total = len(self.loads_ids)
+        packages_str = (
+            f"{total} load package(s) were loaded"
+            if loaded_count == total
+            else f"{loaded_count} of {total} load package(s) were loaded"
+        )
         msg += (
-            f"\n{len(self.loads_ids)} load package(s) were loaded to destination"
+            f"\n{packages_str} to destination"
             f" {self.destination_name} and into dataset {self.dataset_name}\n"
         )
         if self.staging_name:

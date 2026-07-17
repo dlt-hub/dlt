@@ -77,7 +77,7 @@ from dlt.pipeline.exceptions import (
     PipelineNotActive,
     PipelineStepFailed,
 )
-from dlt.pipeline.helpers import retry_load, pipeline_abort
+from dlt.pipeline.helpers import retry_load
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -1837,6 +1837,15 @@ def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
         assert package_info.state == "normalized"
         assert isinstance(py_ex.value.__context__, LoadClientJobRetryPending)
         assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+        # retried jobs and their exceptions are present in the last trace
+        trace_step = [step for step in p.last_trace.steps if step.step == "load"][-1]
+        trace_package = trace_step.step_info.load_packages[0]
+        assert trace_package.load_id == py_ex.value.load_id
+        retried_jobs = [
+            job for job in trace_package.jobs["new_jobs"] if job.job_file_info.retry_count > 0
+        ]
+        assert len(retried_jobs) == 1
+        assert "configured to fail" in retried_jobs[0].failed_message
         # next call reraises
         with pytest.raises(PipelineStepFailed) as py_ex:
             p.run()
@@ -1876,8 +1885,8 @@ def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
         assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
         # loaded
         assert py_ex.value.has_pending_data is False
-        # all packages failed
-        assert py_ex.value.is_package_partially_loaded is False
+        # all jobs failed but the schema was migrated at the destination
+        assert py_ex.value.is_package_partially_loaded is True
         # get package info
         package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
         assert package_info.state == "aborted"
@@ -1891,7 +1900,8 @@ def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
         assert load_info.has_failed_jobs is True
         package_info = p.get_load_package_info(load_info.loads_ids[0])
         assert package_info.state == "aborted"
-        assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is False
+        # schema migrated at the destination even though all jobs failed
+        assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is True
 
 
 def test_abort_package() -> None:
@@ -1926,8 +1936,8 @@ def test_abort_package() -> None:
     completed_job_ids = [jid for jid, m in first_run_metrics.items() if m.state == "completed"]
     assert len(completed_job_ids) > 0, "letters job should have completed before abort"
 
-    # manually abort the package using helper
-    load_info = pipeline_abort(p, load_ids=[load_id])()
+    # manually abort the package
+    load_info = p.abort_packages().load_info
 
     # package is now aborted
     assert load_info is not None
@@ -1941,6 +1951,9 @@ def test_abort_package() -> None:
 
     # dataset_name is present (None for dummy destination)
     assert "dataset_name" in load_info.metrics[load_id][0]
+    # timestamps are stamped by the step info machinery, not by the abort path
+    assert load_info.metrics[load_id][0]["started_at"] is not None
+    assert load_info.metrics[load_id][0]["finished_at"] is not None
 
     # next run does nothing (no pending packages)
     load_info = p.run()
@@ -1985,12 +1998,13 @@ def test_abort_package_wipes_other_packages() -> None:
 
     second_load_id = [lid for lid in normalized_packages if lid != failed_load_id][0]
 
-    # check the abort action info
-    abort_action = pipeline_abort(p, load_ids=[failed_load_id])
-    assert failed_load_id in abort_action.info["packages_to_abort"]
-    assert second_load_id in abort_action.info["packages_to_delete"]
+    # check the abort info on a dry run
+    dry_run = p.abort_packages(dry_run=True)
+    package_to_abort = dry_run.info["package_to_abort"]
+    assert package_to_abort is not None and package_to_abort["load_id"] == failed_load_id
+    assert second_load_id in dry_run.info["packages_to_delete"]
 
-    load_info = abort_action()
+    load_info = p.abort_packages().load_info
 
     # package is now aborted
     assert load_info is not None
@@ -2010,8 +2024,10 @@ def test_abort_package_wipes_other_packages() -> None:
     assert load_info.has_failed_jobs is False
 
 
-def test_abort_package_restores_state_from_destination() -> None:
-    """Test that aborting a package properly restores local state from destination."""
+@pytest.mark.parametrize("has_snapshot", [True, False], ids=["from_snapshot", "legacy_fallback"])
+def test_abort_package_restores_state(has_snapshot: bool) -> None:
+    """Abort restores local state from the package snapshot without destination access;
+    legacy packages without a snapshot fall back to drop + sync from destination."""
     os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
     os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
     pipeline_name = "pipe_" + uniq_id()
@@ -2075,8 +2091,20 @@ def test_abort_package_restores_state_from_destination() -> None:
     assert len(pending_packages) == 1
     pending_load_id = pending_packages[0]
 
-    abort_action = pipeline_abort(p)
-    load_info = abort_action()
+    if has_snapshot:
+        # restore is local: no single SQL statement may reach the destination
+        def offline_execute_sql(self, sql, *args, **kwargs):
+            raise DestinationTerminalException("destination is offline")
+
+        with patch.object(DuckDbSqlClient, "execute_sql", offline_execute_sql):
+            load_info = p.abort_packages().load_info
+    else:
+        # legacy package without a snapshot falls back to drop + sync from destination
+        packages = p._get_load_storage().normalized_packages
+        packages.storage.delete_folder(
+            os.path.join(pending_load_id, PackageStorage.RESTORE_FOLDER), recursively=True
+        )
+        load_info = p.abort_packages().load_info
     assert load_info is not None
     assert load_info.load_packages[0].load_id == pending_load_id
     assert load_info.load_packages[0].state == "aborted"
@@ -2090,6 +2118,16 @@ def test_abort_package_restores_state_from_destination() -> None:
     assert len(p.list_normalized_load_packages()) == 0
     assert len(p.list_extracted_load_packages()) == 0
 
+    if has_snapshot:
+        # the aborted package record survives locally, failed jobs stay visible
+        assert pending_load_id in p.list_completed_load_packages()
+        failed_jobs = p.list_failed_jobs_in_package(pending_load_id)
+        assert len(failed_jobs) == 1
+        assert "letters" in failed_jobs[0].job_file_info.table_name
+    else:
+        # legacy fallback wipes the working dir
+        assert p.list_completed_load_packages() == []
+
     assert (
         p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]
         == 3
@@ -2098,6 +2136,96 @@ def test_abort_package_restores_state_from_destination() -> None:
         p.state["sources"][pipeline_name]["resources"]["letters"]["incremental"]["id"]["last_value"]
         == 6
     )
+
+
+def test_extract_writes_restore_snapshot() -> None:
+    """Every package created by extract carries a restore snapshot that survives normalize."""
+    pipeline = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
+    s1 = DltSource(Schema("schema_one"), "module", [dlt.resource([1, 2], name="ones")])
+    s2 = DltSource(Schema("schema_two"), "module", [dlt.resource(["a"], name="letters")])
+    pipeline.extract([s1, s2])
+
+    extracted_ids = pipeline.list_extracted_load_packages()
+    assert len(extracted_ids) == 2
+    extracted = pipeline._get_normalize_storage().extracted_packages
+    for load_id in extracted_ids:
+        assert extracted.can_restore_pipeline_state(load_id)
+
+    pipeline.normalize()
+    normalized = pipeline._get_load_storage().normalized_packages
+    normalized_ids = pipeline.list_normalized_load_packages()
+    assert len(normalized_ids) == 2
+    for load_id in normalized_ids:
+        assert normalized.can_restore_pipeline_state(load_id)
+
+
+def test_abort_pending_packages_queue() -> None:
+    """With several pending packages only the oldest (being loaded) is aborted with a
+    record; the others are deleted and state rewinds to the start of the oldest one."""
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    def cursor() -> int:
+        incremental = p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]
+        return incremental["id"]["last_value"]
+
+    def loaded_ids() -> List[int]:
+        with p.sql_client() as client:
+            return [row[0] for row in client.execute_sql("SELECT id FROM numbers ORDER BY id")]
+
+    load_info = p.run(numbers([{"id": 1}, {"id": 2}, {"id": 3}]))
+    assert_load_info(load_info)
+    baseline_hash = p.state["_version_hash"]
+    assert cursor() == 3
+
+    # three pending packages, each advancing the incremental cursor
+    for batch in ([{"id": 4}], [{"id": 5}], [{"id": 6}]):
+        p.extract(numbers(batch))
+        p.normalize()
+    pending = p.list_normalized_load_packages()
+    assert len(pending) == 3
+    head_id = pending[0]
+    assert cursor() == 6
+
+    dry_run = p.abort_packages(dry_run=True)
+    package_to_abort = dry_run.info["package_to_abort"]
+    assert package_to_abort is not None and package_to_abort["load_id"] == head_id
+    assert dry_run.info["packages_to_delete"] == pending[1:]
+    load_info = p.abort_packages().load_info
+    assert load_info.load_packages[0].load_id == head_id
+    assert load_info.load_packages[0].state == "aborted"
+
+    # all pending packages removed, only the aborted head keeps a record
+    assert p.list_normalized_load_packages() == []
+    completed = p.list_completed_load_packages()
+    assert head_id in completed
+    assert pending[1] not in completed and pending[2] not in completed
+    # state rewinds to the start of the aborted head package, no pending data was loaded
+    assert p.state["_version_hash"] == baseline_hash
+    assert cursor() == 3
+    assert loaded_ids() == [1, 2, 3]
+
+    # aborting at a package that is not being loaded deletes it and newer packages
+    # without a record, older packages stay intact and loadable
+    for batch in ([{"id": 4}], [{"id": 5}], [{"id": 6}]):
+        p.extract(numbers(batch))
+        p.normalize()
+    pending = p.list_normalized_load_packages()
+    assert len(pending) == 3
+    result = p.abort_packages(load_id=pending[1])
+    assert result.load_info is None
+    assert result.info["package_to_abort"] is None
+    assert result.info["packages_to_delete"] == pending[1:]
+    assert p.list_normalized_load_packages() == [pending[0]]
+    # state rewinds to the middle package's start, after the oldest package's extract
+    assert cursor() == 4
+    load_info = p.load()
+    assert load_info.loads_ids == [pending[0]]
+    assert loaded_ids() == [1, 2, 3, 4]
 
 
 def test_pipeline_job_management() -> None:
@@ -2125,23 +2253,19 @@ def test_pipeline_job_management() -> None:
     # list all retried jobs — at least the numbers job should be pending
     all_pending = p.list_pending_retry_jobs_in_package(load_id)
     assert len(all_pending) > 0
+    # package was drained, all pending jobs are in new_jobs
+    assert all(folder == "new_jobs" for _, folder in all_pending)
 
-    # filter by terminal — numbers job failed terminally
-    terminal_pending = p.list_pending_retry_jobs_in_package(load_id, exception_type="terminal")
-    assert len(terminal_pending) > 0
-    numbers_job = next(j for j in terminal_pending if "numbers" in j)
-
-    # filter by transient — should not include the terminal job
-    transient_pending = p.list_pending_retry_jobs_in_package(load_id, exception_type="transient")
-    assert numbers_job not in transient_pending
+    # the numbers job failed terminally and is pending a retry
+    numbers_job = next(j for j, _ in all_pending if "numbers" in j)
 
     # fail the pending job
     failed_path = p.fail_pending_job(load_id, os.path.basename(numbers_job))
     assert "failed_jobs" in failed_path
 
     # job should no longer be in pending retry list
-    remaining_terminal = p.list_pending_retry_jobs_in_package(load_id, exception_type="terminal")
-    assert os.path.basename(numbers_job) not in [os.path.basename(j) for j in remaining_terminal]
+    remaining = p.list_pending_retry_jobs_in_package(load_id)
+    assert os.path.basename(numbers_job) not in [os.path.basename(j) for j, _ in remaining]
 
     # job should appear in failed jobs
     failed_jobs = p.list_failed_jobs_in_package(load_id)
@@ -2154,7 +2278,7 @@ def test_pipeline_job_management() -> None:
 
     # job should be back in pending retry list with incremented retry count
     pending_after_retry = p.list_pending_retry_jobs_in_package(load_id)
-    retried_names = [os.path.basename(j) for j in pending_after_retry]
+    retried_names = [os.path.basename(j) for j, _ in pending_after_retry]
     from dlt.common.storages.load_package import ParsedLoadJobFileName
 
     retried_job = ParsedLoadJobFileName.parse(os.path.basename(retried_path))
@@ -3346,6 +3470,8 @@ def test_pipeline_list_packages() -> None:
 
 
 def test_remove_pending_packages() -> None:
+    # drop_pending_packages is a deprecated alias for abort_packages: it clears pending
+    # extracted and normalized packages
     pipeline = dlt.pipeline(pipeline_name="emojis", destination=DUMMY_COMPLETE)
     pipeline.extract(airtable_emojis())
     assert pipeline.has_pending_data
@@ -3354,31 +3480,6 @@ def test_remove_pending_packages() -> None:
     pipeline.extract(airtable_emojis())
     pipeline.normalize()
     pipeline.extract(airtable_emojis())
-    assert pipeline.has_pending_data
-    pipeline.drop_pending_packages()
-    assert pipeline.has_pending_data is False
-    # partial load
-    os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["TIMEOUT"] = "1.0"
-    # will make job go into retry state
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run(airtable_emojis())
-    # move job into completed folder manually to simulate partial package
-    load_storage = pipeline._get_load_storage()
-    load_id = load_storage.normalized_packages.list_packages()[0]
-    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
-    started_path = load_storage.normalized_packages.start_job(
-        load_id, FileStorage.get_file_name_from_file_path(job)
-    )
-    completed_path = load_storage.normalized_packages.complete_job(
-        load_id, FileStorage.get_file_name_from_file_path(job)
-    )
-    # to test partial loads we need two jobs one completed an one in another state
-    # to simulate this, we just duplicate the completed job into the started path
-    shutil.copyfile(completed_path, started_path)
-    # now "with partial loads" can be tested
-    assert pipeline.has_pending_data
-    pipeline.drop_pending_packages(with_partial_loads=False)
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages()
     assert pipeline.has_pending_data is False
@@ -5898,12 +5999,13 @@ def test_pending_package_exception_warning() -> None:
             ]
         )
 
-    # none of the jobs passed so we have pending package but not partial
+    # none of the jobs passed but they were retried more than once, so the package counts
+    # as partially loaded (a retried job may have written on an earlier attempt)
     assert pip_ex.value.step == "load"
     assert "Pending packages" in str(pip_ex.value)
-    assert "partially loaded" not in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
     assert pip_ex.value.load_id is not None
-    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.is_package_partially_loaded is True
     assert pip_ex.value.has_pending_data is True
 
     partially = True
