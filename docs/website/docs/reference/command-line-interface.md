@@ -121,7 +121,7 @@ Inspects pipeline state, trace, load packages, provides basic maintenance.
 ```sh
 dlt pipeline [-h] [--list-pipelines] [--pipelines-dir PIPELINES_DIR]
     [pipeline_name]
-    {info,show,failed-jobs,drop-pending-packages,abort-packages,sync,trace,schema,drop,fail-job,load-package,mcp}
+    {info,show,failed-jobs,drop-pending-packages,abort-packages,sync,trace,schema,drop,load-package,mcp}
     ...
 ```
 
@@ -153,8 +153,7 @@ Inherits arguments from [`dlt`](#dlt).
 * [`trace`](#dlt-pipeline-trace) - Displays last run trace, use -v or -vv for more info
 * [`schema`](#dlt-pipeline-schema) - Displays default schema
 * [`drop`](#dlt-pipeline-drop) - Selectively drop tables and reset state
-* [`fail-job`](#dlt-pipeline-fail-job) - Fails a pending retry job, moving it to failed_jobs in the load package.
-* [`load-package`](#dlt-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
+* [`load-package`](#dlt-pipeline-load-package) - Displays information on a load package or acts on it (abort, fail-job, ...).
 * [`mcp`](#dlt-pipeline-mcp) - Launch mcp server attached to this pipeline
 
 </details>
@@ -283,14 +282,11 @@ dlt pipeline [pipeline_name] abort-packages [-h]
 **Description**
 
 Use this when a load is stuck or you want to discard pending work without losing track of what
-happened. Unlike `drop-pending-packages` (which silently deletes packages), this command moves
-retry/pending jobs to failed_jobs so they stay visible in `failed-jobs` output, marks normalized
-packages as aborted, and cleans up any remaining extracted packages. It then runs `load` to
-finalize the abort, wipes local pipeline state, and restores it from the destination (equivalent
-to `drop` + `sync`).
-
-After this, the pipeline is clean and its state matches what the destination has actually loaded.
-You can safely re-extract and re-run.
+happened. The oldest normalized package (the one being loaded) is aborted: its retry/pending
+jobs move to failed_jobs so they stay visible in `failed-jobs` output and the package completes
+as aborted. All other pending packages, extracted ones included, are deleted. It then
+restores local pipeline state and schemas from the snapshot
+taken when the oldest pending package started and you can safely re-extract and re-run.
 
 <details>
 
@@ -497,56 +493,24 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 </details>
 
-### `dlt pipeline fail-job`
-
-Fails a pending retry job, moving it to failed_jobs in the load package.
-
-**Usage**
-```sh
-dlt pipeline [pipeline_name] fail-job [-h] load-id job
-```
-
-**Description**
-
-Fails a specific job that is pending retry in a normalized load package. The job is moved from
-new_jobs to failed_jobs and its exception message is preserved. Use `load-package` or
-`list_pending_retry_jobs_in_package` to find the job identifier.
-
-The `job` argument accepts either a job id (e.g. `numbers.abc12.jsonl` as shown by
-`load-package`) or the full file name including retry count (e.g. `numbers.abc12.1.jsonl`
-as returned by `list_pending_retry_jobs_in_package`).
-
-<details>
-
-<summary>Show Arguments and Options</summary>
-
-Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
-
-**Positional arguments**
-* `load-id` - Load id of the normalized package containing the job.
-* `job` - Job id (e.g. table.file_id.format) or full job file name (e.g. table.file_id.retry_count.format).
-
-**Options**
-* `-h, --help` - Show this help message and exit
-
-</details>
-
 ### `dlt pipeline load-package`
 
-Displays information on load package, use -v or -vv for more info.
+Displays information on a load package or acts on it (abort, fail-job, ...).
 
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] load-package [-h] [load-id]
+    [{info,row-counts,abort,job,fail-job}] [job]
 ```
 
 **Description**
 
-Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
-most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
-jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set (`-v`), you can also see the
-list of all tables and columns created at the destination during the loading of that package.
+Shows information on a load package with a given `load_id`, or runs an action on it. The `load_id`
+parameter defaults to the most recent package. Package information includes its state
+(`COMPLETED/PROCESSED`) and list of all jobs in a package with their statuses, file sizes, types,
+and in case of failed jobs—the error messages from the destination. With the verbose flag set
+(`-v`), you can also see the list of all tables and columns created at the destination during the
+loading of that package.
 
 <details>
 
@@ -556,6 +520,7 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 
 **Positional arguments**
 * `load-id` - Load id of completed or normalized package. defaults to the most recent package.
+* `job` - Pattern for the `job` action, or job id / file name for `fail-job`.
 
 **Options**
 * `-h, --help` - Show this help message and exit
