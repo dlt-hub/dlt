@@ -793,9 +793,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     # raise exception with continuous backtrace into client exception
                     raise pending_exception from pending_exception.client_exception
             elif isinstance(pending_exception, LoadClientJobRetryPending):
-                if self.config.raise_on_failed_jobs:
-                    # we do not complete
-                    raise pending_exception from pending_exception.client_exception
+                # created only with raise_on_failed_jobs set, package stays pending.
+                # gather package info so retried jobs and their exceptions reach the trace
+                self.gather_metrics(load_id, finished=False)
+                raise pending_exception from pending_exception.client_exception
             else:
                 self.gather_metrics(load_id, finished=False)
                 logger.warning(
@@ -816,14 +817,34 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
 
     def _abort_package(self, load_id: str, schema: Schema) -> None:
-        """Execute the abort operation for a package."""
+        """Executes the abort operation for a package."""
         logger.info(f"Aborting package {load_id} as requested")
-        # TODO: replay pending transitions from .pending_transitions/ before aborting.
-        #  jobs stuck in started_jobs with a pending transition have already committed
-        #  to the destination. we should move them to completed_jobs/failed_jobs based
-        #  on the marker (file moves only, no followup jobs) and clear the markers.
-        # Move pending jobs to failed_jobs and mark package as aborted
-        self.load_storage.normalized_packages.abort_package(load_id)
+        packages = self.load_storage.normalized_packages
+        # replay started jobs with file moves only - no destination client is created
+        # so abort works also when the destination is unreachable. a pending transition
+        # means the destination already committed the job, so it moves to its recorded
+        # terminal state without followup jobs
+        for file_path in packages.list_started_jobs(load_id):
+            file_name = FileStorage.get_file_name_from_file_path(file_path)
+            pending = packages.load_pending_transition(load_id, file_name)
+            if pending is None:
+                # never committed, queue as retried so abort fails it below
+                packages.retry_job(
+                    load_id, file_name, "job interrupted by package abort", "terminal"
+                )
+            else:
+                pending_state, failed_message = pending
+                if pending_state == "failed":
+                    packages.fail_job(load_id, file_name, failed_message)
+                elif pending_state == "completed":
+                    packages.complete_job(load_id, file_name)
+                else:
+                    packages.retry_job(
+                        load_id, file_name, failed_message or "job retry", "transient"
+                    )
+                packages.clear_pending_transition(load_id, file_name)
+        # move retried jobs to failed_jobs and clear the abort flag
+        packages.abort_package(load_id)
         dataset_name: Optional[str] = None
         if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = self.initial_client_config.normalize_dataset_name(schema)
