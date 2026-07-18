@@ -322,17 +322,47 @@ def check(ex: Exception):
     return True
 ```
 
-### Failed jobs
+If pipeline fails, your best course of action is to retry as described [below](#retry-helpers-and-tenacity). You also have tools to
+investigate the incident, fix it or start from scratch.
+* in `extract` and `normalize` steps you can just abort the package and start from scratch - `dlt` will rollback state and schema changes. Read the section below for details (`load` step abort procedure applies).
+* in `load` step you have more options - read the section below to understand how `dlt` deals with partial loads and inconsistent data.
 
-Two options control what happens when a job in the package **fails terminally**:
-`raise_on_failed_jobs` (default `true`) and `auto_abort_on_terminal_error` (default `false`).
+### Handle problems in `load` step
+
+Dealing with problems during `load` step is more complicated because `dlt` could already modified data in the destination.
+
+1. [Retry the load](#retry-the-load) — still your best option.
+2. [Fail particular jobs](#fail-or-retry-individual-jobs) (both terminal and not terminal) and then retry the rest of the package.
+3. [Abort the package](#abort-the-package).
+
+Whichever you pick, until a package is fully loaded its load id is not added to the `_dlt_loads`
+table and the pipeline state at the destination stays at the point the package was created, so
+incremental cursors are not advanced past data that did not load.
+
+:::warning
+Some jobs of a pending package may have already written to the destination and neither failing
+jobs nor aborting the package reverts that. Before you act, check what was already written — see
+[partially loaded packages](#partially-loaded-packages).
+:::
+
+#### How `dlt` reacts to a failed job
+
+A job that fails with a **transient** error (network problems, overloaded destination) is retried
+in place while the load runs: it is moved back to `new_jobs` with an increased retry count and
+picked up again — see [how to configure the internal retry](#configure-the-internal-job-retry).
+
+A job that fails with a **terminal** error (permission denied, malformed data) will not recover on
+retry. Two options control what happens then: `raise_on_failed_jobs` (default `true`) and
+`auto_abort_on_terminal_error` (default `false`).
 
 By default, on the first failed job the job is queued for retry (moved back to `new_jobs` with an
 increased retry count), the load package stays **pending** and `LoadClientJobTerminalRetry`
 (terminal exception) is raised. All the jobs that were running in parallel are completed before
-raising. Because the package is not committed, its load id is not added to the `_dlt_loads` table
-and the dlt state, if present, stays at the point the package was created. You can then retry the
-package (`pipeline.load()`), give up on the job, or abort the whole package (see below).
+raising. You can then retry the package, give up on the job, or abort the whole package as
+described in the sections below.
+
+The exception message of every retry (terminal and transient) is saved in the `.exceptions` folder
+of the load package, with the first line indicating `retry: terminal` or `retry: transient`.
 
 The full behavior matrix:
 
@@ -340,35 +370,18 @@ The full behavior matrix:
 |---|---|---|---|---|
 | `false` | `true` | queued for retry | stays pending | `LoadClientJobTerminalRetry` raised (default) |
 | `false` | `false` | moved to `failed_jobs` | completed as loaded | none |
-| `true` | `true` | moved to `failed_jobs` | aborted | `LoadClientJobFailed` raised |
-| `true` | `false` | moved to `failed_jobs` | aborted | none |
+| `true` | `true` | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | `LoadClientJobFailed` raised |
+| `true` | `false` | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | none |
 
-Set `auto_abort_on_terminal_error=true` to make dlt abort the package on the first terminal failure
-instead of keeping it pending. Here is an example `config.toml` that also disables the exception so
-a package with failed jobs completes as loaded:
+If you prefer that packages with terminally failed jobs complete as loaded (the failed jobs move
+to `failed_jobs` and no exception is raised):
 
 ```toml
 # I hope you know what you are doing by setting this to false
 load.raise_on_failed_jobs=false
 ```
 
-:::caution Breaking change
-Previously a terminally failed job aborted the load package and raised `LoadClientJobFailed`; such a
-package could not be retried. Now dlt keeps the package pending, queues the failed job for retry and
-raises `LoadClientJobTerminalRetry`.
-:::
-
-:::tip Restore the previous behavior
-To make dlt abort the package on the first terminal failure (and raise `LoadClientJobFailed`) as it
-did before, set `auto_abort_on_terminal_error` back to `true`:
-
-```toml
-[load]
-auto_abort_on_terminal_error=true
-```
-:::
-
-If you prefer dlt not to raise a terminal exception on failed jobs, then you can manually check for failed jobs and raise an exception by checking the load info as follows:
+In that mode, check for failed jobs yourself:
 
 ```py
 # returns True if there are failed jobs in any of the load packages
@@ -377,13 +390,91 @@ print(load_info.has_failed_jobs)
 load_info.raise_on_failed_jobs()
 ```
 
-#### Retry, fail, or abort pending packages manually
+:::caution Breaking change (from `dlt` 1.30)
+Previously a terminally failed job aborted the load package and raised `LoadClientJobFailed`; such a
+package could not be retried. Now dlt keeps the package pending, queues the failed job for retry and
+raises `LoadClientJobTerminalRetry`.
+:::
 
-With the default settings (`auto_abort_on_terminal_error=false`, `raise_on_failed_jobs=true`), a
-terminally failed job is moved back to `new_jobs` with an increased retry count and the package
-stays pending. The exception message of every retry (terminal and transient) is saved in the
-`.exceptions` folder of the load package, with the first line indicating `retry: terminal` or
-`retry: transient`. You can then decide what to do with the package:
+Before deciding how to resolve an incident, inspect it:
+
+```sh
+# pending packages and their load ids
+dlt pipeline <pipeline_name> info
+# jobs matching a name fragment, with the full exception history across retries
+dlt pipeline <pipeline_name> load-package <load_id> job <pattern>
+# rows the package already wrote to the destination
+dlt pipeline <pipeline_name> load-package <load_id> row-counts
+```
+
+#### Configure the internal job retry
+
+Jobs that fail transiently are retried inside the running load step, without involving your code:
+
+```toml
+[load]
+# stop the load when a job keeps failing and its retry count reaches a multiple of this value,
+# 0 disables the limit and retries indefinitely
+raise_on_max_retries=5
+```
+
+A retried job is restarted on the next pass of the load loop, right after its failure is detected —
+there is no backoff between attempts of the same job. When a job fails `raise_on_max_retries` times,
+the load stops with `LoadClientJobRetry` (a transient exception) and the package stays pending. A
+subsequent `load()` resumes the package and grants the job another round of retries. If your
+destination needs time to recover, let the load stop and pace the whole pipeline from the outside:
+the [retry helpers](#retry-helpers-and-tenacity) treat `LoadClientJobRetry` as retryable and back
+off exponentially.
+
+#### Retry the load
+
+Retrying is the safest option: run the pipeline (or just the load step) again and `dlt` resumes
+the pending package. Completed jobs are never executed again, retried jobs keep their retry counts
+and recorded exceptions, and jobs interrupted by a crash are resolved from their recorded outcomes
+without re-execution — so a retry is safe also for
+[partially loaded](#partially-loaded-packages) packages.
+
+```py
+import dlt
+
+pipeline = dlt.attach("my_pipeline")
+# resumes pending packages, completed jobs are not executed again
+pipeline.load()
+```
+
+Note that `pipeline.run()` also loads pending packages first, but it warns and ignores new data
+passed to it until the pending packages are processed. Retry resolves the incident when the cause
+was fixed outside of the pipeline: a transient outage passed, permissions were granted, or the
+destination schema was corrected. Wrap your production runs in the
+[retry helpers](#retry-helpers-and-tenacity) to retry transient errors automatically.
+
+#### Fail or retry individual jobs
+
+When a particular job can never succeed — for example, it carries malformed data — move it to
+`failed_jobs` and retry the rest of the package. Any job pending a retry can be failed, whether
+its error was terminal or transient. Failing a job copies its exception message along, so it stays
+visible after the package completes. Once the problematic jobs are failed, retry: the package
+completes as loaded with the failed jobs recorded in it.
+
+List the jobs of the pending package first to pick the ones to fail:
+
+```sh
+# all jobs of a package grouped by state, including those pending a retry
+dlt pipeline <pipeline_name> load-package <load_id>
+# jobs matching a name fragment, with the full exception history across retries
+dlt pipeline <pipeline_name> load-package <load_id> job <pattern>
+# failed jobs of all packages with their error messages
+dlt pipeline <pipeline_name> failed-jobs
+```
+
+Then fail a job by its job id or full file name — the exception and the retry count are shown
+before you confirm:
+
+```sh
+dlt pipeline <pipeline_name> load-package <load_id> fail-job <job_id>
+```
+
+The same from Python:
 
 ```py
 import os
@@ -403,19 +494,49 @@ pipeline.fail_pending_job(load_id, os.path.basename(job_file))
 pipeline.load()
 ```
 
+Jobs listed in `started_jobs` were interrupted by a crashed load and cannot be failed directly:
+run the pipeline (their recorded outcomes are resolved without re-execution) or abort the package.
+A job failed by mistake can be brought back for another retry with
+`pipeline.retry_failed_job(load_id, job_file_name)`.
+
+#### Abort the package
+
 To discard pending packages, abort them with `pipeline.abort_packages()` or the
-`dlt pipeline <name> abort-packages` [CLI command](../reference/command-line-interface.md#dlt-pipeline-abort-packages).
-The oldest pending package (the one being loaded) is aborted: its retried jobs are moved to
-`failed_jobs` (so they stay visible in `failed-jobs` output) and the package is completed as
-aborted (its load id is not added to `_dlt_loads`). All other pending packages, extracted ones
+[CLI command](../reference/command-line-interface.md#dlt-pipeline-abort-packages):
+
+```sh
+dlt pipeline <pipeline_name> abort-packages
+```
+
+The CLI shows the abort plan — which jobs will be failed and which packages deleted — and asks for
+confirmation; `abort_packages(dry_run=True)` returns the same plan programmatically.
+
+The oldest pending package (the one being loaded) is aborted with a record: its retried jobs are
+moved to `failed_jobs` (so they stay visible in `failed-jobs` output) and the package is completed
+as aborted (its load id is not added to `_dlt_loads`). All other pending packages, extracted ones
 included, are deleted. Finally, the local pipeline state and schemas are restored from the
 snapshot each package carries in its `.restore` folder — rewinding them (including incremental
-cursors) to the point at which the aborted package started. The whole operation works without
-destination access and the aborted package stays in the local `loaded` storage together with its
-failed jobs and exception messages. Pass `abort_packages(load_id=...)` to abort at a specific
-package: packages older than it are left intact and stay loadable. The `drop-pending-packages`
-CLI command and `Pipeline.drop_pending_packages` are deprecated aliases that now abort: they emit
-a deprecation warning and otherwise behave like `abort_packages`.
+cursors) to the point at which the aborted package started, so you can safely re-extract and
+re-run. The whole operation works without destination access and the aborted package stays in the
+local `loaded` storage together with its failed jobs and exception messages. Pass
+`abort_packages(load_id=...)` to abort at a specific package: packages older than it are left
+intact and stay loadable. The abort intent is persisted in the package state, so an abort
+interrupted e.g. by a crash is finished by the next `load()` or `run()`.
+
+:::tip Abort on terminal failures automatically
+Set `auto_abort_on_terminal_error=true` to make `dlt` run exactly this abort on the first terminal
+failure (and raise `LoadClientJobFailed`), as it did before `dlt` 1.30. Note that the abort is more
+thorough than in previous versions: the old behavior left newer pending packages and the local
+state inconsistent with the destination, while now they are cleaned up and restored.
+
+```toml
+[load]
+auto_abort_on_terminal_error=true
+```
+:::
+
+The `drop-pending-packages` CLI command and `Pipeline.drop_pending_packages` are deprecated aliases
+that now abort: they emit a deprecation warning and otherwise behave like `abort_packages`.
 
 ### Partially loaded packages
 
