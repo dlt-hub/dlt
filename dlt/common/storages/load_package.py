@@ -924,16 +924,6 @@ class PackageStorage:
         state = self.get_load_package_state(load_id)
         return state.get("abort_requested", False)
 
-    def clear_abort_flag(self, load_id: str) -> None:
-        """Clear the abort flag from a package.
-
-        Args:
-            load_id: Load package ID to clear the flag from
-        """
-        state = self.get_load_package_state(load_id)
-        state.pop("abort_requested", None)
-        self.save_load_package_state(load_id, state)
-
     def save_pipeline_state(
         self, load_id: str, state_blob: Optional[str], schema_blobs: Dict[str, str]
     ) -> bool:
@@ -1000,7 +990,6 @@ class PackageStorage:
             )
         for job_file, _ in self.list_retried_new_jobs(load_id):
             self.fail_retried_job(load_id, os.path.basename(job_file))
-        self.clear_abort_flag(load_id)
 
     #
     # Get package info

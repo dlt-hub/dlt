@@ -130,11 +130,11 @@ def display_package_row_counts(pipeline: dlt.Pipeline, load_id: str) -> None:
 def abort_packages(pipeline: dlt.Pipeline, pipeline_name: str, load_id: str = None) -> None:
     """Shows the abort plan for `load_id` (or all pending packages), asks for confirmation and
     aborts. State and schemas rewind to the point at which the oldest aborted package started."""
-    abort = pipeline.abort_packages(load_id=load_id, dry_run=True)
-    if abort.is_empty:
+    plan = pipeline.abort_packages(load_id=load_id, dry_run=True)
+    if plan is None:
         fmt.echo("No pending packages found. Nothing to abort.")
         return
-    package_to_abort = abort.info["package_to_abort"]
+    package_to_abort = plan["package_to_abort"]
     if package_to_abort:
         head_id = package_to_abort["load_id"]
         fmt.echo("Load package %s will be aborted:" % fmt.bold(head_id))
@@ -150,14 +150,13 @@ def abort_packages(pipeline: dlt.Pipeline, pipeline_name: str, load_id: str = No
         )
     else:
         head_id = None
-    if abort.info["packages_to_delete"]:
+    if plan["packages_to_delete"]:
         if package_to_abort:
             fmt.echo()
-        echo_job_list("Normalized packages to delete:", abort.info["packages_to_delete"], indent=0)
-    if abort.info["extracted_packages_to_delete"]:
+        echo_job_list("Normalized packages to delete:", plan["packages_to_delete"], indent=0)
+    if plan["extracted_packages_to_delete"]:
         fmt.echo(
-            "Extracted packages to delete: %s"
-            % ", ".join(abort.info["extracted_packages_to_delete"])
+            "Extracted packages to delete: %s" % ", ".join(plan["extracted_packages_to_delete"])
         )
     if head_id and PackageStorage.is_package_partially_loaded(
         pipeline.get_load_package_info(head_id)

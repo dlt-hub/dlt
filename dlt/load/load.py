@@ -1,7 +1,7 @@
 import contextlib
 from functools import reduce
 from threading import BoundedSemaphore
-from typing import Dict, List, Optional, Tuple, Iterator, Sequence
+from typing import Dict, List, NoReturn, Optional, Tuple, Iterator, Sequence
 from concurrent.futures import Executor
 
 from dlt.common import logger, pendulum
@@ -54,6 +54,7 @@ from dlt.load.exceptions import (
     LoadClientJobFailed,
     LoadClientJobTerminalRetry,
     LoadClientJobRetry,
+    LoadPackageAborted,
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
     LoadClientJobException,
@@ -524,13 +525,26 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 )
                 # try to get exception message from job
                 failed_message = job.failed_message()
-                if self.config.auto_abort_on_terminal_error or not self.config.raise_on_failed_jobs:
+                logger.error(
+                    f"Job for {job.job_id()} failed terminally in load {load_id} with message"
+                    f" {failed_message}"
+                )
+                if self.config.auto_abort_on_terminal_error:
+                    # persist abort intent before moving the job so a crash resumes the abort
+                    current_load_package()["state"]["abort_requested"] = True
+                    commit_load_package_state()
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message, "terminal"
+                    )
+                    pending_exception = LoadClientJobFailed(
+                        load_id,
+                        job.job_file_info().job_id(),
+                        failed_message,
+                        job.exception(),
+                    )
+                elif not self.config.raise_on_failed_jobs:
                     self.load_storage.normalized_packages.fail_job(
                         load_id, job.file_name(), failed_message
-                    )
-                    logger.error(
-                        f"Job for {job.job_id()} failed terminally in load {load_id} with message"
-                        f" {failed_message}"
                     )
                     pending_exception = LoadClientJobFailed(
                         load_id,
@@ -730,8 +744,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
         if self.load_storage.normalized_packages.has_abort_flag(load_id):
-            self._abort_package(load_id, schema)
-            return
+            # aborts package - always raises
+            self._raise_package_abort(load_id, schema)
         new_jobs = self.get_new_jobs_info(load_id)
         self.init_jobs_counter(load_id)
         running_jobs = self.initialize_package(load_id, schema, new_jobs)
@@ -747,7 +761,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
             pending_exception = pending_exception or new_pending_exception
 
-            # do not spool new jobs if there was a signal or an exception was encountered
+            # do not spool new jobs if there was a signal or an exception was encountered, unless
+            # the failed job neither aborts nor raises - then the rest of the package still loads
             # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
             # has changed (as determined by finalized jobs)
             if signals.was_signal_received() and not self.config.start_new_jobs_on_signal:
@@ -755,7 +770,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     logger.info(
                         f"Signal received, draining running jobs. {len(running_jobs)} to go."
                     )
-            elif pending_exception:
+            elif pending_exception and (
+                self.config.raise_on_failed_jobs
+                or self.config.auto_abort_on_terminal_error
+                or not isinstance(pending_exception, LoadClientJobFailed)
+            ):
                 if finalized_jobs:
                     logger.info(
                         f"Exception for job {pending_exception.job_id} received, draining"
@@ -783,15 +802,18 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         remaining_jobs = self.load_storage.list_new_jobs(load_id)
         # if a pending exception was discovered during completion of jobs
         # we can raise it now
-        mark_aborted: bool = False
         if pending_exception:
             if isinstance(pending_exception, LoadClientJobFailed):
-                mark_aborted = self.config.auto_abort_on_terminal_error
-                if self.config.raise_on_failed_jobs:
-                    # the package is completed and skipped
-                    self.complete_package(load_id, schema, aborted=True)
-                    # raise exception with continuous backtrace into client exception
-                    raise pending_exception from pending_exception.client_exception
+                if self.config.auto_abort_on_terminal_error:
+                    # always raises
+                    self._raise_package_abort(
+                        load_id,
+                        schema,
+                        job_exception=(
+                            pending_exception if self.config.raise_on_failed_jobs else None
+                        ),
+                    )
+                # without raise_on_failed_jobs the package completes as loaded below
             elif isinstance(pending_exception, LoadClientJobTerminalRetry):
                 # created only with raise_on_failed_jobs set, package stays pending.
                 # gather package info so retried jobs and their exceptions reach the trace
@@ -808,7 +830,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
 
         # pool is drained
         if not remaining_jobs:
-            self.complete_package(load_id, schema, aborted=mark_aborted)
+            self.complete_package(load_id, schema, aborted=False)
         else:
             self.gather_metrics(load_id, finished=False)
             logger.warning(
@@ -816,8 +838,11 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 f" {len(remaining_jobs)} new jobs are left in the package."
             )
 
-    def _abort_package(self, load_id: str, schema: Schema) -> None:
-        """Executes the abort operation for a package."""
+    def _raise_package_abort(
+        self, load_id: str, schema: Schema, job_exception: Optional[LoadClientJobFailed] = None
+    ) -> NoReturn:
+        """Aborts a drained package and raises `LoadPackageAborted` so the pipeline runs the
+        abort cleanup. `job_exception` is carried over to be re-raised after the cleanup."""
         logger.info(f"Aborting package {load_id} as requested")
         packages = self.load_storage.normalized_packages
         # replay started jobs with file moves only - no destination client is created
@@ -857,6 +882,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         self._step_info_update_metrics(load_id, metrics)
         self.complete_package(load_id, schema, aborted=True)
         logger.info(f"Package {load_id} aborted successfully")
+        raise LoadPackageAborted(load_id, job_exception)
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool

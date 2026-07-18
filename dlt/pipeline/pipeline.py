@@ -116,6 +116,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import get_destination_clients
 
 from dlt.load.configuration import LoaderConfiguration
+from dlt.load.exceptions import LoadPackageAborted
 from dlt.load import Load
 
 from dlt.pipeline.configuration import PipelineConfiguration, PipelineRuntimeConfiguration
@@ -149,7 +150,7 @@ from dlt.pipeline.state_sync import (
     state_resource,
     default_pipeline_state,
 )
-from dlt.pipeline.abort import prepare_abort_packages, AbortPackagesResult
+from dlt.pipeline.abort import prepare_abort_packages, execute_abort_plan, TAbortPlan
 from dlt.common.storages.load_package import (
     TLoadPackageState,
     TPackageJobState,
@@ -594,9 +595,40 @@ class Pipeline(SupportsPipeline):
                 ) from n_ex
 
     @with_runtime_trace(send_state=True)
+    def load(
+        self,
+        destination: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+        credentials: Any = None,
+        *,
+        workers: int = 20,
+        raise_on_failed_jobs: bool = ConfigValue,
+    ) -> LoadInfo:
+        try:
+            return self._load(
+                destination,
+                dataset_name,
+                credentials,
+                workers=workers,
+                raise_on_failed_jobs=raise_on_failed_jobs,
+            )
+        except PipelineStepFailed as pip_ex:
+            l_ex = pip_ex.exception
+            if isinstance(l_ex, LoadPackageAborted):
+                self._cleanup_aborted_package(l_ex.load_id)
+                if l_ex.job_exception is None:
+                    # abort was requested (manually or on crash recovery), nothing to raise
+                    return cast(LoadInfo, pip_ex.step_info)
+                # a terminal job failure triggered the abort; re-raise it now that cleanup ran,
+                # carrying the aborted load id and the failing job so both reach the caller
+                raise PipelineStepFailed(
+                    self, "load", l_ex.load_id, l_ex.job_exception, pip_ex.step_info
+                ) from l_ex.job_exception
+            raise
+
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
-    def load(
+    def _load(
         self,
         destination: TDestinationReferenceArg = None,
         dataset_name: str = None,
@@ -910,7 +942,8 @@ class Pipeline(SupportsPipeline):
                             self._schema_storage_config.export_schema_path,
                             False,
                         )
-            self._install_state_and_schemas(state, restored_schemas or [], replace=state_changed)
+            # nothing was restored, commit the local (possibly wiped) state without replacing schemas
+            self._install_state_and_schemas(state, restored_schemas or [], replace=False)
         except (Exception, KeyboardInterrupt) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
 
@@ -964,16 +997,9 @@ class Pipeline(SupportsPipeline):
     ) -> None:
         """Replaces local pipeline state and schemas with a `.restore` package snapshot,
         rewinding the working dir to the point at which that package started."""
-        current_state = self._get_state()
-        if state_blob is None:
-            # package started on a first run, restore to a fresh state
-            state = default_pipeline_state()
-            state["pipeline_name"] = self.pipeline_name
-        else:
-            decoded_state = json_decode_state(state_blob)
-            state = migrate_state_to_current(self.pipeline_name, decoded_state)
-        # keep the local section: its `_last_extracted_hash` avoids re-committing unchanged state
-        state["_local"] = current_state["_local"]
+        # a snapshot is taken after the state file exists, so it always carries a state blob
+        assert state_blob is not None
+        state = migrate_state_to_current(self.pipeline_name, json_decode_state(state_blob))
         schemas = [
             Schema.from_dict(json.loads(blob), validate_schema=False)
             for blob in schema_blobs.values()
@@ -1226,7 +1252,32 @@ class Pipeline(SupportsPipeline):
             for load_id in normalize_storage.extracted_packages.list_packages():
                 normalize_storage.extracted_packages.delete_package(load_id)
 
-    def abort_packages(self, load_id: str = None, dry_run: bool = False) -> AbortPackagesResult:
+    def _cleanup_aborted_package(self, load_id: str) -> None:
+        """Finishes a package abort: deletes the packages newer than the just-aborted one and
+        restores local state and schemas from its snapshot. Reuses the abort planner, which
+        accepts the already-aborted `load_id`."""
+        plan = prepare_abort_packages(
+            self._get_load_storage(), self._get_normalize_storage(), load_id
+        )
+        # the aborted package is always a restore anchor, so the plan is never empty
+        assert plan is not None
+        self._apply_abort_plan(plan)
+
+    def _apply_abort_plan(self, plan: TAbortPlan) -> None:
+        """Deletes the packages the plan marked for deletion and rewinds local state and
+        schemas to the plan's restore point."""
+        snapshot = execute_abort_plan(self._get_load_storage(), self._get_normalize_storage(), plan)
+        if snapshot is not None:
+            self._restore_from_snapshot(*snapshot)
+        else:
+            logger.warning(
+                f"Package {plan['restore_from_load_id']} has no restore snapshot (it was created"
+                " by an older dlt version) so local pipeline state and schemas were not restored."
+                " Use `pipeline.drop()` and `pipeline.sync_destination()` to fully reset the local"
+                " state from the destination."
+            )
+
+    def abort_packages(self, load_id: str = None, dry_run: bool = False) -> Optional[TAbortPlan]:
         """Aborts pending load packages and restores local pipeline state and schemas to the
         point at which the aborted package started.
 
@@ -1236,59 +1287,35 @@ class Pipeline(SupportsPipeline):
         passed, packages older than it are left intact and stay loadable; a `load_id` package
         that is not being loaded is deleted without a record.
 
+        The abort intent is persisted in the package state, so an interrupted abort is finished,
+        including the cleanup and state restore, by the next `load()` or `run()`.
+
         Args:
             load_id (str): Package to abort at. Defaults to `None` which aborts all
                 pending packages.
-            dry_run (bool): If `True`, return abort info without applying any changes.
+            dry_run (bool): If `True`, return the abort plan without applying any changes.
 
         Returns:
-            AbortPackagesResult: Information on aborted and deleted packages and `load_info`
-                of the load run that processed the abort.
+            Optional[TAbortPlan]: The abort plan (packages removed and restore point), or `None`
+                when nothing is pending to abort.
         """
         load_storage = self._get_load_storage()
         normalize_storage = self._get_normalize_storage()
 
-        result = prepare_abort_packages(load_storage, normalize_storage, load_id)
-        if dry_run:
-            return result
+        plan = prepare_abort_packages(load_storage, normalize_storage, load_id)
+        if dry_run or plan is None:
+            return plan
 
-        info = result.info
-        package_to_abort = info["package_to_abort"]
-        # the aborted package is the oldest removed one, state rewinds to its start; capture
-        # the snapshot before deletions, without normalized packages use the oldest extracted
-        restore_id: Optional[str] = None
+        package_to_abort = plan["package_to_abort"]
         if package_to_abort:
-            restore_id = package_to_abort["load_id"]
-        elif info["packages_to_delete"]:
-            restore_id = min(info["packages_to_delete"])
-        elif info["extracted_packages_to_delete"]:
-            restore_id = min(info["extracted_packages_to_delete"])
-        restore_snapshot = None
-        if restore_id is not None:
-            for packages in (
-                load_storage.normalized_packages,
-                normalize_storage.extracted_packages,
-            ):
-                if packages.can_restore_pipeline_state(restore_id):
-                    restore_snapshot = packages.load_pipeline_state(restore_id)
-                    break
-
-        for lid in info["extracted_packages_to_delete"]:
-            normalize_storage.extracted_packages.delete_package(lid)
-        for lid in info["packages_to_delete"]:
-            load_storage.normalized_packages.delete_package(lid)
-        if package_to_abort:
+            # the loader aborts the flagged package and load() deletes the other pending
+            # packages and restores the state - the same flow that handles auto abort
             load_storage.normalized_packages.set_abort_flag(package_to_abort["load_id"])
-            result.load_info = self.load()
-        if restore_id is not None:
-            if restore_snapshot is not None:
-                self._restore_from_snapshot(*restore_snapshot)
-            else:
-                # legacy package without a snapshot, wipe and restore from the destination
-                self.drop()
-                self.sync_destination()
-
-        return result
+            self.load()
+        else:
+            # nothing is being loaded: delete the planned packages and restore state directly
+            self._apply_abort_plan(plan)
+        return plan
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:

@@ -23,8 +23,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     start_new_jobs_on_signal: bool = False
     """If set to False: will attempt to drain load pool on signal, if True: will continue loading new job"""
     auto_abort_on_terminal_error: bool = False
-    """If set to True, automatically aborts packages with failed jobs. Otherwise the failed job is
-    queued for retry, the package stays pending and a terminal exception is raised."""
+    """If True, a terminal job failure aborts the package like `Pipeline.abort_packages`: pending packages are deleted and pipeline state is restored"""
 
     def on_resolved(self) -> None:
         self.pool_type = (

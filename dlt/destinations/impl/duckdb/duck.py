@@ -29,10 +29,6 @@ class DuckDbCopyJob(RunnableLoadJob, HasFollowupJobs):
         self._sql_client = self._job_client.sql_client
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
-
-        if self.load_table_name == "rarest_numbers":
-            self._file_path = "we_broke_it"
-
         parsed_file = ParsedLoadJobFileName.parse(self._file_path)
         if parsed_file.file_format == "parquet":
             source_format = "read_parquet"
