@@ -40,7 +40,7 @@ def test_create_table(client: MsSqlJobClient) -> None:
     assert '"col6" decimal(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" decimal(38,0)' in sql
-    assert '"col9" json  NOT NULL' in sql
+    assert '"col9" nvarchar(max)  NOT NULL' in sql
     assert '"col10" date  NOT NULL' in sql
     assert '"col11" time  NOT NULL' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
@@ -66,7 +66,7 @@ def test_alter_table(client: MsSqlJobClient) -> None:
     assert '"col6" decimal(38,9)  NOT NULL' in sql
     assert '"col7" varbinary' in sql
     assert '"col8" decimal(38,0)' in sql
-    assert '"col9" json  NOT NULL' in sql
+    assert '"col9" nvarchar(max)  NOT NULL' in sql
     assert '"col10" date  NOT NULL' in sql
     assert '"col11" time  NOT NULL' in sql
     assert '"col1_precision" smallint  NOT NULL' in sql
