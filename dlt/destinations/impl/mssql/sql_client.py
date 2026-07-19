@@ -181,13 +181,10 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
             if driver_error == "Base table or view not found":  # SQLSTATE 42S02
                 return DatabaseUndefinedRelation(ex)
             if driver_error == "Syntax error or access violation":  # SQLSTATE 42000
-                # error 15151 ("Cannot drop the ... because it does not exist") shares this
-                # SQLSTATE with real syntax errors; mssql-python drops the error number from the
-                # message, so match on the text as well.
                 msg = str(ex)
                 if "(15151)" in msg or "does not exist" in msg:
                     return DatabaseUndefinedRelation(ex)
-                return DatabaseTransientException(ex)
+                return DatabaseTerminalException(ex)
             if driver_error == "COUNT field incorrect":  # SQLSTATE 07002, wrong parameter count
                 return DatabaseTransientException(ex)
             return DatabaseTerminalException(ex)

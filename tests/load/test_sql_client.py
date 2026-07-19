@@ -118,7 +118,12 @@ def test_malformed_query_parameters(
 
     # unknown named parameter
     if client.sql_client.dbapi.paramstyle == "pyformat":
-        with pytest.raises(DatabaseTransientException) as term_ex:
+        expected_ex = (
+            DatabaseTerminalException
+            if client.config.destination_type == "mssql"
+            else DatabaseTransientException
+        )
+        with pytest.raises(expected_ex) as term_ex:
             with client.sql_client.execute_query(
                 f"SELECT * FROM {loads_table_name} WHERE inserted_at = %(date)s"
             ):
@@ -191,7 +196,12 @@ def test_malformed_execute_parameters(
 
     # unknown named parameter
     if client.sql_client.dbapi.paramstyle == "pyformat":
-        with pytest.raises(DatabaseTransientException) as term_ex:
+        expected_ex = (
+            DatabaseTerminalException
+            if client.config.destination_type == "mssql"
+            else DatabaseTransientException
+        )
+        with pytest.raises(expected_ex) as term_ex:
             client.sql_client.execute_sql(
                 f"SELECT * FROM {loads_table_name} WHERE inserted_at = %(date)s"
             )
@@ -420,7 +430,12 @@ def test_database_exceptions(client: SqlJobClientBaseWithDestinationTestConfigur
         )
 
     # invalid syntax
-    with pytest.raises(DatabaseTransientException) as term_ex:
+    _syntax_ex = (
+        DatabaseTerminalException
+        if client.config.destination_type == "mssql"
+        else DatabaseTransientException
+    )
+    with pytest.raises(_syntax_ex) as term_ex:
         with client.sql_client.execute_query("SELECTA * FROM TABLE_XXX ORDER BY inserted_at"):
             pass
     assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
@@ -754,20 +769,22 @@ def test_recover_on_explicit_tx(client: SqlJobClientBaseWithDestinationTestConfi
     version_table = client.sql_client.make_qualified_table_name("_dlt_version")
     # simple syntax error
     sql = f"SELEXT * FROM {version_table}"
-    with pytest.raises(DatabaseTransientException):
+    _syntax_ex = (
+        DatabaseTerminalException
+        if client.config.destination_type == "mssql"
+        else DatabaseTransientException
+    )
+    with pytest.raises(_syntax_ex):
         client.sql_client.execute_sql(sql)
-    # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
-    # still can execute dml and selects
     assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("ABC")
     assert_load_id(client.sql_client, "ABC")
 
     # syntax error within tx
     statements = ["BEGIN TRANSACTION", f"INVERT INTO {version_table} VALUES(1)", "COMMIT"]
-    with pytest.raises(DatabaseTransientException):
+    with pytest.raises(_syntax_ex):
         client.sql_client.execute_many(statements)
 
-    # assert derives_from_class_of_name(term_ex.value.dbapi_exception, "ProgrammingError")
     assert client.get_stored_schema(client.schema.name) is not None
     client.complete_load("EFG")
     assert_load_id(client.sql_client, "EFG")

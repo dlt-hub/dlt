@@ -2,6 +2,8 @@ import os
 
 import pytest
 
+import mssql_python
+
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.schema import Schema
@@ -14,6 +16,12 @@ from dlt.destinations.impl.mssql.configuration import (
     uses_token_authentication,
     validate_authentication,
 )
+from dlt.destinations.exceptions import (
+    DatabaseTerminalException,
+    DatabaseTransientException,
+    DatabaseUndefinedRelation,
+)
+from dlt.destinations.impl.mssql.sql_client import MsSqlClient
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
