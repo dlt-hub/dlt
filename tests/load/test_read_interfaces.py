@@ -1009,11 +1009,13 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
-    import ibis
+    pytest.importorskip("ibis")
 
-    # now we should get the more powerful ibis relation
     dataset = populated_pipeline.dataset()
+    try:
+        dataset.ibis(read_only=True)
+    except NotImplementedError:
+        pytest.skip("ibis not implemented for this destination")
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     items_table = dataset.table("items").to_ibis()
@@ -1346,9 +1348,8 @@ def _assert_ibis_dataset_access(pipeline: Pipeline, ibis_connection: Any) -> Non
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
-    # NOTE: we could generalize this with a context for certain deps
+    pytest.importorskip("ibis")
 
-    # make sure the not implemented error is raised if the ibis backend can't be created
     try:
         ds_ = populated_pipeline.dataset()
         ibis_connection = ds_.ibis(read_only=True)
