@@ -166,7 +166,7 @@ class ValidateItem(ItemTransform[TDataItem, Dict[str, Any]]):
         """Computes table schema enforced by this validator. For dynamic (item dependent) or
         schemas with discriminator field use item and meta.
 
-        Return None if no authoratitative schema can be computed
+        Return None if no authoritative schema can be computed
         """
         return None
 

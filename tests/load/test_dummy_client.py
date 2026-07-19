@@ -1693,14 +1693,14 @@ def test_followup_job_ids_in_metrics() -> None:
         load.run(pool)
 
     # original jobs should have followup_jobs set (reference job IDs)
-    # followup (reference) jobs should have followup_jobs as None
+    # followup (reference) jobs should have empty followup_jobs
     for job_id, m in load._job_metrics.items():
         if job_id in dummy_impl.CREATED_FOLLOWUP_JOBS:
             # this is a followup job
-            assert m.followup_jobs is None
+            assert not m.followup_jobs
         else:
             # this is an original job - should reference its followup
-            assert m.followup_jobs is not None
+            assert m.followup_jobs
             assert len(m.followup_jobs) == 1
             assert m.followup_jobs[0] in dummy_impl.CREATED_FOLLOWUP_JOBS
 
@@ -1723,10 +1723,10 @@ def test_table_chain_followup_ids_in_metrics() -> None:
     for job_id, m in load._job_metrics.items():
         if job_id in chain_followup_ids:
             # chain followup jobs are terminal
-            assert m.followup_jobs is None
+            assert not m.followup_jobs
         else:
             # every original job should reference its chain followup
-            assert m.followup_jobs is not None
+            assert m.followup_jobs
             assert len(m.followup_jobs) == 1
             assert m.followup_jobs[0] in chain_followup_ids
 
@@ -1871,8 +1871,8 @@ def assert_complete_job(
                             or job.job_id() in dummy_impl.CREATED_TABLE_CHAIN_FOLLOWUP_JOBS
                         )
                         if is_followup:
-                            assert followup_jobs is None
-                        elif followup_jobs is not None:
+                            assert not followup_jobs
+                        elif followup_jobs:
                             all_completed_ids = {j.job_id() for j in package_info["completed_jobs"]}
                             for fup_id in followup_jobs:
                                 assert fup_id in all_completed_ids

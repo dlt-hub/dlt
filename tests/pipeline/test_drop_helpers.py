@@ -181,7 +181,7 @@ def test_modified_state_in_package() -> None:
     assert "dropped_tables" not in package_state
     assert package_state["refresh"] == "drop_resources"
     assert info.load_packages[0].refresh == "drop_resources"
-    assert info.load_packages[0].dropped_tables is None
+    assert not info.load_packages[0].dropped_tables
     pipeline_state = decompress_state(package_state["pipeline_state"]["state"])
     # the state was reset to the original
     assert pipeline_state["sources"]["airtable_emojis"] == {

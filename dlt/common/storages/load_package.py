@@ -291,9 +291,9 @@ class _LoadPackageInfo(NamedTuple):
     # both lists below show tables requested via the package state; when the package is
     # loaded they show what the load step actually dropped/truncated. regular truncation
     # of replace tables during a normal load is not included
-    dropped_tables: Optional[Sequence[str]] = None
+    dropped_tables: Optional[Sequence[str]] = ()
     """Names of tables dropped in the destination"""
-    truncated_tables: Optional[Sequence[str]] = None
+    truncated_tables: Optional[Sequence[str]] = ()
     """Names of tables truncated in the destination"""
 
 
@@ -868,8 +868,8 @@ class PackageStorage:
             package_created_at,
             all_job_infos,
             refresh=load_package_state.get("refresh"),
-            dropped_tables=dropped_tables or None,
-            truncated_tables=truncated_tables or None,
+            dropped_tables=dropped_tables or [],
+            truncated_tables=truncated_tables or [],
         )
 
     def get_job_failed_message(self, load_id: str, job: ParsedLoadJobFileName) -> str:

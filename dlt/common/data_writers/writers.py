@@ -36,6 +36,7 @@ from dlt.common.data_writers.exceptions import (
 from dlt.common.destination.configuration import (
     CsvFormatConfiguration,
     CsvQuoting,
+    ParquetCompression,
     ParquetFormatConfiguration,
 )
 from dlt.common.destination import (
@@ -322,6 +323,7 @@ class ParquetDataWriter(DataWriter):
         *,
         flavor: Optional[str] = None,
         version: Optional[str] = "2.4",
+        compression: Optional[ParquetCompression] = "snappy",
         data_page_size: Optional[int] = None,
         timestamp_timezone: str = "UTC",
         row_group_size: Optional[int] = None,
@@ -357,6 +359,7 @@ class ParquetDataWriter(DataWriter):
         parquet_writer_kwargs = {
             "flavor": self.parquet_format.flavor,
             "version": self.parquet_format.version,
+            "compression": self.parquet_format.compression,
             "data_page_size": self.parquet_format.data_page_size,
             "coerce_timestamps": self.parquet_format.coerce_timestamps,
             "allow_truncated_timestamps": self.parquet_format.allow_truncated_timestamps,

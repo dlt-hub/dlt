@@ -152,7 +152,7 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
     def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
         # motherduck will be able to write from any attached duckdb
         # until ATTACH is implemented we require the same token which is used as identity
-        return super().can_read_from(other)
+        return self.can_read_from(other)
 
 
 class MotherDuckCatalogMissing(NativeValueError):

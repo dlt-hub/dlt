@@ -123,7 +123,7 @@ class SupportsCliCommand(Protocol):
     help_string: str
     """the help string for argparse"""
     description: Optional[str]
-    """the more detailed description for argparse, may inlcude markdown for the docs"""
+    """the more detailed description for argparse, may include markdown for the docs"""
     docs_url: Optional[str]
     """the default docs url to be printed in case of an exception"""
 

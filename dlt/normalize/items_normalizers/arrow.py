@@ -98,7 +98,7 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                 (
                     -1,
                     pa.field(data_normalizer.c_dlt_id, pyarrow.pyarrow.string(), nullable=False),
-                    lambda batch: pa.array(generate_dlt_ids(batch.num_rows)),
+                    lambda batch: pa.array(generate_dlt_ids(batch.num_rows), type=pa.string()),
                 )
             )
 

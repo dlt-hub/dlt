@@ -227,7 +227,7 @@ def get_fresh_repo_files(
 
     url = giturlparse.parse(repo_location, check_domain=False)
     if not url.valid:
-        # repo is a directory so jus return storage
+        # repo is a directory so just return storage
         return FileStorage(repo_location, makedirs=False)
     else:
         # clone or update repo

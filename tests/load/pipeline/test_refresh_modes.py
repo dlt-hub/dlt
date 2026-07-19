@@ -326,7 +326,7 @@ def test_refresh_drop_data_only(destination_config: DestinationTestConfiguration
     package = info.load_packages[0]
     assert package.refresh == "drop_data"
     assert set(package.truncated_tables) == {"some_data_one", "some_data_two"}
-    assert package.dropped_tables is None
+    assert not package.dropped_tables
 
     # Schema should not be mutated
     assert pipeline.default_schema.version_hash == first_schema_hash

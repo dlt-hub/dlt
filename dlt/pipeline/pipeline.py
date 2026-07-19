@@ -202,7 +202,7 @@ def with_schemas_sync(f: TFun) -> TFun:
                 self._schema_storage.save_import_schema_if_not_exists(schema)
                 # only now save the schema, already linked to itself if saved as import schema
                 self._schema_storage.commit_live_schema(name)
-            # refresh only when default_schema_name is aleady set
+            # refresh only when default_schema_name is already set
             if self.default_schema_name:
                 self.schema_names = self._list_schemas_sorted()
             return rv
@@ -1858,7 +1858,7 @@ class Pipeline(SupportsPipeline):
         if self._staging:
             state["staging_type"] = self._staging.destination_type
             state["staging_name"] = self._staging.configured_name
-        # update schemas only when default_schema_name is aleady set
+        # update schemas only when default_schema_name is already set
         # prevents race condition (another process writes schemas)
         if self.default_schema_name:
             state["schema_names"] = self._list_schemas_sorted()

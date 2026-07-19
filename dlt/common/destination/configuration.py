@@ -5,6 +5,7 @@ from dlt.common.configuration.specs import BaseConfiguration
 from dlt.common.time import get_precision_from_datetime_unit
 
 CsvQuoting = Literal["quote_all", "quote_needed", "quote_minimal", "quote_none"]
+ParquetCompression = Literal["none", "snappy", "gzip", "brotli", "lz4", "zstd"]
 
 
 @configspec
@@ -28,6 +29,7 @@ class CsvFormatConfiguration(BaseConfiguration):
 class ParquetFormatConfiguration(BaseConfiguration):
     flavor: Optional[str] = None  # could be ie. "spark"
     version: Optional[str] = "2.4"
+    compression: Optional[ParquetCompression] = "snappy"
     data_page_size: Optional[int] = None
     timestamp_timezone: str = "UTC"
     row_group_size: Optional[int] = None

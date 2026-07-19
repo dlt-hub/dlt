@@ -594,7 +594,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                                 prev = self._job_metrics[cid]
                                 existing = prev.followup_jobs or []
                                 self._job_metrics[cid] = prev._replace(
-                                    followup_jobs=existing + chain_fups
+                                    followup_jobs=list(existing) + chain_fups
                                 )
                 self._job_metrics[job.job_id()] = metrics
 
@@ -861,9 +861,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         )
 
         try:
-            with self.get_destination_client(schema) as client:
-                with client.with_staging_dataset():  # type: ignore
-                    client.initialize_storage(truncate_tables=tables)
+            with job_client.with_staging_dataset() as staging_client:
+                staging_client.initialize_storage(truncate_tables=tables)
 
         except Exception as exc:
             logger.warn(

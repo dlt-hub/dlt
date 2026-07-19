@@ -1053,12 +1053,18 @@ class Relation(WithSqlClient):
         rel._foreign_physical_names = dict(self._foreign_physical_names)
         return rel
 
-    def _relation_sqlglot_schema(self) -> SQLGlotSchema:
-        schema_map: dict[str, Sequence[dlt.Schema]] = {
+    def _all_schemas(self) -> dict[str, list[dlt.Schema]]:
+        """Schemas the relation resolves against, keyed by dataset name.
+
+        Relation primary dataset goes first, first schema is the default schema.
+        """
+        return {
             self._dataset.dataset_name: list(self._dataset.schemas),
             **self._foreign_schemas,
         }
-        return lineage.create_sqlglot_schema(schema_map, dialect=self.destination_dialect)
+
+    def _relation_sqlglot_schema(self) -> SQLGlotSchema:
+        return lineage.create_sqlglot_schema(self._all_schemas(), dialect=self.destination_dialect)
 
     def _logical_to_physical_dataset_map(self) -> dict[str, str]:
         """Map each logical dataset qualifier used in the query to its physical name."""

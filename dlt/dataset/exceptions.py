@@ -10,7 +10,7 @@ class RelationHasQueryException(DatasetException):
     def __init__(self, attempted_change: str) -> None:
         msg = (
             "This readable relation was created with a provided sql query. You cannot change"
-            f" `{attempted_change}`. Please change the orignal sql query."
+            f" `{attempted_change}`. Please change the original sql query."
         )
         super().__init__(msg)
 

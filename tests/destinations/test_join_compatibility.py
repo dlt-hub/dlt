@@ -997,6 +997,29 @@ def test_motherduck_can_read_from_non_motherduck() -> None:
     assert_not_joinable(md, pg)
 
 
+def test_motherduck_can_write_from_same_token() -> None:
+    """MotherDuck can write from another config only when the identity token matches."""
+    c1 = MotherDuckClientConfiguration(
+        credentials=MotherDuckCredentials("md:db?motherduck_token=token")
+    )
+    c2 = MotherDuckClientConfiguration(
+        credentials=MotherDuckCredentials("md:db?motherduck_token=token")
+    )
+    # same token is writable both ways
+    assert c1.can_write_from(c2)
+    assert c2.can_write_from(c1)
+    # different token cannot write
+    other = MotherDuckClientConfiguration(
+        credentials=MotherDuckCredentials("md:db?motherduck_token=other")
+    )
+    assert not c1.can_write_from(other)
+    assert not other.can_write_from(c1)
+    # missing token cannot write even for the same catalog
+    without_token = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db"))
+    assert not c1.can_write_from(without_token)
+    assert not without_token.can_write_from(c1)
+
+
 SQLA_CASES = [
     pytest.param("postgresql://u@h:5432/db", "postgresql://u@h:5432/db", True, id="pg_same"),
     pytest.param("postgresql://u@h:5432/db1", "postgresql://u@h:5432/db2", False, id="pg_diff_db"),

@@ -3768,14 +3768,14 @@ def test_replace_empty_resource_truncates_via_empty_job() -> None:
     state = pipeline.get_load_package_state(load_id)
     assert "truncated_tables" not in state
     assert package.refresh is None
-    assert package.truncated_tables is None
+    assert not package.truncated_tables
 
     # finishing the load truncates the table
     info = pipeline.load()
     assert load_table_counts(pipeline, "items") == {"items": 0}
     loaded_package = info.load_packages[0]
     assert loaded_package.refresh is None
-    assert loaded_package.truncated_tables is None
+    assert not loaded_package.truncated_tables
 
 
 def test_replace_empty_resource_keeps_append_pseudo_root() -> None:
@@ -5557,6 +5557,7 @@ def test_pending_package_exception_warning() -> None:
     # none of the jobs passed so we have pending package but not partial
     assert pip_ex.value.step == "load"
     assert "Pending packages" in str(pip_ex.value)
+    assert "ephemeral storage" in str(pip_ex.value)
     assert "partially loaded" not in str(pip_ex.value)
     assert pip_ex.value.load_id is not None
     assert pip_ex.value.is_package_partially_loaded is False
