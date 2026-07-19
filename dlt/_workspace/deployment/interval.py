@@ -4,8 +4,8 @@ from datetime import datetime, timedelta, timezone  # noqa: I251
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
-from dlt import version
-from dlt.common.exceptions import MissingDependencyException
+from croniter import croniter
+
 from dlt.common.time import ensure_datetime_in_tz, ensure_datetime_utc
 from dlt.common.typing import TTimeInterval
 
@@ -21,14 +21,6 @@ from dlt._workspace.deployment.typing import (
     TJobDefinition,
     TTrigger,
 )
-
-try:
-    from croniter import croniter
-except ModuleNotFoundError:
-    raise MissingDependencyException(
-        "dltHub",
-        [f"{version.DLT_PKG_NAME}[hub]"],
-    )
 
 
 # disable interval based freshness checks
@@ -145,22 +137,22 @@ def compute_run_interval(
             if prev_interval_end is not None
             else natural_start
         )
-        return (start_utc, end_utc)
+        return TTimeInterval(start_utc, end_utc)
 
     if tt == "every":
         period = float(parsed.expr)  # type: ignore[arg-type]
         # continuity: prev_interval_end extends start backward; else [now-period, now)
         if prev_interval_end is not None:
-            return (ensure_datetime_utc(prev_interval_end), now_p)
-        return (now_p - timedelta(seconds=period), now_p)
+            return TTimeInterval(ensure_datetime_utc(prev_interval_end), now_p)
+        return TTimeInterval(now_p - timedelta(seconds=period), now_p)
 
     if tt == "once":
         # point-in-time: prev_interval_end ignored by design
         once_dt = ensure_datetime_utc(parsed.expr)  # type: ignore[arg-type]
-        return (once_dt, once_dt)
+        return TTimeInterval(once_dt, once_dt)
 
     # all remaining trigger types: point-in-time at now (prev_interval_end ignored)
-    return (now_p, now_p)
+    return TTimeInterval(now_p, now_p)
 
 
 def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") -> TTimeInterval:
@@ -179,7 +171,7 @@ def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") 
     raw_end = ensure_datetime_in_tz(end_str, target_tz) if end_str else datetime.now(target_tz)
     end = cron_floor(cron_expr, raw_end)
 
-    return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    return TTimeInterval(start.astimezone(timezone.utc), end.astimezone(timezone.utc))
 
 
 def cron_floor(cron_expr: str, dt: datetime) -> datetime:
@@ -199,11 +191,6 @@ def cron_floor(cron_expr: str, dt: datetime) -> datetime:
     if dt.tzinfo is not None:
         return prev_naive.replace(tzinfo=dt.tzinfo)
     return prev_naive
-
-
-def is_cron_expression(s: str) -> bool:
-    """Check if string is a valid cron expression."""
-    return croniter.is_valid(s)
 
 
 def _check_schedule_run_freshness(

@@ -2506,6 +2506,7 @@ source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "click", version = "8.4.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
+    { name = "croniter" },
     { name = "fsspec" },
     { name = "gitpython" },
     { name = "giturlparse" },
@@ -2807,7 +2808,6 @@ streamlit = [
     { name = "streamlit" },
 ]
 workspace-deps = [
-    { name = "croniter" },
     { name = "duckdb" },
     { name = "fastmcp" },
     { name = "ibis-framework" },
@@ -2835,6 +2835,7 @@ requires-dist = [
     { name = "clickhouse-connect", marker = "extra == 'clickhouse'", specifier = ">=0.7.7" },
     { name = "clickhouse-driver", marker = "extra == 'clickhouse'", specifier = ">=0.2.7" },
     { name = "cron-descriptor", marker = "extra == 'cli'", specifier = ">=1.2.32" },
+    { name = "croniter", specifier = ">=6.0.0" },
     { name = "databricks-sdk", marker = "extra == 'databricks'", specifier = ">=0.38.0" },
     { name = "databricks-sql-connector", marker = "python_full_version >= '3.13' and extra == 'databricks'", specifier = ">=3.6.0" },
     { name = "databricks-sql-connector", marker = "python_full_version < '3.13' and extra == 'databricks'", specifier = ">=2.9.3" },
@@ -3035,7 +3036,6 @@ sources = [
 ]
 streamlit = [{ name = "streamlit", specifier = ">1.50" }]
 workspace-deps = [
-    { name = "croniter", specifier = ">=6.0.0" },
     { name = "duckdb", specifier = ">=0.9" },
     { name = "fastmcp", specifier = ">=3.0.0" },
     { name = "ibis-framework", specifier = ">=12.0.0" },

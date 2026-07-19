@@ -59,6 +59,7 @@ dependencies = [
     "sqlglot>=25.4.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
+    "croniter>=6.0.0",
 ]
 
 [project.optional-dependencies]
@@ -345,7 +346,6 @@ workspace-deps = [
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
-    "croniter>=6.0.0",
     "s3fs>=2022.4.0",
 ]
 
@@ -512,6 +512,7 @@ module = [
     "pyiceberg.*",
     "airflow.*",
     "dlthub.*",
+    "dlt_runtime.*",
     "ibis.*",
     "adbc_driver_postgresql.*",
     "adbc_driver_manager.*",
