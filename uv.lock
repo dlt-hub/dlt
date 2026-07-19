@@ -2501,7 +2501,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.29.0"
+version = "1.30.0"
 source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
