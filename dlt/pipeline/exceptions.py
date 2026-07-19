@@ -73,14 +73,13 @@ class PipelineStepFailed(PipelineException):
             if self.has_pending_data:
                 msg += (
                     "\n\nPending packages are left in the pipeline and will be re-tried on the"
-                    " next pipeline run."
-                    " If you pass new data to extract to next run, it will be ignored. Run "
-                    f"`dlt pipeline {pipeline.pipeline_name} info` for more information or `dlt"
-                    f" pipeline {pipeline.pipeline_name} drop-pending-packages` to drop pending"
-                    " packages."
-                    "\n\nNote: If the pipeline working directory is on ephemeral storage (e.g. dltHub"
-                    " platform jobs, serverless functions, or CI runners without persistent"
-                    " volumes), pending packages are lost and not retried."
+                    " next pipeline run. If you pass new data to extract to next run, it will be"
+                    f" ignored. Run `dlt pipeline {pipeline.pipeline_name} info` for more"
+                    f" information or `dlt pipeline {pipeline.pipeline_name} drop-pending-packages`"
+                    " to drop pending packages.\n\nNote: If the pipeline working directory is on"
+                    " ephemeral storage (e.g. dltHub platform jobs, serverless functions, or CI"
+                    " runners without persistent volumes), pending packages are lost and not"
+                    " retried."
                 )
             if load_id and step_info and load_id in step_info.loads_ids and step == "load":
                 # get package info

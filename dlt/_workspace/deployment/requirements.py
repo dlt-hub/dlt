@@ -250,7 +250,7 @@ def python_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
-_BASE_LAUNCHER_SPECS: List[str] = ["croniter", "dlthub"]
+_BASE_LAUNCHER_SPECS: List[str] = ["dlthub"]
 """Specs added to every launcher group and the dashboard group."""
 
 
@@ -271,7 +271,7 @@ def build_dashboard_group() -> List[str]:
     """Specs for the `DASHBOARD_JOB_REF` group.
 
     Matches the dashboard runner's dependency gate plus `s3fs` for artifact access;
-    the launcher baseline (croniter, dlthub, dlt) comes from `launcher_requirements`.
+    the launcher baseline (dlthub, dlt) comes from `launcher_requirements`.
     """
     return sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
 
@@ -531,8 +531,7 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
 
 
 _IMPLIED_NAMES: Dict[str, List[str]] = {
-    f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME, "croniter"],
-    DLTHUB_CLIENT_PKG_NAME: ["croniter"],
+    f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME],
     "s3fs": ["botocore"],
     "marimo": ["uvicorn"],
     "fastmcp": ["uvicorn"],

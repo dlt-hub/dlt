@@ -540,17 +540,17 @@ def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> N
 @pytest.mark.parametrize(
     "spec, pruned, kept, dlt_injected",
     [
-        ("dlt[hub]>=1.0", {"dlthub", "croniter"}, set(), False),
-        ("dlthub>=0.1", {"dlthub"}, {"croniter"}, True),
-        ("dlthub-client", {"croniter"}, {"dlthub"}, True),
-        ("dlt>=1.0", set(), {"dlthub", "croniter"}, False),
+        ("dlt[hub]>=1.0", {"dlthub"}, set(), False),
+        ("dlthub>=0.1", {"dlthub"}, set(), True),
+        ("dlthub-client", set(), {"dlthub"}, True),
+        ("dlt>=1.0", set(), {"dlthub"}, False),
     ],
     ids=["dlt-hub-extra", "dlthub", "dlthub-client", "plain-dlt"],
 )
 def test_export_prunes_implied_packages(
     spec: str, pruned: Set[str], kept: Set[str], dlt_injected: bool
 ) -> None:
-    """`dlt[hub]` pulls dlthub + croniter; dlthub / dlthub-client pull croniter."""
+    """`dlt[hub]` pulls dlthub; croniter is a core dep, not a launcher spec."""
     with isolated_workspace("deps_none") as ctx:
         Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
         with patch(_SHUTIL_WHICH, return_value=None):
