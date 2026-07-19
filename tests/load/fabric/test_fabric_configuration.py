@@ -221,3 +221,26 @@ def test_fabric_credentials_authentication_method() -> None:
     # Verify ActiveDirectoryServicePrincipal is set
     dsn_dict = creds.get_odbc_dsn_dict()
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+
+
+def test_fabric_time_allowed_through_parquet() -> None:
+    """Fabric supports TIME in Parquet; the inherited Synapse rejection must be skipped."""
+    from dlt.destinations.impl.fabric.factory import FabricTypeMapper
+    from dlt.destinations.impl.synapse.factory import SynapseTypeMapper
+    from dlt.common.destination import DestinationCapabilitiesContext
+    from dlt.common.schema.typing import TColumnSchema
+    from dlt.common.destination.typing import PreparedTableSchema
+    from typing import cast
+
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
+    caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
+    time_col = cast(TColumnSchema, {"name": "t", "data_type": "time", "precision": 6, "nullable": True})
+
+    synapse_mapper = SynapseTypeMapper(caps)
+    with pytest.raises(Exception):
+        synapse_mapper.ensure_supported_type(time_col, table, "parquet")
+
+    fabric_mapper = FabricTypeMapper(caps)
+    fabric_mapper.ensure_supported_type(time_col, table, "parquet")
+
+    assert fabric_mapper.to_destination_type(time_col, table) == "time(6)"

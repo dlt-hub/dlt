@@ -15,6 +15,7 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.destinations.impl.synapse.factory import synapse, SynapseTypeMapper
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import TColumnSchema
+from dlt.common.typing import TLoaderFileFormat
 
 from .configuration import FabricClientConfiguration
 
@@ -45,6 +46,16 @@ class FabricTypeMapper(SynapseTypeMapper):
             return f"datetime2({precision})"
         # Use precision 6 as default (instead of 7 in SQL Server)
         return "datetime2(6)"
+
+    def ensure_supported_type(
+        self,
+        column: TColumnSchema,
+        table: PreparedTableSchema,
+        loader_file_format: TLoaderFileFormat,
+    ) -> None:
+        if loader_file_format == "parquet" and column["data_type"] == "time":
+            return
+        super().ensure_supported_type(column, table, loader_file_format)
 
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         """Override to use varchar instead of nvarchar and datetime2 instead of datetimeoffset"""
