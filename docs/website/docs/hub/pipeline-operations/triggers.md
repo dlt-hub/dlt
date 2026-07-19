@@ -126,7 +126,7 @@ Invalidation and replacement of a single interval is not yet supported. Once don
 
 ## Refresh cascade
 
-A backfill job with `refresh="always"` originates a refresh signal that propagates through all downstream jobs in the dependency graph. Downstream jobs receive `run_context["refresh"] = True` and react accordingly (for example `pipeline.refresh = "drop_sources"`).
+A backfill job with `refresh_propagation="always"` originates a refresh signal that propagates through all downstream jobs in the dependency graph. Downstream jobs receive `run_context["refresh"] = True` and react accordingly (for example `pipeline.refresh = "drop_sources"`).
 
 Refresh policies:
 
@@ -137,7 +137,7 @@ Refresh policies:
 | `"block"` | Stop refresh propagation here |
 
 ```py
-@run.job(expose={"tags": ["backfill"]}, refresh="always")
+@run.job(expose={"tags": ["backfill"]}, refresh_propagation="always")
 def backfill():
     """Cascade a refresh; does not load data."""
 ```

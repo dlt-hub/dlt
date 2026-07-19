@@ -5,6 +5,7 @@ import io
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone  # noqa: I251
 from contextlib import contextmanager
 from copy import copy
 from importlib import import_module
@@ -13,10 +14,10 @@ from types import ModuleType
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
-from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
+from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
 from dlt._workspace.deployment.decorators import JobFactory
@@ -53,11 +54,16 @@ from dlt._workspace.deployment.typing import (
     TJobsDeploymentManifest,
     TFreshnessConstraint,
     TJobDefinition,
+    TJobDefinitionDeprecated,
     TJobRef,
     TTrigger,
+    WORKSPACE_DEPRECATED_SINCE,
+    resolve_incremental_mode,
+    resolve_refresh_propagation,
 )
 
-DEPLOYMENT_ENGINE_VERSION = MANIFEST_ENGINE_VERSION
+DEPLOYMENT_ENGINE_VERSION = 1
+"""Engine version of package files manifests (`TFilesManifest`), independent of job definitions."""
 
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
@@ -109,13 +115,47 @@ def bump_manifest_version(
     return version, new_hash, old_hash
 
 
+def migrate_job_definition(
+    job_dict: DictStrAny, from_engine: int, to_engine: int
+) -> TJobDefinition:
+    """Migrate a single job definition dict between engine versions, in place."""
+    if from_engine == to_engine:
+        return job_dict  # type: ignore[return-value]
+    if from_engine == 1 and to_engine > 1:
+        # engine 2: allow_external_schedulers -> incremental_mode, refresh -> refresh_propagation
+        apply_deprecations(
+            TJobDefinitionDeprecated,
+            job_dict,
+            path="jobs",
+            since=WORKSPACE_DEPRECATED_SINCE,
+            warn=False,
+        )
+        from_engine = 2
+
+    if from_engine != to_engine:
+        raise ValueError(
+            f"no job definition migration path from engine {from_engine} to {to_engine}"
+        )
+    return job_dict  # type: ignore[return-value]
+
+
 def migrate_manifest(
     manifest_dict: DictStrAny, from_engine: int, to_engine: int
 ) -> TJobsDeploymentManifest:
     """Migrate a manifest dict between engine versions."""
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
-    raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
+    for job in manifest_dict.get("jobs", []):
+        migrate_job_definition(job, from_engine, to_engine)
+    # manifest-level migrations per engine version
+    if from_engine == 1 and to_engine > 1:
+        # engine 2: no manifest-level changes
+        from_engine = 2
+
+    if from_engine != to_engine:
+        raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
+    manifest_dict["engine_version"] = to_engine
+    return manifest_dict  # type: ignore[return-value]
 
 
 def save_manifest(manifest: TJobsDeploymentManifest, f: BinaryIO) -> str:
@@ -302,8 +342,17 @@ def validate_job_definition(
                         f" cron tick for {cron_expr!r} — will be snapped backward"
                     )
 
-    if job_def.get("allow_external_schedulers") and not has_interval:
-        warnings.append(f"job {ref!r} has allow_external_schedulers but no interval")
+    if resolve_incremental_mode(job_def) == "interval" and not has_interval:
+        warnings.append(f"job {ref!r} has incremental_mode 'interval' but no interval")
+
+    if (
+        job_def.get("auto_refresh_pipeline_mode")
+        and resolve_refresh_propagation(job_def) == "block"
+    ):
+        warnings.append(
+            f"job {ref!r} has auto_refresh_pipeline_mode but refresh_propagation 'block'"
+            " prevents refresh runs"
+        )
 
     declared_profile = (job_def.get("require") or {}).get("profile")
     if declared_profile is not None and is_local_profile(declared_profile):
@@ -565,7 +614,7 @@ def generate_manifest(
 
     manifest: TJobsDeploymentManifest = {
         "engine_version": MANIFEST_ENGINE_VERSION,
-        "created_at": pendulum.now("UTC").isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "deployment_module": deployment_module.__name__,
         "jobs": jobs,
     }

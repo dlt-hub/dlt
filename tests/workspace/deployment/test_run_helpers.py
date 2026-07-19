@@ -2,7 +2,8 @@
 
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from zoneinfo import ZoneInfo
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
@@ -32,6 +33,7 @@ from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
+    TIncrementalSource,
     TIntervalSpec,
     TJobDefinition,
     TJobRef,
@@ -54,8 +56,10 @@ def _job(
     job_type: str = "batch",
     function: Optional[str] = "main",
     refresh: Optional[TRefreshPolicy] = None,
+    refresh_propagation: Optional[TRefreshPolicy] = None,
     require: Optional[TRequireSpec] = None,
     interval: Optional[TIntervalSpec] = None,
+    incremental_mode: Optional[TIncrementalSource] = None,
     allow_external_schedulers: bool = False,
     launcher: Optional[str] = None,
 ) -> TJobDefinition:
@@ -77,10 +81,14 @@ def _job(
         jd["default_trigger"] = TTrigger(default_trigger)
     if refresh is not None:
         jd["refresh"] = refresh
+    if refresh_propagation is not None:
+        jd["refresh_propagation"] = refresh_propagation
     if require is not None:
         jd["require"] = require
     if interval is not None:
         jd["interval"] = interval
+    if incremental_mode is not None:
+        jd["incremental_mode"] = incremental_mode
     if allow_external_schedulers:
         jd["allow_external_schedulers"] = True
     return jd
@@ -335,13 +343,26 @@ def test_resolve_refresh(
     expected_refresh: bool,
     expect_warning: bool,
 ) -> None:
+    # legacy `refresh` field
     jd = _job("jobs.a", refresh=policy)
     effective, warning = resolve_refresh(user_flag, jd)
     assert effective is expected_refresh
     if expect_warning:
-        assert warning and "refresh=block" in warning
+        assert warning and "refresh_propagation=block" in warning
     else:
         assert warning is None
+    # `refresh_propagation` field resolves identically
+    jd = _job("jobs.a", refresh_propagation=policy)
+    effective, _ = resolve_refresh(user_flag, jd)
+    assert effective is expected_refresh
+
+
+def test_resolve_refresh_propagation_precedence() -> None:
+    """`refresh_propagation` wins over a stale legacy `refresh` field."""
+    jd = _job("jobs.a", refresh="block", refresh_propagation="auto")
+    effective, warning = resolve_refresh(True, jd)
+    assert effective is True
+    assert warning is None
 
 
 @pytest.mark.parametrize(
@@ -548,7 +569,9 @@ def test_build_runtime_entry_point_batch_sets_interval_and_profile() -> None:
     assert ep["interval_timezone"] == "UTC"
     assert ep["profile"] == "prod"
     assert ep["refresh"] is True
-    assert ep["allow_external_schedulers"] is False
+    # unset incremental mode emits neither key so launcher config may apply
+    assert "allow_external_schedulers" not in ep
+    assert "incremental_mode" not in ep
     assert "run_args" not in ep
 
 
@@ -565,10 +588,61 @@ def test_build_runtime_entry_point_config_merges() -> None:
     assert ep["config"] == {"A": "1", "B": "override", "C": "3"}
 
 
-def test_build_runtime_entry_point_propagates_allow_external_schedulers() -> None:
-    jd = _job("jobs.a", allow_external_schedulers=True)
+def test_build_runtime_entry_point_propagates_modes() -> None:
+    """incremental_mode propagates with the compat flag derived from it;
+    auto_refresh_pipeline_mode passes through verbatim."""
+    mode_cases: List[Tuple[Dict[str, Any], bool, Optional[str]]] = [
+        ({"allow_external_schedulers": True}, True, "interval"),
+        ({"incremental_mode": "interval"}, True, "interval"),
+        ({"incremental_mode": "pipeline"}, False, "pipeline"),
+        ({"incremental_mode": "pipeline", "allow_external_schedulers": True}, False, "pipeline"),
+    ]
+    for jd_kwargs, expected_allow, expected_mode in mode_cases:
+        jd = _job("jobs.a", **jd_kwargs)
+        ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
+        assert ep["allow_external_schedulers"] is expected_allow, jd_kwargs
+        assert ep.get("incremental_mode") == expected_mode, jd_kwargs
+
+    # auto_refresh_pipeline_mode: unset emits nothing, set passes through
+    jd = _job("jobs.a")
     ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
-    assert ep["allow_external_schedulers"] is True
+    assert "auto_refresh_pipeline_mode" not in ep
+
+    jd["auto_refresh_pipeline_mode"] = "drop_sources"
+    ep = build_runtime_entry_point(jd, {}, "dev", True, NOW, NOW, "UTC")
+    assert ep["auto_refresh_pipeline_mode"] == "drop_sources"
+
+
+def test_build_runtime_entry_point_optional_interval_and_utc() -> None:
+    """No interval bounds emit no interval keys; non-UTC bounds serialize as UTC."""
+    jd = _job("jobs.a")
+    ep = build_runtime_entry_point(jd, {}, "dev", False, None, None)
+    assert "interval_start" not in ep
+    assert "interval_end" not in ep
+    assert "interval_timezone" not in ep
+
+    # non-UTC inputs are converted to UTC in transit, tz derives from require.timezone
+    jd = _job("jobs.a", require={"timezone": "Europe/Berlin"})
+    berlin = ZoneInfo("Europe/Berlin")
+    ep = build_runtime_entry_point(
+        jd,
+        {},
+        "dev",
+        False,
+        datetime(2024, 1, 15, 1, 0, tzinfo=berlin),
+        datetime(2024, 1, 16, 1, 0, tzinfo=berlin),
+    )
+    assert ep["interval_start"] == "2024-01-15T00:00:00+00:00"
+    assert ep["interval_end"] == "2024-01-16T00:00:00+00:00"
+    assert ep["interval_timezone"] == "Europe/Berlin"
+
+
+def test_build_runtime_entry_point_keeps_preset_run_args() -> None:
+    """Interactive run_args provided by the caller are not overwritten."""
+    jd = _job("jobs.dash", job_type="interactive")
+    jd["entry_point"]["run_args"] = {"port": 8080}  # type: ignore[typeddict-unknown-key]
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
+    assert ep["run_args"] == {"port": 8080}
 
 
 def test_build_runtime_entry_point_does_not_mutate_job_def() -> None:

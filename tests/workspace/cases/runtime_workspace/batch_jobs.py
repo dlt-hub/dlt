@@ -6,6 +6,7 @@ from typing import Iterator
 
 import dlt
 from dlt.common.runtime import signals
+from dlt.common.utils import uniq_id
 from dlt.hub.run import job, TJobRunContext
 
 EXTRACT_STARTED = threading.Event()
@@ -65,7 +66,7 @@ def interval_aware(run_context: TJobRunContext):
 
 
 @job(
-    allow_external_schedulers=True,
+    incremental_mode="interval",
     interval={"start": "2024-01-15T00:00:00Z"},
     trigger="0 0 * * *",
 )
@@ -90,12 +91,51 @@ def incremental_interval_job(run_context: TJobRunContext):
     return f"iv={inc.initial_value},end={inc.end_value},items={len(items)},allow_ext={ctx_flag}"
 
 
+@job(
+    incremental_mode="interval",
+    interval={"start": "2020-01-01T00:00:00Z"},
+    trigger="0 0 * * *",
+)
+def epoch_override_job(run_context: TJobRunContext):
+    """Override interval start via `dlt.current.interval.update` before incremental bind."""
+    from datetime import datetime  # noqa: I251
+    from dlt.common.pendulum import pendulum
+    from dlt.common.time import ensure_pendulum_datetime_utc
+
+    dlt.current.interval.update(start=ensure_pendulum_datetime_utc("2023-06-01T00:00:00Z"))
+
+    @dlt.resource()
+    def my_events(
+        updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental("updated_at"),
+    ):
+        yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
+
+    r = my_events()
+    list(r)
+    inc = r.incremental._incremental
+    return f"iv={inc.initial_value.isoformat()},end={inc.end_value.isoformat()}"
+
+
 @job
 def profile_aware(run_context: TJobRunContext):
     """Job that reads the workspace profile env var set by the launcher."""
     import os
 
     return f"profile={os.environ.get('WORKSPACE__PROFILE', '')}"
+
+
+@job
+def auto_refresh_pipeline():
+    """Job that creates a pipeline and reports its refresh mode."""
+    p = dlt.pipeline(f"auto_refresh_{uniq_id()}")
+    return f"refresh={p.refresh}"
+
+
+@job
+def explicit_refresh_pipeline():
+    """Job that creates a pipeline with an explicit refresh argument."""
+    p = dlt.pipeline(f"explicit_refresh_{uniq_id()}", refresh="drop_data")
+    return f"refresh={p.refresh}"
 
 
 JOB_STARTED = threading.Event()

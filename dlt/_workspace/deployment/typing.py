@@ -1,10 +1,14 @@
 from datetime import datetime  # noqa: I251
-from typing import Any, Dict, List, Literal, NamedTuple, NewType, Optional, Union
+from typing import Any, Dict, List, Literal, Mapping, NamedTuple, NewType, Optional, Union
 
-from dlt.common.typing import NotRequired, TypedDict
+from dlt.common.pipeline import TRefreshMode
+from dlt.common.typing import Annotated, NotRequired, TypedDict
+from dlt.common.warnings import Deprecated, SkipDeprecation
 
 
-MANIFEST_ENGINE_VERSION = 1
+MANIFEST_ENGINE_VERSION = 2
+WORKSPACE_DEPRECATED_SINCE = "1.29.0"
+"""dlt version the job-definition field renames were introduced in."""
 REQUIREMENTS_ENGINE_VERSION = 1
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
@@ -45,6 +49,18 @@ TRefreshPolicy = Literal["always", "auto", "block"]
 - `auto` - if received, propagates refresh signal to downstream jobs
 - `always` - sends refresh signal to downstream jobs when started
 - `block` - blocks refresh signal, prevents downstream jobs from receiving it.
+"""
+
+TIncrementalSource = Literal["interval", "pipeline"]
+"""How incrementals obtain their range during a job run
+- `interval` - incrementals assume the interval of the job, state is managed by the scheduler
+- `pipeline` - incrementals keep their own state in the pipeline (default).
+"""
+
+TIntervalMode = Literal["sequential", "parallel"]
+"""How discrete intervals of a job are scheduled
+- `sequential` - intervals are processed one after another, advancing a watermark (default)
+- `parallel` - intervals are processed independently and tracked in the interval store.
 """
 
 
@@ -125,8 +141,7 @@ class TEntryPoint(TypedDict):
 class TRunArgs(TypedDict, total=False):
     """Runtime-supplied arguments for launching a job.
 
-    Provided by the runtime when invoking a launcher. Not part of the
-    deployment manifest — filled in at launch time.
+    Provided by the runtime when invoking a launcher.
     """
 
     port: int
@@ -146,6 +161,8 @@ class TIntervalSpec(TypedDict):
     """ISO 8601 string or `datetime` for the start of the range. Required."""
     end: NotRequired[Union[str, datetime]]
     """ISO 8601 string or `datetime` for the end of the range. Defaults to now."""
+    mode: NotRequired[TIntervalMode]
+    """Interval scheduling mode. Defaults to `sequential` when not set."""
 
 
 class TJobRunContext(TypedDict):
@@ -175,14 +192,18 @@ class TRuntimeEntryPoint(TEntryPoint):
     """ISO 8601 UTC end of the interval being processed."""
     interval_timezone: NotRequired[str]
     """IANA timezone name (from `require.timezone`); applied to the interval by the launcher."""
+    incremental_mode: NotRequired[TIncrementalSource]
+    """Incremental mode of the job, takes precedence over `allow_external_schedulers`."""
     allow_external_schedulers: NotRequired[bool]
-    """Experimental. Incremental instance will automatically assume interval of the job."""
+    """Backward-compatible form of `incremental_mode`: `True` means `interval` mode."""
     profile: NotRequired[str]
     """Active workspace profile, resolved from require.profile."""
     config: NotRequired[Dict[str, Any]]
     """Config key-value pairs injected as env vars before job execution."""
     refresh: NotRequired[bool]
     """Refresh signal with request to refresh (reload) the data"""
+    auto_refresh_pipeline_mode: NotRequired[TRefreshMode]
+    """Refresh mode applied to every pipeline in the job when the refresh signal is set."""
     intercept_signals: NotRequired[bool]
     """Intercept SIGTERM and SIGINT during job execution. Defaults to `True` when
     absent; set to `False` to opt out."""
@@ -239,14 +260,20 @@ class TJobDefinition(TypedDict):
     """Overall time range for interval-based scheduling."""
     freshness: NotRequired[List[TFreshnessConstraint]]
     """Upstream freshness constraints for interval eligibility."""
+    incremental_mode: NotRequired[TIncrementalSource]
+    """Incremental mode of the job, takes precedence over `allow_external_schedulers`."""
     allow_external_schedulers: NotRequired[bool]
-    """When `True`, intervals and state are managed by the scheduler."""
+    """Backward-compatible form of `incremental_mode`: when `True`, intervals and state are managed by the scheduler."""
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
+    refresh_propagation: NotRequired[TRefreshPolicy]
+    """Refresh propagation policy of the job, takes precedence over `refresh`."""
     refresh: NotRequired[TRefreshPolicy]
-    """Controls refresh policy of the job"""
+    """Backward-compatible form of `refresh_propagation`."""
+    auto_refresh_pipeline_mode: NotRequired[TRefreshMode]
+    """Refresh mode applied to every pipeline in the job when a refresh run is requested."""
 
 
 class TDeploymentFileItem(TypedDict):
@@ -265,6 +292,39 @@ class TFilesManifest(TypedDict):
 
     engine_version: int
     files: List[TDeploymentFileItem]
+
+
+def resolve_incremental_mode(d: Mapping[str, Any]) -> TIncrementalSource:
+    """Resolves incremental mode from a job definition or entry point, preferring
+    `incremental_mode` over the deprecated `allow_external_schedulers` flag."""
+    mode: Optional[TIncrementalSource] = d.get("incremental_mode")
+    if mode is not None:
+        return mode
+    return "interval" if d.get("allow_external_schedulers") else "pipeline"
+
+
+def resolve_refresh_propagation(d: Mapping[str, Any]) -> TRefreshPolicy:
+    """Resolves refresh propagation policy from a job definition, preferring
+    `refresh_propagation` over the deprecated `refresh` field."""
+    return d.get("refresh_propagation") or d.get("refresh") or "auto"
+
+
+def _bool_to_incremental_mode(allow_external: bool) -> Any:
+    # False writes nothing so a legacy flag never forces `pipeline` mode
+    return "interval" if allow_external else SkipDeprecation
+
+
+class TJobDefinitionDeprecated(TypedDict, total=False):
+    """Deprecated job-definition fields and their replacements.
+
+    Single source of the old to new field mapping, consumed by `apply_deprecations` at the
+    job decorators and by `migrate_job_definition`.
+    """
+
+    refresh: Annotated[TRefreshPolicy, Deprecated(maps_to="refresh_propagation")]
+    allow_external_schedulers: Annotated[
+        bool, Deprecated(maps_to="incremental_mode", convert=_bool_to_incremental_mode)
+    ]
 
 
 class TJobsDeploymentManifest(TypedDict):

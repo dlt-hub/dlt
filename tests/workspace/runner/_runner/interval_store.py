@@ -87,7 +87,7 @@ class DuckDBIntervalStore:
             [job_ref, overall[0], overall[1]],
         ).fetchall()
         raw: List[TTimeInterval] = [
-            (ensure_datetime_utc(r[0]), ensure_datetime_utc(r[1])) for r in rows
+            TTimeInterval(ensure_datetime_utc(r[0]), ensure_datetime_utc(r[1])) for r in rows
         ]
         return sort_and_coalesce(raw)
 

@@ -33,6 +33,7 @@ from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
     TFreshnessConstraint,
+    TIncrementalSource,
     TIntervalSpec,
     TJobDefinition,
     TJobRef,
@@ -43,7 +44,7 @@ from dlt._workspace.deployment.typing import (
 
 
 def _iv(start: str, end: str) -> TTimeInterval:
-    return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+    return TTimeInterval(ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
 
 
 def _job(
@@ -54,7 +55,8 @@ def _job(
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
     refresh: Optional[TRefreshPolicy] = None,
-    allow_external_schedulers: Optional[bool] = None,
+    refresh_propagation: Optional[TRefreshPolicy] = None,
+    incremental_mode: Optional[TIncrementalSource] = None,
 ) -> TJobDefinition:
     job: TJobDefinition = {
         "job_ref": TJobRef(ref),
@@ -75,8 +77,10 @@ def _job(
         job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
     if refresh is not None:
         job["refresh"] = refresh
-    if allow_external_schedulers is not None:
-        job["allow_external_schedulers"] = allow_external_schedulers
+    if refresh_propagation is not None:
+        job["refresh_propagation"] = refresh_propagation
+    if incremental_mode is not None:
+        job["incremental_mode"] = incremental_mode
     return job
 
 
@@ -221,7 +225,7 @@ def _chain_with_block_middle() -> Dict[str, TJobDefinition]:
             "jobs.c",
             ["manual:jobs.c"],
             freshness=["job.is_fresh:jobs.b"],
-            refresh="block",
+            refresh_propagation="block",
         ),
         "jobs.d": _job("jobs.d", ["manual:jobs.d"], freshness=["job.is_fresh:jobs.c"]),
     }
@@ -261,14 +265,15 @@ def _chain_with_always_middle() -> Dict[str, TJobDefinition]:
 
 
 def _chain_with_interval_middle() -> Dict[str, TJobDefinition]:
-    """A → B(interval-store) → C(auto). B is excluded; the walk does not pass through it."""
+    """A → B(interval-store) → C(auto). The walk passes through B — interval-store
+    severing is not implemented on the runtime."""
     return {
         "jobs.a": _job("jobs.a", ["manual:jobs.a"]),
         "jobs.b": _job(
             "jobs.b",
             ["schedule:0 * * * *"],
-            interval={"start": "2024-01-01T00:00:00Z"},
-            allow_external_schedulers=True,
+            interval={"start": "2024-01-01T00:00:00Z", "mode": "parallel"},
+            incremental_mode="interval",
             freshness=["job.is_fresh:jobs.a"],
         ),
         "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
@@ -302,8 +307,8 @@ def _self_cycle_two_jobs() -> Dict[str, TJobDefinition]:
         (_diamond_with_blocked_branch(), "jobs.a", ["jobs.b", "jobs.d"]),
         # always mid-walk is treated as auto (no amplification)
         (_chain_with_always_middle(), "jobs.a", ["jobs.b", "jobs.c"]),
-        # interval-store mid-walk excludes the node and severs the walk
-        (_chain_with_interval_middle(), "jobs.a", []),
+        # interval-store mid-walk passes through (severing not implemented on runtime)
+        (_chain_with_interval_middle(), "jobs.a", ["jobs.b", "jobs.c"]),
         # cycle safety — A → B → A
         (_self_cycle_two_jobs(), "jobs.a", ["jobs.b"]),
         # root not in all_jobs — no error, empty list
@@ -371,8 +376,14 @@ def test_get_refresh_cascade_targets(
 def test_sort_and_coalesce(
     intervals: List[Tuple[str, str]], expected: List[Tuple[str, str]]
 ) -> None:
-    ivs = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in intervals]
-    exp = [(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)) for s, e in expected]
+    ivs = [
+        TTimeInterval(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e))
+        for s, e in intervals
+    ]
+    exp = [
+        TTimeInterval(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e))
+        for s, e in expected
+    ]
     assert sort_and_coalesce(ivs) == exp
 
 
@@ -445,11 +456,11 @@ def test_iter_intervals_is_lazy() -> None:
 def test_eligible_intervals_skips_completed() -> None:
     completed = sort_and_coalesce(
         [
-            (
+            TTimeInterval(
                 ensure_pendulum_datetime_utc("2024-01-01"),
                 ensure_pendulum_datetime_utc("2024-01-02"),
             ),
-            (
+            TTimeInterval(
                 ensure_pendulum_datetime_utc("2024-01-02"),
                 ensure_pendulum_datetime_utc("2024-01-03"),
             ),
@@ -476,7 +487,9 @@ def test_eligible_intervals_ordered() -> None:
 
 def test_next_eligible_interval_returns_first_incomplete() -> None:
     completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02"))
+        TTimeInterval(
+            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02")
+        )
     ]
     overall = _iv("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
@@ -486,7 +499,9 @@ def test_next_eligible_interval_returns_first_incomplete() -> None:
 
 def test_next_eligible_interval_none_when_all_done() -> None:
     completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-03"))
+        TTimeInterval(
+            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-03")
+        )
     ]
     overall = _iv("2024-01-01", "2024-01-03")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
@@ -496,7 +511,9 @@ def test_next_eligible_interval_none_when_all_done() -> None:
 def test_next_eligible_skips_leading_completed() -> None:
     """Leading completed block is trimmed, avoiding iteration over 100 done intervals."""
     completed = [
-        (ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-04-10"))
+        TTimeInterval(
+            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-04-10")
+        )
     ]
     overall = _iv("2024-01-01", "2024-06-01")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
@@ -508,11 +525,11 @@ def test_next_eligible_with_gap_in_middle() -> None:
     """Completed intervals with a gap — returns the first interval in the gap."""
     completed = sort_and_coalesce(
         [
-            (
+            TTimeInterval(
                 ensure_pendulum_datetime_utc("2024-01-01"),
                 ensure_pendulum_datetime_utc("2024-01-03"),
             ),
-            (
+            TTimeInterval(
                 ensure_pendulum_datetime_utc("2024-01-04"),
                 ensure_pendulum_datetime_utc("2024-01-05"),
             ),

@@ -1,6 +1,7 @@
 """Tests for manifest validation, hashing, versioning, and IO."""
 
 import json as stdlib_json
+import os
 from datetime import datetime, timezone  # noqa: I251
 from io import BytesIO
 from typing import Any, Dict, List, Optional
@@ -17,6 +18,7 @@ from dlt._workspace.deployment.manifest import (
     generate_manifest_hash,
     hash_job_definition,
     load_manifest,
+    migrate_job_definition,
     migrate_manifest,
     save_manifest,
     validate_job_definition,
@@ -37,6 +39,13 @@ from dlt._workspace.deployment.typing import (
 @pytest.fixture
 def enable_interval_freshness(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setattr(interval_mod, "INTERVAL_FRESHNESS_ENABLED", True)
+
+
+MANIFEST_CASES_DIR = os.path.join(os.path.dirname(__file__), "..", "cases", "manifests")
+
+
+def _manifest_case_path(name: str) -> str:
+    return os.path.join(MANIFEST_CASES_DIR, name + ".manifest.json")
 
 
 def _make_job(
@@ -289,17 +298,39 @@ def test_is_matching_interval_fresh_disabled_raises() -> None:
         validate_manifest(manifest)
 
 
-def test_allow_external_schedulers_without_interval_warns() -> None:
+@pytest.mark.parametrize(
+    "job_kwargs",
+    [
+        {"incremental_mode": "interval"},
+        {"allow_external_schedulers": True},
+    ],
+    ids=["incremental-mode", "legacy-flag"],
+)
+def test_incremental_mode_interval_without_interval_warns(job_kwargs: Dict[str, Any]) -> None:
+    manifest = _make_manifest(
+        [
+            _make_job("jobs.mod.a", triggers=["schedule:0 0 * * *"], **job_kwargs),
+        ]
+    )
+    result = validate_manifest(manifest)
+    assert result.is_valid
+    assert any("incremental_mode" in w and "no interval" in w for w in result.warnings)
+
+
+def test_auto_refresh_pipeline_mode_with_block_warns() -> None:
     manifest = _make_manifest(
         [
             _make_job(
-                "jobs.mod.a", triggers=["schedule:0 0 * * *"], allow_external_schedulers=True
+                "jobs.mod.a",
+                triggers=["manual:jobs.mod.a"],
+                auto_refresh_pipeline_mode="drop_sources",
+                refresh_propagation="block",
             ),
         ]
     )
     result = validate_manifest(manifest)
     assert result.is_valid
-    assert any("allow_external_schedulers" in w and "no interval" in w for w in result.warnings)
+    assert any("auto_refresh_pipeline_mode" in w for w in result.warnings)
 
 
 @pytest.mark.parametrize("profile_name", ["dev", "tests"])
@@ -564,7 +595,79 @@ def test_manifest_interval_spec_accepts_datetime(
 
 def test_migrate_manifest_same_version_is_noop() -> None:
     manifest: Dict[str, Any] = dict(_make_manifest([]))
-    assert migrate_manifest(manifest, 1, 1) is manifest
+    assert migrate_manifest(manifest, MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION) is manifest
+
+
+def test_migrate_job_definition_v1_to_v2() -> None:
+    """Single job definitions migrate independently — the backend stores them separately."""
+    # flag True converted to interval mode and dropped
+    job: Dict[str, Any] = dict(
+        _make_job("jobs.mod.iv", triggers=["schedule:0 * * * *"], allow_external_schedulers=True)
+    )
+    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
+    assert migrated["incremental_mode"] == "interval"
+    assert "allow_external_schedulers" not in migrated
+
+    # explicit flag False dropped without setting a mode
+    job = dict(_make_job("jobs.mod.off", allow_external_schedulers=False))
+    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
+    assert "incremental_mode" not in migrated
+    assert "allow_external_schedulers" not in migrated
+
+    # refresh policy converted to refresh_propagation and dropped
+    job = dict(_make_job("jobs.mod.blocked", refresh="block"))
+    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
+    assert migrated["refresh_propagation"] == "block"
+    assert "refresh" not in migrated
+
+    # job without deprecated fields untouched
+    job = dict(_make_job("jobs.mod.plain"))
+    assert migrate_job_definition(dict(job), 1, MANIFEST_ENGINE_VERSION) == job
+
+    # same version is a noop, unknown path raises
+    job = dict(_make_job("jobs.mod.iv", allow_external_schedulers=True, refresh="always"))
+    assert migrate_job_definition(job, MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION) is job
+    assert job["allow_external_schedulers"] is True
+    assert job["refresh"] == "always"
+    with pytest.raises(ValueError, match="no job definition migration path"):
+        migrate_job_definition(job, 99, 1)
+
+
+def test_migrate_manifest_v1_to_v2() -> None:
+    """Engine 2 migrates every job and stamps the version; field mapping is covered
+    by `test_migrate_job_definition_v1_to_v2`."""
+    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+        manifest_dict: Dict[str, Any] = stdlib_json.load(f)
+    assert manifest_dict["engine_version"] == 1
+
+    migrated = migrate_manifest(manifest_dict, 1, MANIFEST_ENGINE_VERSION)
+    assert migrated["engine_version"] == MANIFEST_ENGINE_VERSION
+    jobs: Dict[str, Any] = {j["job_ref"]: j for j in migrated["jobs"]}
+    # spot-check each job went through job definition migration
+    assert jobs["jobs.events.hourly_events"]["incremental_mode"] == "interval"
+    assert jobs["jobs.events.daily_report"]["refresh_propagation"] == "block"
+    assert jobs["jobs.events.cleanup"]["refresh_propagation"] == "always"
+    # migrated manifest validates cleanly
+    result = validate_manifest(migrated)
+    assert result.is_valid, result.errors
+    assert not any("incremental_mode" in w for w in result.warnings)
+
+
+def test_load_manifest_migrates_stored_v1() -> None:
+    """`load_manifest` transparently migrates stored v1 manifests."""
+    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+        loaded = load_manifest(f)
+    assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
+    assert loaded["jobs"][0]["incremental_mode"] == "interval"
+    assert loaded["jobs"][1]["refresh_propagation"] == "block"
+    assert "refresh" not in loaded["jobs"][1]
+
+    # flag without interval migrates too; validation warns about missing interval
+    with open(_manifest_case_path("ev1/no_interval_flag"), "rb") as f:
+        loaded = load_manifest(f)
+    assert loaded["jobs"][0]["incremental_mode"] == "interval"
+    result = validate_manifest(loaded)
+    assert any("incremental_mode" in w and "no interval" in w for w in result.warnings)
 
 
 def test_migrate_invalid_path() -> None:
@@ -822,7 +925,7 @@ def test_is_fresh_on_event_upstream_valid() -> None:
                 allow_external_schedulers=True,
             ),
             None,
-            "allow_external_schedulers",
+            "incremental_mode",
         ),
         # misaligned interval start
         (

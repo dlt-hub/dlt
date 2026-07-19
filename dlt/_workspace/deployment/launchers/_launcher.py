@@ -5,8 +5,13 @@ import subprocess
 from typing import Any, Dict, List, Optional, Tuple
 
 from dlt.common import json
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.utils import add_config_dict_to_env
 
+from dlt._workspace import known_sections as ws_known_sections
+from dlt._workspace._known_env import WORKSPACE__PROFILE
+from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 
 
@@ -76,3 +81,49 @@ def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, Any]) -> No
     """Set config params as env vars using EnvironProvider naming convention."""
     if config:
         add_config_dict_to_env(config, sections, overwrite_keys=True)
+
+
+def apply_job_configuration(entry_point: TRuntimeEntryPoint, job_name: Optional[str]) -> None:
+    """Updates unset job behavior settings in `entry_point` from configuration.
+
+    Explicit entry point values take precedence over config providers. Config resolves
+    in job sections derived from the entry point module and `job_name`.
+    """
+    section = entry_point["module"].rsplit(".", 1)[-1]
+    sections = (ws_known_sections.JOBS, section) + ((job_name,) if job_name else ())
+    explicit: Dict[str, Any] = {}
+    if entry_point.get("incremental_mode"):
+        explicit["incremental_mode"] = entry_point["incremental_mode"]
+    elif entry_point.get("allow_external_schedulers") is not None:
+        # the legacy flag is set both ways for explicit modes, False means `pipeline`
+        explicit["incremental_mode"] = (
+            "interval" if entry_point["allow_external_schedulers"] else "pipeline"
+        )
+    if entry_point.get("auto_refresh_pipeline_mode"):
+        explicit["auto_refresh_pipeline_mode"] = entry_point["auto_refresh_pipeline_mode"]
+    config = resolve_configuration(
+        JobConfiguration(), sections=sections, explicit_value=explicit or None
+    )
+    if config.incremental_mode:
+        entry_point["incremental_mode"] = config.incremental_mode
+    if config.auto_refresh_pipeline_mode:
+        entry_point["auto_refresh_pipeline_mode"] = config.auto_refresh_pipeline_mode
+
+
+def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
+    """Set profile, interval and pipeline refresh env vars, before user code runs."""
+    profile = entry_point.get("profile")
+    if profile:
+        os.environ[WORKSPACE__PROFILE] = profile
+
+    iv_start = entry_point.get("interval_start")
+    iv_end = entry_point.get("interval_end")
+    if iv_start and iv_end:
+        os.environ["DLT_INTERVAL_START"] = iv_start
+        os.environ["DLT_INTERVAL_END"] = iv_end
+        os.environ["DLT_INTERVAL_TIMEZONE"] = entry_point.get("interval_timezone", "UTC")
+
+    if entry_point.get("refresh") and entry_point.get("auto_refresh_pipeline_mode"):
+        set_config_env_vars(
+            (known_sections.PIPELINES,), {"refresh": entry_point["auto_refresh_pipeline_mode"]}
+        )

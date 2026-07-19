@@ -27,7 +27,6 @@ def _job(
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
     refresh: Optional[TRefreshPolicy] = None,
-    allow_external_schedulers: Optional[bool] = None,
 ) -> TJobDefinition:
     job: TJobDefinition = {
         "job_ref": TJobRef(ref),
@@ -48,8 +47,6 @@ def _job(
         job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
     if refresh is not None:
         job["refresh"] = refresh
-    if allow_external_schedulers is not None:
-        job["allow_external_schedulers"] = allow_external_schedulers
     return job
 
 
