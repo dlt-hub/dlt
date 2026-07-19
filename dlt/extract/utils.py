@@ -17,6 +17,7 @@ from collections.abc import Mapping as C_Mapping
 from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
+from dlt.common.json import json
 from dlt.common.libs import (
     get_pandas_module,
     get_polars_module,
@@ -38,7 +39,7 @@ from dlt.common.typing import (
     TColumnNames,
     NoneType,
 )
-from dlt.common.utils import get_callable_name
+from dlt.common.utils import get_callable_name, digest128
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeIsNone,
@@ -87,6 +88,11 @@ def resolve_column_value(
     if isinstance(columns, str):
         return item[columns]
     return [item[k] for k in columns]
+
+
+def digest_dedup_value(value: Any) -> str:
+    """Stable content hash of a JSON-serializable value used for incremental dedup."""
+    return digest128(json.dumps(value, sort_keys=True))
 
 
 def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColumns:

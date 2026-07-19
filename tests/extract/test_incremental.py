@@ -32,7 +32,6 @@ from dlt.common.utils import chunks, digest128, uniq_id
 
 from dlt.extract import DltSource
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
-from dlt.extract.incremental.context import TimeIntervalContext
 from dlt.extract.pipe import Pipe
 from dlt.extract.state import resource_state
 from dlt.extract.incremental.exceptions import (
@@ -1740,6 +1739,7 @@ def test_apply_hints_incremental(item_type: TestDataItemFormat) -> None:
     assert r.incremental is not None
     assert r.incremental.incremental is None
     r.apply_hints(incremental=dlt.sources.incremental("created_at", last_value_func=max))
+    assert r.incremental.incremental is not None
     if item_type == "pandas":
         assert list(r)[0].equals(source_items[0])
     else:
@@ -2569,7 +2569,7 @@ def test_async_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
             yield data_to_item_format(item_type, data)
 
     data = list(descending)
-    assert data_item_length(data) == 48 - 10 + 1  # both bounds included
+    assert data_item_length(data) == 48 - 10 + 1  # both range ends included
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2587,7 +2587,7 @@ def test_parallel_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
             yield data_to_item_format(item_type, data)
 
     data = list(descending)
-    assert data_item_length(data) == 48 - 10 + 1  # both bounds included
+    assert data_item_length(data) == 48 - 10 + 1  # both range ends included
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2630,7 +2630,7 @@ def test_row_order_out_of_range(item_type: TestDataItemFormat) -> None:
             yield data_to_item_format(item_type, data)
 
     data = list(descending)
-    assert data_item_length(data) == 48 - 10 + 1  # both bounds included
+    assert data_item_length(data) == 48 - 10 + 1  # both range ends included
 
     @dlt.resource
     def ascending(
@@ -2820,39 +2820,26 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
     # typing has precedence
     assert dlt.sources.incremental[pendulum.DateTime]("id", initial_value=1).get_incremental_value_type() is pendulum.DateTime  # type: ignore[arg-type]
 
-    # context with allow_external_schedulers=False overrides per-incremental True so the
-    # join path is skipped entirely; this lets the resource bodies below test type
-    # inference without triggering ExternalSchedulerNotAvailable
-    no_join_ctx = TimeIntervalContext(allow_external_schedulers=False)
-
     # pass default value
     @dlt.resource
-    def test_type(
-        updated_at=dlt.sources.incremental[str](  # noqa: B008
-            "updated_at", allow_external_schedulers=True
-        )
-    ):
+    def test_type(updated_at=dlt.sources.incremental[str]("updated_at")):  # noqa: B008
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    with Container().injectable_context(no_join_ctx):
-        r = test_type()
-        list(r)
+    r = test_type()
+    list(r)
     assert r.incremental.incremental.get_incremental_value_type() is str
 
     # use annotation
     @dlt.resource
     def test_type_2(
-        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
-            "updated_at", allow_external_schedulers=True
-        )
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental("updated_at"),
     ):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    with Container().injectable_context(no_join_ctx):
-        r = test_type_2()
-        list(r)
+    r = test_type_2()
+    list(r)
     assert r.incremental.incremental.get_incremental_value_type() is int
 
     # pass in explicit value
@@ -2861,18 +2848,13 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
-    with Container().injectable_context(no_join_ctx):
-        r = test_type_3(
-            dlt.sources.incremental[float]("updated_at", allow_external_schedulers=True)  # type: ignore[arg-type]
-        )
-        list(r)
+    r = test_type_3(dlt.sources.incremental[float]("updated_at"))  # type: ignore[arg-type]
+    list(r)
     assert r.incremental.incremental.get_incremental_value_type() is float
 
     # pass explicit value overriding default that is typed
     @dlt.resource
-    def test_type_4(
-        updated_at=dlt.sources.incremental("updated_at", allow_external_schedulers=True)
-    ):
+    def test_type_4(updated_at=dlt.sources.incremental("updated_at")):
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
@@ -2884,18 +2866,14 @@ def test_get_incremental_value_type(item_type: TestDataItemFormat) -> None:
 
     # no generic type information
     @dlt.resource(spec=BaseConfiguration)
-    def test_type_5(
-        updated_at=dlt.sources.incremental[int](  # noqa: B008
-            "updated_at", allow_external_schedulers=True
-        )
-    ):
-        assert updated_at.allow_external_schedulers is False
+    def test_type_5(updated_at=dlt.sources.incremental[int]("updated_at")):  # noqa: B008
+        assert updated_at.allow_external_schedulers is None
         data = [{"updated_at": d} for d in [1, 2, 3]]
         yield data_to_item_format(item_type, data)
 
     r = test_type_5(dlt.sources.incremental("updated_at"))
     list(r)
-    assert r.incremental.incremental.allow_external_schedulers is False
+    assert r.incremental.incremental.allow_external_schedulers is None
     # any will be ignored when merging explicit instance with default
     assert r.incremental.incremental.get_incremental_value_type() is int
 
@@ -2979,6 +2957,204 @@ def test_incremental_merge_native_representation():
     # Assert the expected changes in the incremental object
     assert incremental.cursor_path == "another_path"
     assert incremental.lag == 5
+
+
+def test_with_cursor_copies_with_new_cursor_path() -> None:
+    outer = dlt.sources.incremental[int](
+        "day",
+        initial_value=10,
+        end_value=20,
+        primary_key="id",
+        last_value_func=max,
+        range_start="open",
+        range_end="closed",
+        lag=2,
+    )
+    outer._advanced = True
+    inner = outer.with_cursor("time")
+    # cursor path on the copy is replaced, source is untouched
+    assert inner.cursor_path == "time"
+    assert outer.cursor_path == "day"
+    # all other configurable fields are preserved on the copy
+    assert inner.initial_value == 10
+    assert inner.end_value == 20
+    assert inner.primary_key == "id"
+    assert inner.last_value_func is max
+    assert inner.range_start == "open"
+    assert inner.range_end == "closed"
+    assert inner.lag == 2
+    # _advanced is per-bind: a copy starts fresh
+    assert inner._advanced is False
+    # the copy is independent of the source
+    inner.initial_value = 99
+    assert outer.initial_value == 10
+
+
+def test_advance_workflow() -> None:
+    """advance() sets last_value and disables filtering, on bound and unbound cursors."""
+    # unbound: advance pins the value in-memory without touching state
+    incr = dlt.sources.incremental[int]("v", initial_value=0)
+    incr.advance(10)
+    assert incr._advanced is True
+    assert incr.last_value == 10
+    assert incr._cached_state is None
+    assert incr.get_current_range() == (0, 10)
+
+    # bound: baseline __call__ filters rows below start and writes last_value back
+    incr = dlt.sources.incremental[int]("v", initial_value=10)
+    incr._cached_state = {
+        "initial_value": 10,
+        "last_value": 10,
+        "start_value": 10,
+        "unique_hashes": [],
+    }
+    incr._cached_state_start_value = 10
+    incr.start_value = 10
+    rows = [{"v": 5}, {"v": 15}, {"v": 25}]
+    assert incr(list(rows)) == [{"v": 15}, {"v": 25}]
+    assert incr._cached_state["last_value"] == 25
+
+    # advance: state pinned to the advanced value, __call__ passes rows through
+    incr.advance(42)
+    assert incr._advanced is True
+    assert incr._cached_state["last_value"] == 42
+    assert incr(list(rows)) == rows
+    assert incr._cached_state["last_value"] == 42
+
+    # advance on a with_cursor copy mutates only the detached state copy
+    inner = incr.with_cursor("time")
+    inner.advance(99)
+    assert inner._cached_state["last_value"] == 99
+    assert inner._cached_state is not incr._cached_state
+    assert incr._cached_state["last_value"] == 42
+
+
+def test_with_cursor_without_pipeline_state() -> None:
+    # get_current_range() on a standalone Incremental — no pipeline, no resource.
+    # exercises the "build a SQL filter outside a running pipeline" path.
+
+    # 1. get_current_range: initial_value only
+    incr = dlt.sources.incremental[int]("day", initial_value=10)
+    lower, upper = incr.get_current_range()
+    assert (lower, upper) == (10, None)
+
+    # 2. get_current_range: initial + end_value
+    incr = dlt.sources.incremental[int]("day", initial_value=10, end_value=20)
+    assert incr.get_current_range() == (10, 20)
+    # apply_lag=False is the same shape since lag is unset
+    assert incr.get_current_range(apply_lag=False) == (10, 20)
+
+    # 3. get_current_range: lag is a no-op without a prior last_value
+    incr = dlt.sources.incremental[int]("day", initial_value=10, lag=5)
+    lower, _ = incr.get_current_range(apply_lag=True)
+    assert lower == 10
+
+    # 4. chained: with_cursor + get_current_range
+    outer = dlt.sources.incremental[int]("day", initial_value=10, end_value=20)
+    inner = outer.with_cursor("time")
+    assert inner.get_current_range() == (10, 20)
+    assert inner.cursor_path == "time"
+
+
+def test_with_cursor_get_current_range_via_list_resource_with_pipeline() -> None:
+    # seed pipeline state by running a resource, then iterate a same-name resource
+    # to bind the cursor against persisted state and exercise with_cursor +
+    # get_current_range against real pipeline state
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline = dlt.pipeline(pipeline_name="probe_" + uniq_id(), destination="dummy")
+
+    @dlt.resource(name="seed")
+    def seed(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental("day", initial_value=0),
+    ):
+        yield [{"day": 1}, {"day": 5}, {"day": 3}]
+
+    pipeline.run(seed())
+
+    persisted = pipeline.state["sources"][pipeline.default_schema_name]["resources"]["seed"][
+        "incremental"
+    ]["day"]
+    assert persisted["last_value"] == 5
+
+    captured: Dict[str, Any] = {}
+
+    @dlt.resource(name="seed")
+    def probe(
+        outer: dlt.sources.incremental[int] = dlt.sources.incremental("day", initial_value=0),
+    ):
+        captured["outer_last_value"] = outer.last_value
+        captured["outer_range"] = outer.get_current_range()
+        inner = outer.with_cursor("time")
+        captured["inner_cursor"] = inner.cursor_path
+        captured["inner_last_value"] = inner.last_value
+        captured["inner_state_last_value"] = (
+            inner._cached_state["last_value"] if inner._cached_state else None
+        )
+        captured["inner_state_detached"] = inner._cached_state is not outer._cached_state
+        yield []
+
+    list(probe())
+
+    # bound via iteration: outer sees the persisted last_value
+    assert captured["outer_last_value"] == 5
+    assert captured["outer_range"] == (5, None)
+    # inner carries detached state with the same last_value
+    assert captured["inner_cursor"] == "time"
+    assert captured["inner_last_value"] == 5
+    assert captured["inner_state_last_value"] == 5
+    assert captured["inner_state_detached"] is True
+
+
+def test_with_cursor_standalone_incremental_sees_persisted_state() -> None:
+    # seed state via a pipeline run, then a STANDALONE incremental (created outside
+    # any resource arg) can pull that state via get_state() — making with_cursor()
+    # and last_value visible to flows that build SQL filters outside resource args
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline = dlt.pipeline(pipeline_name="probe_" + uniq_id(), destination="dummy")
+
+    @dlt.resource(name="seed")
+    def seed(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental("day", initial_value=0),
+    ):
+        yield [{"day": 1}, {"day": 5}, {"day": 3}]
+
+    pipeline.run(seed())
+
+    captured: Dict[str, Any] = {}
+
+    @dlt.resource(name="seed")
+    def probe(
+        _cursor: dlt.sources.incremental[int] = dlt.sources.incremental("day", initial_value=0),
+    ):
+        # standalone incremental created inside source section but not bound as
+        # the resource's incremental arg; resource_name set manually so get_state()
+        # can resolve persisted "seed.day" state
+        standalone = dlt.sources.incremental[int]("day", initial_value=0)
+        standalone.resource_name = "seed"
+        captured["standalone_last_value"] = standalone.last_value
+        captured["standalone_range"] = standalone.get_current_range()
+        # a cursor path with no persisted state resolves to defaults
+        fresh = dlt.sources.incremental[int]("other_col", initial_value=10)
+        fresh.resource_name = "seed"
+        captured["fresh_range"] = fresh.get_current_range()
+        # with_cursor calls get_state() since _cached_state is None
+        inner = standalone.with_cursor("time")
+        captured["inner_cursor"] = inner.cursor_path
+        captured["inner_last_value"] = inner.last_value
+        captured["inner_state_last_value"] = (
+            inner._cached_state["last_value"] if inner._cached_state else None
+        )
+        yield []
+
+    list(probe())
+
+    assert captured["standalone_last_value"] == 5
+    # only end_value or advance() set the upper, persisted last_value never does
+    assert captured["standalone_range"] == (0, None)
+    assert captured["fresh_range"] == (10, None)
+    assert captured["inner_cursor"] == "time"
+    assert captured["inner_last_value"] == 5
+    assert captured["inner_state_last_value"] == 5
 
 
 @pytest.mark.parametrize("lag", [0, 1, 100, 200, 1000])
@@ -4653,7 +4829,7 @@ def test_incremental_hints_in_extract_trace() -> None:
     assert inc_hint["range_start"] == "closed"
     assert inc_hint["range_end"] == "open"
     assert inc_hint["lag"] is None
-    assert inc_hint["allow_external_schedulers"] is False
+    assert inc_hint["allow_external_schedulers"] is None
 
     # 2. subsequent run: initial_value stays as configured (state is separate)
     p.run(some_data)
@@ -4705,26 +4881,21 @@ def test_decorator_incremental_fallback_none_default() -> None:
     """@dlt.resource(incremental=...) used as fallback when param default is None."""
 
     @dlt.resource(
-        incremental=dlt.sources.incremental(
-            "updated_at", initial_value="2024-01-01T00:00:00Z", allow_external_schedulers=True
-        )
+        incremental=dlt.sources.incremental("updated_at", initial_value="2024-01-01T00:00:00Z")
     )
     def fallback_test(
         updated_at: dlt.sources.incremental[str] = None,
     ):
         yield {"updated_at": "2024-01-15T12:00:00Z", "state": updated_at.get_state()}
 
-    # ctx.allow_external_schedulers=False overrides the per-incremental True so the join
-    # path is skipped — this test verifies decorator->param fallback, not scheduler join
-    with Container().injectable_context(TimeIntervalContext(allow_external_schedulers=False)):
-        r = fallback_test()
-        items = list(r)
+    r = fallback_test()
+    items = list(r)
 
     assert len(items) == 1
     state = items[0]["state"]
     # all fields from decorator's incremental
     assert r.incremental._incremental.cursor_path == "updated_at"
-    assert r.incremental._incremental.allow_external_schedulers is True
+    assert r.incremental._incremental.allow_external_schedulers is None
     assert state["initial_value"] == "2024-01-01T00:00:00Z"
     # type from annotation [str]
     assert r.incremental._incremental.get_incremental_value_type() is str
@@ -4733,11 +4904,7 @@ def test_decorator_incremental_fallback_none_default() -> None:
 def test_decorator_incremental_with_default_param() -> None:
     """When param has its own Incremental default, that wins over decorator."""
 
-    @dlt.resource(
-        incremental=dlt.sources.incremental(
-            "updated_at", initial_value="2020-01-01", allow_external_schedulers=True
-        )
-    )
+    @dlt.resource(incremental=dlt.sources.incremental("updated_at", initial_value="2020-01-01"))
     def default_test(
         updated_at: dlt.sources.incremental[str] = dlt.sources.incremental(
             "updated_at", initial_value="2024-01-01"
@@ -4752,14 +4919,14 @@ def test_decorator_incremental_with_default_param() -> None:
     state = items[0]["state"]
     # param default wins: initial_value from param, not decorator
     assert state["initial_value"] == "2024-01-01"
-    # allow_external_schedulers from param default (False), not decorator (True)
-    assert r.incremental._incremental.allow_external_schedulers is False
+    # allow_external_schedulers from param default (None implicit), not decorator
+    assert r.incremental._incremental.allow_external_schedulers is None
 
 
 def test_decorator_incremental_config_value_resolves_independently() -> None:
     """dlt.config.value default resolves from config, decorator not consulted."""
 
-    @dlt.resource(incremental=dlt.sources.incremental("updated_at", allow_external_schedulers=True))
+    @dlt.resource(incremental=dlt.sources.incremental("updated_at"))
     def config_test(
         updated_at: dlt.sources.incremental[str] = dlt.config.value,
     ):
@@ -4779,8 +4946,8 @@ def test_decorator_incremental_config_value_resolves_independently() -> None:
     # config provides cursor_path and initial_value
     assert r.incremental._incremental.cursor_path == "updated_at"
     assert state["initial_value"] == "2024-01-01"
-    # config did NOT provide allow_external_schedulers — default False, NOT decorator's True
-    assert r.incremental._incremental.allow_external_schedulers is False
+    # config did NOT provide allow_external_schedulers — default None
+    assert r.incremental._incremental.allow_external_schedulers is None
 
 
 def test_decorator_incremental_type_from_annotation() -> None:

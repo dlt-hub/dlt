@@ -31,7 +31,6 @@ from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.schema.utils import merge_columns
 from dlt.common.typing import TColumnNames, TDataItem, TSortOrder, add_value_to_literal
-from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.utils import is_typeerror_due_to_wrong_call
 
 from dlt.extract import Incremental
@@ -124,7 +123,7 @@ class BaseTableLoader(ABC):
         self.incremental = incremental
         self.limit = limit
         if incremental:
-            column_name = extract_simple_field_name(incremental.cursor_path)
+            column_name = incremental.get_cursor_column_name()
 
             if column_name is None:
                 raise ValueError(
@@ -139,8 +138,7 @@ class BaseTableLoader(ABC):
                     f"Cursor column `{incremental.cursor_path}` does not exist in table"
                     f" `{table.name}`"
                 ) from e
-            self.last_value = incremental.last_value
-            self.end_value = incremental.end_value
+            self.last_value, self.end_value = incremental.get_current_range()
             self.row_order: TSortOrder = self.incremental.row_order
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
             self.range_start = self.incremental.range_start

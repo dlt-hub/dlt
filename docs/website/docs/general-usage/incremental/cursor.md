@@ -281,7 +281,7 @@ Check two other examples: [filesystem](../../dlt-ecosystem/verified-sources/file
 
 ## Deduplicate overlapping ranges
 
-`Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded **at the end of range** won't be included again. `dlt` assumes that you load a range of data, where the lower bound is inclusive by default (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
+`Incremental` **does not** deduplicate datasets like the **merge** write disposition does. However, it ensures that when another portion of data is extracted, records that were previously loaded **at the end of range** won't be included again. `dlt` assumes that you load a range of data, where the start of the range is inclusive by default (i.e., greater than or equal). This ensures that you never lose any data but will also re-acquire some rows. For example, if you have a database table with a cursor field on `updated_at` which has a day resolution, then there's a high chance that after you extract data on a given day, more records will still be added. When you extract on the next day, you should reacquire data from the last day to ensure all records are present; however, this will create overlap with data from the previous extract.
 
 By default, a content hash (a hash of the JSON representation of a row) will be used to deduplicate. This may be slow, so `dlt.sources.incremental` will inherit the primary key that is set on the resource. You can optionally set a `primary_key` that is used exclusively to deduplicate and which does not become a table hint. The same setting lets you disable the deduplication altogether when an empty tuple is passed. Below, we pass `primary_key` directly to `incremental` to disable deduplication. That overrides the `delta` primary_key set in the resource:
 
@@ -430,7 +430,7 @@ When `allow_external_schedulers=True`, `dlt` looks up the active `TimeIntervalCo
 
 The resolved interval is mapped onto `initial_value` and `end_value` of the `Incremental` class:
 - `dlt` converts the datetimes to your cursor type. In the example above we instantiate `dlt.sources.incremental[int]`, so `dlt` converts the interval to Unix timestamps. Other supported cursor types are `timestamp`, `date`, `double`, and `bigint`. String cursors are rejected - convert them on the resource with `add_map` first.
-- If you also configured `initial_value` / `end_value` directly on the `Incremental`, the scheduler interval is **clipped** against your bounds using `last_value_func`, so your configured limits always win.
+- If you also configured `initial_value` / `end_value` directly on the `Incremental`, the scheduler interval is **clipped** against your range using `last_value_func`, so your configured limits always win.
 
 When `allow_external_schedulers=True` but no interval can be resolved, `dlt` raises `ExternalSchedulerNotAvailable` instead of silently falling back to dlt state. If the cursor type is `Any` or not coercible to a timestamp, `dlt` raises `JoinSchedulerError`.
 
@@ -458,12 +458,12 @@ with Container().injectable_context(TimeIntervalContext(interval=(start, end))):
 
 `Incremental` consults the active context automatically - you don't need to wire anything else. Resources without `allow_external_schedulers=True` ignore the context and behave as usual (state-driven incremental).
 
-`TimeIntervalContext` also accepts an `allow_external_schedulers` field that **overrides** the per-incremental setting. Useful when you want a single switch at the runtime layer:
+`TimeIntervalContext` also accepts an `allow_external_schedulers` field. When set to `True`, it enables the join on every incremental that left `allow_external_schedulers` unset — an explicit `True` or `False` on the incremental always wins. Useful when you want a single switch at the runtime layer:
 
 ```py
 ctx = TimeIntervalContext(interval=(start, end), allow_external_schedulers=True)
 with Container().injectable_context(ctx):
-    # joins the context even if individual resources didn't opt in
+    # joins the context for resources that didn't set the flag themselves
     pipeline.run(my_source)
 ```
 
