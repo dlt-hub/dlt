@@ -62,15 +62,13 @@ dlt/_workspace/helpers/dashboard/
 
 Three CLI commands all call `runner.run_dashboard()`:
 
-- `dlt dashboard` — workspace-level (`DashboardCommand` in `dlt/_workspace/cli/commands.py`)
-- `dlt pipeline <name> show` — pipeline-specific (`dlt/_workspace/cli/_pipeline_command.py`)
-- `dlt workspace show` — workspace-level (`dlt/_workspace/cli/_workspace_command.py`)
+* there are several commands in `dlt` and `dlthub` hosts that launch local dashboard. for example `dlt dashboard` and `dlthub local show`.
 
 Edit mode (`--edit`) ejects `dlt_dashboard.py` and CSS to the cwd for user customization.
 
 ## Dependencies
 
-From `pyproject.toml` `[workspace]` extra: `marimo>=0.14.5`, `duckdb>=0.9`, `ibis-framework>=12.0.0`, `pyarrow>=16.0.0`.
+From `pyproject.toml` `workspace-deps` group: `marimo>=0.14.5`, `duckdb>=0.9`, `ibis-framework>=12.0.0`, `pyarrow>=16.0.0`.
 
 ## Where to Put New Code
 
