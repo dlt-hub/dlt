@@ -216,6 +216,21 @@ def ensure_datetime_in_tz(value: TAnyDateTime, tz: datetime.tzinfo) -> datetime.
     return dt.astimezone(tz)
 
 
+def ensure_date(value: TAnyDateTime) -> datetime.date:
+    """Coerce a date/time value to a stdlib `datetime.date`.
+
+    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
+    before the calendar date is taken.
+
+    Args:
+        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+
+    Returns:
+        A stdlib `datetime.date`.
+    """
+    return ensure_datetime_utc(value).date()
+
+
 def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     """Coerce a date/time value to a `pendulum.DateTime` object.
 
@@ -290,6 +305,24 @@ def datetime_obj_to_str(
 def date_to_epoch_days(value: datetime.date) -> int:
     """Converts date value to number of days since Unix epoch."""
     return value.toordinal() - UNIX_EPOCH_DATE.toordinal()
+
+
+_PERIOD_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
+_PERIOD_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*([smhd])$")
+
+
+def parse_period_seconds(value: str) -> float:
+    """Parse a human period string (e.g. '5m', '1h', '30s') into seconds.
+
+    Also accepts bare numeric strings as seconds.
+
+    Raises:
+        ValueError: If the string cannot be parsed.
+    """
+    match = _PERIOD_RE.match(value.strip())
+    if match:
+        return float(match.group(1)) * _PERIOD_MULTIPLIERS[match.group(2)]
+    return float(value)
 
 
 def ensure_pendulum_time(value: Union[str, int, float, datetime.time, timedelta]) -> pendulum.Time:
