@@ -131,6 +131,10 @@ def sqla_col_to_column_schema(
     if _is_uuid_type(sql_t):
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
+    elif sql_t.__visit_name__ in ("MONEY", "SMALLMONEY"):
+        col["data_type"] = "decimal"
+        col["precision"] = 19 if sql_t.__visit_name__ == "MONEY" else 10
+        col["scale"] = 4
     elif isinstance(sql_t, sqltypes.Numeric):
         # check for Numeric type first and integer later, some numeric types (ie. Oracle)
         # derive from both
