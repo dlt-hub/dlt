@@ -73,8 +73,8 @@ def test_create_table_uses_varchar(client: FabricClient) -> None:
     # Fabric uses datetime2 with precision 0-6
     assert '"col4_precision" datetime2(3)  NOT NULL' in sql
 
-    # varchar instead of nvarchar
-    assert '"col5_precision" varchar(25)' in sql
+    # varchar instead of nvarchar, with the char precision scaled to utf-8 bytes
+    assert '"col5_precision" varchar(100)' in sql
 
     assert '"col6_precision" decimal(6,2)  NOT NULL' in sql
     assert '"col7_precision" varbinary(19)' in sql

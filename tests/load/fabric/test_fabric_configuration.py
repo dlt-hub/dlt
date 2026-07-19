@@ -221,3 +221,29 @@ def test_fabric_credentials_authentication_method() -> None:
     # Verify ActiveDirectoryServicePrincipal is set
     dsn_dict = creds.get_odbc_dsn_dict()
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+
+
+def test_fabric_type_mapper_nvarchar_to_varchar_length() -> None:
+    """Fabric varchar uses UTF-8 byte semantics; nvarchar precision (characters) must be scaled"""
+    from dlt.destinations.impl.fabric.factory import FabricTypeMapper
+    from dlt.common.destination import DestinationCapabilitiesContext
+    from dlt.common.schema.typing import TColumnSchema
+    from dlt.common.destination.typing import PreparedTableSchema
+    from typing import cast
+
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
+    caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
+    mapper = FabricTypeMapper(caps)
+
+    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "precision": 100, "nullable": True})
+    assert mapper.to_destination_type(col, table) == "varchar(400)"
+
+    # 2001*4=8004 > 8000 → varchar(max)
+    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "precision": 2001, "nullable": True})
+    assert mapper.to_destination_type(col, table) == "varchar(max)"
+
+    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "nullable": True})
+    assert mapper.to_destination_type(col, table) == "varchar(max)"
+
+    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "precision": 10, "nullable": True})
+    assert mapper.to_destination_type(col, table) == "varchar(40)"

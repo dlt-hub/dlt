@@ -53,6 +53,16 @@ class FabricTypeMapper(SynapseTypeMapper):
             # Fabric doesn't have native JSON type, use varchar instead of nvarchar
             return "varchar(%s)" % column.get("precision", "max")
 
+        if sc_t == "text":
+            # varchar uses byte semantics; scale nvarchar char precision by 4 (worst-case utf-8)
+            precision = column.get("precision")
+            if precision is not None:
+                safe_length = precision * 4
+                if safe_length > 8000:
+                    return "varchar(max)"
+                return "varchar(%i)" % safe_length
+            return "varchar(max)"
+
         if sc_t == "time":
             # Fabric requires explicit precision for TIME (0-6)
             precision = min(column.get("precision", 6), 6)
