@@ -1,7 +1,6 @@
 from datetime import datetime  # noqa: I251
 from typing import Any, Optional, Set, Tuple, List, Type, TYPE_CHECKING
 from pendulum.tz import UTC
-from pendulum import DateTime  # noqa: I251
 
 from dlt.common import logger
 from dlt.common.libs import (
@@ -9,9 +8,7 @@ from dlt.common.libs import (
     is_pandas_frame,
     is_polars_frame,
 )
-from dlt.common.utils import digest128
-from dlt.common.json import json
-from dlt.common.pendulum import create_dt, pendulum
+from dlt.common.pendulum import create_dt
 from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.jsonpath import find_values, compile_path, extract_simple_field_name
 from dlt.extract.incremental.exceptions import (
@@ -26,7 +23,7 @@ from dlt.common.incremental.typing import (
     OnCursorValueMissing,
     TIncrementalRange,
 )
-from dlt.extract.utils import resolve_column_value
+from dlt.extract.utils import resolve_column_value, digest_dedup_value
 from dlt.extract.items import TTableHintTemplate
 
 if TYPE_CHECKING:
@@ -97,9 +94,9 @@ class IncrementalTransform:
     ) -> str:
         try:
             if primary_key:
-                return digest128(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
+                return digest_dedup_value(resolve_column_value(primary_key, row))
             elif primary_key is None:
-                return digest128(json.dumps(row, sort_keys=True))
+                return digest_dedup_value(row)
             else:
                 return None
         except KeyError as k_err:
@@ -614,32 +611,19 @@ class ArrowIncremental(IncrementalTransform):
 
 
 class ModelIncremental(IncrementalTransform):
-    """Incremental transform for `Relation` items.
+    """Incremental transform for `Relation` items."""
 
-    Filtering happens via SQL pushdown when `Relation.incremental(cursor)` is applied.
-    When `end_value` is set, state is not advanced from observed data; otherwise the
-    aggregate over the filtered relation advances `last_value`.
-    """
-
-    # parent `Incremental` so we can auto-apply below
     _incremental: Optional["Incremental[Any]"]
 
     def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
-        ctx = getattr(relation, "_incremental_ctx", None)
-        if ctx is None:
-            # bare relation, no `.incremental()`. Auto-apply using the parent `Incremental`
-            relation = relation.incremental(self._incremental)
-
-        if self.end_value is not None:
-            # external scheduler/ephemeral mode: state not advanced from observed data.
-            self.seen_data = True
-            return relation, False, False
-
-        agg_rel = relation._incremental_aggregate_relation()
-        if agg_rel is not None:
-            new_value = agg_rel.fetchscalar()
-            if new_value is not None:
-                self.last_value = new_value
-
         self.seen_data = True
-        return relation, False, False
+        # advance=True sets the range end and advances state; with end_value set
+        # it uses end_value directly, otherwise computes MAX/MIN over the filtered relation
+        result = relation.incremental(self._incremental, advance=True)
+        # mirror state advanced by apply_incremental so Incremental.__call__ write-back preserves it
+        self.last_value = self._incremental.last_value
+        self.unique_hashes = set(self._incremental._cached_state["unique_hashes"])
+        # framework-driven advance, not user-driven: clear the flag so subsequent
+        # relations yielded by the same resource get filtered too
+        self._incremental._advanced = False
+        return result, False, False

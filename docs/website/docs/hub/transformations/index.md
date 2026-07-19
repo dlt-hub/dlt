@@ -149,7 +149,7 @@ Given an `orders` table with one row per day:
 | …  | … |
 | 10 | 2026-01-10 |
 
-and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open upper bound).
+and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open range end).
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_scheduler_window_definition-->
 
@@ -176,8 +176,13 @@ Now suppose `orders` is loaded in two batches:
 
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 
-:::caution Set `range_start="open"` on stateful cursors
-A stateful cursor persists `last_value` after each run. With the default `range_start="closed"`, the next run's filter is `cursor >= last_value`, so the row at the boundary is re-emitted every time. Set `range_start="open"` to make the filter `cursor > last_value` and exclude the boundary row.
+:::caution Pick ranges by how your cursor behaves
+Each stateful run sets its range end to `MAX(cursor)` computed at extraction and advances `last_value` to it, so a run never sees rows that land after its aggregate. How the boundary row (the row at `MAX`) is handled depends on the ranges:
+
+- `range_start="open"` (recommended for append): the boundary row loads in the run that records it and is never re-read. The synthesized range end is always inclusive for open starts — an open end would make the boundary row unreachable.
+- Default `range_start="closed"` with `range_end="open"`: the boundary row is deferred — excluded from the run that records it and loaded exactly once by the next run that observes a greater cursor value. No duplicates with append, but each run's newest rows wait one cycle for newer data.
+- `range_start="closed"` with `range_end="closed"` and `write_disposition="merge"` + primary key: the boundary is loaded eagerly and re-read every run; merge removes the overlap. Use when late rows sharing the boundary cursor value must load without waiting a cycle.
+- A `primary_key` on the incremental equal to the cursor column declares cursor values unique: the boundary loads eagerly and never replays, regardless of the range settings.
 :::
 
 ### Cursor column choices
@@ -194,7 +199,7 @@ Under the hood, when dltHub can run the transformation directly as SQL/model job
 
 ### State and safety rules
 
-- `LIMIT` is rejected on stateful relation incrementals. Advancing state from a limited result can skip rows that were not returned. Remove the limit or use an explicit bounded window.
+- `LIMIT` is rejected on stateful relation incrementals. Advancing state from a limited result can skip rows that were not returned. Remove the limit or use an explicit fixed range.
 - SQL-based cursors support `max` and `min` last-value functions. Custom Python `last_value_func` callables cannot be pushed down to SQL.
 - Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
 
