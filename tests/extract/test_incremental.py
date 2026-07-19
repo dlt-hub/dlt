@@ -3029,6 +3029,73 @@ def test_advance_workflow() -> None:
     assert incr._cached_state["last_value"] == 42
 
 
+def test_copy_with_transient_state() -> None:
+    """copy() carries config only; copy(with_transient_state=True) also snapshots bound state
+    (cached state, resolved start_value, advanced last value) but never the bound pipe."""
+    incr = dlt.sources.incremental[int]("v", initial_value=10)
+    incr._cached_state = {
+        "initial_value": 10,
+        "last_value": 25,
+        "start_value": 10,
+        "unique_hashes": ["h"],
+    }
+    incr.start_value = 23  # resolved at bind() from last_value (incl. lag)
+    incr._current_last_value = 25
+    incr._bound_pipe = object()  # type: ignore[assignment] # pretend bound to a pipe
+
+    # plain copy: configured fields only, detached, transient state reset to defaults
+    plain = incr.copy()
+    assert plain._cached_state is None
+    assert plain._bound_pipe is None
+    assert plain.start_value == 10  # back to initial_value
+    assert plain._current_last_value is None
+
+    # transient copy: state snapshot + resolved start_value + advanced last value, no pipe
+    tr = incr.copy(with_transient_state=True)
+    assert tr._cached_state == incr._cached_state
+    assert tr._cached_state is not incr._cached_state  # detached snapshot
+    assert tr.start_value == 23
+    assert tr._current_last_value == 25
+    assert tr._bound_pipe is None  # pipe is never copied
+
+    # mutating the copy's state must not touch the source
+    tr._cached_state["last_value"] = 99
+    assert incr._cached_state["last_value"] == 25
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_with_cursor_date_state_filters_datetime_field(item_type: TestDataItemFormat) -> None:
+    """A date cursor state re-pointed onto a datetime field via `with_cursor` (no lag) raises
+    `IncrementalCursorInvalidCoercion` in the row/batch (json/arrow) model: cursor and data types
+    must match. The SQL model path coerces date to timestamp instead; this path does not."""
+    outer = dlt.sources.incremental[Any]("day", initial_value=date(2026, 1, 1))
+    # bind a date-typed state directly, as a prior run on the `day` column would produce
+    outer._cached_state = {
+        "initial_value": date(2026, 1, 1),
+        "last_value": date(2026, 1, 10),
+        "start_value": date(2026, 1, 1),
+        "unique_hashes": [],
+    }
+    outer._cached_state_start_value = date(2026, 1, 1)
+    outer.start_value = date(2026, 1, 10)
+
+    # re-point at a datetime input field, no lag
+    inner = outer.with_cursor("created_at")
+    assert isinstance(inner.last_value, date) and not isinstance(inner.last_value, datetime)
+
+    data = [
+        {"id": 1, "created_at": pendulum.datetime(2026, 1, 9, 12)},
+        {"id": 2, "created_at": pendulum.datetime(2026, 1, 10, 12)},
+        {"id": 3, "created_at": pendulum.datetime(2026, 1, 11, 12)},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    with pytest.raises(IncrementalCursorInvalidCoercion) as exc:
+        inner(source_items)
+    # the message names both the configured (date) and the actual (datetime) sides
+    assert "created_at" in str(exc.value)
+
+
 def test_with_cursor_without_pipeline_state() -> None:
     # get_current_range() on a standalone Incremental — no pipeline, no resource.
     # exercises the "build a SQL filter outside a running pipeline" path.

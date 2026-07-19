@@ -46,6 +46,7 @@ from dlt.common.data_types.type_helpers import (
     py_type_to_sc_type,
 )
 from dlt.common.data_writers.writers import count_rows_in_items
+from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.utils import simple_repr, without_none
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
@@ -315,21 +316,45 @@ class Incremental(
         merged.__exception__ = other.__exception__
         return merged  # type: ignore
 
-    def copy(self) -> "Incremental[TCursorValue]":
-        # merge creates a copy
-        return self.merge(self)
+    def copy(self, with_transient_state: bool = False) -> "Incremental[TCursorValue]":
+        """Creates a copy of this incremental with the same configuration.
+
+        The copy is never bound to a pipe. By default it also carries no transient state.
+
+        Args:
+            with_transient_state (bool): When `True`, also copy the transient state (the cached
+                state, `start_value` and last value) so the copy resolves the same range. The
+                copy owns its state and evolves it independently. Defaults to `False`.
+
+        Returns:
+            Incremental[TCursorValue]: The copied instance.
+        """
+        # merge copies the configured fields (including resource_name), never the bound pipe
+        new = self.merge(self)
+        if with_transient_state:
+            try:
+                state = self._cached_state if self._cached_state is not None else self.get_state()
+                new._cached_state = copy(state)
+                new._current_last_value = self._current_last_value
+                new.start_value = self.start_value
+            except (IncrementalUnboundError, SourceSectionNotAvailable, PipelineStateNotAvailable):
+                pass
+        return new
 
     def with_cursor(self, cursor: str) -> "Incremental[TCursorValue]":
-        """Return a copy with `cursor_path` replaced."""
-        new = self.copy()
+        """Creates a copy of this incremental that reads a different cursor.
+
+        The copy carries the runtime state (see `copy`), so it filters on `cursor` using the
+        same range and evolves its own state independently.
+
+        Args:
+            cursor (str): Cursor path (column name or JSONPath) for the copy.
+
+        Returns:
+            Incremental[TCursorValue]: The copy reading from `cursor`.
+        """
+        new = self.copy(with_transient_state=True)
         new.cursor_path = cursor
-        # propagate internal state as copy so it can evolve independent
-        try:
-            state = self._cached_state if self._cached_state is not None else self.get_state()
-            new._cached_state = copy(state)
-            new._current_last_value = self._current_last_value
-        except (IncrementalUnboundError, SourceSectionNotAvailable, PipelineStateNotAvailable):
-            pass
         return new
 
     def advance(self, last_value: TCursorValue) -> Self:
@@ -357,7 +382,11 @@ class Incremental(
 
     @staticmethod
     def cursor_value_hash(value: Any) -> str:
-        """Dedup hash of a cursor value"""
+        """Dedup hash of a cursor value. Equal datetimes hash equally regardless of timezone
+        or awareness."""
+        # normalize to a UTC instant so representation differences do not change the hash
+        if isinstance(value, datetime):
+            value = ensure_pendulum_datetime_utc(value).isoformat()
         return digest_dedup_value(value)
 
     def unique_boundary_consumed(self) -> bool:
