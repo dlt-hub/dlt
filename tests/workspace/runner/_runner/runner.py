@@ -18,6 +18,7 @@ from dlt._workspace.deployment.freshness import (
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.manifest import expand_triggers, manifest_from_module
+from dlt._workspace.deployment.requirements import DLT_PKG_NAME, get_pkg_install_spec
 from dlt.common.typing import TTimeInterval
 from dlt._workspace.deployment.typing import (
     TJobDefinition,
@@ -411,6 +412,7 @@ def _start_job(
             refresh_signal,
             eff_interval[0],
             eff_interval[1],
+            get_pkg_install_spec(DLT_PKG_NAME),
             require.get("timezone", "UTC"),
         )
     else:

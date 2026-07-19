@@ -34,6 +34,7 @@ from dlt._workspace.deployment.typing import (
     TEntryPoint,
     TExecuteSpec,
     TIncrementalSource,
+    TInstallSpec,
     TIntervalSpec,
     TJobDefinition,
     TJobRef,
@@ -46,6 +47,7 @@ from dlt._workspace.profile import DEFAULT_PROFILE
 
 
 NOW = datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
+_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": "1.29.0", "mode": "pypi"}
 
 
 def _job(
@@ -562,7 +564,14 @@ def test_build_runtime_entry_point_batch_sets_interval_and_profile() -> None:
     start = datetime(2026, 4, 19, 10, tzinfo=timezone.utc)
     end = datetime(2026, 4, 19, 11, tzinfo=timezone.utc)
     ep = build_runtime_entry_point(
-        jd, {}, profile="prod", refresh=True, interval_start=start, interval_end=end, tz="UTC"
+        jd,
+        {},
+        profile="prod",
+        refresh=True,
+        interval_start=start,
+        interval_end=end,
+        tz="UTC",
+        dlt_version=_DLT_SPEC,
     )
     assert ep["interval_start"] == "2026-04-19T10:00:00+00:00"
     assert ep["interval_end"] == "2026-04-19T11:00:00+00:00"
@@ -577,14 +586,16 @@ def test_build_runtime_entry_point_batch_sets_interval_and_profile() -> None:
 
 def test_build_runtime_entry_point_interactive_sets_port() -> None:
     jd = _job("jobs.dash", job_type="interactive")
-    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
     assert ep["run_args"] == {"port": 5000}
 
 
 def test_build_runtime_entry_point_config_merges() -> None:
     jd = _job("jobs.a")
     jd["entry_point"]["config"] = {"A": "1", "B": "2"}  # type: ignore[typeddict-unknown-key]
-    ep = build_runtime_entry_point(jd, {"B": "override", "C": "3"}, "dev", False, NOW, NOW, "UTC")
+    ep = build_runtime_entry_point(
+        jd, {"B": "override", "C": "3"}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC"
+    )
     assert ep["config"] == {"A": "1", "B": "override", "C": "3"}
 
 
@@ -599,24 +610,33 @@ def test_build_runtime_entry_point_propagates_modes() -> None:
     ]
     for jd_kwargs, expected_allow, expected_mode in mode_cases:
         jd = _job("jobs.a", **jd_kwargs)
-        ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
+        ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
         assert ep["allow_external_schedulers"] is expected_allow, jd_kwargs
         assert ep.get("incremental_mode") == expected_mode, jd_kwargs
 
     # auto_refresh_pipeline_mode: unset emits nothing, set passes through
     jd = _job("jobs.a")
-    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
     assert "auto_refresh_pipeline_mode" not in ep
 
     jd["auto_refresh_pipeline_mode"] = "drop_sources"
-    ep = build_runtime_entry_point(jd, {}, "dev", True, NOW, NOW, "UTC")
+    ep = build_runtime_entry_point(jd, {}, "dev", True, NOW, NOW, _DLT_SPEC, "UTC")
     assert ep["auto_refresh_pipeline_mode"] == "drop_sources"
+
+
+def test_build_runtime_entry_point_requires_dlt_version() -> None:
+    """dlt_version is a required keyword arg and never leaks into the entry point."""
+    jd = _job("jobs.a")
+    with pytest.raises(TypeError):
+        build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW)  # type: ignore[call-arg]
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
+    assert "dlt_version" not in ep
 
 
 def test_build_runtime_entry_point_optional_interval_and_utc() -> None:
     """No interval bounds emit no interval keys; non-UTC bounds serialize as UTC."""
     jd = _job("jobs.a")
-    ep = build_runtime_entry_point(jd, {}, "dev", False, None, None)
+    ep = build_runtime_entry_point(jd, {}, "dev", False, None, None, dlt_version=_DLT_SPEC)
     assert "interval_start" not in ep
     assert "interval_end" not in ep
     assert "interval_timezone" not in ep
@@ -631,6 +651,7 @@ def test_build_runtime_entry_point_optional_interval_and_utc() -> None:
         False,
         datetime(2024, 1, 15, 1, 0, tzinfo=berlin),
         datetime(2024, 1, 16, 1, 0, tzinfo=berlin),
+        dlt_version=_DLT_SPEC,
     )
     assert ep["interval_start"] == "2024-01-15T00:00:00+00:00"
     assert ep["interval_end"] == "2024-01-16T00:00:00+00:00"
@@ -641,14 +662,14 @@ def test_build_runtime_entry_point_keeps_preset_run_args() -> None:
     """Interactive run_args provided by the caller are not overwritten."""
     jd = _job("jobs.dash", job_type="interactive")
     jd["entry_point"]["run_args"] = {"port": 8080}  # type: ignore[typeddict-unknown-key]
-    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, "UTC")
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
     assert ep["run_args"] == {"port": 8080}
 
 
 def test_build_runtime_entry_point_does_not_mutate_job_def() -> None:
     jd = _job("jobs.a")
     original_entry = dict(jd["entry_point"])
-    build_runtime_entry_point(jd, {"X": "1"}, "prod", True, NOW, NOW, "UTC")
+    build_runtime_entry_point(jd, {"X": "1"}, "prod", True, NOW, NOW, _DLT_SPEC, "UTC")
     assert dict(jd["entry_point"]) == original_entry
 
 

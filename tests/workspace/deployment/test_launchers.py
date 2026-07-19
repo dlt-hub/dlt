@@ -18,7 +18,7 @@ from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
 from dlt._workspace.deployment.launchers._launcher import apply_job_configuration
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
-from dlt._workspace.deployment.typing import TJobDefinition, TRuntimeEntryPoint
+from dlt._workspace.deployment.typing import TInstallSpec, TJobDefinition, TRuntimeEntryPoint
 from dlt.common.exceptions import SignalReceivedException
 from dlt.common.runtime import signals
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -28,6 +28,7 @@ from tests.workspace.cases.runtime_workspace import batch_jobs
 from tests.workspace.utils import isolated_workspace
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
+_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": "1.29.0", "mode": "pypi"}
 
 
 def _entry(
@@ -189,6 +190,7 @@ def test_decorator_to_launcher_e2e_incremental_mode() -> None:
         refresh=False,
         interval_start=datetime(2024, 1, 15, tzinfo=timezone.utc),
         interval_end=datetime(2024, 1, 16, tzinfo=timezone.utc),
+        dlt_version=_DLT_SPEC,
         tz="UTC",
     )
     assert ep["allow_external_schedulers"] is True
@@ -213,6 +215,7 @@ def test_decorator_to_launcher_e2e_epoch_override() -> None:
         refresh=False,
         interval_start=datetime(2024, 1, 15, tzinfo=timezone.utc),
         interval_end=datetime(2024, 1, 16, tzinfo=timezone.utc),
+        dlt_version=_DLT_SPEC,
         tz="UTC",
     )
     result = job_run(ep, run_id="epoch-override-1", trigger="schedule:0 0 * * *")
@@ -946,18 +949,34 @@ def test_build_runtime_entry_point_propagates_execute_intercept_signals() -> Non
         return jd  # type: ignore[return-value,unused-ignore]
 
     # absent: launcher default (True) applies, flag not copied
-    ep_absent = build_runtime_entry_point(_job_def(), {}, "default", False, now, now, "UTC")
+    ep_absent = build_runtime_entry_point(
+        _job_def(), {}, "default", False, now, now, _DLT_SPEC, "UTC"
+    )
     assert "intercept_signals" not in ep_absent
 
     # explicit False opts out
     ep_off = build_runtime_entry_point(
-        _job_def(execute={"intercept_signals": False}), {}, "default", False, now, now, "UTC"
+        _job_def(execute={"intercept_signals": False}),
+        {},
+        "default",
+        False,
+        now,
+        now,
+        _DLT_SPEC,
+        "UTC",
     )
     assert ep_off["intercept_signals"] is False
 
     # explicit True copied through
     ep_on = build_runtime_entry_point(
-        _job_def(execute={"intercept_signals": True}), {}, "default", False, now, now, "UTC"
+        _job_def(execute={"intercept_signals": True}),
+        {},
+        "default",
+        False,
+        now,
+        now,
+        _DLT_SPEC,
+        "UTC",
     )
     assert ep_on["intercept_signals"] is True
 

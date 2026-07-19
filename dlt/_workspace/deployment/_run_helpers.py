@@ -44,15 +44,18 @@ from dlt._workspace.deployment.manifest import (
     generate_manifest_hash,
     manifest_from_module,
 )
+from dlt._workspace.deployment.requirements import get_pkg_install_spec
 from dlt._workspace.deployment.trigger import manual
 from dlt._workspace.deployment.typing import (
     DEFAULT_DEPLOYMENT_MODULE,
+    TInstallSpec,
     TJobDefinition,
     TJobsDeploymentManifest,
     TRuntimeEntryPoint,
     TTrigger,
     resolve_refresh_propagation,
 )
+from dlt.version import DLT_PKG_NAME
 
 
 TCandidate = Tuple[TJobDefinition, TTrigger]
@@ -315,12 +318,27 @@ def build_runtime_entry_point(
     refresh: bool,
     interval_start: Optional[datetime],
     interval_end: Optional[datetime],
+    dlt_version: TInstallSpec,
     tz: Optional[str] = None,
 ) -> TRuntimeEntryPoint:
     """Assemble a `TRuntimeEntryPoint` from a job def and resolved context, without mutating `job_def`.
 
-    Intervals are serialized in UTC; `tz` (defaults to `require.timezone`) carries the
-    IANA zone re-applied by the launcher at the user boundary.
+    Args:
+        job_def: Job definition to build the entry point from; never mutated.
+        cli_config: `KEY=VALUE` overrides merged over the entry point's `config`.
+        profile: Active workspace profile; written to the entry point when truthy.
+        refresh: Whether this run carries the refresh (reload) signal.
+        interval_start: UTC-serialized start of the interval, or `None` for point-in-time runs.
+        interval_end: UTC-serialized end of the interval, or `None`.
+        dlt_version: Target dlt install (version + source) the deployment runs on. The entry
+            point is emitted in a shape that dlt version understands; callers pass the value
+            from the requirements manifest, where engine-1 deployments resolve to 1.28.0 via
+            `migrate_requirements`.
+        tz: IANA timezone carried alongside the interval for the launcher to re-apply;
+            defaults to the job's `require.timezone` (or UTC).
+
+    Returns:
+        TRuntimeEntryPoint: The entry point enriched with runtime launch context.
     """
     entry_point: TRuntimeEntryPoint = copy.copy(job_def["entry_point"])  # type: ignore[assignment]
 
@@ -466,6 +484,7 @@ def fetch_run_info(
         interval_start=interval_start,
         interval_end=interval_end,
         tz=tz,
+        dlt_version=get_pkg_install_spec(DLT_PKG_NAME),
     )
 
     info: TRunJobInfo = {

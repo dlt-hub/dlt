@@ -9,7 +9,7 @@ from dlt.common.warnings import Deprecated, SkipDeprecation
 MANIFEST_ENGINE_VERSION = 2
 WORKSPACE_DEPRECATED_SINCE = "1.29.0"
 """dlt version the job-definition field renames were introduced in."""
-REQUIREMENTS_ENGINE_VERSION = 1
+REQUIREMENTS_ENGINE_VERSION = 2
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
@@ -124,6 +124,22 @@ class TRequireSpec(TypedDict, total=False):
     """IANA timezone for cron ticks and intervals (e.g. `"America/New_York"`). Default: UTC."""
     static_egress_ips: bool
     """When `True`, route outbound traffic through the workspace static egress IPs."""
+
+
+TInstallMode = Literal["pypi", "path", "editable", "git", "archive"]
+
+
+class TInstallSpec(TypedDict):
+    """How a Python package is installed, derived from PEP 610 `direct_url.json`."""
+
+    name: str
+    extras: List[str]
+    version: str
+    mode: TInstallMode
+    path: NotRequired[str]
+    git_url: NotRequired[str]
+    git_rev: NotRequired[str]
+    archive_url: NotRequired[str]
 
 
 class TEntryPoint(TypedDict):
@@ -354,6 +370,9 @@ class TWorkspaceRequirementsManifest(TypedDict):
     engine_version: int
     python_version: str
     """Client-side `major.minor` Python version captured at export time."""
+    dlt_version: TInstallSpec
+    """Installed dlt (version + source) captured at export time. Engine-1 manifests
+    predate this field; `migrate_requirements` backfills them with dlt 1.28.0."""
     default_groups: List[str]
     """Groups installed on top of any job-declared `dependency_groups`."""
     groups: Dict[str, List[str]]
