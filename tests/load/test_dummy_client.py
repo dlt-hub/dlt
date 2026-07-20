@@ -636,8 +636,8 @@ def test_resume_with_pending_failed_transition() -> None:
         resumed_jobs = load.resume_started_jobs(load_id, schema)
         remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
         assert len(finalized) == 2
-        # exception is created but not raised by load_single_package when raise_on_failed_jobs is False
-        assert isinstance(pending_exc, LoadClientJobFailed)
+        # no pending exception with raise_on_failed_jobs off: the package completes as loaded
+        assert pending_exc is None
 
 
 def test_resume_without_pending_transition() -> None:

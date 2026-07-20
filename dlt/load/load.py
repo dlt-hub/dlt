@@ -543,14 +543,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                         job.exception(),
                     )
                 elif not self.config.raise_on_failed_jobs:
+                    # complete the package as loaded with the failed job recorded, no exception
                     self.load_storage.normalized_packages.fail_job(
                         load_id, job.file_name(), failed_message
-                    )
-                    pending_exception = LoadClientJobFailed(
-                        load_id,
-                        job.job_file_info().job_id(),
-                        failed_message,
-                        job.exception(),
                     )
                 else:
                     self.load_storage.normalized_packages.retry_job(
@@ -761,8 +756,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
             pending_exception = pending_exception or new_pending_exception
 
-            # do not spool new jobs if there was a signal or an exception was encountered, unless
-            # the failed job neither aborts nor raises - then the rest of the package still loads
+            # stop spooling new jobs on a signal or a pending exception; a terminal failure
+            # without raise_on_failed_jobs sets no exception, so the package keeps loading
             # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
             # has changed (as determined by finalized jobs)
             if signals.was_signal_received() and not self.config.start_new_jobs_on_signal:
@@ -770,11 +765,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     logger.info(
                         f"Signal received, draining running jobs. {len(running_jobs)} to go."
                     )
-            elif pending_exception and (
-                self.config.raise_on_failed_jobs
-                or self.config.auto_abort_on_terminal_error
-                or not isinstance(pending_exception, LoadClientJobFailed)
-            ):
+            elif pending_exception:
                 if finalized_jobs:
                     logger.info(
                         f"Exception for job {pending_exception.job_id} received, draining"
@@ -804,16 +795,12 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # we can raise it now
         if pending_exception:
             if isinstance(pending_exception, LoadClientJobFailed):
-                if self.config.auto_abort_on_terminal_error:
-                    # always raises
-                    self._raise_package_abort(
-                        load_id,
-                        schema,
-                        job_exception=(
-                            pending_exception if self.config.raise_on_failed_jobs else None
-                        ),
-                    )
-                # without raise_on_failed_jobs the package completes as loaded below
+                # only set under auto abort; always aborts the package (never returns)
+                self._raise_package_abort(
+                    load_id,
+                    schema,
+                    job_exception=(pending_exception if self.config.raise_on_failed_jobs else None),
+                )
             elif isinstance(pending_exception, LoadClientJobTerminalRetry):
                 # created only with raise_on_failed_jobs set, package stays pending.
                 # gather package info so retried jobs and their exceptions reach the trace

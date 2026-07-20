@@ -501,6 +501,12 @@ A job failed by mistake can be brought back for another retry with
 
 #### Abort the package
 
+:::tip
+If your pipeline is running on ephemeral storage ie. Airflow or dltHub where pipeline working folder
+is wiped out after run - and your pipeline failed - you can consider load packages in that pipeline to be
+effectively aborted and move to [investigating partially loaded packages](#partially-loaded-packages).
+:::
+
 To discard pending packages, abort them with `pipeline.abort_packages()` or the
 [CLI command](../reference/command-line-interface.md#dlt-pipeline-abort-packages):
 
@@ -547,6 +553,15 @@ To inspect a suspected package, count its rows in the destination and check whet
 ```sh
 dlt pipeline <pipeline_name> load-package <load_id> row-counts
 ```
+
+:::tip
+Load package does not need to be present locally - if you are investigating remore pipeline ie. running on Airflow, sync the newest
+destination state with
+```sh
+dlt pipeline <name> sync
+```
+first.
+:::
 
 This reports the row count per table for that `load_id` (including `_dlt` tables) and whether the package is recorded as completed in `_dlt_loads`. It works even after the package is gone from the working directory. If there are rows for the `load_id` but the package is **not** in `_dlt_loads`, the load did not finish and your data is inconsistent.
 
