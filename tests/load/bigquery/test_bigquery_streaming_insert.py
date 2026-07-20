@@ -1,9 +1,10 @@
+import os
 import pytest
 
 import dlt
 from dlt.common.pipeline import LoadInfo
 from dlt.destinations.adapters import bigquery_adapter
-from dlt.load.exceptions import LoadClientJobTerminalRetry
+from dlt.load.exceptions import LoadClientJobFailed
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.pipeline.utils import assert_load_info
 
@@ -42,13 +43,15 @@ def test_bigquery_streaming_wrong_disposition():
 
     test_resource.apply_hints(additional_table_hints={"x-insert-api": "streaming"})
 
+    # auto-abort so the terminal job is recorded in failed_jobs
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
     pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery")
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(test_resource)
     assert isinstance(pip_ex.value.step_info, LoadInfo)
     assert pip_ex.value.step_info.has_failed_jobs
     # pick the failed job
-    assert isinstance(pip_ex.value.__cause__, LoadClientJobTerminalRetry)
+    assert isinstance(pip_ex.value.__cause__, LoadClientJobFailed)
     assert (
         "BigQuery streaming insert can only be used with `write_disposition='append'`."
         " Resource received `write_disposition=merge`"
