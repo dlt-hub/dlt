@@ -100,8 +100,11 @@ class TRequireSpec(TypedDict, total=False):
     """Workspace profile name to activate for this job."""
     provider: str
     """Infra provider identifier (e.g. `"modal"`). Runtime default when unset."""
+    instance: Dict[str, Any]
+    """Runner instance requirements, e.g. `{"size": "medium"}`. Consult the online
+    documentation for all supported instance configuration keys."""
     machine: str
-    """Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
+    """Deprecated: use `instance` instead. Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
     region: str
     """Runner region for placement (e.g. `"us-east-1"`, `"eu-west"`)."""
     timezone: str
