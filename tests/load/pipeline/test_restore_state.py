@@ -23,7 +23,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import get_test_storage_root
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_DECODED
-from tests.common.utils import yml_case_path as common_yml_case_path
+from tests.common.utils import IMPORTED_VERSION_HASH_ETH_V10, yml_case_path as common_yml_case_path
 from tests.common.configuration.utils import environment
 from tests.pipeline.utils import assert_query_column
 from tests.load.utils import (
@@ -582,6 +582,24 @@ def test_restore_schemas_while_import_schemas_exist(
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
+
+    # restore before the import schema changes and retain its original import link
+    p._wipe_working_folder()
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        import_schema_path=import_schema_path,
+        export_schema_path=export_schema_path,
+    )
+    p.run(
+        destination=destination_config.destination_factory(),
+        staging=destination_config.staging,
+        dataset_name=dataset_name,
+        **destination_config.run_kwargs,
+    )
+    schema = p.schemas["ethereum"]
+    assert normalized_labels in schema.tables
+    assert normalized_annotations in schema.tables
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
 
     # publish a newer import schema after the destination schema was saved
     imported_after_restore = schema.naming.normalize_table_identifier("imported_after_restore")
