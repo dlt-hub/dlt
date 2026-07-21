@@ -216,12 +216,14 @@ def test_simple_model_normalizing(
             == normalized_select_query
         )
     elif dialect in ("tsql", "fabric"):  # mssql, synapse, fabric
-        assert (
+        # newer sqlglot lower-cases the generated inner derived-table alias for case-insensitive
+        # T-SQL (`[A_a] AS [A_a]` -> `[A_a] AS [a_a]`); both resolve identically, so accept either
+        assert normalized_select_query in [
             "SELECT _dlt_subquery.[A_a] AS [a_a], _dlt_subquery.[b] AS [b], NULL AS [d],"
             f" '{load_id}' AS [_dlt_load_id], NEWID() AS [_dlt_id] FROM (SELECT [b] AS [b], [A_a]"
-            " AS [A_a], [c] AS [c] FROM [my_table]) AS _dlt_subquery\n"
-            == normalized_select_query
-        )
+            f" AS [{inner}], [c] AS [c] FROM [my_table]) AS _dlt_subquery\n"
+            for inner in ("A_a", "a_a")
+        ]
     elif dialect == "postgres":
         assert (
             'SELECT _dlt_subquery."A_a" AS "a_a", _dlt_subquery."b" AS "b", NULL AS "d",'
