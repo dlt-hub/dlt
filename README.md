@@ -243,69 +243,6 @@ guests_by_event.to_pyarrow()   # compiles to SQL and runs on the destination
 
 dlt also supports [Python and SQL data access](https://dlthub.com/docs/general-usage/dataset-access/), [transformations](https://dlthub.com/docs/dlt-ecosystem/transformations), [pipeline inspection](https://dlthub.com/docs/general-usage/dashboard), and [visualizing data in Marimo notebooks](https://dlthub.com/docs/general-usage/dataset-access/marimo).
 
-## dltHub: data quality, transformations, and AI
-
-These features build on the **dltHub workspace**. Install the `hub` extra to use them:
-
-```sh
-pip install "dlt[hub]"
-```
-
-**Data quality — checks as data.** Checks compile to SQL and run where the data already lives — no extraction, no copies. Pick the grain with `level`: `"row"`, `"table"`, or `"dataset"`.
-
-```python
-from dlt.hub import data_quality as dq
-
-checks = [
-    dq.checks.is_in("approval_status", ["approved", "pending", "declined"]),
-    dq.checks.is_not_null("event_id"),
-    dq.checks.case("registered_at IS NULL"),   # any SQL predicate, row-wise
-]
-
-results = dq.prepare_checks(pipeline.dataset().guests, checks, level="row").arrow()
-```
-
-Inspect the rows behind a verdict, then persist results as just another table you can trend and alert on:
-
-```python
-suite = dq.CheckSuite(pipeline.dataset(), checks={"guests": checks})
-suite.get_failures("guests", "approval_status__is_in").df()   # debug straight from the data
-
-pipeline.run(
-    [dq.prepare_checks(pipeline.dataset().guests, checks, level="row").arrow()],
-    table_name="dlt_data_quality",
-)
-```
-
-**Transformations — `@dlt.hub.transformation`.** A transformation is a resource that takes a `dlt.Dataset` and yields Ibis tables that dlt materializes. Because it's parameterized, you can run the same logic across dev / staging / prod, chain transformations, test locally on DuckDB and ship to Snowflake unchanged, or export them as dbt models. Compose them in a `@dlt.source` like any other resource.
-
-```python
-import dlt
-import ibis
-
-@dlt.hub.transformation
-def event_attendance(dataset: dlt.Dataset):
-    events = dataset.table("events").to_ibis()
-    guests = dataset.table("guests").to_ibis()
-
-    yield (
-        guests
-        .left_join(events, guests.event_id == events.api_id)
-        .group_by(events.api_id)
-        .aggregate(total_guests=ibis._.api_id.count())
-    )
-```
-
-**Snowflake Cortex AI, in the same expression.** Meet AI engineers where they already work — call Cortex AI functions inline in an Ibis transformation instead of leaving the editor for a warehouse GUI:
-
-```python
-@dlt.hub.transformation
-def review_sentiment(dataset: dlt.Dataset):
-    guests = dataset.table("guests").to_ibis()
-
-    yield guests.snowflake.ai_sentiment(sentiment=guests.review_body)
-```
-
 ## Documentation
 
 For detailed usage and configuration, please refer to the [official documentation](https://dlthub.com/docs).
