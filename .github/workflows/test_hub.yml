@@ -76,7 +76,7 @@ jobs:
 
       - name: Install dlthub
         if: matrix.dlthub_dep != ''
-        run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
+        run: uv run --no-sync pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run hub minimal tests
         run: make test-hub-minimal
@@ -86,7 +86,7 @@ jobs:
 
       - name: Install dlthub (after full install)
         if: matrix.dlthub_dep != ''
-        run: uv run pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
+        run: uv run --no-sync pip install --upgrade --force-reinstall --pre --no-cache-dir ${{ matrix.dlthub_dep }}
 
       - name: Run all hub tests
         run: make test-hub
@@ -94,10 +94,10 @@ jobs:
       - name: Test dlthub client
         run: |
           mkdir .dlt && touch .dlt/.workspace
-          uv run dlthub login --help
+          uv run --no-sync dlthub login --help
 
       - name: Check hub extras version requirements
-        run: uv run python tools/check_hub_extras.py
+        run: uv run --no-sync python tools/check_hub_extras.py
         if: ${{ matrix.python-version == '3.11' && matrix.os == 'ubuntu-latest' }}
 
       # DISABLED: because docs rendering happens in non-deterministic order (of plugin discovery)

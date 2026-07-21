@@ -43,19 +43,19 @@ lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
 
 lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
-	-uv run python tools/check_hub_extras.py
-	-uv run python -m tools.check_dependency_changes
-	-uv run python -m tools.check_api_breaking check
+	-uv run --no-sync python tools/check_hub_extras.py
+	-uv run --no-sync python -m tools.check_dependency_changes
+	-uv run --no-sync python -m tools.check_api_breaking check
 
 lint-core: ## Runs core linting (mypy, ruff, flake8)
-	uv run mypy dlt tests tools
-	uv run ruff check
+	uv run --no-sync mypy dlt tests tools
+	uv run --no-sync ruff check
 	# NOTE: we exclude all D lint errors (docstrings)
-	uv run flake8 --extend-ignore=D --max-line-length=200 dlt tools
-	uv run flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/,tests/plugins/dlt_example_plugin/.venv,tests/plugins/dlt_example_plugin/build
+	uv run --no-sync flake8 --extend-ignore=D --max-line-length=200 dlt tools
+	uv run --no-sync flake8 --extend-ignore=D --max-line-length=200 tests --exclude tests/reflection/module_cases,tests/common/reflection/cases/modules/,tests/plugins/dlt_example_plugin/.venv,tests/plugins/dlt_example_plugin/build
 
 format: ## Formats code with black
-	uv run black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
+	uv run --no-sync black dlt tests tools --extend-exclude='.*syntax_error.py|^_storage[^/]*/'
 
 format-check: ## Formats and verifies no files changed (CI)
 	$(MAKE) format
@@ -63,10 +63,10 @@ format-check: ## Formats and verifies no files changed (CI)
 
 lint-security: ## Runs security linting with bandit
 	# go for ll by cleaning up eval and SQL warnings.
-	uv run bandit -r dlt/ -n 3 -lll
+	uv run --no-sync bandit -r dlt/ -n 3 -lll
 
 lint-docstrings: ## Checks docstrings for public API classes and functions
-	uv run flake8 --count \
+	uv run --no-sync flake8 --count \
 		dlt/common/pipeline.py \
 		dlt/extract/decorators.py \
 		dlt/destinations/decorators.py \
@@ -109,7 +109,7 @@ endef
 # Base pytest invocation (no xdist, no markers)
 PYTEST_BASE = \
 	PYTHONHASHSEED=$(PYTHONHASHSEED) \
-	uv run pytest \
+	uv run --no-sync pytest \
 	$(PYTEST_TARGET_ARGS) \
 	$(PYTEST_ARGS)
 
@@ -162,7 +162,7 @@ test-common-p: ## Tests common components in parallel
 # ----------------------------------------------------------------------
 
 install-load-local: dev
-	uv run pip install sqlalchemy==2.0.18
+	uv run --no-sync pip install sqlalchemy==2.0.18
 
 TEST_LOAD_PATHS = tests/load
 
@@ -232,13 +232,13 @@ test-common-core:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_COMMON_CORE_PATHS))
 
 test-tools:
-	uv run pytest tools/tests -v
+	uv run --no-sync pytest tools/tests -v
 
 install-common-source:
 	uv sync $(UV_SYNC_ARGS) --group sentry-sdk --extra sql_database
 
 test-common-source:
-	uv run pytest tests/sources/test_minimal_dependencies.py
+	uv run --no-sync pytest tests/sources/test_minimal_dependencies.py
 
 # ----------------------------------------------------------------------
 # CI: pipeline smoke tests
@@ -319,7 +319,7 @@ test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
 install-sqlalchemy2:
-	uv run pip install --upgrade sqlalchemy
+	uv run --no-sync pip install --upgrade sqlalchemy
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database tests/common/libs/
 
@@ -420,16 +420,16 @@ start-test-containers: ## Starts docker containers for local testing (postgres, 
 	docker compose -f "tests/load/clickhouse/docker-compose.yml" up -d
 
 update-cli-docs: ## Regenerates CLI reference docs
-	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md
+	uv run --no-sync python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md
 
 check-cli-docs: ## Checks CLI reference docs are up to date (CI)
-	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md --compare
+	uv run --no-sync python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md --compare
 
 test-e2e-dashboard: ## Runs dashboard e2e tests with headless chromium
-	uv run pytest --browser chromium tests/e2e
+	uv run --no-sync pytest --browser chromium tests/e2e
 
 test-e2e-dashboard-headed: ## Runs dashboard e2e tests with visible browser
-	uv run pytest --headed --browser chromium tests/e2e
+	uv run --no-sync pytest --headed --browser chromium tests/e2e
 
 create-test-pipelines: ## Creates test pipelines for manual dashboard testing
-	uv run python tests/workspace/helpers/dashboard/example_pipelines.py
+	uv run --no-sync python tests/workspace/helpers/dashboard/example_pipelines.py

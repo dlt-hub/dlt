@@ -63,7 +63,7 @@ jobs:
         if: matrix.suite == 'no-venv'
 
       - name: Remove dbt-core
-        run: uv run pip uninstall dbt-core -y
+        run: uv run --no-sync pip uninstall dbt-core -y
         if: matrix.suite == 'venv'
 
       - name: Run dbt runner with venv - Linux/MAC

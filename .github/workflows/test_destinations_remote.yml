@@ -61,7 +61,7 @@ jobs:
               destinations: "[\"clickhouse\"]"
               filesystem_drivers: "[\"memory\", \"file\"]"
               extras: "--extra clickhouse --extra parquet"
-              post_install_commands: "uv run pip install clickhouse-connect==0.8.17"
+              post_install_commands: "uv run --no-sync pip install clickhouse-connect==0.8.17"
 
 
             # Databricks
@@ -77,36 +77,36 @@ jobs:
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"file\", \"r2\", \"s3\"]" # excludes sftp which is run in local tests
               extras: "--extra s3 --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+              post_install_commands: "uv run --no-sync pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             - display_name: filesystem_az
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
               extras: "--extra az --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: | # uv run pip install due to minimum version required by `pyiceberg`
-                uv run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
+              post_install_commands: | # uv run --no-sync pip install due to minimum version required by `pyiceberg`
+                uv run --no-sync pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
             - display_name: filesystem_gs_gdrive
               destinations: "[\"filesystem\"]"
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"gs\", \"gdrive\"]" # excludes sftp which is run in local tests
               extras: "--extra gs --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+              post_install_commands: "uv run --no-sync pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             - display_name: filesystem_hf
               destinations: "[\"filesystem\"]"
               filesystem_drivers: "[\"memory\", \"hf\"]"
               # although, `hf` does not support delta/iceberg, we include `deltalake`/`pyiceberg` extras to prevent missing imports in tests
               extras: "--extra hf --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: "uv run pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
+              post_install_commands: "uv run --no-sync pip install sqlalchemy==2.0.18" # minimum version required by `pyiceberg`
 
             # LanceDB
             - display_name: lancedb
               destinations: "[\"lancedb\"]"
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra lancedb --extra parquet"
-              post_install_commands: "uv run pip install openai"
+              post_install_commands: "uv run --no-sync pip install openai"
               always_run_all_tests: true
 
             # Lance — file and s3 protocols only, no need to test az and gs as all cloud storages go
@@ -115,14 +115,14 @@ jobs:
               destinations: "[\"lance\"]"
               filesystem_drivers: "[\"file\"]"
               extras: "--extra lance"
-              post_install_commands: "uv run pip install openai"
+              post_install_commands: "uv run --no-sync pip install openai"
               always_run_all_tests: true
 
             - display_name: lance_s3
               destinations: "[\"lance\"]"
               filesystem_drivers: "[\"s3\"]"
               extras: "--extra lance --extra s3"
-              post_install_commands: "uv run pip install openai"
+              post_install_commands: "uv run --no-sync pip install openai"
 
             # Motherduck
             - display_name: motherduck
@@ -149,7 +149,7 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra mssql --extra s3 --extra gs --extra az --extra parquet --group adbc"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
-              post_install_commands: "uv run dbc install mssql"
+              post_install_commands: "uv run --no-sync dbc install mssql"
               always_run_all_tests: true
               # Azure SQL / ODBC sometimes has transient connection errors (e.g. 40613 "is not currently available")
               rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='is not currently available' --only-rerun='Communication link failure' --only-rerun='Login timeout expired' --only-rerun=DatabaseTransientException"
@@ -169,7 +169,7 @@ jobs:
               filesystem_drivers: "[\"memory\"]"
               extras: "--extra fabric"
               pre_install_commands: "sudo apt-get update && sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18"
-              post_secrets_commands: "uv run python tests/load/fabric/refresh_spn_fabric_token.py"
+              post_secrets_commands: "uv run --no-sync python tests/load/fabric/refresh_spn_fabric_token.py"
               # see mssql: Azure SQL / ODBC transient connection errors
               rerun_args: "--reruns=2 --reruns-delay=10 --only-rerun='is not currently available' --only-rerun='Communication link failure' --only-rerun='Login timeout expired' --only-rerun=DatabaseTransientException"
 
@@ -320,4 +320,4 @@ jobs:
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Run vault provider tests
-        run: uv run pytest tests/helpers/providers
+        run: uv run --no-sync pytest tests/helpers/providers
