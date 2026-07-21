@@ -68,7 +68,7 @@ def _normalize_expose(
     return expose
 
 
-def warn_deprecated_require(require: Optional[TRequireSpec]) -> None:
+def _warn_deprecated_require(require: Optional[TRequireSpec]) -> None:
     """Warns when the deprecated `machine` requirement is set. Use `instance` instead."""
     if require is not None and "machine" in require:
         warnings.warn(
@@ -76,8 +76,7 @@ def warn_deprecated_require(require: Optional[TRequireSpec]) -> None:
                 "`require.machine` is deprecated, use `require.instance` instead"
                 " (e.g. `{'instance': {'size': 'medium'}}`)",
                 since="1.29.0",
-            ),
-            stacklevel=2,
+            )
         )
 
 
@@ -291,7 +290,7 @@ def _job(
     exec_spec.setdefault("concurrency", 1)
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
-    warn_deprecated_require(require)
+    _warn_deprecated_require(require)
     wrapper.require = require
     wrapper.deliver = deliver
     wrapper.interval = interval
