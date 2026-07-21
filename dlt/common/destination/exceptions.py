@@ -227,6 +227,46 @@ class DestinationSchemaTampered(DestinationTerminalException):
         )
 
 
+class SchemaUpdateError(DestinationException):
+    """Raised when applying a schema update (DDL migration) to the destination fails."""
+
+    def __init__(
+        self,
+        schema_name: str,
+        table_names: Iterable[str],
+        cause: Exception,
+        staging_dataset: bool = False,
+    ) -> None:
+        self.schema_name = schema_name
+        self.table_names = list(table_names) if table_names is not None else None
+        self.staging_dataset = staging_dataset
+        self.cause = cause
+        dataset = "staging dataset" if staging_dataset else "dataset"
+        super().__init__(
+            f"Schema update for tables {self.table_names} in {dataset} of schema `{schema_name}`"
+            f" failed. Cause: {cause}"
+        )
+
+    @staticmethod
+    def from_cause(
+        schema_name: str,
+        table_names: Iterable[str],
+        cause: Exception,
+        staging_dataset: bool = False,
+    ) -> "SchemaUpdateError":
+        if isinstance(cause, TransientException):
+            return SchemaUpdateTransientError(schema_name, table_names, cause, staging_dataset)
+        return SchemaUpdateTerminalError(schema_name, table_names, cause, staging_dataset)
+
+
+class SchemaUpdateTransientError(SchemaUpdateError, DestinationTransientException):
+    pass
+
+
+class SchemaUpdateTerminalError(SchemaUpdateError, DestinationTerminalException):
+    pass
+
+
 class DestinationCapabilitiesException(DestinationException):
     pass
 

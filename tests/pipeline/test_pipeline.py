@@ -37,6 +37,8 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationNoStagingMode,
     DestinationTerminalException,
+    SchemaUpdateError,
+    SchemaUpdateTerminalError,
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
@@ -76,7 +78,7 @@ from dlt.pipeline.exceptions import (
     PipelineNotActive,
     PipelineStepFailed,
 )
-from dlt.pipeline.helpers import retry_load
+from dlt.pipeline.helpers import retry_load, retry_schema_update
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -1940,6 +1942,55 @@ def test_retry_load() -> None:
                 p.run(fail_extract())
     assert isinstance(py_ex.value, PipelineStepFailed)
     assert py_ex.value.step == "load"
+
+
+def test_retry_schema_update() -> None:
+    # dummy raises a terminal error during schema update, mimicking a concurrent
+    # create/add-column collision that only retry_schema_update should retry
+    p = dlt.pipeline(
+        pipeline_name="pipe_" + uniq_id(),
+        destination=dummy(completed_prob=1.0, fail_schema_update=True),
+    )
+
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run([1, 2, 3], table_name="digits")
+
+    step_failed = py_ex.value
+    assert step_failed.step == "load"
+    schema_ex = step_failed.__cause__
+    assert isinstance(schema_ex, SchemaUpdateTerminalError)
+    assert schema_ex.staging_dataset is False
+    assert "digits" in schema_ex.table_names
+
+    # retry_load skips a terminal schema failure, retry_schema_update retries it
+    assert retry_load()(step_failed) is False
+    assert retry_schema_update()(step_failed) is True
+
+    # retry_schema_update drives recovery: fail the first schema update, then succeed
+    from dlt.destinations.impl.dummy.dummy import DummyClient
+
+    p2 = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=dummy(completed_prob=1.0))
+    orig = DummyClient.update_stored_schema
+    calls = {"n": 0}
+
+    def flaky_update(self: Any, *args: Any, **kwargs: Any) -> Any:
+        calls["n"] += 1
+        if calls["n"] == 1:
+            raise DestinationTerminalException("schema update failed once")
+        return orig(self, *args, **kwargs)
+
+    info = None
+    with patch.object(DummyClient, "update_stored_schema", flaky_update):
+        for attempt in Retrying(
+            stop=stop_after_attempt(3),
+            retry=retry_if_exception(retry_schema_update()),
+            reraise=True,
+        ):
+            with attempt:
+                info = p2.run([1, 2, 3], table_name="digits")
+
+    assert calls["n"] >= 2
+    assert_load_info(info)
 
 
 @pytest.mark.skip("Not implemented")
