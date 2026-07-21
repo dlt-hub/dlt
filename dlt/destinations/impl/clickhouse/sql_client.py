@@ -143,8 +143,11 @@ class ClickHouseSqlClient(
             self.config.dataset_sentinel_table_name
         )
         sentinel_table_type = self.config.table_engine_type
+        if_not_exists = (
+            " IF NOT EXISTS" if self.capabilities.supports_create_schema_if_not_exists else ""
+        )
         self.execute_sql(f"""
-            CREATE TABLE {sentinel_table_name}
+            CREATE TABLE{if_not_exists} {sentinel_table_name}
             (_dlt_id String NOT NULL)
             ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
             PRIMARY KEY _dlt_id

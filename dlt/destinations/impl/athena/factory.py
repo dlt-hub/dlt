@@ -158,6 +158,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.max_text_data_type_length = 262144
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = False
+        caps.supports_create_schema_if_not_exists = True
         caps.supports_transactions = False
         caps.alter_add_multi_column = True
         caps.schema_supports_numeric_precision = False

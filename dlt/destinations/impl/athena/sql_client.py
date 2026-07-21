@@ -170,8 +170,12 @@ class AthenaSQLClient(SqlClientBase[AthenaConnection]):
             f" LOCATION '{self.config.db_location}'" if self.config.db_location else ""
         )
         # HIVE escaping for DDL
+        if_not_exists = (
+            " IF NOT EXISTS" if self.capabilities.supports_create_schema_if_not_exists else ""
+        )
         self.execute_sql(
-            f"CREATE DATABASE {self.fully_qualified_ddl_dataset_name()}{db_location_clause}"
+            f"CREATE DATABASE{if_not_exists} "
+            f"{self.fully_qualified_ddl_dataset_name()}{db_location_clause}"
         )
 
     def drop_dataset(self) -> None:

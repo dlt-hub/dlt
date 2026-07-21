@@ -1,11 +1,13 @@
 import os
 import pytest
+from pytest_mock import MockerFixture
 import datetime  # noqa: I251
 from typing import Iterator, Any, Tuple, Type, Union
 from threading import Thread, Event
 from time import sleep
 
 from dlt.common import pendulum, Decimal
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import IdentifierTooLongException
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.storages import FileStorage
@@ -142,6 +144,28 @@ def test_has_dataset(client: SqlJobClientBaseWithDestinationTestConfiguration) -
 
 
 @pytest.mark.parametrize(
+    "supports_if_not_exists,expected_sql",
+    [
+        (False, 'CREATE SCHEMA "dataset"'),
+        (True, 'CREATE SCHEMA IF NOT EXISTS "dataset"'),
+    ],
+    ids=["unsupported", "supported"],
+)
+def test_create_dataset_sql_respects_if_not_exists_capability(
+    supports_if_not_exists: bool, expected_sql: str, mocker: MockerFixture
+) -> None:
+    capabilities = DestinationCapabilitiesContext()
+    capabilities.supports_create_schema_if_not_exists = supports_if_not_exists
+    sql_client = mocker.Mock(spec=SqlClientBase)
+    sql_client.capabilities = capabilities
+    sql_client.fully_qualified_dataset_name.return_value = '"dataset"'
+
+    SqlClientBase.create_dataset(sql_client)
+
+    sql_client.execute_sql.assert_called_once_with(expected_sql)
+
+
+@pytest.mark.parametrize(
     "client",
     destinations_configs_with_naming_convention(
         naming_conventions=TEST_NAMING_CONVENTIONS, default_sql_configs=True
@@ -150,11 +174,12 @@ def test_has_dataset(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 def test_create_drop_dataset(client: SqlJobClientBaseWithDestinationTestConfiguration) -> None:
-    # client.sql_client.create_dataset()
-    # Dataset is already create in fixture, so next time it fails
     assert client.is_storage_initialized()
-    with pytest.raises(DatabaseException):
+    if client.capabilities.supports_create_schema_if_not_exists:
         client.sql_client.create_dataset()
+    else:
+        with pytest.raises(DatabaseException):
+            client.sql_client.create_dataset()
     assert client.is_storage_initialized() is True
     client.sql_client.drop_dataset()
     assert client.is_storage_initialized() is False

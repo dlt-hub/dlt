@@ -153,6 +153,7 @@ class bigquery(Destination[BigQueryClientConfiguration, "BigQueryClient"]):
         caps.max_text_data_type_length = 10 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = False
+        caps.supports_create_schema_if_not_exists = True
         caps.supports_clone_table = True
         caps.supports_naive_datetime = False
         caps.schema_supports_numeric_precision = False  # no precision information in BigQuery

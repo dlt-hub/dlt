@@ -224,6 +224,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
         # https://clickhouse.com/docs/en/guides/developer/transactional#transactions-commit-and-rollback
         caps.supports_transactions = False
         caps.supports_ddl_transactions = False
+        caps.supports_create_schema_if_not_exists = True
 
         caps.supports_truncate_command = True
 

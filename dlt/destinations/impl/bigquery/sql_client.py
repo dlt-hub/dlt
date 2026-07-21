@@ -203,6 +203,7 @@ class BigQuerySqlClient(SqlClientBase[bigquery.Client], DBTransaction):
         try:
             self._client.create_dataset(
                 dataset,
+                exists_ok=self.capabilities.supports_create_schema_if_not_exists,
                 retry=self._default_retry,
                 timeout=self.http_timeout,
             )

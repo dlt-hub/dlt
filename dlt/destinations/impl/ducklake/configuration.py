@@ -24,6 +24,7 @@ DUCKLAKE_STORAGE_PATTERN = "%s.files"
 def _get_ducklake_capabilities() -> DestinationCapabilitiesContext:
     caps = DestinationCapabilitiesContext()
     caps = _set_duckdb_raw_capabilities(caps)
+    caps.supports_create_schema_if_not_exists = False
     # load with parquet by default
     caps.preferred_loader_file_format = "parquet"
     # duckdb and sqllite will crash when loading in parallel, see adjust_capabilities in factory

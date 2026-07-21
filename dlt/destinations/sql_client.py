@@ -133,7 +133,10 @@ SELECT 1
         return len(rows) > 0
 
     def create_dataset(self) -> None:
-        self.execute_sql("CREATE SCHEMA %s" % self.fully_qualified_dataset_name())
+        if_not_exists = (
+            " IF NOT EXISTS" if self.capabilities.supports_create_schema_if_not_exists else ""
+        )
+        self.execute_sql(f"CREATE SCHEMA{if_not_exists} {self.fully_qualified_dataset_name()}")
 
     def drop_dataset(self) -> None:
         # assert self.fully_qualified_dataset_name() != "None"

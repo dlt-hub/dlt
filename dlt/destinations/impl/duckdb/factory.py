@@ -172,6 +172,7 @@ def _set_duckdb_raw_capabilities(
     caps.max_text_data_type_length = 1024 * 1024 * 1024
     caps.is_max_text_data_type_length_in_bytes = True
     caps.supports_ddl_transactions = True
+    caps.supports_create_schema_if_not_exists = True
     caps.alter_add_multi_column = False
     caps.supports_truncate_command = False
     caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
