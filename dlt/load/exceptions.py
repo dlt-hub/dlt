@@ -1,4 +1,4 @@
-from typing import Sequence
+from typing import Optional, Sequence
 from dlt.common.destination.exceptions import (
     DestinationTerminalException,
     DestinationTransientException,
@@ -21,6 +21,36 @@ class LoadClientJobFailed(DestinationTerminalException, LoadClientJobException):
         super().__init__(
             f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
             f" {failed_message}. The package is aborted and cannot be retried."
+        )
+
+
+class LoadClientJobTerminalRetry(DestinationTerminalException, LoadClientJobException):
+    def __init__(
+        self, load_id: str, job_id: str, failed_message: str, exception: BaseException
+    ) -> None:
+        self.load_id = load_id
+        self.job_id = job_id
+        self.failed_message = failed_message
+        self.client_exception = exception
+
+        super().__init__(
+            f"Job with `{job_id=:}` and `{load_id=:}` failed terminally with message:"
+            f" {failed_message}. The job has been queued for retry and the package"
+            " remains pending. Run `pipeline.load()` to retry or abort the package."
+        )
+
+
+class LoadPackageAborted(DestinationTerminalException):
+    """Raised by the loader after a package was completed as aborted. Signals the pipeline
+    to delete pending packages and restore state; re-raised only when `job_exception` is set."""
+
+    def __init__(self, load_id: str, job_exception: Optional[LoadClientJobFailed]) -> None:
+        self.load_id = load_id
+        self.job_exception = job_exception
+        super().__init__(
+            f"Load package with `{load_id=:}` was completed as aborted. Other pending packages"
+            " will be deleted and the pipeline state restored to the point at which the aborted"
+            " package started."
         )
 
 

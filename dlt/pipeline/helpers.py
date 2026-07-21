@@ -143,8 +143,9 @@ class pipeline_drop:
         try:
             self.pipeline.load()
         except Exception:
-            # Clear extracted state on failure so command can run again
-            self.pipeline.drop_pending_packages()
+            # delete pending packages so the command can run again; state and schema are
+            # restored below, so a full abort (which also re-loads) must not run here
+            self.pipeline._delete_pending_packages()
             with self.pipeline.managed_state() as state:
                 force_state_extract(state)
             # Restore original schema file so all tables are known on next run

@@ -13,7 +13,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, List, Tuple, cast, Optional
+from typing import Any, Dict, List, Tuple, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -37,6 +37,7 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationNoStagingMode,
     DestinationTerminalException,
+    DestinationUndefinedEntity,
     UnknownDestinationModule,
 )
 from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
@@ -52,6 +53,7 @@ from dlt.common.schema.utils import (
     new_column,
     new_table,
 )
+from dlt.common.storages import PackageStorage
 from dlt.common.typing import DictStrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.common.warnings import DltDeprecationWarning
@@ -67,7 +69,7 @@ from dlt.extract.exceptions import (
 from dlt.extract.extract import ExtractStorage, data_to_sources
 from dlt.extract import DltResource, DltSource
 from dlt.extract.extractors import MaterializedEmptyList
-from dlt.load.exceptions import LoadClientJobFailed
+from dlt.load.exceptions import LoadClientJobFailed, LoadClientJobTerminalRetry
 from dlt.normalize.exceptions import NormalizeJobFailed
 from dlt.pipeline.configuration import PipelineConfiguration
 from dlt.pipeline.exceptions import (
@@ -98,6 +100,7 @@ from tests.pipeline.utils import (
 )
 
 from dlt.destinations.dataset import get_destination_client_initial_config
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 
 DUMMY_COMPLETE = dummy(completed_prob=1)  # factory set up to complete jobs
 
@@ -1571,6 +1574,34 @@ def test_restore_state_on_dummy() -> None:
     assert p.state["_state_version"] == 0
 
 
+def test_restore_state_schema_fetch_fails_keeps_local_schemas() -> None:
+    """`DestinationUndefinedEntity` raised while fetching schemas from the destination must
+    not wipe local schemas, even when a newer remote state was found before the failure."""
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    p.run([1, 2, 3], table_name="digits")
+    state_version = p.state["_state_version"]
+
+    # a newer remote state forces a full schema refresh which then fails
+    remote_state = p._get_state()
+    remote_state.pop("_local")
+    remote_state["_state_version"] += 1
+    remote_state["_version_hash"] = "remote-hash"
+    with (
+        patch.object(p, "_restore_state_from_destination", return_value=remote_state),
+        patch.object(
+            p,
+            "_get_schemas_from_destination",
+            side_effect=DestinationUndefinedEntity("no version table"),
+        ),
+    ):
+        p.sync_destination()
+
+    assert p.default_schema_name == pipeline_name
+    assert "digits" in p.default_schema.tables
+    assert p.state["_state_version"] == state_version
+
+
 def test_restore_state_on_destination_dataset_name_change(caplog: Any) -> None:
     """The dataset_name set by the user is authoritative. When the pipeline restores state
     from a destination dataset that was copied from another, the remote state contains
@@ -1804,31 +1835,645 @@ def test_run_with_table_name_exceeding_path_length() -> None:
     assert isinstance(sf_ex.value.__context__, OSError)
 
 
-def test_raise_on_failed_job() -> None:
-    os.environ["FAIL_PROB"] = "1.0"
+@pytest.mark.parametrize(
+    "raise_on_failed_jobs",
+    [True, False],
+    ids=["raise_exception", "no_exception"],
+)
+def test_raise_pending_on_failed_job(raise_on_failed_jobs: bool) -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = str(raise_on_failed_jobs)
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+    if raise_on_failed_jobs:
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run(s)
+        assert py_ex.value.step == "load"
+        assert py_ex.value.load_id is not None
+        assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+        assert py_ex.value.has_pending_data is True
+        assert py_ex.value.is_package_partially_loaded is True
+        package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
+        assert package_info.state == "normalized"
+        assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
+        assert isinstance(py_ex.value.__context__, DestinationTerminalException)
+        # retried jobs and their exceptions are present in the last trace
+        trace_step = [step for step in p.last_trace.steps if step.step == "load"][-1]
+        trace_package = trace_step.step_info.load_packages[0]
+        assert trace_package.load_id == py_ex.value.load_id
+        retried_jobs = [
+            job for job in trace_package.jobs["new_jobs"] if job.job_file_info.retry_count > 0
+        ]
+        assert len(retried_jobs) == 1
+        assert "configured to fail" in retried_jobs[0].failed_message
+        # next call reraises
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run()
+        assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
+    else:
+        load_info = p.run(s)
+        assert load_info.has_failed_jobs is True
+        package_info = p.get_load_package_info(load_info.loads_ids[0])
+        assert package_info.state == "loaded"
+        assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is True
+
+
+@pytest.mark.parametrize(
+    "raise_on_failed_jobs",
+    [True, False],
+    ids=["raise_exception", "no_exception"],
+)
+def test_raise_on_failed_job(raise_on_failed_jobs: bool) -> None:
+    os.environ["FAIL_PROB"] = "1.0"
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = str(raise_on_failed_jobs)
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+    if raise_on_failed_jobs:
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run(s)
+        assert py_ex.value.step == "load"
+        assert py_ex.value.load_id is not None
+        assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
+        # loaded
+        assert py_ex.value.has_pending_data is False
+        # all jobs failed but the schema was migrated at the destination
+        assert py_ex.value.is_package_partially_loaded is True
+        # get package info
+        package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
+        assert package_info.state == "aborted"
+        # the abort cleanup runs first, then the job failure is re-raised
+        assert isinstance(py_ex.value.__cause__, LoadClientJobFailed)
+        assert isinstance(py_ex.value.__cause__, DestinationTerminalException)
+        assert p.list_normalized_load_packages() == []
+        # next call to run does nothing
+        load_info = p.run()
+        assert load_info is None
+    else:
+        load_info = p.run(s)
+        assert load_info.has_failed_jobs is True
+        package_info = p.get_load_package_info(load_info.loads_ids[0])
+        assert package_info.state == "aborted"
+        # schema migrated at the destination even though all jobs failed
+        assert PackageStorage.is_package_partially_loaded(load_info.load_packages[0]) is True
+
+
+def test_abort_package() -> None:
+    """Test manual abort of a pending package."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # first run fails with terminal error, package stays pending
     with pytest.raises(PipelineStepFailed) as py_ex:
-        p.run([1, 2, 3], table_name="numbers")
-    assert py_ex.value.step == "load"
-    assert py_ex.value.load_id is not None
-    assert py_ex.value.load_id in py_ex.value.step_info.loads_ids
-    # loaded
-    assert py_ex.value.has_pending_data is False
-    # all packages failed
-    assert py_ex.value.is_package_partially_loaded is False
-    # get package info
-    package_info = p.get_load_package_info(py_ex.value.step_info.loads_ids[0])
-    assert package_info.state == "aborted"
-    assert isinstance(py_ex.value.__context__, LoadClientJobFailed)
+        p.run(s)
+    assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
     assert isinstance(py_ex.value.__context__, DestinationTerminalException)
-    # next call to run does nothing
+
+    # package is still pending (normalized state)
+    load_id = py_ex.value.step_info.loads_ids[0]
+    package_info = p.get_load_package_info(load_id)
+    assert package_info.state == "normalized"
+
+    # the first run completed the letters job — its metrics should be persisted
+    first_run_metrics: Dict[str, Any] = py_ex.value.step_info.metrics[load_id][0]["job_metrics"]  # type: ignore[typeddict-item]
+    completed_job_ids = [jid for jid, m in first_run_metrics.items() if m.state == "completed"]
+    assert len(completed_job_ids) > 0, "letters job should have completed before abort"
+
+    # manually abort the package
+    p.abort_packages()
+    load_info = p.last_trace.last_load_info
+
+    # package is now aborted
+    assert load_info is not None
+    assert load_info.load_packages[0].load_id == load_id
+    assert load_info.load_packages[0].state == "aborted"
+
+    # abort load_info preserves job metrics from the pre-abort run
+    abort_metrics = load_info.metrics[load_id][0]["job_metrics"]
+    for jid in completed_job_ids:
+        assert jid in abort_metrics, f"metrics for completed job {jid} lost during abort"
+
+    # dataset_name is present (None for dummy destination)
+    assert "dataset_name" in load_info.metrics[load_id][0]
+    # timestamps are stamped by the step info machinery, not by the abort path
+    assert load_info.metrics[load_id][0]["started_at"] is not None
+    assert load_info.metrics[load_id][0]["finished_at"] is not None
+
+    # next run does nothing (no pending packages)
     load_info = p.run()
     assert load_info is None
 
 
+def test_abort_package_wipes_other_packages() -> None:
+    """Test that aborting a package also deletes other pending packages and re-syncs state."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s1 = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # first run fails with terminal error, package stays pending
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run(s1)
+    assert isinstance(py_ex.value.__context__, LoadClientJobTerminalRetry)
+    failed_load_id = py_ex.value.step_info.loads_ids[0]
+
+    # extract and normalize another package (this one will also be pending)
+    s2 = DltSource(
+        Schema("source"),
+        "module",
+        [dlt.resource(["x", "y", "z"], table_name="letters2", name="letters2")],
+    )
+    p.extract(s2)
+    p.normalize()
+
+    # ensure we have 2 normalized packages
+    normalized_packages = p.list_normalized_load_packages()
+    assert len(normalized_packages) == 2
+    assert failed_load_id in normalized_packages
+
+    second_load_id = [lid for lid in normalized_packages if lid != failed_load_id][0]
+
+    # check the abort plan on a dry run
+    dry_run = p.abort_packages(dry_run=True)
+    assert dry_run is not None
+    package_to_abort = dry_run["package_to_abort"]
+    assert package_to_abort is not None and package_to_abort["load_id"] == failed_load_id
+    assert second_load_id in dry_run["packages_to_delete"]
+
+    p.abort_packages()
+    load_info = p.last_trace.last_load_info
+
+    # package is now aborted
+    assert load_info is not None
+    assert load_info.load_packages[0].load_id == failed_load_id
+    assert load_info.load_packages[0].state == "aborted"
+
+    # second package should have been deleted (no longer exists in normalized)
+    normalized_packages_after = p.list_normalized_load_packages()
+    assert len(normalized_packages_after) == 0
+    assert second_load_id not in normalized_packages_after
+
+    # next run should work normally
+    os.environ.pop("DESTINATION__DUMMY__FAIL_TABLE_NAMES", None)
+    os.environ["COMPLETED_PROB"] = "1.0"
+    load_info = p.run([4, 5, 6], table_name="new_numbers")
+    assert load_info is not None
+    assert load_info.has_failed_jobs is False
+
+
+@pytest.mark.parametrize("has_snapshot", [True, False], ids=["from_snapshot", "legacy_fallback"])
+def test_abort_package_restores_state(has_snapshot: bool, caplog: Any) -> None:
+    """Abort restores local state from the package snapshot without destination access;
+    legacy packages without a snapshot abort without restoring the state and warn."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def letters(data):
+        yield data
+
+    load_info = p.run(
+        [
+            numbers([{"id": 1}, {"id": 2}, {"id": 3}]),
+            letters([{"id": 4, "val": "a"}, {"id": 5, "val": "b"}, {"id": 6, "val": "c"}]),
+        ]
+    )
+    assert_load_info(load_info)
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]
+        == 3
+    )
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["letters"]["incremental"]["id"]["last_value"]
+        == 6
+    )
+
+    baseline_version = p.state["_state_version"]
+    baseline_hash = p.state["_version_hash"]
+
+    original_execute_sql = DuckDbSqlClient.execute_sql
+
+    def mock_execute_sql(self, sql, *args, **kwargs):
+        if "letters" in sql.lower():
+            raise DestinationTerminalException("Mocked SQL failure for letters")
+        return original_execute_sql(self, sql, *args, **kwargs)
+
+    with patch.object(DuckDbSqlClient, "execute_sql", mock_execute_sql):
+        with pytest.raises(PipelineStepFailed) as exc_info:
+            p.run(
+                [
+                    numbers([{"id": 4}, {"id": 5}, {"id": 6}]),
+                    letters([{"id": 7, "val": "a"}, {"id": 8, "val": "b"}, {"id": 9, "val": "c"}]),
+                ]
+            )
+    assert exc_info.value.is_package_partially_loaded is True
+    assert isinstance(exc_info.value.exception, LoadClientJobTerminalRetry)
+
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]["id"]["last_value"]
+        == 6
+    )
+    assert (
+        p.state["sources"][pipeline_name]["resources"]["letters"]["incremental"]["id"]["last_value"]
+        == 9
+    )
+
+    pending_packages = p.list_normalized_load_packages()
+    assert len(pending_packages) == 1
+    pending_load_id = pending_packages[0]
+
+    if not has_snapshot:
+        # legacy package without a snapshot: the abort works but cannot restore the state
+        packages = p._get_load_storage().normalized_packages
+        packages.storage.delete_folder(
+            os.path.join(pending_load_id, PackageStorage.RESTORE_FOLDER), recursively=True
+        )
+
+    # the whole abort is local: no single SQL statement may reach the destination
+    def offline_execute_sql(self, sql, *args, **kwargs):
+        raise DestinationTerminalException("destination is offline")
+
+    with capture_dlt_logger(caplog) as caplog:
+        with patch.object(DuckDbSqlClient, "execute_sql", offline_execute_sql):
+            p.abort_packages()
+    load_info = p.last_trace.last_load_info
+    assert load_info is not None
+    assert load_info.load_packages[0].load_id == pending_load_id
+    assert load_info.load_packages[0].state == "aborted"
+
+    assert len(p.list_normalized_load_packages()) == 0
+    assert len(p.list_extracted_load_packages()) == 0
+    # the aborted package record survives locally, failed jobs stay visible
+    assert pending_load_id in p.list_completed_load_packages()
+    failed_jobs = p.list_failed_jobs_in_package(pending_load_id)
+    assert len(failed_jobs) == 1
+    assert "letters" in failed_jobs[0].job_file_info.table_name
+
+    resources_state = p.state["sources"][pipeline_name]["resources"]
+    numbers_cursor = resources_state["numbers"]["incremental"]["id"]["last_value"]
+    letters_cursor = resources_state["letters"]["incremental"]["id"]["last_value"]
+    if has_snapshot:
+        assert p.state["_state_version"] == baseline_version
+        assert p.state["_version_hash"] == baseline_hash
+        assert (numbers_cursor, letters_cursor) == (3, 6)
+    else:
+        # the state stays at the failed run's values, only a warning is logged
+        assert "no restore snapshot" in caplog.text
+        assert p.state["_version_hash"] != baseline_hash
+        assert (numbers_cursor, letters_cursor) == (6, 9)
+
+
+def test_extract_writes_restore_snapshot() -> None:
+    """Every package created by extract carries a restore snapshot that survives normalize."""
+    pipeline = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination="dummy")
+    s1 = DltSource(Schema("schema_one"), "module", [dlt.resource([1, 2], name="ones")])
+    s2 = DltSource(Schema("schema_two"), "module", [dlt.resource(["a"], name="letters")])
+    pipeline.extract([s1, s2])
+
+    extracted_ids = pipeline.list_extracted_load_packages()
+    assert len(extracted_ids) == 2
+    extracted = pipeline._get_normalize_storage().extracted_packages
+    for load_id in extracted_ids:
+        assert extracted.can_restore_pipeline_state(load_id)
+
+    pipeline.normalize()
+    normalized = pipeline._get_load_storage().normalized_packages
+    normalized_ids = pipeline.list_normalized_load_packages()
+    assert len(normalized_ids) == 2
+    for load_id in normalized_ids:
+        assert normalized.can_restore_pipeline_state(load_id)
+
+
+def test_abort_pending_packages_queue() -> None:
+    """With several pending packages only the oldest (being loaded) is aborted with a
+    record; the others are deleted and state rewinds to the start of the oldest one."""
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    def cursor() -> int:
+        incremental = p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]
+        return incremental["id"]["last_value"]
+
+    def loaded_ids() -> List[int]:
+        with p.sql_client() as client:
+            return [row[0] for row in client.execute_sql("SELECT id FROM numbers ORDER BY id")]
+
+    load_info = p.run(numbers([{"id": 1}, {"id": 2}, {"id": 3}]))
+    assert_load_info(load_info)
+    baseline_hash = p.state["_version_hash"]
+    assert cursor() == 3
+
+    # three pending packages, each advancing the incremental cursor
+    for batch in ([{"id": 4}], [{"id": 5}], [{"id": 6}]):
+        p.extract(numbers(batch))
+        p.normalize()
+    pending = p.list_normalized_load_packages()
+    assert len(pending) == 3
+    head_id = pending[0]
+    assert cursor() == 6
+
+    dry_run = p.abort_packages(dry_run=True)
+    assert dry_run is not None
+    package_to_abort = dry_run["package_to_abort"]
+    assert package_to_abort is not None and package_to_abort["load_id"] == head_id
+    assert dry_run["packages_to_delete"] == pending[1:]
+    p.abort_packages()
+    load_info = p.last_trace.last_load_info
+    assert load_info.load_packages[0].load_id == head_id
+    assert load_info.load_packages[0].state == "aborted"
+
+    # all pending packages removed, only the aborted head keeps a record
+    assert p.list_normalized_load_packages() == []
+    completed = p.list_completed_load_packages()
+    assert head_id in completed
+    assert pending[1] not in completed and pending[2] not in completed
+    # state rewinds to the start of the aborted head package, no pending data was loaded
+    assert p.state["_version_hash"] == baseline_hash
+    assert cursor() == 3
+    assert loaded_ids() == [1, 2, 3]
+
+    # aborting at a package that is not being loaded deletes it and newer packages
+    # without a record, older packages stay intact and loadable
+    for batch in ([{"id": 4}], [{"id": 5}], [{"id": 6}]):
+        p.extract(numbers(batch))
+        p.normalize()
+    pending = p.list_normalized_load_packages()
+    assert len(pending) == 3
+    plan = p.abort_packages(load_id=pending[1])
+    assert plan is not None
+    assert plan["package_to_abort"] is None
+    assert plan["packages_to_delete"] == pending[1:]
+    assert p.list_normalized_load_packages() == [pending[0]]
+    # state rewinds to the middle package's start, after the oldest package's extract
+    assert cursor() == 4
+    load_info = p.load()
+    assert load_info.loads_ids == [pending[0]]
+    assert loaded_ids() == [1, 2, 3, 4]
+
+
+def test_abort_packages_restores_first_run() -> None:
+    """Abort rewinds `first_run` with the snapshot: a never-loaded pipeline is a first run
+    again, a pipeline that loaded stays past its first run."""
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    p.extract([1, 2, 3], table_name="digits")
+    p.normalize()
+    assert p.first_run is True
+    p.abort_packages()
+    # rewound to a fresh state: the pipeline never loaded anything
+    assert p.first_run is True
+    assert p.state["_local"]["first_run"] is True
+    assert p.default_schema_name is None
+    assert p.state["_state_version"] == 0
+
+    # a pipeline that loaded keeps first_run unset after abort
+    p.run([1, 2, 3], table_name="digits")
+    assert p.first_run is False
+    state_version = p.state["_state_version"]
+    p.extract([{"a": 1}], table_name="letters")
+    p.normalize()
+    p.abort_packages()
+    assert p.first_run is False
+    assert p.state["_local"]["first_run"] is False
+    assert p.state["_state_version"] == state_version
+    assert "digits" in p.default_schema.tables
+    assert "letters" not in p.default_schema.tables
+
+
+@pytest.mark.parametrize(
+    "raise_on_failed_jobs", [True, False], ids=["raise_exception", "no_exception"]
+)
+def test_auto_abort_cleans_pending_and_restores_state(raise_on_failed_jobs: bool) -> None:
+    """Auto abort behaves like abort_packages: the failing package is aborted, newer pending
+    packages are deleted and the state rewinds; with raise_on_failed_jobs the job failure is
+    re-raised after the cleanup."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = str(raise_on_failed_jobs)
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    @dlt.resource
+    def letters(data):
+        yield data
+
+    def cursor() -> int:
+        incremental = p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]
+        return incremental["id"]["last_value"]
+
+    # baseline creates both tables so only the letters insert job fails later
+    p.run([numbers([{"id": 1}]), letters([{"v": "a"}])])
+    baseline_hash = p.state["_version_hash"]
+    assert cursor() == 1
+
+    # the oldest pending package will fail on letters, newer ones advance the cursor
+    p.extract(letters([{"v": "b"}]))
+    p.normalize()
+    p.extract(numbers([{"id": 2}]))
+    p.normalize()
+    p.extract(numbers([{"id": 3}]))
+    pending = p.list_normalized_load_packages()
+    assert len(pending) == 2
+    assert len(p.list_extracted_load_packages()) == 1
+    head_id = pending[0]
+    assert cursor() == 3
+
+    original_execute_sql = DuckDbSqlClient.execute_sql
+
+    def mock_execute_sql(self, sql, *args, **kwargs):
+        if "letters" in sql.lower():
+            raise DestinationTerminalException("boom")
+        return original_execute_sql(self, sql, *args, **kwargs)
+
+    with patch.object(DuckDbSqlClient, "execute_sql", mock_execute_sql):
+        if raise_on_failed_jobs:
+            with pytest.raises(PipelineStepFailed) as py_ex:
+                p.load()
+            assert isinstance(py_ex.value.__cause__, LoadClientJobFailed)
+            assert py_ex.value.load_id == head_id
+        else:
+            load_info = p.load()
+            assert load_info.load_packages[0].load_id == head_id
+            assert load_info.load_packages[0].state == "aborted"
+
+    # cleanup ran in both cases: pending packages gone, state rewound to the head package start
+    assert p.list_normalized_load_packages() == []
+    assert p.list_extracted_load_packages() == []
+    assert p.get_load_package_info(head_id).state == "aborted"
+    assert p.state["_version_hash"] == baseline_hash
+    assert cursor() == 1
+    with p.sql_client() as client:
+        assert [r[0] for r in client.execute_sql("SELECT id FROM numbers")] == [1]
+
+
+def test_auto_abort_matches_manual_abort() -> None:
+    """Auto abort leaves the working dir in the same state as a manual abort_packages."""
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    @dlt.resource
+    def letters(data):
+        yield data
+
+    def run_scenario(auto: bool) -> Dict[str, Any]:
+        os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = str(auto)
+        os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+        pipeline_name = "pipe_" + uniq_id()
+        p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+        p.run([numbers([{"id": 1}]), letters([{"v": "a"}])])
+        p.extract(letters([{"v": "b"}]))
+        p.normalize()
+        p.extract(numbers([{"id": 2}]))
+        p.normalize()
+
+        original_execute_sql = DuckDbSqlClient.execute_sql
+
+        def mock_execute_sql(self, sql, *args, **kwargs):
+            if "letters" in sql.lower():
+                raise DestinationTerminalException("boom")
+            return original_execute_sql(self, sql, *args, **kwargs)
+
+        with patch.object(DuckDbSqlClient, "execute_sql", mock_execute_sql):
+            with pytest.raises(PipelineStepFailed):
+                p.load()
+        if not auto:
+            # the package stays pending with the job queued for retry, abort it manually
+            p.abort_packages()
+        aborted = [
+            lid
+            for lid in p.list_completed_load_packages()
+            if p.get_load_package_info(lid).state == "aborted"
+        ]
+        assert len(aborted) == 1
+        failed_jobs = p.list_failed_jobs_in_package(aborted[0])
+        incremental = p.state["sources"][pipeline_name]["resources"]["numbers"]["incremental"]
+        return {
+            "pending": p.list_normalized_load_packages(),
+            "extracted": p.list_extracted_load_packages(),
+            "failed_jobs": sorted(
+                (j.job_file_info.table_name, j.job_file_info.retry_count) for j in failed_jobs
+            ),
+            "state_version": p.state["_state_version"],
+            "cursor": incremental["id"]["last_value"],
+            "first_run": p.first_run,
+        }
+
+    assert run_scenario(auto=True) == run_scenario(auto=False)
+
+
+def test_pipeline_job_management() -> None:
+    """Test list_pending_retry_jobs_in_package, fail_pending_job, and retry_failed_job on Pipeline."""
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # run fails with terminal error, package stays pending
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+
+    # list all retried jobs — at least the numbers job should be pending
+    all_pending = p.list_pending_retry_jobs_in_package(load_id)
+    assert len(all_pending) > 0
+    # package was drained, all pending jobs are in new_jobs
+    assert all(folder == "new_jobs" for _, folder in all_pending)
+
+    # the numbers job failed terminally and is pending a retry
+    numbers_job = next(j for j, _ in all_pending if "numbers" in j)
+
+    # fail the pending job
+    failed_path = p.fail_pending_job(load_id, os.path.basename(numbers_job))
+    assert "failed_jobs" in failed_path
+
+    # job should no longer be in pending retry list
+    remaining = p.list_pending_retry_jobs_in_package(load_id)
+    assert os.path.basename(numbers_job) not in [os.path.basename(j) for j, _ in remaining]
+
+    # job should appear in failed jobs
+    failed_jobs = p.list_failed_jobs_in_package(load_id)
+    failed_names = [j.job_file_info.file_name() for j in failed_jobs]
+    assert os.path.basename(numbers_job) in failed_names
+
+    # retry the failed job
+    retried_path = p.retry_failed_job(load_id, os.path.basename(numbers_job))
+    assert "new_jobs" in retried_path
+
+    # job should be back in pending retry list with incremented retry count
+    pending_after_retry = p.list_pending_retry_jobs_in_package(load_id)
+    retried_names = [os.path.basename(j) for j, _ in pending_after_retry]
+    from dlt.common.storages.load_package import ParsedLoadJobFileName
+
+    retried_job = ParsedLoadJobFileName.parse(os.path.basename(retried_path))
+    assert retried_job.file_name() in retried_names
+    assert retried_job.retry_count >= 2  # was already 1, now at least 2
+
+
 def test_load_info_raise_on_failed_jobs() -> None:
-    # By default, raises terminal error on a failed job and aborts load. This pipeline does not fail
+    # By default, raises a terminal error on a failed job. This pipeline does not fail
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline_name = "pipe_" + uniq_id()
     p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
@@ -1848,6 +2493,7 @@ def test_load_info_raise_on_failed_jobs() -> None:
 
     # Test automatic raising on a failed job which aborts the load. Let pipeline fail
     os.environ["RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
     with pytest.raises(PipelineStepFailed) as py_ex_2:
         p.run([1, 2, 3], table_name="numbers")
     load_info = py_ex_2.value.step_info  # type: ignore[assignment]
@@ -2971,6 +3617,7 @@ def test_resource_state_name_not_normalized() -> None:
 
 
 def test_pipeline_list_packages() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
     pipeline = dlt.pipeline(pipeline_name="emojis", destination="dummy")
     pipeline.extract(airtable_emojis())
     load_ids = pipeline.list_extracted_load_packages()
@@ -3010,6 +3657,8 @@ def test_pipeline_list_packages() -> None:
 
 
 def test_remove_pending_packages() -> None:
+    # drop_pending_packages is a deprecated alias for abort_packages: it clears pending
+    # extracted and normalized packages
     pipeline = dlt.pipeline(pipeline_name="emojis", destination=DUMMY_COMPLETE)
     pipeline.extract(airtable_emojis())
     assert pipeline.has_pending_data
@@ -3021,30 +3670,13 @@ def test_remove_pending_packages() -> None:
     assert pipeline.has_pending_data
     pipeline.drop_pending_packages()
     assert pipeline.has_pending_data is False
-    # partial load
-    os.environ["EXCEPTION_PROB"] = "1.0"
-    os.environ["TIMEOUT"] = "1.0"
-    # will make job go into retry state
-    with pytest.raises(PipelineStepFailed):
-        pipeline.run(airtable_emojis())
-    # move job into completed folder manually to simulate partial package
-    load_storage = pipeline._get_load_storage()
-    load_id = load_storage.normalized_packages.list_packages()[0]
-    job = load_storage.normalized_packages.list_new_jobs(load_id)[0]
-    started_path = load_storage.normalized_packages.start_job(
-        load_id, FileStorage.get_file_name_from_file_path(job)
-    )
-    completed_path = load_storage.normalized_packages.complete_job(
-        load_id, FileStorage.get_file_name_from_file_path(job)
-    )
-    # to test partial loads we need two jobs one completed an one in another state
-    # to simulate this, we just duplicate the completed job into the started path
-    shutil.copyfile(completed_path, started_path)
-    # now "with partial loads" can be tested
-    assert pipeline.has_pending_data
-    pipeline.drop_pending_packages(with_partial_loads=False)
-    assert pipeline.has_pending_data
-    pipeline.drop_pending_packages()
+
+
+def test_drop_pending_packages_deprecation_warning() -> None:
+    pipeline = dlt.pipeline(pipeline_name="emojis", destination=DUMMY_COMPLETE)
+    pipeline.extract(airtable_emojis())
+    with pytest.warns(DltDeprecationWarning, match="abort_packages"):
+        pipeline.drop_pending_packages()
     assert pipeline.has_pending_data is False
 
 
@@ -5554,13 +6186,14 @@ def test_pending_package_exception_warning() -> None:
             ]
         )
 
-    # none of the jobs passed so we have pending package but not partial
+    # none of the jobs passed but they were retried more than once, so the package counts
+    # as partially loaded (a retried job may have written on an earlier attempt)
     assert pip_ex.value.step == "load"
     assert "Pending packages" in str(pip_ex.value)
+    assert "partially loaded" in str(pip_ex.value)
     assert "ephemeral storage" in str(pip_ex.value)
-    assert "partially loaded" not in str(pip_ex.value)
     assert pip_ex.value.load_id is not None
-    assert pip_ex.value.is_package_partially_loaded is False
+    assert pip_ex.value.is_package_partially_loaded is True
     assert pip_ex.value.has_pending_data is True
 
     partially = True
@@ -5579,8 +6212,8 @@ def test_pending_package_exception_warning() -> None:
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run()
 
-    # one of the job failed and package is aborted. sometimes the other
-    # job completed, sometimes is still pending so we disable pending test
+    # one job failed terminally; the default does not abort so the package stays pending.
+    # sometimes the other job completed, sometimes is still pending so we disable pending test
     assert pip_ex.value.step == "load"
     # assert "Pending packages" not in str(pip_ex.value)
     assert "partially loaded" in str(pip_ex.value)

@@ -52,7 +52,7 @@ def print_profile_section(
 
 def print_providers(providers: List[TProviderInfo], verbosity: int) -> None:
     """Renders configuration provider locations; verbosity > 0 also lists not-found locations."""
-    fmt.echo(fmt.cli_cmd("found configuration in following locations:"))
+    fmt.echo("found configuration in following locations:")
     total_not_found_count = 0
     for prov in providers:
         fmt.echo("* %s" % fmt.bold(prov["name"]))

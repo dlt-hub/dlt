@@ -532,6 +532,47 @@ def test_ignore_state_unfinished_load(destination_config: DestinationTestConfigu
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(default_sql_configs=True),
+    ids=lambda x: x.name,
+)
+def test_abort_unchanged_state_not_recommitted(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Aborting a package that did not change the pipeline state must not re-commit an identical
+    state row on the next run (snapshot restore keeps the last-extracted hash)."""
+    pipeline_name = "pipe_" + uniq_id()
+    dataset_name = "state_test_" + uniq_id()
+    p = destination_config.setup_pipeline(pipeline_name=pipeline_name, dataset_name=dataset_name)
+
+    @dlt.resource
+    def some_data(param: str) -> Any:
+        dlt.current.source_state()[param] = param
+        yield param
+
+    # first run commits the state to the destination
+    p.run(some_data("state1"), **destination_config.run_kwargs)
+
+    def state_row_count() -> int:
+        with p.sql_client() as client:
+            state_table = client.make_qualified_table_name(p.default_schema.state_table_name)
+            return client.execute_sql(f"SELECT COUNT(1) FROM {state_table}")[0][0]
+
+    rows_before = state_row_count()
+    assert rows_before >= 1
+
+    # extract + normalize a data-only package that does not change the pipeline state
+    p.extract([1, 2, 3], table_name="digits")
+    p.normalize()
+    # abort it: local state rewinds to the (unchanged) snapshot state
+    p.abort_packages()
+
+    # the state has not changed, so the next run must not write a new state row
+    p.run(some_data("state1"), **destination_config.run_kwargs)
+    assert state_row_count() == rows_before
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(
         default_sql_configs=True,
         default_vector_configs=True,

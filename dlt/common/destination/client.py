@@ -417,6 +417,8 @@ class RunnableLoadJob(LoadJob, ABC):
         self._state: TLoadJobState = "ready"
         self._started_at = pendulum.now()
         self._exception: BaseException = None
+        # explicit message for restored jobs; otherwise the traceback is derived from the exception
+        self._failed_message: str = None
 
         # variables needed by most jobs, set by the loader in set_run_vars
         self._schema: Schema = None
@@ -449,6 +451,7 @@ class RunnableLoadJob(LoadJob, ABC):
         """
         assert state in ("completed", "failed")
         self._state = state
+        self._failed_message = failed_message
         if failed_message:
             # failed state is always caused by a terminal exception
             self._exception = DestinationTerminalException(failed_message)
@@ -506,17 +509,7 @@ class RunnableLoadJob(LoadJob, ABC):
             if next_state != "retry":
                 # persist terminal state so resume can skip re-execution
                 if self._on_completed:
-                    if self._exception:
-                        failed_message = "".join(
-                            traceback.format_exception(
-                                type(self._exception),
-                                self._exception,
-                                self._exception.__traceback__,
-                            )
-                        )
-                    else:
-                        failed_message = None
-                    self._on_completed(next_state, failed_message)
+                    self._on_completed(next_state, self.failed_message())
                 self._finished_at = pendulum.now()
         finally:
             # set final job state after callback and _finished_at to prevent races with completion loop
@@ -539,7 +532,16 @@ class RunnableLoadJob(LoadJob, ABC):
         return self._state
 
     def failed_message(self) -> str:
-        return str(self._exception)
+        # restored jobs carry the message explicitly; otherwise format the exception's traceback
+        if self._failed_message is not None:
+            return self._failed_message
+        if self._exception is None:
+            return None
+        return "".join(
+            traceback.format_exception(
+                type(self._exception), self._exception, self._exception.__traceback__
+            )
+        )
 
     def exception(self) -> BaseException:
         return self._exception

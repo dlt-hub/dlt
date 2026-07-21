@@ -226,10 +226,13 @@ files that got loaded and the failure message from the destination.
         drop_pending_cmd = pipeline_subparsers.add_parser(
             "drop-pending-packages",
             help=(
-                "Deletes all extracted and normalized packages including those that are partially"
-                " loaded."
+                "[Deprecated: use abort-packages] Deletes all extracted and normalized"
+                " packages including those that are partially loaded."
             ),
             description="""
+DEPRECATED: use `abort-packages` instead. That command properly records failed jobs
+and resyncs pipeline state from the destination.
+
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
 pending packages first. This command removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
@@ -237,6 +240,22 @@ were created. Using the `sync` sub-command is recommended if your destination su
 """,
         )
         _pre(drop_pending_cmd, "drop-pending-packages")
+        abort_packages_cmd = pipeline_subparsers.add_parser(
+            "abort-packages",
+            help=(
+                "Safely cancels pending loads: marks packages as aborted, records"
+                " failed jobs, then resyncs pipeline state from the destination."
+            ),
+            description="""
+Use this when a load is stuck or you want to discard pending work without losing track of what
+happened. The oldest normalized package (the one being loaded) is aborted: its retry/pending
+jobs move to failed_jobs so they stay visible in `failed-jobs` output and the package completes
+as aborted. All other pending packages, extracted ones included, are deleted. It then
+restores local pipeline state and schemas from the snapshot
+taken when the oldest pending package started and you can safely re-extract and re-run.
+""",
+        )
+        _pre(abort_packages_cmd, "abort-packages")
         sync_cmd = pipeline_subparsers.add_parser(
             "sync",
             help=(
@@ -402,13 +421,14 @@ This will select the `archives` key in the `chess` source.
 
         pipe_cmd_package = pipeline_subparsers.add_parser(
             "load-package",
-            help="Displays information on load package, use -v or -vv for more info",
+            help="Displays information on a load package or acts on it (abort, fail-job, ...).",
             description="""
-Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
-most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
-jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set (`-v`), you can also see the
-list of all tables and columns created at the destination during the loading of that package.
+Shows information on a load package with a given `load_id`, or runs an action on it. The `load_id`
+parameter defaults to the most recent package. Package information includes its state
+(`COMPLETED/PROCESSED`) and list of all jobs in a package with their statuses, file sizes, types,
+and in case of failed jobs—the error messages from the destination. With the verbose flag set
+(`-v`), you can also see the list of all tables and columns created at the destination during the
+loading of that package.
 """,
         )
         _pre(pipe_cmd_package, "load-package")
@@ -417,6 +437,27 @@ list of all tables and columns created at the destination during the loading of 
             metavar="load-id",
             nargs="?",
             help="Load id of completed or normalized package. Defaults to the most recent package.",
+        )
+        pipe_cmd_package.add_argument(
+            "action",
+            nargs="?",
+            choices=["info", "row-counts", "abort", "job", "fail-job"],
+            help=(
+                "Action to run on the package (default `info`). `info`: package summary."
+                " `row-counts`: count rows loaded for this load id in the destination dataset (and"
+                " whether it is completed in _dlt_loads), even when the package is gone from the"
+                " working dir. `abort`: abort this package and all newer ones; older packages stay"
+                " intact and loadable. `job <pattern>`: show jobs whose file name contains"
+                " <pattern> with their full retry exception history. `fail-job <job-id>`: move a"
+                " pending retry job to failed_jobs, preserving its exception; accepts a job id or"
+                " the full file name including retry count."
+            ),
+        )
+        pipe_cmd_package.add_argument(
+            "job",
+            nargs="?",
+            metavar="job",
+            help="Pattern for the `job` action, or job id / file name for `fail-job`.",
         )
 
         DEFAULT_PIPELINE_MCP_PORT = 43656
