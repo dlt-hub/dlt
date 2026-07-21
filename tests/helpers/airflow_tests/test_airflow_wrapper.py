@@ -1,12 +1,13 @@
 import os
 import pytest
 from unittest import mock
-from typing import Iterator, List
+from typing import Any, Dict, Iterator, List, Literal, Optional
 
 from dlt.common.runners.pool_runner import get_default_start_method
 from dlt.common.runtime.exec_info import is_running_in_airflow_task
 
 pytest.importorskip("airflow")
+
 from airflow import DAG
 from airflow.decorators import dag
 from airflow.models import BaseOperator, TaskInstance
@@ -251,6 +252,72 @@ def test_regular_run() -> None:
     )
     pipeline_dag_decomposed_counts = load_table_counts(pipeline_dag_decomposed)
     assert pipeline_dag_decomposed_counts == pipeline_standalone_counts
+
+
+@pytest.mark.parametrize(
+    "group_kwargs, decompose, expected",
+    [
+        ({}, "none", None),
+        ({}, "serialize", None),
+        ({}, "parallel", False),
+        ({}, "parallel-isolated", False),
+        ({"truncate_staging_destination": True}, "parallel-isolated", True),
+        ({"truncate_staging_destination": False}, "none", False),
+        ({"truncate_staging_destination": True}, "none", True),
+    ],
+    ids=[
+        "auto-none",
+        "auto-serialize",
+        "auto-parallel",
+        "auto-parallel-isolated",
+        "forced-true-parallel-isolated",
+        "forced-false-none",
+        "forced-true-none",
+    ],
+)
+def test_truncate_staging_destination(
+    group_kwargs: Dict[str, Any],
+    decompose: Literal["none", "serialize", "parallel", "parallel-isolated"],
+    expected: Optional[bool],
+) -> None:
+    """Staging-destination truncation is disabled automatically for parallel runs and can be forced
+    on or off with the `truncate_staging_destination` group argument.
+    """
+    config_key = "destination.truncate_tables_on_staging_destination_before_load"
+    seen_during_run: List[Optional[bool]] = []
+
+    def record_config() -> None:
+        seen_during_run.append(dlt.config.get(config_key))
+
+    @dag(schedule=None, start_date=DEFAULT_DATE, catchup=False, default_args=default_args)
+    def dag_truncate() -> None:
+        tasks = PipelineTasksGroup(
+            "pipeline_dag_truncate",
+            local_data_folder=get_test_storage_root(),
+            wipe_local_data=False,
+            **group_kwargs,
+        )
+        pipeline = dlt.pipeline(
+            pipeline_name="pipeline_dag_truncate",
+            dataset_name="mock_data_" + uniq_id(),
+            destination="duckdb",
+        )
+        tasks.add_run(
+            pipeline,
+            mock_data_source(),
+            decompose=decompose,
+            trigger_rule="all_done",
+            retries=0,
+            on_before_run=record_config,
+        )
+
+    dag_def = dag_truncate()
+    dag_def.test()
+    # each task sees the resolved setting while running; None means the config was left unset
+    assert seen_during_run
+    assert all(seen == expected for seen in seen_during_run)
+    # the setting is scoped to the run and not left in process config afterwards
+    assert dlt.config.get(config_key) is None
 
 
 def test_run() -> None:

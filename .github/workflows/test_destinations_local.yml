@@ -72,7 +72,7 @@ jobs:
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--extra sqlalchemy --extra filesystem --extra parquet --extra postgres --extra oracle --group adbc"
             needs_mysql: true
-            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==1.4 && uv run dbc install mysql && uv run dbc install sqlite"
+            post_install_commands: "uv run pip install pymysql duckdb-engine && uv run pip install sqlalchemy==1.4 && uv run dbc install mysql && uv run dbc install sqlite"
 
           # SQLAlchemy 2.0 (same as above but with sqlalchemy 2.0)
           - display_name: sqlalchemy-2.0
@@ -80,7 +80,7 @@ jobs:
             filesystem_drivers: "[\"memory\", \"file\"]"
             extras: "--extra sqlalchemy --extra filesystem --extra parquet --extra postgres --extra oracle --group adbc"
             needs_mysql: true
-            post_install_commands: "uv run pip install pymysql && uv run pip install sqlalchemy==2.0 && uv run dbc install mysql && uv run dbc install sqlite"
+            post_install_commands: "uv run pip install pymysql duckdb-engine && uv run pip install sqlalchemy==2.0 && uv run dbc install mysql && uv run dbc install sqlite"
 
     env:
       ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
@@ -134,7 +134,7 @@ jobs:
 
     steps:
       - name: Check out
-        uses: actions/checkout@master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
       #
       # Start required services

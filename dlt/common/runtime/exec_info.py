@@ -268,7 +268,7 @@ def is_gcp_cloud_function() -> bool:
     return os.environ.get("FUNCTION_NAME") is not None
 
 
-def get_plus_version() -> TVersion:
+def get_dlthub_version() -> TVersion:
     "Gets dlthub library version"
     try:
         from dlthub.version import __version__, PKG_NAME
@@ -304,7 +304,7 @@ def get_execution_context() -> TExecutionContext:
         library=TVersion(name=DLT_PKG_NAME, version=__version__),
         run_context=run_context_name(),
     )
-    if plus_version := get_plus_version():
-        context["dlthub"] = plus_version
+    if dlthub_version := get_dlthub_version():
+        context["dlthub"] = dlthub_version
 
     return context

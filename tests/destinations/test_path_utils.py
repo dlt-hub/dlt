@@ -250,29 +250,34 @@ ALL_LAYOUTS = (  # type: ignore
         True,
         [],
     ),
-    ("{timestamp}{table_name}", f"{int(frozen_datetime.timestamp())}mocked-table", True, []),
-    ("{ddd}/{MMM}/{table_name}", "sun/apr/mocked-table", True, []),
+    ("{timestamp}{table_name}", f"{int(frozen_datetime.timestamp())}mocked-table.jsonl", True, []),
+    ("{ddd}/{MMM}/{table_name}", "sun/apr/mocked-table.jsonl", True, []),
     (
         "{Y}/{timestamp}/{table_name}",
-        f"{frozen_datetime.format('YYYY')}/{int(frozen_datetime.timestamp())}/mocked-table",
+        f"{frozen_datetime.format('YYYY')}/{int(frozen_datetime.timestamp())}/mocked-table.jsonl",
         True,
         [],
     ),
     (
         "{Y}/{timestamp_ms}/{table_name}",
-        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table",
+        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table.jsonl",
         True,
         [],
     ),
     (
         "{Y}/{load_package_timestamp_ms}/{table_name}",
-        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table",
+        f"{frozen_datetime.year}/{str(int(frozen_datetime.timestamp()*1000))}/mocked-table.jsonl",
         True,
         [],
     ),
     ("{load_id}/{ext}/{table_name}", "mocked-load-id/jsonl/mocked-table", True, []),
-    ("{HH}/{mm}/{schema_name}", f"{frozen_datetime.format('HH/mm')}/schema-name", True, []),
-    ("{type}/{bobo}/{table_name}", "one-for-all/is-name/mocked-table", True, []),
+    (
+        "{HH}/{mm}/{schema_name}",
+        f"{frozen_datetime.format('HH/mm')}/schema-name.jsonl",
+        True,
+        [],
+    ),
+    ("{type}/{bobo}/{table_name}", "one-for-all/is-name/mocked-table.jsonl", True, []),
     # invalid placeholders
     ("{illegal_placeholder}{table_name}", "", False, ["illegal_placeholder"]),
     ("{unknown_placeholder}/{volume}/{table_name}", "", False, ["unknown_placeholder", "volume"]),
@@ -355,12 +360,26 @@ def test_create_path(test_load: TestLoad) -> None:
 
     # extension gets added automatically
     path = create_path(
-        "{schema_name}/{table_name}/{load_id}.{ext}",
+        "{schema_name}/{table_name}/{load_id}.{file_id}",
         schema_name="schema_name",
         load_id=load_id,
         file_name=job_info.file_name(),
     )
-    assert path == f"schema_name/mock_table/{load_id}.{job_info.file_format}"
+    assert (
+        path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{job_info.full_extension()}"
+    )
+
+    compressed_job_info = job_info._replace(is_compressed=True)
+    path = create_path(
+        "{schema_name}/{table_name}/{load_id}.{file_id}",
+        schema_name="schema_name",
+        load_id=load_id,
+        file_name=compressed_job_info.file_name(),
+    )
+    assert (
+        path
+        == f"schema_name/mock_table/{load_id}.{compressed_job_info.file_id}.{compressed_job_info.full_extension()}"
+    )
 
 
 def test_get_table_prefix_layout() -> None:

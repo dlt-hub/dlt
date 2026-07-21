@@ -13,6 +13,8 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials, DuckDb
 
 if TYPE_CHECKING:
     from duckdb import DuckDBPyConnection
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.duckdb.duck import DuckDbClient
 else:
     DuckDBPyConnection = Any
@@ -195,6 +197,19 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
         from dlt.destinations.impl.duckdb.duck import DuckDbClient
 
         return DuckDbClient
+
+    def create_ibis_backend(
+        self, client: "DuckDbClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend that takes ownership of the client's duckdb connection."""
+        from dlt.helpers.ibis import ibis
+
+        client.config.credentials.read_only = read_only
+        # open the connection, switch to the dataset so tables resolve unqualified, then hand the
+        # connection to ibis
+        with client:
+            client.sql_client.use_dataset()
+            return ibis.duckdb.from_connection(client.config.credentials.conn_pool.move_conn())
 
     def __init__(
         self,

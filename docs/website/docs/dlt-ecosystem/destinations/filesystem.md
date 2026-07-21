@@ -112,7 +112,7 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
 
 #### Using S3 compatible storage
 
-To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/) or [Google
+To use an S3 compatible storage other than AWS S3, such as [MinIO](https://min.io/), [Tigris](https://www.tigrisdata.com), [Cloudflare R2](https://www.cloudflare.com/en-ca/developer-platform/r2/), or [Google
 Cloud Storage](https://cloud.google.com/storage/docs/interoperability), you may supply an `endpoint_url` in the config. This should be set along with AWS credentials:
 
 ```toml
@@ -124,6 +124,8 @@ aws_access_key_id = "please set me up!" # copy the access key here
 aws_secret_access_key = "please set me up!" # copy the secret access key here
 endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpoint URL here
 ```
+
+For Tigris, set `endpoint_url = "https://t3.storage.dev"` and use your Tigris access key ID (prefixed `tid_`) and secret access key (prefixed `tsec_`). Tigris uses a single global endpoint and doesn't charge egress fees, which matters when warehouses in different regions load from the same staging bucket.
 
 #### Adding additional configuration
 

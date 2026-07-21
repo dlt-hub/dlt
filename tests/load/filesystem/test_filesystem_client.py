@@ -159,6 +159,61 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
         assert client.get_table_prefix("letters").endswith("_data/letters.")
 
 
+def test_table_prefix_resolves_standard_extra_placeholders() -> None:
+    def unused_load_id(*args: str) -> str:
+        raise AssertionError("placeholder outside table prefix must not be resolved")
+
+    client = _client_factory(
+        filesystem(
+            bucket_url=get_test_storage_root(),
+            layout="{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+            extra_placeholders={
+                "schema_name": "custom",
+                "table_name": "custom_table",
+                "load_id": unused_load_id,
+            },
+        )
+    )
+
+    assert client.get_table_prefix("letters").endswith("/custom/custom_table/")
+
+    def custom_schema_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_callable"
+
+    def custom_table_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_table_callable"
+
+    client.config.extra_placeholders["schema_name"] = custom_schema_name
+    client.config.extra_placeholders["table_name"] = custom_table_name
+    assert client.get_table_prefix("letters").endswith("/custom_callable/custom_table_callable/")
+
+
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:

@@ -108,7 +108,7 @@ from dlt.extract.exceptions import SourceExhausted
 from dlt.extract.extract import Extract, data_to_sources
 from dlt.normalize import Normalize
 from dlt.normalize.configuration import NormalizeConfiguration
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.sql_client import SqlClientBase, WithSqlClient, WithSchemas
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import get_destination_clients
@@ -202,7 +202,7 @@ def with_schemas_sync(f: TFun) -> TFun:
                 self._schema_storage.save_import_schema_if_not_exists(schema)
                 # only now save the schema, already linked to itself if saved as import schema
                 self._schema_storage.commit_live_schema(name)
-            # refresh only when default_schema_name is aleady set
+            # refresh only when default_schema_name is already set
             if self.default_schema_name:
                 self.schema_names = self._list_schemas_sorted()
             return rv
@@ -1185,7 +1185,13 @@ class Pipeline(SupportsPipeline):
         schema = self._get_schema_or_create(schema_name)
         client = self._get_destination_clients(schema)[0]
         if isinstance(client, WithSqlClient):
-            return client.sql_client
+            sql_client = client.sql_client
+            if isinstance(sql_client, WithSchemas):
+                # expose views for all pipeline schemas so cross-schema tables resolve; `schema`
+                # stays first as the default that sets the qualified-name search path
+                other = [self.schemas[name] for name in self.schema_names if name != schema.name]
+                sql_client.set_schemas([schema, *other])
+            return sql_client
         else:
             raise SqlClientNotAvailable(
                 "pipeline", self.pipeline_name, self._destination.destination_name
@@ -1852,7 +1858,7 @@ class Pipeline(SupportsPipeline):
         if self._staging:
             state["staging_type"] = self._staging.destination_type
             state["staging_name"] = self._staging.configured_name
-        # update schemas only when default_schema_name is aleady set
+        # update schemas only when default_schema_name is already set
         # prevents race condition (another process writes schemas)
         if self.default_schema_name:
             state["schema_names"] = self._list_schemas_sorted()

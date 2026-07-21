@@ -1,4 +1,5 @@
 import dataclasses
+import warnings
 from typing import ClassVar, Final, List, Optional, Union
 
 from dlt.common.configuration import configspec
@@ -31,8 +32,26 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     """Allow BigQuery to autodetect schemas and create data tables"""
     ignore_unknown_values: bool = False
     """Ignore unknown values in the data"""
+    enable_atomic_replace: bool = False
+    """Replace `truncate-and-insert` tables with a single metadata-preserving WRITE_TRUNCATE_DATA
+    load job. Requires a GCS filesystem staging destination."""
 
     __config_gen_annotations__: ClassVar[List[str]] = ["location"]
+
+    def on_resolved(self) -> None:
+        if (
+            self.enable_atomic_replace
+            and self.replace_strategy is not None
+            and self.replace_strategy != "truncate-and-insert"
+        ):
+            warnings.warn(
+                "BigQuery atomic replace (enable_atomic_replace) requires the 'truncate-and-insert'"
+                f" replace strategy but 'replace_strategy' is set to '{self.replace_strategy}'."
+                " Disabling atomic replace.",
+                UserWarning,
+                stacklevel=2,
+            )
+            self.enable_atomic_replace = False
 
     def get_location(self) -> str:
         return self.location

@@ -89,11 +89,13 @@ def test_normalize_empty_arrow_input_writes_empty_job(
     assert step_info.metrics[load_id][0]["table_metrics"]["items"].items_count == 0
 
 
+@pytest.mark.parametrize("add_dlt_id", [True, False])
 def test_normalize_empty_arrow_input_parquet_output(
-    parquet_caps: DestinationCapabilitiesContext, raw_normalize: Normalize
+    parquet_caps: DestinationCapabilitiesContext, raw_normalize: Normalize, add_dlt_id: bool
 ) -> None:
     """An empty arrow input file yields an empty root-table job with a physically present empty
     parquet file (num_rows == 0)."""
+    raw_normalize.config.parquet_normalizer.add_dlt_id = add_dlt_id
     schema = _items_schema()
     empty = pyarrow.table({"id": pyarrow.array([], type=pyarrow.int64())})
     load_id = extract_arrow_items(raw_normalize.normalize_storage, empty, schema, "items")

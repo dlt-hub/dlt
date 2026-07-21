@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Type, Union
+from typing import TYPE_CHECKING, Any, ClassVar, Dict, Optional, Sequence, Type, Union
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -21,6 +21,8 @@ from dlt.destinations.impl.databricks.databricks_adapter import INSERT_API_HINT
 from dlt.destinations.impl.databricks.typing import TDatabricksInsertApi
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
 
@@ -191,6 +193,17 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         from dlt.destinations.impl.databricks.databricks import DatabricksClient
 
         return DatabricksClient
+
+    def create_ibis_backend(
+        self, client: "DatabricksClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis databricks backend for the client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        return ibis.databricks.connect(
+            **client.config.credentials.to_connector_params(),
+            schema=client.sql_client.dataset_name,
+        )
 
     def __init__(
         self,

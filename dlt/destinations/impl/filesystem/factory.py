@@ -17,6 +17,8 @@ from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlac
 from dlt.common.normalizers.naming import NamingConvention
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 
 
@@ -70,6 +72,26 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
     @property
     def client_class(self) -> Type[FilesystemClient]:
         return HfFilesystemClient if self.is_hf else FilesystemClient
+
+    def create_ibis_backend(
+        self, client: "FilesystemClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis duckdb backend that maps the filesystem tables as in-memory views."""
+        from dlt.helpers.ibis import ibis
+        from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+
+        sql_client = client.sql_client
+        assert isinstance(sql_client, FilesystemSqlClient)
+        if schemas:
+            sql_client.set_schemas(schemas)
+        # do not use a context manager so the cloned connection is not closed
+        duckdb_conn = sql_client.open_connection()
+        sql_client.create_views_for_all_tables()
+        con = ibis.duckdb.from_connection(duckdb_conn)
+        # disable the destructor so the connection survives handover to ibis
+        client.sql_client = None
+        sql_client.memory_db = None
+        return con
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext.generic_capabilities(

@@ -3,7 +3,7 @@ import io
 import os
 import asyncio
 import datetime  # noqa: 251
-from typing import Any, List
+from typing import Any, List, Set
 from unittest.mock import patch
 import pytest
 import requests_mock
@@ -18,14 +18,15 @@ from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
 from dlt.common.runtime.telemetry import stop_telemetry
-from dlt.common.typing import DictStrAny, DictStrStr, TSecretValue
-from dlt.common.utils import digest128
+from dlt.common.typing import DictStrAny, DictStrStr, TRefreshMode, TSecretValue
+from dlt.common.utils import digest128, uniq_id
 
 from dlt.destinations import dummy, filesystem
 
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import (
+    TRACE_ENGINE_VERSION,
     PipelineTrace,
     SerializableResolvedValueTrace,
     load_trace,
@@ -68,6 +69,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     extract_info = pipeline.extract(inject_tomls())
     trace = pipeline.last_trace
     assert trace is not None
+    assert trace.engine_version == TRACE_ENGINE_VERSION == 1
     # assert p._trace is None
     assert len(trace.steps) == 1
     step = trace.steps[0]
@@ -298,7 +300,27 @@ def test_trace_schema() -> None:
         def data(id_=dlt.sources.incremental("id")):
             yield [{"id": 1, "multi": "1.2"}, {"id": 2}, {"id": 3}]
 
-        return data()
+        # dict-shaped write_disposition (merge) and schema_contract, so the trace contract
+        # captures the nested hint columns
+        @dlt.resource(
+            write_disposition={"disposition": "merge", "strategy": "delete-insert"},
+            primary_key="id",
+            schema_contract={"tables": "evolve", "columns": "evolve", "data_type": "evolve"},
+        )
+        def merge_data():
+            yield [{"id": 1, "val": "a"}, {"id": 2, "val": "b"}]
+
+        # dict-shaped replace write_disposition
+        @dlt.resource(write_disposition={"disposition": "replace"})
+        def replace_data():
+            yield [{"id": 1}, {"id": 2}]
+
+        # scd2 merge strategy as a dict
+        @dlt.resource(write_disposition={"disposition": "merge", "strategy": "scd2"})
+        def scd2_data():
+            yield [{"id": 1, "val": "x"}, {"id": 2, "val": "y"}]
+
+        return data(), merge_data(), replace_data(), scd2_data()
 
     @dlt.source
     def github():
@@ -333,7 +355,9 @@ def test_trace_schema() -> None:
         return data()
 
     # create pipeline with staging to get remote_url in load step job_metrics
-    dummy_dest = dummy(completed_prob=1.0)
+    dummy_dest = dummy(
+        completed_prob=1.0, supported_merge_strategies=["delete-insert", "upsert", "scd2"]
+    )
     pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema",
         destination=dummy_dest,
@@ -348,6 +372,10 @@ def test_trace_schema() -> None:
     os.environ["SOURCES__MANY_HINTS__CREDENTIALS"] = "CREDS"
 
     pipeline.run([many_hints(), github()])
+    # run again with refresh so the traces carry refresh mode and dropped/truncated tables
+    pipeline.run([many_hints(), github()], refresh="drop_sources")
+    trace_drop_sources = pipeline.last_trace
+    pipeline.run([many_hints(), github()], refresh="drop_data")
 
     trace = pipeline.last_trace
     pipeline._schema_storage.storage.save("trace.json", json.dumps(trace, pretty=True))
@@ -360,7 +388,7 @@ def test_trace_schema() -> None:
     trace_pipeline = dlt.pipeline(
         pipeline_name="test_trace_schema_traces", destination=dummy(completed_prob=1.0)
     )
-    trace_pipeline.run([trace], table_name="trace", schema=evolving_schema)
+    trace_pipeline.run([trace, trace_drop_sources], table_name="trace", schema=evolving_schema)
 
     # add exception trace
     with pytest.raises(PipelineStepFailed):
@@ -394,7 +422,7 @@ def test_trace_schema() -> None:
         pipeline_name="test_trace_schema_traces_contract", destination=dummy(completed_prob=1.0)
     )
     contract_trace_pipeline.run(
-        [trace_exception, trace],
+        [trace_exception, trace, trace_drop_sources],
         table_name="trace",
         schema=trace_contract,
         schema_contract="freeze",
@@ -407,6 +435,55 @@ def test_trace_schema() -> None:
 
 
 # def test_trace_schema_contract() -> None:
+
+
+@pytest.mark.parametrize(
+    "refresh,expected_dropped,expected_truncated",
+    [
+        ("drop_sources", {"items", "other"}, set()),
+        ("drop_data", set(), {"items", "other"}),
+    ],
+    ids=["drop-sources", "drop-data"],
+)
+def test_trace_refresh_and_table_drops(
+    refresh: TRefreshMode, expected_dropped: Set[str], expected_truncated: Set[str]
+) -> None:
+    """Refresh mode and dropped/truncated tables are exposed on step infos and in printouts."""
+    pipeline = dlt.pipeline(
+        pipeline_name="test_trace_refresh_" + uniq_id(),
+        destination="duckdb",
+        dev_mode=True,
+    )
+
+    @dlt.resource(write_disposition="replace")
+    def items():
+        yield [{"id": 1}, {"id": 2}]
+
+    @dlt.resource(write_disposition="append")
+    def other():
+        yield [{"x": "a"}]
+
+    info = pipeline.run([items(), other()])
+    # no refresh: the regular truncation of the replace table is not recorded
+    package = info.load_packages[0]
+    assert package.refresh is None
+    assert not package.dropped_tables
+    assert not package.truncated_tables
+    assert "with refresh" not in str(info)
+
+    info = pipeline.run([items(), other()], refresh=refresh)
+    package = info.load_packages[0]
+    assert package.refresh == refresh
+    assert set(package.dropped_tables or []) == expected_dropped
+    assert set(package.truncated_tables or []) == expected_truncated
+    assert f"with refresh '{refresh}'" in str(info)
+    # extract package exposes the tables requested to be dropped/truncated
+    extract_package = pipeline.last_trace.last_extract_info.load_packages[0]
+    assert extract_package.refresh == refresh
+    assert set(extract_package.dropped_tables or []) == expected_dropped
+    assert set(extract_package.truncated_tables or []) == expected_truncated
+
+    assert_trace_serializable(pipeline.last_trace)
 
 
 def test_save_load_trace() -> None:

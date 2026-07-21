@@ -212,7 +212,7 @@ class PipeIterator(Iterator[PipeItem]):
                             pipe_item.pipe.name,
                             f"Pipe item of type `{type(pipe_item.item).__name__}` was not fully"
                             f" evaluated at step `{pipe_item.step}`. This is an internal error or"
-                            " you're yielding unexpected object from resources (e.g., fucntions,"
+                            " you're yielding unexpected object from resources (e.g., functions,"
                             " awaitables).",
                         )
                     # mypy not able to figure out that item was resolved

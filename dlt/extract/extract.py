@@ -1,7 +1,6 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-import itertools
 from typing import Iterator, List, Dict, Any, Optional, cast
 import yaml
 
@@ -9,7 +8,12 @@ from dlt.common import logger
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import ConfigSectionContext, known_sections
-from dlt.common.data_writers.writers import EMPTY_DATA_WRITER_METRICS, TDataItemFormat
+from dlt.common.data_writers.writers import TDataItemFormat
+from dlt.common.metrics import (
+    EMPTY_DATA_WRITER_METRICS,
+    DataWriterAndCustomMetrics,
+    aggregate_job_metrics,
+)
 from dlt.common.pipeline import (
     ExtractDataInfo,
     ExtractInfo,
@@ -53,7 +57,6 @@ from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, Unknown
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
-from dlt.common.metrics import DataWriterAndCustomMetrics
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference, SourceFactory
@@ -329,12 +332,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             for m in self.extract_storage.closed_files(load_id)
         }
         # aggregate by table name
-        table_metrics = {
-            table_name: sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS)
-            for table_name, metrics in itertools.groupby(
-                job_metrics.items(), lambda pair: pair[0].table_name
-            )
-        }
+        table_metrics = aggregate_job_metrics(job_metrics, lambda job: job.table_name)
 
         # aggregate by resource name
         def _get_all_resource_custom_metrics(resource_name: str) -> Dict[str, Any]:
@@ -344,14 +342,16 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     all_custom_metrics = update_dict_nested(all_custom_metrics, step.custom_metrics)
             return all_custom_metrics
 
+        resource_agg = aggregate_job_metrics(
+            table_metrics,
+            lambda table_name: source.schema.get_table(table_name)["resource"],
+        )
         resource_metrics = {
             resource_name: DataWriterAndCustomMetrics(
-                *sum(map(lambda pair: pair[1], metrics), EMPTY_DATA_WRITER_METRICS),
+                *metrics,
                 custom_metrics=_get_all_resource_custom_metrics(resource_name),
             )
-            for resource_name, metrics in itertools.groupby(
-                table_metrics.items(), lambda pair: source.schema.get_table(pair[0])["resource"]
-            )
+            for resource_name, metrics in resource_agg.items()
         }
         # backfill resources that produced no writer output but carry custom metrics
         # (e.g. every item was filtered out) so `add_metrics` /
@@ -419,8 +419,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         json_extractor = extractors["object"]
         tables_with_items = set().union(*[e.tables_with_items for e in extractors.values()])
         computed_tables = set().union(*[e.computed_tables for e in extractors.values()])
-        # find REPLACE resources that did not yield any pipe items and create empty jobs for them
-        # do not include tables that have never seen data
+        # find REPLACE resources that yielded no data and register their tables for truncation;
+        # tables that never saw data are excluded (nothing to truncate)
         data_tables = {t["name"]: t for t in schema.data_tables(seen_data_only=True)}
         tables_by_resources = utils.group_tables_by_resource(data_tables)
         for resource in source.resources.selected.values():
@@ -431,7 +431,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             if callable(resource_write_disposition_dict):
                 continue
 
-            # disposition shorthand used for comparisons and the replace gate below
+            # disposition shorthand (string) used for the replace check below
             resource_write_disposition = (
                 resource_write_disposition_dict["disposition"]
                 if isinstance(resource_write_disposition_dict, dict)
@@ -443,26 +443,34 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 if utils.is_nested_table(table) or table_name in tables_with_items:
                     continue
 
-                # apply the fresh disposition as a partial table so hint columns (eg. scd2
-                # validity columns) are normalized and merged like on the data path
-                if table_name not in computed_tables and (
-                    wd_config := get_fresh_write_disposition(schema, resource, table)
-                ):
-                    partial_table: Dict[str, Any] = {
-                        "name": table_name,
-                        "columns": {},
-                        "write_disposition": wd_config,
-                    }
-                    resource._merge_write_disposition_dict(partial_table)
-                    schema.update_table(cast(TPartialTableSchema, partial_table))
-
                 # truncate tables only for resources marked as "replace"
                 if resource_write_disposition != "replace":
                     continue
 
+                # compute the current write disposition in memory
+                if table_name not in computed_tables:
+                    wd_config = get_fresh_write_disposition(schema, resource, table)
+                    disposition = (
+                        wd_config["disposition"]
+                        if isinstance(wd_config, dict)
+                        # fall back to the stored disposition when it can't be re-derived
+                        else (wd_config or table.get("write_disposition"))
+                    )
+                    # apply the fresh disposition so the load package schema replaces the table
+                    if disposition == "replace" and table.get("write_disposition") != "replace":
+                        partial_table: Dict[str, Any] = {
+                            "name": table_name,
+                            "columns": {},
+                            "write_disposition": wd_config,
+                        }
+                        resource._merge_write_disposition_dict(partial_table)
+                        schema.update_table(cast(TPartialTableSchema, partial_table))
+                else:
+                    disposition = table.get("write_disposition")
+
                 # table itself must accept replace
-                if table.get("write_disposition") == "replace":
-                    # write empty files so a replace root is truncated even though it received no data
+                if disposition == "replace":
+                    # write empty file so a replace root is truncated even though it received no data
                     json_extractor.write_empty_items_file(table_name)
 
         # collect tables that received empty materialized lists and had no items

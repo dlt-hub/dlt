@@ -484,6 +484,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
             extracted_items_file, "rb"
         ) as f:
             # enumerate jsonl file line by line
+            line_no: Optional[int] = None
             for line_no, line in enumerate(f):
                 self._maybe_cancel()
                 items: List[TDataItem] = json.loadb(line)
@@ -492,29 +493,33 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                 )
                 schema_updates.append(partial_update)
                 logger.debug(f"Processed {line_no+1} lines from file {extracted_items_file}")
-            # generate empty files when (1) input data had no rows (2) rows got filtered out by contract
+            # no active writer means no rows were created for the root table
             if (
                 root_table_name in self.schema.tables
-                and self.item_storage.get_active_writer(  # no active writer if no rows created
+                and self.item_storage.get_active_writer(
                     self.load_id, self.schema.name, root_table_name
                 )[1]
                 is None
             ):
                 root_table = self.schema.tables[root_table_name]
-                if not has_table_seen_data(root_table):
-                    # if this is a new table, add normalizer columns
-                    partial_update = self._normalize_chunk(
-                        root_table_name, [{}], False, skip_write=True
+                table_seen_data = has_table_seen_data(root_table)
+                # empty file (line_no is None) -> explicit materialize, always create the table.
+                # rows filtered out -> only truncate a table that has already seen data
+                if line_no is None or table_seen_data:
+                    if not table_seen_data:
+                        # new materialized table needs normalizer columns
+                        partial_update = self._normalize_chunk(
+                            root_table_name, [{}], False, skip_write=True
+                        )
+                        schema_updates.append(partial_update)
+                    self.item_storage.write_empty_items_file(
+                        self.load_id,
+                        self.schema.name,
+                        root_table_name,
+                        self.schema.get_table_columns(root_table_name),
                     )
-                    schema_updates.append(partial_update)
-                self.item_storage.write_empty_items_file(
-                    self.load_id,
-                    self.schema.name,
-                    root_table_name,
-                    self.schema.get_table_columns(root_table_name),
-                )
-                logger.debug(
-                    f"No rows from file {extracted_items_file}, written empty load job file"
-                )
+                    logger.debug(
+                        f"No rows from file {extracted_items_file}, written empty load job file"
+                    )
 
         return schema_updates

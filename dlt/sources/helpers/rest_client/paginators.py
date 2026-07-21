@@ -178,7 +178,7 @@ class RangePaginator(BasePaginator):
 
                 try:
                     total = int(total)
-                except ValueError:
+                except (ValueError, TypeError):
                     self._handle_invalid_total(total)
 
             self.current_value += self.value_step
@@ -202,7 +202,7 @@ class RangePaginator(BasePaginator):
                 elif not isinstance(has_more, bool):
                     self._handle_invalid_has_more(has_more)
 
-                self._has_next_page = has_more
+                self._has_next_page = self._has_next_page and has_more
 
     def _stop_after_this_page(self, data: Optional[List[Any]] = None) -> bool:
         return self.stop_after_empty_page and not data
@@ -903,7 +903,7 @@ class JSONResponseCursorPaginator(BaseReferencePaginator):
             elif not isinstance(has_more, bool):
                 self._handle_invalid_has_more(has_more)
 
-            self._has_next_page = has_more
+            self._has_next_page = self._has_next_page and has_more
 
     def _handle_invalid_has_more(self, has_more: Any) -> None:
         raise ValueError(

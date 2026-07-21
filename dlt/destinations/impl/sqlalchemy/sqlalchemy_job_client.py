@@ -108,6 +108,9 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             schema_column["name"],
             self.type_mapper.to_destination_type(schema_column, table),
             nullable=schema_column.get("nullable", True),
+            # dlt always provides explicit values, never use db-side identity columns
+            # ie. duckdb_engine compiles autoincrement primary keys to unsupported BIGSERIAL
+            autoincrement=False,
         )
         if self.config.create_unique_indexes:
             col_.unique = schema_column.get("unique", False)
@@ -145,11 +148,12 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         elif parsed_file.file_format == "parquet":
             table_obj = self._to_table_object(table)
             dialect_name = self.config.credentials.engine.dialect.name
-            # Skip ADBC for SQLite: Python's sqlite3 and adbc_driver_sqlite bundle different
-            # SQLite versions. In WAL mode, both libraries mmap the same -shm index file but
-            # have separate internal state, causing page-level corruption when writing.
+            # ADBC copy job implements mysql and sqlite dialects only. SQLite is skipped:
+            # Python's sqlite3 and adbc_driver_sqlite bundle different SQLite versions.
+            # In WAL mode, both libraries mmap the same -shm index file but have separate
+            # internal state, causing page-level corruption when writing.
             # See: https://github.com/tensorflow/tensorboard/issues/1467
-            if dialect_name != "sqlite" and adbc_has_driver(dialect_name)[0]:
+            if dialect_name == "mysql" and adbc_has_driver(dialect_name)[0]:
                 return SqlalchemyParquetADBCJob(file_path, table_obj)
             else:
                 return SqlalchemyParquetInsertJob(file_path, table_obj)

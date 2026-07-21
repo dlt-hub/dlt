@@ -508,3 +508,60 @@ def test_auto_views_not_created_for_other_dataset_qualified_table(
         # schema that is not the dataset name, so the dataset's own `items` table is left untouched
         views = conn.execute("SELECT view_name FROM duckdb_views()").fetchall()
         assert "items" not in [v[0] for v in views]
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_pipeline_sql_client_exposes_all_pipeline_schemas(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """`pipeline.sql_client()` must register every pipeline schema so the scanner creates views for
+    tables that live in a non-default schema of the same dataset."""
+    if destination_config.file_format not in ["parquet", "jsonl"]:
+        pytest.skip(
+            f"Test only works for jsonl and parquet, given: {destination_config.file_format}"
+        )
+
+    pipeline = destination_config.setup_pipeline(
+        "multi_schema_pipeline",
+        dataset_name="test_multi_schema_sql_client",
+        dev_mode=True,
+    )
+
+    @dlt.source(name="schema_a")
+    def source_a():
+        @dlt.resource(name="items_a")
+        def items_a():
+            yield [{"id": i} for i in range(3)]
+
+        return items_a
+
+    @dlt.source(name="schema_b")
+    def source_b():
+        @dlt.resource(name="items_b")
+        def items_b():
+            yield [{"id": i} for i in range(5)]
+
+        return items_b
+
+    # both sources land in the same dataset under different schemas
+    pipeline.run(source_a(), **destination_config.run_kwargs)
+    pipeline.run(source_b(), **destination_config.run_kwargs)
+    assert {"schema_a", "schema_b"}.issubset(set(pipeline.schema_names))
+
+    # the default-schema client must resolve tables from every schema of the dataset
+    with pipeline.sql_client() as c:
+        for table_name, expected in [("items_a", 3), ("items_b", 5)]:
+            qualified = c.make_qualified_table_name(table_name)
+            with c.execute_query(f"SELECT COUNT(*) FROM {qualified}") as cursor:
+                assert cursor.fetchone()[0] == expected
+
+    # an explicit schema_name keeps its own default while still exposing the other schema's views
+    with pipeline.sql_client(schema_name="schema_b") as c:
+        qualified = c.make_qualified_table_name("items_a")
+        with c.execute_query(f"SELECT COUNT(*) FROM {qualified}") as cursor:
+            assert cursor.fetchone()[0] == 3

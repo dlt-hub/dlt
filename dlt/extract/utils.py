@@ -211,7 +211,7 @@ def wrap_async_iterator(
                 yield None
             busy = True
             yield run()
-    # this gets called from the main thread when the wrapping generater is closed
+    # this gets called from the main thread when the wrapping generator is closed
     except GeneratorExit:
         # mark as exhausted
         exhausted = True

@@ -1,4 +1,4 @@
-from typing import List, Optional, Set, cast
+from typing import List, Optional, Set, Tuple, cast
 import importlib
 import pytest
 import sqlglot
@@ -10,12 +10,14 @@ from dlt.common.libs.sqlglot import (
     filter_select_column_names,
     from_sqlglot_type,
     get_select_column_names,
+    migrate_order_and_limit,
     to_sqlglot_type,
     uuid_expr_for_dialect,
     validate_no_star_select,
     build_outer_select_statement,
     reorder_or_adjust_outer_select,
     normalize_query_identifiers,
+    has_pure_column_projection,
 )
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
@@ -664,3 +666,101 @@ def test_normalize_query_identifiers_table_qualified_columns() -> None:
     assert f"{expected_table}.my_col" in normalized_sql
     assert f"{expected_table}.other_col" in normalized_sql
     assert f"{expected_table}.id" in normalized_sql
+
+
+@pytest.mark.parametrize(
+    "query,expected",
+    [
+        ("SELECT a, b FROM t", True),
+        ("SELECT * FROM t", True),
+        ("SELECT a AS x FROM t", False),
+        ("SELECT COUNT(a) FROM t", False),
+        ("SELECT DISTINCT a FROM t", False),
+        ("SELECT a FROM t GROUP BY a", False),
+        ("SELECT t.a FROM t JOIN u ON t.id = u.id", False),
+    ],
+    ids=["plain-columns", "star", "alias", "aggregate", "distinct", "group-by", "join"],
+)
+def test_has_pure_column_projection(query: str, expected: bool) -> None:
+    assert has_pure_column_projection(cast(sge.Query, sqlglot.parse_one(query))) is expected
+
+
+def _wrap_and_migrate(query: str, *projection: str) -> Tuple[sge.Select, sge.Query]:
+    """Wrap `query` as a derived table selecting `projection`, then migrate its ORDER BY/LIMIT."""
+    subquery = cast(sge.Query, sqlglot.parse_one(query)).subquery(DLT_SUBQUERY_NAME)
+    outer = sge.select(
+        *(sge.Column(this=sge.to_identifier(col, quoted=True)) for col in projection)
+    ).from_(subquery)
+    migrate_order_and_limit(subquery.this, outer, DLT_SUBQUERY_NAME)
+    return outer, subquery.this
+
+
+# dialects that render ORDER BY/LIMIT differently (tsql TOP/FETCH, trino OFFSET..LIMIT, NULLS)
+_MIGRATE_DIALECTS: List[TSqlGlotDialect] = [
+    "duckdb",
+    "postgres",
+    "tsql",
+    "trino",
+    "snowflake",
+    "databricks",
+]
+
+
+@pytest.mark.parametrize(
+    "query,projection,hoisted",
+    [
+        pytest.param(
+            "SELECT col1 AS c FROM my_table ORDER BY c LIMIT 3 OFFSET 1",
+            ("c",),
+            True,
+            id="alias-key",
+        ),
+        pytest.param(
+            "SELECT col1 + 1 AS c FROM my_table ORDER BY col1 + 1 LIMIT 3",
+            ("c",),
+            True,
+            id="computed-key",
+        ),
+        pytest.param(
+            "SELECT DISTINCT col1 FROM my_table ORDER BY col1 LIMIT 3",
+            ("col1",),
+            True,
+            id="distinct",
+        ),
+        pytest.param(
+            "SELECT col1, COUNT(*) AS cnt FROM my_table GROUP BY col1 ORDER BY cnt LIMIT 3",
+            ("col1", "cnt"),
+            True,
+            id="group-by",
+        ),
+        pytest.param(
+            "SELECT col1 AS c FROM my_table ORDER BY col2 LIMIT 3", ("c",), False, id="dropped-key"
+        ),
+    ],
+)
+def test_migrate_order_and_limit_across_dialects(
+    query: str, projection: Tuple[str, ...], hoisted: bool
+) -> None:
+    """ORDER BY/LIMIT move onto the wrap only when the sort key survives the projection."""
+    outer, inner = _wrap_and_migrate(query, *projection)
+    # sort/limit leave the inner and land on the outer exactly when they can be hoisted
+    assert (inner.args.get("order") is None) is hoisted
+    assert (inner.args.get("limit") is None) is hoisted
+    assert (outer.args.get("order") is not None) is hoisted
+    assert (outer.args.get("limit") is not None) is hoisted
+    # the sort must render at the level that owns it in every dialect (outer tail vs inner body)
+    for dialect in _MIGRATE_DIALECTS:
+        before_alias, _, after_alias = outer.sql(dialect=dialect).partition(DLT_SUBQUERY_NAME)
+        assert ("ORDER BY" in after_alias) is hoisted
+        assert ("ORDER BY" in before_alias) is (not hoisted)
+
+
+def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
+    """A computed sort key is rewritten to reference the wrap's exposed output column."""
+    outer, inner = _wrap_and_migrate("SELECT col1 + 1 AS c FROM my_table ORDER BY col1 + 1", "c")
+    assert inner.args.get("order") is None
+    order = outer.args.get("order")
+    assert order is not None
+    sort_key = order.expressions[0].this
+    assert isinstance(sort_key, sge.Column)
+    assert sort_key.name == "c" and sort_key.table == DLT_SUBQUERY_NAME

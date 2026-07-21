@@ -1,4 +1,4 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
+from typing import Any, Optional, Sequence, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
@@ -19,6 +19,8 @@ from dlt.destinations.impl.redshift.configuration import (
 )
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.redshift.redshift import RedshiftClient
 else:
     RedshiftClient = Any
@@ -173,6 +175,36 @@ class redshift(Destination[RedshiftClientConfiguration, "RedshiftClient"]):
         from dlt.destinations.impl.redshift.redshift import RedshiftClient
 
         return RedshiftClient
+
+    def create_ibis_backend(
+        self, client: "RedshiftClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+    ) -> "BaseBackend":
+        """Create an ibis postgres backend for the redshift client's dataset."""
+        from dlt.helpers.ibis import ibis
+
+        try:
+            import psycopg  # type: ignore[import-not-found, unused-ignore]
+
+            old_fetch = psycopg.types.TypeInfo.fetch
+
+            def _ignore_hstore(conn: Any, name: Any) -> Any:
+                if name == "hstore":
+                    raise TypeError("HSTORE")
+                return old_fetch(conn, name)
+
+            psycopg.types.TypeInfo.fetch = _ignore_hstore  # type: ignore[method-assign, unused-ignore]
+        except Exception:
+            pass
+        ibis_version = tuple(map(int, ibis.__version__.split(".")))
+        if ibis_version >= (0, 10, 4):
+            raise NotImplementedError(
+                "Redshift is not properly supported by ibis as of version 0.10.4. "
+                "Please use an older version of ibis."
+            )
+        credentials = client.config.credentials.copy()
+        # ibis resolves the schema from the database path; its `schema` argument is overridden
+        credentials.database = credentials.database + "/" + client.sql_client.dataset_name
+        return ibis.connect(credentials.to_native_representation())
 
     def __init__(
         self,

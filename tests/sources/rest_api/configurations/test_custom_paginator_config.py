@@ -2,6 +2,7 @@ from typing import cast
 
 import pytest
 
+from dlt.common import jsonpath
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.sources import rest_api
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
@@ -60,8 +61,15 @@ class TestCustomPaginator:
         rest_api.config_setup.register_paginator("custom_paginator", CustomPaginator)
         paginator = rest_api.config_setup.create_paginator(custom_paginator_config)
         paginator = cast(CustomPaginator, paginator)
+        response = {"response": {"next_page_link": "https://example.com/page/2"}}
+
         assert paginator.has_next_page is True
-        assert str(paginator.next_url_path) == "response.next_page_link"
+        assert jsonpath.resolve_paths(paginator.next_url_path, response) == [
+            "response.next_page_link"
+        ]
+        assert jsonpath.find_values(paginator.next_url_path, response) == [
+            "https://example.com/page/2"
+        ]
 
     def test_registering_not_base_paginator_throws_error(self) -> None:
         class NotAPaginator:

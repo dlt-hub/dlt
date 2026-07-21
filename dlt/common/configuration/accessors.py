@@ -1,8 +1,10 @@
 import abc
-from typing import Any, ClassVar, List, Sequence, Tuple, Type, TypeVar
+from contextlib import contextmanager
+from typing import Any, ClassVar, Iterator, List, Mapping, Sequence, Tuple, Type, TypeVar, cast
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import ConfigFieldMissingException, LookupTrace
+from dlt.common.configuration.providers.doc import BaseDocProvider
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import BaseConfiguration, is_base_configuration_inner_hint
 from dlt.common.configuration.utils import deserialize_value, log_traces, auto_cast
@@ -33,6 +35,28 @@ class _Accessor(abc.ABC):
             return True
         except KeyError:
             return False
+
+    @contextmanager
+    def values(self, values: Mapping[str, Any]) -> Iterator[None]:
+        """Temporarily sets config `values` for the duration of the context, restoring the previous state on exit.
+
+        Values are written to the same provider as `dlt.config[key] = value` (`config.toml` for
+        `dlt.config`, `secrets.toml` for `dlt.secrets`) and are removed or reset to their previous
+        values when the context exits. Use it to apply overrides for a bounded scope without
+        permanently mutating the process-wide config.
+
+        Args:
+            values (Mapping[str, Any]): A mapping of dotted config keys (e.g. `load.raise_on_failed_jobs`)
+                to the values to set for the duration of the context.
+
+        Yields:
+            None
+        """
+        provider = cast(BaseDocProvider, self.writable_provider)
+        with provider.preserve():
+            for field, value in values.items():
+                self[field] = value
+            yield
 
     def get(self, field: str, expected_type: Type[TConfigAny] = None) -> TConfigAny:
         value: TConfigAny

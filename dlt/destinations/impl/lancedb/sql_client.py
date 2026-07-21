@@ -5,7 +5,7 @@ DuckDB instance with the `lance-duckdb` extension allows
 to read the `.lance` files (each maps to a single table).
 
 This SQL client makes LanceDB compatible with the `dlt.Dataset`
-inferface.
+interface.
 """
 from __future__ import annotations
 

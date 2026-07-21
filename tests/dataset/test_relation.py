@@ -370,6 +370,27 @@ def test_multi_schema_schemas_property(multi_schema_dataset: dlt.Dataset) -> Non
     assert schema_names == {"crm", "inventory"}
 
 
+def test_relation_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:
+    # relation over a multi-schema dataset: single (primary) entry keyed by the dataset name
+    schema_map = multi_schema_dataset.table("users")._all_schemas()
+    assert list(schema_map.keys()) == [multi_schema_dataset.dataset_name]
+    schemas = schema_map[multi_schema_dataset.dataset_name]
+    # schemas are ordered with the default schema first and match the `schemas` property
+    assert schemas[0].name == multi_schema_dataset.schema.name
+    assert [s.name for s in schemas] == [s.name for s in multi_schema_dataset.schemas]
+
+
+def test_relation_foreign_dataset_schemas(cross_dataset_duckdb: Any) -> None:
+    ds_crm, ds_inv = cross_dataset_duckdb
+    joined = ds_crm.table("users").join(
+        ds_inv.table("purchases"), on="users.id = purchases.user_id"
+    )
+    schema_map = joined._all_schemas()
+    # the relation's own dataset is primary (first), the foreign dataset follows
+    assert list(schema_map.keys()) == [ds_crm.dataset_name, ds_inv.dataset_name]
+    assert schema_map[ds_crm.dataset_name][0].name == ds_crm.schema.name
+
+
 def test_multi_schema_tables_includes_all_schemas(multi_schema_dataset: dlt.Dataset) -> None:
     tables = multi_schema_dataset.tables
     expected = set(
@@ -717,6 +738,60 @@ def test_query_builder(mock_dataset: dlt.Dataset) -> None:
         == 'SELECT "my_table"."col1" AS "col1" FROM "pipeline_dataset"."my_table" AS "my_table"'
         " LIMIT 24"
     )
+
+
+def test_select_projection_shapes(mock_dataset: dlt.Dataset) -> None:
+    relation = mock_dataset.my_table
+
+    # pure column projections are replaced in place; ORDER BY column may be unprojected
+    selected = relation.order_by("col1", "desc").limit(3).select("col2")
+    expr = selected.sqlglot_expression
+    assert expr.find(sge.Subquery) is None
+    assert [sel.output_name for sel in expr.selects] == ["col2"]
+    assert expr.args.get("order") is not None
+    assert expr.args.get("limit") is not None
+
+    # aggregate applies at the same level
+    agg = relation.select("col1").max()
+    assert isinstance(agg.sqlglot_expression.selects[0], sge.Max)
+    assert agg.sqlglot_expression.find(sge.Subquery) is None
+
+    # a defining projection wraps as a derived table; ORDER BY and LIMIT hoist onto the wrap
+    defining = mock_dataset("SELECT col1 AS c FROM my_table ORDER BY c LIMIT 3").select("c")
+    expr = defining.sqlglot_expression
+    derived = expr.find(sge.Subquery)
+    assert derived is not None
+    assert derived.this.args.get("order") is None
+    assert derived.this.args.get("limit") is None
+    assert expr.args.get("order") is not None
+    assert expr.args.get("limit") is not None
+
+    # select over the wrap replaces its projection in place, no second wrap
+    chained = defining.select("c")
+    assert chained.sqlglot_expression.find(sge.Subquery).this.find(sge.Subquery) is None
+
+    # a sort key dropped by the projection keeps ORDER BY and LIMIT inside the wrap
+    kept = mock_dataset("SELECT col1 AS c FROM my_table ORDER BY col2 LIMIT 3").select("c")
+    derived = kept.sqlglot_expression.find(sge.Subquery)
+    assert derived.this.args.get("order") is not None
+    assert derived.this.args.get("limit") is not None
+    assert kept.sqlglot_expression.args.get("order") is None
+    assert kept.sqlglot_expression.args.get("limit") is None
+
+
+def test_order_by_output_alias_binding(mock_dataset: dlt.Dataset) -> None:
+    """ORDER BY an output alias binds to its source, except under DISTINCT/GROUP BY."""
+    # plain select: bind resolves the alias to its source column (tsql/snowflake need this)
+    plain = mock_dataset("SELECT col1 FROM my_table ORDER BY col1").to_sql()
+    assert 'ORDER BY "my_table"."col1"' in plain
+
+    # DISTINCT: sort key must stay the output column (databricks rejects a source column here)
+    distinct = mock_dataset("SELECT DISTINCT col1 FROM my_table ORDER BY col1").to_sql()
+    assert 'ORDER BY "col1"' in distinct
+    assert "my_table" not in distinct.split("ORDER BY")[1]
+
+    grouped = mock_dataset("SELECT col1 FROM my_table GROUP BY col1 ORDER BY col1").to_sql()
+    assert "my_table" not in grouped.split("ORDER BY")[1]
 
 
 def test_copy_and_chaining() -> None:

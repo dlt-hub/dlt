@@ -134,7 +134,10 @@ def test_sqlalchemy_credentials_from_engine() -> None:
     assert creds.database == ":memory:"
 
 
-def test_sqlalchemy_sqlite_follows_local_dir() -> None:
+@pytest.mark.parametrize(
+    "driver,ext", [("sqlite", ".db"), ("duckdb", ".duckdb")], ids=["sqlite", "duckdb"]
+)
+def test_sqlalchemy_file_db_follows_local_dir(driver: str, ext: str) -> None:
     local_dir = os.path.join(get_test_storage_root(), uniq_id())
     os.makedirs(local_dir)
     os.environ[DLT_LOCAL_DIR] = local_dir
@@ -142,58 +145,95 @@ def test_sqlalchemy_sqlite_follows_local_dir() -> None:
     # default case: no explicit database, uses destination_type as default name
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
-            credentials=SqlalchemyCredentials("sqlite:///")
+            credentials=SqlalchemyCredentials(f"{driver}:///")
         )._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(local_dir, "sqlalchemy.db")
+    db_path = os.path.join(local_dir, f"sqlalchemy{ext}")
     assert c.credentials.database == os.path.abspath(db_path)
 
     # named destination: uses destination_name for the filename
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
-            credentials=SqlalchemyCredentials("sqlite:///"),
+            credentials=SqlalchemyCredentials(f"{driver}:///"),
             destination_name="named",
         )._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(local_dir, "named.db")
+    db_path = os.path.join(local_dir, f"named{ext}")
     assert c.credentials.database == os.path.abspath(db_path)
 
     # explicit relative location: relocated to local_dir
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
-            credentials=SqlalchemyCredentials("sqlite:///./local.db"),
+            credentials=SqlalchemyCredentials(f"{driver}:///./local{ext}"),
         )._bind_dataset_name(dataset_name="test_dataset")
     )
-    db_path = os.path.join(local_dir, "local.db")
+    db_path = os.path.join(local_dir, f"local{ext}")
     assert c.credentials.database.endswith(db_path)
 
-    # pipeline context: uses <pipeline_name>.db for the filename
-    pipeline = dlt.pipeline("test_sqlalchemy_sqlite_follows_local_dir")
+    # pipeline context: uses <pipeline_name>.<ext> for the filename
+    pipeline = dlt.pipeline(f"test_sqlalchemy_follows_local_dir_{driver}")
     c = resolve_configuration(
         pipeline._bind_local_files(
             SqlalchemyClientConfiguration(
-                credentials=SqlalchemyCredentials("sqlite:///"),
+                credentials=SqlalchemyCredentials(f"{driver}:///"),
             )._bind_dataset_name(dataset_name="test_dataset")
         )
     )
-    db_path = os.path.join(local_dir, "test_sqlalchemy_sqlite_follows_local_dir.db")
+    db_path = os.path.join(local_dir, f"test_sqlalchemy_follows_local_dir_{driver}{ext}")
     assert c.credentials.database.endswith(db_path)
 
     # absolute path: preserved as-is
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
-            credentials=SqlalchemyCredentials("sqlite:////absolute/path/test.db"),
+            credentials=SqlalchemyCredentials(f"{driver}:////absolute/path/test{ext}"),
         )._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.credentials.database == "/absolute/path/test.db"
+    assert c.credentials.database == f"/absolute/path/test{ext}"
 
     # memory database: preserved as-is
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
-            credentials=SqlalchemyCredentials("sqlite:///:memory:"),
+            credentials=SqlalchemyCredentials(f"{driver}:///:memory:"),
         )._bind_dataset_name(dataset_name="test_dataset")
     )
     assert c.credentials.database == ":memory:"
+
+    if driver == "duckdb":
+        # motherduck database: preserved as-is
+        c = resolve_configuration(
+            SqlalchemyClientConfiguration(
+                credentials=SqlalchemyCredentials("duckdb:///md:my_db"),
+            )._bind_dataset_name(dataset_name="test_dataset")
+        )
+        assert c.credentials.database == "md:my_db"
+
+
+def test_external_engine_database_not_relocated() -> None:
+    """A user-provided engine is never rebuilt from credentials: its relative database
+    path must not be relocated to the local dir and physical_location() must report
+    the file the engine actually writes to.
+    """
+    local_dir = os.path.join(get_test_storage_root(), uniq_id())
+    os.makedirs(local_dir)
+    os.environ[DLT_LOCAL_DIR] = local_dir
+
+    engine = sa.create_engine("sqlite:///relative_data.db")
+    c = resolve_configuration(
+        SqlalchemyClientConfiguration(credentials=SqlalchemyCredentials(engine))._bind_dataset_name(
+            dataset_name="test_dataset"
+        )
+    )
+    assert c.credentials.is_external_engine
+    assert c.credentials.database == os.path.abspath("relative_data.db")
+    assert c.physical_location() == os.path.abspath("relative_data.db")
+
+    # in-memory external engine has no physical identity
+    c = resolve_configuration(
+        SqlalchemyClientConfiguration(
+            credentials=SqlalchemyCredentials(sa.create_engine("sqlite:///:memory:"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    assert c.physical_location() == ""
 
 
 def test_engine_kwargs_forwarded_to_credentials() -> None:

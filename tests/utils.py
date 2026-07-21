@@ -10,7 +10,7 @@ import sys
 from functools import partial
 from os import environ
 from pathlib import Path
-from typing import Any, Iterable, Iterator, Literal, Optional, Union, get_args, List
+from typing import Any, Dict, Iterable, Iterator, Literal, Optional, Union, get_args, List
 from unittest.mock import patch
 
 import pytest
@@ -41,6 +41,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
+from dlt.common.metrics import DataWriterMetrics
 from dlt.common.typing import StrAny, TDataItem, PathLike
 from dlt.common.utils import set_working_dir
 
@@ -620,6 +621,15 @@ def create_schema_with_name(schema_name) -> Schema:
 
 def assert_no_dict_key_starts_with(d: StrAny, key_prefix: str) -> None:
     assert all(not key.startswith(key_prefix) for key in d.keys())
+
+
+def sum_job_metrics_by_table(job_metrics: Dict[str, DataWriterMetrics]) -> Dict[str, int]:
+    """Sum `items_count` per table from step info `job_metrics` (keyed by job id)."""
+    counts: Dict[str, int] = {}
+    for job_id, metric in job_metrics.items():
+        table_name = job_id.split(".", 1)[0]
+        counts[table_name] = counts.get(table_name, 0) + metric.items_count
+    return counts
 
 
 def skip_if_not_active(*destinations: str) -> None:

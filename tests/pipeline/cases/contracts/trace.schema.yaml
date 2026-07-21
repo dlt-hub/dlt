@@ -1,5 +1,5 @@
-version: 9
-version_hash: P8E7cjYovKZVIFpXOcuizgzCVXmUriPYEZ1FxBt63Tc=
+version: 19
+version_hash: cmZ/fKGtDKNuPqgqgbNV5tl5FQg8vlj2+d5RyrgB22I=
 engine_version: 11
 name: trace
 tables:
@@ -81,12 +81,12 @@ tables:
         description: dlt library version
         data_type: text
         nullable: true
-      execution_context__plus__name:
-        description: dlthub plus library name (if installed)
+      execution_context__dlthub__name:
+        description: dlthub library name (if installed)
         data_type: text
         nullable: true
-      execution_context__plus__version:
-        description: dlthub plus library version (if installed)
+      execution_context__dlthub__version:
+        description: dlthub library version (if installed)
         data_type: text
         nullable: true
       execution_context__run_context:
@@ -450,6 +450,21 @@ tables:
       incremental__range_end:
         data_type: text
         nullable: true
+      schema_contract__tables:
+        data_type: text
+        nullable: true
+      schema_contract__columns:
+        data_type: text
+        nullable: true
+      schema_contract__data_type:
+        data_type: text
+        nullable: true
+      write_disposition__disposition:
+        data_type: text
+        nullable: true
+      write_disposition__strategy:
+        data_type: text
+        nullable: true
     parent: trace__steps
   trace__steps__step_info__loads_ids:
     description: List of load package IDs processed in a pipeline step
@@ -505,6 +520,9 @@ tables:
         row_key: true
       completed_at:
         data_type: timestamp
+        nullable: true
+      refresh:
+        data_type: text
         nullable: true
     parent: trace__steps
   trace__steps__step_info__load_packages__jobs:
@@ -725,6 +743,11 @@ tables:
   trace__steps__step_info__load_packages__tables:
     description: Schema update tables within a load package (write disposition, format,
       contract)
+    # the applied user/destination schema is destination-variable (each destination adds its own
+    # x- hints, e.g. lance's x-lance-remove-orphans), so let this subtree's columns evolve while
+    # the rest of the trace stays frozen; child __columns table inherits this hint
+    schema_contract:
+      columns: evolve
     columns:
       write_disposition:
         data_type: text
@@ -769,6 +792,18 @@ tables:
       x_normalizer__seen_data:
         description: Whether the normalizer has seen actual data for this table
         data_type: bool
+        nullable: true
+      x_merge_strategy:
+        data_type: text
+        nullable: true
+      schema_contract__tables:
+        data_type: text
+        nullable: true
+      schema_contract__columns:
+        data_type: text
+        nullable: true
+      schema_contract__data_type:
+        data_type: text
         nullable: true
     parent: trace__steps__step_info__load_packages
   trace__steps__step_info__load_packages__tables__columns:
@@ -997,6 +1032,42 @@ tables:
         unique: true
         row_key: true
     parent: trace__steps__extract_info__resource_metrics
+  trace__steps__step_info__load_packages__dropped_tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__step_info__load_packages
+  trace__steps__step_info__load_packages__truncated_tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__step_info__load_packages
 settings:
   detections:
   - iso_timestamp
@@ -1021,11 +1092,13 @@ normalizers:
     module: dlt.common.normalizers.json.relational
   use_break_path_on_normalize: false
 previous_hashes:
-- lZ/04BwFLOm7fouDWZwxKImlCEdyHBO+SUUgIVLGm1k=
-- nNzjL9RAoVnFRkAEXVSu6FPXKDHlW1gQ5pJN0o12msk=
-- z//eAZyEIH4IFhc95OmWN6Uv4QBb8o4o9puK23yw9Ww=
-- zsNXwXS2tlD1Or0sGgLOMI7clOz978WoyDuzVx+KU1s=
-- JE62zVwqT2T/qHTi2Qdnn2d1A/JzCzyGtDwc+qUmbTs=
-- 9Ysjq/W0xpxkI/vBiYm8Qbr2nDP3JMt6KvGKUS/FCyI=
-- NYeAxJ2r+T+dKFnXFhBEPzBP6SO+ORdhOfgQRo/XqBU=
-- RV9jvZSD5dM+ZGjEL3HqokLvtf22K4zMNc3zWRahEw4=
+- ZBDNfQ43NvZDWWRpeQA8vPNqNNbfVOdYjsGvLCgb0DY=
+- znMcyqfPi4E8ciWxLoi31Hx25ymRtH5D2duFbHKwov8=
+- qROrh2phDRgzwXnNcnkhZZx1pVWYJhrONl37h7deVyk=
+- 1nBoY4D8QT4BCa++yYhyysyCXAanAGBr+W1j1xPq9mM=
+- eDaULREi928XF66TW4zt8u6f76m+JVyhny6cYIqATTc=
+- JPyWY81x+lB6dVBEvUD5A67wl16qwvd2QQIoDhevaBw=
+- QRhfna2wTZv+INSEUUmkKiH+Upb6yGg1cDBBbR8kEMo=
+- txv310BO0KgmKJ/8I/spuLPaMMOt+TarI8ytKq19cjo=
+- 7I1eufBNCdmIem6hEiD0CjKgFQNlg0MCHkJgCTtghxk=
+- P8E7cjYovKZVIFpXOcuizgzCVXmUriPYEZ1FxBt63Tc=

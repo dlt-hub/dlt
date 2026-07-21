@@ -33,9 +33,6 @@ from tests.utils import (
 
 def _skip_unsupported(destination_config: DestinationTestConfiguration) -> None:
     skip_if_unsupported_filesystem_format(destination_config)
-    # TODO: remove once https://github.com/dlt-hub/dlt/pull/4011 is merged
-    if destination_config.destination_type == "databricks":
-        pytest.skip("databricks foreign-key emission breaks this fixture. see dlt-hub/dlt#4011")
 
 
 @pytest.fixture(scope="module")

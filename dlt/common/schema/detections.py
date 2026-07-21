@@ -14,7 +14,7 @@ _FLOAT_TS_RANGE = 5 * 31536000.0  # seconds in year
 
 
 def is_timestamp(t: Type[Any], v: Any) -> Optional[TDataType]:
-    # autodetect int and float withing 1 year range of NOW
+    # autodetect int and float within 1 year range of NOW
     if t in [int, float]:
         if v >= _NOW_TS - _FLOAT_TS_RANGE and v <= _NOW_TS + _FLOAT_TS_RANGE:
             return "timestamp"

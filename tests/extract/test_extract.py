@@ -1,4 +1,4 @@
-from typing import Dict, List, Optional, Any
+from typing import Dict, List, NamedTuple, Optional, Any
 import pytest
 import os
 
@@ -23,7 +23,12 @@ from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hint
 from dlt.extract.items_transform import ValidateItem, MetricsItem
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
 
-from tests.utils import MockPipeline, clean_test_storage, get_test_storage_root
+from tests.utils import (
+    MockPipeline,
+    clean_test_storage,
+    get_test_storage_root,
+    sum_job_metrics_by_table,
+)
 from tests.extract.utils import expect_extracted_file, assert_written_tables_are_computed
 
 NESTED_DATA = [
@@ -1207,12 +1212,63 @@ def _extract_resource(
     return table_metrics
 
 
+def test_extract_table_and_resource_metrics_with_file_rotation() -> None:
+    os.environ["DATA_WRITER__FILE_MAX_ITEMS"] = "500"
+
+    row_count = 1500
+
+    @dlt.resource
+    def alpha() -> TDataItems:
+        for i in range(row_count):
+            yield {"id": i}
+
+    @dlt.resource
+    def beta() -> TDataItems:
+        for i in range(100):
+            yield {"n": i}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([alpha(), beta()])
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]
+    expected_table_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+
+    assert metrics["table_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
+    assert metrics["table_metrics"]["beta"].items_count == expected_table_counts["beta"]
+    assert metrics["resource_metrics"]["alpha"].items_count == expected_table_counts["alpha"]
+    assert metrics["resource_metrics"]["beta"].items_count == expected_table_counts["beta"]
+
+
+def test_extract_resource_metrics_with_interleaved_tables() -> None:
+    # a resource dispatching to several tables whose writers stay open interleaves its jobs with
+    # another resource's, so the same resource's tables are non-adjacent in job_metrics
+    @dlt.resource(table_name=lambda item: f"multi_{item['bucket']}")
+    def multi() -> TDataItems:
+        for i in range(1000):
+            yield {"id": i, "bucket": i % 2}
+
+    @dlt.resource
+    def other() -> TDataItems:
+        for i in range(500):
+            yield {"id": i}
+
+    pipeline = dlt.pipeline(uniq_id(), destination="duckdb", dev_mode=True)
+    extract_info = pipeline.extract([multi(), other()])
+    load_id = extract_info.loads_ids[0]
+    metrics = extract_info.metrics[load_id][0]
+    expected_table_counts = sum_job_metrics_by_table(metrics["job_metrics"])
+
+    expected_multi = expected_table_counts["multi_0"] + expected_table_counts["multi_1"]
+    assert metrics["resource_metrics"]["multi"].items_count == expected_multi
+    assert metrics["resource_metrics"]["other"].items_count == expected_table_counts["other"]
+
+
 @pytest.mark.parametrize(
     "table_name,expected",
     [("items", "items"), ("MyItems", "my_items")],
     ids=["table_is_resource_name", "table_differs_from_resource_name"],
 )
-def test_handle_empty_tables_refreshes_static_write_disposition(
+def test_handle_empty_tables_does_not_mutate_disposition(
     extract_step: Extract, table_name: str, expected: str
 ) -> None:
     schema = dlt.Schema("empty_tables")
@@ -1273,27 +1329,23 @@ def test_handle_empty_tables_refreshes_static_write_disposition(
     metrics = _extract_resource(extract_step, schema, items_merge())
     assert expected not in metrics
 
-    # write disposition refreshed from the resource, with the full scd2 merge config applied
-    assert items_table["write_disposition"] == "merge"
-    assert items_table["x-merge-strategy"] == "scd2"
-    # scd2 validity columns were added by the merge config, normalized like on the data path
-    assert "valid_from" in items_table["columns"]
-    assert "valid_to" in items_table["columns"]
-    assert "ValidFrom" not in items_table["columns"]
-    # existing hints survive the isolated disposition update
+    # an empty run does NOT modify the table: the stored disposition and hints are left untouched,
+    # and the new scd2 merge config (incl. validity columns) is only applied once data arrives
+    assert items_table["write_disposition"] == "replace"
+    assert "x-merge-strategy" not in items_table
+    assert "valid_from" not in items_table["columns"]
+    assert "valid_to" not in items_table["columns"]
+    # existing hints are preserved because the table is not rewritten
     assert items_table["columns"]["id"]["primary_key"] is True
     assert items_table["columns"]["id"]["data_type"] == "bigint"
     assert items_table["columns"]["value"]["cluster"] is True
-    assert items_table["x-custom"] == "keep-me"
+    assert items_table["x-custom"] == "keep-me"  # type: ignore[typeddict-item]
 
 
 def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extract) -> None:
-    """Nested hints that break nesting (a primary key) create a pseudo-root table - both for the
-    default table and for a variant. On an empty run every table is refreshed from the current
-    hints: the default root from the resource hints, the variant (declared with a non-normalized
-    name) from its own variant hints keyed by the raw name, and each pseudo-root by re-deriving its
-    write disposition from the parent's nested hints. Re-deriving reads the parent's nested hints
-    only (it never recomputes a pseudo-root as a root), so no spurious cascade tables are created.
+    """Nested hints that break nesting (a primary key) create a pseudo-root table for both the
+    default table and a variant. An empty run does not modify these tables and never recomputes a
+    pseudo-root as a root, so no spurious cascade tables are created.
     """
     schema = dlt.Schema("empty_tables")
 
@@ -1368,32 +1420,24 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
     assert object_extractor.tables_with_items == set()
     assert object_extractor.tables_with_empty == set()
 
-    # run 3: default root -> append, variant -> merge, and the nested hint flips replace -> merge,
-    # all with no data. nothing is replace, so no table is truncated, but every disposition is
-    # refreshed from the current hints - including each pseudo-root, re-derived from the nested hints
+    # run 3: default root -> append, variant -> merge, and the nested hint changes replace -> merge,
+    # all with no data. nothing is replace, so no table is truncated. an empty run does not modify
+    # the schema, so every stored disposition stays at its previous (replace) value - the new hints
+    # would only be applied once data arrives
     metrics = _extract_resource(extract_step, schema, make_resource("append", "merge", "merge", []))
     for table in all_tables:
         assert table not in metrics
-    # the default root from the resource hints, the variant from its own (raw-name-keyed) hints -
-    # a normalized lookup would miss the variant and wrongly fall back to the resource root's append
-    assert schema.tables["items"]["write_disposition"] == "append"
-    assert schema.tables["other_items"]["write_disposition"] == "merge"
-    # each pseudo-root is re-derived from the parent's nested hints: replace -> merge
-    for pseudo in pseudo_roots:
-        assert schema.tables[pseudo]["write_disposition"] == "merge"
-    # re-deriving reads the parent's nested hints only, never recomputing a pseudo-root as a root,
-    # so no spurious cascade tables are created
+        assert schema.tables[table]["write_disposition"] == "replace"
+    # no pseudo-root is ever recomputed as a root, so no spurious cascade tables are created
     assert "items__sub_items__sub_items" not in schema.tables
     assert "other_items__sub_items__sub_items" not in schema.tables
 
 
 @pytest.mark.parametrize("dispatch", ["marked", "dynamic"])
-def test_handle_empty_tables_updates_dispatched_tables(
-    extract_step: Extract, dispatch: str
-) -> None:
+def test_handle_empty_tables_dispatched_tables(extract_step: Extract, dispatch: str) -> None:
     """Event-dispatch tables - created via with_table_name marks or a dynamic table_name function -
-    have their (static) write disposition refreshed on an empty run, and a replace table that gets
-    no data has an empty file written so it is truncated."""
+    keep their stored write disposition unchanged on an empty run, while a replace table that gets no
+    data has an empty file written so it is truncated."""
     schema = dlt.Schema("empty_tables")
 
     def make_resource(wd: TWriteDisposition, data: Any) -> DltResource:
@@ -1456,11 +1500,12 @@ def test_handle_empty_tables_updates_dispatched_tables(
     assert object_extractor.tables_with_items == {"my_issue"}
     assert object_extractor.tables_with_empty == set()
 
-    # run 4: switch to append with no data - tables are refreshed to append and NOT truncated
+    # run 4: switch to append with no data - not truncated, and an empty run leaves the stored
+    # disposition unchanged (still replace); the switch to append only takes effect once data arrives
     metrics = _extract_resource(extract_step, schema, make_resource("append", []))
     for table in tables:
         assert table not in metrics
-        assert schema.tables[table]["write_disposition"] == "append"
+        assert schema.tables[table]["write_disposition"] == "replace"
 
 
 @pytest.mark.parametrize("with_hints", [False, True], ids=["resource_columns", "import_hints"])
@@ -1668,12 +1713,11 @@ def test_handle_empty_tables_variant_not_redeclared_left_untouched(extract_step:
     # the stored-merge variant differs from the replace resource -> left untouched, not truncated
     assert "other_items" not in metrics
     assert schema.tables["other_items"]["write_disposition"] == "merge"
-    # the stored-replace variant is truncated even though it cannot be re-derived
+    # the stored-replace variant, its replace pseudo-root and the replace root are all truncated
+    # (the pseudo-root under the now-absent variant cannot be re-derived, yet is truncated because
+    # its stored disposition is replace)
     assert metrics["replace_items"].items_count == 0
-    # the replace pseudo-root under the (now absent) variant cannot be re-derived either, yet is
-    # truncated because its stored disposition is replace
     assert metrics["replace_items__sub_items"].items_count == 0
-    # the replace root is truncated
     assert metrics["items"].items_count == 0
 
 

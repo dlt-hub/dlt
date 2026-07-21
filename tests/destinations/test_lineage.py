@@ -6,24 +6,27 @@ import pytest
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 
+from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.schema import TTableSchemaColumns
 from dlt.dataset import lineage
 from dlt.dataset.exceptions import LineageFailedException
 
 
+DIALECT: TSqlGlotDialect = "duckdb"
+
+
 @pytest.fixture
 def sqlglot_schema() -> SQLGlotSchema:
-    dialect = "duckdb"
     return ensure_schema(
         {
             "db": {
                 "table_1": {
-                    "col_varchar": sge.DataType.build("VARCHAR", dialect=dialect),
-                    "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
+                    "col_varchar": sge.DataType.build("VARCHAR", dialect=DIALECT),
+                    "col_bool": sge.DataType.build("BOOLEAN", dialect=DIALECT),
                 },
                 "table_2": {
-                    "col_int": sge.DataType.build("BIGINT", dialect=dialect),
-                    "col_bool": sge.DataType.build("BOOLEAN", dialect=dialect),
+                    "col_int": sge.DataType.build("BIGINT", dialect=DIALECT),
+                    "col_bool": sge.DataType.build("BOOLEAN", dialect=DIALECT),
                 },
             }
         }
@@ -201,7 +204,7 @@ def test_compute_columns_schema(
             lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,  # type: ignore[arg-type]
+                dialect=DIALECT,
                 **config,
             )
     else:
@@ -210,7 +213,7 @@ def test_compute_columns_schema(
             == lineage.compute_columns_schema(
                 expression=sqlglot.parse_one(sql_query),
                 sqlglot_schema=sqlglot_schema,
-                dialect=sqlglot_schema.dialect,  # type: ignore[arg-type]
+                dialect=DIALECT,
                 **config,
             )[0]
         )

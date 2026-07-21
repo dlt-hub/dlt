@@ -11,7 +11,7 @@ from dlt.common.configuration.specs.pluggable_run_context import (
     ProfilesRunContext,
     RunContextBase,
 )
-from dlt.common.runtime.exec_info import get_plus_version
+from dlt.common.runtime.exec_info import get_dlthub_version
 from dlt.common.storages.file_storage import FileStorage
 
 from dlt._workspace.cli import echo as fmt
@@ -285,8 +285,8 @@ def fetch_workspace_info() -> TWorkspaceInfo:
         )
 
     # dlt and dlthub versions
-    plus_version = get_plus_version()
-    dlthub_version: Optional[str] = plus_version["version"] if plus_version else None
+    version_info = get_dlthub_version()
+    dlthub_version: Optional[str] = version_info["version"] if version_info else None
 
     # initialized: config.toml exists in settings dir
     initialized = os.path.isfile(make_dlt_settings_path("config.toml"))

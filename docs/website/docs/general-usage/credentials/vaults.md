@@ -1,6 +1,6 @@
 ---
 title: Vault providers
-description: Learn how to configure Google Secrets and Airflow providers
+description: Learn how to configure Google Secrets, AWS Secrets Manager and Airflow providers
 ---
 
 ## How vault providers work
@@ -13,9 +13,10 @@ description: Learn how to configure Google Secrets and Airflow providers
 Supported providers include:
 
 * [Google Cloud Secret Manager](#configure-google-secret-provider)
+* [AWS Secrets Manager](#configure-aws-secrets-manager-provider)
 * [Airflow Variables](#configure-airflow-variables-as-provider)
 
-For other vault integrations like AWS Secrets Manager or Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
+For other vault integrations like Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
 
 ## Lookup and merge strategy
 On first access to any configuration value, the vault provider tries to populate its in-memory TOML document by fetching and merging known fragments, in the following order:
@@ -52,7 +53,7 @@ When true, the provider fetches only the known TOML fragments (for example `dest
 
 ### list_secrets (default false)
 
-When true, the provider lists all available secret names once and then avoids lookups for keys that do not exist. This can save many calls, but requires additional permissions (see Google Cloud Secret Manager example below).
+When true, the provider lists all available secret names once and then avoids lookups for keys that do not exist. This can save many calls, but requires additional permissions (see the provider examples below).
 If you enable `list_secrets` while also enabling `only_secrets` and/or `only_toml_fragments`, note that some lookups may still be skipped by design.
 
 :::tip
@@ -232,6 +233,116 @@ For example, the following keys would be fetched similarly to environment variab
 
 When `list_secrets=true`, the provider will pre-list all secret names to skip lookups for non-existent keys.
 If the service account lacks `roles/secretmanager.secretViewer`, listing will fail and the provider will raise a configuration error.
+
+
+## Configure AWS Secrets Manager provider
+
+:::info
+By default, all dlt secrets live under the **`dlt/` name prefix**: the provider reads `dlt/dlt_secrets_toml`, `dlt/sources/pipedrive` etc. AWS Secrets Manager is typically shared by many services in an account - the prefix namespaces dlt secrets and lets you scope IAM read access to `secret:dlt/*`. Change or remove the prefix with the `secret_name_prefix` setting ([see below](#change-or-remove-the-secret-name-prefix)).
+:::
+
+Required IAM permissions:
+
+* `secretsmanager:GetSecretValue` on secrets under the name prefix (required)
+* `secretsmanager:ListSecrets` to list available secrets (required when `list_secrets=true`)
+* `kms:Decrypt` on the corresponding KMS key when secrets are encrypted with a customer managed key
+
+### Activate AWS Secrets Manager provider
+To activate the provider, add the configuration to your `secrets.toml` file or to environment variables. You can omit the credentials section entirely if your environment provides default AWS credentials (environment variables, shared config/credentials files, IAM roles for EC2/ECS/EKS). Note that the AWS region must resolve in that case, for example via `AWS_DEFAULT_REGION` or your profile.
+
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+]}>
+  <TabItem value="toml">
+
+```toml
+[providers]
+enable_aws_secrets = true  # aws secrets manager provider is disabled by default
+
+[providers.aws_secrets]
+only_secrets = false
+only_toml_fragments = false
+list_secrets = true  # we recommend pre-listing secrets to minimize calls to aws backend
+
+[providers.aws_secrets.credentials]
+aws_access_key_id = "..."
+aws_secret_access_key = "..."
+region_name = "eu-central-1"
+```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+PROVIDERS__ENABLE_AWS_SECRETS="true"
+
+PROVIDERS__AWS_SECRETS__ONLY_SECRETS="false"
+PROVIDERS__AWS_SECRETS__ONLY_TOML_FRAGMENTS="false"
+PROVIDERS__AWS_SECRETS__LIST_SECRETS="true"
+
+PROVIDERS__AWS_SECRETS__CREDENTIALS__AWS_ACCESS_KEY_ID="..."
+PROVIDERS__AWS_SECRETS__CREDENTIALS__AWS_SECRET_ACCESS_KEY="..."
+PROVIDERS__AWS_SECRETS__CREDENTIALS__REGION_NAME="eu-central-1"
+```
+  </TabItem>
+</Tabs>
+
+You can also use a named profile from your AWS config files:
+
+```toml
+[providers.aws_secrets.credentials]
+profile_name = "dlt-secrets"
+```
+
+### Naming convention for AWS secrets
+AWS secret names may contain letters, digits and the `/_+=.@-` characters. dlt normalizes each name component (whitespace and punctuation other than `-` and `_` are removed), joins components with slashes and prepends the name prefix, so secret names form paths:
+
+* `destination.bigquery.credentials.project_id` → `dlt/destination/bigquery/credentials/project_id`
+* `sources.pipedrive.pipedrive_api_key` → `dlt/sources/pipedrive/pipedrive_api_key`
+* `destination.bigquery` → `dlt/destination/bigquery`
+* `my_pipeline.dlt_secrets_toml` → `dlt/my_pipeline/dlt_secrets_toml`
+
+All storage types described for [Google Secrets](#naming-convention-for-google-secrets) work the same way: a whole `secrets.toml` under the `dlt/dlt_secrets_toml` name (recommended), per-section TOML fragments (for example `dlt/destination/filesystem` or `dlt/sources/mongodb`), and single values.
+
+### JSON secrets
+Secret values may be TOML, YAML or JSON documents - dlt detects the format automatically. Key/value secrets created in the AWS console are stored as JSON strings and work as fragments out of the box. For example, a secret named `dlt/sources/mongodb` may hold either of:
+
+```toml
+[sources.mongodb]
+connection_url = "mongodb+srv://user:***@host/db?authSource=admin&tls=true"
+```
+
+```json
+{"sources": {"mongodb": {"connection_url": "mongodb+srv://user:***@host/db?authSource=admin&tls=true"}}}
+```
+
+### Change or remove the secret name prefix
+The `secret_name_prefix` (default `dlt/`) is prepended verbatim to all secret names and secret listing only requests names starting with it. Set your own namespace or an empty string to look up unprefixed secret names:
+
+```toml
+[providers.aws_secrets]
+secret_name_prefix = "team/dlt/"  # or "" to read e.g. plain `sources/pipedrive`
+```
+
+Because IAM policies match the name portion of secret ARNs, you can scope read access to the dlt namespace. Secret ARNs end with six random characters, so prefix wildcards are the natural way to grant access:
+
+```json
+{
+    "Version": "2012-10-17",
+    "Statement": [
+        {
+            "Effect": "Allow",
+            "Action": "secretsmanager:GetSecretValue",
+            "Resource": "arn:aws:secretsmanager:*:*:secret:dlt/*"
+        }
+    ]
+}
+```
+
+Note that `secretsmanager:ListSecrets` cannot be limited to particular secrets - the prefix narrows what dlt fetches and lists, not what the principal is allowed to list.
 
 
 ## Configure Airflow Variables as provider

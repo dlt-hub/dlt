@@ -29,9 +29,12 @@ jobs:
     steps:
 
       - name: Check out
-        uses: actions/checkout@master
+        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
         with:
           ref: ${{ github.event.pull_request.head.sha || github.ref }}
+          persist-credentials: false
+          # fork code runs by design, gated by per-run `fork-ci` environment approval
+          allow-unsafe-pr-checkout: true
 
       - name: Setup Python
         uses: actions/setup-python@v5
@@ -43,7 +46,8 @@ jobs:
         with:
           python-version: "3.11"
           activate-environment: true
-          enable-cache: true
+          # fork runs (pull_request_target) must not write the default-branch cache scope
+          enable-cache: ${{ github.event_name != 'pull_request_target' }}
 
       - name: Install dependencies
         # install dlt with postgres support

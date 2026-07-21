@@ -488,7 +488,7 @@ def generate_manifest(
     Args:
         deployment_module (ModuleType): The imported deployment module.
         use_all (bool): If `True`, only names in `__all__` are discovered.
-            If `False`, scans `__dict__` directly (for ad-hoc deployments).
+            If `False`, scans `__dir__()` directly (for ad-hoc deployments).
 
     Returns:
         Tuple of (manifest, warnings). Warnings include non-discoverable names.
@@ -514,10 +514,10 @@ def generate_manifest(
                     " to __all__ this prevents accidental deployments and avoids costly detection"
                     " for all elements of the module."
                 )
-            names = list(deployment_module.__dict__.keys())
+            names = dir(deployment_module)
 
         for name in names:
-            obj = deployment_module.__dict__.get(name)
+            obj = getattr(deployment_module, name, None)
             if obj is None and iterate_all:
                 warnings.append(f"name {name!r} listed in __all__ but not found in module")
                 continue
@@ -525,7 +525,7 @@ def generate_manifest(
             if isinstance(obj, JobFactory):
                 jobs.append(obj.to_job_definition())
             elif isinstance(obj, ModuleType):
-                # __all__: trust the user; __dict__ scan: filter to local modules
+                # __all__: trust the user; __dir__ scan: filter to local modules
                 if not iterate_all and not is_local_module(obj, deployment_module):
                     continue
                 framework_job = detect_module_job(obj)
