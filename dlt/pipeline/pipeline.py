@@ -1,5 +1,6 @@
 import contextlib
 import os
+import warnings
 from contextlib import contextmanager, nullcontext
 from copy import deepcopy, copy
 from functools import wraps
@@ -7,6 +8,7 @@ from typing import (
     Any,
     Callable,
     ClassVar,
+    Dict,
     List,
     Iterator,
     Optional,
@@ -96,7 +98,7 @@ from dlt.common.pipeline import (
 )
 from dlt.common.schema import Schema
 from dlt.common.utils import is_interactive, simple_repr, without_none
-from dlt.common.warnings import deprecated, Dlt04DeprecationWarning
+from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, DltDeprecationWarning
 from dlt.common.versioned_state import (
     json_encode_state,
     json_decode_state,
@@ -114,6 +116,7 @@ from dlt.destinations.job_client_impl import SqlJobClientBase
 from dlt.destinations.dataset import get_destination_clients
 
 from dlt.load.configuration import LoaderConfiguration
+from dlt.load.exceptions import LoadPackageAborted
 from dlt.load import Load
 
 from dlt.pipeline.configuration import PipelineConfiguration, PipelineRuntimeConfiguration
@@ -140,15 +143,18 @@ from dlt.pipeline.trace import (
 from dlt.pipeline.track import on_first_dataset_access
 from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.state_sync import (
-    PIPELINE_STATE_ENGINE_VERSION,
     bump_pipeline_state_version_if_modified,
     load_pipeline_state_from_destination,
     mark_state_extracted,
-    migrate_pipeline_state,
+    migrate_state_to_current,
     state_resource,
     default_pipeline_state,
 )
-from dlt.common.storages.load_package import TLoadPackageState
+from dlt.pipeline.abort import prepare_abort_packages, execute_abort_plan, TAbortPlan
+from dlt.common.storages.load_package import (
+    TLoadPackageState,
+    TPackageJobState,
+)
 from dlt.pipeline.helpers import prepare_refresh_source
 
 
@@ -589,9 +595,40 @@ class Pipeline(SupportsPipeline):
                 ) from n_ex
 
     @with_runtime_trace(send_state=True)
+    def load(
+        self,
+        destination: TDestinationReferenceArg = None,
+        dataset_name: str = None,
+        credentials: Any = None,
+        *,
+        workers: int = 20,
+        raise_on_failed_jobs: bool = ConfigValue,
+    ) -> LoadInfo:
+        try:
+            return self._load(
+                destination,
+                dataset_name,
+                credentials,
+                workers=workers,
+                raise_on_failed_jobs=raise_on_failed_jobs,
+            )
+        except PipelineStepFailed as pip_ex:
+            l_ex = pip_ex.exception
+            if isinstance(l_ex, LoadPackageAborted):
+                self._cleanup_aborted_package(l_ex.load_id)
+                if l_ex.job_exception is None:
+                    # abort was requested (manually or on crash recovery), nothing to raise
+                    return cast(LoadInfo, pip_ex.step_info)
+                # a terminal job failure triggered the abort; re-raise it now that cleanup ran,
+                # carrying the aborted load id and the failing job so both reach the caller
+                raise PipelineStepFailed(
+                    self, "load", l_ex.load_id, l_ex.job_exception, pip_ex.step_info
+                ) from l_ex.job_exception
+            raise
+
     @with_state_sync()
     @with_config_section((known_sections.LOAD,))
-    def load(
+    def _load(
         self,
         destination: TDestinationReferenceArg = None,
         dataset_name: str = None,
@@ -871,24 +908,20 @@ class Pipeline(SupportsPipeline):
                     restored_schemas = self._get_schemas_from_destination(
                         state["schema_names"], always_download=False
                     )
-                # commit all the changes locally
                 if state_changed:
-                    # use remote state as state
+                    # use remote state as state, keep the local section
                     remote_state["_local"] = state["_local"]
                     state = remote_state
-                    # preserve the user's dataset_name over the remote state value
-                    state["dataset_name"] = self.dataset_name
-                    # set the pipeline props from merged state
-                    self._state_to_props(state)
                     # add that the state is already extracted
                     mark_state_extracted(state, state["_version_hash"])
-                    # on merge schemas are replaced so we delete all old versions
-                    self._schema_storage.clear_storage()
-                for schema in restored_schemas:
-                    self._schema_storage.save_schema(schema)
-                # if the remote state is present then unset first run and update last run context
-                if remote_state is not None:
-                    self._update_last_run_context()
+                # unset first run and update last run context when remote state was found
+                self._install_state_and_schemas(
+                    state,
+                    restored_schemas or [],
+                    replace=state_changed,
+                    update_last_run_context=remote_state is not None,
+                )
+                return
             except DestinationUndefinedEntity:
                 # storage not present. wipe the pipeline if pipeline not new
                 # do it only if pipeline has any data
@@ -909,33 +942,69 @@ class Pipeline(SupportsPipeline):
                             self._schema_storage_config.export_schema_path,
                             False,
                         )
-            # write the state back
-            self._props_to_state(state)
-            # verify state
-            if state_default_schema_name := state.get("default_schema_name"):
-                # at least empty list is present
-                state_schemas = state["schema_names"]
-                if state_default_schema_name not in state_schemas:
-                    new_default_schema_name: Optional[str] = (
-                        state_schemas[0] if len(state_schemas) > 0 else None
-                    )
-                    logger.warning(
-                        f"Pipeline {self.pipeline_name} was restored from destination with"
-                        " inconsistent state. Default schema name"
-                        f" {state_default_schema_name} could not be found and downloaded from the"
-                        " destination. "
-                        + (
-                            f"Default schema was set to {new_default_schema_name}."
-                            if new_default_schema_name
-                            else "Default schema was removed."
-                        )
-                    )
-                    self.default_schema_name = new_default_schema_name  # type: ignore[assignment]
-                    state["default_schema_name"] = new_default_schema_name
-            bump_pipeline_state_version_if_modified(state)
-            self._save_state(state)
+            # nothing was restored, commit the local (possibly wiped) state without replacing schemas
+            self._install_state_and_schemas(state, restored_schemas or [], replace=False)
         except (Exception, KeyboardInterrupt) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
+
+    def _install_state_and_schemas(
+        self,
+        state: TPipelineState,
+        schemas: Sequence[Schema],
+        replace: bool,
+        update_last_run_context: bool = False,
+    ) -> None:
+        """Commits a restored (state, schemas) pair to the working dir. Caller keeps the
+        current `_local` section in `state`. With `replace`, existing schemas are wiped first."""
+        if replace:
+            # preserve the user's dataset_name over the restored value
+            state["dataset_name"] = self.dataset_name
+            self._state_to_props(state)
+            self._schema_storage.clear_storage()
+        for schema in schemas:
+            self._schema_storage.save_schema(schema)
+        # must run after _state_to_props so first_run is not overwritten from restored state
+        if update_last_run_context:
+            self._update_last_run_context()
+        # write the state back
+        self._props_to_state(state)
+        # verify state
+        if state_default_schema_name := state.get("default_schema_name"):
+            # at least empty list is present
+            state_schemas = state["schema_names"]
+            if state_default_schema_name not in state_schemas:
+                new_default_schema_name: Optional[str] = (
+                    state_schemas[0] if len(state_schemas) > 0 else None
+                )
+                logger.warning(
+                    f"Pipeline {self.pipeline_name} was restored with inconsistent state."
+                    f" Default schema name {state_default_schema_name} could not be found in"
+                    " restored schemas. "
+                    + (
+                        f"Default schema was set to {new_default_schema_name}."
+                        if new_default_schema_name
+                        else "Default schema was removed."
+                    )
+                )
+                self.default_schema_name = new_default_schema_name  # type: ignore[assignment]
+                state["default_schema_name"] = new_default_schema_name
+        bump_pipeline_state_version_if_modified(state)
+        self._save_state(state)
+
+    @with_schemas_sync
+    def _restore_from_snapshot(
+        self, state_blob: Optional[str], schema_blobs: Dict[str, str]
+    ) -> None:
+        """Replaces local pipeline state and schemas with a `.restore` package snapshot,
+        rewinding the working dir to the point at which that package started."""
+        # a snapshot is taken after the state file exists, so it always carries a state blob
+        assert state_blob is not None
+        state = migrate_state_to_current(self.pipeline_name, json_decode_state(state_blob))
+        schemas = [
+            Schema.from_dict(json.loads(blob), validate_schema=False)
+            for blob in schema_blobs.values()
+        ]
+        self._install_state_and_schemas(state, schemas, replace=True)
 
     def activate(self) -> None:
         """Activates the pipeline
@@ -979,10 +1048,14 @@ class Pipeline(SupportsPipeline):
     @property
     def has_pending_data(self) -> bool:
         """Tells if the pipeline contains any pending packages to be normalized or loaded"""
-        return (
-            len(self.list_normalized_load_packages()) > 0
-            or len(self.list_extracted_load_packages()) > 0
-        )
+        if len(self.list_extracted_load_packages()) > 0:
+            return True
+        normalized = self.list_normalized_load_packages()
+        if not normalized:
+            return False
+        # abort-flagged packages are scheduled for cleanup, not real pending work
+        load_storage = self._get_load_storage()
+        return any(not load_storage.normalized_packages.has_abort_flag(lid) for lid in normalized)
 
     @property
     def schemas(self) -> SchemaStorage:
@@ -1100,24 +1173,149 @@ class Pipeline(SupportsPipeline):
             return load_storage.get_load_package_info(load_id).jobs.get("failed_jobs", [])
         raise LoadPackageNotFound(load_id)
 
+    def list_pending_retry_jobs_in_package(
+        self,
+        load_id: str,
+    ) -> Sequence[Tuple[str, TPackageJobState]]:
+        """List jobs pending a retry in a normalized package.
+
+        Args:
+            load_id (str): Load package ID.
+
+        Returns:
+            Sequence[Tuple[str, TPackageJobState]]: Tuples of job file and the folder the
+                job is in. Only `"new_jobs"` entries can be passed to `fail_pending_job`;
+                `"started_jobs"` entries (e.g. after a crashed load) are resolved by the
+                next `load()` or by aborting the package.
+        """
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.normalized_packages.list_retried_new_jobs(load_id)
+        raise LoadPackageNotFound(load_id)
+
+    def fail_pending_job(self, load_id: str, job_file_name: str) -> str:
+        """Move a retried pending job to failed_jobs.
+
+        The exception recorded during retry is copied to failed_jobs so it appears in
+        `list_failed_jobs_in_package`.
+
+        Args:
+            load_id (str): Load package ID.
+            job_file_name (str): File name as returned by `list_pending_retry_jobs_in_package`.
+
+        Returns:
+            str: New file path of the job in failed_jobs.
+        """
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.normalized_packages.fail_retried_job(load_id, job_file_name)
+        raise LoadPackageNotFound(load_id)
+
+    def retry_failed_job(self, load_id: str, job_file_name: str) -> str:
+        """Move a failed job back to new_jobs for retry.
+
+        The retry count is incremented and the exception is preserved in the exceptions
+        folder.
+
+        Args:
+            load_id (str): Load package ID.
+            job_file_name (str): File name of the job in failed_jobs.
+
+        Returns:
+            str: New file path of the job in new_jobs.
+        """
+        load_storage = self._get_load_storage()
+        if load_storage.is_storage_ready():
+            return load_storage.normalized_packages.retry_failed_job(load_id, job_file_name)
+        raise LoadPackageNotFound(load_id)
+
     def drop_pending_packages(self, with_partial_loads: bool = True) -> None:
-        """Deletes all extracted and normalized packages, including those that are partially loaded by default"""
-        # delete normalized packages
+        """Deprecated alias for `abort_packages`, kept for backward compatibility."""
+        warnings.warn(
+            DltDeprecationWarning(
+                "drop_pending_packages is deprecated. Use abort_packages instead",
+                since="1.30.0",
+            ),
+            stacklevel=2,
+        )
+        self.abort_packages()
+
+    def _delete_pending_packages(self) -> None:
+        """Deletes all extracted and normalized packages without recording an abort or restoring
+        state; used to clean up after a failed drop so the command can run again."""
         load_storage = self._get_load_storage()
         if load_storage.is_storage_ready():
             for load_id in load_storage.normalized_packages.list_packages():
-                package_info = load_storage.normalized_packages.get_load_package_info(load_id)
-                if (
-                    PackageStorage.is_package_partially_loaded(package_info)
-                    and not with_partial_loads
-                ):
-                    continue
                 load_storage.normalized_packages.delete_package(load_id)
-        # delete extracted files
         normalize_storage = self._get_normalize_storage()
         if normalize_storage.is_storage_ready():
             for load_id in normalize_storage.extracted_packages.list_packages():
                 normalize_storage.extracted_packages.delete_package(load_id)
+
+    def _cleanup_aborted_package(self, load_id: str) -> None:
+        """Finishes a package abort: deletes the packages newer than the just-aborted one and
+        restores local state and schemas from its snapshot. Reuses the abort planner, which
+        accepts the already-aborted `load_id`."""
+        plan = prepare_abort_packages(
+            self._get_load_storage(), self._get_normalize_storage(), load_id
+        )
+        # the aborted package is always a restore anchor, so the plan is never empty
+        assert plan is not None
+        self._apply_abort_plan(plan)
+
+    def _apply_abort_plan(self, plan: TAbortPlan) -> None:
+        """Deletes the packages the plan marked for deletion and rewinds local state and
+        schemas to the plan's restore point."""
+        snapshot = execute_abort_plan(self._get_load_storage(), self._get_normalize_storage(), plan)
+        if snapshot is not None:
+            self._restore_from_snapshot(*snapshot)
+        else:
+            logger.warning(
+                f"Package {plan['restore_from_load_id']} has no restore snapshot (it was created"
+                " by an older dlt version) so local pipeline state and schemas were not restored."
+                " Use `pipeline.drop()` and `pipeline.sync_destination()` to fully reset the local"
+                " state from the destination."
+            )
+
+    def abort_packages(self, load_id: str = None, dry_run: bool = False) -> Optional[TAbortPlan]:
+        """Aborts pending load packages and restores local pipeline state and schemas to the
+        point at which the aborted package started.
+
+        The oldest pending normalized package (the one being loaded) is aborted with a record:
+        its retried jobs move to failed_jobs and the package completes as aborted via `load()`.
+        All other pending packages, extracted ones included, are deleted. When `load_id` is
+        passed, packages older than it are left intact and stay loadable; a `load_id` package
+        that is not being loaded is deleted without a record.
+
+        The abort intent is persisted in the package state, so an interrupted abort is finished,
+        including the cleanup and state restore, by the next `load()` or `run()`.
+
+        Args:
+            load_id (str): Package to abort at. Defaults to `None` which aborts all
+                pending packages.
+            dry_run (bool): If `True`, return the abort plan without applying any changes.
+
+        Returns:
+            Optional[TAbortPlan]: The abort plan (packages removed and restore point), or `None`
+                when nothing is pending to abort.
+        """
+        load_storage = self._get_load_storage()
+        normalize_storage = self._get_normalize_storage()
+
+        plan = prepare_abort_packages(load_storage, normalize_storage, load_id)
+        if dry_run or plan is None:
+            return plan
+
+        package_to_abort = plan["package_to_abort"]
+        if package_to_abort:
+            # the loader aborts the flagged package and load() deletes the other pending
+            # packages and restores the state - the same flow that handles auto abort
+            load_storage.normalized_packages.set_abort_flag(package_to_abort["load_id"])
+            self.load()
+        else:
+            # nothing is being loaded: delete the planned packages and restore state directly
+            self._apply_abort_plan(plan)
+        return plan
 
     @with_schemas_sync
     def sync_schema(self, schema_name: str = None) -> TSchemaTables:
@@ -1443,6 +1641,10 @@ class Pipeline(SupportsPipeline):
         load_id = extract.extract(
             source, max_parallel_items, workers, load_package_state_update=load_package_state_update
         )
+        # save pipeline state to the load package using persisted state and schemas which are
+        # not modified during extract phase
+        if not extract.extract_storage.new_packages.can_restore_pipeline_state(load_id):
+            self._save_restore_snapshot(extract.extract_storage.new_packages, load_id)
 
         # update live schema but not update the store yet
         source.schema = self._schema_storage.set_live_schema(source.schema)
@@ -1692,12 +1894,7 @@ class Pipeline(SupportsPipeline):
     def _get_state(self) -> TPipelineState:
         try:
             state = json_decode_state(self._pipeline_storage.load(Pipeline.STATE_FILE))
-            migrated_state = migrate_pipeline_state(
-                self.pipeline_name,
-                state,
-                state["_state_engine_version"],
-                PIPELINE_STATE_ENGINE_VERSION,
-            )
+            migrated_state = migrate_state_to_current(self.pipeline_name, state)
             # TODO: move to a migration. this change is local and too small to justify
             # engine upgrade
             _local = migrated_state["_local"]
@@ -1934,6 +2131,20 @@ class Pipeline(SupportsPipeline):
     def _list_schemas_sorted(self) -> List[str]:
         """Lists schema names sorted to have deterministic state"""
         return sorted(self._schema_storage.list_schemas())
+
+    def _save_restore_snapshot(self, package_storage: PackageStorage, load_id: str) -> None:
+        """Snapshots on-disk pipeline state and the schemas it references into `.restore`."""
+        state_blob: Optional[str] = None
+        schema_blobs: Dict[str, str] = {}
+        if self._pipeline_storage.has_file(Pipeline.STATE_FILE):
+            state_blob = self._pipeline_storage.load(Pipeline.STATE_FILE)
+            # snapshot only the schemas the state references, as committed store blobs
+            schema_store = self._schema_storage.storage
+            for schema_name in json_decode_state(state_blob).get("schema_names") or []:
+                schema_file = self._schema_storage._file_name_in_store(schema_name, "json")
+                if schema_store.has_file(schema_file):
+                    schema_blobs[schema_name] = schema_store.load(schema_file)
+        package_storage.save_pipeline_state(load_id, state_blob, schema_blobs)
 
     def _save_state(self, state: TPipelineState) -> None:
         self._pipeline_storage.save(Pipeline.STATE_FILE, json_encode_state(state))

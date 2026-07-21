@@ -10,8 +10,12 @@ from pytest_console_scripts import ScriptRunner
 
 import dlt
 from dlt.common.runners.venv import Venv
+from dlt.common.schema import Schema
 from dlt.common.storages.file_storage import FileStorage
-from dlt.common.utils import custom_environ
+from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.utils import custom_environ, uniq_id
+from dlt.extract import DltSource
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from dlt._workspace.cli import echo, _init_command, _pipeline_command
 
@@ -87,7 +91,7 @@ def test_pipeline_command_operations(repo_dir: str) -> None:
         _pipeline_command.pipeline_command("trace", "chess_pipeline", None, 0)
         _out = buf.getvalue()
         # basic trace
-        assert "Pipeline chess_pipeline load step completed in" in _out
+        assert "Pipeline chess_pipeline load step finished in" in _out
     print(_out)
 
     with io.StringIO() as buf, contextlib.redirect_stdout(buf):
@@ -262,7 +266,7 @@ def test_pipeline_command_drop_partial_loads(
     print(_out)
 
     if confirms:
-        assert "Pending packages deleted" in _out
+        assert "Packages aborted" in _out
         # verify packages are gone
         with io.StringIO() as buf, contextlib.redirect_stdout(buf):
             _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
@@ -270,7 +274,7 @@ def test_pipeline_command_drop_partial_loads(
             assert "No pending packages found" in _out
         print(_out)
     else:
-        assert "Pending packages deleted" not in _out
+        assert "Packages aborted" not in _out
 
 
 def test_drop_from_wrong_dir(repo_dir: str) -> None:
@@ -351,6 +355,368 @@ def test_pipeline_command_drop_with_global_args(
         assert "players_games" not in pipeline.default_schema.tables
     else:
         assert "players_games" in pipeline.default_schema.tables
+
+
+def test_pipeline_command_abort_packages(repo_dir: str) -> None:
+    _init_command.init_command("chess", "dummy", repo_dir)
+    os.environ["EXCEPTION_PROB"] = "1.0"
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    venv = Venv.restore_current()
+    with pytest.raises(CalledProcessError) as cpe:
+        print(venv.run_script("chess_pipeline.py"))
+    assert "PipelineStepFailed" in cpe.value.stdout
+
+    # verify pending packages exist before abort
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert len(pipeline.list_normalized_load_packages()) > 0
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command("abort-packages", "chess_pipeline", None, 0)
+        _out = buf.getvalue()
+        assert "will be aborted" in _out
+        assert "Packages aborted" in _out
+        assert "local state and schemas restored" in _out
+    print(_out)
+
+    # aborted packages stay in local storage with their failed jobs
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert len(pipeline.list_completed_load_packages()) > 0
+
+    # after abort, running again should show no pending packages
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command("abort-packages", "chess_pipeline", None, 0)
+        _out = buf.getvalue()
+        assert "No pending packages found" in _out
+    print(_out)
+
+
+def test_pipeline_command_abort_packages_partial_warning() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+    # letters completes, numbers fails and is retried -> the package is partially loaded
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+    load_id = p.list_normalized_load_packages()[0]
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        # decline the confirmation, we only inspect the warning
+        with echo.always_choose(False, False):
+            _pipeline_command.pipeline_command("abort-packages", pipeline_name, None, 0)
+        _out = buf.getvalue()
+    assert "partially loaded" in _out
+    assert "will NOT revert" in _out
+    assert "load-package %s row-counts" % load_id in _out
+    print(_out)
+
+
+def test_pipeline_command_load_package_abort() -> None:
+    """`load-package <id> abort` aborts the target package and newer ones; older stay intact."""
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+
+    @dlt.resource(incremental=dlt.sources.incremental("id"))
+    def numbers(data):
+        yield data
+
+    p.run(numbers([{"id": 1}, {"id": 2}, {"id": 3}]))
+    for batch in ([{"id": 4}], [{"id": 5}], [{"id": 6}]):
+        p.extract(numbers(batch))
+        p.normalize()
+    pending = p.list_normalized_load_packages()
+    assert len(pending) == 3
+
+    # abort at the middle package: it and the newest are deleted, the oldest stays loadable
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command(
+                "load-package", pipeline_name, None, 0, load_id=pending[1], action="abort"
+            )
+        _out = buf.getvalue()
+    # a non-oldest package is not being loaded, so it is deleted without an aborted record
+    assert "Normalized packages to delete" in _out
+    assert pending[1] in _out and pending[2] in _out
+
+    p = dlt.attach(pipeline_name=pipeline_name)
+    assert p.list_normalized_load_packages() == [pending[0]]
+    with p.sql_client() as client:
+        loaded = [row[0] for row in client.execute_sql("SELECT id FROM numbers ORDER BY id")]
+    # only the first run's rows are loaded; the oldest pending package is still runnable
+    assert loaded == [1, 2, 3]
+    p.load()
+    with p.sql_client() as client:
+        loaded = [row[0] for row in client.execute_sql("SELECT id FROM numbers ORDER BY id")]
+    assert loaded == [1, 2, 3, 4]
+
+
+def test_pipeline_command_drop_pending_packages_deprecation(repo_dir: str) -> None:
+    _init_command.init_command("chess", "dummy", repo_dir)
+    os.environ["EXCEPTION_PROB"] = "1.0"
+
+    try:
+        pipeline = dlt.attach(pipeline_name="chess_pipeline")
+        pipeline.drop()
+    except Exception as e:
+        print(e)
+
+    venv = Venv.restore_current()
+    with pytest.raises(CalledProcessError) as cpe:
+        print(venv.run_script("chess_pipeline.py"))
+    assert "PipelineStepFailed" in cpe.value.stdout
+
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command("drop-pending-packages", "chess_pipeline", None, 1)
+        _out = buf.getvalue()
+        # deprecated alias runs the abort flow
+        assert "drop-pending-packages is deprecated" in _out
+        assert "abort-packages" in _out
+        assert "Packages aborted" in _out
+    print(_out)
+    # pending packages are gone after the abort
+    pipeline = dlt.attach(pipeline_name="chess_pipeline")
+    assert pipeline.has_pending_data is False
+
+
+def test_pipeline_command_fail_job() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+    pending = p.list_pending_retry_jobs_in_package(load_id)
+    assert len(pending) > 0
+    job_file_name = os.path.basename(pending[0][0])
+    job_id = ParsedLoadJobFileName.parse(job_file_name).job_id()
+
+    # test with job_id (as users would copy from load-package output)
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command(
+                "load-package",
+                pipeline_name,
+                None,
+                0,
+                load_id=load_id,
+                action="fail-job",
+                job=job_id,
+            )
+        _out = buf.getvalue()
+        assert "Job:" in _out
+        assert "Retry count:" in _out
+        assert "Exception type: terminal" in _out
+        assert "moved to failed_jobs" in _out
+    print(_out)
+
+    # job should now be in failed_jobs
+    failed = p.list_failed_jobs_in_package(load_id)
+    failed_ids = [j.job_file_info.job_id() for j in failed]
+    assert job_id in failed_ids
+
+
+def test_pipeline_command_fail_job_with_file_name() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+        ],
+    )
+
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+    pending = p.list_pending_retry_jobs_in_package(load_id)
+    assert len(pending) > 0
+    job_file_name = os.path.basename(pending[0][0])
+
+    # test with full file_name (including retry count)
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        with echo.always_choose(False, True):
+            _pipeline_command.pipeline_command(
+                "load-package",
+                pipeline_name,
+                None,
+                0,
+                load_id=load_id,
+                action="fail-job",
+                job=job_file_name,
+            )
+        _out = buf.getvalue()
+        assert "moved to failed_jobs" in _out
+    print(_out)
+
+
+def test_pipeline_command_fail_job_not_found() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+        ],
+    )
+
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+
+    load_id = p.list_normalized_load_packages()[0]
+
+    from dlt._workspace.cli.exceptions import CliCommandInnerException
+
+    with pytest.raises(CliCommandInnerException, match="not found in pending retry jobs"):
+        _pipeline_command.pipeline_command(
+            "load-package",
+            pipeline_name,
+            None,
+            0,
+            load_id=load_id,
+            action="fail-job",
+            job="nonexistent.abc.jsonl",
+        )
+
+
+def test_pipeline_command_load_package_job_filter() -> None:
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
+    os.environ["LOAD__RAISE_ON_FAILED_JOBS"] = "true"
+    os.environ["DESTINATION__DUMMY__FAIL_TABLE_NAMES"] = '["numbers"]'
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="dummy")
+    s = DltSource(
+        Schema("source"),
+        "module",
+        [
+            dlt.resource([1, 2, 3], table_name="numbers", name="numbers"),
+            dlt.resource(["a", "b", "c"], table_name="letters", name="letters"),
+        ],
+    )
+
+    # first run retries the numbers job terminally, second run retries it again -> two attempts
+    with pytest.raises(PipelineStepFailed):
+        p.run(s)
+    with pytest.raises(PipelineStepFailed):
+        p.run()
+
+    load_id = p.list_normalized_load_packages()[0]
+
+    # filter shows the matching job with its full retry exception history
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "load-package", pipeline_name, None, 0, load_id=load_id, action="job", job="numbers"
+        )
+        _out = buf.getvalue()
+        assert "Job numbers." in _out
+        assert "state: new_jobs" in _out
+        assert _out.count("terminal") >= 2
+        assert "configured to fail" in _out
+        # the non-matching job is not shown
+        assert "letters" not in _out
+    print(_out)
+
+    # no match reports cleanly
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "load-package", pipeline_name, None, 0, load_id=load_id, action="job", job="nonexistent"
+        )
+        assert "No jobs matching" in buf.getvalue()
+
+
+def test_pipeline_command_load_package_row_counts() -> None:
+    os.environ["COMPLETED_PROB"] = "1.0"
+    pipeline_name = "pipe_" + uniq_id()
+    p = dlt.pipeline(pipeline_name=pipeline_name, destination="duckdb")
+    load_info = p.run([{"id": 1}, {"id": 2}, {"id": 3}], table_name="numbers")
+    load_id = load_info.loads_ids[0]
+
+    # row counts for a completed load, works with an explicit load id
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "load-package", pipeline_name, None, 0, load_id=load_id, action="row-counts"
+        )
+        _out = buf.getvalue()
+    assert "Row counts for load %s" % load_id in _out
+    assert "Package is COMPLETED" in _out
+    assert "numbers: 3" in _out
+    # each table shows its write disposition
+    assert "write disposition: append" in _out
+    # dlt tables are shown too, so an updated state row is visible
+    assert "_dlt_pipeline_state: 1" in _out
+    assert "total: 4 rows across 2 tables" in _out
+    print(_out)
+
+    # works even after the local package is gone from the working dir
+    p._get_load_storage().loaded_packages.delete_package(load_id)
+    assert load_id not in p.list_completed_load_packages()
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "load-package", pipeline_name, None, 0, load_id=load_id, action="row-counts"
+        )
+        _out = buf.getvalue()
+    assert "Package is COMPLETED" in _out
+    assert "numbers: 3" in _out
+
+    # an unknown load id: not completed, no rows, and a link to the partial-package docs
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "load-package", pipeline_name, None, 0, load_id="9999999999.0", action="row-counts"
+        )
+        _out = buf.getvalue()
+    assert "NOT completed" in _out
+    assert "partially-loaded-packages" in _out
+
+    # a root table with nested tables reports how many could also be modified
+    nested_info = p.run([{"id": 1, "children": [{"x": 1}, {"x": 2}]}], table_name="parent")
+    with io.StringIO() as buf, contextlib.redirect_stdout(buf):
+        _pipeline_command.pipeline_command(
+            "load-package",
+            pipeline_name,
+            None,
+            0,
+            load_id=nested_info.loads_ids[0],
+            action="row-counts",
+        )
+        _out = buf.getvalue()
+    assert "nested tables could also be modified" in _out
 
 
 def test_invoke_list_pipelines(legacy_workspace_context, script_runner: ScriptRunner) -> None:

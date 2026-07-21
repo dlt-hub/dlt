@@ -11,7 +11,7 @@ from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
-from dlt.load.exceptions import LoadClientJobFailed
+from dlt.load.exceptions import LoadClientJobTerminalRetry
 from dlt.pipeline.exceptions import PipelineStepFailed
 from tests.load.pipeline.utils import simple_nested_pipeline
 from tests.load.snowflake.test_snowflake_client import QUERY_TAG
@@ -193,7 +193,7 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
     pipeline, data = simple_nested_pipeline(destination_config, f"custom_stage_{uniq_id()}", False)
     with pytest.raises(PipelineStepFailed) as f_jobs:
         pipeline.run(data(), **destination_config.run_kwargs)
-    assert isinstance(f_jobs.value.__cause__, LoadClientJobFailed)
+    assert isinstance(f_jobs.value.__cause__, LoadClientJobTerminalRetry)
     assert "MY_NON_EXISTING_STAGE" in f_jobs.value.__cause__.failed_message
 
     # NOTE: this stage must be created in DLT_DATA database for this test to pass!

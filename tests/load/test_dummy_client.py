@@ -9,7 +9,12 @@ from typing import Any, List, Tuple
 from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.exceptions import TerminalException, TerminalValueError
-from dlt.common.storages import FileStorage, PackageStorage, ParsedLoadJobFileName
+from dlt.common.storages import (
+    FileStorage,
+    NormalizeStorage,
+    PackageStorage,
+    ParsedLoadJobFileName,
+)
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.load_package import LoadPackageStateInjectableContext, TPackageJobState
 from dlt.common.configuration.container import Container
@@ -33,10 +38,13 @@ from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
     LoadClientJobRetry,
+    LoadClientJobTerminalRetry,
+    LoadPackageAborted,
     TableChainFollowupJobCreationFailedException,
     FollowupJobCreationFailedException,
 )
 from dlt.load.utils import get_completed_table_chain, init_client, _extend_tables_with_table_chain
+from dlt.pipeline.abort import prepare_abort_packages
 
 from tests.utils import (
     MockPipeline,
@@ -118,7 +126,8 @@ def test_unsupported_write_disposition() -> None:
     schema.get_table("event_user")["write_disposition"] = "skip"
     # write back schema
     load.load_storage.normalized_packages.save_schema(load_id, schema)
-    with pytest.raises(LoadClientJobFailed) as e:
+    # default does not auto-abort: the terminal job is queued for retry and the package stays pending
+    with pytest.raises(LoadClientJobTerminalRetry) as e:
         with ThreadPoolExecutor() as pool:
             load.run(pool)
 
@@ -199,9 +208,18 @@ def test_get_completed_table_chain_single_job_per_table() -> None:
     ) == [schema.get_table("event_loop_interrupted")]
 
 
-def test_spool_job_failed_and_package_completed() -> None:
-    # this config fails job on start
-    load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
+@pytest.mark.parametrize("auto_abort", [True, False], ids=["auto_abort", "complete_as_loaded"])
+def test_spool_job_failed_and_package_completed(auto_abort: bool) -> None:
+    # with raise_on_failed_jobs disabled, failed jobs move to failed_jobs regardless of auto_abort
+    loader_config = LoaderConfiguration(
+        auto_abort_on_terminal_error=auto_abort,
+        raise_on_failed_jobs=False,
+        workers=1,
+        pool_type="none",
+    )
+    load = setup_loader(
+        client_config=DummyClientConfiguration(fail_prob=1.0), loader_config=loader_config
+    )
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     files = load.load_storage.normalized_packages.list_new_jobs(load_id)
     jobs: List[RunnableLoadJob] = []
@@ -226,64 +244,107 @@ def test_spool_job_failed_and_package_completed() -> None:
         remaining_jobs, finalized_jobs, _ = load.complete_jobs(load_id, jobs, schema)
     assert len(remaining_jobs) == 0
     assert len(finalized_jobs) == 2
+    packages = load.load_storage.normalized_packages
+    if auto_abort:
+        # the abort intent is persisted and the jobs are queued as terminal retries
+        assert packages.has_abort_flag(load_id)
+        retried = packages.list_retried_new_jobs(load_id)
+        assert len(retried) == 2
+        for job_file, folder in retried:
+            assert folder == "new_jobs"
+            parsed = ParsedLoadJobFileName.parse(os.path.basename(job_file))
+            assert parsed.retry_count == 1
+            exc_type, _ = packages.get_last_job_exception(load_id, parsed)
+            assert exc_type == "terminal"
+    else:
+        for job in jobs:
+            assert packages.storage.has_file(
+                packages.get_job_file_path(
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name()
+                )
+            )
+            assert packages.storage.has_file(
+                packages.get_job_file_path(
+                    load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"
+                )
+            )
     for job in jobs:
-        assert load.load_storage.normalized_packages.storage.has_file(
-            load.load_storage.normalized_packages.get_job_file_path(
-                load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name()
-            )
-        )
-        assert load.load_storage.normalized_packages.storage.has_file(
-            load.load_storage.normalized_packages.get_job_file_path(
-                load_id, PackageStorage.FAILED_JOBS_FOLDER, job.file_name() + ".exception"
-            )
-        )
         # load should collect two jobs
         assert load._job_metrics[job.job_id()] == job.metrics()
     started_files = load.load_storage.normalized_packages.list_started_jobs(load_id)
     assert len(started_files) == 0
+    # remove the still pending package so the flow below loads only its own
+    load.load_storage.normalized_packages.delete_package(load_id)
 
-    # test the whole flow - disable raising exceptions on failed jobs and let package to complete
-    loader_config = LoaderConfiguration(
-        raise_on_failed_jobs=False,
-        workers=1,
-        pool_type="none",
-    )
+    # run the whole flow: a single pool run must resolve the package - abort abandons jobs
+    # not yet spooled by the single worker, complete-as-loaded drains them all
     load = setup_loader(
-        client_config=DummyClientConfiguration(fail_prob=1.0),
-        loader_config=loader_config,
+        client_config=DummyClientConfiguration(fail_prob=1.0), loader_config=loader_config
     )
     load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
-    run_all(load)
+    if auto_abort:
+        with pytest.raises(LoadPackageAborted) as abort_ex:
+            load.run(None)
+        # raise_on_failed_jobs is unset so the pipeline swallows the abort
+        assert abort_ex.value.job_exception is None
+        assert abort_ex.value.load_id == load_id
+    else:
+        load.run(None)
 
     # not loading
     assert load.current_load_id is None
     package_info = load.load_storage.get_load_package_info(load_id)
-    assert package_info.state == "loaded"
-    # all jobs failed
-    assert len(package_info.jobs["failed_jobs"]) == 2
-    # check metrics
     load_info = load.get_step_info(MockPipeline("pipe", True))  # type: ignore[abstract]
     metrics = load_info.metrics[load_id][0]["job_metrics"]
-    assert len(metrics) == 2
-    for job in jobs:
-        assert job.job_id() in metrics
-        assert metrics[job.job_id()].state == "failed"
+    if auto_abort:
+        assert package_info.state == "aborted"
+        assert len(package_info.jobs["failed_jobs"]) == 1
+        # the second job was never spooled and is abandoned in new_jobs
+        assert len(package_info.jobs["new_jobs"]) == 1
+        assert len(metrics) == 1
+    else:
+        assert package_info.state == "loaded"
+        assert len(package_info.jobs["failed_jobs"]) == 2
+        assert len(metrics) == 2
+    for job_info in package_info.jobs["failed_jobs"]:
+        assert metrics[job_info.job_file_info.job_id()].state == "failed"
 
 
-def test_spool_job_failed_terminally_exception_init() -> None:
-    load = setup_loader(client_config=DummyClientConfiguration(fail_terminally_in_init=True))
+@pytest.mark.parametrize("auto_abort", [True, False], ids=["auto_abort", "retry_pending"])
+def test_spool_job_failed_terminally_exception_init(auto_abort: bool) -> None:
+    loader_config = LoaderConfiguration(auto_abort_on_terminal_error=auto_abort)
+    load = setup_loader(
+        client_config=DummyClientConfiguration(fail_terminally_in_init=True),
+        loader_config=loader_config,
+    )
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
     with patch.object(dummy_impl.DummyClient, "complete_load") as complete_load:
-        with pytest.raises(LoadClientJobFailed) as py_ex:
-            run_all(load)
-        assert isinstance(py_ex.value.client_exception, DestinationTerminalException)
-        assert py_ex.value.load_id == load_id
-        # not loading - package aborted
-        assert load.current_load_id is None
-        package_info = load.load_storage.get_load_package_info(load_id)
-        assert package_info.state == "aborted"
-        # both failed - we wait till the current loop is completed and then raise
-        assert len(package_info.jobs["failed_jobs"]) == 2
+        if auto_abort:
+            # the abort carries the job failure to be re-raised by the pipeline after cleanup
+            with pytest.raises(LoadPackageAborted) as abort_ex:
+                run_all(load)
+            assert abort_ex.value.load_id == load_id
+            job_exception = abort_ex.value.job_exception
+            assert isinstance(job_exception, LoadClientJobFailed)
+            assert isinstance(job_exception.client_exception, DestinationTerminalException)
+            assert job_exception.load_id == load_id
+            package_info = load.load_storage.get_load_package_info(load_id)
+            # not loading - package aborted
+            assert load.current_load_id is None
+            assert package_info.state == "aborted"
+            # both failed - we wait till the current loop is completed and then abort
+            assert len(package_info.jobs["failed_jobs"]) == 2
+        else:
+            with pytest.raises(LoadClientJobTerminalRetry) as py_ex:
+                run_all(load)
+            assert isinstance(py_ex.value.client_exception, DestinationTerminalException)
+            assert py_ex.value.load_id == load_id
+            package_info = load.load_storage.get_load_package_info(load_id)
+            # package stays pending with both jobs queued for retry
+            assert load.current_load_id is not None
+            assert package_info.state == "normalized"
+            assert len(package_info.jobs["failed_jobs"]) == 0
+            assert len(package_info.jobs["new_jobs"]) == 2
         assert len(package_info.jobs["started_jobs"]) == 0
         # load id was never committed
         complete_load.assert_not_called()
@@ -334,16 +395,18 @@ def test_spool_job_failed_transiently_exception_init() -> None:
 
 
 def test_spool_job_failed_exception_complete() -> None:
+    # default does not auto-abort: jobs failing in run are queued for retry and the package stays pending
     load = setup_loader(client_config=DummyClientConfiguration(fail_prob=1.0))
     load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
-    with pytest.raises(LoadClientJobFailed) as py_ex:
+    with pytest.raises(LoadClientJobTerminalRetry) as py_ex:
         run_all(load)
-    assert load.current_load_id is None
+    assert load.current_load_id is not None
     assert py_ex.value.load_id == load_id
     package_info = load.load_storage.get_load_package_info(load_id)
-    assert package_info.state == "aborted"
-    # both failed - we wait till the current loop is completed and then raise
-    assert len(package_info.jobs["failed_jobs"]) == 2
+    assert package_info.state == "normalized"
+    # both failed and were queued for retry - we wait till the current loop is completed and then raise
+    assert len(package_info.jobs["failed_jobs"]) == 0
+    assert len(package_info.jobs["new_jobs"]) == 2
     assert len(package_info.jobs["started_jobs"]) == 0
     # metrics can be gathered
     assert len(load._job_metrics) == 2
@@ -525,26 +588,28 @@ def test_resume_with_pending_failed_transition() -> None:
         states = {j.state() for j in resumed_jobs}
         assert states == {"completed", "failed"}
 
-        # --- mode 1: raise_on_failed_jobs=True (default) ---
+        # --- mode 1: raise_on_failed_jobs=True, auto_abort=False (default) ---
         # complete_jobs returns a pending_exception with correct exception chain
         remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
         assert len(remaining) == 0
         assert len(finalized) == 2
         assert pending_exc is not None
-        assert isinstance(pending_exc, LoadClientJobFailed)
+        assert isinstance(pending_exc, LoadClientJobTerminalRetry)
         # the chained client_exception must be a DestinationTerminalException
         assert isinstance(pending_exc.client_exception, DestinationTerminalException)
         assert "a random fail occurred" in pending_exc.failed_message
 
-        # files moved correctly
+        # the failed job is queued for retry, not moved to failed_jobs
         all_jobs = packages.get_load_package_jobs(load_id)
         assert len(all_jobs["completed_jobs"]) == 1
-        assert len(all_jobs["failed_jobs"]) == 1
+        assert len(all_jobs["failed_jobs"]) == 0
+        assert len(all_jobs["new_jobs"]) == 1
         assert len(all_jobs["started_jobs"]) == 0
         assert len(packages.list_pending_transitions(load_id)) == 0
 
-    # --- mode 2: raise_on_failed_jobs=False (silent completion) ---
+    # --- mode 2: raise_on_failed_jobs=False, auto_abort=False (silent completion) ---
     loader_config = LoaderConfiguration(
+        auto_abort_on_terminal_error=False,
         raise_on_failed_jobs=False,
         workers=1,
         pool_type="none",
@@ -571,7 +636,7 @@ def test_resume_with_pending_failed_transition() -> None:
         resumed_jobs = load.resume_started_jobs(load_id, schema)
         remaining, finalized, pending_exc = load.complete_jobs(load_id, resumed_jobs, schema)
         assert len(finalized) == 2
-        # no exception scheduled when raise_on_failed_jobs is False
+        # no pending exception with raise_on_failed_jobs off: the package completes as loaded
         assert pending_exc is None
 
 
@@ -593,6 +658,115 @@ def test_resume_without_pending_transition() -> None:
     # dummy client returns failed for unknown jobs (not in JOBS dict)
     for j in jobs:
         assert j.state() == "failed"
+
+
+def test_abort_package_replays_started_jobs() -> None:
+    """Abort moves started jobs with a pending transition to their recorded terminal
+    state (the destination already committed them) and fails jobs without a marker."""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, schema = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    files = packages.list_new_jobs(load_id)
+    assert len(files) == 2
+    file_names = sorted(FileStorage.get_file_name_from_file_path(f) for f in files)
+    for fn in file_names:
+        packages.start_job(load_id, fn)
+    # first job committed to the destination before the crash, second did not
+    packages.save_pending_transition(load_id, file_names[0], "completed")
+
+    # dry run tells the truth about started jobs without resolving them
+    plan = prepare_abort_packages(load.load_storage, NormalizeStorage(True))
+    assert plan is not None
+    job_info = plan["package_to_abort"]
+    assert job_info is not None
+    assert job_info["load_id"] == load_id
+    assert [os.path.basename(f) for f in job_info["committed_jobs"]] == [file_names[0]]
+    assert [os.path.basename(f) for f in job_info["interrupted_jobs"]] == [file_names[1]]
+    assert job_info["terminal_jobs"] == []
+    assert job_info["transient_jobs"] == []
+    assert len(packages.list_started_jobs(load_id)) == 2
+
+    packages.set_abort_flag(load_id)
+    with pytest.raises(LoadPackageAborted) as abort_ex:
+        load.run(None)
+    assert abort_ex.value.job_exception is None
+
+    package_info = load.load_storage.get_load_package_info(load_id)
+    assert package_info.state == "aborted"
+    jobs_by_state = {
+        state: [job.job_file_info for job in jobs] for state, jobs in package_info.jobs.items()
+    }
+    # committed job replayed to completed_jobs without re-execution
+    assert [j.file_name() for j in jobs_by_state["completed_jobs"]] == [file_names[0]]
+    # interrupted job failed with retry count increased
+    assert len(jobs_by_state["failed_jobs"]) == 1
+    failed_job = jobs_by_state["failed_jobs"][0]
+    assert (
+        failed_job.file_name()
+        == ParsedLoadJobFileName.parse(file_names[1]).with_retry().file_name()
+    )
+    failed_message = load.load_storage.loaded_packages.get_job_failed_message(load_id, failed_job)
+    assert "job interrupted by package abort" in failed_message
+    assert len(jobs_by_state["started_jobs"]) == 0
+    assert len(jobs_by_state["new_jobs"]) == 0
+
+
+def test_auto_abort_crash_resumes_via_flag() -> None:
+    """The abort intent is persisted when the terminal failure is seen, so a crash mid-abort
+    is finished by the next pool run."""
+    loader_config = LoaderConfiguration(
+        auto_abort_on_terminal_error=True, workers=1, pool_type="none"
+    )
+    load = setup_loader(
+        client_config=DummyClientConfiguration(fail_prob=1.0), loader_config=loader_config
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    packages = load.load_storage.normalized_packages
+
+    with patch.object(load, "complete_package", side_effect=RuntimeError("crash")):
+        with pytest.raises(RuntimeError):
+            load.run(None)
+    # the abort intent survived the crash and the package is still pending
+    assert packages.has_abort_flag(load_id)
+    assert load.load_storage.get_load_package_info(load_id).state == "normalized"
+
+    # the next run finishes the abort via the flag, without the original job failure
+    with pytest.raises(LoadPackageAborted) as abort_ex:
+        load.run(None)
+    assert abort_ex.value.job_exception is None
+    package_info = load.load_storage.get_load_package_info(load_id)
+    assert package_info.state == "aborted"
+    assert len(package_info.jobs["failed_jobs"]) == 1
+    # the job that never ran is abandoned in new_jobs
+    assert len(package_info.jobs["new_jobs"]) == 1
+
+
+def test_prepare_abort_packages_keeps_older_than_target() -> None:
+    """The planner deletes only the target and newer packages, keeping older ones - also when
+    the target is already aborted (moved to loaded storage), which drives the abort cleanup."""
+    load = setup_loader()
+    older, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    target, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    newer, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    assert [older, target, newer] == sorted([older, target, newer])
+
+    # target not being loaded: delete target and newer, keep older, no record
+    plan = prepare_abort_packages(load.load_storage, NormalizeStorage(True), target)
+    assert plan is not None
+    assert plan["package_to_abort"] is None
+    assert plan["packages_to_delete"] == [target, newer]
+    assert plan["restore_from_load_id"] == target
+
+    # target already aborted (in loaded storage): delete only newer, keep older
+    load.load_storage.complete_load_package(target, aborted=True)
+    assert target in load.load_storage.list_loaded_packages()
+    plan = prepare_abort_packages(load.load_storage, NormalizeStorage(True), target)
+    assert plan is not None
+    assert plan["package_to_abort"] is None
+    assert plan["packages_to_delete"] == [newer]
+    assert plan["restore_from_load_id"] == target
+    assert older in load.load_storage.list_normalized_packages()
 
 
 def test_pending_transition_with_followup_jobs() -> None:
@@ -808,7 +982,7 @@ def test_failed_loop() -> None:
         delete_completed_jobs=True, client_config=DummyClientConfiguration(fail_prob=1.0)
     )
     # actually not deleted because one of the jobs failed
-    with pytest.raises(LoadClientJobFailed) as e:
+    with pytest.raises(LoadClientJobTerminalRetry) as e:
         assert_complete_job(load, should_delete_completed=False)
 
     assert "a random fail occurred" in e.value.failed_message
@@ -826,7 +1000,7 @@ def test_failed_loop_followup_jobs() -> None:
         client_config=DummyClientConfiguration(fail_prob=1.0, create_followup_jobs=True),
     )
     # actually not deleted because one of the jobs failed
-    with pytest.raises(LoadClientJobFailed) as e:
+    with pytest.raises(LoadClientJobTerminalRetry) as e:
         assert_complete_job(load, should_delete_completed=False)
 
     assert "a random fail occurred" in e.value.failed_message

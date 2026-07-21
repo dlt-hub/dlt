@@ -1,7 +1,7 @@
 import contextlib
 from functools import reduce
 from threading import BoundedSemaphore
-from typing import Dict, List, Optional, Tuple, Iterator, Sequence
+from typing import Dict, List, NoReturn, Optional, Tuple, Iterator, Sequence
 from concurrent.futures import Executor
 
 from dlt.common import logger, pendulum
@@ -52,7 +52,9 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
+    LoadClientJobTerminalRetry,
     LoadClientJobRetry,
+    LoadPackageAborted,
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
     LoadClientJobException,
@@ -523,31 +525,53 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 )
                 # try to get exception message from job
                 failed_message = job.failed_message()
-                self.load_storage.normalized_packages.fail_job(
-                    load_id, job.file_name(), failed_message
-                )
-                # consume pending transition only after successful file move
-                self.load_storage.normalized_packages.clear_pending_transition(
-                    load_id, job.file_name()
-                )
                 logger.error(
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
                 )
-                # schedule exception on job failure
-                if self.config.raise_on_failed_jobs:
+                if self.config.auto_abort_on_terminal_error:
+                    # persist abort intent before moving the job so a crash resumes the abort
+                    current_load_package()["state"]["abort_requested"] = True
+                    commit_load_package_state()
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message, "terminal"
+                    )
                     pending_exception = LoadClientJobFailed(
                         load_id,
                         job.job_file_info().job_id(),
                         failed_message,
                         job.exception(),
                     )
+                elif not self.config.raise_on_failed_jobs:
+                    # complete the package as loaded with the failed job recorded, no exception
+                    self.load_storage.normalized_packages.fail_job(
+                        load_id, job.file_name(), failed_message
+                    )
+                else:
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message, "terminal"
+                    )
+                    pending_exception = LoadClientJobTerminalRetry(
+                        load_id,
+                        job.job_file_info().job_id(),
+                        failed_message,
+                        job.exception(),
+                    )
+                # consume pending transition only after successful file move
+                self.load_storage.normalized_packages.clear_pending_transition(
+                    load_id, job.file_name()
+                )
                 finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.failed_message()
                 # move back to new folder to try again
-                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
+                self.load_storage.normalized_packages.retry_job(
+                    load_id,
+                    job.file_name(),
+                    failed_message=retry_message,
+                    exception_type="transient",
+                )
                 logger.warning(
                     f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
                 )
@@ -714,6 +738,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
+        if self.load_storage.normalized_packages.has_abort_flag(load_id):
+            # aborts package - always raises
+            self._raise_package_abort(load_id, schema)
         new_jobs = self.get_new_jobs_info(load_id)
         self.init_jobs_counter(load_id)
         running_jobs = self.initialize_package(load_id, schema, new_jobs)
@@ -729,7 +756,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
             pending_exception = pending_exception or new_pending_exception
 
-            # do not spool new jobs if there was a signal or an exception was encountered
+            # stop spooling new jobs on a signal or a pending exception; a terminal failure
+            # without raise_on_failed_jobs sets no exception, so the package keeps loading
             # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
             # has changed (as determined by finalized jobs)
             if signals.was_signal_received() and not self.config.start_new_jobs_on_signal:
@@ -767,20 +795,28 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # we can raise it now
         if pending_exception:
             if isinstance(pending_exception, LoadClientJobFailed):
-                # the package is completed and skipped
-                self.complete_package(load_id, schema, aborted=True)
+                # only set under auto abort; always aborts the package (never returns)
+                self._raise_package_abort(
+                    load_id,
+                    schema,
+                    job_exception=(pending_exception if self.config.raise_on_failed_jobs else None),
+                )
+            elif isinstance(pending_exception, LoadClientJobTerminalRetry):
+                # created only with raise_on_failed_jobs set, package stays pending.
+                # gather package info so retried jobs and their exceptions reach the trace
+                self.gather_metrics(load_id, finished=False)
+                raise pending_exception from pending_exception.client_exception
             else:
                 self.gather_metrics(load_id, finished=False)
                 logger.warning(
                     f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
                     f" but {len(remaining_jobs)} new jobs are left in the package."
                 )
-            # raise exception with continuous backtrace into client exception
-            raise pending_exception from pending_exception.client_exception
+                # raise exception with continuous backtrace into client exception
+                raise pending_exception from pending_exception.client_exception
 
         # pool is drained
         if not remaining_jobs:
-            # no new jobs, load package done
             self.complete_package(load_id, schema, aborted=False)
         else:
             self.gather_metrics(load_id, finished=False)
@@ -788,6 +824,52 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 f"Package {load_id} was not fully loaded. Load job pool is successfully drained but"
                 f" {len(remaining_jobs)} new jobs are left in the package."
             )
+
+    def _raise_package_abort(
+        self, load_id: str, schema: Schema, job_exception: Optional[LoadClientJobFailed] = None
+    ) -> NoReturn:
+        """Aborts a drained package and raises `LoadPackageAborted` so the pipeline runs the
+        abort cleanup. `job_exception` is carried over to be re-raised after the cleanup."""
+        logger.info(f"Aborting package {load_id} as requested")
+        packages = self.load_storage.normalized_packages
+        # replay started jobs with file moves only - no destination client is created
+        # so abort works also when the destination is unreachable. a pending transition
+        # means the destination already committed the job, so it moves to its recorded
+        # terminal state without followup jobs
+        for file_path in packages.list_started_jobs(load_id):
+            file_name = FileStorage.get_file_name_from_file_path(file_path)
+            pending = packages.load_pending_transition(load_id, file_name)
+            if pending is None:
+                # never committed, queue as retried so abort fails it below
+                packages.retry_job(
+                    load_id, file_name, "job interrupted by package abort", "terminal"
+                )
+            else:
+                pending_state, failed_message = pending
+                if pending_state == "failed":
+                    packages.fail_job(load_id, file_name, failed_message)
+                elif pending_state == "completed":
+                    packages.complete_job(load_id, file_name)
+                else:
+                    packages.retry_job(
+                        load_id, file_name, failed_message or "job retry", "transient"
+                    )
+                packages.clear_pending_transition(load_id, file_name)
+        # move retried jobs to failed_jobs and clear the abort flag
+        packages.abort_package(load_id)
+        dataset_name: Optional[str] = None
+        if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+            dataset_name = self.initial_client_config.normalize_dataset_name(schema)
+        metrics: LoadMetrics = {
+            "started_at": None,
+            "finished_at": None,
+            "job_metrics": self._job_metrics,
+            "dataset_name": dataset_name,
+        }
+        self._step_info_update_metrics(load_id, metrics)
+        self.complete_package(load_id, schema, aborted=True)
+        logger.info(f"Package {load_id} aborted successfully")
+        raise LoadPackageAborted(load_id, job_exception)
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool

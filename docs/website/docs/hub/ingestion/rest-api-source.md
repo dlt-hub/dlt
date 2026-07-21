@@ -177,7 +177,7 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException:
 The assistant sets INFO logging, inspects traces, and iterates until the pipeline completes:
 
 ```text
-Pipeline github_source load step completed in 0.26 seconds
+Pipeline github_source load step finished in 0.26 seconds
 1 load package(s) were loaded to destination duckdb and into dataset github_source_data
 The duckdb destination used duckdb:/github_source.duckdb location to store data
 Load package 1749667187.541553 is LOADED and contains no failed jobs

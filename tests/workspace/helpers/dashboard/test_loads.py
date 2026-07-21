@@ -83,7 +83,8 @@ def test_collect_load_packages_from_trace(
 
     elif pipeline.pipeline_name == "load_exception_pipeline":
         assert len(list_of_load_package_info) == 1
-        assert "aborted" in str(list_of_load_package_info[0]["status"].text)
+        # schema migrated at the destination before jobs failed, so the package is partial
+        assert "partially normalized" in str(list_of_load_package_info[0]["status"].text)
 
     elif pipeline.pipeline_name == "normalize_exception_pipeline":
         assert len(list_of_load_package_info) == 1
