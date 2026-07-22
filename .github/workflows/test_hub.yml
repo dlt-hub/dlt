@@ -47,6 +47,9 @@ jobs:
       run:
         shell: bash
     runs-on: ${{ matrix.os }}
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
 
     steps:
       - name: Check out

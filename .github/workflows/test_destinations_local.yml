@@ -83,6 +83,8 @@ jobs:
             post_install_commands: "uv run pip install pymysql duckdb-engine && uv run pip install sqlalchemy==2.0 && uv run dbc install mysql && uv run dbc install sqlite"
 
     env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
       ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
       ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
       EXCLUDED_DESTINATION_CONFIGURATIONS: ${{ matrix.excluded_destination_configurations || '[]' }}

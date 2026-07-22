@@ -7,7 +7,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_utc, ensure_pendulum_datetime_utc
 
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.interval import (
@@ -151,7 +151,7 @@ def test_interval_utc_round_trip_through_launcher_boundary(
     target_tz = ZoneInfo(tz)
     local = datetime(year, month, day, hour, tzinfo=target_tz)
     iso_utc = local.astimezone(timezone.utc).isoformat()
-    restored = ensure_pendulum_datetime_utc(iso_utc).astimezone(target_tz)
+    restored = ensure_datetime_utc(iso_utc).astimezone(target_tz)
     assert restored == local
     assert isinstance(restored.tzinfo, ZoneInfo)
     assert restored.tzinfo.key == tz
