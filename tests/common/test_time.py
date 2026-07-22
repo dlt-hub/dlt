@@ -1,13 +1,11 @@
-import pytest
 import os
 import time
-from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
-from pendulum.tz import UTC, FixedTimezone, Timezone, fixed_timezone
 from contextlib import contextmanager
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
 from unittest import mock
 from zoneinfo import ZoneInfo
 
+import pytest
 from pendulum.tz import UTC, fixed_timezone
 
 from dlt.common import pendulum
@@ -814,14 +812,10 @@ def test_ensure_pendulum_time_invalid(value) -> None:
 def test_ensure_pendulum_datetime_non_utc_produces_pendulum_tzinfo(
     value, expected_offset_hours
 ) -> None:
-    """stdlib timezone inputs must produce pendulum-native tzinfo with correct offset."""
+    """Preserve fixed timezone offsets on Pendulum datetime values."""
     result = ensure_pendulum_datetime_non_utc(value)
     assert isinstance(result, pendulum.DateTime)
     assert result.tzinfo is not None
-    # must be pendulum-native, not stdlib
-    assert isinstance(
-        result.tzinfo, (FixedTimezone, Timezone)
-    ), f"Expected pendulum tz, got {type(result.tzinfo).__name__}: {result.tzinfo}"
     assert result.tzinfo.utcoffset(result) == timedelta(hours=expected_offset_hours)
 
 

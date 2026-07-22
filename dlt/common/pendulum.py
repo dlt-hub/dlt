@@ -1,7 +1,7 @@
 from datetime import datetime, timezone, timedelta, tzinfo  # noqa: I251
 from typing import Optional, SupportsIndex, Union
 import pendulum  # noqa: I251
-from pendulum.tz import UTC
+from pendulum.tz import UTC, fixed_timezone
 from pendulum.tz.timezone import FixedTimezone, Timezone
 
 # force UTC as the local timezone to prevent local dates to be written to dbs
@@ -29,7 +29,7 @@ def to_pendulum_tz(tz: Optional[tzinfo]) -> Optional[Union[Timezone, FixedTimezo
         offset_seconds = int(tz.utcoffset(None).total_seconds())
         if offset_seconds == 0:
             return UTC
-        return pendulum.fixed_timezone(offset_seconds)
+        return fixed_timezone(offset_seconds)
     # named timezone (pytz, dateutil, zoneinfo) - need _safe_timezone for DST
     return pendulum._safe_timezone(tz)
 
