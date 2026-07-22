@@ -2,15 +2,20 @@
 
 import sys
 from importlib import import_module
+from io import BytesIO
+from types import ModuleType
 from typing import List
 
 import pytest
 
+from dlt._workspace.deployment.decorators import job
 from dlt._workspace.deployment.exceptions import InvalidManifest
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
     generate_manifest,
+    load_manifest,
     manifest_from_module,
+    save_manifest,
     validate_manifest,
 )
 from dlt._workspace.deployment.typing import (
@@ -26,6 +31,27 @@ WORKSPACE = "tests.workspace.cases.runtime_workspace"
 def _user_jobs(jobs: List[TJobDefinition]) -> List[TJobDefinition]:
     """Filter out auto-included workspace jobs (dashboard)."""
     return [j for j in jobs if j["job_ref"] != DASHBOARD_JOB_REF]
+
+
+def test_manifest_round_trip_preserves_require_instance() -> None:
+    """`require.instance.size` survives serialization — the backend reads it from the manifest."""
+
+    @job(require={"instance": {"size": "medium"}})
+    def train():
+        pass
+
+    module = ModuleType("__deployment_instance_test__")
+    module.train = train  # type: ignore[attr-defined]
+    module.__all__ = ["train"]  # type: ignore[attr-defined]
+    manifest, _ = generate_manifest(module)
+
+    buf = BytesIO()
+    save_manifest(manifest, buf)
+    buf.seek(0)
+    loaded = load_manifest(buf)
+
+    train_job = _user_jobs(loaded["jobs"])[0]
+    assert train_job["require"]["instance"] == {"size": "medium"}
 
 
 def test_full_deployment() -> None:

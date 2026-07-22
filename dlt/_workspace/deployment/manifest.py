@@ -305,13 +305,18 @@ def validate_job_definition(
     if job_def.get("allow_external_schedulers") and not has_interval:
         warnings.append(f"job {ref!r} has allow_external_schedulers but no interval")
 
-    declared_profile = (job_def.get("require") or {}).get("profile")
+    require = job_def.get("require") or {}
+    declared_profile = require.get("profile")
     if declared_profile is not None and is_local_profile(declared_profile):
         errors.append(
             f"job {ref!r}: require.profile {declared_profile!r} is a local-only profile"
             " and cannot be assumed by deployed jobs"
             f" (local-only profiles: {', '.join(sorted(LOCAL_PROFILES))})"
         )
+
+    instance = require.get("instance")
+    if instance is not None and not isinstance(instance, dict):
+        errors.append(f"job {ref!r}: require.instance must be an object")
 
     # dashboard job constraints
     if ref == DASHBOARD_JOB_REF:
