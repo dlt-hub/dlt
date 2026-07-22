@@ -111,6 +111,7 @@ jobs:
           python-version: ${{ matrix.platform.python-version }}
           activate-environment: true
           enable-cache: true
+          cache-suffix: ${{ matrix.platform.label }}
 
       - name: Install dependencies
         run: make install-common-core
