@@ -84,7 +84,7 @@ jobs:
               # note that all buckets are enabled for testing
               filesystem_drivers: "[\"memory\", \"az\", \"abfss\"]" # excludes sftp which is run in local tests
               extras: "--extra az --extra parquet --extra duckdb --extra filesystem --extra deltalake --extra pyiceberg"
-              post_install_commands: | # uv run pip install due to minimum version required by `pyiceberg`
+              post_install_commands: | # minimum SQLAlchemy version required by `pyiceberg`
                 uv run pip install sqlalchemy==2.0.18  # minimum version required by `pyiceberg`
 
             - display_name: filesystem_gs_gdrive
@@ -201,6 +201,8 @@ jobs:
               extras: "--extra snowflake --extra s3 --extra gs --extra az --extra parquet"
 
     env:
+        # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+        UV_NO_SYNC: "1"
         ACTIVE_DESTINATIONS: ${{ matrix.destinations }}
         ALL_FILESYSTEM_DRIVERS: ${{ matrix.filesystem_drivers }}
         EXCLUDED_DESTINATION_TEST_CONFIGURATION_IDS: ${{ matrix.excluded_destination_test_configuration_ids || '[]' }}
@@ -284,6 +286,9 @@ jobs:
 
   run_vault_providers:
     name: vault providers
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
     defaults:
       run:
         shell: bash

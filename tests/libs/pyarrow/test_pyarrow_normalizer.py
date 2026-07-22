@@ -638,6 +638,26 @@ def test_add_dlt_load_id_column_replaces_existing(use_record_batch: bool) -> Non
 
 
 @pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_keeps_columns_named_like_load_id(use_record_batch: bool) -> None:
+    """Replacing _dlt_load_id must not drop columns whose name is a substring of it."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
+
+    item = _make_item(
+        [{"_dlt_load_id": "old_load", "id": 1, "load_id": "L1", "keep": "x"}], use_record_batch
+    )
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "new_load_456")
+
+    assert result.column("_dlt_load_id")[0].as_py() == "new_load_456"
+    assert result.column("id")[0].as_py() == 1
+    assert result.column("load_id")[0].as_py() == "L1"
+    assert result.column("keep")[0].as_py() == "x"
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
 def test_remove_null_columns_stores_metadata(use_record_batch: bool) -> None:
     """remove_null_columns should store removed column names in dlt.null_columns metadata."""
     item = _make_item([{"a": 1, "b": "x"}], use_record_batch)
