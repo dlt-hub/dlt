@@ -580,7 +580,7 @@ def launcher_workspace(request: pytest.FixtureRequest):
 @pytest.fixture(
     params=[
         [sys.executable],
-        ["uv", "run", "--no-sync", "python"],
+        ["uv", "run", "python"],
     ],
     ids=["python", "uv-run-python"],
 )

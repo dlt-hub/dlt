@@ -83,6 +83,8 @@ jobs:
         shell: ${{ matrix.platform.shell }}
     runs-on: ${{ matrix.platform.os }}
     env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
       UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
 
     steps:

@@ -442,7 +442,6 @@ def _start_job(
     cmd = [
         "uv",
         "run",
-        "--no-sync",
         "python",
         "-m",
         launcher,
