@@ -92,7 +92,7 @@ def players():
 dlt.pipeline(destination="duckdb", dataset_name="chess").run(players())
 ```
 
-Try it out in our **[Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)** or directly on our wasm-based [playground](https://dlthub.com/docs/tutorial/playground) in our docs.
+Check out a super simple demo in **[Colab](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)** or a more advanced [Hugging Face demo with Marimo notebooks](https://molab.marimo.io/github/marimo-team/gallery-examples/blob/main/notebooks/external/dlthub-huggingface.py).
 
 ## Why dlt
 
