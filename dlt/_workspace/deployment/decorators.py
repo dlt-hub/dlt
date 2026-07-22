@@ -76,7 +76,8 @@ def _warn_deprecated_require(require: Optional[TRequireSpec]) -> None:
                 "`require.machine` is deprecated, use `require.instance` instead"
                 " (e.g. `{'instance': {'size': 'medium'}}`)",
                 since="1.29.0",
-            )
+            ),
+            stacklevel=2,
         )
 
 
