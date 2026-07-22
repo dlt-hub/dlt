@@ -25,6 +25,9 @@ jobs:
       run:
         shell: bash
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
 
     steps:
 
@@ -63,7 +66,7 @@ jobs:
         if: matrix.suite == 'no-venv'
 
       - name: Remove dbt-core
-        run: uv run --no-sync pip uninstall dbt-core -y
+        run: uv run pip uninstall dbt-core -y
         if: matrix.suite == 'venv'
 
       - name: Run dbt runner with venv - Linux/MAC

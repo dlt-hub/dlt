@@ -8,6 +8,9 @@ jobs:
   run_airflow:
     name: ${{ matrix.display_name }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
     strategy:
       fail-fast: false
       matrix:
@@ -44,7 +47,7 @@ jobs:
       - name: Install dependencies
         run: |
           uv sync --group pipeline --extra duckdb --extra parquet
-          uv run --no-sync python tools/install_airflow_ci.py '${{ matrix.airflow-specifier }}'
+          uv run python tools/install_airflow_ci.py '${{ matrix.airflow-specifier }}'
 
       - name: Run unit tests
         if: matrix.run-unit-tests
@@ -52,4 +55,4 @@ jobs:
 
       - name: Run smoke test
         if: matrix.run-smoke-test
-        run: cd tests/helpers/airflow_tests/smoke && uv run --no-sync python run.py
+        run: cd tests/helpers/airflow_tests/smoke && uv run python run.py
