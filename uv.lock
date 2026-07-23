@@ -859,6 +859,20 @@ wheels = [
 ]
 
 [[package]]
+name = "azure-keyvault-secrets"
+version = "4.11.0"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "azure-core" },
+    { name = "isodate" },
+    { name = "typing-extensions" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f1/b8/03c7b4edd1e3355ad5fffb70e68af70cd09542963f45cf3a2aa9fb3930b5/azure_keyvault_secrets-4.11.0.tar.gz", hash = "sha256:ac14727b9159cca353173ec5a454d8d7b192a6f2f5e7eb540f9fbcf914fa0ca0", size = 112291, upload-time = "2026-04-17T00:52:12.422Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/78/76/41c513917c0e8dc68de0c33578c6a0668b4a09eb4dc3e2782d382dc2947f/azure_keyvault_secrets-4.11.0-py3-none-any.whl", hash = "sha256:d8543b710423569bd00ada2a2533fe83d52d8e1fe026e1c47f41a3bc0fc73ef5", size = 103148, upload-time = "2026-04-17T00:52:13.796Z" },
+]
+
+[[package]]
 name = "azure-storage-blob"
 version = "12.25.1"
 source = { registry = "https://pypi.org/simple" }
@@ -2543,6 +2557,10 @@ athena = [
 az = [
     { name = "adlfs" },
 ]
+azure-key-vault = [
+    { name = "azure-identity" },
+    { name = "azure-keyvault-secrets" },
+]
 bigquery = [
     { name = "db-dtypes" },
     { name = "gcsfs" },
@@ -2828,6 +2846,8 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">3.9.0" },
     { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
+    { name = "azure-identity", marker = "extra == 'azure-key-vault'", specifier = ">=1.12.0" },
+    { name = "azure-keyvault-secrets", marker = "extra == 'azure-key-vault'", specifier = ">=4.7.0" },
     { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 'filesystem'", specifier = ">=1.28" },
     { name = "botocore", marker = "extra == 's3'", specifier = ">=1.28" },
@@ -2933,7 +2953,7 @@ requires-dist = [
     { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0.0,<5.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
-provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "polars", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "hf", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "lance", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "dbml"]
+provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "polars", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "azure-key-vault", "hf", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "lance", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "dbml"]
 
 [package.metadata.requires-dev]
 adbc = [
