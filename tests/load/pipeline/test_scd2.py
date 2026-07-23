@@ -962,6 +962,51 @@ def test_merge_key_compound_natural_key(
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
+def test_merge_key_compound_natural_key_does_not_collide(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    @dlt.resource(
+        merge_key=["document_number", "line_id"],
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def dim_test_compound(data):
+        yield data
+
+    # These compound keys both form "doc-712" when concatenated without a separator.
+    dim_snap = [
+        {"document_number": "doc-7", "line_id": "12", "status": "original-a"},
+        {"document_number": "doc-71", "line_id": "2", "status": "original-b"},
+    ]
+    info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    # Only the first key changes. The second key must stay active.
+    info = p.run(
+        dim_test_compound([{"document_number": "doc-7", "line_id": "12", "status": "changed-a"}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    ts = get_load_package_created_at(p, info)
+    actual = [
+        {k: v for k, v in row.items() if k in ("document_number", "line_id", "status", TO)}
+        for row in get_table(p, "dim_test_compound", ts_columns=[FROM, TO])
+    ]
+    expected = [
+        {"document_number": "doc-7", "line_id": "12", "status": "original-a", TO: ts},
+        {"document_number": "doc-7", "line_id": "12", "status": "changed-a", TO: None},
+        {"document_number": "doc-71", "line_id": "2", "status": "original-b", TO: None},
+    ]
+    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
 def test_merge_key_partition(
     destination_config: DestinationTestConfiguration,
 ) -> None:

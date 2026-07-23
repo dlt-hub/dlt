@@ -345,6 +345,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         # Cast because CONCAT is only generated for string columns
         result = sa.cast(result, sa.String)
         for col in columns[1:]:
+            result = operator.add(result, sa.literal("\\x1f"))
             result = operator.add(result, sa.cast(col, sa.String))
         return result  # type: ignore[no-any-return]
 

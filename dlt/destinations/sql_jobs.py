@@ -375,7 +375,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def gen_concat_sql(cls, columns: Sequence[str]) -> str:
-        return f"CONCAT({', '.join(columns)})"
+        # Keep key components separate: CONCAT(a, b) makes ("ab", "c") and
+        # ("a", "bc") compare equal when scoping SCD2 record retirement.
+        return "CONCAT(" + ", '\\x1f', ".join(columns) + ")"
 
     @classmethod
     def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
