@@ -877,7 +877,8 @@ def test_snowflake_staging_with_default_chain_credentials(
 ALL_TYPES_STRUCT_DDL = (
     "OBJECT(s VARCHAR(16777216), i NUMBER(19,0), f FLOAT, b BOOLEAN, ts TIMESTAMP_TZ(6), d DATE,"
     " t TIME(6), dec NUMBER(38,9), bin BINARY(8388608), arr ARRAY(NUMBER(19,0)),"
-    " nested OBJECT(x VARCHAR(16777216), y NUMBER(19,0)), mp MAP(VARCHAR(16777216), NUMBER(19,0)))"
+    " nested OBJECT(x VARCHAR(16777216), y NUMBER(19,0)), mp MAP(VARCHAR(16777216), NUMBER(19,0)),"
+    " with space VARCHAR(16777216), 日本語 NUMBER(19,0))"
 )
 
 
@@ -920,6 +921,9 @@ def test_snowflake_nested_types_parquet(destination_config: DestinationTestConfi
             ("arr", pa.list_(pa.int64())),
             ("nested", pa.struct([("x", pa.string()), ("y", pa.int64())])),
             ("mp", pa.map_(pa.string(), pa.int64())),
+            # field names that are not normalized and need quoting/escaping
+            ("with space", pa.string()),
+            ("日本語", pa.int64()),
         ]
     )
     value = {
@@ -935,6 +939,8 @@ def test_snowflake_nested_types_parquet(destination_config: DestinationTestConfi
         "arr": [1, 2, 3],
         "nested": {"x": "q", "y": 7},
         "mp": [("k", 9)],
+        "with space": "spaced",
+        "日本語": 99,
     }
 
     def qual(client: Any) -> str:
@@ -965,6 +971,19 @@ def test_snowflake_nested_types_parquet(destination_config: DestinationTestConfi
     assert payload["arr"] == [1, 2, 3]
     assert payload["nested"] == {"x": "q", "y": 7}
     assert payload["mp"] == {"k": 9}
+    assert payload["with space"] == "spaced"
+    assert payload["日本語"] == 99
+
+    # query nested fields, array elements and map values (incl. weird field names) through dataset()
+    spaced, uni, arr0, map_v, nested_x = pipeline.dataset()(
+        "SELECT payload['with space'], payload['日本語'], payload['arr'][0],"
+        " payload['mp']['k'], payload['nested']['x'] FROM items WHERE pk = 1"
+    ).fetchall()[0]
+    assert spaced == "spaced"
+    assert uni == 99
+    assert arr0 == 1
+    assert map_v == 9
+    assert nested_x == "q"
 
     # new column: add a whole new nested column
     schema2 = pa.schema(
@@ -1038,6 +1057,9 @@ def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfigu
     payload_t = pa.struct(
         [
             ("a", pa.int64()),
+            # field names that are not normalized and need quoting/escaping
+            ("with space", pa.string()),
+            ("日本語", pa.int64()),
             ("tags", pa.list_(pa.int64())),
             ("attrs", pa.map_(pa.string(), pa.string())),
             ("nested", pa.struct([("x", pa.string()), ("y", pa.bool_())])),
@@ -1057,8 +1079,10 @@ def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfigu
                     "note": "first",
                     "payload": {
                         "a": 10,
+                        "with space": "hello world",
+                        "日本語": 7,
                         "tags": [1, 2],
-                        "attrs": {"k": "v"},
+                        "attrs": {"weird key": "v"},
                         "nested": {"x": "hi", "y": True},
                     },
                 }
@@ -1079,10 +1103,23 @@ def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfigu
     assert typeof.startswith("OBJECT(")
     assert payload == {
         "a": 10,
+        "with space": "hello world",
+        "日本語": 7,
         "tags": [1, 2],
-        "attrs": {"k": "v"},
+        "attrs": {"weird key": "v"},
         "nested": {"x": "hi", "y": True},
     }
+
+    # query nested fields, array elements and map values (incl. weird field/key names) through dataset()
+    spaced, uni, tag0, attr_v, nested_x = pipeline.dataset()(
+        "SELECT payload['with space'], payload['日本語'], payload['tags'][0],"
+        " payload['attrs']['weird key'], payload['nested']['x'] FROM items WHERE pk = 1"
+    ).fetchall()[0]
+    assert spaced == "hello world"
+    assert uni == 7
+    assert tag0 == 1
+    assert attr_v == "v"
+    assert nested_x == "hi"
 
     # new column: add a new nested column (`extra`) and an inferred scalar (`amount`)
     assert_load_info(
@@ -1093,7 +1130,14 @@ def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfigu
                     "pk": 2,
                     "note": "second",
                     "amount": 1.5,
-                    "payload": {"a": 20, "tags": [], "attrs": {}, "nested": {"x": "z", "y": False}},
+                    "payload": {
+                        "a": 20,
+                        "with space": "",
+                        "日本語": 0,
+                        "tags": [],
+                        "attrs": {},
+                        "nested": {"x": "z", "y": False},
+                    },
                     "extra": [7, 8, 9],
                 }
             ],
@@ -1121,6 +1165,8 @@ def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfigu
                     "amount": 2.5,
                     "payload": {
                         "a": 30,
+                        "with space": "w",
+                        "日本語": 3,
                         "tags": [3],
                         "attrs": {"m": "n"},
                         "nested": {"x": "q", "y": True},
@@ -1142,6 +1188,17 @@ def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfigu
     assert "b VARCHAR" in typeof
     assert payloads[1]["b"] is None  # row loaded before the field existed null-fills it
     assert payloads[3]["b"] == "added"
+
+    # filter on nested data via WHERE: struct field and array membership
+    ds = pipeline.dataset()
+    assert [r[0] for r in ds("SELECT pk FROM items WHERE payload['a'] = 30").fetchall()] == [3]
+    # a structured ARRAY must be cast to a semi-structured array for ARRAY_CONTAINS
+    assert [
+        r[0]
+        for r in ds(
+            "SELECT pk FROM items WHERE ARRAY_CONTAINS(2::VARIANT, payload['tags']::ARRAY)"
+        ).fetchall()
+    ] == [1]
 
 
 @pytest.mark.parametrize(

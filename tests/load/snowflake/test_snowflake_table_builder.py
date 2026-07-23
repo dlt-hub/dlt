@@ -131,8 +131,8 @@ def test_create_table_nested_types(empty_schema: Schema) -> None:
     client = create_client(empty_schema, use_nested_types=True)
     sql = client._get_table_update_sql("nested_table", columns, False)[0]
     assert '"ARR" ARRAY(NUMBER(19,0))' in sql
-    assert '"OBJ" OBJECT(a NUMBER(19,0), nested OBJECT(x VARCHAR, y BOOLEAN))' in sql
-    assert '"LIST_OBJ" ARRAY(OBJECT(name VARCHAR, value FLOAT))' in sql
+    assert '"OBJ" OBJECT("a" NUMBER(19,0), "nested" OBJECT("x" VARCHAR, "y" BOOLEAN))' in sql
+    assert '"LIST_OBJ" ARRAY(OBJECT("name" VARCHAR, "value" FLOAT))' in sql
     assert '"MP" MAP(VARCHAR, FLOAT)' in sql
 
     # without the flag the same columns stay VARIANT (unchanged behaviour)
@@ -160,7 +160,7 @@ def test_migrate_existing_nested_column(empty_schema: Schema) -> None:
     stmts = client._get_table_update_sql("nested_mig", updates, True)
     alter = [s for s in stmts if "SET DATA TYPE" in s]
     assert alter
-    assert 'ALTER COLUMN "OBJ" SET DATA TYPE OBJECT(a NUMBER(19,0), b VARCHAR)' in alter[0]
+    assert 'ALTER COLUMN "OBJ" SET DATA TYPE OBJECT("a" NUMBER(19,0), "b" VARCHAR)' in alter[0]
 
     # with the flag off existing columns are never touched
     client_off = create_client(empty_schema, use_nested_types=False)

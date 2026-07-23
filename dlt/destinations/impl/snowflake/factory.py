@@ -147,8 +147,10 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         ):
             return f"ARRAY({self._to_nested_db_type(dtype.value_type, table)})"
         if pyarrow.types.is_struct(dtype):
+            # quote field names: structured field matching is case-sensitive and names may need escaping
             fields = ", ".join(
-                f"{dtype.field(i).name} {self._to_nested_db_type(dtype.field(i).type, table)}"
+                f"{escape_snowflake_identifier(dtype.field(i).name)}"
+                f" {self._to_nested_db_type(dtype.field(i).type, table)}"
                 for i in range(dtype.num_fields)
             )
             return f"OBJECT({fields})"
