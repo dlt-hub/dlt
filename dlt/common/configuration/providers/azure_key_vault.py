@@ -9,7 +9,7 @@ from dlt import version
 from .vault import VaultDocProvider, normalize_key
 from .provider import get_key_name
 
-SECRET_NAME_SEPARATOR = "-"
+SECRET_NAME_SEPARATOR = "--"
 _AZURE_KEY_VAULT_EXTRA = f"{version.DLT_PKG_NAME}[azure_key_vault]"
 
 
@@ -41,9 +41,10 @@ class AzureKeyVaultProvider(VaultDocProvider):
 
     @staticmethod
     def get_key_name(key: str, *sections: str) -> str:
-        """Joins normalized key components with `-`.
+        """Joins normalized key components with `--`.
 
         Azure Key Vault secret names allow alphanumerics and hyphens (1-127 chars).
+        Uses `--` as separator since `-` appears in key names after underscore replacement.
         """
         normalized_sections = [normalize_key(section).replace("_", "-") for section in sections if section]
         return get_key_name(normalize_key(key).replace("_", "-"), SECRET_NAME_SEPARATOR, *normalized_sections)
@@ -85,6 +86,13 @@ class AzureKeyVaultProvider(VaultDocProvider):
                     vault_url=self.vault_url, credential=self._get_credential()
                 )
             return self._client
+
+    def _update_from_vault(
+        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: tuple
+    ) -> None:
+        # base class passes raw SECRETS_TOML_KEY which contains underscores
+        full_key = full_key.replace("_", "-")
+        super()._update_from_vault(full_key, key, hint, pipeline_name, sections)
 
     def _look_vault(self, full_key: str, hint: type) -> Optional[str]:
         client = self._get_client()
