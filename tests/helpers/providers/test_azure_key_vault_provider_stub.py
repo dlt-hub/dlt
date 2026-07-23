@@ -115,10 +115,10 @@ def test_list_vault_raises_config_provider_exception_on_other_error() -> None:
 @pytest.mark.parametrize(
     "key,sections,expected",
     (
-        ("credentials", ("sources", "my_source"), "sources-my-source-credentials"),
-        ("dlt_secrets_toml", ("pipeline x !!",), "pipelinex-dlt-secrets-toml"),
+        ("credentials", ("sources", "my_source"), "sources--my-source--credentials"),
+        ("dlt_secrets_toml", ("pipeline x !!",), "pipelinex--dlt-secrets-toml"),
         ("api-key", (), "api-key"),
-        ("secret", ("destination", None, "bigquery"), "destination-bigquery-secret"),
+        ("secret", ("destination", None, "bigquery"), "destination--bigquery--secret"),
     ),
     ids=["sections_joined", "punctuation_stripped", "no_sections", "empty_sections_filtered"],
 )
