@@ -86,7 +86,7 @@ def test_factory_caps_mysql() -> None:
     assert caps.max_column_identifier_length == 64
     assert caps.enforces_nulls_on_alter is False
     assert isinstance(caps.dialect_capabilities, MysqlDialectCapabilities)
-    assert issubclass(caps.type_mapper, MysqlVariantTypeMapper)
+    assert issubclass(caps.type_mapper, MysqlVariantTypeMapper)  # type: ignore[arg-type]
     # format_datetime_literal must be the mysql variant (no_tz=True)
     from dlt.destinations.impl.sqlalchemy.dialect import _format_mysql_datetime_literal
 
@@ -103,7 +103,7 @@ def test_factory_caps_mariadb() -> None:
     assert caps.max_identifier_length == 64
     assert caps.max_column_identifier_length == 64
     assert isinstance(caps.dialect_capabilities, MysqlDialectCapabilities)
-    assert issubclass(caps.type_mapper, MysqlVariantTypeMapper)
+    assert issubclass(caps.type_mapper, MysqlVariantTypeMapper)  # type: ignore[arg-type]
 
 
 def test_factory_caps_mssql() -> None:
@@ -115,7 +115,7 @@ def test_factory_caps_mssql() -> None:
     assert caps.max_identifier_length == 128
     assert caps.max_column_identifier_length == 128
     assert isinstance(caps.dialect_capabilities, MssqlDialectCapabilities)
-    assert issubclass(caps.type_mapper, MssqlVariantTypeMapper)
+    assert issubclass(caps.type_mapper, MssqlVariantTypeMapper)  # type: ignore[arg-type]
 
 
 def test_factory_caps_postgresql() -> None:
@@ -130,7 +130,7 @@ def test_factory_caps_postgresql() -> None:
     assert caps.has_case_sensitive_identifiers is True
     # no registered dialect caps -> falls back to base DialectCapabilities
     assert type(caps.dialect_capabilities) is DialectCapabilities
-    assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)
+    assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)  # type: ignore[arg-type]
 
 
 def test_factory_caps_sqlite() -> None:
@@ -143,7 +143,7 @@ def test_factory_caps_sqlite() -> None:
     assert caps.max_identifier_length == 9999
     assert caps.supports_native_boolean is False
     assert type(caps.dialect_capabilities) is DialectCapabilities
-    assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)
+    assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)  # type: ignore[arg-type]
 
 
 def test_factory_caps_always_sets_dialect_capabilities() -> None:
@@ -194,7 +194,7 @@ def test_factory_caps_oracle() -> None:
     assert caps.max_identifier_length == 128
     assert caps.max_column_identifier_length == 128
     assert isinstance(caps.dialect_capabilities, OracleDialectCapabilities)
-    assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)
+    assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)  # type: ignore[arg-type]
 
 
 def test_oracle_dialect_caps() -> None:
