@@ -18,6 +18,7 @@ from dlt.common.utils import get_module_name
 
 from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment._trigger_helpers import normalize_triggers
+from dlt._workspace.deployment.decorators import _warn_deprecated_require
 from dlt._workspace.deployment.launchers import LAUNCHER_MODULE, get_launcher_for_framework
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment.typing import (
@@ -96,6 +97,7 @@ def _apply_module_dunders(module: ModuleType, job_def: TJobDefinition) -> None:
     # __require__: set job requirements (matches `require` decorator argument)
     require = getattr(module, "__require__", None)
     if require is not None:
+        _warn_deprecated_require(require)
         job_def["require"] = require
 
 

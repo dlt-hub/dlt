@@ -7,6 +7,7 @@ from typing import Any, Dict, List, Literal, cast
 import pytest
 
 import dlt
+from dlt.common.warnings import DltDeprecationWarning
 from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
 from dlt._workspace.deployment.typing import TTrigger
@@ -381,6 +382,40 @@ def test_require_static_egress_ips_stored_on_job_definition() -> None:
 
     job_def = vendor_sync.to_job_definition()
     assert job_def["require"]["static_egress_ips"] is True
+
+
+def test_require_instance_stored_on_job_definition() -> None:
+    """`require.instance` is passed through to the job definition as an opaque dict."""
+
+    @job(require={"instance": {"size": "medium"}})
+    def train():
+        pass
+
+    job_def = train.to_job_definition()
+    assert job_def["require"]["instance"] == {"size": "medium"}
+
+
+def test_require_machine_emits_deprecation_warning() -> None:
+    """Setting deprecated `require.machine` warns but is still stored (additive, no removal)."""
+
+    with pytest.warns(DltDeprecationWarning, match="require.instance"):
+
+        @job(require={"machine": "gpu-a100"})
+        def legacy():
+            pass
+
+    job_def = legacy.to_job_definition()
+    assert job_def["require"]["machine"] == "gpu-a100"
+
+
+def test_require_instance_no_deprecation_warning(recwarn: Any) -> None:
+    """Using `require.instance` alone does not emit a deprecation warning."""
+
+    @job(require={"instance": {"size": "medium"}})
+    def train():
+        pass
+
+    assert not [w for w in recwarn.list if issubclass(w.category, DltDeprecationWarning)]
 
 
 def test_config_key_discovery() -> None:

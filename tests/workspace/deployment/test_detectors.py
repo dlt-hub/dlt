@@ -4,6 +4,7 @@ from importlib import import_module
 
 import pytest
 
+from dlt.common.warnings import DltDeprecationWarning
 from dlt._workspace.deployment.detectors import (
     detect_local_module,
     detect_module_job,
@@ -216,7 +217,8 @@ def test_module_expose_overrides() -> None:
 def test_module_require_sets_require() -> None:
     """__require__ sets job require spec."""
     mod = import_module(f"{CASES}.marimo_with_requires")
-    job_def = detect_module_job(mod)
+    with pytest.warns(DltDeprecationWarning, match="require.instance"):
+        job_def = detect_module_job(mod)
 
     assert job_def is not None
     assert job_def["require"] == {"dependency_groups": ["heavy-ml"], "machine": "gpu-a100"}
