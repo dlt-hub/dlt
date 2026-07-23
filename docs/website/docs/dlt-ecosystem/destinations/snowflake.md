@@ -361,6 +361,7 @@ Notes:
 - Opt-in and backward compatible: without the flag, nested columns remain `VARIANT`.
 - Works with both `parquet` and `jsonl`. For `jsonl`, every field declared in a struct must be present in each record (use `null` for missing values) — an absent key fails the load.
 - For `parquet`, `dlt` automatically enables Snowflake's **vectorized scanner**, because null fields inside structured columns only load with it.
+- **Warning:** struct field names — like keys inside a `VARIANT` — are **not** normalized. They are stored exactly as they appear in the Arrow type (case-sensitive, no snake_case conversion) and must match the keys in your data verbatim.
 
 ## Supported file formats
 * [insert-values](../file-formats.md#sql-insert) is used by default.
