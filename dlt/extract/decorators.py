@@ -602,7 +602,7 @@ def resource(
             Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas.
             Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
             When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
@@ -907,7 +907,7 @@ def transformer(
         write_disposition (TTableHintTemplate[TWriteDisposition], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         primary_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.
