@@ -16,6 +16,9 @@ from dlt.destinations.impl.snowflake.snowflake import (
     SnowflakeClient,
     SUPPORTED_HINTS,
     COLUMN_COMMENT_HINT,
+    COLUMN_TAGS_HINT,
+    TABLE_COMMENT_HINT,
+    TABLE_TAGS_HINT,
 )
 from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
@@ -319,6 +322,100 @@ def test_alter_table_with_column_comments(snowflake_client: SnowflakeClient) -> 
     assert add_column_sql.startswith("ALTER TABLE")
     assert "ADD COLUMN" in add_column_sql
     assert "COMMENT 'Added column with comment'" in add_column_sql
+
+
+def test_create_table_with_table_comment(snowflake_client: SnowflakeClient) -> None:
+    """`x-snowflake-table-comment` becomes COMMENT ON TABLE post-CREATE."""
+    mod_update = deepcopy(TABLE_UPDATE[:3])
+    table_name = "event_test_table"
+
+    # Stamp the table-level hint in the schema (mirrors what
+    # snowflake_adapter does for resource-driven loads).
+    snowflake_client.schema.update_table({
+        "name": table_name,
+        TABLE_COMMENT_HINT: "Per-event facts; one row per business event",  # type: ignore[typeddict-unknown-key]
+        "columns": {c["name"]: c for c in mod_update},
+    })
+
+    statements = snowflake_client._get_table_update_sql(table_name, mod_update, False)
+    # CREATE TABLE is statements[0]; the COMMENT ON TABLE is a separate
+    # follow-up statement so attribution is clean if it fails on its own.
+    assert any(s.startswith("COMMENT ON TABLE ") for s in statements)
+    comment_stmt = next(s for s in statements if s.startswith("COMMENT ON TABLE "))
+    assert "Per-event facts" in comment_stmt
+    assert comment_stmt.endswith(
+        "IS 'Per-event facts; one row per business event'"
+    )
+
+
+def test_create_table_comment_falls_back_to_description(
+    snowflake_client: SnowflakeClient,
+) -> None:
+    """Generic `description` table hint is used when no Snowflake-specific
+    hint is set — same fallback the column path already does."""
+    mod_update = deepcopy(TABLE_UPDATE[:2])
+    table_name = "event_test_table"
+    snowflake_client.schema.update_table({
+        "name": table_name,
+        "description": "Generic table description",
+        "columns": {c["name"]: c for c in mod_update},
+    })
+    statements = snowflake_client._get_table_update_sql(table_name, mod_update, False)
+    assert any(
+        "COMMENT ON TABLE" in s and "Generic table description" in s
+        for s in statements
+    )
+
+
+def test_create_table_with_table_tags(snowflake_client: SnowflakeClient) -> None:
+    """`x-snowflake-table-tags` emits one ALTER TABLE SET TAG per pair."""
+    mod_update = deepcopy(TABLE_UPDATE[:2])
+    table_name = "event_test_table"
+    snowflake_client.schema.update_table({
+        "name": table_name,
+        TABLE_TAGS_HINT: {  # type: ignore[typeddict-unknown-key]
+            "governance.domain": "commerce",
+            "governance.cost_center": "data_eng",
+        },
+        "columns": {c["name"]: c for c in mod_update},
+    })
+    statements = snowflake_client._get_table_update_sql(table_name, mod_update, False)
+    tag_statements = [s for s in statements if "SET TAG" in s and "ALTER COLUMN" not in s]
+    assert len(tag_statements) == 2, statements
+    # Tag names must NOT be quoted — Snowflake would treat the quoted form
+    # as a delimited identifier and fail to resolve the tag object.
+    assert any("SET TAG governance.domain = 'commerce'" in s for s in tag_statements)
+    assert any("SET TAG governance.cost_center = 'data_eng'" in s for s in tag_statements)
+
+
+def test_create_table_with_column_tags(snowflake_client: SnowflakeClient) -> None:
+    """`x-snowflake-column-tags` emits ALTER TABLE ALTER COLUMN SET TAG."""
+    mod_update = deepcopy(TABLE_UPDATE[:2])
+    mod_update[0][COLUMN_TAGS_HINT] = {  # type: ignore[typeddict-unknown-key]
+        "governance.pii_class": "internal",
+        "governance.owner": "data_eng",
+    }
+    statements = snowflake_client._get_table_update_sql("event_test_table", mod_update, False)
+    col_tag_statements = [s for s in statements if "ALTER COLUMN" in s and "SET TAG" in s]
+    assert len(col_tag_statements) == 2, statements
+    assert any('"COL1"' in s and "governance.pii_class = 'internal'" in s
+               for s in col_tag_statements)
+    assert any('"COL1"' in s and "governance.owner = 'data_eng'" in s
+               for s in col_tag_statements)
+
+
+def test_table_comment_escaping(snowflake_client: SnowflakeClient) -> None:
+    """Single quotes in the comment value are doubled per Snowflake's
+    literal-escape rules."""
+    table_name = "event_test_table"
+    snowflake_client.schema.update_table({
+        "name": table_name,
+        TABLE_COMMENT_HINT: "isn't it; 'great' \"data\"",  # type: ignore[typeddict-unknown-key]
+        "columns": {c["name"]: c for c in TABLE_UPDATE[:1]},
+    })
+    statements = snowflake_client._get_table_update_sql(table_name, TABLE_UPDATE[:1], False)
+    comment_stmt = next(s for s in statements if s.startswith("COMMENT ON TABLE "))
+    assert "isn''t it; ''great'' \"data\"" in comment_stmt
 
 
 def test_create_table_decfloat(empty_schema: Schema) -> None:

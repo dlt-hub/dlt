@@ -1,4 +1,4 @@
-from typing import Optional, Sequence, List, Dict, Literal, Any
+from typing import Any, Dict, List, Literal, Optional, Sequence, cast
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_snowflake_literal
@@ -31,6 +31,12 @@ from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 COLUMN_COMMENT_HINT: Literal["x-snowflake-column-comment"] = "x-snowflake-column-comment"
+# Extension hints applied via snowflake_adapter (see snowflake_adapter.py).
+# Kept as module-level literals so _get_table_update_sql can read them
+# without a circular import on the adapter module.
+TABLE_COMMENT_HINT: Literal["x-snowflake-table-comment"] = "x-snowflake-table-comment"
+TABLE_TAGS_HINT: Literal["x-snowflake-table-tags"] = "x-snowflake-table-tags"
+COLUMN_TAGS_HINT: Literal["x-snowflake-column-tags"] = "x-snowflake-column-tags"
 
 
 class SnowflakeMergeJob(SqlMergeFollowupJob):
@@ -284,7 +290,70 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
         sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
-        return self._add_cluster_sql(sql, table_name, generate_alter)
+        sql = self._add_cluster_sql(sql, table_name, generate_alter)
+        sql = self._add_comment_and_tag_sql(sql, table_name, new_columns)
+        return sql
+
+    def _add_comment_and_tag_sql(
+        self,
+        sql: List[str],
+        table_name: str,
+        new_columns: Sequence[TColumnSchema],
+    ) -> List[str]:
+        """Append COMMENT ON TABLE and ALTER TABLE … SET TAG statements
+        for any extension hints set by snowflake_adapter.
+
+        Table-level COMMENT falls back to the generic `description` hint
+        when `x-snowflake-table-comment` is absent — matches the
+        column-level fallback at `_get_column_def_sql`.
+
+        Tags are always emitted as separate ALTER TABLE statements after
+        the CREATE/ALTER, because Snowflake's SET TAG clause cannot be
+        composed into the CREATE TABLE DDL. Each tag fires its own
+        statement to keep error attribution clean (one bad tag doesn't
+        invalidate the others).
+
+        Idempotent in practice: re-running the loader re-issues the same
+        ALTER statements, which Snowflake treats as overwrites.
+        """
+        table = self.prepare_load_table(table_name)
+        qualified_name = self.sql_client.make_qualified_table_name(table_name)
+
+        # ── Table comment ────────────────────────────────────────────────
+        comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
+        if comment:
+            escaped_comment = escape_snowflake_literal(comment)
+            sql.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")
+
+        # ── Table tags ───────────────────────────────────────────────────
+        table_tags = table.get(TABLE_TAGS_HINT)
+        if table_tags:
+            table_tags = cast(Dict[str, Any], table_tags)
+            for tag_name, tag_value in table_tags.items():
+                escaped_value = escape_snowflake_literal(str(tag_value))
+                # tag_name is a Snowflake identifier (optionally
+                # db.schema.name). Do NOT quote it — Snowflake would
+                # treat the result as a delimited identifier and fail
+                # to resolve the tag object.
+                sql.append(
+                    f"ALTER TABLE {qualified_name} SET TAG {tag_name} = {escaped_value}"
+                )
+
+        # ── Column tags ──────────────────────────────────────────────────
+        for column in new_columns:
+            column_tags = column.get(COLUMN_TAGS_HINT)
+            if not column_tags:
+                continue
+            column_tags = cast(Dict[str, Any], column_tags)
+            quoted_col = self.sql_client.escape_column_name(column["name"])
+            for tag_name, tag_value in column_tags.items():
+                escaped_value = escape_snowflake_literal(str(tag_value))
+                sql.append(
+                    f"ALTER TABLE {qualified_name} ALTER COLUMN {quoted_col}"
+                    f" SET TAG {tag_name} = {escaped_value}"
+                )
+
+        return sql
 
     def _from_db_type(
         self, bq_t: str, precision: Optional[int], scale: Optional[int]
