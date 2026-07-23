@@ -112,6 +112,10 @@ gs = [
 az = [
     "adlfs>=2024.7.0"
 ]
+azure_key_vault = [
+    "azure-keyvault-secrets>=4.7.0",
+    "azure-identity>=1.12.0",
+]
 hf = [
     "huggingface-hub>=1.4.1",
     "pyarrow>=21.0.0",  # minimum version that supports CDC (https://huggingface.co/blog/parquet-cdc)
