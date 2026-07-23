@@ -102,6 +102,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         qualified_table_name = self._sql_client.make_qualified_table_name(self.load_table_name)
         # this means we have a local file
+        stage_folder: str = ""
         stage_file_path: str = ""
         if is_local_file:
             if not self._stage_name:
@@ -109,7 +110,8 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
                 self._stage_name = self._sql_client.make_qualified_table_name(
                     "%" + self.load_table_name
                 )
-            stage_file_path = f'@{self._stage_name}/"{self._load_id}"/{file_name}'
+            stage_folder = f'@{self._stage_name}/"{self._load_id}"'
+            stage_file_path = f"{stage_folder}/{file_name}"
 
         stage_bucket_url = None
         if self._config.staging_config and self._config.staging_config.bucket_url:
@@ -131,13 +133,17 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         with self._sql_client.begin_transaction():
             # PUT and COPY in one tx if local file, otherwise only copy
             if is_local_file:
+                # backslash is an escape character in snowflake string literals, forward
+                # slashes are valid in PUT file URIs also on Windows
+                file_uri = "file://" + self._file_path.replace("\\", "/")
                 self._sql_client.execute_sql(
-                    f'PUT file://{self._file_path} @{self._stage_name}/"{self._load_id}" OVERWRITE'
-                    " = TRUE, AUTO_COMPRESS = FALSE"
+                    f"PUT {escape_snowflake_literal(file_uri)}"
+                    f" {escape_snowflake_literal(stage_folder)} OVERWRITE = TRUE, AUTO_COMPRESS ="
+                    " FALSE"
                 )
             self._sql_client.execute_sql(copy_sql)
             if stage_file_path and not self._keep_staged_files:
-                self._sql_client.execute_sql(f"REMOVE {stage_file_path}")
+                self._sql_client.execute_sql(f"REMOVE {escape_snowflake_literal(stage_file_path)}")
 
 
 class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
