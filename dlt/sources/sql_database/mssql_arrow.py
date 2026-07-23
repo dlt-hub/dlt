@@ -9,10 +9,7 @@ from .helpers import TableLoader, SelectClause, register_table_loader_backend
 
 
 class MssqlArrowTableLoader(TableLoader):
-    """Table loader using ``cursor.arrow_reader`` from mssql-python for zero-copy Arrow batches.
-
-    Falls back to the standard ``pyarrow`` path when ``arrow_reader`` is unavailable.
-    """
+    """Table loader using ``cursor.arrow_reader`` from mssql-python for zero-copy Arrow batches."""
 
     def _load_rows(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
@@ -23,17 +20,10 @@ class MssqlArrowTableLoader(TableLoader):
             # yield_per interferes with arrow_reader streaming
             result = conn.execute(query)
             try:
-                cursor = getattr(result, "cursor", None)
-                if cursor is not None and hasattr(cursor, "arrow_reader"):
-                    logger.info("Using mssql-python arrow_reader for native Arrow batches")
-                    reader = cursor.arrow_reader(batch_size=self.chunk_size)
-                    for batch in reader:
-                        yield pa.Table.from_batches([batch])
-                else:
-                    logger.warning(
-                        "cursor.arrow_reader not available; falling back to pyarrow backend"
-                    )
-                    yield from self._convert_result(result, backend_kwargs)
+                logger.info("Using mssql-python arrow_reader for native Arrow batches")
+                reader = result.cursor.arrow_reader(batch_size=self.chunk_size)
+                for batch in reader:
+                    yield pa.Table.from_batches([batch])
             finally:
                 result.close()
 
