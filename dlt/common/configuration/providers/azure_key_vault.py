@@ -4,6 +4,10 @@ from typing import Any, Optional, Sequence, Set
 from dlt.common import logger
 from dlt.common.configuration.exceptions import ConfigProviderException
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.runtime.fab_notebookutils import (
+    FabNotebookUtilsCredential,
+    is_fab_notebookutils_available,
+)
 from dlt import version
 
 from .vault import VaultDocProvider, normalize_key
@@ -26,8 +30,9 @@ class AzureKeyVaultProvider(VaultDocProvider):
 
         Args:
             vault_url (str): The URL of the Azure Key Vault, e.g. `https://myvault.vault.azure.net/`.
-            credential (Any): An `azure-identity` credential instance. When `None`,
-                `DefaultAzureCredential` is created automatically.
+            credential (Any): An `azure-identity` credential instance. When `None`, a credential
+                is created automatically: NotebookUtils inside the Microsoft Fabric runtime,
+                `DefaultAzureCredential` everywhere else.
             only_secrets (bool): When True, only keys with secret hint types will be looked up.
             only_toml_fragments (bool): When True, only load known TOML fragments and ignore other lookups.
             list_secrets (bool): When True, list all secrets upfront to optimize vault access by
@@ -46,8 +51,12 @@ class AzureKeyVaultProvider(VaultDocProvider):
         Azure Key Vault secret names allow alphanumerics and hyphens (1-127 chars).
         Uses `--` as separator since `-` appears in key names after underscore replacement.
         """
-        normalized_sections = [normalize_key(section).replace("_", "-") for section in sections if section]
-        return get_key_name(normalize_key(key).replace("_", "-"), SECRET_NAME_SEPARATOR, *normalized_sections)
+        normalized_sections = [
+            normalize_key(section).replace("_", "-") for section in sections if section
+        ]
+        return get_key_name(
+            normalize_key(key).replace("_", "-"), SECRET_NAME_SEPARATOR, *normalized_sections
+        )
 
     @property
     def name(self) -> str:
@@ -59,6 +68,16 @@ class AzureKeyVaultProvider(VaultDocProvider):
 
     def _get_credential(self) -> Any:
         if self._credential is not None:
+            return self._credential
+        # DefaultAzureCredential cannot sign in inside a Fabric notebook: there are no environment
+        # variables, managed identity or CLI login to fall back on. NotebookUtils exposes the
+        # notebook owner's identity instead.
+        if is_fab_notebookutils_available():
+            logger.info(
+                "Authenticating with Azure Key Vault through the Microsoft Fabric NotebookUtils"
+                " credential API"
+            )
+            self._credential = FabNotebookUtilsCredential("keyvault")
             return self._credential
         try:
             from azure.identity import DefaultAzureCredential
