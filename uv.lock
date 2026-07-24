@@ -2558,6 +2558,7 @@ az = [
     { name = "adlfs" },
 ]
 azure-key-vault = [
+    { name = "azure-core" },
     { name = "azure-identity" },
     { name = "azure-keyvault-secrets" },
 ]
@@ -2846,6 +2847,7 @@ requires-dist = [
     { name = "adlfs", marker = "extra == 'synapse'", specifier = ">=2024.7.0" },
     { name = "aiohttp", marker = "extra == 'http'", specifier = ">3.9.0" },
     { name = "alembic", marker = "extra == 'sqlalchemy'", specifier = ">1.10.0" },
+    { name = "azure-core", marker = "extra == 'azure-key-vault'", specifier = ">=1.31.0" },
     { name = "azure-identity", marker = "extra == 'azure-key-vault'", specifier = ">=1.12.0" },
     { name = "azure-keyvault-secrets", marker = "extra == 'azure-key-vault'", specifier = ">=4.7.0" },
     { name = "botocore", marker = "extra == 'athena'", specifier = ">=1.28" },
