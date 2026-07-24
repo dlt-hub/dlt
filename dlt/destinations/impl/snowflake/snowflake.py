@@ -17,7 +17,7 @@ from dlt.common.storages.file_storage import FileStorage
 from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.common.schema import TColumnSchema, Schema, TColumnHint
-from dlt.common.schema.typing import TColumnType, TTableSchema
+from dlt.common.schema.typing import TColumnType, TTableSchema, TTableSchemaColumns
 
 from dlt.common.utils import uniq_id
 from dlt.destinations.impl.snowflake.utils import gen_copy_sql
@@ -31,6 +31,8 @@ from dlt.destinations.path_utils import get_file_format_and_compression
 
 SUPPORTED_HINTS: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
 COLUMN_COMMENT_HINT: Literal["x-snowflake-column-comment"] = "x-snowflake-column-comment"
+# marks an existing nested column re-emitted for in-place structured type migration
+X_SEEN_DATA_HINT: Literal["x-seen-data"] = "x-seen-data"
 
 
 class SnowflakeMergeJob(SqlMergeFollowupJob):
@@ -117,6 +119,11 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
         if self._config.staging_config and self._config.staging_config.bucket_url:
             stage_bucket_url = self._config.staging_config.bucket_url
 
+        # null fields in structured columns only load with the vectorized scanner
+        use_vectorized_scanner = self._config.use_vectorized_scanner or (
+            self._config.use_nested_types and file_format == "parquet"
+        )
+
         copy_sql = gen_copy_sql(
             file_url=file_url,
             qualified_table_name=qualified_table_name,
@@ -127,7 +134,7 @@ class SnowflakeLoadJob(RunnableLoadJob, HasFollowupJobs):
             local_stage_file_path=stage_file_path,
             staging_credentials=self._staging_credentials,
             csv_format=self._config.csv_format,
-            use_vectorized_scanner=self._config.use_vectorized_scanner,
+            use_vectorized_scanner=use_vectorized_scanner,
         )
 
         with self._sql_client.begin_transaction():
@@ -286,10 +293,44 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
 
         return sql
 
+    def _create_table_update(
+        self, table_name: str, storage_columns: TTableSchemaColumns
+    ) -> Sequence[TColumnSchema]:
+        updates = list(super()._create_table_update(table_name, storage_columns))
+        if not self.capabilities.supports_nested_types:
+            return updates
+        # re-emit existing nested columns so their structured type is migrated in place: we cannot
+        # detect nested changes (reflection collapses ARRAY/OBJECT to `json`), and ALTER SET DATA
+        # TYPE is a metadata-only no-op when unchanged and evolves additively when a field was added
+        new_names = {c["name"] for c in updates}
+        for col_name, col in self.schema.get_table_columns(table_name).items():
+            if (
+                col_name not in new_names
+                and col.get("data_type") == "json"
+                and col.get("x-nested-type")
+            ):
+                updates.append({**col, X_SEEN_DATA_HINT: True})  # type: ignore[typeddict-unknown-key]
+        return updates
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
-        sql = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+        migrate = [c for c in new_columns if c.get(X_SEEN_DATA_HINT)]
+        add = [c for c in new_columns if not c.get(X_SEEN_DATA_HINT)]
+        if add or not generate_alter:
+            sql = super()._get_table_update_sql(table_name, add, generate_alter)
+        else:
+            sql = []
+        if migrate:
+            qualified_name = self.sql_client.make_qualified_table_name(table_name)
+            table = self.prepare_load_table(table_name)
+            for c in migrate:
+                col_name = self.sql_client.escape_column_name(c["name"])
+                col_type = self.type_mapper.to_destination_type(c, table)
+                sql.append(
+                    self._make_alter_table(qualified_name)
+                    + f"ALTER COLUMN {col_name} SET DATA TYPE {col_type}"
+                )
         return self._add_cluster_sql(sql, table_name, generate_alter)
 
     def _from_db_type(

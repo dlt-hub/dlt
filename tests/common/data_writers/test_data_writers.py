@@ -10,7 +10,11 @@ from dlt.common.typing import AnyFun
 
 from dlt.common.data_writers.escape import (
     escape_redshift_identifier,
+    escape_snowflake_identifier,
+    escape_snowflake_literal,
     escape_hive_identifier,
+    escape_databricks_identifier,
+    escape_databricks_literal,
     escape_redshift_literal,
     escape_postgres_literal,
     escape_duckdb_literal,
@@ -203,10 +207,32 @@ def test_format_datetime_value(
 
 
 def test_identifier_escape() -> None:
+    # only the double-quote is doubled; backslash is literal in double-quoted identifiers
     assert (
         escape_redshift_identifier(", NULL'); DROP TABLE\" -\\-")
-        == '", NULL\'); DROP TABLE"" -\\\\-"'
+        == '", NULL\'); DROP TABLE"" -\\-"'
     )
+
+
+def test_escape_snowflake_identifier() -> None:
+    # only the double-quote is doubled; backslash stays literal so structured-type field
+    # names round-trip against the data keys they must match at load time
+    assert escape_snowflake_identifier('a"b') == '"a""b"'
+    assert escape_snowflake_identifier("back\\slash") == '"back\\slash"'
+    assert escape_snowflake_identifier("🦆 日本語 naïve") == '"🦆 日本語 naïve"'
+    assert escape_snowflake_identifier("MixedCase") == '"MixedCase"'
+
+
+def test_escape_snowflake_literal() -> None:
+    # snowflake treats backslash as an escape char in '...' literals, so both backslash and
+    # single quote must be escaped, else a backslash before a doubled quote breaks out
+    assert escape_snowflake_literal("plain") == "'plain'"
+    assert escape_snowflake_literal("a'b") == "'a''b'"
+    assert escape_snowflake_literal("back\\slash") == "'back\\\\slash'"
+    assert escape_snowflake_literal("\\'") == "'\\\\'''"
+    assert escape_snowflake_literal("end\\") == "'end\\\\'"
+    # json (list/dict) literals escape backslashes too
+    assert escape_snowflake_literal({"k": "a\\b"}) == '\'{"k":"a\\\\\\\\b"}\''
 
 
 def test_escape_hive_identifier() -> None:
@@ -214,6 +240,21 @@ def test_escape_hive_identifier() -> None:
         escape_hive_identifier(", NULL'); DROP TABLE\"` -\\-")
         == "`, NULL'); DROP TABLE\"\\` -\\\\-`"
     )
+
+
+def test_escape_databricks_identifier() -> None:
+    # databricks doubles an embedded backtick (not backslash-escaped like hive); backslash is literal
+    assert escape_databricks_identifier("a`b") == "`a``b`"
+    assert escape_databricks_identifier("back\\slash") == "`back\\slash`"
+    assert escape_databricks_identifier("plain") == "`plain`"
+
+
+def test_escape_databricks_literal() -> None:
+    assert escape_databricks_literal("a'b") == "'a\\'b'"
+    assert escape_databricks_literal("back\\slash") == "'back\\\\slash'"
+    # NUL is stripped (it would terminate the inlined query) instead of raising KeyError
+    assert escape_databricks_literal("a\x00b") == "'ab'"
+    assert escape_databricks_literal({"k": "a'b"}) == '\'{"k":"a\\\'b"}\''
 
 
 def test_string_literal_escape_unicode() -> None:
