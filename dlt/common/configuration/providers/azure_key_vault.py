@@ -1,5 +1,5 @@
 import threading
-from typing import Any, Optional, Sequence, Set
+from typing import Any, Optional, Sequence, Set, Tuple
 
 from dlt.common import logger
 from dlt.common.configuration.exceptions import ConfigProviderException
@@ -94,7 +94,10 @@ class AzureKeyVaultProvider(VaultDocProvider):
         with self._client_lock:
             if self._client is None:
                 try:
-                    from azure.keyvault.secrets import SecretClient  # type: ignore[import-untyped]
+                    # the package ships type hints, so the ignore is unused when it is installed
+                    from azure.keyvault.secrets import (  # type: ignore[import-untyped,unused-ignore]
+                        SecretClient,
+                    )
                 except ModuleNotFoundError:
                     raise MissingDependencyException(
                         "AzureKeyVaultProvider",
@@ -107,7 +110,7 @@ class AzureKeyVaultProvider(VaultDocProvider):
             return self._client
 
     def _update_from_vault(
-        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: tuple
+        self, full_key: str, key: str, hint: type, pipeline_name: str, sections: Tuple[str, ...]
     ) -> None:
         # base class passes raw SECRETS_TOML_KEY which contains underscores
         full_key = full_key.replace("_", "-")
