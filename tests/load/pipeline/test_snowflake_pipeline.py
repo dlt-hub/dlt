@@ -7,6 +7,7 @@ from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.data_writers.escape import escape_snowflake_literal
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
@@ -214,6 +215,47 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
         # check data of one table to ensure copy was done successfully
         tbl_name = client.make_qualified_table_name("lists")
         assert_query_column(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("loader_file_format", ["jsonl", "parquet"])
+@pytest.mark.parametrize(
+    "keep_staged_files", [True, False], ids=["keep-staged-files", "remove-staged-files"]
+)
+def test_snowflake_local_load_table_name_with_spaces(
+    destination_config: DestinationTestConfiguration,
+    loader_file_format: TLoaderFileFormat,
+    keep_staged_files: bool,
+) -> None:
+    """Local files load into table names requiring quoting: PUT, COPY and REMOVE must quote
+    the stage reference and the file path."""
+    os.environ["DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES"] = str(keep_staged_files)
+    snow_ = dlt.destinations.snowflake(naming_convention="duck_case")
+    pipeline = destination_config.setup_pipeline(
+        "test_snowflake_local_load_table_name_with_spaces",
+        dataset_name="space_table_" + uniq_id(),
+        destination=snow_,
+    )
+
+    info = pipeline.run(
+        [{"value": 1}], table_name="my table", loader_file_format=loader_file_format
+    )
+    assert_load_info(info)
+    load_id = info.loads_ids[0]
+
+    with pipeline.sql_client() as client:
+        qualified_table_name = client.make_qualified_table_name("my table")
+        value_column = client.escape_column_name("value")
+        assert client.execute_sql(f"SELECT {value_column} FROM {qualified_table_name}") == [(1,)]
+
+        stage_name = client.make_qualified_table_name("%my table")
+        stage_location = f'@{stage_name}/"{load_id}"'
+        staged_files = client.execute_sql(f"LIST {escape_snowflake_literal(stage_location)}")
+        assert len(staged_files) == (1 if keep_staged_files else 0)
 
 
 # do not remove - it allows us to filter tests by destination
