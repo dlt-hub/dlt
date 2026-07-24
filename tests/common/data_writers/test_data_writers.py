@@ -20,6 +20,7 @@ from dlt.common.data_writers.escape import (
     escape_duckdb_literal,
     escape_bigquery_literal,
     escape_bigquery_identifier,
+    escape_snowflake_literal,
     format_datetime_literal,
     format_datetime_value,
 )
@@ -140,6 +141,11 @@ def test_string_literal_escape() -> None:
         == "', NULL);\\\\n DROP TABLE --\\\\'"
     )
     # assert escape_redshift_literal(b'hello_word') == "\\x68656c6c6f5f776f7264"
+    assert (
+        escape_snowflake_literal('@schema."%my table"/"load_id"')
+        == '\'@schema."%my table"/"load_id"\''
+    )
+    assert escape_snowflake_literal("file:///tmp/o'hara/f.jsonl") == "'file:///tmp/o''hara/f.jsonl'"
 
 
 @pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)
