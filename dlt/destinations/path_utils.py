@@ -286,6 +286,12 @@ def get_table_prefix_layout(
             layout, "Table requires it's own folder, please add a '/' after your {table_name}. "
         )
 
+    # when {table_name} terminates the layout and {ext} is not present,
+    # create_path automatically prepends .<ext>, so the prefix must include
+    # the dot to avoid matching sibling tables (e.g. "event" matching "events")
+    if prefix[-1] == "}" and "ext" not in get_placeholders(layout):
+        prefix += "."
+
     return prefix
 
 

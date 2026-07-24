@@ -419,6 +419,32 @@ def test_get_table_prefix_layout() -> None:
         get_table_prefix_layout("{schema_name}/{table_name}{load_id}.{file_id}.{ext}")
 
 
+def test_get_table_prefix_layout_table_name_at_end() -> None:
+    """When {table_name} terminates the layout, a dot separator must be appended
+    to avoid matching sibling table names (e.g. 'event' matching 'events.jsonl.gz')."""
+    # {table_name} at end → dot appended for implicit extension
+    prefix = get_table_prefix_layout("{table_name}")
+    assert prefix == "{table_name}."
+    assert prefix.format(table_name="event") == "event."
+
+    # {table_name} with full path prefix at end → dot appended
+    prefix = get_table_prefix_layout("{schema_name}/{table_name}")
+    assert prefix == "{schema_name}/{table_name}."
+    assert prefix.format(schema_name="my_schema", table_name="event") == "my_schema/event."
+
+    # {table_name}/{ext} at end → dot from {ext} suffices, no extra dot
+    prefix = get_table_prefix_layout("{table_name}.{ext}")
+    assert prefix == "{table_name}."
+
+    # {table_name}/ → slash separator suffices
+    prefix = get_table_prefix_layout("{table_name}/")
+    assert prefix == "{table_name}/"
+
+    # {schema_name}/{table_name}/{load_id}.{ext} → slash before {load_id} suffices
+    prefix = get_table_prefix_layout("{schema_name}/{table_name}/{load_id}.{ext}")
+    assert prefix == "{schema_name}/{table_name}/"
+
+
 def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -> None:
     load_id, job_info = test_load
     now = pendulum.now()
