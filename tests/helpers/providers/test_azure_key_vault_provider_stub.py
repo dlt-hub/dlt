@@ -1,12 +1,16 @@
 """Tests for AzureKeyVaultProvider using a mocked SecretClient."""
 
-from typing import Any, Optional, Tuple
+import sys
+from typing import Any, Iterator, Optional, Tuple
 from unittest.mock import MagicMock, patch
 
 import pytest
 
 from dlt.common.configuration.exceptions import ConfigProviderException
 from dlt.common.configuration.providers.azure_key_vault import AzureKeyVaultProvider
+from dlt.common.runtime.fab_notebookutils import (
+    FabNotebookUtilsCredential,
+)
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.config_providers_context import (
     AzureKeyVaultProviderConfiguration,
@@ -24,9 +28,7 @@ VAULT_URL = "https://test-vault.vault.azure.net/"
 
 def _make_provider(**settings: Any) -> Tuple[AzureKeyVaultProvider, MagicMock]:
     mock_credential = MagicMock()
-    provider = AzureKeyVaultProvider(
-        vault_url=VAULT_URL, credential=mock_credential, **settings
-    )
+    provider = AzureKeyVaultProvider(vault_url=VAULT_URL, credential=mock_credential, **settings)
     mock_client = MagicMock()
     provider._client = mock_client
     return provider, mock_client
@@ -183,10 +185,42 @@ def test_factory_raises_without_vault_url(environment: Any) -> None:
     assert "vault_url" in str(exc_info.value)
 
 
-def test_default_azure_credential_fallback() -> None:
+def test_default_azure_credential_fallback(no_notebookutils: None) -> None:
     with patch("azure.identity.DefaultAzureCredential") as mock_dac:
         mock_dac.return_value = MagicMock()
         provider = AzureKeyVaultProvider(vault_url=VAULT_URL)
         cred = provider._get_credential()
         mock_dac.assert_called_once()
         assert cred is mock_dac.return_value
+
+
+@pytest.fixture()
+def mock_notebookutils() -> Iterator[MagicMock]:
+    mod = MagicMock()
+    mod.credentials.getToken = MagicMock(return_value="token")
+    sys.modules["notebookutils"] = mod
+    yield mod
+    sys.modules.pop("notebookutils", None)
+
+
+@pytest.fixture()
+def no_notebookutils() -> Iterator[None]:
+    saved = sys.modules.pop("notebookutils", None)
+    yield
+    if saved is not None:
+        sys.modules["notebookutils"] = saved
+
+
+def test_notebookutils_credential_in_fabric(mock_notebookutils: MagicMock) -> None:
+    provider = AzureKeyVaultProvider(vault_url=VAULT_URL)
+    cred = provider._get_credential()
+    assert isinstance(cred, FabNotebookUtilsCredential)
+    assert cred.get_token().token == "token"
+    mock_notebookutils.credentials.getToken.assert_called_once_with("keyvault")
+
+
+def test_explicit_credential_wins_over_notebookutils(mock_notebookutils: MagicMock) -> None:
+    explicit = MagicMock()
+    provider = AzureKeyVaultProvider(vault_url=VAULT_URL, credential=explicit)
+    assert provider._get_credential() is explicit
+    mock_notebookutils.credentials.getToken.assert_not_called()
