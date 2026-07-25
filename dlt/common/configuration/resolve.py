@@ -1,4 +1,5 @@
 from collections.abc import Mapping as C_Mapping
+import contextlib
 import os
 from typing import (
     Any,
@@ -431,10 +432,19 @@ def _resolve_config_field(
                     embedded_config = default_value
             else:
                 embedded_config = inner_hint()
+            # a mapping holds only the fields the caller set, the remaining ones may still come from
+            # an initial value. NOTE: BaseConfiguration is a Mapping so instances must be excluded
+            explicit_mapping = isinstance(explicit_value, C_Mapping) and not isinstance(
+                explicit_value, BaseConfiguration
+            )
+            if explicit_mapping:
+                foreign_keys = set(explicit_value) - set(embedded_config.get_resolvable_fields())
+                # an empty mapping, or one naming fields of another spec of an union, is not an
+                # explicit value for this config so the initial value is handled as it was before
+                explicit_mapping = bool(explicit_value) and not foreign_keys
             # only config with sections may look for initial values
             # TODO: all this code can be moved into _resolve_configuration
-            # TODO: also allow when explicit_value is dict so we can parse initial value and merge with it
-            if embedded_config.__section__ and explicit_value is None:
+            if embedded_config.__section__ and (explicit_value is None or explicit_mapping):
                 # config section becomes the key if the key does not start with, otherwise it keeps its original value
                 initial_key, initial_embedded = _apply_embedded_sections_to_config_sections(
                     embedded_config.__section__, embedded_sections + (key,)
@@ -458,7 +468,15 @@ def _resolve_config_field(
                         default_value,
                         initial_traces,
                     )
-                    explicit_value = initial_value
+                    if explicit_mapping:
+                        # initial value provides defaults for fields not set in the mapping. it may
+                        # hold credentials of another type, then it is ignored as it was before
+                        with contextlib.suppress(InvalidNativeValue):
+                            _maybe_parse_native_value(
+                                embedded_config, initial_value, embedded_sections
+                            )
+                    else:
+                        explicit_value = initial_value
 
             # check if hint optional
             is_optional = is_optional_type(hint)
