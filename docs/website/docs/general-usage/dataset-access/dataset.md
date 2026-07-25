@@ -245,10 +245,21 @@ When you pass `on`, the right-hand side may be a `Relation` from a different `dl
 Cross-dataset joins:
 
 - require an explicit `on` condition: the auto mode does not span datasets
-- are rejected when the two relations live on different physical destinations
+- are rejected when the two relations live on different physical destinations, unless both use DuckDB as their query engine — see [Cross-destination joins with DuckDB](#cross-destination-joins-with-duckdb)
 - are not supported on filesystem destinations or on SQLite (via the `sqlalchemy` destination)
 
 When two datasets share table names that would otherwise clash in the join (for example, both have a `users` table), give one side a stable alias in your SQL, e.g. with `dataset.query("SELECT * FROM users AS alias_name")`, and refer to that alias in `on`. Without an alias, `join()` cannot tell the two tables apart and will raise.
+
+### Cross-destination joins with DuckDB
+
+The [cross-dataset joins](#cross-dataset-joins) above require both datasets to live on the **same** physical destination. dlt can also join datasets that live on **different** destinations, as long as both use **DuckDB as their query engine**: `duckdb`, `motherduck`, `ducklake`, `lance`, `filesystem` (including Hugging Face `hf://` buckets), and the `delta` and `iceberg` open table formats. dlt runs the join in a single DuckDB engine — the destination you read from — and attaches the other dataset into it. Like all cross-dataset joins, this needs an explicit `on`.
+
+Reading a joined relation runs the query immediately and returns the result to your process:
+
+<!--@@@DLT_SNIPPET ./dataset_snippets/dataset_snippets.py::join_cross_destination_eager-->
+
+To **materialize** a cross-destination join into a new table rather than just read it — including how it runs on read-only engines (`filesystem`, `lance`) versus engines that can also write (`duckdb`, `ducklake`, `motherduck`), and how attach credentials are handled — use a transformation. See [Transformations of multiple datasets](../../hub/transformations/index.md#transformations-of-multiple-datasets).
+
 
 ### Chain operations
 

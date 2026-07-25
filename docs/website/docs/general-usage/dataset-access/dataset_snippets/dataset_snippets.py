@@ -302,6 +302,42 @@ def join_cross_dataset_snippet(tmp_path: Path) -> None:
     # @@@DLT_SNIPPET_END join_cross_dataset
 
 
+def join_cross_destination_eager_snippet(tmp_path: Path) -> None:
+    # @@@DLT_SNIPPET_START join_cross_destination_eager
+    # a duckdb pipeline whose DuckDB engine will run the join (the "primary")
+    crm = dlt.pipeline(
+        pipeline_name="crm",
+        destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+        dataset_name="crm_data",
+    )
+    crm.run([{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users")
+
+    # a filesystem pipeline: a different physical destination (the "foreign" dataset)
+    events = dlt.pipeline(
+        pipeline_name="events",
+        destination=dlt.destinations.filesystem("file://" + str(tmp_path / "events")),
+        dataset_name="events_data",
+    )
+    events.run(
+        [
+            {"id": 10, "user_id": 1, "kind": "click"},
+            {"id": 11, "user_id": 2, "kind": "view"},
+        ],
+        table_name="events",
+        loader_file_format="parquet",
+    )
+
+    # join across the two destinations and read the result right away. dlt attaches the
+    # filesystem dataset into the duckdb engine and runs the join there.
+    joined = crm.dataset()["users"].join(
+        events.dataset()["events"],
+        on="users.id = events.user_id",
+    )
+    df = joined.df()
+    # @@@DLT_SNIPPET_END join_cross_destination_eager
+    assert sorted(df["name"]) == ["Alice", "Bob"]
+
+
 def chain_operations_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.table("customers")
 
