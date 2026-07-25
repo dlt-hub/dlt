@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import dataclasses
 import contextlib
+import sqlglot
+import sqlglot.expressions as sge
 import traceback
 from threading import BoundedSemaphore
 from types import TracebackType
@@ -19,11 +21,15 @@ from typing import (
     Any,
     TypeVar,
     Tuple,
+    IO,
+    TYPE_CHECKING,
+    cast,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
 
 from dlt.common import logger, pendulum
+from dlt.common.json import json
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.specs import (
@@ -59,6 +65,9 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.typing import is_optional_type
+
+if TYPE_CHECKING:
+    from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
@@ -838,3 +847,158 @@ class SupportsOpenTables(ABC):
         """Checks if `table_name` is stored with open table format `table_format`. Does not load table. Does not check if
         table exists
         """
+
+
+class SqlModel:
+    """A SQL query plus the dialect to parse it, and optional attach descriptors for foreign
+    datasets that must be attached before the query runs.
+
+    Serializes to and parses from the `.model` file format: a `dialect:` line, an optional
+    `attach:` JSON line (with `secret`-flagged statements encrypted), then the SQL body.
+    """
+
+    __slots__ = ("_query", "_dialect", "_attach")
+
+    def __init__(
+        self,
+        query: str,
+        dialect: Optional[str] = None,
+        attach: Optional[List[Dict[str, Any]]] = None,
+    ) -> None:
+        self._query = query
+        self._dialect = dialect
+        self._attach = attach
+
+    def to_sql(self) -> str:
+        return self._query
+
+    def to_model(self) -> "SqlModel":
+        return self
+
+    @property
+    def query_dialect(self) -> "TSqlGlotDialect":
+        return cast("TSqlGlotDialect", self._dialect)
+
+    @property
+    def attach(self) -> Optional[List[Dict[str, Any]]]:
+        """Serializable attach descriptors to re-attach foreign datasets before executing."""
+        return self._attach
+
+    def __str__(self) -> str:
+        """Serializes to `.model` text: dialect line, optional attach line, then the SQL body.
+
+        Attach statements flagged `secret` are encrypted with the active pipeline encryption.
+        """
+        header = "dialect: " + (self._dialect or "") + "\n"
+        if self._attach:
+            header += self._serialize_attach(self._attach)
+        return header + self._query + "\n"
+
+    @classmethod
+    def from_query_string(
+        cls,
+        query: str,
+        dialect: Optional[str] = None,
+        attach: Optional[List[Dict[str, Any]]] = None,
+    ) -> "SqlModel":
+        """Creates a `SqlModel` from a raw SQL query string, asserting it is a SELECT.
+
+        Args:
+            query: The raw SQL query string.
+            dialect: The SQL dialect to use for parsing.
+            attach: Serializable attach descriptors carried to the load step.
+
+        Returns:
+            An instance of `SqlModel` with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not a `sqlglot.exp.Select`.
+        """
+        parsed_query = sqlglot.parse_one(query, read=dialect)
+        if not isinstance(parsed_query, sge.Select):
+            raise ValueError("Only SELECT statements are allowed to create a `SqlModel`.")
+        normalized_query = parsed_query.sql(dialect=dialect)
+        return cls(query=normalized_query, dialect=dialect, attach=attach)
+
+    @classmethod
+    def from_file(
+        cls,
+        file_obj: IO[str],
+        fallback_dialect: Optional["TSqlGlotDialect"] = None,
+    ) -> "SqlModel":
+        """Creates a `SqlModel` by reading `.model` text produced by `str(model)`.
+
+        Reads the `dialect:` line (falling back to `fallback_dialect`), an optional `attach:` line
+        whose `secret`-flagged statements are decrypted, then the remaining SQL body. The SQL is
+        stored as read, not re-parsed.
+
+        Args:
+            file_obj (IO[str]): A file-like object opened in text mode.
+            fallback_dialect (Optional[str]): Dialect to use when the first line has none.
+
+        Returns:
+            An instance of `SqlModel` with the stored query, dialect and attach descriptors.
+        """
+        first_line = file_obj.readline()
+        # e.g. something like: "dialect: clickhouse\n"
+        parts = first_line.split(":", 1)
+        parsed_dialect = cast("TSqlGlotDialect", parts[1].strip() if len(parts) > 1 else "")
+        dialect = parsed_dialect if parsed_dialect else fallback_dialect
+
+        # an optional "attach: <json>\n" line precedes the SQL; a non-attach line is SQL and is kept
+        attach: Optional[List[Dict[str, Any]]] = None
+        next_line = file_obj.readline()
+        if next_line.startswith("attach:"):
+            attach = json.loads(next_line.split(":", 1)[1].strip())
+            cls._decrypt_attach_statements(attach)
+            sql_statement = file_obj.read()
+        else:
+            sql_statement = next_line + file_obj.read()
+
+        return cls(query=sql_statement, dialect=dialect, attach=attach)
+
+    @staticmethod
+    def _serialize_attach(attach: Sequence[Dict[str, Any]]) -> str:
+        """Serialize attach descriptors, encrypting only statements flagged `secret` in place."""
+        if any(s["secret"] for info in attach for s in info["statements"]):
+            from dlt.common.encryption import pipeline_encryption
+
+            encryption = pipeline_encryption()
+            attach = [
+                {
+                    **info,
+                    "statements": [
+                        (
+                            {"sql": encryption.encrypt_text(s["sql"]), "secret": True}
+                            if s["secret"]
+                            else s
+                        )
+                        for s in info["statements"]
+                    ],
+                }
+                for info in attach
+            ]
+        return "attach: " + json.dumps(attach) + "\n"
+
+    @staticmethod
+    def _decrypt_attach_statements(attach: List[Dict[str, Any]]) -> None:
+        """Decrypts in place the `secret`-flagged attach statements."""
+        if not any(s["secret"] for info in attach for s in info["statements"]):
+            return
+        from dlt.common.encryption import pipeline_encryption
+
+        encryption = pipeline_encryption()
+        hint = (
+            "This sql model carries encrypted foreign-dataset credentials that were encrypted with"
+            " a key not available here. Set a permanent `pipeline_salt` (e.g."
+            " `pipelines.<pipeline_name>.pipeline_salt` in secrets.toml) and re-run so the key can"
+            " be reproduced across pipeline instances. Alternatively you can materialize your data"
+            " eagerly to avoid generating model jobs altogether."
+        )
+        for info in attach:
+            for statement in info["statements"]:
+                if statement["secret"]:
+                    try:
+                        statement["sql"] = encryption.decrypt_text(statement["sql"])
+                    except ValueError as e:
+                        raise ValueError(f"{e} {hint}") from e
