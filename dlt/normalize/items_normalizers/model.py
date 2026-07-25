@@ -2,9 +2,9 @@ from typing import List, Optional
 
 import sqlglot
 
+from dlt.common.destination.client import SqlModel
 from dlt.common.libs.sqlglot import (
     TSqlGlotDialect,
-    SqlModel,
     build_outer_select_statement,
     reorder_or_adjust_outer_select,
     uuid_expr_for_dialect,
@@ -18,7 +18,6 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
 )
 from dlt.common.schema import TSchemaUpdate
-from dlt.common.utils import read_dialect_and_sql
 
 from dlt.normalize.exceptions import NormalizeException
 from dlt.normalize.items_normalizers.base import ItemsNormalizer
@@ -120,10 +119,13 @@ class ModelItemsNormalizer(ItemsNormalizer):
         with self.normalize_storage.extracted_packages.storage.open_file(
             extracted_items_file, "r"
         ) as f:
-            sql_dialect, select_statement = read_dialect_and_sql(
+            model = SqlModel.from_file(
                 file_obj=f,
                 fallback_dialect=self.config.destination_capabilities.sqlglot_dialect,  # caps are available at this point
             )
+        sql_dialect = model.query_dialect
+        select_statement = model.to_sql()
+        attach = model.attach
 
         # TODO the dialect here should be the "query dialect"; i.e., the transpilation input
         parsed_select = sqlglot.parse_one(select_statement, read=sql_dialect)
@@ -165,7 +167,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             self.load_id,
             self.schema.name,
             root_table_name,
-            SqlModel.from_query_string(normalized_query, sql_dialect),
+            SqlModel.from_query_string(normalized_query, sql_dialect, attach=attach),
             {},
         )
 

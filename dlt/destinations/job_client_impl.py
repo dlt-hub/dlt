@@ -6,6 +6,7 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
+    cast,
     ClassVar,
     Dict,
     List,
@@ -42,7 +43,6 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     version_table,
 )
-from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -66,6 +66,7 @@ from dlt.common.destination.client import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    SqlModel,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -74,7 +75,7 @@ from dlt.destinations.job_impl import (
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingReplaceFollowupJob
 from dlt.destinations.typing import TNativeConn
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.sql_client import SqlClientBase, TAttachInfo, WithAttach, WithSqlClient
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
@@ -158,12 +159,29 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            select_dialect, select_statement = read_dialect_and_sql(
+            model = SqlModel.from_file(
                 file_obj=f,
                 fallback_dialect=self._job_client.capabilities.sqlglot_dialect,  # caps are available at this point
             )
+        select_dialect = model.query_dialect
+        select_statement = model.to_sql()
+        attach = model.attach
 
         sql_client = self._job_client.sql_client
+        if attach:
+            if not isinstance(sql_client, WithAttach):
+                raise ValueError(
+                    f"Destination `{self._job_client.config.destination_type}` cannot attach the"
+                    " foreign datasets required by this model."
+                )
+            for attach_info in attach:
+                info = cast(TAttachInfo, attach_info)
+                if not sql_client.can_attach(info["attach_type"]):
+                    raise ValueError(
+                        f"Destination `{self._job_client.config.destination_type}` cannot execute"
+                        f" `{info['attach_type']}` attach statements required by this model."
+                    )
+                sql_client.attach(info)
         insert_statement = self._insert_statement_from_select_statement(
             select_dialect, select_statement
         )
