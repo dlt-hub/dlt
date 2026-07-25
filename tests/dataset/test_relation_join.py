@@ -7,7 +7,6 @@ import sqlglot
 import sqlglot.expressions as sge
 
 import dlt
-from dlt.common.destination.client import DestinationClientConfiguration
 from dlt.common.schema.typing import TTableReference
 from dlt.dataset.exceptions import LineageFailedException
 from dlt.dataset._join import (
@@ -225,7 +224,9 @@ def test_resolve_reference_chain_rejection_matrix(
 
 
 @pytest.mark.parametrize("dataset_with_loads", ["with_root_key"], indirect=True)
-def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsFixture) -> None:
+def test_join_across_different_physical_destinations_attaches(
+    dataset_with_loads: TLoadsFixture, monkeypatch: pytest.MonkeyPatch
+) -> None:
     dataset, _, _ = dataset_with_loads
 
     with tempfile.TemporaryDirectory() as tmp:
@@ -246,13 +247,18 @@ def test_join_rejects_different_physical_destination(dataset_with_loads: TLoadsF
         rel = dataset.table("users")
         other_rel = other_dataset.table("other_data")
 
+        # duckdb ATTACH makes the foreign database reachable under a prefixed catalog
+        joined = rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
+        assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
+        assert f"attach_{other_dataset.sql_client.dataset_name}" in joined.to_sql()
+
+        # a primary that cannot attach the foreign location still rejects the join
+        monkeypatch.setattr(type(dataset.sql_client), "can_attach", lambda self, attach_type: False)
         with pytest.raises(ValueError, match="different physical destinations"):
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
 
 
-def test_join_rejects_same_name_on_different_physical_destinations(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
+def test_join_rejects_same_name_on_different_physical_destinations() -> None:
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         shared_dataset_name = "same_name_diff_dest"
@@ -276,18 +282,14 @@ def test_join_rejects_same_name_on_different_physical_destinations(
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
         assert ds_a.dataset_name == ds_b.dataset_name
-        assert not ds_a.is_same_physical_destination(ds_b)
+        a_config = ds_a.destination_client.config
+        b_config = ds_b.destination_client.config
+        assert a_config.physical_location() != b_config.physical_location()
+        # duckdb reports the other database as readable because it can be attached
+        assert a_config.can_read_from(b_config)
 
-        with pytest.raises(ValueError, match="different physical destinations") as exc_info:
-            ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
-
-        assert "a.duckdb" in str(exc_info.value)
-        assert "b.duckdb" in str(exc_info.value)
-
-        # once `can_read_from` is relaxed (e.g. duckdb ATTACH), the same-name guard must hold
-        monkeypatch.setattr(
-            DestinationClientConfiguration, "can_read_from", lambda self, other: True
-        )
+        # ATTACH relaxes the physical-destination guard, but two datasets sharing a name on
+        # different locations cannot be disambiguated by dataset name alone
         with pytest.raises(ValueError, match="same name located on two different destinations"):
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
 
@@ -1281,7 +1283,7 @@ def test_explicit_on_joins_local_table(
 ) -> None:
     ds = dataset_with_relational_tables
     joined = build_join(ds)
-    assert not joined._foreign_schemas
+    assert not joined._foreign_datasets
     df = joined.df()
     assert len(df) == 4
     assert "orders__amount" in df.columns
@@ -1820,9 +1822,9 @@ def test_cross_dataset_join(
 
     joined = users.join(ds_inv.table("purchases"), on=on)
 
-    assert ds_inv.dataset_name in joined._foreign_schemas
-    assert ds_inv.dataset_name not in users._foreign_schemas
-    assert len(joined._foreign_schemas[ds_inv.dataset_name]) >= 1
+    assert ds_inv.dataset_name in joined._foreign_datasets
+    assert ds_inv.dataset_name not in users._foreign_datasets
+    assert len(joined._foreign_datasets[ds_inv.dataset_name].schemas) >= 1
 
     df = joined.df()
     assert len(df) == 3
@@ -2127,7 +2129,7 @@ def test_cross_dataset_join_via_dotted_string_qualifies_foreign_dataset(
     joined = ds_crm.table("users").join(
         ds_inv.table("purchases"), on="users.id = purchases.user_id"
     )
-    assert ds_inv.dataset_name in joined._foreign_schemas
+    assert ds_inv.dataset_name in joined._foreign_datasets
 
     chained = joined.join(
         f"{ds_inv.dataset_name}.inventory_items",
@@ -2403,3 +2405,121 @@ def test_magic_join_after_foreign_base_table_resolves_local_target() -> None:
         # the local magic target must enter the query alongside the foreign table
         sql = joined.to_sql()
         assert f'"{ds_crm.dataset_name}"."users"' in sql, sql
+
+
+def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Attach statements and destination clients are built lazily and only once."""
+    from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_cost_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1, "name": "Alice"}], table_name="users")
+        sales = dlt.pipeline(
+            pipeline_name="attach_cost_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "sales.duckdb")),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders")
+
+        crm_dataset = crm.dataset()
+        sales_dataset = sales.dataset()
+
+        built_aliases: list[str] = []
+        original_get_attach = DuckDbSqlClient.get_attach
+
+        def _counting_get_attach(self: Any, *, alias: str) -> Any:
+            built_aliases.append(alias)
+            return original_get_attach(self, alias=alias)
+
+        monkeypatch.setattr(DuckDbSqlClient, "get_attach", _counting_get_attach)
+
+        created_clients: list[str] = []
+        original_create = dlt.Dataset._create_destination_client
+
+        def _counting_create(self: Any) -> Any:
+            created_clients.append(self.dataset_name)
+            return original_create(self)
+
+        monkeypatch.setattr(dlt.Dataset, "_create_destination_client", _counting_create)
+
+        joined = crm_dataset.table("users").join(
+            sales_dataset.table("orders"), on="users.id = orders.user_id"
+        )
+        # deciding that a join is legal needs no statements
+        assert built_aliases == []
+
+        # binding identifiers needs the catalog alias only
+        assert "attach_sales_data" in joined.to_sql()
+        assert built_aliases == []
+
+        assert len(joined.df()) == 1
+        # one build per foreign dataset, memoized for further reads
+        assert built_aliases == ["attach_sales_data"]
+        joined.df()
+        joined.to_model()
+        assert built_aliases == ["attach_sales_data"]
+
+        # a relation chained off the join reuses what was memoized for that dataset
+        assert len(joined.where("users.id = 1").df()) == 1
+        assert built_aliases == ["attach_sales_data"]
+
+        # one cached destination client per dataset, however many times it is consulted
+        assert sorted(created_clients) == ["crm_data", "sales_data"]
+
+        # a second foreign dataset is memoized next to the first one, not instead of it
+        support = dlt.pipeline(
+            pipeline_name="attach_cost_support",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "support.duckdb")),
+            dataset_name="support_data",
+        )
+        support.run([{"id": 100, "user_id": 1}], table_name="tickets")
+        two_foreign = joined.join(
+            support.dataset().table("tickets"), on="users.id = tickets.user_id"
+        )
+        assert len(two_foreign.df()) == 1
+        assert built_aliases == ["attach_sales_data", "attach_support_data"]
+        two_foreign.df()
+        assert built_aliases == ["attach_sales_data", "attach_support_data"]
+
+
+def test_registering_foreign_dataset_drops_its_memo() -> None:
+    """Adding a foreign dataset invalidates what was memoized under its name."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_memo_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1}], table_name="users")
+        sales = dlt.pipeline(
+            pipeline_name="attach_memo_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "sales.duckdb")),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders")
+
+        joined = (
+            crm.dataset()
+            .table("users")
+            .join(sales.dataset().table("orders"), on="users.id = orders.user_id")
+        )
+        assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
+        assert "sales_data" in joined._attach_alias_cache
+        assert "sales_data" in joined._attach_info_cache
+
+        # the memo describes the dataset registered under that name, so it must not survive it
+        joined._register_foreign_dataset("sales_data", sales.dataset())
+        assert "sales_data" not in joined._attach_alias_cache
+        assert "sales_data" not in joined._attach_info_cache
+        assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
