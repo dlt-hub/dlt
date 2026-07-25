@@ -97,7 +97,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive, simple_repr, without_none
+from dlt.common.utils import digest256, is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, DltDeprecationWarning
 from dlt.common.versioned_state import (
     json_encode_state,
@@ -346,6 +346,7 @@ class Pipeline(SupportsPipeline):
         self.last_run_context: TLastRunContext = None
 
         self.pipeline_salt = pipeline_salt
+        self._encryption_seed: Optional[str] = None
         self.config = config
         self.run_context = config.runtime.pluggable_run_context.context
         self.dev_mode = dev_mode
@@ -1056,6 +1057,24 @@ class Pipeline(SupportsPipeline):
         # abort-flagged packages are scheduled for cleanup, not real pending work
         load_storage = self._get_load_storage()
         return any(not load_storage.normalized_packages.has_abort_flag(lid) for lid in normalized)
+
+    @property
+    def encryption_seed(self) -> str:
+        """Master secret used to derive keys that encrypt secrets associated with pipeline.
+
+        A user-set `pipeline_salt` yields a stable secret; the default (name-derived) salt yields a
+        random per-instance secret, so encrypted secrets are ephemeral and cannot be decrypted
+        after a restart unless a permanent `pipeline_salt` is configured.
+        """
+        from dlt.common.libs.cryptography import generate_secret
+
+        if self._encryption_seed is None:
+            self._encryption_seed = (
+                generate_secret()
+                if self.pipeline_salt == digest256(self.pipeline_name)
+                else self.pipeline_salt
+            )
+        return self._encryption_seed
 
     @property
     def schemas(self) -> SchemaStorage:

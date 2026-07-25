@@ -564,6 +564,10 @@ class SupportsPipeline(Protocol):
     """A collector that tracks the progress of the pipeline"""
 
     @property
+    def encryption_seed(self) -> str:
+        """Master secret to derive keys that encrypt secrets in load packages, from `pipeline_salt`"""
+
+    @property
     def has_pending_data(self) -> bool:
         """ "Tells if pipeline contains any pending packages"""
 
