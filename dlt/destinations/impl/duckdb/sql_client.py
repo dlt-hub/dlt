@@ -18,6 +18,7 @@ from typing import (
     List,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Generator,
     Type,
@@ -53,7 +54,11 @@ from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
+    TAttachInfo,
+    TAttachType,
+    WithAttach,
     WithSchemas,
+    attach_statement,
     raise_database_error,
     raise_open_connection_error,
 )
@@ -114,9 +119,13 @@ class DuckDBDBApiCursorImpl(DBApiCursorImpl):
         pass
 
 
-class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
+class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, WithAttach):
     dbapi: ClassVar[DBApi] = duckdb
     cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
+    attach_type: ClassVar[TAttachType] = "duckdb"
+    ATTACHABLE_TYPES: ClassVar[Tuple[TAttachType, ...]] = ("duckdb", "motherduck")
+
+    RESERVED_CATALOGS: ClassVar[Tuple[str, ...]] = ("memory", "system", "temp")
 
     def __init__(
         self,
@@ -128,6 +137,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
+        self._attached: Dict[str, TAttachInfo] = {}
         # set additional connection options so derived class can change it
         # TODO: move that to methods that can be overridden, include local_config
         self._pragmas = ["enable_checkpoint_on_shutdown"]
@@ -145,12 +155,76 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction):
                 "search_path": self.fully_qualified_dataset_name(),
             },
         )
+        self._replay_attached()
         return self._conn
 
     def close_connection(self) -> None:
         if self._conn:
             self.credentials.conn_pool.return_conn(self._conn)
             self._conn = None
+
+    def get_attach(self, *, alias: str) -> TAttachInfo:
+        db_path = self.credentials.database
+        q_alias = self.escape_column_name(alias)
+        return TAttachInfo(
+            attach_type=self.attach_type,
+            alias=alias,
+            dataset_name=self.dataset_name,
+            physical_location=db_path or "",
+            statements=[
+                attach_statement(f"ATTACH IF NOT EXISTS '{db_path}' AS {q_alias} (READ_ONLY)")
+            ],
+            detach_statements=[f"DETACH {q_alias}"],
+        )
+
+    def attach(self, info: TAttachInfo) -> None:
+        alias = info["alias"]
+        existing = self._attached.get(alias)
+        if existing is not None:
+            if existing["physical_location"] != info["physical_location"]:
+                raise ValueError(
+                    f"Cannot attach dataset under catalog `{alias}`: it is already attached to a"
+                    f" different location `{existing['physical_location']}`."
+                )
+            return
+        if self._conn is not None:
+            self._apply_attach(info)
+        self._attached[alias] = info
+
+    def list_attached(self) -> List[TAttachInfo]:
+        return list(self._attached.values())
+
+    def _apply_attach(self, info: TAttachInfo) -> None:
+        self._raise_on_catalog_collision(info["alias"])
+        with self.credentials.conn_pool._conn_lock:
+            for statement in info["statements"]:
+                self._conn.execute(statement["sql"])
+
+    def _replay_attached(self) -> None:
+        # attaches mutate the shared duckdb catalog and must exist on every borrowed connection
+        if not self._attached:
+            return
+        with self.credentials.conn_pool._conn_lock:
+            for info in self._attached.values():
+                for statement in info["statements"]:
+                    self._conn.execute(statement["sql"])
+
+    def _raise_on_catalog_collision(self, alias: str) -> None:
+        """Reject an ATTACH alias that shadows a reserved or the primary catalog."""
+        folded = self.capabilities.casefold_identifier(alias)
+        reserved = {self.capabilities.casefold_identifier(c) for c in self.RESERVED_CATALOGS}
+        if folded in reserved:
+            raise ValueError(
+                f"Cannot attach a foreign dataset under reserved catalog name `{alias}`."
+            )
+        try:
+            row = self._conn.execute("SELECT current_database()").fetchone()
+        except duckdb.Error:
+            row = None
+        if row and row[0] and self.capabilities.casefold_identifier(str(row[0])) == folded:
+            raise ValueError(
+                f"ATTACH alias `{alias}` collides with the primary database catalog name."
+            )
 
     @contextmanager
     @raise_database_error
@@ -659,26 +733,24 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
                 all_tables.setdefault(table_name, table_name)
         self.create_views_for_tables(all_tables)
 
-    @raise_database_error
-    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
-        """Add the required tables as views to the duckdb in memory instance.
+    def _build_pending_views(
+        self, tables: Dict[str, str], existing_tables: Set[str]
+    ) -> List[Tuple[str, str]]:
+        """Build `(view_name, select_sql)` for each table that should get a view.
 
         When a table name appears in multiple schemas, views are grouped by
         physical data location.  Co-located schemas get their columns merged
         into a single SELECT; different locations are combined with
         ``UNION ALL BY NAME``.
         """
-        existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
-
         # TODO: existing table schemas and sql statements can be cached so we do not have to recompute everything
         #  with every query
-        tables_with_data: set[str] = set()
+        tables_with_data: Set[str] = set()
         for s in self.schemas.values():
             tables_with_data.update(s.dlt_table_names())
             tables_with_data.update(s.data_table_names(seen_data_only=True))
 
-        # first pass: build SELECT SQL for every table, grouped by location
-        pending_views: List[Tuple[str, str]] = []  # (qualified_view_name, final_sql)
+        pending_views: List[Tuple[str, str]] = []
 
         for table_name, view_name in tables.items():
             if table_name not in tables_with_data:
@@ -730,13 +802,52 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             if view_name in existing_tables and not needs_replace:
                 continue
 
-            final_sql = " UNION ALL BY NAME ".join(location_sql.values())
-            q_view = self.make_qualified_table_name(view_name)
-            pending_views.append((q_view, final_sql))
+            pending_views.append((view_name, " UNION ALL BY NAME ".join(location_sql.values())))
 
-        # second pass: execute all CREATE VIEW statements
-        for q_view, final_sql in pending_views:
+        return pending_views
+
+    @raise_database_error
+    def create_views_for_tables(self, tables: Dict[str, str]) -> None:
+        """Add the required tables as views to the duckdb in memory instance."""
+        existing_tables = set(tname[0] for tname in self._conn.execute("SHOW TABLES").fetchall())
+        for view_name, final_sql in self._build_pending_views(tables, existing_tables):
+            q_view = self.make_qualified_table_name(view_name)
             self._conn.execute(f"CREATE OR REPLACE VIEW {q_view} AS {final_sql}")
+
+    def _attach_extension_statements(self) -> List[str]:
+        """Non-secret INSTALL/LOAD statements needed to read this scanner's data from a foreign
+        connection. Raise `NotImplementedError` when the scanner requires fsspec registration."""
+        raise NotImplementedError(f"`{type(self).__name__}` cannot be attached via SQL statements.")
+
+    def _attach_secret_statements(self) -> List[str]:
+        """Credential-bearing `CREATE SECRET` statements needed to read this scanner's data."""
+        return []
+
+    def _attach_physical_location(self) -> str:
+        return (
+            self.remote_client.config.physical_location() or self.remote_client.config.fingerprint()
+        )
+
+    def get_attach(self, *, alias: str) -> TAttachInfo:
+        q_alias = self.escape_column_name(alias)
+        q_schema = self.escape_column_name(self.dataset_name)
+        # extensions load first, then secrets, then the views that reference them by scope
+        statements = [attach_statement(s) for s in self._attach_extension_statements()]
+        statements += [attach_statement(s, secret=True) for s in self._attach_secret_statements()]
+        statements.append(attach_statement(f"ATTACH IF NOT EXISTS ':memory:' AS {q_alias}"))
+        statements.append(attach_statement(f"CREATE SCHEMA IF NOT EXISTS {q_alias}.{q_schema}"))
+        all_tables = {t: t for s in self.schemas.values() for t in s.tables.keys()}
+        for view_name, select_sql in self._build_pending_views(all_tables, set()):
+            q_view = f"{q_alias}.{q_schema}.{self.escape_column_name(view_name)}"
+            statements.append(attach_statement(f"CREATE OR REPLACE VIEW {q_view} AS {select_sql}"))
+        return TAttachInfo(
+            attach_type=self.attach_type,
+            alias=alias,
+            dataset_name=self.dataset_name,
+            physical_location=self._attach_physical_location(),
+            statements=statements,
+            detach_statements=[f"DETACH {q_alias}"],
+        )
 
     @contextmanager
     @raise_database_error

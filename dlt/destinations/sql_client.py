@@ -10,6 +10,7 @@ from typing import (
     Dict,
     Generic,
     Iterator,
+    Literal,
     Optional,
     Sequence,
     Tuple,
@@ -238,15 +239,24 @@ SELECT 1
         quote: bool = True,
         casefold: bool = True,
         dataset_name: Optional[str] = None,
+        catalog: Optional[str] = None,
     ) -> List[str]:
         """Returns a list with path components leading from catalog to table_name.
         Used to construct fully qualified names. `table_name` is optional.
 
         Args:
             dataset_name: Override the default dataset name for cross-dataset references.
+            catalog: Override the catalog component, e.g. an ATTACH alias for a foreign
+                dataset. When set, it replaces `catalog_name()` in the path.
         """
         path: List[str] = []
-        if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
+        if catalog is not None:
+            if casefold:
+                catalog = self.capabilities.casefold_identifier(catalog)
+            if quote:
+                catalog = self.capabilities.escape_identifier(catalog)
+            path.append(catalog)
+        elif catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
         effective_dataset = dataset_name or self.dataset_name
         if casefold:
@@ -373,6 +383,76 @@ class WithSchemas(ABC):
 
     @abstractmethod
     def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
+
+
+TAttachType = Literal["duckdb", "motherduck"]
+"""Mechanism that executes the attach statements, so a primary can reject what it cannot run.
+Everything a DuckDB connection opens by itself (duckdb/ducklake files, scanner views) is `duckdb`.
+MotherDuck is separate: its statements need a token set before the connection is initialized and
+a catalog alias, neither of which a MotherDuck connection accepts."""
+
+
+class TAttachStatement(TypedDict):
+    """A single statement run to attach a foreign dataset."""
+
+    sql: str
+    """The statement SQL; replaced by ciphertext in the persisted model when `secret` is True."""
+    secret: bool
+    """Whether `sql` carries credentials and must be encrypted when the model is persisted."""
+
+
+def attach_statement(sql: str, secret: bool = False) -> TAttachStatement:
+    return {"sql": sql, "secret": secret}
+
+
+class TAttachInfo(TypedDict):
+    """Serializable descriptor to attach a foreign dataset into a primary SQL client."""
+
+    attach_type: TAttachType
+    alias: str
+    """ATTACH catalog name, also the catalog qualifier a bound query resolves to."""
+    dataset_name: str
+    """Foreign dataset (schema) name inside the attached catalog."""
+    physical_location: str
+    """Foreign `physical_location()`, used to identify and de-duplicate attaches."""
+    statements: List[TAttachStatement]
+    """Ordered statements run on the primary connection; secret ones are encrypted when persisted."""
+    detach_statements: List[str]
+    """Statements to undo the attach, run on connection close."""
+
+
+class WithAttach(ABC):
+    """Mixin for SQL clients that can attach foreign datasets into their connection.
+
+    `attach_type`, `can_attach` and `can_be_attached` answer whether two clients can attach
+    without building any statement. `get_attach` is the expensive part and is called only when
+    the attach is actually executed or serialized.
+    """
+
+    attach_type: ClassVar[TAttachType]
+    """Mechanism that executes the attach statements of this client."""
+    ATTACHABLE_TYPES: ClassVar[Tuple[TAttachType, ...]] = ()
+    """Attach mechanisms this client can execute on its own connection."""
+
+    @abstractmethod
+    def get_attach(self, *, alias: str) -> TAttachInfo:
+        """Describe how to attach this client's dataset into a foreign primary connection."""
+
+    def can_attach(self, attach_type: TAttachType) -> bool:
+        """Tell if this (primary) client can execute statements of `attach_type`."""
+        return attach_type in self.ATTACHABLE_TYPES
+
+    def can_be_attached(self) -> bool:
+        """Tell if this (foreign) client can produce attach statements at all."""
+        return True
+
+    @abstractmethod
+    def attach(self, info: TAttachInfo) -> None:
+        """Record `info` and apply it to the current connection when one is open."""
+
+    @abstractmethod
+    def list_attached(self) -> List[TAttachInfo]:
+        """Return all recorded attaches, used to re-attach on a fresh connection."""
 
 
 class DBApiCursorImpl(DBApiCursor):

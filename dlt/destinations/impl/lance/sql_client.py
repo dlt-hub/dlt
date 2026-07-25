@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Any, Dict, TYPE_CHECKING, Optional, Tuple
+from typing import Any, Dict, List, TYPE_CHECKING, Optional, Tuple
 
 from dlt.common.schema.schema import Schema
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -92,6 +92,20 @@ class LanceSQLClient(WithTableScanners):
         secret_name = self.create_secret_name(scope)
         stmt = _prepare_create_lance_secret_statement(secret_name, scope, storage_options)
         self._conn.execute(stmt)
+
+    def _attach_extension_statements(self) -> List[str]:
+        return ["INSTALL lance;", "LOAD lance;"]
+
+    def _attach_secret_statements(self) -> List[str]:
+        storage_options = self.lance_client.config.storage_options
+        if not storage_options:
+            return []
+        scope = self.lance_client.config.storage.namespace_uri
+        return [
+            _prepare_create_lance_secret_statement(
+                self.create_secret_name(scope), scope, storage_options
+            )
+        ]
 
     @classmethod
     def _make_database_exception(cls, ex: Exception) -> Exception:

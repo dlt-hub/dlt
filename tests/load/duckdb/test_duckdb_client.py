@@ -832,3 +832,55 @@ def test_duckdb_secret_gcs_has_no_native_secret() -> None:
         DuckDbSqlClient._build_secret_statements(
             "gs://bucket", _aws_explicit(), "ds_secret", " PERSISTENT ", True
         )
+
+
+def test_with_attach_interface() -> None:
+    suffix = uniq_id()
+    root = get_test_storage_root()
+    db_b = os.path.join(root, f"wa_b_{suffix}.duckdb")
+    pipeline_a = dlt.pipeline(
+        "wa_a_" + suffix,
+        destination=duckdb(os.path.join(root, f"wa_a_{suffix}.duckdb")),
+        dataset_name="ds_a",
+    )
+    pipeline_a.run([{"id": 1}], table_name="t")
+    pipeline_b = dlt.pipeline("wa_b_" + suffix, destination=duckdb(db_b), dataset_name="ds_b")
+    pipeline_b.run([{"id": 1}], table_name="t")
+
+    primary = cast(DuckDbSqlClient, pipeline_a.sql_client())
+    foreign = cast(DuckDbSqlClient, pipeline_b.sql_client())
+
+    info = foreign.get_attach(alias="attach_ds_b")
+    assert info["attach_type"] == "duckdb"
+    assert info["alias"] == "attach_ds_b"
+    assert info["dataset_name"] == foreign.dataset_name
+    assert "READ_ONLY" in info["statements"][0]["sql"]
+    assert db_b in info["physical_location"]
+
+    # compatibility keys off the executor engine, not the source destination, and needs no statements
+    assert primary.attach_type == "duckdb"
+    assert primary.can_attach(info["attach_type"])
+    assert not primary.can_attach("postgres")  # type: ignore[arg-type]
+    assert foreign.can_be_attached()
+
+    # a catalog override produces a three-part path
+    path = primary.make_qualified_table_name_path(
+        "t", quote=False, casefold=False, dataset_name="ds_b", catalog="attach_ds_b"
+    )
+    assert path == ["attach_ds_b", "ds_b", "t"]
+
+    with primary as client:
+        client.attach(info)
+        assert [i["alias"] for i in client.list_attached()] == ["attach_ds_b"]
+        # re-attaching the same alias/location is a no-op
+        client.attach(info)
+        assert len(client.list_attached()) == 1
+        rows = client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')
+        assert rows[0][0] == 1
+        # a reserved catalog name is rejected
+        with pytest.raises(ValueError):
+            client.attach(foreign.get_attach(alias="memory"))
+
+    # the same alias pointing at a different location conflicts
+    with pytest.raises(ValueError):
+        primary.attach({**info, "physical_location": "/somewhere/else.duckdb"})

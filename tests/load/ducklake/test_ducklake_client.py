@@ -364,6 +364,32 @@ def test_ducklake_override_data_path_config() -> None:
     assert "OVERRIDE_DATA_PATH true" in sql_client.attach_statement
 
 
+def test_ducklake_get_attach() -> None:
+    from dlt.destinations.impl.ducklake.configuration import _get_ducklake_capabilities
+
+    configuration = resolve_configuration(
+        DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="foo")
+    )
+    sql_client = DuckLakeSqlClient(
+        dataset_name="foo",
+        staging_dataset_name="foo_staging",
+        credentials=configuration.credentials,
+        capabilities=_get_ducklake_capabilities(),
+    )
+
+    info = sql_client.get_attach(alias="attach_foo")
+    assert info["attach_type"] == "duckdb"
+    assert info["alias"] == "attach_foo"
+    assert info["dataset_name"] == "foo"
+    # `alias` names the local attach catalog; default local ducklake needs no storage secret
+    assert len(info["statements"]) == 1
+    attach_statement = info["statements"][-1]
+    assert attach_statement["sql"].startswith("ATTACH IF NOT EXISTS 'ducklake:")
+    assert " AS attach_foo " in attach_statement["sql"]
+    # a local duckdb/sqlite catalog embeds no password, so the ATTACH is not a secret
+    assert attach_statement["secret"] is False
+
+
 def test_ducklake_conn_pool_always_open() -> None:
     # connection pool is embedded in configuration, configuration is a singleton during loading
     # phase which the pool needs. See DuckDbConnectionPool

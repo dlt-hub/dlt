@@ -1,4 +1,4 @@
-from typing import Any, Optional, TYPE_CHECKING, Tuple, List
+from typing import Any, ClassVar, Optional, TYPE_CHECKING, Tuple, List
 from packaging.version import Version
 import duckdb
 
@@ -95,6 +95,36 @@ class FilesystemSqlClient(WithTableScanners):
                 raise ValueError(f"Cannot create secret or register filesystem for `{protocol=:}`")
 
         return True
+
+    NON_ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("gs", "gcs", "memory")
+    """Protocols reachable only through fsspec registration, so not expressible as SQL statements."""
+
+    def can_be_attached(self) -> bool:
+        return self.remote_client.config.protocol not in self.NON_ATTACHABLE_PROTOCOLS
+
+    def _attach_extension_statements(self) -> List[str]:
+        protocol = self.remote_client.config.protocol
+        if not self.can_be_attached():
+            raise NotImplementedError(
+                f"filesystem protocol `{protocol}` needs fsspec registration and cannot be attached"
+                " via SQL statements"
+            )
+        return ["INSTALL httpfs; LOAD httpfs"] if self.is_abfss else []
+
+    def _attach_secret_statements(self) -> List[str]:
+        if self.remote_client.config.protocol == "file":
+            return []
+        scope = self.remote_client.config.bucket_url
+        if "@" in scope:
+            scope = scope.split("@")[0]
+        secret_statements = self._build_secret_statements(
+            scope, self.remote_client.config.credentials, self.create_secret_name(scope), "", False
+        )
+        if not secret_statements:
+            raise NotImplementedError(
+                f"no duckdb secret available for protocol `{self.remote_client.config.protocol}`"
+            )
+        return secret_statements
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         with self.credentials.conn_pool._conn_lock:
