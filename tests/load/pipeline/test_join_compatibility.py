@@ -40,6 +40,11 @@ FILESYSTEM_DIFFERENT_LOCATION_JOIN_COMPATIBILITY_CONFIGS = destinations_configs(
     subset=["filesystem"],
 )
 
+DUCKDB_JOIN_COMPATIBILITY_CONFIGS = destinations_configs(
+    default_sql_configs=True,
+    subset=["duckdb"],
+)
+
 CROSS_DATABASE_PROBE_CONFIGS = destinations_configs(
     default_sql_configs=True,
     subset=["clickhouse", "fabric", "snowflake", "synapse"],
@@ -185,6 +190,25 @@ def test_same_database_join_compatibility(
     expected_write = False if destination_config.destination_type == "filesystem" else None
     _run_two_pipeline_check(
         destination_config, first_destination, second_destination, True, expected_write
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    DUCKDB_JOIN_COMPATIBILITY_CONFIGS,
+    ids=lambda x: x.name,
+)
+def test_duckdb_different_database_compatible(
+    destination_config: DestinationTestConfiguration,
+    tmp_path: Path,
+) -> None:
+    # any duckdb database can be attached to another one, so both read and write are possible
+    test_id = uniq_id()
+    _run_two_pipeline_check(
+        destination_config,
+        dlt.destinations.duckdb(str(tmp_path / f"join_compat_first_{test_id}.duckdb")),
+        dlt.destinations.duckdb(str(tmp_path / f"join_compat_second_{test_id}.duckdb")),
+        True,
     )
 
 

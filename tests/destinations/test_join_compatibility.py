@@ -657,9 +657,10 @@ DUCKDB_JOIN_CASES = [
         id="duckdb_same_path",
     ),
     pytest.param(
+        # another database file is reachable by attaching it
         lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db1.duckdb")),
         lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb")),
-        False,
+        True,
         id="duckdb_diff_path",
     ),
 ]

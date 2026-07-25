@@ -39,8 +39,8 @@ def test_duckdb_fingerprint(
 
 
 def test_external_connection_physical_location(tmp_path: Path) -> None:
-    """Connection-passed credentials must identify the real database file so two
-    different databases are not considered join-compatible.
+    """Connection-passed credentials must identify the real database file so joinability
+    and the need for an ATTACH can be told apart.
     """
     conn_a = duckdb.connect(str(tmp_path / "a.duckdb"))
     conn_b = duckdb.connect(str(tmp_path / "b.duckdb"))
@@ -55,15 +55,17 @@ def test_external_connection_physical_location(tmp_path: Path) -> None:
 
         # real file path survives config resolution (make_location keeps absolute paths)
         assert config_a.physical_location() == str(tmp_path / "a.duckdb")
-        # same database file: joinable, different files or memory: not
+        # the same database file is read directly, another file by attaching it
         assert config_a.can_read_from(config_a2)
-        assert not config_a.can_read_from(config_b)
-        assert not config_mem.can_read_from(config_a)
+        assert config_a.can_read_from(config_b)
+        assert config_mem.can_read_from(config_a)
         # in-memory connections keep the external marker and stay compatible when shared
         assert config_mem.physical_location() == ":external:"
         assert config_mem.can_read_from(
             DuckDbClientConfiguration(credentials=DuckDbCredentials(conn_mem))
         )
+        # a database living in another connection cannot be attached
+        assert not config_a.can_read_from(config_mem)
     finally:
         conn_a.close()
         conn_b.close()

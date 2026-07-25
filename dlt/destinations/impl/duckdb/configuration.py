@@ -8,7 +8,10 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
-from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhWithStagingConfiguration,
+)
 from dlt.common.storages import WithLocalFiles
 from dlt.common.typing import Annotated
 
@@ -20,6 +23,8 @@ else:
     DuckDBPyConnection = Any  # type: ignore[assignment,misc]
 
 DUCK_DB_NAME_PAT = "%s.duckdb"
+NON_ATTACHABLE_LOCATIONS = (":memory:", ":external:")
+"""Databases living inside a single connection, which no other connection can ATTACH."""
 
 
 @configspec(init=False)
@@ -342,6 +347,17 @@ class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingC
         if self.credentials and self.credentials.database:
             return self.credentials.database
         return ""
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for another duckdb database that is read directly or via ATTACH."""
+        if not isinstance(other, DuckDbClientConfiguration):
+            return False
+        other_location = other.physical_location()
+        if not other_location:
+            return False
+        if other_location == self.physical_location():
+            return True
+        return other_location not in NON_ATTACHABLE_LOCATIONS
 
     def on_resolved(self) -> None:
         self.credentials.database = self.make_location(self.credentials.database, DUCK_DB_NAME_PAT)
