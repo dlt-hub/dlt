@@ -114,6 +114,46 @@ If you prefer to write your queries in SQL, you can omit ibis expressions by sim
 
 The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema.
 
+## Transformations of multiple datasets
+
+A transformation receives its input datasets as arguments, so passing **more than one** `dlt.Dataset` lets you join across them. dlt inspects where the inputs and the output live and picks how to run the join:
+
+- when the output destination's engine can read and write the inputs — for example everything lives in the same DuckDB, or the same MotherDuck account — the join runs **in-warehouse** as a model job and no data leaves the destination;
+- otherwise dlt **materializes** the join: it runs the query on the machine executing the pipeline and loads the result as data.
+
+### Joining datasets on the same destination
+
+Pass two input datasets and join them into a new output table. Here `crm` and `sales` are two datasets in the same DuckDB, so the join runs in-warehouse:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_join_same_destination-->
+
+#### Joining new input against the existing output
+
+A transformation can also read the dataset it writes to — pass the output dataset as another argument. On the very first run the output has no tables yet, so guard that reference with [`schema.is_new`](../../general-usage/dataset-access/dataset.md) and only join against the output once it exists. This is a simple way to process just the rows you have not loaded before:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_incremental_output_join-->
+
+For richer incremental patterns — cursors, scheduler windows, load-time cursors — see [Incremental transformations](#incremental-transformations).
+
+### Joining datasets across destinations with DuckDB
+
+dlt can join datasets that live on **different** destinations, as long as both use DuckDB as their query engine (`duckdb`, `motherduck`, `ducklake`, `lance`, `filesystem` — including Hugging Face `hf://` buckets — and the `delta` and `iceberg` open table formats). It attaches the input dataset into the output's DuckDB engine. How the join runs depends on whether the **output** engine can write:
+
+- **Read-write engines** — `duckdb`, `ducklake`, and `motherduck` can materialize the result themselves, so the join runs in-warehouse as a model job: the `SELECT` and the `ATTACH` statements execute on the destination. `duckdb` and `ducklake` run locally; only `motherduck` is remote.
+- **Read-only engines** — `filesystem` (local or cloud buckets, Hugging Face `hf://`, and `delta`/`iceberg` tables) and `lance` can only be read through DuckDB, so a transformation writing to them always materializes eagerly: dlt runs the join locally and writes the result as files.
+
+**MotherDuck attaches inputs on your side.** A MotherDuck connection attaches everything except another MotherDuck database *locally*, and DuckDB splits the query between your machine and the server. The input's credentials stay in your local session — they are never uploaded to MotherDuck — and its rows travel from the input to your machine and on to MotherDuck as the query runs. Datasets in the **same** MotherDuck account need no attach at all, because every database in the account is already reachable; a dataset in a **different** MotherDuck account cannot be attached (its token would have to be set before the connection was opened), so dlt rejects that join.
+
+The example below joins a `filesystem` dataset (orders) into a `duckdb` output. Because the output engine can write, it runs in-warehouse:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_cross_destination_lazy-->
+
+**Secrets.** When an attached input needs credentials — a MotherDuck token, cloud-bucket keys, a catalog password — they are written into the model job's `.model` file **encrypted**, using a key derived from the pipeline's `pipeline_salt`. By default the salt is random per pipeline instance, so the job can only be loaded by the process that produced it. If the load is retried in a **new** process (for example after a crash), decryption fails and dlt asks you to set a permanent `pipeline_salt` (e.g. `pipelines.<pipeline_name>.pipeline_salt` in `secrets.toml`) so the key is reproducible. Inputs that need no credentials — local files, another local DuckDB — carry no secrets.
+
+**Forcing eager execution.** To run the join on your machine and load plain data instead — avoiding the in-warehouse job and any serialized credentials — yield the materialized result (an Arrow table or DataFrame) rather than the relation:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_cross_destination_eager-->
+
 ## Using Pandas or Polars DataFrames and Arrow tables
 
 You can also write transformations directly using Pandas or Polars DataFrames and Arrow tables. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded DataFrames or Arrow tables like data from any other resource. This behavior may change in the future.
