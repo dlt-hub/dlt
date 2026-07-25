@@ -73,6 +73,7 @@ class Dataset:
 
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
+        self._destination_client: JobClientBase = None
         self._table_client: SupportsOpenTables = None
 
     def ibis(self, read_only: bool = False) -> IbisBackend:
@@ -86,7 +87,9 @@ class Dataset:
 
         return create_ibis_backend(
             destination=self._destination,
-            client=self.destination_client,
+            # the backend takes ownership of the client: it moves the connection out and
+            # mutates the config, so it must not get the shared one
+            client=self._create_destination_client(),
             read_only=read_only,
             schemas=self.schemas,
         )
@@ -211,16 +214,26 @@ class Dataset:
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self.sql_client.__class__
 
-    # TODO if `destination_client` returns a new client each time, it shouldn't be a property
     @property
     def destination_client(self) -> JobClientBase:
+        """Job client shared by this dataset. Creating one resolves configuration so it is cached.
+
+        NOTE: callers that take ownership of the client (move its connection, mutate its config)
+        must use `_create_destination_client`. Not thread safe: a shared client has one connection.
+        """
+        if not self._destination_client:
+            self._destination_client = self._create_destination_client()
+        return self._destination_client
+
+    def _create_destination_client(self) -> JobClientBase:
+        """Creates a new job client, for callers that take ownership of it."""
         return get_dataset_destination_client(self)
 
     # TODO should this public? This should only be accessed via `.__open__()`
     @property
     def open_table_client(self) -> SupportsOpenTables:
         if not self._table_client:
-            client = get_dataset_destination_client(self)
+            client = self.destination_client
             if isinstance(client, SupportsOpenTables):
                 self._table_client = client
             else:
