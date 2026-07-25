@@ -6,6 +6,7 @@ from typing import Any
 import pytest
 
 import dlt
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.extract.hints import make_hints
 
@@ -76,7 +77,9 @@ def test_attach_foreign_duckdb_eager(users_pipeline: dlt.Pipeline) -> None:
 
 def test_attach_foreign_filesystem_eager(users_pipeline: dlt.Pipeline) -> None:
     """A filesystem foreign dataset is attached as a catalog of duckdb views over its files."""
-    bucket_url = "file://" + os.path.join(get_test_storage_root(), "purchases_" + uniq_id())
+    bucket_url = FilesystemConfiguration.make_file_url(
+        os.path.join(get_test_storage_root(), "purchases_" + uniq_id())
+    )
     foreign = _purchases_pipeline(
         dlt.destinations.filesystem(bucket_url), loader_file_format="parquet"
     )

@@ -3,6 +3,7 @@ from pathlib import Path
 from typing import Any, Iterator
 
 import dlt
+from dlt.common.storages.configuration import FilesystemConfiguration
 from tests.pipeline.utils import load_table_counts
 
 pytest.importorskip("dlthub")
@@ -227,12 +228,17 @@ def transformations_join_same_destination_snippet(tmp_path: Path) -> None:
     crm_pipeline = dlt.pipeline(
         "crm", destination=dlt.destinations.duckdb(db_path), dataset_name="crm_data"
     )
-    crm_pipeline.run([{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users")
+    crm_pipeline.run(
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+    )
     sales_pipeline = dlt.pipeline(
         "sales", destination=dlt.destinations.duckdb(db_path), dataset_name="sales_data"
     )
     sales_pipeline.run(
-        [{"id": 10, "user_id": 1, "sku": "W-001"}, {"id": 11, "user_id": 2, "sku": "G-001"}],
+        [
+            {"id": 10, "user_id": 1, "sku": "W-001"},
+            {"id": 11, "user_id": 2, "sku": "G-001"},
+        ],
         table_name="orders",
     )
     marts_pipeline = dlt.pipeline(
@@ -257,7 +263,9 @@ def transformations_incremental_output_join_snippet(tmp_path: Path) -> None:
     crm_pipeline = dlt.pipeline(
         "crm", destination=dlt.destinations.duckdb(db_path), dataset_name="crm_data"
     )
-    crm_pipeline.run([{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users")
+    crm_pipeline.run(
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+    )
     # a dedicated output pipeline/dataset for this transformation
     known_pipeline = dlt.pipeline(
         "known", destination=dlt.destinations.duckdb(db_path), dataset_name="known_data"
@@ -289,11 +297,16 @@ def transformations_incremental_output_join_snippet(tmp_path: Path) -> None:
 def transformations_cross_destination_snippet(tmp_path: Path) -> None:
     orders_pipeline = dlt.pipeline(
         "orders",
-        destination=dlt.destinations.filesystem("file://" + str(tmp_path / "orders")),
+        destination=dlt.destinations.filesystem(
+            FilesystemConfiguration.make_file_url(str(tmp_path / "orders"))
+        ),
         dataset_name="orders_data",
     )
     orders_pipeline.run(
-        [{"id": 10, "user_id": 1, "sku": "W-001"}, {"id": 11, "user_id": 2, "sku": "G-001"}],
+        [
+            {"id": 10, "user_id": 1, "sku": "W-001"},
+            {"id": 11, "user_id": 2, "sku": "G-001"},
+        ],
         table_name="orders",
         loader_file_format="parquet",
     )
@@ -324,14 +337,18 @@ def transformations_cross_destination_snippet(tmp_path: Path) -> None:
     # result (an Arrow table or DataFrame) rather than the relation
     @dlt.hub.transformation(table_name="user_orders_eager")
     def user_orders_eager(warehouse: dlt.Dataset, orders: dlt.Dataset) -> Any:
-        joined = warehouse["users"].join(orders["orders"], on="users.id = orders.user_id")
+        joined = warehouse["users"].join(
+            orders["orders"], on="users.id = orders.user_id"
+        )
         yield joined.arrow()
 
     warehouse_pipeline.run(
         user_orders_eager(warehouse_pipeline.dataset(), orders_pipeline.dataset())
     )
     # @@@DLT_SNIPPET_END transformations_cross_destination_eager
-    assert load_table_counts(warehouse_pipeline, "user_orders_eager") == {"user_orders_eager": 2}
+    assert load_table_counts(warehouse_pipeline, "user_orders_eager") == {
+        "user_orders_eager": 2
+    }
 
 
 def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:

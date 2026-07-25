@@ -1,6 +1,7 @@
 # flake8: noqa
 import dlt
 import pytest
+from dlt.common.storages.configuration import FilesystemConfiguration
 from pathlib import Path
 from typing import Any, Generator
 
@@ -315,7 +316,9 @@ def join_cross_destination_eager_snippet(tmp_path: Path) -> None:
     # a filesystem pipeline: a different physical destination (the "foreign" dataset)
     events = dlt.pipeline(
         pipeline_name="events",
-        destination=dlt.destinations.filesystem("file://" + str(tmp_path / "events")),
+        destination=dlt.destinations.filesystem(
+            FilesystemConfiguration.make_file_url(str(tmp_path / "events"))
+        ),
         dataset_name="events_data",
     )
     events.run(
