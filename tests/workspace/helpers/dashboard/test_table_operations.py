@@ -2,7 +2,10 @@ import pytest
 import dlt
 import marimo as mo
 
+from dlt.common.json import json
+from dlt.common.schema.utils import normalize_table_identifiers
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
+from dlt._workspace.helpers.dashboard.utils import schema as dashboard_schema_utils
 from dlt._workspace.helpers.dashboard.utils.schema import (
     create_table_list,
     create_column_list,
@@ -171,3 +174,54 @@ def test_build_resource_state_widget_no_resource(pipeline: dlt.Pipeline):
             pipeline, pipeline.default_schema_name, table_without_resource
         )
         assert widget is None
+
+
+def test_get_schema_by_version_normalizes_stored_schema_without_inner_column_name(tmp_path):
+    """Repro of #4253.
+
+    The dashboard schema loader builds a ``Schema`` from raw destination JSON.
+    A stored schema keeps the column name only as the dict key (``remove_defaults``
+    strips the inner ``c["name"]``), so loading must run ``apply_defaults`` (i.e.
+    via ``Schema.from_dict``); otherwise the next naming normalization raises
+    ``KeyError: 'name'``.
+
+    The destination is made to hold a canonical (nameless) stored schema -- the
+    legacy on-disk format older dlt wrote (the actual #4253 trigger: "1.29.0 and
+    before") -- by writing it through the client's own commit path, then reading it
+    back through the unmonkeypatched loader.
+
+    Fails on the ``Schema.from_stored_schema`` path (devel), passes once the loader
+    uses ``Schema.from_dict(..., validate_schema=False)``.
+    """
+    import duckdb
+
+    pipeline = dlt.pipeline(
+        pipeline_name="repro_4253",
+        pipelines_dir=str(tmp_path / "pipelines"),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect()),
+    )
+    pipeline.run([{"id": 1, "name": "alice"}, {"id": 2, "name": "bob"}], table_name="users")
+
+    schema = pipeline.schemas[pipeline.default_schema_name]
+
+    # canonical stored-schema form (remove_defaults / legacy on-disk format): the
+    # name survives only as the dict key; both the table and its columns lose "name",
+    # which apply_defaults restores on load (see issues.schema.json)
+    canonical_str = json.dumps(schema.to_dict(remove_defaults=True))
+    users_table = json.loads(canonical_str)["tables"]["users"]
+    assert "name" not in users_table
+    assert "name" not in next(iter(users_table["columns"].values()))
+
+    # plant the canonical schema in the destination through the real write path
+    with pipeline.destination_client() as client:
+        # get_stored_schema_by_hash reads LIMIT 1 without ORDER BY, so clear the
+        # named row written by run() to make the lookup deterministic
+        client._delete_schema_in_storage(schema)  # type: ignore[attr-defined]
+        client._commit_schema_update(schema, canonical_str)  # type: ignore[attr-defined]
+
+    dashboard_schema_utils._schema_version_cache.clear()
+    restored = dashboard_schema_utils.get_schema_by_version(pipeline, schema.stored_version_hash)
+
+    # a naming change normalizes the restored schema; this is where #4253 crashed
+    users = normalize_table_identifiers(restored.get_table("users"), restored.naming)
+    assert {"id", "name"} <= set(users["columns"])
