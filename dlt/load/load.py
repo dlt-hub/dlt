@@ -1,17 +1,17 @@
 import contextlib
 from functools import reduce
 from threading import BoundedSemaphore
-from typing import Dict, List, NoReturn, Optional, Tuple, Iterator, Sequence
+from typing import Dict, List, NoReturn, Optional, Set, Tuple, Iterator, Sequence
 from concurrent.futures import Executor
 
 from dlt.common import logger, pendulum
 from dlt.common.exceptions import TerminalException
-from dlt.common.metrics import LoadJobMetrics
+from dlt.common.metrics import LoadJobMetrics, TDatasetDataLocation
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
-from dlt.common.schema.utils import get_root_table
+from dlt.common.schema.utils import get_root_table, group_tables_by_resource
 from dlt.common.storages.load_storage import (
     LoadJobInfo,
     LoadPackageInfo,
@@ -30,6 +30,8 @@ from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.destination import DestinationReference, AnyDestination, Destination
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.reference import describe_dataset_location
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     HasFollowupJobs,
@@ -747,6 +749,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         dataset_name: Optional[str] = None
         if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = self.initial_client_config.normalize_dataset_name(schema)
+        caps, tables_by_resource = self._output_context(schema)
         # loop until all jobs are processed
         pending_exception: Optional[LoadClientJobException] = None
         while True:
@@ -780,6 +783,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 "finished_at": None,
                 "job_metrics": self._job_metrics,
                 "dataset_name": dataset_name,
+                "outputs": self._compute_outputs(schema, caps, tables_by_resource, dataset_name),
             }
             self._step_info_update_metrics(load_id, metrics)
 
@@ -865,6 +869,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             "finished_at": None,
             "job_metrics": self._job_metrics,
             "dataset_name": dataset_name,
+            "outputs": self._compute_outputs(schema, *self._output_context(schema), dataset_name),
         }
         self._step_info_update_metrics(load_id, metrics)
         self.complete_package(load_id, schema, aborted=True)
@@ -921,6 +926,50 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self._job_metrics[job_id] = LoadJobMetrics(**m)
         except Exception as ex:
             logger.warning(f"Metrics could not be restored from state: {ex}")
+
+    def _output_context(
+        self, schema: Schema
+    ) -> Tuple[DestinationCapabilitiesContext, Dict[str, Set[str]]]:
+        """Capabilities and table ownership of a package, constant while it loads."""
+        # nested tables are owned by the resource of their root table
+        tables_by_resource = {
+            resource_name: {table["name"] for table in tables}
+            for resource_name, tables in group_tables_by_resource(schema.tables).items()
+        }
+        return (
+            self.destination.capabilities(self.initial_client_config, schema.naming),
+            tables_by_resource,
+        )
+
+    def _compute_outputs(
+        self,
+        schema: Schema,
+        caps: DestinationCapabilitiesContext,
+        tables_by_resource: Dict[str, Set[str]],
+        physical_dataset_name: Optional[str],
+    ) -> List[TDatasetDataLocation]:
+        """Describes the dataset per resource that owns tables written so far.
+
+        `physical_dataset_name` is passed in already normalized so the normalization warning is not
+        emitted again.
+        """
+        # a table written in several files must be listed once
+        written_tables = {job.table_name for job in self._job_metrics.values()}
+        outputs: List[TDatasetDataLocation] = []
+        for resource_name, tables in tables_by_resource.items():
+            resource_tables = sorted(tables & written_tables)
+            if resource_tables:
+                outputs.append(
+                    describe_dataset_location(
+                        self.initial_client_config,
+                        caps,
+                        [schema],
+                        resource_name,
+                        resource_tables,
+                        physical_dataset_name,
+                    )
+                )
+        return outputs
 
     def _maybe_truncate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
         """
