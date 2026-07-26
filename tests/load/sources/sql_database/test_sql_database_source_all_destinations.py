@@ -1,5 +1,5 @@
 import os
-from typing import Any, List
+from typing import Any, List, cast
 
 import humanize
 import pytest
@@ -20,6 +20,7 @@ from tests.pipeline.utils import (
 
 try:
     from dlt.sources.sql_database import TableBackend, sql_database, sql_table
+    from dlt.sources.sql_database.helpers import TSqlDatabaseDataLocation
     from tests.load.sources.sql_database.test_helpers import mock_json_column, mock_array_column
     from tests.load.sources.sql_database.test_sql_database_source import (
         assert_row_counts,
@@ -209,6 +210,20 @@ def test_load_sql_table_names(
     assert_load_info(load_info)
 
     assert_row_counts(pipeline, postgres_db, tables)
+
+    # each table resource records the database it read, addressed without credentials
+    extract_info = pipeline.last_trace.last_extract_info
+    inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
+    by_resource = {location["resource_name"]: location for location in inputs}
+    assert set(by_resource) == set(tables)
+    for table in tables:
+        location = cast(TSqlDatabaseDataLocation, by_resource[table])
+        assert location["kind"] == "sql_database"
+        assert location["tables"] == [table]
+        assert location["db_schema"] == postgres_db.schema
+        assert location["database"] == postgres_db.credentials.database
+        assert location["location"].startswith("postgresql://")
+        assert postgres_db.credentials.password not in location["location"]
 
 
 @pytest.mark.parametrize(
