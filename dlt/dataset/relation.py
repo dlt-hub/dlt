@@ -143,17 +143,58 @@ class Relation(WithSqlClient):
         with self._cursor() as cursor:
             return cursor.arrow(*args, **kwargs)
 
-    def fetchall(self, *args: Any, **kwargs: Any) -> list[tuple[Any, ...]]:
-        with self._cursor() as cursor:
-            return cursor.fetchall(*args, **kwargs)
+    def fetchall(
+        self, *, row_factory: Any = None
+    ) -> list[tuple[Any, ...]] | list[dict[str, Any]]:
+        """Fetch all rows from the relation.
 
-    def fetchmany(self, *args: Any, **kwargs: Any) -> list[tuple[Any, ...]]:
+        Args:
+            row_factory: When ``dict``, each row is returned as a mapping of column name to
+                value. Defaults to returning rows as tuples from the cursor.
+        """
         with self._cursor() as cursor:
-            return cursor.fetchmany(*args, **kwargs)
+            rows = cursor.fetchall()
+            if row_factory is None:
+                return rows
+            if not rows:
+                return rows
+            columns = _resolve_row_factory_columns(self, cursor)
+            return _format_rows(rows, columns, row_factory)
 
-    def fetchone(self, *args: Any, **kwargs: Any) -> tuple[Any, ...] | None:
+    def fetchmany(
+        self, chunk_size: int, *, row_factory: Any = None
+    ) -> list[tuple[Any, ...]] | list[dict[str, Any]]:
+        """Fetch the next batch of rows from the relation.
+
+        Args:
+            chunk_size: Number of rows to fetch.
+            row_factory: When ``dict``, each row is returned as a mapping of column name to
+                value. Defaults to returning rows as tuples from the cursor.
+        """
         with self._cursor() as cursor:
-            return cursor.fetchone(*args, **kwargs)
+            rows = cursor.fetchmany(chunk_size)
+            if row_factory is None:
+                return rows
+            if not rows:
+                return rows
+            columns = _resolve_row_factory_columns(self, cursor)
+            return _format_rows(rows, columns, row_factory)
+
+    def fetchone(
+        self, *, row_factory: Any = None
+    ) -> tuple[Any, ...] | dict[str, Any] | None:
+        """Fetch the next row from the relation.
+
+        Args:
+            row_factory: When ``dict``, the row is returned as a mapping of column name to
+                value. Defaults to returning a tuple from the cursor.
+        """
+        with self._cursor() as cursor:
+            row = cursor.fetchone()
+            if row_factory is None or row is None:
+                return row
+            columns = _resolve_row_factory_columns(self, cursor)
+            return _format_row(row, columns, row_factory)
 
     def iter_df(self, *args: Any, **kwargs: Any) -> Generator[pd.DataFrame, None, None]:
         with self._cursor() as cursor:
@@ -164,9 +205,23 @@ class Relation(WithSqlClient):
         with self._cursor() as cursor:
             yield from cursor.iter_arrow(*args, **kwargs)
 
-    def iter_fetch(self, *args: Any, **kwargs: Any) -> Generator[list[tuple[Any, ...]], None, None]:
+    def iter_fetch(
+        self, chunk_size: int, *, row_factory: Any = None
+    ) -> Generator[list[tuple[Any, ...]] | list[dict[str, Any]], None, None]:
+        """Iterate over row chunks from the relation.
+
+        Args:
+            chunk_size: Number of rows per chunk.
+            row_factory: When ``dict``, each row in every chunk is returned as a mapping of
+                column name to value. Defaults to returning rows as tuples from the cursor.
+        """
         with self._cursor() as cursor:
-            yield from cursor.iter_fetch(*args, **kwargs)
+            if row_factory is None:
+                yield from cursor.iter_fetch(chunk_size)
+                return
+            columns = _resolve_row_factory_columns(self, cursor)
+            for chunk in cursor.iter_fetch(chunk_size):
+                yield _format_rows(chunk, columns, row_factory) if chunk else chunk
 
     @property
     def columns_schema(self) -> TTableSchemaColumns:
@@ -1086,6 +1141,34 @@ def _get_relation_output_columns_schema(
         allow_partial=allow_partial,
     )
     return columns_schema, normalized_query
+
+
+def _cursor_description_columns(cursor: SupportsDataAccess) -> list[str]:
+    native = getattr(cursor, "native_cursor", cursor)
+    description = getattr(native, "description", None)
+    if description:
+        return [col[0] for col in description]
+    return []
+
+
+def _resolve_row_factory_columns(relation: dlt.Relation, cursor: SupportsDataAccess) -> list[str]:
+    columns = relation.columns
+    if columns:
+        return columns
+    columns = _cursor_description_columns(cursor)
+    if columns:
+        return columns
+    raise ValueError("row_factory requires resolvable column names")
+
+
+def _format_row(row: tuple[Any, ...], columns: list[str], row_factory: Any) -> Any:
+    if row_factory is dict:
+        return dict(zip(columns, row))
+    raise ValueError(f"Unsupported row_factory {row_factory!r}. Only dict is supported.")
+
+
+def _format_rows(rows: list[tuple[Any, ...]], columns: list[str], row_factory: Any) -> list[Any]:
+    return [_format_row(row, columns, row_factory) for row in rows]
 
 
 def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTableSchemaColumns:

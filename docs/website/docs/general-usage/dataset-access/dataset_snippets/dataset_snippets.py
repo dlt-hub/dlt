@@ -91,6 +91,10 @@ def fetch_entire_table_snippet(dataset: dlt.Dataset) -> None:
     items_list = customers_relation.fetchall()
     # @@@DLT_SNIPPET_END fetch_entire_table_fetchall
 
+    # @@@DLT_SNIPPET_START fetch_entire_table_row_factory
+    items_dicts = customers_relation.fetchall(row_factory=dict)
+    # @@@DLT_SNIPPET_END fetch_entire_table_row_factory
+
 
 def iterating_chunks_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.table("customers")
