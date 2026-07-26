@@ -82,6 +82,38 @@ def test_load_sql_schema_loads_all_tables(
 
     assert_row_counts(pipeline, postgres_db)
 
+    # every table of the source schema is read by its own resource, which records that one table
+    expected_tables = {
+        name for name, info in postgres_db.table_infos.items() if not info["is_view"]
+    }
+    extract_info = pipeline.last_trace.last_extract_info
+    inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
+    assert {location["resource_name"] for location in inputs} == expected_tables
+    assert len(inputs) == len(expected_tables)
+    for location in inputs:
+        assert location["kind"] == "sql_database"
+        sql_location = cast(TSqlDatabaseDataLocation, location)
+        assert sql_location["tables"] == [location["resource_name"]]
+        assert sql_location["db_schema"] == postgres_db.schema
+
+    # and every one of them is written back, attributed to the resource that read it
+    outputs = [
+        location for metrics in load_info.metrics.values() for location in metrics[0]["outputs"]
+    ]
+    written_tables = {
+        table
+        for location in outputs
+        if not location["resource_name"].startswith("_dlt")
+        for table in location["tables"]
+    }
+    assert written_tables == {
+        table["name"] for table in pipeline.default_schema.data_tables(seen_data_only=True)
+    }
+    for location in outputs:
+        assert location["physical_dataset_name"] == load_info.dataset_name
+        if location["resource_name"] in expected_tables:
+            assert location["resource_name"] in location["tables"]
+
 
 @pytest.mark.parametrize(
     "destination_config",

@@ -11,14 +11,11 @@ from dlt.sources.sql_database.helpers import (
 )
 
 
-@pytest.mark.parametrize("as_engine", [False, True], ids=["credentials", "engine"])
-def test_sql_database_location_hides_password(as_engine: bool) -> None:
-    """A location is never allowed to carry credentials, whichever form they came in"""
-    connection_string = "postgresql+psycopg2://loader:top_secret@example.com:5432/dlt_data"
-    credentials: Any = (
-        sa.create_engine(connection_string)
-        if as_engine
-        else ConnectionStringCredentials(connection_string)
+def test_sql_database_location_hides_password() -> None:
+    """A location is never allowed to carry credentials"""
+    # parsing a connection string does not import the dbapi driver, creating an engine would
+    credentials = ConnectionStringCredentials(
+        "postgresql+psycopg2://loader:top_secret@example.com:5432/dlt_data"
     )
 
     resource = dlt.resource([{"id": 1}], name="orders")
@@ -31,3 +28,18 @@ def test_sql_database_location_hides_password(as_engine: bool) -> None:
     assert location["db_schema"] == "public"
     assert "top_secret" not in str(location)
     assert "loader" not in str(location)
+
+
+def test_sql_database_location_from_engine() -> None:
+    """An externally provided engine carries no credentials object, its url is read instead"""
+    # sqlite needs no driver beyond the standard library, so any ci job can build this engine
+    engine = sa.create_engine("sqlite://")
+
+    resource = dlt.resource([{"id": 1}], name="orders")
+    record_table_input(resource, engine, None, "orders")
+    engine.dispose()
+
+    location = cast(TSqlDatabaseDataLocation, resource.inputs[0])
+    assert location["location"] == "sqlite://"
+    assert location["tables"] == ["orders"]
+    assert "db_schema" not in location

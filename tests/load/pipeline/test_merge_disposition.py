@@ -6,6 +6,7 @@ from typing import List
 import yaml
 
 import dlt
+from dlt.common.metrics import TDataLocation
 
 from dlt.common import json, pendulum
 from dlt.common.configuration.container import Container
@@ -696,7 +697,16 @@ def github():
             for item in json.load(f):
                 yield item
 
-    return load_issues
+    issues = load_issues()
+    # a captured page of the github api, so the trace carries the read side of the run too
+    issues.add_input(
+        TDataLocation(
+            kind="rest_api",
+            resource_name=issues.name,
+            location="https://api.github.com",
+        )
+    )
+    return issues
 
 
 @pytest.mark.essential
