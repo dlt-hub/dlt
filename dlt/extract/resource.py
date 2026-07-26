@@ -8,6 +8,7 @@ from typing import (
     Iterable,
     Iterator,
     Generator,
+    List,
     Type,
     Union,
     Any,
@@ -16,6 +17,8 @@ from typing import (
 )
 
 from dlt.common import logger
+from dlt.common.exceptions import TypeErrorWithKnownTypes
+from dlt.common.metrics import TDataLocation
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
@@ -141,6 +144,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self.source_name = None
         self._parent: DltResource = None
         self._custom_metrics: Dict[str, Any] = {}
+        self._inputs: List[TDataLocation] = []
         super().__init__(hints)
         self._update_wrapper()
 
@@ -226,6 +230,39 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def custom_metrics(self) -> Dict[str, Any]:
         """Customizable resource metrics"""
         return self._custom_metrics
+
+    @property
+    def inputs(self) -> List[TDataLocation]:
+        """Data locations this resource read from, recorded during extraction."""
+        return self._inputs
+
+    def add_input(self, location: TDataLocation) -> Self:
+        """Records a data location this resource reads from, to be emitted in the pipeline trace.
+
+        Call on the resource instance when it is created, or from inside a running resource via
+        `dlt.current.resource()` when the location is only known once config is resolved. One entry
+        per location, listing the tables, endpoints or files touched inside it - not one entry per
+        table. `kind` defaults to the name of the source this resource belongs to.
+
+        Args:
+            location (TDataLocation): Location that was read, or a `kind`-specific subclass of it.
+
+        Returns:
+            DltResource: returns self
+
+        Raises:
+            TypeErrorWithKnownTypes: If `location` is not a mapping.
+        """
+        if not isinstance(location, dict):
+            raise TypeErrorWithKnownTypes("location", location, ["TDataLocation"])
+        # a fact that could not be established is absent from the row, not null
+        described: DictStrAny = dict(without_none(location))
+        if not described.get("kind") and self.source_name:
+            described["kind"] = self.source_name
+        # a resource instance may be extracted more than once, a location is still listed once
+        if described not in self._inputs:
+            self._inputs.append(cast(TDataLocation, described))
+        return self
 
     @property
     def name(self) -> str:
