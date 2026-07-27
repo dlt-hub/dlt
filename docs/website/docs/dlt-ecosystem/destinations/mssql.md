@@ -22,6 +22,15 @@ This destination uses the [mssql-python](https://github.com/microsoft/mssql-pyth
 installed automatically with `dlt[mssql]` and bundles the SQL Server client libraries. No separate
 ODBC driver installation is required.
 
+:::warning
+**`dlt[mssql]`, `dlt[synapse]` and `dlt[fabric]` install `mssql-python` instead of `pyodbc`.** Existing
+credentials keep working: a `driver` option, whether set directly or as a `?driver=` connection string
+parameter, is accepted and ignored with a deprecation warning, since mssql-python selects its own
+driver. Two things do change for code that reaches past the destination: `to_odbc_dsn()` no longer
+emits a `DRIVER=` key, and `MsSqlCredentials.SUPPORTED_DRIVERS` is gone, along with the error it
+raised for unrecognized driver names.
+:::
+
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**
@@ -90,11 +99,10 @@ Long strings (>8k) are handled automatically by the driver, no extra configurati
 ### Microsoft Entra ID authentication
 
 For Azure-hosted SQL Server (Azure SQL Database, Managed Instance) you can authenticate with
-Entra ID instead of a SQL login. Set the `authentication` credential option to one of the methods
-below; `dlt` writes it to the connection string as `Authentication=`, and the
-[mssql-python](https://github.com/microsoft/mssql-python) driver performs the sign-in.
-
-`dlt` writes the method to the connection string as `Authentication=` and the [mssql-python](https://github.com/microsoft/mssql-python) driver performs the sign-in, so no separate `azure-identity` install is needed.
+Entra ID instead of a SQL login. Set the `authentication` credential option; `dlt` writes it to the
+connection string as `Authentication=` and the
+[mssql-python](https://github.com/microsoft/mssql-python) driver performs the sign-in, so no
+separate `azure-identity` install is needed.
 
 Leaving `authentication` empty keeps the plain SQL login with `username` and `password`. `ActiveDirectoryServicePrincipal` needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias `default`, which covers managed identity, environment and Azure CLI) and `ActiveDirectoryDeviceCode` need no further fields.
 
@@ -217,9 +225,6 @@ The **mssql** destination **does not** create UNIQUE indexes by default on colum
 [destination.mssql]
 create_indexes=true
 ```
-
-The `driver` credential option is deprecated and ignored: mssql-python bundles its own driver, so
-no ODBC driver name needs to be configured.
 
 ### dbt support
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-sqlserver](https://github.com/dbt-msft/dbt-sqlserver).

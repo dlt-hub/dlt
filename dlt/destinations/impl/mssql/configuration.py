@@ -1,10 +1,13 @@
 import dataclasses
+import struct
+import warnings
 from typing import ClassVar, Any, Final, List, Dict, Optional
 
 from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.configuration.specs import ConnectionStringCredentials, CredentialsWithDefault
 from dlt.common.typing import TSecretStrValue, Annotated
+from dlt.common.warnings import DltDeprecationWarning
 
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
@@ -106,15 +109,6 @@ def apply_authentication_to_dsn(credentials: Any, params: dict[str, Any]) -> Non
         params["PWD"] = credentials.password
 
 
-def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
-    """Return `attrs_before` with a directly injected Entra ID access token, or None.
-
-    mssql-python performs the sign-in for every supported authentication method itself, so there
-    is nothing to inject here today. Kept as the hook for a future explicit access-token feature.
-    """
-    return None
-
-
 def escape_mssql_odbc_value(value: Optional[str]) -> str:
     """Escape a value for MSSQL ADO/ODBC connection string format.
 
@@ -164,7 +158,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     port: int = 1433
     connect_timeout: int = 30
     driver: Optional[str] = None
-    """Deprecated and ignored: mssql-python bundles its driver, so no ODBC driver name is needed."""
+    """DEPRECATED: ignored, mssql-python bundles its own driver"""
 
     authentication: str | None = None
     """Authentication method. Empty (default) uses plain SQL login (`username`/`password`).
@@ -200,6 +194,14 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
 
     def on_resolved(self) -> None:
         validate_authentication(self)
+        if self.driver:
+            warnings.warn(
+                DltDeprecationWarning(
+                    "`driver` is deprecated and ignored; mssql-python bundles its own driver",
+                    since="1.30.0",
+                ),
+                stacklevel=2,
+            )
         self.database = self.database.lower()
 
     def get_query(self) -> Dict[str, Any]:
