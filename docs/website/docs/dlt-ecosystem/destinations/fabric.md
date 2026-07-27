@@ -43,13 +43,13 @@ authentication types:
 
 - Service Principal, and the other methods the ODBC driver signs in with itself
 - [azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) methods, where `dlt` acquires the token
-- [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials), for pipelines running inside a Fabric notebook
+- `fab_notebookutils`, for pipelines running inside a Fabric notebook
 
 With the **driver-native** methods the ODBC driver performs the Entra ID sign-in. `ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive` and `ActiveDirectoryMsi` need no further fields.
 
 With the **azure-identity** methods `dlt` acquires an access token and injects it into the connection, so no secret is needed in `secrets.toml`. These work cross-platform, including macOS, where the ODBC driver's built-in Entra ID modes are unreliable. Use `ActiveDirectoryDefault` (alias `default`) for `DefaultAzureCredential`, or `ActiveDirectoryDeviceCode` for `DeviceCodeCredential`. When `authentication` is left at its default but no Service Principal secret is configured, `dlt` falls back to `ActiveDirectoryDefault`.
 
-The **NotebookUtils** method authenticates as whoever runs the notebook, so that identity needs write access to the warehouse. A Fabric notebook has no environment variables, managed identity or Azure CLI login, so `DefaultAzureCredential` cannot sign in there:
+**`fab_notebookutils`** authenticates as whoever runs the notebook through [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials), so that identity needs write access to the warehouse. A Fabric notebook has no environment variables, managed identity or Azure CLI login, so `DefaultAzureCredential` cannot sign in there:
 
 ```toml
 [destination.fabric.credentials]
