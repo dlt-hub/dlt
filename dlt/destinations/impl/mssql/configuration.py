@@ -56,7 +56,6 @@ def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
     return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
 
 
-
 def validate_authentication(credentials: Any) -> None:
     """Validate the configured authentication method."""
     if credentials.access_token or credentials.azure_credential:
@@ -82,6 +81,9 @@ def validate_authentication(credentials: Any) -> None:
 
 def apply_authentication_to_dsn(credentials: Any, params: dict[str, Any]) -> None:
     """Add UID/PWD/Authentication keys to an ODBC DSN dict based on the authentication method."""
+    # an injected token takes precedence: auth is handled entirely through attrs_before
+    if credentials.access_token or credentials.azure_credential:
+        return
     authentication = credentials.authentication
     if not authentication:
         # Plain SQL login.
