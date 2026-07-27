@@ -118,9 +118,8 @@ class FabNotebookUtilsCredential:
 
             self._cached = _AccessToken(token=token_str, expires_on=expires_on)
             logger.info(
-                "Acquired Fabric NotebookUtils token for audience %s (expires in %d s)",
-                self._audience,
-                max(0, expires_on - now),
+                f"Acquired NotebookUtils token for audience {self._audience}, expires in"
+                f" {max(0, expires_on - now)}s"
             )
             return self._cached
 
