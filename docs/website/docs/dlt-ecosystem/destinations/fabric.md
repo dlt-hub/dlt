@@ -38,39 +38,18 @@ Fabric Warehouse authenticates with Microsoft Entra ID. Whichever method you cho
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
 
-The authentication method is selected with the `authentication` credential option. `dlt` supports
-two families of methods.
+The method is selected with the `authentication` credential option. Fabric Warehouse accepts these
+authentication types:
 
-With the **driver-native** methods, the ODBC driver performs the Entra ID sign-in:
+- Service Principal, and the other methods the ODBC driver signs in with itself
+- [azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) methods, where `dlt` acquires the token
+- [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials), for pipelines running inside a Fabric notebook
 
-| `authentication` | Description | Required fields |
-|---|---|---|
-| `ActiveDirectoryServicePrincipal` (default) | Service Principal | `azure_tenant_id`, `azure_client_id`, `azure_client_secret` |
-| `ActiveDirectoryPassword` | Entra ID username/password | `username`, `password` |
-| `ActiveDirectoryIntegrated` | Integrated Windows authentication | None |
-| `ActiveDirectoryInteractive` | Interactive browser prompt (driver) | None |
-| `ActiveDirectoryMsi` | Managed identity (driver) | None |
+With the **driver-native** methods the ODBC driver performs the Entra ID sign-in. `ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive` and `ActiveDirectoryMsi` need no further fields.
 
-With the **azure-identity** methods, `dlt` acquires an access token with
-[azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) and injects
-it into the connection. These work cross-platform (including macOS, where the ODBC driver's built-in
-Entra ID modes are unreliable) and need no secret in `secrets.toml`:
+With the **azure-identity** methods `dlt` acquires an access token and injects it into the connection, so no secret is needed in `secrets.toml`. These work cross-platform, including macOS, where the ODBC driver's built-in Entra ID modes are unreliable. Use `ActiveDirectoryDefault` (alias `default`) for `DefaultAzureCredential`, or `ActiveDirectoryDeviceCode` for `DeviceCodeCredential`. When `authentication` is left at its default but no Service Principal secret is configured, `dlt` falls back to `ActiveDirectoryDefault`.
 
-| `authentication` | azure-identity credential |
-|---|---|
-| `ActiveDirectoryDefault` (alias `default`) | `DefaultAzureCredential` (managed identity, environment, Azure CLI, …) |
-| `ActiveDirectoryDeviceCode` | `DeviceCodeCredential` |
-
-When `authentication` is left at its default but no Service Principal secret is configured, `dlt`
-falls back to `ActiveDirectoryDefault` (`DefaultAzureCredential`).
-
-#### Running inside a Fabric notebook
-
-A Fabric notebook has no environment variables, managed identity or Azure CLI login, so
-`DefaultAzureCredential` cannot sign in there. Fabric instead exposes the identity the notebook runs
-under through
-[NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials).
-Select it with `authentication = "fab_notebookutils"`:
+The **NotebookUtils** method authenticates as whoever runs the notebook, so that identity needs write access to the warehouse. A Fabric notebook has no environment variables, managed identity or Azure CLI login, so `DefaultAzureCredential` cannot sign in there:
 
 ```toml
 [destination.fabric.credentials]
@@ -79,17 +58,7 @@ database = "mydb"
 authentication = "fab_notebookutils"
 ```
 
-No secret is needed: the pipeline authenticates as whoever runs the notebook, so that identity needs
-write access to the warehouse. `dlt` acquires the token lazily, caches it, and refreshes it before
-the JWT expires.
-
-The `notebookutils` module ships with the Fabric runtime and is not installed by `dlt`. It is
-imported only when this method is used, so pipelines that never run in Fabric are unaffected. Using
-`authentication = "fab_notebookutils"` outside the Fabric runtime raises a configuration error rather
-than falling back silently.
-
-Staging through OneLake or Azure Blob Storage picks the same identity up automatically — see
-[OneLake staging from a Fabric notebook](#onelake-staging-from-a-fabric-notebook).
+The `notebookutils` module ships with the Fabric runtime and is not installed by `dlt`, so it is imported only when this method is used. Using it outside the Fabric runtime raises a configuration error rather than falling back silently. Staging through OneLake or Azure Blob Storage picks the same identity up automatically — see [OneLake staging from a Fabric notebook](#onelake-staging-from-a-fabric-notebook).
 
 ### Create a pipeline
 

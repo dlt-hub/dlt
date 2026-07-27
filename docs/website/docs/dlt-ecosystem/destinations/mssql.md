@@ -106,16 +106,7 @@ With the **azure-identity** methods, `dlt` acquires an access token and injects 
 connection, so they work cross-platform (including macOS) and need no password in `secrets.toml`.
 They require the `azure-identity` package (installed with `pip install "dlt[az]"`).
 
-| `authentication` | How it authenticates |
-|---|---|
-| _(empty, default)_ | SQL login with `username`/`password` |
-| `ActiveDirectoryServicePrincipal` | Service Principal (`azure_tenant_id`, `azure_client_id`, `azure_client_secret`), handled by the ODBC driver |
-| `ActiveDirectoryPassword` | Entra ID `username`/`password` (handled by the ODBC driver) |
-| `ActiveDirectoryIntegrated` | Integrated Windows authentication (handled by the ODBC driver) |
-| `ActiveDirectoryInteractive` | Interactive prompt (handled by the ODBC driver) |
-| `ActiveDirectoryMsi` | Managed identity (handled by the ODBC driver) |
-| `ActiveDirectoryDefault` (alias `default`) | `DefaultAzureCredential` (managed identity, environment, Azure CLI, …), token injected by dlt |
-| `ActiveDirectoryDeviceCode` | `DeviceCodeCredential`, token injected by dlt |
+Leaving `authentication` empty keeps the plain SQL login with `username` and `password`. The ODBC driver signs in itself for `ActiveDirectoryServicePrincipal` (`azure_tenant_id`, `azure_client_id`, `azure_client_secret`), `ActiveDirectoryPassword` (`username`, `password`), `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive` and `ActiveDirectoryMsi`. `dlt` injects the token itself for `ActiveDirectoryDefault` (alias `default`, uses `DefaultAzureCredential`) and `ActiveDirectoryDeviceCode`.
 
 Passwordless example using `DefaultAzureCredential` (e.g. after `az login`):
 ```toml
