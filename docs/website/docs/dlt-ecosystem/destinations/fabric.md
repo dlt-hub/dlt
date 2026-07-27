@@ -64,6 +64,33 @@ Entra ID modes are unreliable) and need no secret in `secrets.toml`:
 When `authentication` is left at its default but no Service Principal secret is configured, `dlt`
 falls back to `ActiveDirectoryDefault` (`DefaultAzureCredential`).
 
+#### Running inside a Fabric notebook
+
+A Fabric notebook has no environment variables, managed identity or Azure CLI login, so
+`DefaultAzureCredential` cannot sign in there. Fabric instead exposes the identity the notebook runs
+under through
+[NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials).
+Select it with `authentication = "fab_notebookutils"`:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "fab_notebookutils"
+```
+
+No secret is needed: the pipeline authenticates as whoever runs the notebook, so that identity needs
+write access to the warehouse. `dlt` acquires the token lazily, caches it, and refreshes it before
+the JWT expires.
+
+The `notebookutils` module ships with the Fabric runtime and is not installed by `dlt`. It is
+imported only when this method is used, so pipelines that never run in Fabric are unaffected. Using
+`authentication = "fab_notebookutils"` outside the Fabric runtime raises a configuration error rather
+than falling back silently.
+
+Staging through OneLake or Azure Blob Storage picks the same identity up automatically — see
+[OneLake staging from a Fabric notebook](#onelake-staging-from-a-fabric-notebook).
+
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to Fabric by running:**
@@ -149,6 +176,30 @@ azure_client_secret = "your-client-secret"
 2. The workspace GUID is in the URL: `https://fabric.microsoft.com/groups/<workspace_guid>/...`
 3. Open your Lakehouse
 4. The lakehouse GUID is in the URL: `https://fabric.microsoft.com/.../lakehouses/<lakehouse_guid>`
+
+#### OneLake staging from a Fabric notebook
+
+Inside a Fabric notebook you can drop the Service Principal from the staging credentials entirely.
+Leave out `azure_storage_account_key`, `azure_storage_sas_token` and the principal fields, and `dlt`
+authenticates to blob storage with the notebook identity through NotebookUtils, the same way the
+warehouse connection does:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "fab_notebookutils"
+
+[destination.filesystem]
+bucket_url = "abfss://<your-workspace-guid>@onelake.dfs.fabric.microsoft.com/<your-lakehouse-guid>/Files"
+
+[destination.filesystem.credentials]
+azure_storage_account_name = "onelake"
+azure_account_host = "onelake.blob.fabric.microsoft.com"
+```
+
+Outside the Fabric runtime the same configuration keeps using `DefaultAzureCredential`, so a static
+secret or an explicitly passed credential always takes precedence over NotebookUtils.
 
 #### `.dlt/secrets.toml` when using Azure Blob / Data Lake Storage:
 
