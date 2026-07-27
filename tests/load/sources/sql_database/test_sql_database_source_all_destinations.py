@@ -82,10 +82,12 @@ def test_load_sql_schema_loads_all_tables(
 
     assert_row_counts(pipeline, postgres_db)
 
-    # every table of the source schema is read by its own resource, which records that one table
+    # every table of the source schema is read by its own resource, which records that one table.
+    # `camelCaseTable` is reflected but kept out of `table_infos`, its name is not queryable
+    # in destinations that normalize identifiers
     expected_tables = {
         name for name, info in postgres_db.table_infos.items() if not info["is_view"]
-    }
+    } | {"camelCaseTable"}
     extract_info = pipeline.last_trace.last_extract_info
     inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
     assert {location["resource_name"] for location in inputs} == expected_tables
@@ -109,10 +111,14 @@ def test_load_sql_schema_loads_all_tables(
     assert written_tables == {
         table["name"] for table in pipeline.default_schema.data_tables(seen_data_only=True)
     }
+    naming = pipeline.default_schema.naming
     for location in outputs:
         assert location["physical_dataset_name"] == load_info.dataset_name
+        # a resource is named after the source table, the written table after normalizing it
         if location["resource_name"] in expected_tables:
-            assert location["resource_name"] in location["tables"]
+            assert (
+                naming.normalize_table_identifier(location["resource_name"]) in location["tables"]
+            )
 
 
 @pytest.mark.parametrize(
