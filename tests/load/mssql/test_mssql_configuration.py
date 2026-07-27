@@ -8,6 +8,7 @@ from dlt.common.configuration import ConfigFieldMissingException, resolve_config
 from dlt.common.configuration.exceptions import ConfigurationException
 from dlt.common.schema import Schema
 from dlt.common.utils import digest128
+from dlt.common.warnings import DltDeprecationWarning
 from dlt.destinations import mssql
 from dlt.destinations.impl.mssql.configuration import (
     MsSqlClientConfiguration,
@@ -130,6 +131,23 @@ def test_to_odbc_dsn() -> None:
         "UID": "test_user",
         "PWD": "test_pwd",
     }
+
+
+def test_driver_is_accepted_but_deprecated() -> None:
+    # A pyodbc-era `driver` still resolves, so existing configs keep working, but warns.
+    with pytest.warns(DltDeprecationWarning, match="`driver` is deprecated"):
+        creds = resolve_configuration(
+            MsSqlCredentials(
+                "mssql://test_user:test_pwd@sql.example.com/test_db?DRIVER=ODBC+Driver+17+for+SQL+Server"
+            )
+        )
+    assert creds.driver == "ODBC Driver 17 for SQL Server"
+    assert "DRIVER" not in creds.to_odbc_dsn()
+
+
+def test_no_driver_does_not_warn(recwarn: pytest.WarningsRecorder) -> None:
+    resolve_configuration(MsSqlCredentials("mssql://test_user:test_pwd@sql.example.com/test_db"))
+    assert not [w for w in recwarn if issubclass(w.category, DltDeprecationWarning)]
 
 
 def test_to_odbc_dsn_arbitrary_keys_specified() -> None:
