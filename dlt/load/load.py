@@ -19,6 +19,7 @@ from dlt.common.storages.load_storage import (
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
+    TLoadPackageStatus,
     commit_load_package_state,
     load_package_state as current_load_package,
 )
@@ -650,17 +651,24 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self._maybe_truncate_staging_dataset(schema, job_client)
 
         self.load_storage.complete_load_package(load_id, aborted)
-        self.gather_metrics(load_id, finished=True)
+        self.gather_metrics(load_id, schema, "aborted" if aborted else "loaded")
         # delete jobs only after metrics collected
         self.load_storage.maybe_remove_completed_jobs(load_id)
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    def gather_metrics(self, load_id: str, finished: bool) -> None:
+    def gather_metrics(self, load_id: str, schema: Schema, state: TLoadPackageStatus) -> None:
         # collect package info
-        self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
-        self._step_info_complete_load_id(load_id, finished=finished)
+        package_info = self.load_storage.get_load_package_info(load_id)
+        self._loaded_packages.append(package_info)
+        if state == "loaded":
+            metrics = self._step_info_metrics(load_id)[0]
+            # `dataset_name` was normalized when the metrics were first recorded
+            metrics["outputs"] = self._compute_outputs(
+                schema, *self._output_context(schema), metrics["dataset_name"]
+            )
+        self._step_info_complete_load_id(load_id, finished=state in ("aborted", "loaded"))
 
     def initialize_package(
         self, load_id: str, schema: Schema, new_jobs: List[ParsedLoadJobFileName]
@@ -749,7 +757,6 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         dataset_name: Optional[str] = None
         if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = self.initial_client_config.normalize_dataset_name(schema)
-        caps, tables_by_resource = self._output_context(schema)
         # loop until all jobs are processed
         pending_exception: Optional[LoadClientJobException] = None
         while True:
@@ -778,14 +785,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
 
             # update metrics on each run so they are available even in exception
-            metrics: LoadMetrics = {
-                "started_at": None,
-                "finished_at": None,
-                "job_metrics": self._job_metrics,
-                "dataset_name": dataset_name,
-                "outputs": self._compute_outputs(schema, caps, tables_by_resource, dataset_name),
-            }
-            self._step_info_update_metrics(load_id, metrics)
+            self._step_info_update_metrics(load_id, self._package_metrics(dataset_name))
 
             if len(running_jobs) > 0:
                 # wakes when managed job enters terminal state (in the pool)
@@ -808,10 +808,10 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             elif isinstance(pending_exception, LoadClientJobTerminalRetry):
                 # created only with raise_on_failed_jobs set, package stays pending.
                 # gather package info so retried jobs and their exceptions reach the trace
-                self.gather_metrics(load_id, finished=False)
+                self.gather_metrics(load_id, schema, state="normalized")
                 raise pending_exception from pending_exception.client_exception
             else:
-                self.gather_metrics(load_id, finished=False)
+                self.gather_metrics(load_id, schema, state="normalized")
                 logger.warning(
                     f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
                     f" but {len(remaining_jobs)} new jobs are left in the package."
@@ -823,7 +823,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         if not remaining_jobs:
             self.complete_package(load_id, schema, aborted=False)
         else:
-            self.gather_metrics(load_id, finished=False)
+            self.gather_metrics(load_id, schema, state="normalized")
             logger.warning(
                 f"Package {load_id} was not fully loaded. Load job pool is successfully drained but"
                 f" {len(remaining_jobs)} new jobs are left in the package."
@@ -864,14 +864,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         dataset_name: Optional[str] = None
         if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
             dataset_name = self.initial_client_config.normalize_dataset_name(schema)
-        metrics: LoadMetrics = {
-            "started_at": None,
-            "finished_at": None,
-            "job_metrics": self._job_metrics,
-            "dataset_name": dataset_name,
-            "outputs": self._compute_outputs(schema, *self._output_context(schema), dataset_name),
-        }
-        self._step_info_update_metrics(load_id, metrics)
+        self._step_info_update_metrics(load_id, self._package_metrics(dataset_name))
         self.complete_package(load_id, schema, aborted=True)
         logger.info(f"Package {load_id} aborted successfully")
         raise LoadPackageAborted(load_id, job_exception)
@@ -927,6 +920,17 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         except Exception as ex:
             logger.warning(f"Metrics could not be restored from state: {ex}")
 
+    def _package_metrics(
+        self, dataset_name: Optional[str], outputs: List[TDatasetDataLocation] = None
+    ) -> LoadMetrics:
+        return {
+            "started_at": None,
+            "finished_at": None,
+            "job_metrics": self._job_metrics,
+            "dataset_name": dataset_name,
+            "outputs": outputs or [],
+        }
+
     def _output_context(
         self, schema: Schema
     ) -> Tuple[DestinationCapabilitiesContext, Dict[str, Set[str]]]:
@@ -948,13 +952,15 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         tables_by_resource: Dict[str, Set[str]],
         physical_dataset_name: Optional[str],
     ) -> List[TDatasetDataLocation]:
-        """Describes the dataset per resource that owns tables written so far.
+        """Describes the dataset per resource that owns tables written by the package.
 
         `physical_dataset_name` is passed in already normalized so the normalization warning is not
         emitted again.
         """
-        # a table written in several files must be listed once
-        written_tables = {job.table_name for job in self._job_metrics.values()}
+        # a failed job wrote nothing, and a table written in several files is listed once
+        written_tables = {
+            job.table_name for job in self._job_metrics.values() if job.state == "completed"
+        }
         outputs: List[TDatasetDataLocation] = []
         for resource_name, tables in tables_by_resource.items():
             resource_tables = sorted(tables & written_tables)
