@@ -13,7 +13,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, Dict, List, Tuple, cast, Optional
+from typing import Any, Dict, List, Tuple, Type, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -37,7 +37,9 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationNoStagingMode,
     DestinationTerminalException,
+    SchemaUpdateError,
     SchemaUpdateTerminalError,
+    SchemaUpdateTransientError,
     DestinationUndefinedEntity,
     UnknownDestinationModule,
 )
@@ -61,6 +63,7 @@ from dlt.common.warnings import DltDeprecationWarning
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
+from dlt.destinations.impl.dummy.dummy import DummyClient
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeBasic,
@@ -2589,12 +2592,25 @@ def test_retry_load() -> None:
     assert py_ex.value.step == "load"
 
 
-def test_retry_schema_update() -> None:
-    # dummy raises a terminal error during schema update, mimicking a concurrent
-    # create/add-column collision that only retry_schema_update should retry
+@pytest.mark.parametrize(
+    "fail_terminally,expected_error,retried_by_retry_load",
+    [
+        (True, SchemaUpdateTerminalError, False),
+        (False, SchemaUpdateTransientError, True),
+    ],
+    ids=["terminal", "transient"],
+)
+def test_schema_update_error(
+    fail_terminally: bool, expected_error: Type[SchemaUpdateError], retried_by_retry_load: bool
+) -> None:
+    """a failed schema update is wrapped following the terminality of its cause"""
     p = dlt.pipeline(
         pipeline_name="pipe_" + uniq_id(),
-        destination=dummy(completed_prob=1.0, fail_schema_update=True),
+        destination=dummy(
+            completed_prob=1.0,
+            fail_schema_update=fail_terminally,
+            fail_schema_update_transiently=not fail_terminally,
+        ),
     )
 
     with pytest.raises(PipelineStepFailed) as py_ex:
@@ -2603,24 +2619,25 @@ def test_retry_schema_update() -> None:
     step_failed = py_ex.value
     assert step_failed.step == "load"
     schema_ex = step_failed.__cause__
-    assert isinstance(schema_ex, SchemaUpdateTerminalError)
+    assert isinstance(schema_ex, expected_error)
     assert schema_ex.staging_dataset is False
     assert "digits" in schema_ex.table_names
 
-    # retry_load skips a terminal schema failure, retry_schema_update retries it
-    assert retry_load()(step_failed) is False
+    # retry_load defers to the cause terminality, retry_schema_update retries either kind
+    assert retry_load()(step_failed) is retried_by_retry_load
     assert retry_schema_update()(step_failed) is True
 
-    # retry_schema_update drives recovery: fail the first schema update, then succeed
-    from dlt.destinations.impl.dummy.dummy import DummyClient
 
-    p2 = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=dummy(completed_prob=1.0))
+def test_retry_schema_update() -> None:
+    # retry_schema_update drives recovery: fail the first schema update, then succeed
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=dummy(completed_prob=1.0))
     orig = DummyClient.update_stored_schema
-    calls = {"n": 0}
+    calls = 0
 
     def flaky_update(self: Any, *args: Any, **kwargs: Any) -> Any:
-        calls["n"] += 1
-        if calls["n"] == 1:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
             raise DestinationTerminalException("schema update failed once")
         return orig(self, *args, **kwargs)
 
@@ -2632,9 +2649,9 @@ def test_retry_schema_update() -> None:
             reraise=True,
         ):
             with attempt:
-                info = p2.run([1, 2, 3], table_name="digits")
+                info = p.run([1, 2, 3], table_name="digits")
 
-    assert calls["n"] >= 2
+    assert calls == 2
     assert_load_info(info)
 
 

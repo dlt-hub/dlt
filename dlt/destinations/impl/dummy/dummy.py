@@ -172,6 +172,10 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
             raise DestinationTerminalException(
                 "Raise on schema update due to `fail_schema_update` config flag"
             )
+        if self.config.fail_schema_update_transiently:
+            raise DestinationTransientException(
+                "Raise on schema update due to `fail_schema_update_transiently` config flag"
+            )
         return applied_update
 
     def create_load_job(

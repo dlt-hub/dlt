@@ -645,8 +645,7 @@ destination, sees that a table does not exist yet (or that a new column has not 
 `CREATE TABLE` / `ALTER TABLE ... ADD COLUMN`. The first run wins; the others fail because the table or column
 now already exists. The same happens during schema evolution when two runs add the same new column at once.
 
-`dlt` wraps such a failure in a `SchemaUpdateError` (it carries `schema_name`, `table_names`, `staging_dataset`
-and the original `cause`). It is safe to retry: on the next attempt `dlt` re-reads the destination and applies
+`dlt` wraps such a failure in a `SchemaUpdateError`. It is safe to retry: on the next attempt `dlt` re-reads the destination and applies
 only what is still missing, so parallel runs converge. Use `retry_schema_update` to retry just this part:
 
 ```py
@@ -675,7 +674,7 @@ fixed amount, they wake up together and collide again — a "thundering herd". `
 randomness to each wait, so the runs spread out over time and converge instead of fighting.
 
 `retry_schema_update` retries a schema-update failure regardless of whether its cause is transient or terminal
-(a create/add-column collision surfaces as a *terminal* database error, yet an idempotent re-run resolves it).
+(it assumes that other updates run in parallel and next run will reconcile invalid migration).
 It composes with `retry_load` — retry the schema evolution here and defer every other load failure to `retry_load`:
 
 ```py

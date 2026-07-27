@@ -60,15 +60,12 @@ def retry_load(
     return _retry_load
 
 
-def retry_schema_update(
-    retry_on_pipeline_steps: Sequence[TPipelineStep] = ("load",)
-) -> Callable[[BaseException], bool]:
-    """A retry strategy for Tenacity that repeats a pipeline step when a schema update fails.
+def retry_schema_update() -> Callable[[BaseException], bool]:
+    """A retry strategy for Tenacity that repeats the `load` step when a schema update fails.
 
-    Use it to retry schema update errors in load step. These typically happen when several pipelines run in
-    parallel and race to create the same table or add the same column. Retrying is safe: `dlt` re-reads the
-    destination and applies only the changes that are still missing. Compose with `retry_load` to also retry
-    other load failures.
+    Schema update errors typically happen when several pipelines run in parallel and race to create the
+    same table or add the same column. Retrying is safe: `dlt` re-reads the destination and applies only
+    the changes that are still missing. Compose with `retry_load` to also retry other load failures.
 
     >>> from tenacity import Retrying, stop_after_attempt, retry_if_exception
     >>> from dlt.pipeline.helpers import retry_load, retry_schema_update
@@ -76,16 +73,11 @@ def retry_schema_update(
     >>> for attempt in Retrying(stop=stop_after_attempt(5), retry=should_retry, reraise=True):
     >>>     with attempt:
     >>>         pipeline.run(data)
-
-    Args:
-        retry_on_pipeline_steps (Tuple[TPipelineStep, ...], optional): which pipeline steps are allowed to be repeated. Default: "load"
     """
 
     def _retry_schema_update(ex: BaseException) -> bool:
-        if isinstance(ex, PipelineStepFailed) and ex.step not in retry_on_pipeline_steps:
-            return False
-        # a failed schema update surfaces as the direct cause of PipelineStepFailed
-        return isinstance(ex, SchemaUpdateError) or isinstance(ex.__cause__, SchemaUpdateError)
+        # only the load step raises it, as the context of PipelineStepFailed
+        return isinstance(ex, SchemaUpdateError) or isinstance(ex.__context__, SchemaUpdateError)
 
     return _retry_schema_update
 
