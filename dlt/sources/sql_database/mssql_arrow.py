@@ -9,7 +9,7 @@ from .helpers import TableLoader, SelectClause, register_table_loader_backend
 
 
 class MssqlArrowTableLoader(TableLoader):
-    """Table loader using ``cursor.arrow_reader`` from mssql-python for zero-copy Arrow batches."""
+    """Table loader using `cursor.arrow_reader` from mssql-python for zero-copy Arrow batches."""
 
     def _load_rows(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
