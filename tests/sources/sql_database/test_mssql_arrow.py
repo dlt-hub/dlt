@@ -50,7 +50,7 @@ def test_mssql_arrow_uses_arrow_reader() -> None:
 
     loader = MssqlArrowTableLoader(
         engine=mock_engine,
-        backend="mssql_arrow",
+        backend="mssql_arrow",  # type: ignore[arg-type]
         table=mock_table,
         columns={},
         chunk_size=100,
