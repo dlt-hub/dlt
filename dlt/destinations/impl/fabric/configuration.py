@@ -5,6 +5,7 @@ from dlt.common.configuration import configspec, NotResolved
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.runtime.fab_notebookutils import FabNotebookUtilsCredential
 from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
 from dlt.destinations.impl.mssql.configuration import (
@@ -31,6 +32,8 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     * **azure-identity** (dlt acquires an access token and injects it, works cross-platform):
       `ActiveDirectoryDefault` (alias `default`, uses `DefaultAzureCredential`),
       `ActiveDirectoryDeviceCode` (uses `DeviceCodeCredential`).
+    * **fab_notebookutils** (Fabric runtime only): lazily acquires a token via the
+      NotebookUtils credential API.
 
     When `authentication` is left at its default but no Service Principal secret is configured,
     dlt falls back to `ActiveDirectoryDefault` and injects its token.
@@ -60,7 +63,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     """Authentication method. Driver-native: `ActiveDirectoryServicePrincipal` (default),
     `ActiveDirectoryPassword`, `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`,
     `ActiveDirectoryMsi`. azure-identity (token injected by dlt): `ActiveDirectoryDefault`
-    (alias `default`), `ActiveDirectoryDeviceCode`."""
+    (alias `default`), `ActiveDirectoryDeviceCode`. Fabric runtime: `fab_notebookutils`."""
 
     username: str | None = None
     """User principal name, used with `ActiveDirectoryPassword` authentication."""
@@ -89,8 +92,9 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         azure-identity credential whose token is injected into the connection. Driver-native
         methods need no token and resolve as-is. Auth logic is shared with `MsSqlCredentials`.
         """
+        if self.authentication == "fab_notebookutils" and self.azure_credential is None:
+            self.azure_credential = FabNotebookUtilsCredential(audience="sql")
         setup_token_credential(self)
-        # Resolve if we have the warehouse connection details (not the storage account name)
         if self.host and self.database:
             self.resolve()
 

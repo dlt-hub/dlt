@@ -1,8 +1,13 @@
 """Tests for Microsoft Fabric Warehouse destination configuration"""
 
+import base64
+import json
 import os
 import struct
+import sys
+import time
 from typing import Optional, cast
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -17,6 +22,11 @@ from dlt.destinations.impl.fabric.factory import fabric, FabricTypeMapper
 from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
     FabricClientConfiguration,
+)
+from dlt.common.runtime.fab_notebookutils import (
+    FabNotebookUtilsCredential,
+    is_fab_notebookutils_available,
+    _decode_jwt_expiry,
 )
 from dlt.destinations.impl.mssql.configuration import get_access_token, uses_token_authentication
 
@@ -493,3 +503,163 @@ def test_fabric_resolve_configuration_access_token_without_service_principal() -
     assert resolved.is_resolved()
     assert uses_token_authentication(resolved) is True
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
+
+
+# ---------------------------------------------------------------------------
+# NotebookUtils credential
+# ---------------------------------------------------------------------------
+
+
+def _make_jwt(exp: int) -> str:
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).rstrip(b"=").decode()
+    return f"{header}.{payload}.sig"
+
+
+@pytest.fixture()
+def mock_notebookutils():
+    mod = MagicMock()
+    mod.credentials.getToken = MagicMock(return_value=_make_jwt(int(time.time()) + 3600))
+    sys.modules["notebookutils"] = mod
+    yield mod
+    sys.modules.pop("notebookutils", None)
+
+
+@pytest.fixture()
+def no_notebookutils():
+    saved = sys.modules.pop("notebookutils", None)
+    yield
+    if saved is not None:
+        sys.modules["notebookutils"] = saved
+
+
+def test_decode_jwt_expiry_valid() -> None:
+    exp = int(time.time()) + 7200
+    assert _decode_jwt_expiry(_make_jwt(exp)) == exp
+
+
+def test_decode_jwt_expiry_garbage() -> None:
+    assert _decode_jwt_expiry("not-a-jwt") is None
+
+
+def test_notebookutils_get_token(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("https://database.windows.net/")
+    token = cred.get_token()
+    assert token.token == mock_notebookutils.credentials.getToken.return_value
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_notebookutils_sql_alias(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("sql")
+    cred.get_token()
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
+
+
+def test_notebookutils_caches_token(mock_notebookutils: MagicMock) -> None:
+    cred = FabNotebookUtilsCredential("storage")
+    t1 = cred.get_token()
+    t2 = cred.get_token()
+    assert t1 is t2
+    assert mock_notebookutils.credentials.getToken.call_count == 1
+
+
+def test_notebookutils_refreshes_near_expiry(mock_notebookutils: MagicMock) -> None:
+    near_expiry_jwt = _make_jwt(int(time.time()) + 100)
+    fresh_jwt = _make_jwt(int(time.time()) + 3600)
+    mock_notebookutils.credentials.getToken.side_effect = [near_expiry_jwt, fresh_jwt]
+
+    cred = FabNotebookUtilsCredential("storage")
+    t1 = cred.get_token()
+    assert t1.token == near_expiry_jwt
+    t2 = cred.get_token()
+    assert t2.token == fresh_jwt
+    assert mock_notebookutils.credentials.getToken.call_count == 2
+
+
+def test_notebookutils_mssparkutils_fallback(mock_notebookutils: MagicMock) -> None:
+    del mock_notebookutils.credentials.getToken
+    mock_notebookutils.mssparkutils.credentials.getToken = MagicMock(
+        return_value=_make_jwt(int(time.time()) + 3600)
+    )
+
+    cred = FabNotebookUtilsCredential("storage")
+    cred.get_token()
+    mock_notebookutils.mssparkutils.credentials.getToken.assert_called_once()
+
+
+def test_notebookutils_unavailable_raises(no_notebookutils: None) -> None:
+    cred = FabNotebookUtilsCredential("storage")
+    with pytest.raises(ConfigurationException, match="NotebookUtils"):
+        cred.get_token()
+
+
+def test_notebookutils_available_in_fabric(mock_notebookutils: MagicMock) -> None:
+    assert is_fab_notebookutils_available() is True
+
+
+def test_notebookutils_available_outside_fabric(no_notebookutils: None) -> None:
+    assert is_fab_notebookutils_available() is False
+
+
+def test_notebookutils_available_without_credential_api(mock_notebookutils: MagicMock) -> None:
+    del mock_notebookutils.credentials
+    del mock_notebookutils.mssparkutils
+    assert is_fab_notebookutils_available() is False
+
+
+def test_notebookutils_closeable(mock_notebookutils: MagicMock) -> None:
+    """adlfs and the Azure SDK clients close the credential they were handed."""
+    with FabNotebookUtilsCredential("storage") as cred:
+        assert cred.get_token().token
+    cred.close()
+    assert cred.get_token().token
+
+
+def test_notebookutils_importable_from_runtime() -> None:
+    from dlt.common.runtime.fab_notebookutils import FabNotebookUtilsCredential as Cls
+
+    assert Cls is FabNotebookUtilsCredential
+
+
+def test_fabric_notebookutils_creates_credential(mock_notebookutils: MagicMock) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    assert isinstance(creds.azure_credential, FabNotebookUtilsCredential)
+
+
+def test_fabric_notebookutils_dsn_has_no_authentication_key(
+    mock_notebookutils: MagicMock,
+) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+
+
+def test_fabric_notebookutils_attrs_before(mock_notebookutils: MagicMock) -> None:
+    creds = _warehouse_credentials("fab_notebookutils")
+    creds.on_partial()
+    attrs = creds.to_odbc_attrs_before()
+    assert attrs is not None
+    token_struct = attrs[1256]
+    length = struct.unpack("<I", token_struct[:4])[0]
+    assert length == len(token_struct) - 4
+
+
+def test_fabric_notebookutils_does_not_replace_explicit_azure_credential(
+    mock_notebookutils: MagicMock,
+) -> None:
+    explicit = _FakeTokenCredential()
+    creds = _warehouse_credentials("fab_notebookutils", azure_credential=explicit)
+    creds.on_partial()
+    assert creds.azure_credential is explicit
+
+
+def test_fabric_access_token_precedence_over_notebookutils(
+    mock_notebookutils: MagicMock,
+) -> None:
+    creds = _warehouse_credentials("fab_notebookutils", access_token="explicit-token")
+    creds.on_partial()
+    assert get_access_token(creds) == "explicit-token"
