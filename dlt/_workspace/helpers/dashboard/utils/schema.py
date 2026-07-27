@@ -159,7 +159,7 @@ def _fetch_schema_by_version(pipeline: dlt.Pipeline, version_hash: str) -> Schem
             stored_schema = client.get_stored_schema_by_hash(version_hash)
             if not stored_schema:
                 return None
-            return Schema.from_stored_schema(json.loads(stored_schema.schema))
+            return Schema.from_dict(json.loads(stored_schema.schema), validate_schema=False)
     return None
 
 
