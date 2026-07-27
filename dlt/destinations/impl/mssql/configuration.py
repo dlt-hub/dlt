@@ -282,14 +282,10 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     """Service Principal client secret, used with `ActiveDirectoryServicePrincipal` authentication."""
 
     access_token: Optional[TSecretStrValue] = None
-    """Pre-acquired Entra ID access token. When set, dlt injects it directly via `attrs_before`
-    without acquiring anything. Takes precedence over `azure_credential` and `authentication`."""
+    """Pre-acquired Entra ID access token, injected as-is. Takes precedence over `azure_credential` and `authentication`"""
 
     azure_credential: Annotated[Optional[Any], NotResolved()] = None
-    """An externally constructed `azure.core.credentials.TokenCredential` (e.g.
-    `DefaultAzureCredential()`) injected at runtime, not resolved from config providers. dlt
-    calls its `get_token()` to acquire an access token. Takes precedence over `authentication`,
-    but `access_token` takes precedence over this."""
+    """A `TokenCredential` injected at runtime, e.g. `DefaultAzureCredential()`. Takes precedence over `authentication` but not over `access_token`"""
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
