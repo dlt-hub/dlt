@@ -1009,7 +1009,7 @@ def test_schema_arg(populated_pipeline: Pipeline) -> None:
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
-    pytest.importorskip("ibis")
+    ibis = pytest.importorskip("ibis")
 
     dataset = populated_pipeline.dataset()
     try:
