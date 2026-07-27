@@ -460,29 +460,33 @@ def record_table_input(
     table_name: str,
 ) -> None:
     """Records the database table `resource` reads from, without credentials."""
-    if isinstance(credentials, Engine):
-        # an externally provided engine carries no credentials object to ask
-        url = credentials.url
-        credentials = ConnectionStringCredentials(
-            {
-                "drivername": url.drivername,
-                "host": url.host,
-                "port": url.port,
-                "database": url.database,
-            }
+    try:
+        if isinstance(credentials, Engine):
+            # an externally provided engine carries no credentials object to ask
+            url = credentials.url
+            credentials = ConnectionStringCredentials(
+                {
+                    "drivername": url.drivername,
+                    "host": url.host,
+                    "port": url.port,
+                    "database": url.database,
+                }
+            )
+        elif not isinstance(credentials, ConnectionStringCredentials):
+            credentials = ConnectionStringCredentials(credentials)
+        resource.add_input(
+            TSqlDatabaseDataLocation(
+                kind="sql_database",
+                resource_name=resource.name,
+                location=credentials.physical_location(),
+                database=credentials.database,
+                db_schema=db_schema,
+                tables=[table_name],
+            ),
+            replace=True,
         )
-    elif not isinstance(credentials, ConnectionStringCredentials):
-        credentials = ConnectionStringCredentials(credentials)
-    resource.add_input(
-        TSqlDatabaseDataLocation(
-            kind="sql_database",
-            resource_name=resource.name,
-            location=credentials.physical_location(),
-            database=credentials.database,
-            db_schema=db_schema,
-            tables=[table_name],
-        )
-    )
+    except Exception as ex:
+        logger.debug(f"Could not record input location for table `{table_name}`: {ex}")
 
 
 def table_rows(

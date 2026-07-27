@@ -236,7 +236,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         """Data locations this resource read from, recorded during extraction."""
         return self._inputs
 
-    def add_input(self, location: TDataLocation) -> Self:
+    def add_input(self, location: TDataLocation, replace: bool = False) -> Self:
         """Records a data location this resource reads from, to be emitted in the pipeline trace.
 
         Call on the resource instance when it is created, or from inside a running resource via
@@ -246,6 +246,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         Args:
             location (TDataLocation): Location that was read, or a `kind`-specific subclass of it.
+            replace (bool): Drops the locations recorded so far and records `location` as the only
+                one.
 
         Returns:
             DltResource: returns self
@@ -259,6 +261,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         described: DictStrAny = dict(without_none(location))
         if not described.get("kind") and self.source_name:
             described["kind"] = self.source_name
+        if replace:
+            self._inputs.clear()
         # a resource instance may be extracted more than once, a location is still listed once
         if described not in self._inputs:
             self._inputs.append(cast(TDataLocation, described))

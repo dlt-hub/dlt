@@ -57,7 +57,8 @@ def record_bucket_input(bucket_url: str, file_glob: str) -> None:
                     else bucket_url
                 ),
                 glob=file_glob,
-            )
+            ),
+            replace=True,
         )
     except Exception as ex:
         logger.debug(f"Could not record input location for bucket `{bucket_url}`: {ex}")

@@ -2072,6 +2072,21 @@ def test_resource_inputs_not_duplicated_between_extracts(extract_step: Extract) 
     assert len(step_info.metrics[load_id][0]["inputs"]) == 1
 
 
+def test_resource_inputs_replace_drops_all_previous() -> None:
+    resource = dlt.resource([{"id": 1}], name="data")
+    resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})
+    resource.add_input({"kind": "files", "resource_name": "data", "location": "s3://bucket"})
+    assert len(resource.inputs) == 2
+
+    # locations of other kinds go too, replace is not a per kind update
+    resource.add_input(
+        {"kind": "api", "resource_name": "data", "location": "https://b.example"}, replace=True
+    )
+    assert resource.inputs == [
+        {"kind": "api", "resource_name": "data", "location": "https://b.example"}
+    ]
+
+
 def test_resource_inputs_reject_invalid_location() -> None:
     """A location is recorded when the resource is built, so a bad one fails right there"""
 
@@ -2081,3 +2096,10 @@ def test_resource_inputs_reject_invalid_location() -> None:
 
     with pytest.raises(TypeErrorWithKnownTypes):
         data().add_input("not a location")  # type: ignore[arg-type]
+
+    # a bad location does not disturb what was recorded, even when it asks to replace
+    resource = dlt.resource([{"id": 1}], name="data")
+    resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})
+    with pytest.raises(TypeErrorWithKnownTypes):
+        resource.add_input("not a location", replace=True)  # type: ignore[arg-type]
+    assert len(resource.inputs) == 1

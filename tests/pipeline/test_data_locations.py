@@ -17,6 +17,11 @@ def _by_resource(locations: List[TDatasetDataLocation]) -> Dict[str, TDatasetDat
     return {location["resource_name"]: location for location in locations}
 
 
+def _inputs(info: Any) -> List[Any]:
+    """All input locations of an extract info"""
+    return info.metrics[info.loads_ids[0]][0]["inputs"]
+
+
 @dlt.resource(primary_key="id", name="orders")
 def orders_with_nested() -> Any:
     yield [
@@ -134,6 +139,33 @@ def test_output_locations_of_multiple_datasets() -> None:
     later = _by_resource(_outputs(info))["c_table"]
     assert later["physical_dataset_name"] == f"{pipeline.dataset_name}_other"
     assert [s["name"] for s in later["schemas"]] == ["other"]
+
+
+def test_input_locations_replaced_on_each_run() -> None:
+    """A reused resource instance re-reads its location every run, `replace` drops the stale one"""
+    bucket = {"url": "file:///first"}
+
+    @dlt.resource(name="files")
+    def files() -> Any:
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"kind": "filesystem", "resource_name": resource.name, "location": bucket["url"]},
+            replace=True,
+        )
+        yield [{"id": 1}]
+
+    resource = files()
+    pipeline = dlt.pipeline(
+        pipeline_name="inputs_replaced_" + uniq_id(), destination="duckdb", dev_mode=True
+    )
+    assert [location["location"] for location in _inputs(pipeline.extract(resource))] == [
+        "file:///first"
+    ]
+
+    bucket["url"] = "file:///second"
+    assert [location["location"] for location in _inputs(pipeline.extract(resource))] == [
+        "file:///second"
+    ]
 
 
 def test_input_and_output_locations_join_on_physical_dataset_name() -> None:

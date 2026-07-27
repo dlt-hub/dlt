@@ -1038,7 +1038,8 @@ def record_endpoint_input(resource: DltResource, client: RESTClient, path: str) 
                 location=sanitize_url(client.base_url),
                 # `path` is the endpoint template, not a resolved request url
                 endpoints=[path],
-            )
+            ),
+            replace=True,
         )
     except Exception as ex:
         logger.debug(f"Could not record input location for endpoint `{path}`: {ex}")
