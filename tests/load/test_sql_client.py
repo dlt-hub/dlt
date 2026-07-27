@@ -127,12 +127,12 @@ def test_malformed_query_parameters(
             if client.config.destination_type == "mssql"
             else DatabaseTransientException
         )
-        with pytest.raises(expected_ex) as term_ex:
+        with pytest.raises(expected_ex) as param_ex:
             with client.sql_client.execute_query(
                 f"SELECT * FROM {loads_table_name} WHERE inserted_at = %(date)s"
             ):
                 pass
-        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        assert client.sql_client.is_dbapi_exception(param_ex.value.dbapi_exception)
 
 
 @pytest.mark.parametrize(
@@ -205,11 +205,11 @@ def test_malformed_execute_parameters(
             if client.config.destination_type == "mssql"
             else DatabaseTransientException
         )
-        with pytest.raises(expected_ex) as term_ex:
+        with pytest.raises(expected_ex) as param_ex:
             client.sql_client.execute_sql(
                 f"SELECT * FROM {loads_table_name} WHERE inserted_at = %(date)s"
             )
-        assert client.sql_client.is_dbapi_exception(term_ex.value.dbapi_exception)
+        assert client.sql_client.is_dbapi_exception(param_ex.value.dbapi_exception)
 
 
 @pytest.mark.parametrize(
