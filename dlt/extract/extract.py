@@ -57,6 +57,7 @@ from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, Unknown
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
+from dlt.extract.pipe import Pipe
 from dlt.extract.pipe_iterator import PipeIterator
 from dlt.extract.source import DltSource
 from dlt.extract.reference import SourceReference, SourceFactory
@@ -503,6 +504,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 load_id, self.extract_storage.item_storages["model"], schema, collector=collector
             ),
         }
+        object_extractor = extractors["object"]
+
+        def start_resource_counter(pipe: Pipe) -> None:
+            resource = source.resources.with_pipe(pipe)
+            if resource.has_dynamic_table_name:
+                return
+            collector.update(object_extractor._get_static_table_name(resource, None), inc=0)
+
         # make sure we close storage on exception
         with collector(f"Extract {source.name}"):
             with self.manage_writers(load_id, source):
@@ -511,6 +520,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source.resources.selected_pipes,
                     max_parallel_items=max_parallel_items,
                     workers=workers,
+                    on_source_started=start_resource_counter,
                 ) as pipes:
                     left_gens = total_gens = len(pipes._sources)
                     collector.update("Resources", 0, total_gens)
