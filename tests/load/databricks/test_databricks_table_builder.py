@@ -83,3 +83,35 @@ def test_primary_key_constraint_conditional_on_create_indexes(
         assert "PRIMARY KEY (`id`)" in sql
     else:
         assert "PRIMARY KEY" not in sql
+
+
+@pytest.mark.parametrize("with_cluster", [False, True], ids=["plain", "clustered"])
+def test_create_table_uses_if_not_exists(empty_schema: Schema, with_cluster: bool) -> None:
+    # generate_alter=False takes both the base and the custom-clause CREATE paths
+    columns: List[TColumnSchema] = [
+        {"name": "col_a", "data_type": "text", "cluster": with_cluster},
+        {"name": "col_b", "data_type": "bigint"},
+    ]
+    client = create_client(empty_schema, create_indexes=False)
+
+    sql = client._get_table_update_sql("event_test_table", columns, generate_alter=False)[0]
+
+    assert sql.startswith("CREATE TABLE IF NOT EXISTS")
+
+
+@pytest.mark.parametrize("with_cluster", [False, True], ids=["plain", "clustered"])
+def test_table_comment_generation(empty_schema: Schema, with_cluster: bool) -> None:
+    table_name = "event_test_table"
+    columns: List[TColumnSchema] = [{"name": "col_a", "data_type": "text", "cluster": with_cluster}]
+    client = create_client(empty_schema, create_indexes=False)
+    table = new_table(table_name, columns=columns)
+    table["description"] = "test table comment"
+    client.schema.update_table(table)
+
+    create_sql = client._get_table_update_sql(table_name, columns, generate_alter=False)
+    assert len(create_sql) == 1
+    assert "COMMENT 'test table comment'" in create_sql[0]
+    assert "COMMENT ON TABLE" not in create_sql[0]
+
+    alter_sql = client._get_table_update_sql(table_name, columns, generate_alter=True)
+    assert any(s.startswith("COMMENT ON TABLE") for s in alter_sql)
