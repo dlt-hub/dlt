@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional, Tuple, cast
+from typing import ClassVar, Collection, Optional, Tuple, cast
 
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
@@ -22,7 +22,8 @@ class MotherDuckSqlClient(DuckDbSqlClient):
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.database_name = credentials.database
 
-    def get_attach(self, *, alias: str) -> TAttachInfo:
+    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
+        # the whole database is attached, `tables` cannot narrow it
         q_alias = self.escape_column_name(alias)
         attach = f"ATTACH IF NOT EXISTS 'md:{self.database_name}' AS {q_alias}"
         token = cast(MotherDuckCredentials, self.credentials).password

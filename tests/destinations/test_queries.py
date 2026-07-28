@@ -7,7 +7,7 @@ from sqlglot import exp as sge
 from sqlglot.schema import MappingSchema as SQLGlotSchema
 
 import dlt
-from dlt.common.libs.sqlglot import DatasetBinding, bind_query
+from dlt.common.libs.sqlglot import IdentifiersBinding, bind_query
 from dlt.common.schema.typing import C_DLT_LOAD_ID
 from dlt.dataset.lineage import compute_columns_schema
 from dlt.destinations.queries import build_row_counts_expr, build_select_expr
@@ -135,8 +135,8 @@ ORDER BY i.id ASC
         ' "i"."id" < 20 ORDER BY "i"."id" ASC'
     )
 
-    default_binding = DatasetBinding(
-        duckdb_sql_client.dataset_name,
+    default_binding = IdentifiersBinding(
+        (None, duckdb_sql_client.dataset_name),
         duckdb_sql_client.make_qualified_table_name_path,
         duckdb_sql_client.capabilities.casefold_identifier,
     )
@@ -175,8 +175,8 @@ def test_bind_query_per_dataset_casefold() -> None:
         path.append(table_name)
         return path
 
-    default_binding = DatasetBinding("crm_ds", _path_builder, str)
-    foreign_binding = DatasetBinding(("attach_sales", "sales_ds"), _path_builder, str.upper)
+    default_binding = IdentifiersBinding((None, "crm_ds"), _path_builder, str)
+    foreign_binding = IdentifiersBinding(("attach_sales", "sales_ds"), _path_builder, str.upper)
 
     bound = bind_query(
         qualified_query=cast(sge.Query, qualified_query_expr),
@@ -208,8 +208,8 @@ def test_bind_query_with_legacy_path_signature(
             table_name, quote=quote, casefold=casefold
         )
 
-    binding = DatasetBinding(
-        duckdb_sql_client.dataset_name,
+    binding = IdentifiersBinding(
+        (None, duckdb_sql_client.dataset_name),
         _legacy_path_builder,
         duckdb_sql_client.capabilities.casefold_identifier,
     )

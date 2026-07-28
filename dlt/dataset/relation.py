@@ -5,9 +5,12 @@ from typing import (
     Union,
     Any,
     Dict,
+    FrozenSet,
     Generator,
     List,
+    NamedTuple,
     Optional,
+    Set,
     Type,
     TYPE_CHECKING,
     Literal,
@@ -33,7 +36,7 @@ from dlt.common.libs.sqlglot import (
     build_typed_literal,
     migrate_order_and_limit,
     bind_query,
-    DatasetBinding,
+    IdentifiersBinding,
     TPhysicalDatasetRef,
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
@@ -55,6 +58,7 @@ from dlt.destinations.sql_client import (
     WithAttach,
     WithSchemas,
     WithSqlClient,
+    merge_attach,
 )
 from dlt.destinations.queries import build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
@@ -98,6 +102,18 @@ _FILTER_OP_MAP = {
 
 
 TJoinType = Literal["left", "right", "inner", "full"]
+
+
+class _ForeignDataset(NamedTuple):
+    """A dataset joined into a relation from outside its own, and how it is reached."""
+
+    dataset: "dlt.Dataset"
+    alias: Optional[str]
+    """ATTACH catalog alias, `None` when the dataset is reachable without an attach."""
+    attach_tables: Optional[FrozenSet[str]] = None
+    """Tables `attach_info` covers; a query needing more than these rebuilds it."""
+    attach_info: Optional[TAttachInfo] = None
+    """Attach descriptor, built on first use. Always `None` when `alias` is."""
 
 
 class Relation(WithSqlClient):
@@ -145,12 +161,8 @@ class Relation(WithSqlClient):
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
-        self._foreign_datasets: dict[str, dlt.Dataset] = {}
-        """Foreign datasets joined into this relation, keyed by logical dataset name."""
-        self._attach_alias_cache: dict[str, Optional[str]] = {}
-        """Catalog alias per foreign dataset, `None` when it needs no attach."""
-        self._attach_info_cache: dict[str, TAttachInfo] = {}
-        """Attach descriptor per foreign dataset, built on first use."""
+        self._foreign_datasets: Dict[str, _ForeignDataset] = {}
+        """Datasets joined in from outside this relation's own, by logical dataset name."""
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -530,17 +542,21 @@ class Relation(WithSqlClient):
         if isinstance(other, dlt.Relation):
             for ds_name, fds in other._foreign_datasets.items():
                 if ds_name != self._dataset.dataset_name:
-                    rel._register_foreign_dataset(ds_name, fds)
+                    rel._register_foreign_dataset(ds_name, fds.dataset)
             if target_is_foreign:
                 rel._register_foreign_dataset(target.dataset_name, other._dataset)
 
         return rel
 
     def _register_foreign_dataset(self, ds_name: str, dataset: "dlt.Dataset") -> None:
-        """Adds a foreign dataset to the query, dropping what was memoized under its name."""
-        self._foreign_datasets[ds_name] = dataset
-        self._attach_alias_cache.pop(ds_name, None)
-        self._attach_info_cache.pop(ds_name, None)
+        """Adds a foreign dataset to the query, resolving how this relation reaches it."""
+        # resolved against this relation's primary, so a carried-over dataset is not reused as-is
+        alias = (
+            self._attach_alias(dataset.sql_client.dataset_name)
+            if self._can_attach(dataset) and self._requires_attach(dataset)
+            else None
+        )
+        self._foreign_datasets[ds_name] = _ForeignDataset(dataset, alias)
 
     def _resolve_join_target(
         self,
@@ -625,7 +641,9 @@ class Relation(WithSqlClient):
                 return _JoinTarget(
                     dataset_name=ds_name,
                     table_name=tbl_name,
-                    columns=_find_table_columns(self._foreign_datasets[ds_name].schemas, tbl_name),
+                    columns=_find_table_columns(
+                        self._foreign_datasets[ds_name].dataset.schemas, tbl_name
+                    ),
                 )
             raise ValueError(
                 f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
@@ -1060,8 +1078,6 @@ class Relation(WithSqlClient):
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
         rel._foreign_datasets = dict(self._foreign_datasets)
-        rel._attach_alias_cache = dict(self._attach_alias_cache)
-        rel._attach_info_cache = dict(self._attach_info_cache)
         return rel
 
     def _all_schemas(self) -> dict[str, list[dlt.Schema]]:
@@ -1071,13 +1087,16 @@ class Relation(WithSqlClient):
         """
         return {
             self._dataset.dataset_name: list(self._dataset.schemas),
-            **{ds_name: list(fds.schemas) for ds_name, fds in self._foreign_datasets.items()},
+            **{
+                ds_name: list(fds.dataset.schemas)
+                for ds_name, fds in self._foreign_datasets.items()
+            },
         }
 
     def _relation_sqlglot_schema(self) -> SQLGlotSchema:
         return lineage.create_sqlglot_schema(self._all_schemas(), dialect=self.destination_dialect)
 
-    def _dataset_bindings(self) -> tuple[dict[str, DatasetBinding], DatasetBinding]:
+    def _dataset_bindings(self) -> tuple[dict[str, IdentifiersBinding], IdentifiersBinding]:
         """Identifier resolution rules of every dataset in the query.
 
         Returns:
@@ -1085,24 +1104,22 @@ class Relation(WithSqlClient):
             `bind_query` applies to identifiers that no known table owns.
         """
 
-        def _binding(client: SqlClientBase[Any], physical: TPhysicalDatasetRef) -> DatasetBinding:
-            return DatasetBinding(
+        def _binding(
+            client: SqlClientBase[Any], physical: TPhysicalDatasetRef
+        ) -> IdentifiersBinding:
+            return IdentifiersBinding(
                 physical,
                 client.make_qualified_table_name_path,
                 client.capabilities.casefold_identifier,
             )
 
-        default_binding = _binding(self.sql_client, self.sql_client.dataset_name)
-        bindings: dict[str, DatasetBinding] = {self._dataset.dataset_name: default_binding}
-        aliases = self._attach_aliases()
+        default_binding = _binding(self.sql_client, (None, self.sql_client.dataset_name))
+        bindings: Dict[str, IdentifiersBinding] = {self._dataset.dataset_name: default_binding}
         for ds_name, fds in self._foreign_datasets.items():
-            # bind with the foreign client so paths and casefolding follow that destination
-            client = fds.sql_client
-            physical = client.dataset_name
+            # bind with the foreign client so paths and casefolding follow that destination.
             # an attached dataset is reached under its catalog alias, not by schema alone
-            alias = aliases.get(ds_name)
-            ref: TPhysicalDatasetRef = (alias, physical) if alias else physical
-            bindings[ds_name] = _binding(client, ref)
+            client = fds.dataset.sql_client
+            bindings[ds_name] = _binding(client, (fds.alias, client.dataset_name))
         return bindings, default_binding
 
     @staticmethod
@@ -1135,28 +1152,37 @@ class Relation(WithSqlClient):
             return False
         return foreign.can_be_attached() and primary.can_attach(foreign.attach_type)
 
-    def _attach_aliases(self) -> dict[str, str]:
-        """Catalog aliases of the foreign datasets that must be attached, by logical dataset name."""
-        aliases: dict[str, str] = {}
-        for ds_name, fds in self._foreign_datasets.items():
-            if ds_name not in self._attach_alias_cache:
-                self._attach_alias_cache[ds_name] = (
-                    self._attach_alias(fds.sql_client.dataset_name)
-                    if self._requires_attach(fds) and self._can_attach(fds)
-                    else None
-                )
-            if alias := self._attach_alias_cache[ds_name]:
-                aliases[ds_name] = alias
-        return aliases
+    def _foreign_query_tables(self) -> Dict[str, FrozenSet[str]]:
+        """dlt table names the query reads, by foreign dataset name."""
+
+        tables: Dict[str, Set[str]] = {}
+        # use pre-bind query to parse out tables
+        for table in self.sqlglot_expression.find_all(sge.Table):
+            if table.db in self._foreign_datasets:
+                tables.setdefault(table.db, set()).add(table.name)
+        return {ds_name: frozenset(names) for ds_name, names in tables.items()}
 
     def _attach_infos(self) -> List[TAttachInfo]:
         """Attach descriptors for every foreign dataset in the query that requires an ATTACH."""
         infos: List[TAttachInfo] = []
-        for ds_name, alias in self._attach_aliases().items():
-            if ds_name not in self._attach_info_cache:
-                foreign = cast(WithAttach, self._foreign_datasets[ds_name].sql_client)
-                self._attach_info_cache[ds_name] = foreign.get_attach(alias=alias)
-            infos.append(self._attach_info_cache[ds_name])
+        query_tables = self._foreign_query_tables()
+        for ds_name, fds in self._foreign_datasets.items():
+            if not fds.alias:
+                continue
+            needed = query_tables.get(ds_name, frozenset())
+            info, covered = fds.attach_info, fds.attach_tables
+            if info is None or not needed <= covered:
+                foreign = cast(WithAttach, fds.dataset.sql_client)
+                # describing a table costs a data-location listing, so ask only for the missing
+                # ones and keep the descriptor cumulative: a persisted model has no prior state
+                missing = needed if covered is None else needed - covered
+                delta = foreign.get_attach(alias=fds.alias, tables=missing)
+                info = delta if info is None else merge_attach(info, delta)[0]
+                covered = needed if covered is None else covered | needed
+                self._foreign_datasets[ds_name] = fds._replace(
+                    attach_tables=covered, attach_info=info
+                )
+            infos.append(info)
         return infos
 
     def to_model(self) -> SqlModel:

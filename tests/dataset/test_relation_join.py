@@ -1,6 +1,6 @@
 import tempfile
 import pathlib
-from typing import Any, Sequence, Callable, TypedDict, Optional, Union
+from typing import Any, List, Sequence, Callable, TypedDict, Optional, Union
 
 import pytest
 import sqlglot
@@ -8,6 +8,7 @@ import sqlglot.expressions as sge
 
 import dlt
 from dlt.common.schema.typing import TTableReference
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.dataset.exceptions import LineageFailedException
 from dlt.dataset._join import (
     _build_join_condition_from_pairs,
@@ -1824,7 +1825,7 @@ def test_cross_dataset_join(
 
     assert ds_inv.dataset_name in joined._foreign_datasets
     assert ds_inv.dataset_name not in users._foreign_datasets
-    assert len(joined._foreign_datasets[ds_inv.dataset_name].schemas) >= 1
+    assert len(joined._foreign_datasets[ds_inv.dataset_name].dataset.schemas) >= 1
 
     df = joined.df()
     assert len(df) == 3
@@ -2434,9 +2435,9 @@ def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) ->
         built_aliases: list[str] = []
         original_get_attach = DuckDbSqlClient.get_attach
 
-        def _counting_get_attach(self: Any, *, alias: str) -> Any:
+        def _counting_get_attach(self: Any, *, alias: str, tables: Any = None) -> Any:
             built_aliases.append(alias)
-            return original_get_attach(self, alias=alias)
+            return original_get_attach(self, alias=alias, tables=tables)
 
         monkeypatch.setattr(DuckDbSqlClient, "get_attach", _counting_get_attach)
 
@@ -2514,12 +2515,81 @@ def test_registering_foreign_dataset_drops_its_memo() -> None:
             .table("users")
             .join(sales.dataset().table("orders"), on="users.id = orders.user_id")
         )
+        # the alias is resolved on registration, the descriptor only on first use
+        assert joined._foreign_datasets["sales_data"].alias == "attach_sales_data"
+        assert joined._foreign_datasets["sales_data"].attach_info is None
         assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
-        assert "sales_data" in joined._attach_alias_cache
-        assert "sales_data" in joined._attach_info_cache
+        assert joined._foreign_datasets["sales_data"].attach_info is not None
 
-        # the memo describes the dataset registered under that name, so it must not survive it
+        # the descriptor describes the dataset registered under that name, so it must not survive it
         joined._register_foreign_dataset("sales_data", sales.dataset())
-        assert "sales_data" not in joined._attach_alias_cache
-        assert "sales_data" not in joined._attach_info_cache
+        assert joined._foreign_datasets["sales_data"].attach_info is None
         assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
+
+
+def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A relation chained off a join reads a second foreign table, so the attach must grow."""
+    from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
+
+    asked_for: list[Any] = []
+    original_get_attach = WithTableScanners.get_attach
+
+    def _spy_get_attach(self: Any, *, alias: str, tables: Any = None) -> Any:
+        asked_for.append(None if tables is None else sorted(tables))
+        return original_get_attach(self, alias=alias, tables=tables)
+
+    monkeypatch.setattr(WithTableScanners, "get_attach", _spy_get_attach)
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_grow_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1}], table_name="users")
+        # a scanner destination materializes one view per table, so only the needed ones are built
+        sales = dlt.pipeline(
+            pipeline_name="attach_grow_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(
+                FilesystemConfiguration.make_file_url(str(tmp_path / "sales_bucket"))
+            ),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+        sales.run([{"id": 10, "sku": "W-1"}], table_name="items", loader_file_format="parquet")
+        sales.run([{"id": 99}], table_name="untouched", loader_file_format="parquet")
+
+        joined = (
+            crm.dataset()
+            .table("users")
+            .join(sales.dataset().table("orders"), on="users.id = orders.user_id")
+        )
+        assert len(joined.df()) == 1
+        assert joined._foreign_datasets["sales_data"].attach_tables == frozenset({"orders"})
+        assert asked_for == [["orders"]]
+
+        # the chained join needs `items` too, which the memoized descriptor does not cover
+        chained = joined.join("sales_data.items", on="orders.id = items.id")
+        assert len(chained.df()) == 1
+        assert chained._foreign_datasets["sales_data"].attach_tables == frozenset(
+            {"orders", "items"}
+        )
+        # only the table missing from the descriptor is described again
+        assert asked_for == [["orders"], ["items"]]
+
+        def _views(info: Any) -> List[str]:
+            return [
+                s["sql"]
+                for s in info["statements"]
+                if s["sql"].startswith("CREATE OR REPLACE VIEW")
+            ]
+
+        # the descriptor stays cumulative and a table no query referenced never gets a view
+        views = _views(chained._attach_infos()[0])
+        assert len(views) == 2
+        assert not any("untouched" in sql for sql in views)
+        # a persisted model carries every view, it has no prior attach state to build on
+        assert _views(chained.to_model().attach[0]) == views

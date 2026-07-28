@@ -1,4 +1,4 @@
-from typing import ClassVar, List, Optional, Type
+from typing import ClassVar, Collection, List, Optional, Type
 
 import duckdb
 from duckdb import DuckDBPyConnection
@@ -97,7 +97,8 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
         return super().close_connection()
 
-    def get_attach(self, *, alias: str) -> TAttachInfo:
+    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
+        # the whole lake is attached, `tables` cannot narrow it
         statements: List[TAttachStatement] = []
         storage = self.credentials.storage
         if not storage.is_local_filesystem:
