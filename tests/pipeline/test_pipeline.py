@@ -13,7 +13,7 @@ import random
 import shutil
 import threading
 from time import sleep
-from typing import Any, Dict, List, Tuple, cast, Optional
+from typing import Any, Dict, List, Tuple, Type, cast, Optional
 from tenacity import retry_if_exception, Retrying, stop_after_attempt
 from unittest.mock import patch
 import pytest
@@ -37,6 +37,9 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationNoStagingMode,
     DestinationTerminalException,
+    SchemaUpdateError,
+    SchemaUpdateTerminalError,
+    SchemaUpdateTransientError,
     DestinationUndefinedEntity,
     UnknownDestinationModule,
 )
@@ -60,6 +63,7 @@ from dlt.common.warnings import DltDeprecationWarning
 from dlt.common.schema import Schema
 
 from dlt.destinations import filesystem, redshift, dummy, duckdb
+from dlt.destinations.impl.dummy.dummy import DummyClient
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeBasic,
@@ -78,7 +82,7 @@ from dlt.pipeline.exceptions import (
     PipelineNotActive,
     PipelineStepFailed,
 )
-from dlt.pipeline.helpers import retry_load
+from dlt.pipeline.helpers import retry_load, retry_schema_update
 
 from dlt.pipeline.pipeline import Pipeline
 from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
@@ -2586,6 +2590,69 @@ def test_retry_load() -> None:
                 p.run(fail_extract())
     assert isinstance(py_ex.value, PipelineStepFailed)
     assert py_ex.value.step == "load"
+
+
+@pytest.mark.parametrize(
+    "fail_terminally,expected_error,retried_by_retry_load",
+    [
+        (True, SchemaUpdateTerminalError, False),
+        (False, SchemaUpdateTransientError, True),
+    ],
+    ids=["terminal", "transient"],
+)
+def test_schema_update_error(
+    fail_terminally: bool, expected_error: Type[SchemaUpdateError], retried_by_retry_load: bool
+) -> None:
+    """a failed schema update is wrapped following the terminality of its cause"""
+    p = dlt.pipeline(
+        pipeline_name="pipe_" + uniq_id(),
+        destination=dummy(
+            completed_prob=1.0,
+            fail_schema_update=fail_terminally,
+            fail_schema_update_transiently=not fail_terminally,
+        ),
+    )
+
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p.run([1, 2, 3], table_name="digits")
+
+    step_failed = py_ex.value
+    assert step_failed.step == "load"
+    schema_ex = step_failed.__cause__
+    assert isinstance(schema_ex, expected_error)
+    assert schema_ex.staging_dataset is False
+    assert "digits" in schema_ex.table_names
+
+    # retry_load defers to the cause terminality, retry_schema_update retries either kind
+    assert retry_load()(step_failed) is retried_by_retry_load
+    assert retry_schema_update()(step_failed) is True
+
+
+def test_retry_schema_update() -> None:
+    # retry_schema_update drives recovery: fail the first schema update, then succeed
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=dummy(completed_prob=1.0))
+    orig = DummyClient.update_stored_schema
+    calls = 0
+
+    def flaky_update(self: Any, *args: Any, **kwargs: Any) -> Any:
+        nonlocal calls
+        calls += 1
+        if calls == 1:
+            raise DestinationTerminalException("schema update failed once")
+        return orig(self, *args, **kwargs)
+
+    info = None
+    with patch.object(DummyClient, "update_stored_schema", flaky_update):
+        for attempt in Retrying(
+            stop=stop_after_attempt(3),
+            retry=retry_if_exception(retry_schema_update()),
+            reraise=True,
+        ):
+            with attempt:
+                info = p.run([1, 2, 3], table_name="digits")
+
+    assert calls == 2
+    assert_load_info(info)
 
 
 @pytest.mark.skip("Not implemented")
