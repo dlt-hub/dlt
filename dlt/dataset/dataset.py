@@ -74,7 +74,6 @@ class Dataset:
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
         self._destination_client: JobClientBase = None
-        self._table_client: SupportsOpenTables = None
 
     def ibis(self, read_only: bool = False) -> IbisBackend:
         """Get an ibis backend for the dataset.
@@ -196,15 +195,14 @@ class Dataset:
         """Name of the dataset"""
         return self._dataset_name
 
-    # TODO why do we need `_opened_sql_client` and `_sql_client`? One seems used by
-    # the `dlt.Dataset` context manager and the other by `dlt.Relation`
     @property
     def sql_client(self) -> SqlClientBase[Any]:
-        # return the opened sql client if it exists
+        """Sql client of this dataset's job client, or the one owning the connection kept open
+        by `__enter__` while the dataset is used as a context manager."""
         if self._opened_sql_client:
             return self._opened_sql_client
         if not self._sql_client:
-            self._sql_client = get_dataset_sql_client(self)
+            self._sql_client = self._get_sql_client(self.destination_client)
         return self._sql_client
 
     # TODO remove this; this seems only implemented to pass to `Relation` for it
@@ -229,18 +227,24 @@ class Dataset:
         """Creates a new job client, for callers that take ownership of it."""
         return get_dataset_destination_client(self)
 
-    # TODO should this public? This should only be accessed via `.__open__()`
+    def _get_sql_client(self, client: JobClientBase) -> SqlClientBase[Any]:
+        """Takes the sql client out of `client` with this dataset's schemas bound to it."""
+        if not isinstance(client, WithSqlClient):
+            raise SqlClientNotAvailable(
+                "dataset", self.dataset_name, client.config.destination_type
+            )
+        sql_client = client.sql_client
+        if isinstance(sql_client, WithSchemas):
+            sql_client.set_schemas(self.schemas)
+        return sql_client
+
+    # TODO should this be public? This should only be accessed via `.__open__()`
     @property
     def open_table_client(self) -> SupportsOpenTables:
-        if not self._table_client:
-            client = self.destination_client
-            if isinstance(client, SupportsOpenTables):
-                self._table_client = client
-            else:
-                raise OpenTableClientNotAvailable(
-                    self.dataset_name, self._destination.destination_name
-                )
-        return self._table_client
+        client = self.destination_client
+        if not isinstance(client, SupportsOpenTables):
+            raise OpenTableClientNotAvailable(self.dataset_name, self._destination.destination_name)
+        return client
 
     # TODO remove method; need to update `dlthub` to avoid conflict
     # this is only used by `dlt.hub.transformation` currently
@@ -438,25 +442,12 @@ class Dataset:
         assert (
             not self._opened_sql_client
         ), "context manager can't be used when sql client is initialized"
-        # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
-        # use internal class
-
-        # create a new sql client
-        self._opened_sql_client = get_dataset_sql_client(self)
-
-        NoCloseClient = type(
-            "NoCloseClient",
-            (self._opened_sql_client.__class__,),
-            {
-                "__exit__": (
-                    lambda self, exc_type, exc_val, exc_tb: None
-                )  # No-operation: do not close the connection
-            },
-        )
-
-        self._opened_sql_client.__class__ = NoCloseClient
-
-        self._opened_sql_client.open_connection()
+        # own job client: this connection outlives single queries, unlike the shared one
+        client = self._get_sql_client(self._create_destination_client())
+        # the dataset owns this connection, so borrowers must not close it on `__exit__`
+        client.owns_connection = False
+        client.open_connection()
+        self._opened_sql_client = client
         return self
 
     def __exit__(
@@ -509,17 +500,6 @@ def get_dataset_destination_client(dataset: dlt.Dataset) -> JobClientBase:
         destination=dataset._destination,
         destination_dataset_name=dataset.dataset_name,
     )[0]
-
-
-def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
-    client = get_dataset_destination_client(dataset)
-    if isinstance(client, WithSqlClient):
-        sql_client = client.sql_client
-        if isinstance(sql_client, WithSchemas):
-            sql_client.set_schemas(dataset.schemas)
-        return sql_client
-    else:
-        raise SqlClientNotAvailable("dataset", dataset.dataset_name, client.config.destination_type)
 
 
 @deprecated(
