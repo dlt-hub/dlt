@@ -36,7 +36,7 @@ You can invite people who don't have an account yet. They'll be added automatica
 
 ### Accepting an invite
 
-There's nothing for the invited person to click. The next time they **sign in** with the email the invite was sent to, they are automatically added to the organization or workspace with the role you chose. Brand-new users skip the "create your own organization" step and land directly in the team that invited them.
+There's nothing for the invited person to click. The next time they **sign in** with the email the invite was sent to, they're automatically added to the organization or workspace with the role you chose. Brand-new users skip the "create your own organization" step and land directly in the team that invited them.
 
 ### Revoking an invite
 
@@ -52,7 +52,7 @@ Organization membership is a prerequisite for any workspace access: a user must 
 
 | Role     | Can do |
 | -------- | ------ |
-| `owner`  | Full control: manage members and invites, change roles, manage workspaces and billing. |
+| `owner`  | Full control: manage members and invites, change roles, and manage workspaces. |
 | `member` | Standard access: work within the organization and the workspaces they belong to. |
 | `collaborator`  | Limited access: typically someone invited to a single workspace rather than the whole org. |
 
@@ -63,22 +63,30 @@ A workspace role is assigned per workspace and controls what a user can do insid
 | Role        | Can do |
 | ----------- | ------ |
 | `owner`     | Full control: manage members, invites, settings, and content in the workspace. |
-| `developer` | Edit access: create and edit work in the workspace (such as configurations, deployments, and run jobs). |
+| `developer` | Write access: create and edit scripts, deployments, and configurations, deploy the workspace, and launch or cancel jobs on any profile. Can't manage members or change workspace settings. |
 | `viewer`    | Read-only access: jobs, runs, logs, pipelines, deployments, and notebooks. Viewers can also launch jobs on the [access profile](../pipeline-operations/profiles.md), such as interactive notebooks. |
 
 ### How invites and roles combine
 
-- Inviting someone to a **workspace** also adds them to the parent **organization** as a `collaborator`, so they can reach that workspace. If they are later removed from their last workspace in that organization, they are removed from the organization too.
+- Inviting someone to a **workspace** also adds them to the parent **organization** as a `collaborator`, so they can reach that workspace. If they are later removed from their last workspace in that organization, they're removed from the organization too.
 - If someone has more than one pending invite for the same organization or workspace, they get the **most permissive** role. Accepting an invite never lowers a role they already have.
 
 ## Permission scope
 
-Role-based restrictions apply to both the dashboard and the API, so a viewer can't bypass restrictions by using the CLI.
+Role-based restrictions apply to both the dashboard and the API, so a viewer can't bypass restrictions by using the CLI. The table below summarizes what each workspace role can do.
 
-- **Workspace owners** can launch, cancel, and schedule any job, change workspace configuration, manage members, and publish interactive applications.
-- **Workspace developers** can create and edit work in the workspace (configurations, deployments, and run jobs) and launch and cancel jobs, including on the `prod` profile. They can't manage members or change workspace settings.
-- **Workspace viewers** have read access to all workspace data and can launch jobs that run under the `access` profile (notebooks and other interactive read-only workloads). They can't launch or cancel `prod` jobs, edit schedules, change workspace settings, or manage members.
-- **All roles** can view jobs, runs, logs, pipelines, deployments, and notebooks in the workspaces they have access to.
+| Action | Owner | Developer | Viewer |
+| --- | :---: | :---: | :---: |
+| View jobs, runs, logs, pipelines, deployments, and notebooks | Yes | Yes | Yes |
+| Launch jobs on the `access` profile (notebooks and read-only interactive workloads) | Yes | Yes | Yes |
+| Launch jobs on the `prod` profile | Yes | Yes | No |
+| Create or edit scripts, configurations, and deployments | Yes | Yes | No |
+| Deploy the workspace (`dlthub deploy`) | Yes | Yes | No |
+| Cancel runs | Yes | Yes | No |
+| Publish or revoke public links for interactive applications | Yes | Yes | No |
+| Change workspace settings | Yes | No | No |
+| Manage members and invites | Yes | No | No |
+| Manage workspace API keys | Yes | No | No |
 
 For details on which profiles are used for which workloads, see [Profiles in dltHub](../pipeline-operations/profiles.md).
 
@@ -96,7 +104,7 @@ A few rules keep things safe:
 
 ## Multiple members per role
 
-Every role can be held by any number of people; there are no single-holder roles. In particular, organizations and workspaces can have more than one **owner**, so responsibility isn't tied to a single person. Any owner can invite people, manage members, and change roles. The only limit is that the **last owner can't be removed or demoted**. Promote someone else to owner first.
+Every role can be held by any number of people. There are no single-holder roles. In particular, organizations and workspaces can have more than one **owner**, so responsibility isn't tied to a single person. Any owner can invite people, manage members, and change roles. The only limit is that the **last owner can't be removed or demoted**. Promote someone else to owner first.
 
 ## See also
 
