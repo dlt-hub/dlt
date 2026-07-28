@@ -30,13 +30,13 @@ You can invite teammates by email into a whole organization or into a specific w
 1. Open the **Settings** page for the organization or workspace you want to add someone to.
 2. In the members section, find the pending-invites area and enter the person's **email address**.
 3. Pick the **role** they should have (see [Roles](#roles) below).
-4. Send the invite. It appears in the pending-invites list until it's accepted.
+4. Send the invite. The invitee receives an email with a link to the platform, and the invite appears in the pending-invites list until it's accepted. Invites expire after 14 days.
 
 You can invite people who don't have an account yet. They'll be added automatically when they sign up and sign in with that email.
 
 ### Accepting an invite
 
-There's nothing for the invited person to click. The next time they **sign in** with the email the invite was sent to, they're automatically added to the organization or workspace with the role you chose. Brand-new users skip the "create your own organization" step and land directly in the team that invited them.
+The invitee receives an email announcing the invite with a link to the platform. When they follow the link and **sign in** with the email the invite was sent to, they're automatically added to the organization or workspace with the role you chose. Brand-new users skip the "create your own organization" step and land directly in the team that invited them. Invites expire 14 days after they're sent.
 
 ### Revoking an invite
 
