@@ -6,6 +6,7 @@ from types import TracebackType
 from typing import (
     Any,
     ClassVar,
+    Collection,
     ContextManager,
     Dict,
     Generic,
@@ -72,6 +73,8 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     """Normalized staging dataset name"""
     capabilities: DestinationCapabilitiesContext
     """Instance of adjusted destination capabilities"""
+    owns_connection: bool = True
+    """When False, `__exit__` keeps the connection open: an outside owner closes it"""
 
     def __init__(
         self,
@@ -105,13 +108,16 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         return getattr(self.native_connection, name)
 
     def __enter__(self) -> Self:
-        self.open_connection()
+        # a connection owned from outside is already open, borrowing a second one would leak it
+        if self.owns_connection:
+            self.open_connection()
         return self
 
     def __exit__(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
-        self.close_connection()
+        if self.owns_connection:
+            self.close_connection()
 
     @property
     @abstractmethod
@@ -421,6 +427,18 @@ class TAttachInfo(TypedDict):
     """Statements to undo the attach, run on connection close."""
 
 
+def merge_attach(
+    into: TAttachInfo, info: TAttachInfo
+) -> Tuple[TAttachInfo, List[TAttachStatement]]:
+    """Extends `into` with the statements of `info` it does not have yet.
+
+    Returns the merged descriptor and the statements that were added."""
+    added = [s for s in info["statements"] if s not in into["statements"]]
+    if not added:
+        return into, added
+    return {**into, "statements": into["statements"] + added}, added
+
+
 class WithAttach(ABC):
     """Mixin for SQL clients that can attach foreign datasets into their connection.
 
@@ -435,8 +453,14 @@ class WithAttach(ABC):
     """Attach mechanisms this client can execute on its own connection."""
 
     @abstractmethod
-    def get_attach(self, *, alias: str) -> TAttachInfo:
-        """Describe how to attach this client's dataset into a foreign primary connection."""
+    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
+        """Describe how to attach this client's dataset into a foreign primary connection.
+
+        Args:
+            alias: Catalog name the dataset is reached under after attaching.
+            tables: dlt table names the query needs, letting clients that materialize tables
+                one by one skip the rest. `None` covers the whole dataset.
+        """
 
     def can_attach(self, attach_type: TAttachType) -> bool:
         """Tell if this (primary) client can execute statements of `attach_type`."""
