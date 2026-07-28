@@ -1,12 +1,12 @@
 ---
 title: Job configuration
-description: Per-job options on the dltHub platform — execution timeouts, dependency groups, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, dependency groups, static egress, execute, require, expose, section]
+description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
+keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
 ---
 
 # Job configuration
 
-This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, the Python environment it gets, and the configuration values it reads at runtime.
+This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.
 
 All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators.
 
@@ -44,6 +44,30 @@ def transform(run_context: TJobRunContext):
 
 The dltHub platform composes the execution environment from the workspace's base dependencies plus the job's declared groups.
 
+## Instance size
+
+Pick how much CPU and memory the job’s runner gets. Pass it under `require.instance`:
+
+```py
+@run.pipeline(
+    my_pipeline,
+    require={"instance": {"size": "medium"}},
+)
+def heavy_sync():
+    ...
+```
+
+| `size` | vCPU | Memory | Disk | Multiplier |
+|--------|------|--------|------|------------|
+| `small` | 2 | 4 GiB | 500 GB | 1× |
+| `medium` | 4 | 8 GiB | 500 GB | 2× |
+| `large` | 8 | 16 GiB | 500 GB | 4× |
+| `xlarge` | 16 | 32 GiB | 500 GB | 8× |
+
+If you omit `instance`, jobs default to `small`. Larger sizes use a higher `multiplier` against your organization's run time budget. For example, a one-hour `large` run consumes four hours of budget.
+
+Pipeline-level tuning (chunking, parallelism, memory settings) often lowers the size you need, see [Optimizing dlt](../../reference/performance.md).
+
 ## Static egress IPs
 
 Use this when you must whitelist outbound IP addresses so external systems can grant your jobs access to private resources. Opt in per job so outbound requests use your workspace's static egress IPs:
@@ -61,7 +85,6 @@ The static egress IPs for the **EU region** are:
 - 18.156.57.4
 - 63.183.227.2
 - 63.182.151.74
-- 18.197.112.47
 
 The static egress IPs for the **US region** are:
 - 34.205.113.62
