@@ -12,13 +12,13 @@ A toolkit is a versioned bundle of skills, rules, and an MCP server, tied togeth
 
 Toolkits map onto a five-stage pipeline lifecycle. Each toolkit owns one stage and guides the agent through it end to end, starting from an **entry skill** and running the rest in sequence.
 
-| Stage | Purpose |
-| --- | --- |
-| [Ingest](#ingest) | Load data from sources (REST APIs, SQL databases, files) into a destination. |
-| [Validate](#validate) | Define column-level checks and load metrics to catch bad data early. |
-| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use. |
-| [Deploy](#deploy) | Ship pipelines and notebooks to the dltHub platform on a schedule. |
-| [Observe](#observe) | Explore loaded data and diagnose performance issues. |
+| Stage | Purpose | Step-by-step guide |
+| --- | --- | --- |
+| [Ingest](#ingest) | Load data from sources (REST APIs, SQL databases, files) into a destination. | [REST API source with AI Harness](../ingestion/rest-api-source.md) |
+| [Validate](#validate) | Define column-level checks and load metrics to catch bad data early. | — |
+| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use. | [Explore and transform your data](../transformations/explore-and-transform.md) |
+| [Deploy](#deploy) | Ship pipelines and notebooks to the dltHub platform on a schedule. | [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) |
+| [Observe](#observe) | Explore loaded data and diagnose performance issues. | [Explore and transform your data](../transformations/explore-and-transform.md) |
 
 ## Ingest
 
