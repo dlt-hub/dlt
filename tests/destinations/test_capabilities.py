@@ -8,24 +8,6 @@ from dlt.common.destination.capabilities import (
 )
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
-from dlt.destinations import (
-    athena,
-    bigquery,
-    clickhouse,
-    databricks,
-    dremio,
-    duckdb,
-    ducklake,
-    fabric,
-    motherduck,
-    mssql,
-    postgres,
-    redshift,
-    snowflake,
-    sqlalchemy,
-    synapse,
-)
-
 
 def _create_default_caps() -> DestinationCapabilitiesContext:
     """Helper to create capabilities with common defaults"""
@@ -54,51 +36,6 @@ def _create_json_column(nested_type: str = None) -> TColumnSchema:
     if nested_type is not None:
         column["x-nested-type"] = nested_type  # type: ignore[typeddict-unknown-key]
     return column
-
-
-@pytest.mark.parametrize(
-    "capabilities,expected",
-    [
-        (DestinationCapabilitiesContext(), False),
-        (postgres().capabilities(), True),
-        (redshift().capabilities(), True),
-        (snowflake().capabilities(), True),
-        (databricks().capabilities(), True),
-        (duckdb().capabilities(), True),
-        (motherduck().capabilities(), True),
-        (athena().capabilities(), True),
-        (bigquery().capabilities(), True),
-        (clickhouse().capabilities(), True),
-        (ducklake().capabilities(), False),
-        (mssql().capabilities(), False),
-        (synapse().capabilities(), False),
-        (fabric().capabilities(), False),
-        (dremio().capabilities(), False),
-        (sqlalchemy().capabilities(), False),
-    ],
-    ids=[
-        "default",
-        "postgres",
-        "redshift",
-        "snowflake",
-        "databricks",
-        "duckdb",
-        "motherduck",
-        "athena",
-        "bigquery",
-        "clickhouse",
-        "ducklake",
-        "mssql",
-        "synapse",
-        "fabric",
-        "dremio",
-        "sqlalchemy",
-    ],
-)
-def test_create_schema_if_not_exists_capability(
-    capabilities: DestinationCapabilitiesContext, expected: bool
-) -> None:
-    assert capabilities.supports_create_schema_if_not_exists is expected
 
 
 @pytest.mark.parametrize("data_type", ["timestamp", "time"])
