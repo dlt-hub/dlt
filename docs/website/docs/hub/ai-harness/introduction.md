@@ -6,7 +6,7 @@ keywords: [ai harness, workbench, toolkits, skills, mcp, coding agent, claude co
 
 # Introduction
 
-The dltHub AI Harness is a set of skills, rules, and MCP servers that turn a coding agent (Claude Code, Cursor, or Codex) into a dlt-aware data engineer. It draws from [dltHub Context](https://dlthub.com/context), a hub of deeply researched context on REST APIs across SaaS sources, databases, and destinations, so your agent pulls exactly what it needs to code any dlt pipeline.
+The dltHub AI Harness is a set of skills, rules, and MCP servers that teach a general-purpose coding agent (Claude Code, Cursor, or Codex) how to build production-grade pipelines, deploy and run them on dltHub managed infrastructure. It draws from [dltHub Context](https://dlthub.com/context), a hub of deeply researched context on APIs across different SaaS sources, so your agent pulls exactly what it needs to code any dlt pipeline.
 
 You describe what you want, the agent picks the right toolkit and writes the pipeline code, and dltHub runs it end to end: ingestion, validation, transformation, deployment, and observation. Agents propose, humans validate, deterministic tooling enforces the boundaries.
 
@@ -32,7 +32,7 @@ The AI Harness bundles four kinds of artifacts into installable units called [**
 | Workflow | Ordered sequence of skills with a fixed entry point, loaded as a rule so it's always active | REST API pipeline workflow, Deploy workflow |
 | MCP server | Tools the agent can call from inside a session | `dlt-workspace-mcp` exposes pipeline, schema, and secrets tools |
 
-Every [dltHub workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) starts with one toolkit, `init`, which ships an MCP server (`dlt-workspace-mcp`) and a router skill called `dlthub-router`. From there, feature toolkits (`rest-api-pipeline`, `sql-database-pipeline`, `filesystem-pipeline`, `transformations`, `data-quality`, `dlthub-platform`, and more) are added as you need them.
+Every [dltHub workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) starts with one toolkit, `init`, which ships an MCP server (`dlt-workspace-mcp`) and a router skill called `dlthub-router`. From there, [feature toolkits](toolkits.md) are added as you need them.
 
 ```mermaid
 flowchart LR
@@ -65,6 +65,6 @@ Data pipelines evolve in loops. You build locally, refine on real data, deploy, 
 
 ## What's next
 
-- [Toolkits](toolkits.md): catalog of toolkits and where each fits in the development cycle.
 - [Installation](installation.md): set up a workspace, in one command or step-by-step.
-- [Deployment](deployment.md): take a pipeline to production with the `dlthub-platform` toolkit.
+- [Toolkits](toolkits.md): catalog of toolkits and where each fits in the development cycle.
+- [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness): take a pipeline to production with the `dlthub-platform` toolkit.

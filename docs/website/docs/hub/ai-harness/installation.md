@@ -16,7 +16,25 @@ Run the following command in the directory where you want the workspace:
 uvx dlthub-init@latest
 ```
 
-This writes `.dlt/.workspace`, config and secrets skeletons, `pyproject.toml`, an empty `__deployment__.py`, and the base `init` toolkit into `.agents/skills/`, then symlinks those skills into `.claude/skills/` for Claude Code.
+This scaffolds a dltHub workspace, then wires the base `init` toolkit for Claude Code (default):
+
+```text
+your-project/
+├── .dlt/
+│   ├── .workspace              # marks this directory as a dltHub workspace
+│   ├── config.toml             # workspace-wide config
+│   └── secrets.toml            # workspace-wide secrets (gitignored)
+├── .agents/
+│   └── skills/                 # vendored source of the `init` toolkit
+│       ├── dlthub-router/
+│       ├── setup-secrets/
+│       └── improve-skills/
+├── .claude/
+│   └── skills/                 # symlinks to .agents/skills/*
+├── .mcp.json                   # registers `dlt-workspace-mcp`
+├── __deployment__.py           # empty; jobs get declared here
+└── pyproject.toml
+```
 
 To wire up Cursor or Codex instead, run:
 
@@ -78,4 +96,5 @@ Output includes the dlt version, the configured agent, the installed toolkits, a
 
 ## What's next
 
-- [Deployment](deployment.md) shows how to use the `dlthub-platform` toolkit end-to-end.
+- [Toolkits](toolkits.md) walks through the full catalog and where each fits in the development cycle.
+- [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) shows how to use the `dlthub-platform` toolkit end-to-end.

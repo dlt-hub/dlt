@@ -489,9 +489,8 @@ const sidebars = {
       label: "AI Harness",
       items: [
         "hub/ai-harness/introduction",
-        "hub/ai-harness/toolkits",
         "hub/ai-harness/installation",
-        "hub/ai-harness/deployment",
+        "hub/ai-harness/toolkits",
       ],
     },
     {

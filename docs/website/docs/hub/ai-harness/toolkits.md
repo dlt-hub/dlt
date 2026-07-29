@@ -6,21 +6,19 @@ keywords: [ai harness, toolkits, catalog, development cycle, rest-api-pipeline, 
 
 # Toolkits
 
-A toolkit is a versioned bundle of skills, rules, and an MCP server, tied together by a workflow that tells the agent which skill to run at each step and how to leverage the MCP. Each toolkit covers one job: build a REST API pipeline, add data-quality checks, deploy a workspace, and so on. Head to [Installation](installation.md#adding-feature-toolkits) to install them.
+A toolkit is a versioned bundle of skills, rules, and an MCP server, tied together by a workflow that tells the agent which skill to run at each step and how to leverage the MCP. Each toolkit covers one job: build a REST API pipeline, add data-quality checks, deploy a workspace, and so on. Toolkits also act as guardrails, keeping the agent from diverging from proven dlt patterns and data-engineering best practices. Head to [Installation](installation.md#adding-feature-toolkits) to install them.
 
 ## The development cycle
 
 Toolkits map onto a five-stage pipeline lifecycle. Each toolkit owns one stage and guides the agent through it end to end, starting from an **entry skill** and running the rest in sequence.
 
-```mermaid
-%%{init: {"flowchart": {"nodeSpacing": 80, "rankSpacing": 80, "curve": "basis"}, "themeVariables": {"fontSize": "20px"}}}%%
-flowchart LR
-    Ingest --> Validate
-    Validate --> Transform
-    Transform --> Deploy
-    Deploy --> Observe
-    Observe --> Ingest
-```
+| Stage | Purpose |
+| --- | --- |
+| [Ingest](#ingest) | Load data from sources (REST APIs, SQL databases, files) into a destination. |
+| [Validate](#validate) | Define column-level checks and load metrics to catch bad data early. |
+| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use. |
+| [Deploy](#deploy) | Ship pipelines and notebooks to the dltHub platform on a schedule. |
+| [Observe](#observe) | Explore loaded data and diagnose performance issues. |
 
 ## Ingest
 
@@ -79,6 +77,7 @@ Load files (CSV, Parquet, JSONL, or custom) from local disk, S3, GCS, Azure, or 
 </details>
 </div>
 
+
 ## Validate
 
 ### `data-quality`
@@ -96,6 +95,7 @@ Inspect schema for candidates, define column-level validations and load metrics,
 
 </details>
 </div>
+
 
 ## Transform
 
@@ -117,11 +117,12 @@ Transform raw dlt pipeline data into a Canonical Data Model using Kimball dimens
 </details>
 </div>
 
+
 ## Deploy
 
 ### `dlthub-platform`
 
-Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked example](deployment.md).
+Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked example](../pipeline-operations/deployments.md#deploy-with-ai-harness).
 
 <div class="plain-details">
 <details>
@@ -134,6 +135,7 @@ Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked e
 
 </details>
 </div>
+
 
 ## Observe
 
@@ -166,5 +168,4 @@ Diagnose the bottleneck stage (extract, normalize, load) and apply parallelism, 
 
 ## What's next
 
-- [Installation](installation.md) sets up a workspace with the AI Harness and the preceding toolkits.
-- [Deployment](deployment.md) walks through the `dlthub-platform` toolkit end-to-end.
+- [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) walks through the `dlthub-platform` toolkit end-to-end.
