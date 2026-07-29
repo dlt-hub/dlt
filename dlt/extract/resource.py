@@ -77,6 +77,7 @@ from dlt.extract.pipe import Pipe
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
+    DataLocationKindRequired,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     InvalidParentResourceDataType,
     InvalidParentResourceIsAFunction,
@@ -242,7 +243,8 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         Call on the resource instance when it is created, or from inside a running resource via
         `dlt.current.resource()` when the location is only known once config is resolved. One entry
         per location, listing the tables, endpoints or files touched inside it - not one entry per
-        table. `kind` defaults to the name of the source this resource belongs to.
+        table. `kind` defaults to the name of the source this resource belongs to, and must be
+        passed explicitly by a resource that has no source yet.
 
         Args:
             location (TDataLocation): Location that was read, or a `kind`-specific subclass of it.
@@ -254,18 +256,19 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         Raises:
             TypeErrorWithKnownTypes: If `location` is not a mapping.
+            DataLocationKindRequired: If `kind` is absent and there is no source to default it from.
         """
         if not isinstance(location, dict):
             raise TypeErrorWithKnownTypes("location", location, ["TDataLocation"])
         # a fact that could not be established is absent from the row, not null
         described: DictStrAny = dict(without_none(location))
-        if not described.get("kind") and self.source_name:
+        if not described.get("kind"):
+            if not self.source_name:
+                raise DataLocationKindRequired(self.name)
             described["kind"] = self.source_name
         if replace:
             self._inputs.clear()
-        # a resource instance may be extracted more than once, a location is still listed once
-        if described not in self._inputs:
-            self._inputs.append(cast(TDataLocation, described))
+        self._inputs.append(cast(TDataLocation, described))
         return self
 
     @property

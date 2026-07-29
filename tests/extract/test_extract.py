@@ -19,7 +19,11 @@ from dlt.common.typing import TTableNames, TDataItems
 from dlt.common.utils import uniq_id
 
 from dlt.extract import DltResource, DltSource
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    DataLocationKindRequired,
+    ResourceExtractionError,
+)
 from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
@@ -1964,6 +1968,13 @@ def test_resource_inputs_kind_defaults_to_source_name(extract_step: Extract) -> 
         {"location": "sftp://host/path", "kind": "my_sftp", "resource_name": "no_kind"}
     ]
 
+    # a resource that belongs to no source has no `kind` to default to
+    standalone = dlt.resource([{"id": 1}], name="orders")
+    with pytest.raises(DataLocationKindRequired) as kind_ex:
+        standalone.add_input({"resource_name": "orders", "location": "sftp://host/path"})  # type: ignore[typeddict-item]
+    assert kind_ex.value.resource_name == "orders"
+    assert standalone.inputs == []
+
 
 def test_resource_inputs_of_pipe_root(extract_step: Extract) -> None:
     """A pipe root feeding a transformer is extracted but not selected, its inputs still count"""
@@ -1977,7 +1988,10 @@ def test_resource_inputs_of_pipe_root(extract_step: Extract) -> None:
                 "resource_name": resource.name,
                 "location": "file:///bucket",
                 "glob": "*.csv",
-            }
+            },
+            # this instance is piped into a second transformer below, like the filesystem
+            # source it only reports the location of the run in progress
+            replace=True,
         )
         yield [{"id": 1}]
 
@@ -2036,7 +2050,9 @@ def test_resource_inputs_of_pipe_root(extract_step: Extract) -> None:
     assert ("files", "fetch_detail") in metrics["dag"]
 
 
-def test_resource_inputs_are_deduplicated(extract_step: Extract) -> None:
+def test_resource_inputs_are_recorded_as_added(extract_step: Extract) -> None:
+    """Recording is additive, a resource reading the same location on every page says so"""
+
     @dlt.resource
     def repeats():
         for page in range(3):
@@ -2049,27 +2065,10 @@ def test_resource_inputs_are_deduplicated(extract_step: Extract) -> None:
     source = DltSource(dlt.Schema("repeats"), "module", [repeats()])
     load_id = extract_step.extract(source, 20, 1)
     step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
-    assert step_info.metrics[load_id][0]["inputs"] == [
-        {"kind": "api", "location": "https://example.com", "resource_name": "repeats"}
-    ]
-
-
-def test_resource_inputs_not_duplicated_between_extracts(extract_step: Extract) -> None:
-    """A source instance may be extracted twice, a location must still be listed once"""
-
-    @dlt.resource
-    def with_input():
-        resource = dlt.current.resource()
-        resource.add_input(
-            {"kind": "api", "resource_name": resource.name, "location": "https://example.com"}
-        )
-        yield [{"id": 1}]
-
-    source = DltSource(dlt.Schema("reused"), "module", [with_input()])
-    extract_step.extract(source, 20, 1)
-    load_id = extract_step.extract(source, 20, 1)
-    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
-    assert len(step_info.metrics[load_id][0]["inputs"]) == 1
+    assert (
+        step_info.metrics[load_id][0]["inputs"]
+        == [{"kind": "api", "location": "https://example.com", "resource_name": "repeats"}] * 3
+    )
 
 
 def test_resource_inputs_replace_drops_all_previous() -> None:

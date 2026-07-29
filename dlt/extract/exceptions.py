@@ -123,6 +123,17 @@ class ResourceNameMissing(DltResourceException):
         )
 
 
+class DataLocationKindRequired(DltResourceException):
+    def __init__(self, resource_name: str) -> None:
+        super().__init__(
+            resource_name,
+            f"Resource `{resource_name}` does not belong to a source, so `kind` of a recorded data"
+            " location cannot default to the source name. Pass `kind` explicitly. Note that a"
+            " resource joins its source only after the source function returns, so the default is"
+            " not available to code recording inputs while the source is still being created.",
+        )
+
+
 class ResourceNotFoundError(DltResourceException, KeyError):
     def __init__(self, resource_name: str, context: str) -> None:
         self.resource_name = resource_name
