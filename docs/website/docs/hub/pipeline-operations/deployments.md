@@ -260,7 +260,9 @@ Here's the sequence the toolkit drives, roughly what you'll see in the agent's t
 
 **2. `prepare-deployment`**: the agent splits dev and prod credentials into `.dlt/dev.secrets.toml` and `.dlt/prod.secrets.toml`, sets up a production destination (for example, Motherduck if you're on DuckDB locally), then opens `__deployment__.py`, imports `load_fruitshop` from your pipeline module, wraps it with `run.pipeline` and a schedule trigger, and exports it in `__all__`:
 
-```py title="fruitshop_pipeline.py"
+**`fruitshop_pipeline.py`**:
+
+```py
 import dlt
 from fruitshop_source import fruitshop
 
@@ -273,7 +275,9 @@ def load_fruitshop():
     pipeline.run(fruitshop())
 ```
 
-```py title="__deployment__.py"
+**`__deployment__.py`**:
+
+```py
 """Fruitshop workspace — ingests fruitshop data every 10 minutes."""
 from dlt.hub import run
 from dlt.hub.run import trigger
