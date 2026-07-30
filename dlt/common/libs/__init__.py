@@ -38,6 +38,11 @@ def is_arrow_object(obj: Any) -> bool:
     return m is not None and isinstance(obj, (m.Table, m.RecordBatch))
 
 
+def is_arrow_schema(obj: Any) -> bool:
+    m = get_pyarrow_module()
+    return m is not None and isinstance(obj, m.Schema)
+
+
 def is_pandas_frame(obj: Any) -> bool:
     m = get_pandas_module()
     return m is not None and isinstance(obj, m.DataFrame)

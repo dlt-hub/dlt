@@ -1,8 +1,9 @@
 """CLI prompting and output helpers."""
 
+import io
 import sys
 import contextlib
-from typing import Any, Iterable, Iterator, Optional, ContextManager
+from typing import Any, Dict, Iterable, Iterator, Optional, Tuple, ContextManager
 import click
 
 
@@ -11,6 +12,18 @@ ALWAYS_CHOOSE_VALUE: Any = None
 ALWAYS_CONFIRM = False
 
 _CLI_HOST: str = "dlt"
+
+DLT_TO_DLTHUB_COMMANDS: Dict[str, str] = {
+    "init": "pipeline init",
+    "pipeline": "local pipeline",
+    "schema": "local schema",
+    "telemetry": "local telemetry",
+    "dashboard": "local show",
+    "ai": "ai",
+}
+"""Maps `dlt` commands to their `dlthub` replacements suggested in an active workspace."""
+
+_pipeline_parser: Any = None
 
 
 def get_cli_host_name() -> str:
@@ -24,17 +37,55 @@ def set_cli_host_name(host: str) -> None:
     _CLI_HOST = host
 
 
+def _parse_pipeline_cmd(tokens: Iterable[str]) -> Tuple[Optional[str], Optional[str]]:
+    """Extracts (pipeline_name, operation) from OSS `pipeline` args using the real parser.
+    Returns (None, None) when the args cannot be parsed."""
+    global _pipeline_parser
+    if _pipeline_parser is None:
+        import argparse
+        from dlt._workspace.cli.commands import PipelineCommand
+
+        _pipeline_parser = argparse.ArgumentParser(prog="pipeline", add_help=False)
+        PipelineCommand().configure_parser(_pipeline_parser)
+    try:
+        with contextlib.redirect_stderr(io.StringIO()):
+            ns, _ = _pipeline_parser.parse_known_args(list(tokens))
+    except SystemExit:
+        return None, None
+    return getattr(ns, "pipeline_name", None), getattr(ns, "operation", None)
+
+
 def cli_cmd(rest: str = "") -> str:
-    """Formats an example command line prefixed with the active CLI host name.
+    """Formats an example command line for the active CLI host.
+
+    For the `dlthub` host the command word is mapped to its dlthub group and `pipeline`
+    commands are reordered to the verb-first `local pipeline <verb> <name> ...` form.
 
     Args:
-        rest: Argument string to append after the host name.
+        rest: The command line as written for the `dlt` (OSS) host, e.g.
+            `"pipeline my_pipe load-package 123 row-counts"`.
 
     Returns:
-        str: The full example, e.g. `"dlt pipeline my_pipe info"` or
-        `"dlthub pipeline my_pipe info"` when the dlthub host is active.
+        str: The full example prefixed and reordered for the active host.
     """
-    return f"{_CLI_HOST} {rest}".rstrip()
+    tokens = rest.split()
+    if _CLI_HOST != "dlthub" or not tokens:
+        return f"{_CLI_HOST} {rest}".rstrip()
+    group = DLT_TO_DLTHUB_COMMANDS.get(tokens[0])
+    if group is None:
+        return f"dlthub {rest}".rstrip()
+    if tokens[0] != "pipeline":
+        return " ".join(["dlthub", group, *tokens[1:]])
+    name, verb = _parse_pipeline_cmd(tokens[1:])
+    if verb is None:
+        return " ".join(["dlthub", group, *tokens[1:]])
+    verb_idx = tokens.index(verb)
+    # tokens before the verb are global flags (e.g. -v); the name moves after the verb
+    flags = [t for t in tokens[1:verb_idx] if t != name]
+    suffix = tokens[verb_idx + 1 :]
+    return " ".join(
+        ["dlthub", "local", "pipeline", *flags, verb, *([name] if name else []), *suffix]
+    )
 
 
 def is_interactive() -> bool:

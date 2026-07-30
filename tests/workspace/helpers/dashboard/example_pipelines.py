@@ -255,6 +255,7 @@ def create_load_exception_pipeline(pipelines_dir: str = None):
         destination=dlt.destinations.dummy(timeout=0.1),
     )
 
+    # default behavior: the terminal load failure leaves the package pending (retryable)
     with pytest.raises(Exception):
         pipeline.run([1, 2, 3], table_name="items", schema=dlt.Schema("fruitshop"))
 

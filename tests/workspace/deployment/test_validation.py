@@ -326,6 +326,32 @@ def test_validate_accepts_synced_or_custom_profile_requirement(profile_name: str
     assert not any("local-only profile" in e for e in result.errors), result.errors
 
 
+@pytest.mark.parametrize(
+    "instance",
+    ["medium", ["size", "medium"], 42],
+    ids=["str", "list", "int"],
+)
+def test_validate_rejects_non_object_require_instance(instance: Any) -> None:
+    """require.instance must be a JSON object (dict), not a scalar or list."""
+    job = _make_job(
+        "jobs.mod.bad_instance",
+        triggers=["schedule:0 0 * * *"],
+        require={"instance": instance},
+    )
+    result = validate_job_definition(job)
+    assert any("require.instance must be an object" in e for e in result.errors), result.errors
+
+
+def test_validate_accepts_require_instance_object() -> None:
+    job = _make_job(
+        "jobs.mod.ok_instance",
+        triggers=["schedule:0 0 * * *"],
+        require={"instance": {"size": "medium"}},
+    )
+    result = validate_job_definition(job)
+    assert not any("require.instance" in e for e in result.errors), result.errors
+
+
 def test_misaligned_interval_start_warns() -> None:
     """Start not on a cron tick produces a warning."""
     manifest = _make_manifest(

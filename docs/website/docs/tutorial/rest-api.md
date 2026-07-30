@@ -79,7 +79,7 @@ python rest_api_pipeline.py
 You should see the output of the pipeline execution in the terminal. The output will also display the location of the DuckDB database file where the data is stored:
 
 ```sh
-Pipeline rest_api_pokemon load step completed in 1.08 seconds
+Pipeline rest_api_pokemon load step finished in 1.08 seconds
 1 load package(s) were loaded to destination duckdb and into dataset rest_api_data
 The duckdb destination used duckdb:////home/user-name/quick_start/rest_api_pokemon.duckdb location to store data
 Load package 1692364844.9254808 is LOADED and contains no failed jobs

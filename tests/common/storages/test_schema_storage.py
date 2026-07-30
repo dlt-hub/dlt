@@ -105,11 +105,8 @@ def test_import_overwrites_existing_if_modified(
     assert_schema_imported(synced_storage, storage)
 
 
-def test_save_does_not_link_stale_schema_to_current_import(
-    ie_storage: SchemaStorage, storage: SchemaStorage
-) -> None:
+def test_save_does_not_link_stale_schema_to_current_import(ie_storage: SchemaStorage) -> None:
     stale_schema = Schema("ethereum")
-    storage.save_schema(stale_schema)
     imported_schema = prepare_eth_import_folder(ie_storage)
 
     ie_storage.save_schema(stale_schema, link_import_schema=False)

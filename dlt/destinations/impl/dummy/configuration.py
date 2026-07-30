@@ -1,3 +1,4 @@
+from typing import Optional, List
 import dataclasses
 from typing import Final
 
@@ -20,6 +21,9 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = dataclasses.field(default="dummy", init=False, repr=False, compare=False)  # type: ignore
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
+    """raise terminal exception in schema update"""
+    fail_schema_update_transiently: bool = False
+    """raise transient exception in schema update"""
     fail_prob: float = 0.0
     """probability of terminal fail"""
     retry_prob: float = 0.0
@@ -36,6 +40,8 @@ class DummyClientConfiguration(DestinationClientConfiguration):
     """raise transient exception in job init"""
     truncate_tables_on_staging_destination_before_load: bool = True
     """truncate tables on staging destination"""
+    fail_table_names: Optional[List[str]] = None
+    """List of table names to fail"""
 
     # new jobs workflows
     create_followup_jobs: bool = False

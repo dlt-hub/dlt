@@ -1,22 +1,22 @@
 ---
-title: REST API Source with dlthub AI Workbench
-description: Build any REST API source with dltHub AI Workbench toolkits - workflows, skills, rules, and MCP tools
+title: REST API Source with dlthub AI Harness
+description: Build any REST API source with dltHub AI Harness toolkits - workflows, skills, rules, and MCP tools
 keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 ---
 
-# REST API Source with dltHub AI Workbench
+# REST API Source with dltHub AI Harness
 
 :::info
-The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The dltHub AI Harness is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
 
 Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices. 
 
-The **rest-api-pipeline** toolkit is part of the [dltHub AI Workbench](https://github.com/dlt-hub/dlthub-ai-workbench) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step. 
+The **rest-api-pipeline** toolkit is part of the [dltHub AI Harness](../ai-harness/introduction.md) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step. 
 
-The dltHub AI workbench works with **Claude Code**, **Cursor**, and **Codex**.
+The dltHub AI Harness works with **Claude Code**, **Cursor**, and **Codex**.
 
 ## Setup
 
@@ -177,7 +177,7 @@ dlt.common.configuration.exceptions.ConfigFieldMissingException:
 The assistant sets INFO logging, inspects traces, and iterates until the pipeline completes:
 
 ```text
-Pipeline github_source load step completed in 0.26 seconds
+Pipeline github_source load step finished in 0.26 seconds
 1 load package(s) were loaded to destination duckdb and into dataset github_source_data
 The duckdb destination used duckdb:/github_source.duckdb location to store data
 Load package 1749667187.541553 is LOADED and contains no failed jobs
