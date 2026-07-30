@@ -331,7 +331,13 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
 
         # sqlite: the database file is the location. mysql and mssql can query across
         # databases on the same server (database is schema-like / 3-part names)
-        if self_backend in ("sqlite", "mysql", "mssql"):
+        if self_backend == "sqlite":
+            # every dataset is a separate database file and only this client's own is attached
+            return (
+                isinstance(other, DestinationClientDwhConfiguration)
+                and other.dataset_name == self.dataset_name
+            )
+        if self_backend in ("mysql", "mssql"):
             return True
 
         # remaining dialects (postgresql, oracle, db2, unknown) bind a connection to a single

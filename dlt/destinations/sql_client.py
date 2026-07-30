@@ -470,6 +470,10 @@ class WithAttach(ABC):
         """Tell if this (foreign) client can produce attach statements at all."""
         return True
 
+    def needs_attach(self, foreign: "WithAttach") -> bool:
+        """Tell if `foreign` must be attached, or is already in reach of this connection."""
+        return True
+
     @abstractmethod
     def attach(self, info: TAttachInfo) -> None:
         """Record `info` and apply it to the current connection when one is open."""

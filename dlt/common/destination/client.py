@@ -228,6 +228,27 @@ class DestinationClientConfiguration(BaseConfiguration):
         return extract_inner_hint(type_)
 
 
+class WithDuckDbEngine:
+    """Marks a destination whose datasets are queried through a DuckDB engine.
+
+    Mix in before the configuration so this `can_read_from` wins."""
+
+    def can_be_attached(self) -> bool:
+        """Tells if another DuckDB engine can ATTACH this destination."""
+        return True
+
+    def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
+        """Returns True for a DuckDB engine that can be attached, or is the very same database."""
+        if not isinstance(other, WithDuckDbEngine):
+            return False
+        if other.can_be_attached():
+            return True
+        # a database no one can attach is in reach only when it is the one already open
+        self_location = self.physical_location()  # type: ignore[attr-defined]
+        other_location = other.physical_location()
+        return bool(self_location and other_location and self_location == other_location)
+
+
 @configspec
 class DestinationClientDwhConfiguration(DestinationClientConfiguration):
     """Configuration of a destination that supports datasets/schemas"""

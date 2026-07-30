@@ -695,7 +695,7 @@ DUCKLAKE_JOIN_CASES = [
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("postgres://u@h:5432/db", "lake2")
         ),
-        False,
+        True,
         id="dl_sql_cat_diff_name",
     ),
     # sql catalogs: explicit metadata schema overrides the name
@@ -716,15 +716,15 @@ DUCKLAKE_JOIN_CASES = [
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("postgres://u@h:5432/db", "lake", metadata_schema="meta2")
         ),
-        False,
+        True,
         id="dl_sql_cat_diff_metadata_schema",
     ),
     # md catalogs have no non-secret identity
     pytest.param(
         lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
         lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
-        False,
-        id="dl_md_cat_not_joinable",
+        True,
+        id="dl_md_cat_joinable",
     ),
 ]
 
@@ -916,14 +916,14 @@ def test_cross_type_different_physical_locations() -> None:
     "url1,url2,expected",
     [
         pytest.param("s3://b/p1", "s3://b/p2", True, id="same_bucket_different_prefix"),
-        pytest.param("s3://b1/p", "s3://b2/p", False, id="different_bucket"),
-        pytest.param("s3://b/p", "gs://b/p", False, id="different_scheme_same_bucket"),
+        pytest.param("s3://b1/p", "s3://b2/p", True, id="different_bucket"),
+        pytest.param("s3://b/p", "gs://b/p", True, id="different_scheme_same_bucket"),
         pytest.param("/local/p", "/local/p", True, id="same_local_path"),
-        pytest.param("/local/p1", "/local/p2", False, id="different_local_path"),
-        pytest.param("s3://b/p", "/local/p", False, id="remote_vs_local"),
+        pytest.param("/local/p1", "/local/p2", True, id="different_local_path"),
+        pytest.param("s3://b/p", "/local/p", True, id="remote_vs_local"),
     ],
 )
-def test_filesystem_can_read_from_same_location(url1: str, url2: str, expected: bool) -> None:
+def test_filesystem_can_read_from_any_duckdb_engine(url1: str, url2: str, expected: bool) -> None:
     c1 = FilesystemDestinationClientConfiguration(bucket_url=url1)
     c2 = FilesystemDestinationClientConfiguration(bucket_url=url2)
     assert_join_result(c1, c2, expected)
@@ -1075,7 +1075,7 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
         pytest.param(
             lambda: _lancedb_config("/tmp/db1.lancedb"),
             lambda: _lancedb_config("/tmp/db2.lancedb"),
-            False,
+            True,
             id="different_uri",
         ),
         pytest.param(
@@ -1095,7 +1095,7 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
         pytest.param(
             lambda: _lancedb_config(":external:"),
             lambda: _lancedb_config(":external:"),
-            False,
+            True,
             id="external_native_client",
         ),
     ],
@@ -1128,14 +1128,13 @@ def test_lancedb_can_never_write() -> None:
         pytest.param(
             lambda: _lance_config("file:///tmp/lance1"),
             lambda: _lance_config("file:///tmp/lance2"),
-            False,
+            True,
             id="different_catalog",
         ),
-        # TODO: flip to True when cross dataset joins are implemented
         pytest.param(
             lambda: _lance_config("file:///tmp/lance", dataset_name="dataset1"),
             lambda: _lance_config("file:///tmp/lance", dataset_name="dataset2"),
-            False,
+            True,
             id="different_dataset_same_catalog",
         ),
         pytest.param(
@@ -1153,7 +1152,7 @@ def test_lancedb_can_never_write() -> None:
         pytest.param(
             lambda: _lance_rest_config("http://127.0.0.1:2333"),
             lambda: _lance_rest_config("http://other:2333"),
-            False,
+            True,
             id="different_rest_namespace",
         ),
     ],
@@ -1205,10 +1204,11 @@ def test_lance_can_never_write() -> None:
     assert not c1.can_write_from(c1)
 
 
-def test_lance_and_lancedb_cannot_join_with_each_other() -> None:
+def test_lance_and_lancedb_can_join_with_each_other() -> None:
+    """Both read `.lance` data through the same duckdb extension, so either attaches the other."""
     lance = _lance_config("file:///tmp/lance")
     lancedb = _lancedb_config("file:///tmp/lance")
-    assert_not_joinable(lance, lancedb)
+    assert_joinable(lance, lancedb)
 
 
 def test_weaviate_physical_location_but_not_joinable() -> None:

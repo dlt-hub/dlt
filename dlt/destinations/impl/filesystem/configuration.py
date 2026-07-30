@@ -12,7 +12,9 @@ from dlt.common.configuration.specs.hf_credentials import HfCredentials
 from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
     DestinationClientStagingConfiguration,
+    WithDuckDbEngine,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 
@@ -22,7 +24,7 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 @configspec
 class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
-    FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+    WithDuckDbEngine, FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
 ):
     destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore[misc]
     current_datetime: Optional[TCurrentDateTime] = None
@@ -68,14 +70,6 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         and setting False here we enforce it's usage
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        # filesystem tables are queried through a local engine (e.g. DuckDB) that
-        # can access multiple storage backends in a single query, so join
-        # compatibility is determined by the engine, not by the storage location.
-
-        # until auto ATTACH is implemented, storage location must be used
-        return super().can_read_from(other)
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders

@@ -11,6 +11,7 @@ from dlt.common.configuration.specs.exceptions import InvalidConnectionString
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    WithDuckDbEngine,
 )
 from dlt.common.storages import WithLocalFiles
 from dlt.common.typing import Annotated
@@ -320,7 +321,9 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
 
 
 @configspec
-class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingConfiguration):
+class DuckDbClientConfiguration(
+    WithDuckDbEngine, WithLocalFiles, DestinationClientDwhWithStagingConfiguration
+):
     destination_type: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     credentials: DuckDbCredentials = None
     create_indexes: bool = (
@@ -348,16 +351,10 @@ class DuckDbClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingC
             return self.credentials.database
         return ""
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for another duckdb database that is read directly or via ATTACH."""
-        if not isinstance(other, DuckDbClientConfiguration):
-            return False
-        other_location = other.physical_location()
-        if not other_location:
-            return False
-        if other_location == self.physical_location():
-            return True
-        return other_location not in NON_ATTACHABLE_LOCATIONS
+    def can_be_attached(self) -> bool:
+        """Returns True unless the database lives inside a single connection."""
+        location = self.physical_location()
+        return bool(location) and location not in NON_ATTACHABLE_LOCATIONS
 
     def on_resolved(self) -> None:
         self.credentials.database = self.make_location(self.credentials.database, DUCK_DB_NAME_PAT)

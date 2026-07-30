@@ -7,7 +7,10 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.destination.client import (
+    DestinationClientDwhWithStagingConfiguration,
+    WithDuckDbEngine,
+)
 from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     FilesystemConfigurationWithLocalFiles,
@@ -129,7 +132,9 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
 
 # TODO add connection to a specific snapshot
 @configspec
-class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingConfiguration):
+class DuckLakeClientConfiguration(
+    WithDuckDbEngine, WithLocalFiles, DestinationClientDwhWithStagingConfiguration
+):
     destination_type: str = dataclasses.field(
         default="ducklake",
         init=False,

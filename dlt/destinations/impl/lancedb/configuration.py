@@ -12,6 +12,7 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
+    WithDuckDbEngine,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
@@ -113,7 +114,9 @@ TEmbeddingProvider = Literal[
 
 
 @configspec
-class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
+class LanceDBClientConfiguration(
+    WithDuckDbEngine, WithLocalFiles, DestinationClientDwhConfiguration
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lancedb", init=False, repr=False, compare=False
     )
@@ -222,14 +225,3 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
         and returning False here enforces its usage.
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same LanceDB URI."""
-        if not isinstance(other, LanceDBClientConfiguration):
-            return False
-
-        # any table at the same location can be read via the same ATTACH (lance extension),
-        # `dataset_separator` only affects table naming and does not limit readability
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        return bool(self_loc and other_loc and self_loc == other_loc)

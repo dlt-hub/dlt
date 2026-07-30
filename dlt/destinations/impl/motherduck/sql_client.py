@@ -3,7 +3,12 @@ from typing import ClassVar, Collection, Optional, Tuple, cast
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.motherduck.configuration import MotherDuckCredentials
-from dlt.destinations.sql_client import TAttachInfo, TAttachType, attach_statement
+from dlt.destinations.sql_client import (
+    TAttachInfo,
+    TAttachType,
+    WithAttach,
+    attach_statement,
+)
 
 
 class MotherDuckSqlClient(DuckDbSqlClient):
@@ -21,6 +26,14 @@ class MotherDuckSqlClient(DuckDbSqlClient):
     ) -> None:
         super().__init__(dataset_name, staging_dataset_name, credentials, capabilities)
         self.database_name = credentials.database
+
+    def needs_attach(self, foreign: WithAttach) -> bool:
+        if not isinstance(foreign, MotherDuckSqlClient):
+            return True
+        # a token grants the whole account, whose every database the connection already reaches
+        token = cast(MotherDuckCredentials, self.credentials).password
+        foreign_token = cast(MotherDuckCredentials, foreign.credentials).password
+        return not (token and foreign_token and token == foreign_token)
 
     def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
         # the whole database is attached, `tables` cannot narrow it

@@ -30,6 +30,7 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
+    WithDuckDbEngine,
 )
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
@@ -326,7 +327,7 @@ class LanceNamespacePool:
 
 
 @configspec
-class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
+class LanceClientConfiguration(WithDuckDbEngine, WithLocalFiles, DestinationClientDwhConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
@@ -479,17 +480,3 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         and returning False here enforces its usage.
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same Lance catalog and bound dlt dataset."""
-        if not isinstance(other, LanceClientConfiguration):
-            return False
-
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if not self_loc or not other_loc or self_loc != other_loc:
-            return False
-
-        # TODO: remove the dataset check when cross dataset joins are implemented. any
-        # dataset (namespace) under the same catalog root is readable via the same ATTACH
-        return self.dataset_name == other.dataset_name

@@ -71,6 +71,7 @@ if TYPE_CHECKING:
     from pyarrow import Table as ArrowTable
 
 from dlt.destinations.impl.duckdb.configuration import (
+    NON_ATTACHABLE_LOCATIONS,
     DuckDbBaseCredentials,
     DuckDbClientConfiguration,
     DuckDbCredentials,
@@ -183,6 +184,16 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             ],
             detach_statements=[f"DETACH {q_alias}"],
         )
+
+    def needs_attach(self, foreign: WithAttach) -> bool:
+        database = self.credentials.database
+        if not isinstance(foreign, DuckDbSqlClient) or not database:
+            return True
+        if database in NON_ATTACHABLE_LOCATIONS:
+            # those do not name a database, so two of them are the same one only when pooled together
+            return self.credentials.conn_pool is not foreign.credentials.conn_pool
+        # a duckdb connection reaches every schema of the database it opened
+        return database != foreign.credentials.database
 
     def attach(self, info: TAttachInfo) -> None:
         alias = info["alias"]
@@ -738,6 +749,10 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
     def _schemas_for_table(self, table_name: str) -> List[Schema]:
         """Return all schemas that contain `table_name`, in dict order."""
         return [s for s in self.schemas.values() if table_name in s.tables]
+
+    def needs_attach(self, foreign: WithAttach) -> bool:
+        # views cover this client's own dataset only, so any other one must be attached
+        return True
 
     def _table_views(self, tables: Optional[Collection[str]] = None) -> Dict[str, str]:
         """Maps `tables` to views of the same name, every table of every schema when not given."""

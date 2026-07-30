@@ -255,7 +255,7 @@ def test_join_across_different_physical_destinations_attaches(
 
         # a primary that cannot attach the foreign location still rejects the join
         monkeypatch.setattr(type(dataset.sql_client), "can_attach", lambda self, attach_type: False)
-        with pytest.raises(ValueError, match="different physical destinations"):
+        with pytest.raises(ValueError, match="cannot reach dataset"):
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
 
 
@@ -298,7 +298,6 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
 @pytest.mark.parametrize(
     "make_destination",
     [
-        pytest.param(lambda p: dlt.destinations.filesystem(str(p / "data")), id="filesystem"),
         pytest.param(
             lambda p: dlt.destinations.sqlalchemy(f"sqlite:///{p / 'shop.db'}"), id="sqlite"
         ),
@@ -329,10 +328,49 @@ def test_join_rejects_cross_dataset_on_unsupported_destination(
 
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
-        assert ds_a.is_same_physical_destination(ds_b)
+        # one database file, yet each dataset lives in its own attached file
+        assert ds_a.destination_client.config.physical_location() == (
+            ds_b.destination_client.config.physical_location()
+        )
 
-        with pytest.raises(ValueError, match="Cross-dataset joins are not supported"):
+        # sqlite attaches only its own dataset file, so the other one is out of reach
+        with pytest.raises(ValueError, match="cannot reach dataset"):
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
+
+
+def test_join_cross_dataset_on_filesystem_attaches() -> None:
+    """Two datasets in one bucket are each materialized into their own engine, so the query
+    reaches the second one by attaching it."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        bucket_url = FilesystemConfiguration.make_file_url(str(tmp_path / "data"))
+        crm = dlt.pipeline(
+            pipeline_name="fs_cross_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(bucket_url),
+            dataset_name="fs_crm",
+        )
+        crm.run([{"id": 1, "name": "Alice"}], table_name="users", loader_file_format="parquet")
+        sales = dlt.pipeline(
+            pipeline_name="fs_cross_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(bucket_url),
+            dataset_name="fs_sales",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+
+        ds_crm, ds_sales = crm.dataset(), sales.dataset()
+        # one bucket, so the datasets are co-located yet each needs its own attach
+        assert ds_crm.destination_client.config.physical_location() == (
+            ds_sales.destination_client.config.physical_location()
+        )
+        joined = ds_crm.table("users").join(
+            ds_sales.table("orders"), on="users.id = orders.user_id"
+        )
+        assert joined._foreign_datasets["fs_sales"].alias == "attach_fs_sales"
+        df = joined.df()
+        assert list(df["name"]) == ["Alice"]
+        assert list(df["orders__id"]) == [10]
 
 
 @pytest.mark.parametrize(
@@ -2521,8 +2559,8 @@ def test_registering_foreign_dataset_drops_its_memo() -> None:
         assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
         assert joined._foreign_datasets["sales_data"].attach_info is not None
 
-        # the descriptor describes the dataset registered under that name, so it must not survive it
-        joined._register_foreign_dataset("sales_data", sales.dataset())
+        # the descriptor describes the dataset resolved under that name, so it must not survive it
+        joined._foreign_datasets["sales_data"] = joined._resolve_foreign_dataset(sales.dataset())
         assert joined._foreign_datasets["sales_data"].attach_info is None
         assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
 

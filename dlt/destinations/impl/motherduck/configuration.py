@@ -11,6 +11,7 @@ from dlt.common.configuration.specs.exceptions import NativeValueError
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhWithStagingConfiguration,
+    WithDuckDbEngine,
 )
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.utils import digest128
@@ -116,7 +117,7 @@ class MotherDuckCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
 
 
 @configspec
-class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration):
+class MotherDuckClientConfiguration(WithDuckDbEngine, DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="motherduck", init=False, repr=False, compare=False
     )
@@ -136,23 +137,21 @@ class MotherDuckClientConfiguration(DestinationClientDwhWithStagingConfiguration
             return digest128(self.credentials.password)
         return ""
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for MotherDuck configs with the same token."""
+    def _same_account(self, other: DestinationClientConfiguration) -> bool:
+        """Whether `other` is MotherDuck under the same token, which is the account identity."""
         if not isinstance(other, MotherDuckClientConfiguration):
             return False
-
         self_token = self.credentials.password if self.credentials else None
         other_token = other.credentials.password if other.credentials else None
+        return bool(self_token and other_token and self_token == other_token)
 
-        if not self_token or not other_token:
-            return False
-
-        return self_token == other_token
-
-    def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
-        # motherduck will be able to write from any attached duckdb
-        # until ATTACH is implemented we require the same token which is used as identity
-        return self.can_read_from(other)
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True for the same MotherDuck account or any attachable DuckDB engine."""
+        if isinstance(other, MotherDuckClientConfiguration):
+            # a MotherDuck connection cannot ATTACH another MotherDuck database, so only the
+            # databases of its own account are reachable
+            return self._same_account(other)
+        return super().can_read_from(other)
 
 
 class MotherDuckCatalogMissing(NativeValueError):
