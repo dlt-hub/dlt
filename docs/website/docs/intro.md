@@ -36,7 +36,8 @@ If you want the managed platform, AI Workbench, transformations, and data qualit
 ```sh
 uvx dlthub-start@latest
 ```
-See the [dltHub docs](hub/getting-started/introduction.md).
+See [Deploy your first pipeline](hub/getting-started/onboarding.md) for a walkthrough, or the
+[dltHub docs](hub/getting-started/introduction.md) for the full picture.
 :::
 
 :::tip

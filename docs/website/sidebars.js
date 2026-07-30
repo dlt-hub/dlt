@@ -482,7 +482,7 @@ const sidebars = {
         "hub/getting-started/installation",
         "hub/getting-started/onboarding",
         "hub/getting-started/playground-workspace",
-        "hub/getting-started/platform-tutorial",
+        // "hub/getting-started/platform-tutorial",
       ],
     },
     {

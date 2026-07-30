@@ -8,6 +8,8 @@ keywords: [dlthub platform, workspace, setup, login, profiles, credentials, conf
 
 A workspace ready for the dltHub platform is a regular Python project with a few additions. You can easily convert any existing dlt project into a dltHub workspace.
 
+Starting from scratch instead? Use `uvx dlthub-start@latest`, which scaffolds a workspace and runs a first pipeline for you — see [Deploy your first pipeline](../getting-started/onboarding.md).
+
 ## 1. Enable dltHub platform features
 
 Initialize the workspace:

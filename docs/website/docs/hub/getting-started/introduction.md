@@ -20,7 +20,7 @@ Use of the dltHub platform and toolkits is subject to a commercial [dltHub Licen
 uvx dlthub-start@latest
 ```
 
-Runs a guided first experience: it scaffolds a local workspace (dltHub AI Harness + `dlt[hub]`), installs dependencies, logs you in to the dltHub platform, runs a sample pipeline in your personal [Playground workspace](playground-workspace.md), and launches your coding agent ready to build your own source. See [installation](installation.md) for prerequisites and alternative install paths.
+Runs a guided first experience: it scaffolds a local workspace (dltHub AI Workbench + `dlt[hub]`), installs dependencies, logs you in to the dltHub platform, connects your personal [Playground workspace](playground-workspace.md), and launches your coding agent — which then deploys and runs the sample pipeline for you. Follow it step by step in [Deploy your first pipeline](onboarding.md), and see [installation](installation.md) for prerequisites and alternative install paths.
 
 On the [dltHub platform](../pipeline-operations/overview.md), set `destination="playground"` for a [zero-config destination](../ingestion/playground.md) that is ideal for testing and a quick first run.
 

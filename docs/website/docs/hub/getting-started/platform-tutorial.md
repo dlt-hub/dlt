@@ -10,6 +10,11 @@ See the [Platform overview](../pipeline-operations/overview.md) for more details
 - the flexibility and developer experience of dlt
 - the simplicity and reliability of managed infrastructure
 
+:::tip First time here?
+This tutorial uses a starter pack and your own MotherDuck account. For the shortest path to a pipeline running on the
+platform — no credentials needed — start with [Deploy your first pipeline](onboarding.md) instead.
+:::
+
 ## What you will learn
 
 In this tutorial you will:
