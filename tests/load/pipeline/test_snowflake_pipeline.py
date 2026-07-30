@@ -1,4 +1,6 @@
+import datetime
 import decimal
+import json
 from copy import deepcopy
 import os
 import pytest
@@ -7,6 +9,7 @@ from pytest_mock import MockerFixture
 
 import dlt
 from dlt.common import pendulum
+from dlt.common.data_writers.escape import escape_snowflake_literal
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
@@ -214,6 +217,47 @@ def test_snowflake_custom_stage(destination_config: DestinationTestConfiguration
         # check data of one table to ensure copy was done successfully
         tbl_name = client.make_qualified_table_name("lists")
         assert_query_column(pipeline, f"SELECT value FROM {tbl_name}", ["a", None, None])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("loader_file_format", ["jsonl", "parquet"])
+@pytest.mark.parametrize(
+    "keep_staged_files", [True, False], ids=["keep-staged-files", "remove-staged-files"]
+)
+def test_snowflake_local_load_table_name_with_spaces(
+    destination_config: DestinationTestConfiguration,
+    loader_file_format: TLoaderFileFormat,
+    keep_staged_files: bool,
+) -> None:
+    """Local files load into table names requiring quoting: PUT, COPY and REMOVE must quote
+    the stage reference and the file path."""
+    os.environ["DESTINATION__SNOWFLAKE__KEEP_STAGED_FILES"] = str(keep_staged_files)
+    snow_ = dlt.destinations.snowflake(naming_convention="duck_case")
+    pipeline = destination_config.setup_pipeline(
+        "test_snowflake_local_load_table_name_with_spaces",
+        dataset_name="space_table_" + uniq_id(),
+        destination=snow_,
+    )
+
+    info = pipeline.run(
+        [{"value": 1}], table_name="my table", loader_file_format=loader_file_format
+    )
+    assert_load_info(info)
+    load_id = info.loads_ids[0]
+
+    with pipeline.sql_client() as client:
+        qualified_table_name = client.make_qualified_table_name("my table")
+        value_column = client.escape_column_name("value")
+        assert client.execute_sql(f"SELECT {value_column} FROM {qualified_table_name}") == [(1,)]
+
+        stage_name = client.make_qualified_table_name("%my table")
+        stage_location = f'@{stage_name}/"{load_id}"'
+        staged_files = client.execute_sql(f"LIST {escape_snowflake_literal(stage_location)}")
+        assert len(staged_files) == (1 if keep_staged_files else 0)
 
 
 # do not remove - it allows us to filter tests by destination
@@ -870,3 +914,375 @@ def test_snowflake_staging_with_default_chain_credentials(
     for call in spy.spy_return_list:
         assert call["aws_session_token"] is not None
         assert call["aws_session_token"] == fs_creds.aws_session_token
+
+
+ALL_TYPES_STRUCT_DDL = (
+    "OBJECT(s VARCHAR(16777216), i NUMBER(19,0), f FLOAT, b BOOLEAN, ts TIMESTAMP_TZ(6), d DATE,"
+    " t TIME(6), dec NUMBER(38,9), bin BINARY(8388608), arr ARRAY(NUMBER(19,0)),"
+    " nested OBJECT(x VARCHAR(16777216), y NUMBER(19,0)), mp MAP(VARCHAR(16777216), NUMBER(19,0)),"
+    " with space VARCHAR(16777216), 日本語 NUMBER(19,0))"
+)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_nested_types_parquet(destination_config: DestinationTestConfiguration) -> None:
+    """Native-nested arrow via parquet: new table (struct with all data types), new nested column,
+    and in-place data type evolution (struct gains a field)."""
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    snow = dlt.destinations.snowflake(use_nested_types=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_snowflake_nested_types_parquet", dev_mode=True, destination=snow
+    )
+
+    def run_arrow(schema: Any, data: Any) -> Any:
+        @dlt.resource(name="items", primary_key="pk", write_disposition="append")
+        def items(tbl: Any) -> Any:
+            yield tbl
+
+        return pipeline.run(
+            items(pa.Table.from_pylist(data, schema=schema)), loader_file_format="parquet"
+        )
+
+    # a struct covering every supported data type plus nested list / struct / map
+    all_types = pa.struct(
+        [
+            ("s", pa.string()),
+            ("i", pa.int64()),
+            ("f", pa.float64()),
+            ("b", pa.bool_()),
+            ("ts", pa.timestamp("us", tz="UTC")),
+            ("d", pa.date32()),
+            ("t", pa.time64("us")),
+            ("dec", pa.decimal128(38, 9)),
+            ("bin", pa.binary()),
+            ("arr", pa.list_(pa.int64())),
+            ("nested", pa.struct([("x", pa.string()), ("y", pa.int64())])),
+            ("mp", pa.map_(pa.string(), pa.int64())),
+            # field names that are not normalized and need quoting/escaping
+            ("with space", pa.string()),
+            ("日本語", pa.int64()),
+        ]
+    )
+    value = {
+        "s": "hello",
+        "i": 42,
+        "f": 1.5,
+        "b": True,
+        "ts": datetime.datetime(2024, 1, 2, 3, 4, 5, tzinfo=datetime.timezone.utc),
+        "d": datetime.date(2024, 1, 2),
+        "t": datetime.time(3, 4, 5),
+        "dec": decimal.Decimal("123.456"),
+        "bin": b"\x01\x02\x03",
+        "arr": [1, 2, 3],
+        "nested": {"x": "q", "y": 7},
+        "mp": [("k", 9)],
+        "with space": "spaced",
+        "日本語": 99,
+    }
+
+    def qual(client: Any) -> str:
+        return client.make_qualified_table_name("items")
+
+    # new table: struct with all data types
+    schema1 = pa.schema(
+        [pa.field("pk", pa.int64(), nullable=False), pa.field("payload", all_types)]
+    )
+    assert_load_info(run_arrow(schema1, [{"pk": 1, "payload": value}]))
+    with pipeline.sql_client() as client:
+        typeof = client.execute_sql(
+            f"SELECT SYSTEM$TYPEOF(payload) FROM {qual(client)} WHERE pk = 1"
+        )[0][0]
+        payload = json.loads(
+            client.execute_sql(f"SELECT payload FROM {qual(client)} WHERE pk = 1")[0][0]
+        )
+    assert typeof == ALL_TYPES_STRUCT_DDL + "[LOB]"
+    assert payload["s"] == "hello"
+    assert payload["i"] == 42
+    assert payload["f"] == 1.5
+    assert payload["b"] is True
+    assert payload["d"] == "2024-01-02"
+    assert payload["t"] == "03:04:05"
+    assert payload["ts"] is not None
+    assert payload["dec"] == 123.456
+    assert payload["bin"] == "010203"
+    assert payload["arr"] == [1, 2, 3]
+    assert payload["nested"] == {"x": "q", "y": 7}
+    assert payload["mp"] == {"k": 9}
+    assert payload["with space"] == "spaced"
+    assert payload["日本語"] == 99
+
+    # query nested fields, array elements and map values (incl. weird field names) through dataset()
+    spaced, uni, arr0, map_v, nested_x = pipeline.dataset()(
+        "SELECT payload['with space'], payload['日本語'], payload['arr'][0],"
+        " payload['mp']['k'], payload['nested']['x'] FROM items WHERE pk = 1"
+    ).fetchall()[0]
+    assert spaced == "spaced"
+    assert uni == 99
+    assert arr0 == 1
+    assert map_v == 9
+    assert nested_x == "q"
+
+    # new column: add a whole new nested column
+    schema2 = pa.schema(
+        [
+            pa.field("pk", pa.int64(), nullable=False),
+            pa.field("payload", all_types),
+            pa.field("more", pa.list_(pa.string())),
+        ]
+    )
+    assert_load_info(run_arrow(schema2, [{"pk": 2, "payload": value, "more": ["a", "b"]}]))
+    with pipeline.sql_client() as client:
+        more_type = client.execute_sql(
+            f"SELECT SYSTEM$TYPEOF(more) FROM {qual(client)} WHERE pk = 2"
+        )[0][0]
+        more = {r[0]: r[1] for r in client.execute_sql(f"SELECT pk, more FROM {qual(client)}")}
+    assert more_type.startswith("ARRAY(")
+    assert more[1] is None  # existing row null-filled for the new column
+    assert json.loads(more[2]) == ["a", "b"]
+
+    # data type evolution: the payload struct gains a field
+    all_types_v2 = pa.struct([*list(all_types), pa.field("added", pa.string())])
+    schema3 = pa.schema(
+        [
+            pa.field("pk", pa.int64(), nullable=False),
+            pa.field("payload", all_types_v2),
+            pa.field("more", pa.list_(pa.string())),
+        ]
+    )
+    assert_load_info(
+        run_arrow(schema3, [{"pk": 3, "payload": {**value, "added": "new"}, "more": ["c"]}])
+    )
+    with pipeline.sql_client() as client:
+        typeof = client.execute_sql(
+            f"SELECT SYSTEM$TYPEOF(payload) FROM {qual(client)} WHERE pk = 3"
+        )[0][0]
+        payloads = {
+            r[0]: json.loads(r[1])
+            for r in client.execute_sql(f"SELECT pk, payload FROM {qual(client)}")
+        }
+    assert "added VARCHAR" in typeof
+    assert payloads[1]["added"] is None  # row loaded before the field existed null-fills it
+    assert payloads[3]["added"] == "new"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_nested_types_jsonl(destination_config: DestinationTestConfiguration) -> None:
+    """jsonl with only the nested columns defined via `columns` hints (scalars inferred from data):
+    new table, new nested column, and in-place data type evolution."""
+    from dlt.common.libs.pyarrow import pyarrow as pa
+
+    snow = dlt.destinations.snowflake(use_nested_types=True)
+    pipeline = destination_config.setup_pipeline(
+        "test_snowflake_nested_types_jsonl", dev_mode=True, destination=snow
+    )
+
+    def nested_hints(**fields: Any) -> Any:
+        # only the nested columns are declared (as an arrow schema); the rest is inferred from data
+        return pa.schema([pa.field(n, t) for n, t in fields.items()])
+
+    def run(columns: Any, data: Any) -> Any:
+        @dlt.resource(name="items", primary_key="pk", columns=columns, write_disposition="append")
+        def items(rows: Any) -> Any:
+            yield rows
+
+        return pipeline.run(items(data), loader_file_format="jsonl")
+
+    payload_t = pa.struct(
+        [
+            ("a", pa.int64()),
+            # field names that are not normalized and need quoting/escaping
+            ("with space", pa.string()),
+            ("日本語", pa.int64()),
+            ("tags", pa.list_(pa.int64())),
+            ("attrs", pa.map_(pa.string(), pa.string())),
+            ("nested", pa.struct([("x", pa.string()), ("y", pa.bool_())])),
+        ]
+    )
+
+    def qual(client: Any) -> str:
+        return client.make_qualified_table_name("items")
+
+    # new table: only `payload` is hinted; `pk` and `note` are inferred from the data
+    assert_load_info(
+        run(
+            nested_hints(payload=payload_t),
+            [
+                {
+                    "pk": 1,
+                    "note": "first",
+                    "payload": {
+                        "a": 10,
+                        "with space": "hello world",
+                        "日本語": 7,
+                        "tags": [1, 2],
+                        "attrs": {"weird key": "v"},
+                        "nested": {"x": "hi", "y": True},
+                    },
+                }
+            ],
+        )
+    )
+    tcols = pipeline.default_schema.get_table_columns("items")
+    assert tcols["pk"]["data_type"] == "bigint"
+    assert tcols["note"]["data_type"] == "text"
+    assert tcols["payload"]["data_type"] == "json"
+    with pipeline.sql_client() as client:
+        typeof = client.execute_sql(
+            f"SELECT SYSTEM$TYPEOF(payload) FROM {qual(client)} WHERE pk = 1"
+        )[0][0]
+        payload = json.loads(
+            client.execute_sql(f"SELECT payload FROM {qual(client)} WHERE pk = 1")[0][0]
+        )
+    assert typeof.startswith("OBJECT(")
+    assert payload == {
+        "a": 10,
+        "with space": "hello world",
+        "日本語": 7,
+        "tags": [1, 2],
+        "attrs": {"weird key": "v"},
+        "nested": {"x": "hi", "y": True},
+    }
+
+    # query nested fields, array elements and map values (incl. weird field/key names) through dataset()
+    spaced, uni, tag0, attr_v, nested_x = pipeline.dataset()(
+        "SELECT payload['with space'], payload['日本語'], payload['tags'][0],"
+        " payload['attrs']['weird key'], payload['nested']['x'] FROM items WHERE pk = 1"
+    ).fetchall()[0]
+    assert spaced == "hello world"
+    assert uni == 7
+    assert tag0 == 1
+    assert attr_v == "v"
+    assert nested_x == "hi"
+
+    # new column: add a new nested column (`extra`) and an inferred scalar (`amount`)
+    assert_load_info(
+        run(
+            nested_hints(payload=payload_t, extra=pa.list_(pa.int64())),
+            [
+                {
+                    "pk": 2,
+                    "note": "second",
+                    "amount": 1.5,
+                    "payload": {
+                        "a": 20,
+                        "with space": "",
+                        "日本語": 0,
+                        "tags": [],
+                        "attrs": {},
+                        "nested": {"x": "z", "y": False},
+                    },
+                    "extra": [7, 8, 9],
+                }
+            ],
+        )
+    )
+    assert pipeline.default_schema.get_table_columns("items")["amount"]["data_type"] == "double"
+    with pipeline.sql_client() as client:
+        extra_type = client.execute_sql(
+            f"SELECT SYSTEM$TYPEOF(extra) FROM {qual(client)} WHERE pk = 2"
+        )[0][0]
+        extra = {r[0]: r[1] for r in client.execute_sql(f"SELECT pk, extra FROM {qual(client)}")}
+    assert extra_type.startswith("ARRAY(")
+    assert extra[1] is None  # existing row null-filled for the new column
+    assert json.loads(extra[2]) == [7, 8, 9]
+
+    # data type evolution: `payload` struct gains a field
+    payload_v2 = pa.struct([*list(payload_t), pa.field("b", pa.string())])
+    assert_load_info(
+        run(
+            nested_hints(payload=payload_v2, extra=pa.list_(pa.int64())),
+            [
+                {
+                    "pk": 3,
+                    "note": "third",
+                    "amount": 2.5,
+                    "payload": {
+                        "a": 30,
+                        "with space": "w",
+                        "日本語": 3,
+                        "tags": [3],
+                        "attrs": {"m": "n"},
+                        "nested": {"x": "q", "y": True},
+                        "b": "added",
+                    },
+                    "extra": [1],
+                }
+            ],
+        )
+    )
+    with pipeline.sql_client() as client:
+        typeof = client.execute_sql(
+            f"SELECT SYSTEM$TYPEOF(payload) FROM {qual(client)} WHERE pk = 3"
+        )[0][0]
+        payloads = {
+            r[0]: json.loads(r[1])
+            for r in client.execute_sql(f"SELECT pk, payload FROM {qual(client)}")
+        }
+    assert "b VARCHAR" in typeof
+    assert payloads[1]["b"] is None  # row loaded before the field existed null-fills it
+    assert payloads[3]["b"] == "added"
+
+    # filter on nested data via WHERE: struct field and array membership
+    ds = pipeline.dataset()
+    assert [r[0] for r in ds("SELECT pk FROM items WHERE payload['a'] = 30").fetchall()] == [3]
+    # a structured ARRAY must be cast to a semi-structured array for ARRAY_CONTAINS
+    assert [
+        r[0]
+        for r in ds(
+            "SELECT pk FROM items WHERE ARRAY_CONTAINS(2::VARIANT, payload['tags']::ARRAY)"
+        ).fetchall()
+    ] == [1]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_json_columns_stay_variant(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Backward compatibility: without use_nested_types a json column stays VARIANT, and adding a
+    second json column later still evolves to VARIANT (no structured typing)."""
+
+    # default snowflake destination - use_nested_types is NOT set
+    pipeline = destination_config.setup_pipeline("test_snowflake_json_variant", dev_mode=True)
+
+    def run(columns: Any, data: Any) -> Any:
+        @dlt.resource(name="items", columns=columns, write_disposition="append")
+        def items(rows: Any) -> Any:
+            yield rows
+
+        return pipeline.run(items(data), loader_file_format="jsonl")
+
+    def col_types(client: Any) -> Any:
+        rows = client.execute_sql(f"DESCRIBE TABLE {client.make_qualified_table_name('items')}")
+        return {r[0]: r[1] for r in rows}
+
+    # a json column is stored as VARIANT
+    assert_load_info(
+        run({"payload": {"data_type": "json"}}, [{"id": 1, "payload": {"a": 1, "b": [1, 2]}}])
+    )
+    with pipeline.sql_client() as client:
+        assert col_types(client)["PAYLOAD"] == "VARIANT"
+
+    # adding a second json column evolves normally and is also VARIANT
+    assert_load_info(
+        run(
+            {"payload": {"data_type": "json"}, "extra": {"data_type": "json"}},
+            [{"id": 2, "payload": {"a": 2}, "extra": {"c": 3}}],
+        )
+    )
+    with pipeline.sql_client() as client:
+        types = col_types(client)
+        assert types["PAYLOAD"] == "VARIANT"
+        assert types["EXTRA"] == "VARIANT"

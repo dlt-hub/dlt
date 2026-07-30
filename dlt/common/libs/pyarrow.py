@@ -388,9 +388,9 @@ def get_nested_column_type_from_py_arrow(dtype: pyarrow.DataType) -> TColumnType
 def serialize_type(dtype: pyarrow.DataType) -> str:
     """Serializes arrow type via arrow ipc as base64 str"""
     schema = pyarrow.schema([pyarrow.field("c", dtype)])
-    return "arrow-ipc:" + base64.b64encode(gzip.compress(schema.serialize().to_pybytes())).decode(
-        "ascii"
-    )
+    # mtime=0 keeps gzip deterministic
+    compressed = gzip.compress(schema.serialize().to_pybytes(), mtime=0)
+    return "arrow-ipc:" + base64.b64encode(compressed).decode("ascii")
 
 
 def deserialize_type(type_str: str) -> pyarrow.DataType:

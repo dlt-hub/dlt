@@ -179,6 +179,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_decfloat: bool = False
     """Whether to use DECFLOAT type for unbound decimals instead of DECIMAL"""
 
+    use_nested_types: bool = False
+    """When true, arrow-nested `json` columns are created as native ARRAY/OBJECT (structured) types instead of VARIANT."""
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of the account host."""
         if self.credentials and self.credentials.host:

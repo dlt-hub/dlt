@@ -2501,7 +2501,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.29.0"
+version = "1.30.0a0"
 source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -2842,7 +2842,7 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.29.0,<0.30" },
+    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.29.0,<0.31" },
     { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.1" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
