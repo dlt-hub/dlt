@@ -392,10 +392,8 @@ class WithSchemas(ABC):
 
 
 TAttachType = Literal["duckdb", "motherduck"]
-"""Mechanism that executes the attach statements, so a primary can reject what it cannot run.
-Everything a DuckDB connection opens by itself (duckdb/ducklake files, scanner views) is `duckdb`.
-MotherDuck is separate: its statements need a token set before the connection is initialized and
-a catalog alias, neither of which a MotherDuck connection accepts."""
+"""What a set of attach statements requires of the connection running it. All sets are executed
+the same way, this only tells a primary which ones it can accept, see `ATTACHABLE_TYPES`."""
 
 
 class TAttachStatement(TypedDict):
@@ -423,8 +421,6 @@ class TAttachInfo(TypedDict):
     """Foreign `physical_location()`, used to identify and de-duplicate attaches."""
     statements: List[TAttachStatement]
     """Ordered statements run on the primary connection; secret ones are encrypted when persisted."""
-    detach_statements: List[str]
-    """Statements to undo the attach, run on connection close."""
 
 
 def merge_attach(
@@ -440,17 +436,12 @@ def merge_attach(
 
 
 class WithAttach(ABC):
-    """Mixin for SQL clients that can attach foreign datasets into their connection.
-
-    `attach_type`, `can_attach` and `can_be_attached` answer whether two clients can attach
-    without building any statement. `get_attach` is the expensive part and is called only when
-    the attach is actually executed or serialized.
-    """
+    """Mixin for SQL clients that can attach foreign datasets into their connection."""
 
     attach_type: ClassVar[TAttachType]
-    """Mechanism that executes the attach statements of this client."""
+    """Type of the statement sets this client produces, so a primary can reject what it cannot run."""
     ATTACHABLE_TYPES: ClassVar[Tuple[TAttachType, ...]] = ()
-    """Attach mechanisms this client can execute on its own connection."""
+    """Statement set types this client accepts on its own connection."""
 
     @abstractmethod
     def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
@@ -466,10 +457,6 @@ class WithAttach(ABC):
         """Tell if this (primary) client can execute statements of `attach_type`."""
         return attach_type in self.ATTACHABLE_TYPES
 
-    def can_be_attached(self) -> bool:
-        """Tell if this (foreign) client can produce attach statements at all."""
-        return True
-
     def needs_attach(self, foreign: "WithAttach") -> bool:
         """Tell if `foreign` must be attached, or is already in reach of this connection."""
         return True
@@ -477,10 +464,6 @@ class WithAttach(ABC):
     @abstractmethod
     def attach(self, info: TAttachInfo) -> None:
         """Record `info` and apply it to the current connection when one is open."""
-
-    @abstractmethod
-    def list_attached(self) -> List[TAttachInfo]:
-        """Return all recorded attaches, used to re-attach on a fresh connection."""
 
 
 class DBApiCursorImpl(DBApiCursor):

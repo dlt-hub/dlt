@@ -564,14 +564,15 @@ class Relation(WithSqlClient):
         foreign = foreign_dataset.sql_client
         # both sides speak the attach mechanism, which is what `can_read_from` promised
         if isinstance(primary, WithAttach) and isinstance(foreign, WithAttach):
-            if not (foreign.can_be_attached() and primary.can_attach(foreign.attach_type)):
-                raise ValueError(
-                    f"A query on dataset '{self._dataset.dataset_name}' cannot reach dataset"
-                    f" '{foreign_dataset.dataset_name}': the"
-                    f" `{self._dataset._destination.destination_name}` destination cannot attach"
-                    f" `{foreign_dataset._destination.destination_name}`."
-                )
+            # a dataset already in reach needs no statements, so it needs no ability to run them
             if primary.needs_attach(foreign):
+                if not primary.can_attach(foreign.attach_type):
+                    raise ValueError(
+                        f"A query on dataset '{self._dataset.dataset_name}' cannot reach dataset"
+                        f" '{foreign_dataset.dataset_name}': the"
+                        f" `{self._dataset._destination.destination_name}` destination cannot"
+                        f" attach `{foreign_dataset._destination.destination_name}`."
+                    )
                 alias = self._attach_alias(foreign.dataset_name)
         return _ForeignDataset(foreign_dataset, alias)
 
@@ -590,7 +591,10 @@ class Relation(WithSqlClient):
 
             # primary must be able to read from foreign for join to work
             if not this_config.can_read_from(target_config):
-                if this_config.physical_location() == target_config.physical_location():
+                this_location = this_config.physical_location()
+                # a destination with no non-secret identity reports "", which tells co-location
+                # apart from two locations that simply cannot be compared
+                if this_location and this_location == target_config.physical_location():
                     # co-located, so the destination reaches only the dataset it was asked on
                     raise ValueError(
                         f"A query on dataset '{primary_dataset.dataset_name}' cannot reach dataset"

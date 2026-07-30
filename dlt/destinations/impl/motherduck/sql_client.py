@@ -13,8 +13,9 @@ from dlt.destinations.sql_client import (
 
 class MotherDuckSqlClient(DuckDbSqlClient):
     attach_type: ClassVar[TAttachType] = "motherduck"
-    # a MotherDuck connection rejects `SET motherduck_token` after initialization and aliases in
-    # workspace mode, so another MotherDuck database can only be attached into a local duckdb
+    """Separate from `duckdb` because these statements set a token before the connection is
+    initialized and name a catalog alias, neither of which a MotherDuck connection accepts."""
+    # so another MotherDuck database can only be attached into a local duckdb
     ATTACHABLE_TYPES: ClassVar[Tuple[TAttachType, ...]] = ("duckdb",)
 
     def __init__(
@@ -57,7 +58,6 @@ class MotherDuckSqlClient(DuckDbSqlClient):
             dataset_name=self.dataset_name,
             physical_location=f"md:{self.database_name}",
             statements=statements,
-            detach_statements=[f"DETACH {q_alias}"],
         )
 
     def catalog_name(self, quote: bool = True, casefold: bool = True) -> Optional[str]:

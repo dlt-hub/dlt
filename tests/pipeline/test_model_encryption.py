@@ -23,7 +23,6 @@ def _attach() -> List[Dict[str, Any]]:
                 {"sql": SECRET, "secret": True},
                 {"sql": "ATTACH IF NOT EXISTS ':memory:' AS attach_x", "secret": False},
             ],
-            "detach_statements": ["DETACH attach_x"],
         }
     ]
 

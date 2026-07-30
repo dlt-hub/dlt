@@ -15,6 +15,7 @@ from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.destinations.sql_client import (
     TAttachInfo,
     TAttachStatement,
+    WithAttach,
     attach_statement,
     raise_open_connection_error,
 )
@@ -97,6 +98,22 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
         return super().close_connection()
 
+    def needs_attach(self, foreign: WithAttach) -> bool:
+        credentials = self.credentials
+        if not isinstance(foreign, DuckLakeSqlClient) or not credentials.catalog:
+            return True
+        foreign_credentials = foreign.credentials
+        if not foreign_credentials.catalog:
+            return True
+        # a connection reaches every schema of the lake it attached, and one lake is one metadata
+        # schema inside one catalog
+        return (
+            credentials.catalog.to_native_representation()
+            != foreign_credentials.catalog.to_native_representation()
+            or (credentials.metadata_schema or credentials.ducklake_name)
+            != (foreign_credentials.metadata_schema or foreign_credentials.ducklake_name)
+        )
+
     def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
         # the whole lake is attached, `tables` cannot narrow it
         statements: List[TAttachStatement] = []
@@ -131,7 +148,6 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             dataset_name=self.dataset_name,
             physical_location=self.credentials.storage_url,
             statements=statements,
-            detach_statements=[f"DETACH {self.escape_column_name(alias)}"],
         )
 
     def create_secret(

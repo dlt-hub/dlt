@@ -182,18 +182,21 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             statements=[
                 attach_statement(f"ATTACH IF NOT EXISTS '{db_path}' AS {q_alias} (READ_ONLY)")
             ],
-            detach_statements=[f"DETACH {q_alias}"],
         )
 
     def needs_attach(self, foreign: WithAttach) -> bool:
+        if not isinstance(foreign, DuckDbSqlClient):
+            return True
         database = self.credentials.database
-        if not isinstance(foreign, DuckDbSqlClient) or not database:
+        # a ducklake foreign names a catalog, not a database file, so it is out of reach this way
+        foreign_database: Optional[str] = getattr(foreign.credentials, "database", None)
+        if not database or not foreign_database:
             return True
         if database in NON_ATTACHABLE_LOCATIONS:
             # those do not name a database, so two of them are the same one only when pooled together
             return self.credentials.conn_pool is not foreign.credentials.conn_pool
         # a duckdb connection reaches every schema of the database it opened
-        return database != foreign.credentials.database
+        return database != foreign_database
 
     def attach(self, info: TAttachInfo) -> None:
         alias = info["alias"]
@@ -215,9 +218,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             self._attached[alias] = info
             if self._conn is not None:
                 self._execute_attach_statements(added)
-
-    def list_attached(self) -> List[TAttachInfo]:
-        return list(self._attached.values())
 
     def _execute_attach_statements(self, statements: Sequence[TAttachStatement]) -> None:
         with self.credentials.conn_pool._conn_lock:
@@ -881,7 +881,6 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             dataset_name=self.dataset_name,
             physical_location=self._attach_physical_location(),
             statements=statements,
-            detach_statements=[f"DETACH {q_alias}"],
         )
 
     @contextmanager

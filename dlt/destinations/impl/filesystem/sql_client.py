@@ -96,18 +96,12 @@ class FilesystemSqlClient(WithTableScanners):
 
         return True
 
-    NON_ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("gs", "gcs", "memory")
-    """Protocols reachable only through fsspec registration, so not expressible as SQL statements."""
-
-    def can_be_attached(self) -> bool:
-        return self.remote_client.config.protocol not in self.NON_ATTACHABLE_PROTOCOLS
-
     def _attach_extension_statements(self) -> List[str]:
-        protocol = self.remote_client.config.protocol
-        if not self.can_be_attached():
+        config = self.remote_client.config
+        if not config.can_be_attached():
             raise NotImplementedError(
-                f"filesystem protocol `{protocol}` needs fsspec registration and cannot be attached"
-                " via SQL statements"
+                f"filesystem protocol `{config.protocol}` needs fsspec registration and cannot be"
+                " attached via SQL statements"
             )
         return ["INSTALL httpfs; LOAD httpfs"] if self.is_abfss else []
 

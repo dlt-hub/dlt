@@ -1,7 +1,7 @@
 import dataclasses
 
 import os
-from typing import Dict, Final, Optional, Type
+from typing import ClassVar, Dict, Final, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
@@ -48,9 +48,16 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     files in place (e.g. rejected purge, deferred GC). When false, the table is dropped from
     the catalog and dlt deletes the table files itself."""
 
+    NON_ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("gs", "gcs", "memory")
+    """Protocols reachable only through fsspec registration, so not expressible as SQL statements."""
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
+
+    def can_be_attached(self) -> bool:
+        """Returns True when a foreign DuckDB engine can reach the bucket with SQL statements."""
+        return self.protocol not in self.NON_ATTACHABLE_PROTOCOLS
 
     def physical_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or the absolute local path."""

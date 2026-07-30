@@ -917,7 +917,7 @@ def test_cross_type_different_physical_locations() -> None:
     [
         pytest.param("s3://b/p1", "s3://b/p2", True, id="same_bucket_different_prefix"),
         pytest.param("s3://b1/p", "s3://b2/p", True, id="different_bucket"),
-        pytest.param("s3://b/p", "gs://b/p", True, id="different_scheme_same_bucket"),
+        pytest.param("s3://b/p", "az://b/p", True, id="different_scheme_same_bucket"),
         pytest.param("/local/p", "/local/p", True, id="same_local_path"),
         pytest.param("/local/p1", "/local/p2", True, id="different_local_path"),
         pytest.param("s3://b/p", "/local/p", True, id="remote_vs_local"),

@@ -861,7 +861,6 @@ def test_with_attach_interface() -> None:
     assert primary.attach_type == "duckdb"
     assert primary.can_attach(info["attach_type"])
     assert not primary.can_attach("postgres")  # type: ignore[arg-type]
-    assert foreign.can_be_attached()
 
     # a catalog override produces a three-part path
     path = primary.make_qualified_table_name_path(
@@ -871,10 +870,10 @@ def test_with_attach_interface() -> None:
 
     with primary as client:
         client.attach(info)
-        assert [i["alias"] for i in client.list_attached()] == ["attach_ds_b"]
+        assert list(client._attached) == ["attach_ds_b"]
         # re-attaching the same alias/location is a no-op
         client.attach(info)
-        assert len(client.list_attached()) == 1
+        assert len(client._attached) == 1
         rows = client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')
         assert rows[0][0] == 1
         # a reserved catalog name is rejected
