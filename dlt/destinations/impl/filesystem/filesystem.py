@@ -4,6 +4,7 @@ import time as _time
 import base64
 from contextlib import contextmanager
 from types import TracebackType
+from urllib.parse import urlparse
 from typing import (
     ClassVar,
     List,
@@ -127,6 +128,18 @@ DEFAULT_DELETE_WORKERS: Dict[str, int] = {
     **{p: 16 for p in AZURE_BLOB_STORAGE_PROTOCOLS},
     "file": 8,
 }
+
+_ONELAKE_HOSTS = {
+    "onelake.blob.fabric.microsoft.com",
+    "onelake.dfs.fabric.microsoft.com",
+}
+
+
+def _is_onelake_host(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    return (parsed.hostname or "").lower().rstrip(".") in _ONELAKE_HOSTS
 
 
 class FilesystemLoadJob(RunnableLoadJob):
@@ -510,6 +523,9 @@ class FilesystemClient(
         self.pathlib = os.path if self.is_local_filesystem else posixpath
 
         self.config: FilesystemDestinationClientConfiguration = config
+        self._normalize_probe_paths = _is_onelake_host(config.bucket_url) or _is_onelake_host(
+            getattr(config.credentials, "azure_account_host", None)
+        )
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(
@@ -582,6 +598,18 @@ class FilesystemClient(
         """
         return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
 
+    def _probe_path(self, path: str) -> str:
+        if self._normalize_probe_paths:
+            # OneLake rejects directory HEAD probes with a trailing slash.
+            return path.rstrip(self.pathlib.sep) or path
+        return path
+
+    def _exists(self, path: str) -> bool:
+        return self.fs_client.exists(self._probe_path(path))  # type: ignore[no-any-return]
+
+    def _isdir(self, path: str) -> bool:
+        return self.fs_client.isdir(self._probe_path(path))  # type: ignore[no-any-return]
+
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
         current_dataset_name = self.dataset_name
@@ -594,7 +622,7 @@ class FilesystemClient(
 
     def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
         # clean up existing files for tables selected for truncating
-        if truncate_tables and self.fs_client.isdir(self.dataset_path):
+        if truncate_tables and self._isdir(self.dataset_path):
             # get all dirs with table data to delete. the table data are guaranteed to be files in those folders
             # TODO: when we do partitioning it is no longer the case and we may remove folders below instead
             truncate_names = [
@@ -605,7 +633,7 @@ class FilesystemClient(
                 self.truncate_tables(truncate_names)
 
         # check if init file already exists
-        if self.fs_client.exists(self.init_file_path):
+        if self._exists(self.init_file_path):
             current_version = self.get_storage_versions()[0]
 
             # check if migration is needed
@@ -702,7 +730,7 @@ class FilesystemClient(
         else:
             # dropped tables may be gone from the schema, detect iceberg via the metadata dir
             metadata_dir = self.pathlib.join(self.get_table_dir(table_name), "metadata")
-            if not self.fs_client.exists(metadata_dir):
+            if not self._exists(metadata_dir):
                 return False
         try:
             from dlt.common.libs.pyiceberg import is_ephemeral_catalog, drop_iceberg_table
@@ -729,7 +757,7 @@ class FilesystemClient(
             if (
                 # TODO: isdir is sufficient if table_dir == table prefix
                 #   since this method is used currently only for tests we do not need to improve it
-                self.fs_client.isdir(table_dir)
+                self._isdir(table_dir)
                 and len(self.list_table_files(table_name)) > 0
             ):
                 if table_name in self.schema.tables:
@@ -801,7 +829,7 @@ class FilesystemClient(
         table_prefixes = [self.get_table_prefix(t) for t in table_names]
         files: List[str] = []
         for table_dir in table_dirs:
-            if self.fs_client.exists(table_dir):
+            if self._exists(table_dir):
                 files.extend(self.list_files_with_prefixes(table_dir, table_prefixes))
         self._delete_files(files)
 
@@ -826,7 +854,7 @@ class FilesystemClient(
             # Azure SDK treats this as an error, but the delete actually succeeded
             if "Operation returned an invalid status 'OK'" in str(e):
                 # Verify deletion succeeded by checking if file still exists
-                if not self.fs_client.exists(file_path):
+                if not self._exists(file_path):
                     return  # Delete succeeded despite the error
             # If it's NotImplementedError, try the fallback rm() method
             if isinstance(e, NotImplementedError):
@@ -840,10 +868,10 @@ class FilesystemClient(
                     # Azure SDK treats this as an error, but the delete actually succeeded
                     if "Operation returned an invalid status 'OK'" in str(rm_e):
                         # Verify deletion succeeded by checking if file still exists
-                        if not self.fs_client.exists(file_path):
+                        if not self._exists(file_path):
                             return  # Delete succeeded despite the error
                     raise
-                if self.fs_client.exists(file_path):
+                if self._exists(file_path):
                     raise FileExistsError(file_path)
             else:
                 raise
@@ -1115,7 +1143,7 @@ class FilesystemClient(
         return result
 
     def is_storage_initialized(self) -> bool:
-        return self.fs_client.exists(self.init_file_path)  # type: ignore[no-any-return]
+        return self._exists(self.init_file_path)
 
     @staticmethod
     def get_reference_followup_job_class(
