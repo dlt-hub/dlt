@@ -1,4 +1,5 @@
 from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+from urllib.parse import urlparse
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.resolve import resolve_configuration
@@ -13,8 +14,23 @@ from dlt.destinations.impl.filesystem.configuration import (
     HfFilesystemDestinationClientConfiguration,
 )
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient, HfFilesystemClient
+from dlt.destinations.impl.filesystem.onelake import OneLakeFilesystemClient
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 from dlt.common.normalizers.naming import NamingConvention
+
+_ONELAKE_HOSTS = {
+    "onelake.blob.fabric.microsoft.com",
+    "onelake.dfs.fabric.microsoft.com",
+}
+_AZURE_PROTOCOLS = {"az", "abfs", "adl", "abfss", "azure"}
+
+
+def _is_onelake_host(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    parsed = urlparse(value if "://" in value else f"//{value}")
+    return (parsed.hostname or "").lower().rstrip(".") in _ONELAKE_HOSTS
+
 
 if TYPE_CHECKING:
     from dlt.common.libs.ibis import BaseBackend
@@ -71,7 +87,11 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
 
     @property
     def client_class(self) -> Type[FilesystemClient]:
-        return HfFilesystemClient if self.is_hf else FilesystemClient
+        if self.is_hf:
+            return HfFilesystemClient
+        if self.is_onelake:
+            return OneLakeFilesystemClient
+        return FilesystemClient
 
     def create_ibis_backend(
         self, client: "FilesystemClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
@@ -153,6 +173,19 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
         resolved = resolve_configuration(_BucketUrlConfig(), sections=sections)
         return resolved.bucket_url
 
+    def _resolve_azure_account_host(self, destination_name: Optional[str]) -> Optional[str]:
+        @configspec
+        class _AzureAccountHostConfig(BaseConfiguration):
+            azure_account_host: Optional[str] = None
+
+        sections = (
+            *FilesystemDestinationClientConfiguration.__recommended_sections__,
+            self.resolve_destination_name(destination_name),
+            "credentials",
+        )
+        resolved = resolve_configuration(_AzureAccountHostConfig(), sections=sections)
+        return resolved.azure_account_host
+
     def __init__(
         self,
         bucket_url: str = None,
@@ -203,6 +236,14 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             resolved_url = self._resolve_bucket_url(destination_name)
         protocol = FilesystemConfiguration.parse_protocol(resolved_url) if resolved_url else None
         self.is_hf = protocol == "hf"
+        account_host = (
+            credentials.get("azure_account_host")
+            if isinstance(credentials, dict)
+            else getattr(credentials, "azure_account_host", None)
+        )
+        if not account_host and protocol in _AZURE_PROTOCOLS:
+            account_host = self._resolve_azure_account_host(destination_name)
+        self.is_onelake = _is_onelake_host(resolved_url) or _is_onelake_host(account_host)
         super().__init__(
             bucket_url=bucket_url,
             credentials=credentials,
