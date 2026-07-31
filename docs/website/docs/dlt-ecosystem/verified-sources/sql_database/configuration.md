@@ -192,19 +192,8 @@ to split long incremental loading into many chunks by time and row count. [Look 
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
 
-:::warning Cursor column not found after reflection
-If `dlt` raises ``KeyError: 'Cursor column `...` does not exist in table `...`'``, your cursor name doesn't match the reflected schema. Dialects normalize identifiers differently: PostgreSQL lowercases, Oracle uppercases, MySQL/MSSQL/SQLite preserve case. Inspect the reflected columns first:
-
-```py
-import sqlalchemy as sa
-
-engine = sa.create_engine("postgresql://user:pass@host/db")
-meta = sa.MetaData()
-meta.reflect(bind=engine, only=["your_table"])
-print(list(meta.tables["your_table"].c.keys()))
-```
-
-Use the exact name shown as your cursor path.
+:::info Cursor column not found?
+If you hit ``KeyError: 'Cursor column `...` does not exist in table `...`'``, your cursor name doesn't match the schema SQLAlchemy reflected. See [I get a KeyError saying the cursor column doesn't exist](troubleshooting.md#i-get-a-keyerror-saying-the-cursor-column-doesnt-exist) for how to inspect the reflected columns.
 :::
 
 ### Configure timezone-aware and naive timestamp cursors
