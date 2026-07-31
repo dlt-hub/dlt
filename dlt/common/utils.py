@@ -637,6 +637,45 @@ def extend_list_deduplicated(
     return original_list
 
 
+def group_by_key(items: Sequence[TAny], key_f: Callable[[TAny], str]) -> Dict[str, List[TAny]]:
+    """Groups `items` by `key_f`, preserving their order within and across groups"""
+    groups: Dict[str, List[TAny]] = {}
+    for item in items:
+        groups.setdefault(key_f(item), []).append(item)
+    return groups
+
+
+def merge_keyed_groups(
+    original_list: Sequence[TAny],
+    extending_list: Sequence[TAny],
+    key_f: Callable[[TAny], str],
+) -> Tuple[List[TAny], List[TAny]]:
+    """Extends the first list by the second, replacing whole groups of items sharing a key.
+
+    Returns the merged list and the items that changed.
+    """
+    extending = group_by_key(extending_list, key_f)
+    original = group_by_key(original_list, key_f)
+    changed = [key for key, group in extending.items() if original.get(key) != group]
+    if not changed:
+        return list(original_list), []
+
+    # a replaced group keeps the position of the one it supersedes, order carries meaning here
+    merged: List[TAny] = []
+    placed: Set[str] = set()
+    for item in original_list:
+        key = key_f(item)
+        if key not in extending:
+            merged.append(item)
+        elif key not in placed:
+            placed.add(key)
+            merged.extend(extending[key])
+    for key, group in extending.items():
+        if key not in placed:
+            merged.extend(group)
+    return merged, [item for key in changed for item in extending[key]]
+
+
 @contextmanager
 def maybe_context(manager: ContextManager[TAny]) -> Iterator[TAny]:
     """Allows context manager `manager` to be None by creating dummy context. Otherwise `manager` is used"""

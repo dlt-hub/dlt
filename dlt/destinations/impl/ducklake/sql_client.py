@@ -121,7 +121,8 @@ class DuckLakeSqlClient(DuckDbSqlClient):
         if not storage.is_local_filesystem:
             secret_name = self.create_secret_name(storage.bucket_url)
             statements += [
-                attach_statement(s, secret=True)
+                # one key for the whole set so re-issuing it replaces the credentials it rotates
+                attach_statement(s, secret=True, key=f"{alias}:secret")
                 for s in self._build_secret_statements(
                     storage.bucket_url, storage.credentials, secret_name, "", False
                 )
@@ -141,12 +142,14 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             "postgresql",
             "mysql",
         )
-        statements.append(attach_statement(attach, secret=is_secret))
+        statements.append(attach_statement(attach, secret=is_secret, key=f"{alias}:attach"))
         return TAttachInfo(
             attach_type=self.attach_type,
             alias=alias,
             dataset_name=self.dataset_name,
-            physical_location=self.credentials.storage_url,
+            # the lake is its catalog: two lakes may share a data path but hold different catalogs.
+            # fall back to the data path for a catalog with no credential-free identity
+            physical_location=(self.credentials.catalog_location() or self.credentials.storage_url),
             statements=statements,
         )
 

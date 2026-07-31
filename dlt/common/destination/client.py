@@ -989,11 +989,7 @@ class SqlModel:
                 {
                     **info,
                     "statements": [
-                        (
-                            {"sql": encryption.encrypt_text(s["sql"]), "secret": True}
-                            if s["secret"]
-                            else s
-                        )
+                        ({**s, "sql": encryption.encrypt_text(s["sql"])} if s["secret"] else s)
                         for s in info["statements"]
                     ],
                 }

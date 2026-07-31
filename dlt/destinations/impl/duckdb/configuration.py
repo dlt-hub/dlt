@@ -1,6 +1,19 @@
 import dataclasses
 import threading
-from typing import Any, ClassVar, Dict, Final, List, Literal, Optional, Union, TYPE_CHECKING
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    Final,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Set,
+    Union,
+    TYPE_CHECKING,
+)
 from pathvalidate import is_valid_filepath
 
 from dlt.common.configuration import configspec
@@ -14,7 +27,8 @@ from dlt.common.destination.client import (
     WithDuckDbEngine,
 )
 from dlt.common.storages import WithLocalFiles
-from dlt.common.typing import Annotated
+from dlt.common.typing import Annotated, SecretSentinel
+from dlt.common.utils import merge_keyed_groups
 
 from dlt.destinations.impl.duckdb.exceptions import InvalidInMemoryDuckdbCredentials
 
@@ -28,6 +42,17 @@ NON_ATTACHABLE_LOCATIONS = (":memory:", ":external:")
 """Databases living inside a single connection, which no other connection can ATTACH."""
 
 
+class ConnStatement(NamedTuple):
+    """A database-scoped statement a pool runs on each connection it opens"""
+
+    # runs on the connection the pool keeps, so `SET SESSION` and `USE` would not reach the sessions
+    # cloned from it - those belong in `pragmas` and `local_config`
+    sql: str
+    key: Optional[str] = None
+    """What the statement configures, defaults to the SQL. Statements sharing a key are replaced as
+    a group"""
+
+
 @configspec(init=False)
 class DuckDbBaseCredentials(CredentialsConfiguration):
     read_only: bool = False
@@ -38,6 +63,9 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
     """Global config applied once on each newly opened connection"""
     pragmas: Optional[List[str]] = None
     """Pragmas set applied to each borrowed connection"""
+    statements: Annotated[Optional[List[str]], SecretSentinel] = None
+    """Database-scoped SQL run on each newly opened connection, after `extensions` and
+    `global_config`, for what those cannot express: `INSTALL`, `ATTACH`, `CREATE SECRET`"""
     local_config: Optional[Dict[str, Any]] = None
     """Local config applied to each borrowed connection"""
     conn_pool: Annotated[Optional["DuckDbConnectionPool"], NotResolved()] = None
@@ -119,6 +147,9 @@ class DuckDbConnectionPool:
         self._conn_lock = threading.RLock()
         self._conn_borrows = 0
         self._conn: DuckDBPyConnection = None
+        self._statements: List[ConnStatement] = []
+        self.attached_aliases: Set[str] = set()
+        """ATTACH aliases already registered on this pool, shared by all its sql clients"""
         if external_conn := getattr(credentials, "_external_conn", None):
             if self.always_open_connection:
                 raise ConfigurationValueError("External connections not supported")
@@ -128,6 +159,8 @@ class DuckDbConnectionPool:
             # connections are externally owned when always_open_connection
             self._conn_owner = True
             self._conn = None
+        if credentials.statements:
+            self._statements = [ConnStatement(sql) for sql in credentials.statements]
 
     def borrow_conn(
         self,
@@ -170,6 +203,8 @@ class DuckDbConnectionPool:
                             new_conn.sql(f"LOAD {extension}")
 
                     self._apply_config(new_conn, "GLOBAL", global_config)
+                    # before local config: a statement may create the schema that `search_path` names
+                    self._execute_statements(new_conn)
                     # apply local config to original connection
                     self._apply_local_config(new_conn, local_config, pragmas)
                 except Exception:
@@ -195,6 +230,39 @@ class DuckDbConnectionPool:
                 raise
             return new_conn
 
+    def add_statements(
+        self,
+        statements: Sequence[ConnStatement],
+        alias: str = None,
+        conn: DuckDBPyConnection = None,
+    ) -> List[ConnStatement]:
+        """Registers `statements` to run on each connection this pool opens, returns the new ones.
+
+        Args:
+            statements: Database-scoped statements, see `ConnStatement`.
+            alias: ATTACH catalog the statements bring in, remembered in `attached_aliases`.
+            conn: Connection to apply them to right away. Only needed with
+                `always_open_connection`, where the pool keeps none of its own.
+        """
+        with self._conn_lock:
+            # an unkeyed statement is keyed by its own SQL, which de-duplicates identical ones
+            merged, added = merge_keyed_groups(
+                self._statements, statements, lambda s: s.key or s.sql
+            )
+            if added:
+                if conn := conn or self._conn:
+                    for statement in added:
+                        conn.execute(statement.sql)
+                # recorded last: one that could not run must not be replayed on every connection
+                self._statements = merged
+            if alias:
+                self.attached_aliases.add(alias)
+            return added
+
+    def _execute_statements(self, conn: DuckDBPyConnection) -> None:
+        for statement in self._statements:
+            conn.execute(statement.sql)
+
     def return_conn(self, borrowed_conn: DuckDBPyConnection) -> int:
         """Closed the borrowed conn, if refcount goes to 0, duckdb connection is deleted"""
         borrowed_conn.close()
@@ -216,11 +284,6 @@ class DuckDbConnectionPool:
         assert self._conn is not None, "Connection is not opened"
         self._conn_owner = False
         return self._conn
-
-    @property
-    def never_borrowed(self) -> bool:
-        """Returns true if connection was not yet created or no connections were borrowed in case of external connection"""
-        return self._conn is None or self._conn_borrows == 0 or self.always_open_connection
 
     def _apply_local_config(
         self,
@@ -299,6 +362,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
         extensions: Optional[List[str]] = None,
         global_config: Optional[Dict[str, Any]] = None,
         pragmas: Optional[List[str]] = None,
+        statements: Optional[List[str]] = None,
         local_config: Optional[Dict[str, Any]] = None,
     ) -> None:
         """Initialize DuckDB credentials with a connection or file path and connection settings.
@@ -310,6 +374,8 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
             extensions: List of DuckDB extensions to load on each newly opened connection
             global_config: Dictionary of global configuration settings applied once on each newly opened connection
             pragmas: List of PRAGMA statements to be applied to each cursor connection
+            statements: Database-scoped SQL run on each newly opened connection, e.g. `INSTALL`,
+                `ATTACH`, `CREATE SECRET`. Session settings belong in `pragmas`/`local_config`
             local_config: Dictionary of local configuration settings applied to each cursor connection
         """
         self._apply_init_value(conn_or_path)
@@ -317,6 +383,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
         self.extensions = extensions
         self.global_config = global_config
         self.pragmas = pragmas
+        self.statements = statements
         self.local_config = local_config
 
 

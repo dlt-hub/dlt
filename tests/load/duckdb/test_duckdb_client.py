@@ -11,6 +11,8 @@ from dlt.common.configuration.specs import (
     AzureServicePrincipalCredentials,
     AzureServicePrincipalCredentialsWithoutDefaults,
 )
+from dlt.common.configuration.exceptions import ValueNotSecretException
+from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.destination import Destination
 from dlt.common.known_env import DLT_LOCAL_DIR
@@ -18,7 +20,9 @@ from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.destinations.impl.duckdb.configuration import (
+    ConnStatement,
     DuckDbClientConfiguration,
+    DuckDbConnectionPool,
     DuckDbCredentials,
 )
 from dlt.destinations import duckdb
@@ -264,6 +268,198 @@ def test_destination_credentials_with_config() -> None:
         assert c.native_connection.sql("SELECT count(1) FROM duckdb_logs").fetchall()[0][0] == 0
     # check if query plan is created so pragma is working
     assert os.path.isfile(plan_path)
+
+
+def _foreign_db(path: str) -> str:
+    import duckdb
+
+    conn = duckdb.connect(path)
+    conn.execute("CREATE TABLE t AS SELECT 1 AS x")
+    conn.close()
+    return f"ATTACH IF NOT EXISTS '{path}' AS a (READ_ONLY)"
+
+
+@pytest.mark.no_load
+def test_conn_pool_statements() -> None:
+    """Statements registered on the pool run on every connection it opens, however it opens it."""
+    root = get_test_storage_root()
+    attach_sql = _foreign_db(os.path.join(root, f"pool_stmt_{uniq_id()}.duckdb"))
+    c = resolve_configuration(
+        DuckDbClientConfiguration(
+            credentials=DuckDbCredentials(os.path.join(root, f"pool_main_{uniq_id()}.duckdb"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    pool = c.credentials.conn_pool
+
+    # registered before any connection exists, so nothing runs yet
+    assert pool.add_statements([ConnStatement(attach_sql)]) == [ConnStatement(attach_sql)]
+
+    first = pool.borrow_conn()
+    assert first.execute("SELECT x FROM a.t").fetchone() == (1,)
+    # a duplicate of a live connection shares the ATTACH
+    second = pool.borrow_conn()
+    assert second.execute("SELECT x FROM a.t").fetchone() == (1,)
+    pool.return_conn(second)
+    pool.return_conn(first)
+
+    # the underlying connection is gone, so the next one is replayed onto a fresh instance
+    assert pool._conn is None
+    third = pool.borrow_conn()
+    assert third.execute("SELECT x FROM a.t").fetchone() == (1,)
+
+    # an identical statement is already registered and does not run again
+    assert pool.add_statements([ConnStatement(attach_sql)]) == []
+    # the same SQL under an explicit key is a different statement
+    assert pool.add_statements([ConnStatement(attach_sql, "attach_a")], conn=third)
+
+    # a keyed statement supersedes the definition it replaces instead of piling up next to it
+    registered = len(pool._statements)
+    pool.add_statements([ConnStatement("CREATE OR REPLACE VIEW v AS SELECT 1", "v")], conn=third)
+    assert len(pool._statements) == registered + 1
+    pool.add_statements([ConnStatement("CREATE OR REPLACE VIEW v AS SELECT 2", "v")], conn=third)
+    assert len(pool._statements) == registered + 1
+    # a statement added while a connection is open runs on it right away
+    assert third.execute("SELECT * FROM v").fetchone() == (2,)
+
+    # statements sharing a key are one group, replaced as a whole even when it shrinks
+    group = [
+        ConnStatement("CREATE OR REPLACE VIEW g1 AS SELECT 1", "grp"),
+        ConnStatement("CREATE OR REPLACE VIEW g2 AS SELECT 2", "grp"),
+    ]
+    assert pool.add_statements(group, conn=third) == group
+    assert [s.key for s in pool._statements].count("grp") == 2
+    smaller = [ConnStatement("CREATE OR REPLACE VIEW g1 AS SELECT 3", "grp")]
+    assert pool.add_statements(smaller, conn=third) == smaller
+    assert [s.sql for s in pool._statements if s.key == "grp"] == [smaller[0].sql]
+    # re-adding an unchanged group is a no-op
+    assert pool.add_statements(smaller, conn=third) == []
+
+    pool.return_conn(third)
+    # and the replacement, not what it superseded, is what a later connection gets
+    fourth = pool.borrow_conn()
+    assert fourth.execute("SELECT * FROM v").fetchone() == (2,)
+    assert fourth.execute("SELECT * FROM g1").fetchone() == (3,)
+    pool.return_conn(fourth)
+
+
+@pytest.mark.no_load
+def test_conn_pool_statements_replayed_after_interleaved_borrow() -> None:
+    """A sibling borrow spanning the teardown leaves the borrow count non-zero while the underlying
+    connection is new, so the count cannot tell whether the statements are still in place."""
+    root = get_test_storage_root()
+    attach_sql = _foreign_db(os.path.join(root, f"pool_inter_{uniq_id()}.duckdb"))
+    c = resolve_configuration(
+        DuckDbClientConfiguration(
+            credentials=DuckDbCredentials(os.path.join(root, f"pool_inter_main_{uniq_id()}.duckdb"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    pool = c.credentials.conn_pool
+    pool.add_statements([ConnStatement(attach_sql)])
+
+    mine = pool.borrow_conn()
+    sibling = pool.borrow_conn()
+    # my borrow ends while the sibling keeps the pool alive
+    pool.return_conn(mine)
+    # the sibling returns last, so the underlying connection is destroyed here
+    pool.return_conn(sibling)
+    # a sibling borrows first and recreates it, leaving the count non-zero for my next borrow
+    sibling = pool.borrow_conn()
+    mine = pool.borrow_conn()
+    try:
+        assert mine.execute("SELECT x FROM a.t").fetchone() == (1,)
+    finally:
+        pool.return_conn(mine)
+        pool.return_conn(sibling)
+
+
+@pytest.mark.no_load
+def test_conn_pool_statements_always_open_connection() -> None:
+    """Every borrow is a brand new database in this mode, so every borrow must be replayed."""
+    root = get_test_storage_root()
+    attach_sql = _foreign_db(os.path.join(root, f"pool_always_{uniq_id()}.duckdb"))
+    credentials = resolve_configuration(
+        DuckDbCredentials(os.path.join(root, f"pool_always_main_{uniq_id()}.duckdb"))
+    )
+    pool = DuckDbConnectionPool(credentials, always_open_connection=True)
+    pool.add_statements([ConnStatement(attach_sql)])
+
+    first = pool.borrow_conn()
+    second = pool.borrow_conn()
+    assert first.execute("SELECT x FROM a.t").fetchone() == (1,)
+    assert second.execute("SELECT x FROM a.t").fetchone() == (1,)
+    pool.return_conn(second)
+    pool.return_conn(first)
+
+
+@pytest.mark.no_load
+def test_conn_pool_statements_from_config(toml_providers: ConfigProvidersContainer) -> None:
+    """Configured statements seed the pool, and being secrets they resolve from secrets.toml only."""
+    root = get_test_storage_root()
+    attach_sql = _foreign_db(os.path.join(root, f"pool_cfg_{uniq_id()}.duckdb"))
+    providers = {provider.name: provider for provider in toml_providers.providers}
+
+    # they often carry credentials, so a non-secret provider must refuse to hold them
+    providers[CONFIG_TOML].set_value(
+        "statements", [attach_sql], None, "destination", "duck_from_config", "credentials"
+    )
+    with pytest.raises(ValueNotSecretException):
+        resolve_configuration(
+            DuckDbCredentials(os.path.join(root, "unused.duckdb")),
+            sections=("destination", "duck_from_config"),
+        )
+
+    providers[SECRETS_TOML].set_value(
+        "statements", [attach_sql], None, "destination", "duck_from_secrets", "credentials"
+    )
+    credentials = resolve_configuration(
+        DuckDbCredentials(os.path.join(root, f"pool_cfg_main_{uniq_id()}.duckdb")),
+        sections=("destination", "duck_from_secrets"),
+    )
+    assert credentials.statements == [attach_sql]
+    conn = credentials.conn_pool.borrow_conn()
+    try:
+        assert conn.execute("SELECT x FROM a.t").fetchone() == (1,)
+        # a runtime statement is registered after the configured ones
+        credentials.conn_pool.add_statements(
+            [ConnStatement("CREATE OR REPLACE VIEW v AS SELECT 1")]
+        )
+        assert [statement.sql for statement in credentials.conn_pool._statements][0] == attach_sql
+    finally:
+        credentials.conn_pool.return_conn(conn)
+
+
+@pytest.mark.no_load
+def test_conn_pool_statement_failure() -> None:
+    """A statement that cannot run is not registered, so it does not break every later connection."""
+    import duckdb
+
+    root = get_test_storage_root()
+    c = resolve_configuration(
+        DuckDbClientConfiguration(
+            credentials=DuckDbCredentials(os.path.join(root, f"pool_fail_{uniq_id()}.duckdb"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    pool = c.credentials.conn_pool
+
+    conn = pool.borrow_conn()
+    with pytest.raises(duckdb.Error):
+        pool.add_statements([ConnStatement("SELECT * FROM no_such_table")], conn=conn)
+    assert pool._statements == []
+    pool.return_conn(conn)
+
+    # the pool is still usable
+    conn = pool.borrow_conn()
+    assert conn.execute("SELECT 1").fetchone() == (1,)
+    pool.return_conn(conn)
+
+    # a statement registered while no connection is open cannot run yet, so it is registered and
+    # fails the next borrow, leaving the pool as a failing pragma would
+    assert pool._conn is None
+    pool.add_statements([ConnStatement("SELECT * FROM no_such_table")])
+    with pytest.raises(duckdb.Error):
+        pool.borrow_conn()
+    assert pool._conn is None
+    assert pool._conn_borrows == 0
 
 
 def test_credentials_wrong_config() -> None:
@@ -868,18 +1064,28 @@ def test_with_attach_interface() -> None:
     )
     assert path == ["attach_ds_b", "ds_b", "t"]
 
+    pool = primary.credentials.conn_pool
     with primary as client:
         client.attach(info)
-        assert list(client._attached) == ["attach_ds_b"]
-        # re-attaching the same alias/location is a no-op
-        client.attach(info)
-        assert len(client._attached) == 1
+        assert pool.attached_aliases == {"attach_ds_b"}
+        assert [statement.key for statement in pool._statements] == [info["statements"][0]["key"]]
         rows = client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')
         assert rows[0][0] == 1
+        # re-attaching the same descriptor registers and runs nothing new
+        client.attach(info)
+        assert len(pool._statements) == 1
         # a reserved catalog name is rejected
         with pytest.raises(ValueError):
             client.attach(foreign.get_attach(alias="memory"))
 
-    # the same alias pointing at a different location conflicts
-    with pytest.raises(ValueError):
-        primary.attach({**info, "physical_location": "/somewhere/else.duckdb"})
+    # a load package hands every job client the same resolved credentials, so they share a pool and
+    # the attach one of them registered is replayed for the others
+    sibling = DuckDbSqlClient(
+        primary.dataset_name,
+        primary.staging_dataset_name,
+        primary.credentials,
+        primary.capabilities,
+    )
+    assert sibling.credentials.conn_pool is pool
+    with sibling as client:
+        assert client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')[0][0] == 1

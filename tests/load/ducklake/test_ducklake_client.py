@@ -388,6 +388,25 @@ def test_ducklake_get_attach() -> None:
     assert " AS attach_foo " in attach_statement["sql"]
     # a local duckdb/sqlite catalog embeds no password, so the ATTACH is not a secret
     assert attach_statement["secret"] is False
+    # the lake is identified by its catalog, not by the data path two lakes may share
+    assert info["physical_location"] == configuration.physical_location()
+    assert info["physical_location"] != configuration.credentials.storage_url
+
+
+def test_ducklake_catalog_location_identifies_the_lake() -> None:
+    """Two lakes sharing a data path but holding different catalogs are told apart."""
+    shared_storage = "s3://bucket/warehouse"
+    first = DuckLakeCredentials("lake", catalog="postgres://u:p@h:5432/db", storage=shared_storage)
+    second = DuckLakeCredentials(
+        "lake", catalog="postgres://u:p@h:5432/db", storage=shared_storage, metadata_schema="other"
+    )
+    assert first.catalog_location() != second.catalog_location()
+    # a credential-free identity never leaks the catalog password
+    assert "p@" not in first.catalog_location()
+
+    # a motherduck catalog has no credential-free identity, so the lake falls back to its storage
+    md_catalog = DuckLakeCredentials("lake", catalog="md:///cat_a", storage=shared_storage)
+    assert md_catalog.catalog_location() == ""
 
 
 def test_ducklake_conn_pool_always_open() -> None:

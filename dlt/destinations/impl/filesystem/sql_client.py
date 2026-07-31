@@ -11,6 +11,7 @@ from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.sql_client import raise_database_error
+from dlt.destinations.impl.duckdb.configuration import ConnStatement
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
@@ -45,6 +46,11 @@ class FilesystemSqlClient(WithTableScanners):
         self.iceberg_initialized = False
         if self.is_abfss:
             self._global_config["azure_transport_option_type"] = "curl"
+            # TODO: we need to frontload the httpfs extension for abfss for some reason.
+            # `extensions` cannot express it: it only LOADs, it does not INSTALL
+            self.credentials.conn_pool.add_statements(
+                [ConnStatement("INSTALL httpfs; LOAD httpfs")]
+            )
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
@@ -121,21 +127,14 @@ class FilesystemSqlClient(WithTableScanners):
         return secret_statements
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
-            super().open_connection()
-
-        if first_connection:
-            # TODO: we need to frontload the httpfs extension for abfss for some reason
-            if self.is_abfss:
-                self._conn.sql("INSTALL httpfs; LOAD httpfs")
-
-            # create single authentication for the whole client
-            self.create_secret(
-                self.remote_client.config.bucket_url,
-                self.remote_client.config.credentials,
-                persist_secrets=self.persist_secrets,
-            )
+        super().open_connection()
+        # not a pool statement: for protocols duckdb has no secret for this registers an fsspec
+        # filesystem, and the statements it does emit may embed a token that expires
+        self.create_secret(
+            self.remote_client.config.bucket_url,
+            self.remote_client.config.credentials,
+            persist_secrets=self.persist_secrets,
+        )
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:

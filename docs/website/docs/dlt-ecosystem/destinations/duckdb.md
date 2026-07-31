@@ -262,7 +262,25 @@ azure_transport_option_type=true
 errors_as_json=true
 ```
 The configuration above will LOAD extension **spatial** (but it will not install it), apply the global config (`SET GLOBAL azure_transport_option_type=true`), then pragmas (`PRAGMA enable_logging`) and local config (`SET SESSION errors_as_json=true`) at the end.
+
 Internally, `dlt` opens new `duckdb` connection and then dispenses separate sessions to worker threads via `cursor()` (even if the calling thread is the same as the one that creates connection). Extensions and global config are applied only once - to the "original" connection and are automatically propagated to sessions.
+
+#### Running SQL statements on each connection
+Anything the options above cannot express - `INSTALL`, `ATTACH`, `CREATE SECRET` - can be passed as plain SQL:
+```toml
+[destination.duckdb.credentials]
+statements=["INSTALL lance", "LOAD lance"]
+```
+These run on the "original" connection, right after the extensions and global config, so like those they
+are applied once and propagate to every session.
+
+That also means **statements must be database-scoped**, not session-scoped. `INSTALL`, `LOAD`, `ATTACH`,
+`CREATE SECRET`, `CREATE SCHEMA` and `CREATE VIEW` all belong to the database and are what this option is
+for. A `SET SESSION` or `USE` would apply only to the original connection and silently not reach the
+sessions - put those in `pragmas` and `local_config` instead.
+
+Such statements often carry credentials, so `statements` is treated as a secret: put it in
+`secrets.toml`, not `config.toml`.
 
 Note that you can use environment variables to pass dictionaries and lists: those must be passed as Python literals (not JSON!). See below:
 

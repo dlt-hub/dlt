@@ -1173,7 +1173,7 @@ class Relation(WithSqlClient):
                 # ones and keep the descriptor cumulative: a persisted model has no prior state
                 missing = needed if covered is None else needed - covered
                 delta = foreign.get_attach(alias=fds.alias, tables=missing)
-                info = delta if info is None else merge_attach(info, delta)[0]
+                info = delta if info is None else merge_attach(info, delta)
                 covered = needed if covered is None else covered | needed
                 self._foreign_datasets[ds_name] = fds._replace(
                     attach_tables=covered, attach_info=info

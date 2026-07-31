@@ -47,7 +47,9 @@ class MotherDuckSqlClient(DuckDbSqlClient):
             statements = [
                 attach_statement("INSTALL motherduck"),
                 attach_statement("LOAD motherduck"),
-                attach_statement(f"SET motherduck_token='{token}'", secret=True),
+                attach_statement(
+                    f"SET motherduck_token='{token}'", secret=True, key=f"{alias}:token"
+                ),
                 attach_statement(attach),
             ]
         else:

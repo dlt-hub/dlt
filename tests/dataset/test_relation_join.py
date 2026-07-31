@@ -2631,3 +2631,48 @@ def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.Monkey
         assert not any("untouched" in sql for sql in views)
         # a persisted model carries every view, it has no prior attach state to build on
         assert _views(chained.to_model().attach[0]) == views
+
+
+def test_attach_statements_stay_bounded_when_foreign_data_grows() -> None:
+    """A view redefined over grown data replaces its recorded definition, it does not pile up."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        crm = dlt.pipeline(
+            pipeline_name="attach_bounded_crm",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+            dataset_name="crm_data",
+        )
+        crm.run([{"id": 1}], table_name="users")
+        # a scanner destination embeds the concrete file list in its view, so the SQL changes
+        # every time data is loaded
+        sales = dlt.pipeline(
+            pipeline_name="attach_bounded_sales",
+            pipelines_dir=str(tmp_path / "pipelines_dir"),
+            destination=dlt.destinations.filesystem(
+                FilesystemConfiguration.make_file_url(str(tmp_path / "sales_bucket"))
+            ),
+            dataset_name="sales_data",
+        )
+        sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+
+        crm_dataset, sales_dataset = crm.dataset(), sales.dataset()
+        pool = crm_dataset.sql_client.credentials.conn_pool
+
+        recorded: List[int] = []
+        view_sqls: List[str] = []
+        for _ in range(3):
+            sales.run([{"id": 11, "user_id": 1}], table_name="orders", loader_file_format="parquet")
+            relation = crm_dataset.table("users").join(
+                sales_dataset.table("orders"), on="users.id = orders.user_id"
+            )
+            relation.df()
+            recorded.append(len(pool._statements))
+            view_sqls.append(
+                next(s.sql for s in pool._statements if s.sql.startswith("CREATE OR REPLACE VIEW"))
+            )
+
+        assert len(set(recorded)) == 1, f"attach statements grew: {recorded}"
+        # the single recorded view keeps being replaced by the newest definition
+        assert len(set(view_sqls)) == 3
+        assert sum(1 for s in pool._statements if s.sql.startswith("CREATE OR REPLACE VIEW")) == 1

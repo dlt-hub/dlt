@@ -56,12 +56,10 @@ from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
     TAttachInfo,
-    TAttachStatement,
     TAttachType,
     WithAttach,
     WithSchemas,
     attach_statement,
-    merge_attach,
     raise_database_error,
     raise_open_connection_error,
 )
@@ -72,6 +70,7 @@ if TYPE_CHECKING:
 
 from dlt.destinations.impl.duckdb.configuration import (
     NON_ATTACHABLE_LOCATIONS,
+    ConnStatement,
     DuckDbBaseCredentials,
     DuckDbClientConfiguration,
     DuckDbCredentials,
@@ -141,7 +140,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         super().__init__(None, dataset_name, staging_dataset_name, capabilities)
         self._conn: duckdb.DuckDBPyConnection = None
         self.credentials = credentials
-        self._attached: Dict[str, TAttachInfo] = {}
         # set additional connection options so derived class can change it
         # TODO: move that to methods that can be overridden, include local_config
         self._pragmas = ["enable_checkpoint_on_shutdown"]
@@ -152,17 +150,13 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
-            self._conn = self.credentials.conn_pool.borrow_conn(
-                pragmas=self._pragmas,
-                global_config=self._global_config,
-                local_config={
-                    "search_path": self.fully_qualified_dataset_name(),
-                },
-            )
-            if first_connection:
-                self._replay_attached()
+        self._conn = self.credentials.conn_pool.borrow_conn(
+            pragmas=self._pragmas,
+            global_config=self._global_config,
+            local_config={
+                "search_path": self.fully_qualified_dataset_name(),
+            },
+        )
         return self._conn
 
     def close_connection(self) -> None:
@@ -200,35 +194,15 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
 
     def attach(self, info: TAttachInfo) -> None:
         alias = info["alias"]
-        # the record and what ran on the connection must not diverge, so read and write it as one
-        with self.credentials.conn_pool._conn_lock:
-            existing = self._attached.get(alias)
-            added = info["statements"]
-            if existing is not None:
-                if existing["physical_location"] != info["physical_location"]:
-                    raise ValueError(
-                        f"Cannot attach dataset under catalog `{alias}`: it is already attached to"
-                        f" a different location `{existing['physical_location']}`."
-                    )
-                # a later query may need tables the first descriptor did not cover
-                info, added = merge_attach(existing, info)
-                if not added:
-                    return
+        pool = self.credentials.conn_pool
+        if alias not in pool.attached_aliases:
             self._raise_on_catalog_collision(alias)
-            self._attached[alias] = info
-            if self._conn is not None:
-                self._execute_attach_statements(added)
-
-    def _execute_attach_statements(self, statements: Sequence[TAttachStatement]) -> None:
-        with self.credentials.conn_pool._conn_lock:
-            for statement in statements:
-                self._conn.execute(statement["sql"])
-
-    def _replay_attached(self) -> None:
-        """Re-attaches recorded datasets on a first connection, which shares no ATTACH with a
-        previous one. A duplicate of a live connection already sees them."""
-        for info in self._attached.values():
-            self._execute_attach_statements(info["statements"])
+        # from here on the pool replays them; `conn` covers the one already borrowed here
+        pool.add_statements(
+            [ConnStatement(s["sql"], s["key"]) for s in info["statements"]],
+            alias=alias,
+            conn=self._conn,
+        )
 
     def _raise_on_catalog_collision(self, alias: str) -> None:
         """Reject an ATTACH alias that shadows a reserved or the primary catalog."""
@@ -700,26 +674,17 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
                 }
             )
 
-    @raise_database_error
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        # lock the whole process to prevent race condition on `first_connection` flag
-        # which may become invalid if second connection got opened in another thread
-        with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
-            super().open_connection()
-
-        try:
-            # NOTE: do not self.execute*** methods when opening connection, may end in endless recursion
-            if first_connection:
-                # set up dataset
-                q_dataset_name = self.fully_qualified_dataset_name()
-                create_schema_sql = "CREATE SCHEMA IF NOT EXISTS %s" % q_dataset_name
-                self._conn.sql(f"{create_schema_sql};USE {self.fully_qualified_dataset_name()}")
-        except Exception:
-            self.close_connection()
-            raise
-
-        return self._conn
+        # views live in this schema, so it must exist before `search_path` names it. `USE` is not
+        # needed: the pool sets `search_path` per borrow, and a pool-wide `USE` would fight the
+        # other sql clients sharing this cache database
+        q_dataset_name = self.fully_qualified_dataset_name()
+        self.credentials.conn_pool.add_statements(
+            [
+                ConnStatement(
+                    f"CREATE SCHEMA IF NOT EXISTS {q_dataset_name}", f"schema:{q_dataset_name}"
+                )
+            ]
+        )
 
     @abstractmethod
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
@@ -867,14 +832,21 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         q_schema = self.escape_column_name(self.dataset_name)
         # extensions load first, then secrets, then the views that reference them by scope
         statements = [attach_statement(s) for s in self._attach_extension_statements()]
-        statements += [attach_statement(s, secret=True) for s in self._attach_secret_statements()]
+        statements += [
+            # one key for the whole set so re-issuing it replaces the credentials it rotates
+            attach_statement(s, secret=True, key=f"{alias}:secret")
+            for s in self._attach_secret_statements()
+        ]
         statements.append(attach_statement(f"ATTACH IF NOT EXISTS ':memory:' AS {q_alias}"))
         statements.append(attach_statement(f"CREATE SCHEMA IF NOT EXISTS {q_alias}.{q_schema}"))
         # every view costs a data-location listing, so only build the ones the query asked for.
         # nothing exists in the freshly attached catalog, so no view can be skipped as existing
         for view_name, select_sql in self._build_pending_views(self._table_views(tables), set()):
             q_view = f"{q_alias}.{q_schema}.{self.escape_column_name(view_name)}"
-            statements.append(attach_statement(f"CREATE OR REPLACE VIEW {q_view} AS {select_sql}"))
+            # keyed on the view: data that grew since the last query redefines it in place
+            statements.append(
+                attach_statement(f"CREATE OR REPLACE VIEW {q_view} AS {select_sql}", key=q_view)
+            )
         return TAttachInfo(
             attach_type=self.attach_type,
             alias=alias,

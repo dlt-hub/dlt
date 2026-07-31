@@ -5,6 +5,7 @@ import inspect
 from types import TracebackType
 from typing import (
     Any,
+    Callable,
     ClassVar,
     Collection,
     ContextManager,
@@ -14,8 +15,10 @@ from typing import (
     Literal,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
+    TypeVar,
     AnyStr,
     List,
     Generator,
@@ -28,7 +31,7 @@ from dlt.common.typing import TFun, TypedDict, Self, NotRequired
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.utils import concat_strings_with_limit
+from dlt.common.utils import concat_strings_with_limit, digest128, merge_keyed_groups
 from dlt.common.destination.client import JobClientBase
 
 from dlt.destinations.exceptions import (
@@ -403,10 +406,15 @@ class TAttachStatement(TypedDict):
     """The statement SQL; replaced by ciphertext in the persisted model when `secret` is True."""
     secret: bool
     """Whether `sql` carries credentials and must be encrypted when the model is persisted."""
+    key: str
+    """What the statement configures. Statements sharing a key form a group replaced as a whole."""
 
 
-def attach_statement(sql: str, secret: bool = False) -> TAttachStatement:
-    return {"sql": sql, "secret": secret}
+def attach_statement(sql: str, secret: bool = False, key: str = None) -> TAttachStatement:
+    """Describes one attach statement, keyed by `key` or by the statement itself"""
+    # pass `key` for what gets redefined later - a view over growing data, rotating credentials.
+    # it is persisted in clear text, so a secret may not be identified by its own SQL
+    return {"sql": sql, "secret": secret, "key": key or (digest128(sql) if secret else sql)}
 
 
 class TAttachInfo(TypedDict):
@@ -418,21 +426,15 @@ class TAttachInfo(TypedDict):
     dataset_name: str
     """Foreign dataset (schema) name inside the attached catalog."""
     physical_location: str
-    """Foreign `physical_location()`, used to identify and de-duplicate attaches."""
+    """Foreign `physical_location()`, recorded to identify what the alias was attached to."""
     statements: List[TAttachStatement]
     """Ordered statements run on the primary connection; secret ones are encrypted when persisted."""
 
 
-def merge_attach(
-    into: TAttachInfo, info: TAttachInfo
-) -> Tuple[TAttachInfo, List[TAttachStatement]]:
-    """Extends `into` with the statements of `info` it does not have yet.
-
-    Returns the merged descriptor and the statements that were added."""
-    added = [s for s in info["statements"] if s not in into["statements"]]
-    if not added:
-        return into, added
-    return {**into, "statements": into["statements"] + added}, added
+def merge_attach(into: TAttachInfo, info: TAttachInfo) -> TAttachInfo:
+    """Merges the statements of `info` into `into`, keeping one group per key"""
+    statements, _ = merge_keyed_groups(into["statements"], info["statements"], lambda s: s["key"])
+    return {**into, "statements": statements}
 
 
 class WithAttach(ABC):

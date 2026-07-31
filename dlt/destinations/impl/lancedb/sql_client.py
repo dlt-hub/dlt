@@ -16,6 +16,7 @@ import duckdb
 
 from dlt.common.schema import Schema
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
+from dlt.destinations.impl.duckdb.configuration import ConnStatement
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.lance.sql_client import _prepare_create_lance_secret_statement
 
@@ -24,22 +25,6 @@ if TYPE_CHECKING:
 
     from dlt.common.destination.typing import PreparedTableSchema
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-
-
-def _install_and_load_lance_duckdb_extension(duckdb_con: DuckDBPyConnection) -> None:
-    """Ensure the `lance-duckdb` extension is loaded.
-
-    DuckDB ensures installation is only done once per system.
-    Extension loading must be done on every connection
-    """
-    duckdb_version = pkg_version.parse(duckdb.__version__)
-    if duckdb_version >= pkg_version.Version("1.5.0"):
-        install_extension_cmd = "INSTALL lance;"
-    else:
-        install_extension_cmd = "INSTALL lance FROM community;"
-
-    duckdb_con.execute(install_extension_cmd)
-    duckdb_con.execute("LOAD lance;")
 
 
 def get_lance_table_uri(lancedb_client: LanceDBClient, table_name: str) -> str:
@@ -62,16 +47,9 @@ class LanceDBSQLClient(WithTableScanners):
         super().__init__(
             remote_client=lancedb_client, dataset_name=lancedb_client.dataset_name or "main"
         )
-
-    def open_connection(self) -> DuckDBPyConnection:
-        with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
-            super().open_connection()
-
-        if first_connection:
-            _install_and_load_lance_duckdb_extension(self._conn)
-
-        return self._conn
+        self.credentials.conn_pool.add_statements(
+            [ConnStatement(sql) for sql in self._attach_extension_statements()]
+        )
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         return True
@@ -96,7 +74,10 @@ class LanceDBSQLClient(WithTableScanners):
         return lance_table_uri, f'SELECT * FROM "{lance_table_uri}"'
 
     def _attach_extension_statements(self) -> List[str]:
-        return ["INSTALL lance;", "LOAD lance;"]
+        # the extension moved out of the community repository in duckdb 1.5.0
+        if pkg_version.parse(duckdb.__version__) >= pkg_version.Version("1.5.0"):
+            return ["INSTALL lance;", "LOAD lance;"]
+        return ["INSTALL lance FROM community;", "LOAD lance;"]
 
     def _attach_secret_statements(self) -> List[str]:
         storage_options = self.lancedb_client.config.credentials.storage_options
