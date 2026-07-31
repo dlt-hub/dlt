@@ -285,7 +285,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                         self.make_location(db or None, name_pat)
                     )
 
-    def physical_location(self) -> str:
+    def _server_location(self) -> str:
         """Returns database file path for file-based backends, otherwise host:port."""
         if not self.credentials:
             return ""
@@ -307,41 +307,37 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical SQLAlchemy location."""
-        physical_location = self.physical_location()
-        if physical_location:
-            return digest128(physical_location)
+        server_location = self._server_location()
+        if server_location:
+            return digest128(server_location)
         return ""
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True when dialect-specific destination identities match."""
-        if not isinstance(other, SqlalchemyClientConfiguration):
-            return False
+    def physical_location(self) -> str:
+        """Returns the server location, narrowed to what the dialect lets one connection reach."""
+        backend = self.get_backend_name()
+        if not backend or not self.credentials:
+            self._no_physical_location("no connection string is configured")
+        server_location = self._server_location()
+        if not server_location:
+            if SqlalchemyCredentials.is_memory_database(
+                self.credentials.database, self.credentials.query
+            ):
+                # the database lives in the engine, which is then the only identity there is
+                managed = self.credentials._ensure_managed_engine()
+                handle = managed._engine if managed._engine is not None else managed
+                return f"{backend}://:memory:{hex(id(handle))}"
+            self._no_physical_location("the connection string names no host or database")
+        location = f"{backend}://{server_location}"
 
-        if not self.credentials or not other.credentials:
-            return False
-
-        self_backend = self.get_backend_name()
-        if not self_backend or self_backend != other.get_backend_name():
-            return False
-
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if not self_loc or not other_loc or self_loc != other_loc:
-            return False
-
-        # sqlite: the database file is the location. mysql and mssql can query across
-        # databases on the same server (database is schema-like / 3-part names)
-        if self_backend == "sqlite":
-            # every dataset is a separate database file and only this client's own is attached
-            return (
-                isinstance(other, DestinationClientDwhConfiguration)
-                and other.dataset_name == self.dataset_name
-            )
-        if self_backend in ("mysql", "mssql"):
-            return True
-
+        if backend == "sqlite":
+            # every dataset is a separate database file and a connection attaches only its own
+            return f"{location}#{self.dataset_name}"
+        if backend in ("mysql", "mssql", "duckdb"):
+            # database is schema-like here, so a connection queries across the server's databases.
+            # a duckdb file is the whole location already, appending its database repeats the path
+            return location
         # remaining dialects (postgresql, oracle, db2, unknown) bind a connection to a single
         # database: oracle needs db links and db2 needs federation to query across databases
-        self_db = self.credentials.database
-        other_db = other.credentials.database
-        return self_db is not None and other_db is not None and self_db == other_db
+        if not (database := self.credentials.database):
+            self._no_physical_location(f"the `{backend}` connection string names no database")
+        return f"{location}/{database}"

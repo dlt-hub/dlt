@@ -45,6 +45,6 @@ class DremioClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def physical_location(self) -> str:
         """Returns host:port."""
-        if self.credentials and self.credentials.host:
-            return f"{self.credentials.host}:{self.credentials.port}"
-        return ""
+        if not self.credentials or not self.credentials.host:
+            self._no_physical_location("no host is configured")
+        return f"{self.credentials.host}:{self.credentials.port}"

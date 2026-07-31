@@ -31,7 +31,14 @@ from dlt.common.typing import TFun, TypedDict, Self, NotRequired
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.utils import concat_strings_with_limit, digest128, merge_keyed_groups
+from dlt.common.utils import concat_strings_with_limit
+from dlt.common.destination.attach import (
+    TAttachInfo as TAttachInfo,
+    TAttachStatement as TAttachStatement,
+    TAttachType as TAttachType,
+    attach_statement as attach_statement,
+    merge_attach as merge_attach,
+)
 from dlt.common.destination.client import JobClientBase
 
 from dlt.destinations.exceptions import (
@@ -394,60 +401,18 @@ class WithSchemas(ABC):
     def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
 
 
-TAttachType = Literal["duckdb", "motherduck"]
-"""What a set of attach statements requires of the connection running it. All sets are executed
-the same way, this only tells a primary which ones it can accept, see `ATTACHABLE_TYPES`."""
-
-
-class TAttachStatement(TypedDict):
-    """A single statement run to attach a foreign dataset."""
-
-    sql: str
-    """The statement SQL; replaced by ciphertext in the persisted model when `secret` is True."""
-    secret: bool
-    """Whether `sql` carries credentials and must be encrypted when the model is persisted."""
-    key: str
-    """What the statement configures. Statements sharing a key form a group replaced as a whole."""
-
-
-def attach_statement(sql: str, secret: bool = False, key: str = None) -> TAttachStatement:
-    """Describes one attach statement, keyed by `key` or by the statement itself"""
-    # pass `key` for what gets redefined later - a view over growing data, rotating credentials.
-    # it is persisted in clear text, so a secret may not be identified by its own SQL
-    return {"sql": sql, "secret": secret, "key": key or (digest128(sql) if secret else sql)}
-
-
-class TAttachInfo(TypedDict):
-    """Serializable descriptor to attach a foreign dataset into a primary SQL client."""
-
-    attach_type: TAttachType
-    alias: str
-    """ATTACH catalog name, also the catalog qualifier a bound query resolves to."""
-    dataset_name: str
-    """Foreign dataset (schema) name inside the attached catalog."""
-    physical_location: str
-    """Foreign `physical_location()`, recorded to identify what the alias was attached to."""
-    statements: List[TAttachStatement]
-    """Ordered statements run on the primary connection; secret ones are encrypted when persisted."""
-
-
-def merge_attach(into: TAttachInfo, info: TAttachInfo) -> TAttachInfo:
-    """Merges the statements of `info` into `into`, keeping one group per key"""
-    statements, _ = merge_keyed_groups(into["statements"], info["statements"], lambda s: s["key"])
-    return {**into, "statements": statements}
-
-
 class WithAttach(ABC):
     """Mixin for SQL clients that can attach foreign datasets into their connection."""
 
     attach_type: ClassVar[TAttachType]
-    """Type of the statement sets this client produces, so a primary can reject what it cannot run."""
-    ATTACHABLE_TYPES: ClassVar[Tuple[TAttachType, ...]] = ()
-    """Statement set types this client accepts on its own connection."""
+    """What the statements this client emits require of the connection running them. The
+    configuration answers whether a destination may be attached at all, see `attach_type` there."""
 
     @abstractmethod
-    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
-        """Describe how to attach this client's dataset into a foreign primary connection.
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
+        """Statements that attach this client's dataset into a foreign primary connection.
 
         Args:
             alias: Catalog name the dataset is reached under after attaching.
@@ -455,17 +420,9 @@ class WithAttach(ABC):
                 one by one skip the rest. `None` covers the whole dataset.
         """
 
-    def can_attach(self, attach_type: TAttachType) -> bool:
-        """Tell if this (primary) client can execute statements of `attach_type`."""
-        return attach_type in self.ATTACHABLE_TYPES
-
-    def needs_attach(self, foreign: "WithAttach") -> bool:
-        """Tell if `foreign` must be attached, or is already in reach of this connection."""
-        return True
-
     @abstractmethod
-    def attach(self, info: TAttachInfo) -> None:
-        """Record `info` and apply it to the current connection when one is open."""
+    def attach(self, alias: str, statements: Sequence[TAttachStatement]) -> None:
+        """Record `statements` under `alias` and apply them to the current connection when open."""
 
 
 class DBApiCursorImpl(DBApiCursor):

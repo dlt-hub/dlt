@@ -2,16 +2,17 @@ import os
 import dataclasses
 import sys
 from urllib.parse import urlencode
-from typing import Any, ClassVar, Dict, Final, List, TYPE_CHECKING
+from typing import Any, ClassVar, Dict, Final, List, Optional, TYPE_CHECKING
 
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.version import __version__
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.exceptions import NativeValueError
+from dlt.common.destination.attach import TAttachType
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhWithStagingConfiguration,
-    WithDuckDbEngine,
+    WithAttachableEngine,
 )
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.utils import digest128
@@ -117,7 +118,9 @@ class MotherDuckCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
 
 
 @configspec
-class MotherDuckClientConfiguration(WithDuckDbEngine, DestinationClientDwhWithStagingConfiguration):
+class MotherDuckClientConfiguration(
+    WithAttachableEngine, DestinationClientDwhWithStagingConfiguration
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="motherduck", init=False, repr=False, compare=False
     )
@@ -128,30 +131,38 @@ class MotherDuckClientConfiguration(WithDuckDbEngine, DestinationClientDwhWithSt
     )
 
     def physical_location(self) -> str:
-        """Returns "" because MotherDuck has no non-secret account identity."""
-        return ""
+        """Returns the account, whose every database one connection reaches. The token is the only
+        account identity there is, so it is digested."""
+        if not (token := self.fingerprint()):
+            self._no_physical_location("no MotherDuck access token is configured")
+        return f"md://{token}"
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of user access token."""
-        if self.credentials and self.credentials.password:
-            return digest128(self.credentials.password)
+        if token := self._access_token():
+            return digest128(token)
         return ""
 
-    def _same_account(self, other: DestinationClientConfiguration) -> bool:
-        """Whether `other` is MotherDuck under the same token, which is the account identity."""
-        if not isinstance(other, MotherDuckClientConfiguration):
-            return False
-        self_token = self.credentials.password if self.credentials else None
-        other_token = other.credentials.password if other.credentials else None
-        return bool(self_token and other_token and self_token == other_token)
+    def _access_token(self) -> Optional[str]:
+        """Returns the token the connection will authenticate with, which `on_partial` accepts from
+        the environment as well as from the credentials."""
+        if self.credentials and self.credentials.password:
+            return self.credentials.password
+        return os.environ.get(MOTHERDUCK_DEFAULT_TOKEN_ENV) or os.environ.get(
+            MOTHERDUCK_DEFAULT_TOKEN_ENV.upper()
+        )
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same MotherDuck account or any attachable DuckDB engine."""
-        if isinstance(other, MotherDuckClientConfiguration):
-            # a MotherDuck connection cannot ATTACH another MotherDuck database, so only the
-            # databases of its own account are reachable
-            return self._same_account(other)
-        return super().can_read_from(other)
+    def needs_attach(self, other: DestinationClientConfiguration) -> bool:
+        """Returns False within one account, whose every database the connection already reaches."""
+        return not self.is_same_location(other)
+
+    def attach_type(self) -> Optional[TAttachType]:
+        return "motherduck"
+
+    def can_attach(self, attach_type: TAttachType) -> bool:
+        """Returns True only for plain duckdb: a MotherDuck connection cannot attach another
+        MotherDuck database, as the token must be set before the connection is opened."""
+        return attach_type == "duckdb"
 
 
 class MotherDuckCatalogMissing(NativeValueError):

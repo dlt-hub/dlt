@@ -30,7 +30,7 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    WithDuckDbEngine,
+    WithAttachableEngine,
 )
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
@@ -327,7 +327,9 @@ class LanceNamespacePool:
 
 
 @configspec
-class LanceClientConfiguration(WithDuckDbEngine, WithLocalFiles, DestinationClientDwhConfiguration):
+class LanceClientConfiguration(
+    WithAttachableEngine, WithLocalFiles, DestinationClientDwhConfiguration
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
@@ -459,7 +461,7 @@ class LanceClientConfiguration(WithDuckDbEngine, WithLocalFiles, DestinationClie
         if self.catalog_type == "rest":
             if isinstance(self.credentials, RestCatalogCredentials) and self.credentials.uri:
                 return f"rest:{self.credentials.uri.rstrip('/')}"
-            return ""
+            self._no_physical_location("the `rest` catalog has no namespace server uri")
 
         # for `dir` catalogs the explicit manifest root takes precedence
         catalog_root: Optional[str] = None
@@ -471,9 +473,9 @@ class LanceClientConfiguration(WithDuckDbEngine, WithLocalFiles, DestinationClie
         elif self.storage and self.storage.bucket_url:
             # same fallback as on_resolved: catalog colocates with data storage
             catalog_root = self.storage.namespace_uri
-        if catalog_root:
-            return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
-        return ""
+        if not catalog_root:
+            self._no_physical_location("no catalog root or data storage is configured")
+        return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
 
     def can_write_from(self, other: DestinationClientConfiguration) -> bool:
         """Lance does not have an engine that can write. `dlt` is that engine,

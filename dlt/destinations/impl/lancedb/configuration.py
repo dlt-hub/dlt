@@ -12,7 +12,7 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
-    WithDuckDbEngine,
+    WithAttachableEngine,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
@@ -115,7 +115,7 @@ TEmbeddingProvider = Literal[
 
 @configspec
 class LanceDBClientConfiguration(
-    WithDuckDbEngine, WithLocalFiles, DestinationClientDwhConfiguration
+    WithAttachableEngine, WithLocalFiles, DestinationClientDwhConfiguration
 ):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lancedb", init=False, repr=False, compare=False
@@ -204,9 +204,15 @@ class LanceDBClientConfiguration(
         return ""
 
     def physical_location(self) -> str:
-        """Returns the resolved LanceDB URI, or "" for external native clients."""
-        if not self.lance_uri or self.lance_uri == ":external:":
-            return ""
+        """Returns the resolved LanceDB URI, or the identity of an external client."""
+        if not self.lance_uri:
+            self._no_physical_location("no `lance_uri` is configured")
+        if self.lance_uri == ":external:":
+            # the marker names no database, so the client holding it is the only identity there is.
+            # `on_resolved` sets the marker when credentials are the client, the credentials spec
+            # when it wraps one in `_conn`
+            client = getattr(self.credentials, "_conn", None) or self.credentials
+            return f":external:{hex(id(client))}"
 
         if self.lance_uri.startswith("db://"):
             region = self.credentials.region if self.credentials else None

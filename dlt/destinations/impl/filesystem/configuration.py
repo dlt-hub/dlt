@@ -9,12 +9,13 @@ from dlt.common.typing import DictStrAny, DictStrOptionalStr
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
+from dlt.common.destination.attach import TAttachType
 from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
     DestinationClientStagingConfiguration,
-    WithDuckDbEngine,
+    WithAttachableEngine,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 
@@ -24,7 +25,9 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 @configspec
 class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
-    WithDuckDbEngine, FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+    WithAttachableEngine,
+    FilesystemConfigurationWithLocalFiles,
+    DestinationClientStagingConfiguration,
 ):
     destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore[misc]
     current_datetime: Optional[TCurrentDateTime] = None
@@ -55,14 +58,16 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
 
-    def can_be_attached(self) -> bool:
-        """Returns True when a foreign DuckDB engine can reach the bucket with SQL statements."""
-        return self.protocol not in self.NON_ATTACHABLE_PROTOCOLS
+    def attach_type(self) -> Optional[TAttachType]:
+        """Returns None for a protocol a foreign DuckDB engine cannot reach with SQL statements."""
+        if self.protocol in self.NON_ATTACHABLE_PROTOCOLS:
+            return None
+        return super().attach_type()
 
     def physical_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or the absolute local path."""
         if not self.bucket_url:
-            return ""
+            self._no_physical_location("no `bucket_url` is configured")
 
         if self.is_local_path(self.bucket_url):
             return self.make_local_path(self.make_file_url(self.bucket_url))

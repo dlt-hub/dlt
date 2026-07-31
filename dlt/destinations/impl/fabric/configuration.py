@@ -2,6 +2,7 @@
 
 from typing import Optional, Final, ClassVar, Dict, Any, List
 from dlt.common.configuration import configspec
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.exceptions import MissingDependencyException
@@ -168,17 +169,18 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def physical_location(self) -> str:
         """Returns host:port."""
-        if self.credentials and self.credentials.host:
-            port = self.credentials.port or 1433
-            return f"{self.credentials.host}:{port}"
-        return ""
+        if not self.credentials or not self.credentials.host:
+            self._no_physical_location("no host is configured")
+        port = self.credentials.port or 1433
+        return f"{self.credentials.host}:{port}"
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical Fabric location."""
-        physical_location = self.physical_location()
-        if physical_location:
-            return digest128(physical_location)
-        return ""
+        # a fingerprint may say "cannot compute", where a location raises instead
+        try:
+            return digest128(self.physical_location())
+        except ConfigurationValueError:
+            return ""
 
 
 __all__ = ["FabricCredentials", "FabricClientConfiguration"]

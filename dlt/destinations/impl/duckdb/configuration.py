@@ -21,10 +21,11 @@ from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.configuration.specs.base_configuration import CredentialsConfiguration, NotResolved
 from dlt.common.configuration.specs.exceptions import InvalidConnectionString
+from dlt.common.destination.attach import TAttachType
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhWithStagingConfiguration,
-    WithDuckDbEngine,
+    WithAttachableEngine,
 )
 from dlt.common.storages import WithLocalFiles
 from dlt.common.typing import Annotated, SecretSentinel
@@ -389,7 +390,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
 
 @configspec
 class DuckDbClientConfiguration(
-    WithDuckDbEngine, WithLocalFiles, DestinationClientDwhWithStagingConfiguration
+    WithAttachableEngine, WithLocalFiles, DestinationClientDwhWithStagingConfiguration
 ):
     destination_type: Final[str] = dataclasses.field(default="duckdb", init=False, repr=False, compare=False)  # type: ignore
     credentials: DuckDbCredentials = None
@@ -413,15 +414,32 @@ class DuckDbClientConfiguration(
         self.create_indexes = create_indexes
 
     def physical_location(self) -> str:
-        """Returns the database file path or ':memory:'."""
-        if self.credentials and self.credentials.database:
-            return self.credentials.database
-        return ""
+        """Returns the database file path, or the marker of a database living inside a connection
+        followed by that connection's identity."""
+        if not self.credentials or not self.credentials.database:
+            self._no_physical_location("no database is configured")
+        database = self.credentials.database
+        if database not in NON_ATTACHABLE_LOCATIONS:
+            return database
+        # the marker names no database, so the connection holding it is the only identity there is.
+        # comparing markers alone would make any two in-memory databases look like one
+        conn = getattr(self.credentials, "_external_conn", None)
+        if conn is None and self.credentials.conn_pool:
+            conn = self.credentials.conn_pool._conn
+        if conn is None:
+            self._no_physical_location(f"`{database}` has no open connection to identify it by")
+        return f"{database}{hex(id(conn))}"
 
-    def can_be_attached(self) -> bool:
-        """Returns True unless the database lives inside a single connection."""
-        location = self.physical_location()
-        return bool(location) and location not in NON_ATTACHABLE_LOCATIONS
+    def needs_attach(self, other: DestinationClientConfiguration) -> bool:
+        """Returns False for a database this connection already opened, every schema of which it
+        reaches."""
+        return not self.is_same_location(other)
+
+    def attach_type(self) -> Optional[TAttachType]:
+        """Returns None for a database that lives inside a connection: no path to attach."""
+        if self.credentials and self.credentials.database in NON_ATTACHABLE_LOCATIONS:
+            return None
+        return super().attach_type()
 
     def on_resolved(self) -> None:
         self.credentials.database = self.make_location(self.credentials.database, DUCK_DB_NAME_PAT)

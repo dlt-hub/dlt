@@ -22,6 +22,7 @@ from typing import (
     TypeVar,
     Tuple,
     IO,
+    NoReturn,
     TYPE_CHECKING,
     cast,
 )
@@ -32,11 +33,13 @@ from dlt.common import logger, pendulum
 from dlt.common.json import json
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     CredentialsConfiguration,
     known_sections,
 )
+from dlt.common.destination.attach import TAttachInfo, TAttachType
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -173,8 +176,32 @@ class DestinationClientConfiguration(BaseConfiguration):
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
     def physical_location(self) -> str:
-        """Returns a non-secret physical location identity, or "" when unavailable."""
-        return ""
+        """Returns location of data that connection to this destination is able to read using
+        supplied credentials.
+
+        Physical location must be as wide as possible - on many destinations this describes
+        all data that can be joinded together. For destinations that can federate or attach
+        data locations you include federated/attachable data if attach interface is implemented
+        (currently only duckb)
+
+        Raises:
+            NotImplementedError: When the destination has no location to name. Such a destination
+                cannot be queried at all, so it declares `can_read_from` False as well.
+            ConfigurationValueError: When the location cannot be computed from this configuration.
+        """
+        raise NotImplementedError(
+            f"Destination `{self.destination_type}` names no physical location. A destination"
+            " without a query engine also returns False from `can_read_from`, so nothing asks it"
+            " where its data lives."
+        )
+
+    def _no_physical_location(self, reason: str) -> NoReturn:
+        """Raises for a location that cannot be computed, rather than returning a blank one that
+        would compare equal to the next blank one."""
+        raise ConfigurationValueError(
+            f"Physical location of destination `{self.destination_type}` cannot be determined:"
+            f" {reason}. A resolved configuration always names the place its queries reach."
+        )
 
     # TODO: If we ever clean up fingerprinting across all destinations, consider making
     # the default `digest128(self.physical_location())`. This will break telemetry
@@ -183,19 +210,25 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns a destination fingerprint derived from selected configuration fields."""
         return ""
 
+    def is_same_location(self, other: "DestinationClientConfiguration") -> bool:
+        """Checks if self and other store data in the same location and if they
+        have the same destination type.
+
+        Raises:
+            NotImplementedError: When either destination names no location.
+            ConfigurationValueError: When either location cannot be computed.
+        """
+        if self.destination_type != other.destination_type:
+            return False
+        return self.physical_location() == other.physical_location()
+
     def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns True if `self` can read data from `other`.
         In case of SQL engines it is an ability to SELECT / JOIN
         """
         if not isinstance(other, DestinationClientConfiguration):
             return False
-        if self.destination_type != other.destination_type:
-            return False
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if self_loc and other_loc and self_loc == other_loc:
-            return True
-        return False
+        return self.is_same_location(other)
 
     def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns true if `self` can write data from `other`
@@ -228,25 +261,32 @@ class DestinationClientConfiguration(BaseConfiguration):
         return extract_inner_hint(type_)
 
 
-class WithDuckDbEngine:
-    """Marks a destination whose datasets are queried through a DuckDB engine.
+class WithAttachableEngine:
+    """Marks a destination queried through an engine that attaches foreign datasets, and whose
+    own datasets a foreign engine can attach in turn.
 
-    Mix in before the configuration so this `can_read_from` wins."""
+    Must be first in mixin list so can_read_from here overrides base.
+    """
 
-    def can_be_attached(self) -> bool:
-        """Tells if another DuckDB engine can ATTACH this destination."""
+    def attach_type(self) -> Optional["TAttachType"]:
+        """Returns engine that can process attach instructions."""
+        return "duckdb"
+
+    def can_attach(self, attach_type: "TAttachType") -> bool:
+        """Tells if this destination's engine can execute `attach_type` statements."""
+        # a duckdb connection runs plain attaches and the motherduck handshake alike
+        return attach_type in ("duckdb", "motherduck")
+
+    def needs_attach(self, other: DestinationClientConfiguration) -> bool:
+        """Tells if `other` must be attached, or one connection here already reaches it."""
         return True
 
-    def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
-        """Returns True for a DuckDB engine that can be attached, or is the very same database."""
-        if not isinstance(other, WithDuckDbEngine):
-            return False
-        if other.can_be_attached():
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True when `other` is already in reach, or can be attached into it."""
+        if super().can_read_from(other):  # type: ignore[misc]
             return True
-        # a database no one can attach is in reach only when it is the one already open
-        self_location = self.physical_location()  # type: ignore[attr-defined]
-        other_location = other.physical_location()
-        return bool(self_location and other_location and self_location == other_location)
+        attach_type = other.attach_type() if isinstance(other, WithAttachableEngine) else None
+        return attach_type is not None and self.can_attach(attach_type)
 
 
 @configspec
@@ -884,7 +924,7 @@ class SqlModel:
         self,
         query: str,
         dialect: Optional[str] = None,
-        attach: Optional[List[Dict[str, Any]]] = None,
+        attach: Optional[List[TAttachInfo]] = None,
     ) -> None:
         self._query = query
         self._dialect = dialect
@@ -901,7 +941,7 @@ class SqlModel:
         return cast("TSqlGlotDialect", self._dialect)
 
     @property
-    def attach(self) -> Optional[List[Dict[str, Any]]]:
+    def attach(self) -> Optional[List[TAttachInfo]]:
         """Serializable attach descriptors to re-attach foreign datasets before executing."""
         return self._attach
 
@@ -920,7 +960,7 @@ class SqlModel:
         cls,
         query: str,
         dialect: Optional[str] = None,
-        attach: Optional[List[Dict[str, Any]]] = None,
+        attach: Optional[List[TAttachInfo]] = None,
     ) -> "SqlModel":
         """Creates a `SqlModel` from a raw SQL query string, asserting it is a SELECT.
 
@@ -967,7 +1007,7 @@ class SqlModel:
         dialect = parsed_dialect if parsed_dialect else fallback_dialect
 
         # an optional "attach: <json>\n" line precedes the SQL; a non-attach line is SQL and is kept
-        attach: Optional[List[Dict[str, Any]]] = None
+        attach: Optional[List[TAttachInfo]] = None
         next_line = file_obj.readline()
         if next_line.startswith("attach:"):
             attach = json.loads(next_line.split(":", 1)[1].strip())
@@ -979,7 +1019,7 @@ class SqlModel:
         return cls(query=sql_statement, dialect=dialect, attach=attach)
 
     @staticmethod
-    def _serialize_attach(attach: Sequence[Dict[str, Any]]) -> str:
+    def _serialize_attach(attach: Sequence[TAttachInfo]) -> str:
         """Serialize attach descriptors, encrypting only statements flagged `secret` in place."""
         if any(s["secret"] for info in attach for s in info["statements"]):
             from dlt.common.encryption import pipeline_encryption
@@ -998,7 +1038,7 @@ class SqlModel:
         return "attach: " + json.dumps(attach) + "\n"
 
     @staticmethod
-    def _decrypt_attach_statements(attach: List[Dict[str, Any]]) -> None:
+    def _decrypt_attach_statements(attach: List[TAttachInfo]) -> None:
         """Decrypts in place the `secret`-flagged attach statements."""
         if not any(s["secret"] for info in attach for s in info["statements"]):
             return

@@ -1,3 +1,5 @@
+import pytest
+
 from dlt.common.destination.client import DestinationClientConfiguration
 
 
@@ -16,8 +18,11 @@ def test_base_fingerprint_ignores_physical_location() -> None:
     assert config.fingerprint() == ""
 
 
-def test_base_fingerprint_returns_empty_string_without_physical_location() -> None:
+def test_base_destination_names_no_physical_location() -> None:
+    """A destination that names no place raises rather than reporting a blank location that would
+    compare equal to the next blank one. Fingerprinting stays optional."""
     config = DestinationClientConfiguration()
 
-    assert config.physical_location() == ""
+    with pytest.raises(NotImplementedError):
+        config.physical_location()
     assert config.fingerprint() == ""

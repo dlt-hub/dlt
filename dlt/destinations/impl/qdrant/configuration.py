@@ -156,8 +156,10 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         return ""
 
     def physical_location(self) -> str:
-        """Returns the Qdrant connection location."""
-        return self.qd_location or ""
+        """Returns the Qdrant connection location, or the path a local instance persists to."""
+        if location := (self.qd_location or self.qd_path):
+            return location
+        self._no_physical_location("neither `qd_location` nor `qd_path` is configured")
 
     # TODO: qdrant supports cross collection (and cross instance) writes via point streaming
     # (scroll -> upsert, see `qdrant_client.migrate`). this is not SQL so it requires a

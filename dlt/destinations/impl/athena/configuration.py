@@ -2,6 +2,7 @@ import dataclasses
 from typing import Any, ClassVar, Dict, Final, List, Optional
 
 from dlt.common.configuration import configspec
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.utils import digest128
@@ -75,10 +76,11 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical Athena location."""
-        physical_location = self.physical_location()
-        if physical_location:
-            return digest128(physical_location)
-        return ""
+        # a fingerprint may say "cannot compute", where a location raises instead
+        try:
+            return digest128(self.physical_location())
+        except ConfigurationValueError:
+            return ""
 
     def __str__(self) -> str:
         """Return displayable destination location"""

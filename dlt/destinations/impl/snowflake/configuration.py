@@ -190,6 +190,6 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     def physical_location(self) -> str:
         """Returns the account host."""
-        if self.credentials and self.credentials.host:
-            return self.credentials.host
-        return ""
+        if not self.credentials or not self.credentials.host:
+            self._no_physical_location("no account host is configured")
+        return self.credentials.host

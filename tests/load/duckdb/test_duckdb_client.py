@@ -1046,17 +1046,15 @@ def test_with_attach_interface() -> None:
     primary = cast(DuckDbSqlClient, pipeline_a.sql_client())
     foreign = cast(DuckDbSqlClient, pipeline_b.sql_client())
 
-    info = foreign.get_attach(alias="attach_ds_b")
-    assert info["attach_type"] == "duckdb"
-    assert info["alias"] == "attach_ds_b"
-    assert info["dataset_name"] == foreign.dataset_name
-    assert "READ_ONLY" in info["statements"][0]["sql"]
-    assert db_b in info["physical_location"]
+    statements = foreign.attach_statements(alias="attach_ds_b")
+    assert "READ_ONLY" in statements[0]["sql"]
+    assert db_b in statements[0]["sql"]
 
-    # compatibility keys off the executor engine, not the source destination, and needs no statements
-    assert primary.attach_type == "duckdb"
-    assert primary.can_attach(info["attach_type"])
-    assert not primary.can_attach("postgres")  # type: ignore[arg-type]
+    # what a connection may attach is the configuration's answer, not the client's
+    primary_config = cast(DuckDbClientConfiguration, pipeline_a.destination_client().config)
+    assert primary_config.attach_type() == "duckdb"
+    assert primary_config.can_attach("duckdb")
+    assert not primary_config.can_attach("postgres")  # type: ignore[arg-type]
 
     # a catalog override produces a three-part path
     path = primary.make_qualified_table_name_path(
@@ -1066,17 +1064,17 @@ def test_with_attach_interface() -> None:
 
     pool = primary.credentials.conn_pool
     with primary as client:
-        client.attach(info)
+        client.attach("attach_ds_b", statements)
         assert pool.attached_aliases == {"attach_ds_b"}
-        assert [statement.key for statement in pool._statements] == [info["statements"][0]["key"]]
+        assert [statement.key for statement in pool._statements] == [statements[0]["key"]]
         rows = client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')
         assert rows[0][0] == 1
-        # re-attaching the same descriptor registers and runs nothing new
-        client.attach(info)
+        # re-attaching the same statements registers and runs nothing new
+        client.attach("attach_ds_b", statements)
         assert len(pool._statements) == 1
         # a reserved catalog name is rejected
         with pytest.raises(ValueError):
-            client.attach(foreign.get_attach(alias="memory"))
+            client.attach("memory", foreign.attach_statements(alias="memory"))
 
     # a load package hands every job client the same resolved credentials, so they share a pool and
     # the attach one of them registered is replayed for the others

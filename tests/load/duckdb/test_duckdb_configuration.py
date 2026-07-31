@@ -59,13 +59,22 @@ def test_external_connection_physical_location(tmp_path: Path) -> None:
         assert config_a.can_read_from(config_a2)
         assert config_a.can_read_from(config_b)
         assert config_mem.can_read_from(config_a)
-        # in-memory connections keep the external marker and stay compatible when shared
-        assert config_mem.physical_location() == ":external:"
+        # an in-memory connection has no path to name, so the marker carries the connection
+        # identity: comparing markers alone would make any two of them look like one database
+        assert config_mem.physical_location() == f":external:{hex(id(conn_mem))}"
         assert config_mem.can_read_from(
             DuckDbClientConfiguration(credentials=DuckDbCredentials(conn_mem))
         )
         # a database living in another connection cannot be attached
         assert not config_a.can_read_from(config_mem)
+
+        # two in-memory connections are two unrelated databases
+        config_mem_2 = DuckDbClientConfiguration(credentials=DuckDbCredentials(duckdb.connect()))
+        assert config_mem.physical_location() != config_mem_2.physical_location()
+        assert not config_mem.can_read_from(config_mem_2)
+        # nothing can attach a database that lives inside a connection
+        assert config_mem.attach_type() is None
+        assert config_a.attach_type() == "duckdb"
     finally:
         conn_a.close()
         conn_b.close()

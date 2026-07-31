@@ -131,7 +131,11 @@ def test_motherduck_rejects_foreign_motherduck_account(
         "ds_other_" + suffix,
         schema=primary.default_schema,
     )
-    with pytest.raises(ValueError, match="different physical destinations"):
+    # a MotherDuck connection cannot attach another account, and neither can the reverse
+    with pytest.raises(ValueError, match="cannot reach dataset") as reject:
         primary.dataset().table("users").join(
             other_account.table("products"), on="users.id = products.product_id"
         )
+    # the two accounts are named apart by their token digests, which no credentials display shows
+    assert "Materialize" in str(reject.value)
+    assert "NOT_OUR_TOKEN" not in str(reject.value)

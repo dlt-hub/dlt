@@ -253,10 +253,18 @@ def test_join_across_different_physical_destinations_attaches(
         assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
         assert f"attach_{other_dataset.sql_client.dataset_name}" in joined.to_sql()
 
-        # a primary that cannot attach the foreign location still rejects the join
-        monkeypatch.setattr(type(dataset.sql_client), "can_attach", lambda self, attach_type: False)
-        with pytest.raises(ValueError, match="cannot reach dataset"):
+        # a primary that cannot attach the foreign location still rejects the join. patch the
+        # instance, so the foreign config keeps its ability and the reverse direction still works
+        primary_config = dataset.destination_client.config
+        monkeypatch.setattr(primary_config, "can_attach", lambda attach_type: False)
+        with pytest.raises(ValueError, match="cannot reach dataset") as reject:
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
+        # reach is one-way here, so the message offers the swap instead of materializing
+        assert "the other way round" in str(reject.value)
+        assert f"run the query on dataset '{other_dataset.dataset_name}'" in str(reject.value)
+        # both locations are named, which a bare credentials display could not tell apart
+        assert primary_config.physical_location() in str(reject.value)
+        assert other_dataset.destination_client.config.physical_location() in str(reject.value)
 
 
 def test_join_rejects_same_name_on_different_physical_destinations() -> None:
@@ -328,14 +336,18 @@ def test_join_rejects_cross_dataset_on_unsupported_destination(
 
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
-        # one database file, yet each dataset lives in its own attached file
-        assert ds_a.destination_client.config.physical_location() == (
+        # one database file, yet each dataset lives in its own attached file, so a connection
+        # reaches only the dataset it opened
+        assert ds_a.destination_client.config.physical_location() != (
             ds_b.destination_client.config.physical_location()
         )
 
-        # sqlite attaches only its own dataset file, so the other one is out of reach
-        with pytest.raises(ValueError, match="cannot reach dataset"):
+        # sqlite attaches only its own dataset file, so the other one is out of reach and there
+        # is no direction that works: materializing is the only remedy
+        with pytest.raises(ValueError, match="cannot reach dataset") as reject:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
+        assert "Materialize" in str(reject.value)
+        assert "the other way round" not in str(reject.value)
 
 
 def test_join_cross_dataset_on_filesystem_attaches() -> None:
@@ -2471,13 +2483,13 @@ def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) ->
         sales_dataset = sales.dataset()
 
         built_aliases: list[str] = []
-        original_get_attach = DuckDbSqlClient.get_attach
+        original_attach_statements = DuckDbSqlClient.attach_statements
 
-        def _counting_get_attach(self: Any, *, alias: str, tables: Any = None) -> Any:
+        def _counting_attach_statements(self: Any, *, alias: str, tables: Any = None) -> Any:
             built_aliases.append(alias)
-            return original_get_attach(self, alias=alias, tables=tables)
+            return original_attach_statements(self, alias=alias, tables=tables)
 
-        monkeypatch.setattr(DuckDbSqlClient, "get_attach", _counting_get_attach)
+        monkeypatch.setattr(DuckDbSqlClient, "attach_statements", _counting_attach_statements)
 
         created_clients: list[str] = []
         original_create = dlt.Dataset._create_destination_client
@@ -2570,13 +2582,13 @@ def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.Monkey
     from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 
     asked_for: list[Any] = []
-    original_get_attach = WithTableScanners.get_attach
+    original_attach_statements = WithTableScanners.attach_statements
 
-    def _spy_get_attach(self: Any, *, alias: str, tables: Any = None) -> Any:
+    def _spy_attach_statements(self: Any, *, alias: str, tables: Any = None) -> Any:
         asked_for.append(None if tables is None else sorted(tables))
-        return original_get_attach(self, alias=alias, tables=tables)
+        return original_attach_statements(self, alias=alias, tables=tables)
 
-    monkeypatch.setattr(WithTableScanners, "get_attach", _spy_get_attach)
+    monkeypatch.setattr(WithTableScanners, "attach_statements", _spy_attach_statements)
 
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)

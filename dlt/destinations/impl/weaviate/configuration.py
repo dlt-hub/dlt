@@ -75,9 +75,10 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
 
     def physical_location(self) -> str:
         """Returns the host part of the connection URL."""
-        if self.credentials and self.credentials.url:
-            return urlparse(self.credentials.url).hostname or ""
-        return ""
+        hostname = urlparse(self.credentials.url).hostname if self.credentials else None
+        if not hostname:
+            self._no_physical_location("the connection URL names no host")
+        return hostname
 
     def can_read_from(self, other: DestinationClientConfiguration) -> bool:
         """Weaviate does not support dlt SQL joins."""

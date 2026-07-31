@@ -1,10 +1,11 @@
 import io
-from typing import Any, Dict, List
+from typing import List
 
 import pytest
 
 import dlt
 from dlt.common.configuration.container import Container
+from dlt.common.destination.attach import TAttachInfo, attach_statement
 from dlt.common.destination.client import SqlModel
 from dlt.common.encryption import PipelineEncryptionContext
 from dlt.common.utils import uniq_id
@@ -12,26 +13,24 @@ from dlt.common.utils import uniq_id
 SECRET = "CREATE SECRET s (TYPE HUGGINGFACE, TOKEN 'topsecret')"
 
 
-def _attach() -> List[Dict[str, Any]]:
+def _attach() -> List[TAttachInfo]:
     return [
-        {
-            "attach_type": "duckdb",
-            "alias": "attach_x",
-            "dataset_name": "x",
-            "physical_location": "loc",
-            "statements": [
-                {"sql": SECRET, "secret": True},
-                {"sql": "ATTACH IF NOT EXISTS ':memory:' AS attach_x", "secret": False},
+        TAttachInfo(
+            attach_type="duckdb",
+            alias="attach_x",
+            statements=[
+                attach_statement(SECRET, secret=True),
+                attach_statement("ATTACH IF NOT EXISTS ':memory:' AS attach_x"),
             ],
-        }
+        )
     ]
 
 
-def _model_text(attach: List[Dict[str, Any]]) -> str:
+def _model_text(attach: List[TAttachInfo]) -> str:
     return str(SqlModel(query="SELECT 1 AS a", dialect="duckdb", attach=attach))
 
 
-def _secret_sql(attach: List[Dict[str, Any]]) -> List[str]:
+def _secret_sql(attach: List[TAttachInfo]) -> List[str]:
     return [s["sql"] for s in attach[0]["statements"] if s["secret"]]
 
 

@@ -67,6 +67,7 @@ from dlt.common.destination.client import (
     HasFollowupJobs,
     CredentialsConfiguration,
     SqlModel,
+    WithAttachableEngine,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -169,19 +170,23 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         sql_client = self._job_client.sql_client
         if attach:
-            if not isinstance(sql_client, WithAttach):
+            # the model was built against the input dataset but runs here, so this destination's
+            # own ability to attach is what decides
+            config = self._job_client.config
+            if not isinstance(sql_client, WithAttach) or not isinstance(
+                config, WithAttachableEngine
+            ):
                 raise ValueError(
-                    f"Destination `{self._job_client.config.destination_type}` cannot attach the"
+                    f"Destination `{config.destination_type}` cannot attach the"
                     " foreign datasets required by this model."
                 )
-            for attach_info in attach:
-                info = cast(TAttachInfo, attach_info)
-                if not sql_client.can_attach(info["attach_type"]):
+            for info in attach:
+                if not config.can_attach(info["attach_type"]):
                     raise ValueError(
-                        f"Destination `{self._job_client.config.destination_type}` cannot execute"
+                        f"Destination `{config.destination_type}` cannot execute"
                         f" `{info['attach_type']}` attach statements required by this model."
                     )
-                sql_client.attach(info)
+                sql_client.attach(info["alias"], info["statements"])
         insert_statement = self._insert_statement_from_select_statement(
             select_dialect, select_statement
         )

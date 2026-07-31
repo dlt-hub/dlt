@@ -61,14 +61,9 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
         "staging_use_msi",
     ]
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same Synapse host:port and database."""
-        if not isinstance(other, SynapseClientConfiguration):
-            return False
-        if not super().can_read_from(other):
-            return False
-
-        self_db = self.credentials.database if self.credentials else None
-        other_db = other.credentials.database if other.credentials else None
-        # Synapse does not support cross-db joins
-        return self_db is not None and other_db is not None and self_db == other_db
+    def physical_location(self) -> str:
+        """Returns host:port and the database: unlike mssql, Synapse has no cross-db joins."""
+        host = super().physical_location()
+        if not self.credentials.database:
+            self._no_physical_location("no database is configured")
+        return f"{host}/{self.credentials.database}"

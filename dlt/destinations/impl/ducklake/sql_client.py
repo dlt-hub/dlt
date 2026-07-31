@@ -13,7 +13,6 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
 from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl, DuckDbSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 from dlt.destinations.sql_client import (
-    TAttachInfo,
     TAttachStatement,
     WithAttach,
     attach_statement,
@@ -98,23 +97,9 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
         return super().close_connection()
 
-    def needs_attach(self, foreign: WithAttach) -> bool:
-        credentials = self.credentials
-        if not isinstance(foreign, DuckLakeSqlClient) or not credentials.catalog:
-            return True
-        foreign_credentials = foreign.credentials
-        if not foreign_credentials.catalog:
-            return True
-        # a connection reaches every schema of the lake it attached, and one lake is one metadata
-        # schema inside one catalog
-        return (
-            credentials.catalog.to_native_representation()
-            != foreign_credentials.catalog.to_native_representation()
-            or (credentials.metadata_schema or credentials.ducklake_name)
-            != (foreign_credentials.metadata_schema or foreign_credentials.ducklake_name)
-        )
-
-    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
         # the whole lake is attached, `tables` cannot narrow it
         statements: List[TAttachStatement] = []
         storage = self.credentials.storage
@@ -143,15 +128,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             "mysql",
         )
         statements.append(attach_statement(attach, secret=is_secret, key=f"{alias}:attach"))
-        return TAttachInfo(
-            attach_type=self.attach_type,
-            alias=alias,
-            dataset_name=self.dataset_name,
-            # the lake is its catalog: two lakes may share a data path but hold different catalogs.
-            # fall back to the data path for a catalog with no credential-free identity
-            physical_location=(self.credentials.catalog_location() or self.credentials.storage_url),
-            statements=statements,
-        )
+        return statements
 
     def create_secret(
         self,

@@ -225,7 +225,8 @@ def test_external_engine_database_not_relocated() -> None:
     )
     assert c.credentials.is_external_engine
     assert c.credentials.database == os.path.abspath("relative_data.db")
-    assert c.physical_location() == os.path.abspath("relative_data.db")
+    # a sqlite connection attaches only its own dataset file, so the dataset is part of the reach
+    assert c.physical_location() == f"sqlite://{os.path.abspath('relative_data.db')}#test_dataset"
 
     # in-memory external engine has no physical identity
     c = resolve_configuration(

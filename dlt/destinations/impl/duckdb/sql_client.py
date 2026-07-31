@@ -55,7 +55,7 @@ from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.sql_client import (
     SqlClientBase,
     DBApiCursorImpl,
-    TAttachInfo,
+    TAttachStatement,
     TAttachType,
     WithAttach,
     WithSchemas,
@@ -126,8 +126,6 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     dbapi: ClassVar[DBApi] = duckdb
     cursor_impl: ClassVar[Type[DuckDBDBApiCursorImpl]] = DuckDBDBApiCursorImpl
     attach_type: ClassVar[TAttachType] = "duckdb"
-    ATTACHABLE_TYPES: ClassVar[Tuple[TAttachType, ...]] = ("duckdb", "motherduck")
-
     RESERVED_CATALOGS: ClassVar[Tuple[str, ...]] = ("memory", "system", "temp")
 
     def __init__(
@@ -164,42 +162,21 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             self.credentials.conn_pool.return_conn(self._conn)
             self._conn = None
 
-    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
         # the whole database file is attached, `tables` cannot narrow it
         db_path = self.credentials.database
         q_alias = self.escape_column_name(alias)
-        return TAttachInfo(
-            attach_type=self.attach_type,
-            alias=alias,
-            dataset_name=self.dataset_name,
-            physical_location=db_path or "",
-            statements=[
-                attach_statement(f"ATTACH IF NOT EXISTS '{db_path}' AS {q_alias} (READ_ONLY)")
-            ],
-        )
+        return [attach_statement(f"ATTACH IF NOT EXISTS '{db_path}' AS {q_alias} (READ_ONLY)")]
 
-    def needs_attach(self, foreign: WithAttach) -> bool:
-        if not isinstance(foreign, DuckDbSqlClient):
-            return True
-        database = self.credentials.database
-        # a ducklake foreign names a catalog, not a database file, so it is out of reach this way
-        foreign_database: Optional[str] = getattr(foreign.credentials, "database", None)
-        if not database or not foreign_database:
-            return True
-        if database in NON_ATTACHABLE_LOCATIONS:
-            # those do not name a database, so two of them are the same one only when pooled together
-            return self.credentials.conn_pool is not foreign.credentials.conn_pool
-        # a duckdb connection reaches every schema of the database it opened
-        return database != foreign_database
-
-    def attach(self, info: TAttachInfo) -> None:
-        alias = info["alias"]
+    def attach(self, alias: str, statements: Sequence[TAttachStatement]) -> None:
         pool = self.credentials.conn_pool
         if alias not in pool.attached_aliases:
             self._raise_on_catalog_collision(alias)
         # from here on the pool replays them; `conn` covers the one already borrowed here
         pool.add_statements(
-            [ConnStatement(s["sql"], s["key"]) for s in info["statements"]],
+            [ConnStatement(s["sql"], s["key"]) for s in statements],
             alias=alias,
             conn=self._conn,
         )
@@ -715,10 +692,6 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         """Return all schemas that contain `table_name`, in dict order."""
         return [s for s in self.schemas.values() if table_name in s.tables]
 
-    def needs_attach(self, foreign: WithAttach) -> bool:
-        # views cover this client's own dataset only, so any other one must be attached
-        return True
-
     def _table_views(self, tables: Optional[Collection[str]] = None) -> Dict[str, str]:
         """Maps `tables` to views of the same name, every table of every schema when not given."""
         if tables is not None:
@@ -822,12 +795,9 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         """Credential-bearing `CREATE SECRET` statements needed to read this scanner's data."""
         return []
 
-    def _attach_physical_location(self) -> str:
-        return (
-            self.remote_client.config.physical_location() or self.remote_client.config.fingerprint()
-        )
-
-    def get_attach(self, *, alias: str, tables: Optional[Collection[str]] = None) -> TAttachInfo:
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
         q_alias = self.escape_column_name(alias)
         q_schema = self.escape_column_name(self.dataset_name)
         # extensions load first, then secrets, then the views that reference them by scope
@@ -847,13 +817,7 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             statements.append(
                 attach_statement(f"CREATE OR REPLACE VIEW {q_view} AS {select_sql}", key=q_view)
             )
-        return TAttachInfo(
-            attach_type=self.attach_type,
-            alias=alias,
-            dataset_name=self.dataset_name,
-            physical_location=self._attach_physical_location(),
-            statements=statements,
-        )
+        return statements
 
     @contextmanager
     @raise_database_error

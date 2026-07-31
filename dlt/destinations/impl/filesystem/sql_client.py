@@ -104,7 +104,7 @@ class FilesystemSqlClient(WithTableScanners):
 
     def _attach_extension_statements(self) -> List[str]:
         config = self.remote_client.config
-        if not config.can_be_attached():
+        if config.attach_type() is None:
             raise NotImplementedError(
                 f"filesystem protocol `{config.protocol}` needs fsspec registration and cannot be"
                 " attached via SQL statements"

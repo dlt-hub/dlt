@@ -27,6 +27,10 @@ class CustomDestinationClientConfiguration(DestinationClientConfiguration):
     skip_dlt_columns_and_tables: bool = True
     max_table_nesting: Optional[int] = 0
 
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """A custom destination is a callable, not a place a query can reach into."""
+        return False
+
     def ensure_callable(self) -> None:
         """Makes sure that valid callable was provided"""
         # TODO: this surely can be done with `on_resolved`
