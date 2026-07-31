@@ -4,7 +4,6 @@ import time as _time
 import base64
 from contextlib import contextmanager
 from types import TracebackType
-from urllib.parse import urlparse
 from typing import (
     ClassVar,
     List,
@@ -105,18 +104,6 @@ SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
-
-_ONELAKE_HOSTS = {
-    "onelake.blob.fabric.microsoft.com",
-    "onelake.dfs.fabric.microsoft.com",
-}
-
-
-def _is_onelake_host(value: Optional[str]) -> bool:
-    if not value:
-        return False
-    parsed = urlparse(value if "://" in value else f"//{value}")
-    return (parsed.hostname or "").lower().rstrip(".") in _ONELAKE_HOSTS
 
 
 class FilesystemLoadJob(RunnableLoadJob):
@@ -536,9 +523,6 @@ class FilesystemClient(
         self.pathlib = os.path if self.is_local_filesystem else posixpath
 
         self.config: FilesystemDestinationClientConfiguration = config
-        self._normalize_probe_paths = _is_onelake_host(config.bucket_url) or _is_onelake_host(
-            getattr(config.credentials, "azure_account_host", None)
-        )
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
         self.table_prefix_layout = path_utils.get_table_prefix_layout(
@@ -611,17 +595,11 @@ class FilesystemClient(
         """
         return self.pathlib.join(self.bucket_path, self.dataset_name, "")  # type: ignore[no-any-return]
 
-    def _probe_path(self, path: str) -> str:
-        if self._normalize_probe_paths:
-            # OneLake rejects directory HEAD probes with a trailing slash.
-            return path.rstrip(self.pathlib.sep) or path
-        return path
-
     def _exists(self, path: str) -> bool:
-        return self.fs_client.exists(self._probe_path(path))  # type: ignore[no-any-return]
+        return self.fs_client.exists(path)  # type: ignore[no-any-return]
 
     def _isdir(self, path: str) -> bool:
-        return self.fs_client.isdir(self._probe_path(path))  # type: ignore[no-any-return]
+        return self.fs_client.isdir(path)  # type: ignore[no-any-return]
 
     @contextmanager
     def with_staging_dataset(self) -> Iterator["FilesystemClient"]:
