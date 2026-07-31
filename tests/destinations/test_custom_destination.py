@@ -184,7 +184,7 @@ def test_instantiation() -> None:
     assert location["tables"] == ["items"]
     assert "dataset_name" not in location and "physical_dataset_name" not in location
     # nor a public location, it stays addressable by destination name
-    assert location["location"] == ""
+    assert "location" not in location
     assert location["destination_name"] == "local_sink_func"
     # local func does not create entry in destinations
     with pytest.raises(KeyError):

@@ -20,10 +20,6 @@ class DummyClientCredentials(CredentialsConfiguration):
 class DummyClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = dataclasses.field(default="dummy", init=False, repr=False, compare=False)  # type: ignore
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Dummy discards what it is given, so nothing can be read back out of it."""
-        return False
-
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
     """raise terminal exception in schema update"""

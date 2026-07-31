@@ -253,16 +253,19 @@ def test_base_can_read_from_default_true_when_same_physical_location() -> None:
     assert_joinable(config1, config2)
 
 
-def test_base_names_no_location_so_reach_cannot_be_answered() -> None:
-    """The base names no place, so it raises instead of reporting a blank location. A real
-    destination in that position declares `can_read_from` False, as dummy and custom do."""
-    with pytest.raises(NotImplementedError):
-        DestinationClientConfiguration().can_read_from(_PhysicalDestinationConfig("host1"))
-    assert DummyClientConfiguration().can_read_from(DummyClientConfiguration()) is False
-    assert (
-        CustomDestinationClientConfiguration().can_read_from(CustomDestinationClientConfiguration())
-        is False
-    )
+def test_destination_naming_no_location_is_in_reach_of_nothing() -> None:
+    """`None` is not a place, so it never matches - not even another `None`. That is what keeps a
+    sink out of reach without every such destination having to override `can_read_from`."""
+    sink = DummyClientConfiguration()
+    assert sink.physical_location() is None
+    assert sink.can_read_from(DummyClientConfiguration()) is False
+    assert sink.can_read_from(sink) is False
+    assert sink.can_write_from(sink) is False
+
+    custom = CustomDestinationClientConfiguration()
+    assert custom.physical_location() is None
+    assert custom.can_read_from(CustomDestinationClientConfiguration()) is False
+    assert not sink.can_read_from(_PhysicalDestinationConfig("host1"))
 
 
 def test_base_can_read_from_returns_false_for_non_config() -> None:
@@ -1401,6 +1404,7 @@ def test_physical_location_is_never_blank() -> None:
     for factory in factories:
         try:
             location = factory().physical_location()
-        except (NotImplementedError, ConfigurationValueError):
+        except ConfigurationValueError:
             continue
-        assert location, f"{factory} reported a blank location"
+        # `None` says "no place at all", which never matches; "" would match the next ""
+        assert location is None or location, f"{factory} reported a blank location"

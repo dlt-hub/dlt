@@ -110,8 +110,8 @@ TJoinType = Literal["left", "right", "inner", "full"]
 
 def _location_display(dataset: "dlt.Dataset", config: DestinationClientConfiguration) -> str:
     try:
-        where = config.physical_location()
-    except (NotImplementedError, ValueError):
+        where = config.physical_location() or str(config)
+    except ValueError:
         where = str(config)
     return f"dataset '{dataset.dataset_name}' on '{where}'"
 

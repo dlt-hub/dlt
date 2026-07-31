@@ -175,7 +175,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
-    def physical_location(self) -> str:
+    def physical_location(self) -> Optional[str]:
         """Returns location of data that connection to this destination is able to read using
         supplied credentials.
 
@@ -184,16 +184,14 @@ class DestinationClientConfiguration(BaseConfiguration):
         data locations you include federated/attachable data if attach interface is implemented
         (currently only duckb)
 
+        Returns:
+            Optional[str]: `None` when the destination names no place at all, ie. a reverse ETL
+                sink. Such a destination cannot be queried, so it is never in reach of anything.
+
         Raises:
-            NotImplementedError: When the destination has no location to name. Such a destination
-                cannot be queried at all, so it declares `can_read_from` False as well.
             ConfigurationValueError: When the location cannot be computed from this configuration.
         """
-        raise NotImplementedError(
-            f"Destination `{self.destination_type}` names no physical location. A destination"
-            " without a query engine also returns False from `can_read_from`, so nothing asks it"
-            " where its data lives."
-        )
+        return None
 
     def _no_physical_location(self, reason: str) -> NoReturn:
         """Raises for a location that cannot be computed, rather than returning a blank one that
@@ -215,12 +213,13 @@ class DestinationClientConfiguration(BaseConfiguration):
         have the same destination type.
 
         Raises:
-            NotImplementedError: When either destination names no location.
             ConfigurationValueError: When either location cannot be computed.
         """
         if self.destination_type != other.destination_type:
             return False
-        return self.physical_location() == other.physical_location()
+        # a destination naming no place shares it with nothing, not even another such destination
+        location = self.physical_location()
+        return location is not None and location == other.physical_location()
 
     def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns True if `self` can read data from `other`.

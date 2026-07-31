@@ -19,10 +19,9 @@ def test_base_fingerprint_ignores_physical_location() -> None:
 
 
 def test_base_destination_names_no_physical_location() -> None:
-    """A destination that names no place raises rather than reporting a blank location that would
-    compare equal to the next blank one. Fingerprinting stays optional."""
+    """A destination that names no place reports `None`, never a blank location that would compare
+    equal to the next blank one. Fingerprinting stays optional."""
     config = DestinationClientConfiguration()
 
-    with pytest.raises(NotImplementedError):
-        config.physical_location()
+    assert config.physical_location() is None
     assert config.fingerprint() == ""
