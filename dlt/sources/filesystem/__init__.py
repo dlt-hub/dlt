@@ -15,6 +15,7 @@ from dlt.sources.credentials import FileSystemCredentials
 from dlt.sources.filesystem.helpers import (
     AbstractFileSystem,
     FilesystemConfigurationResource,
+    record_bucket_input,
 )
 from dlt.sources.filesystem.readers import (
     ReadersSource,
@@ -127,6 +128,8 @@ def filesystem(  # noqa DOC
         fs_client = fsspec_filesystem(
             bucket_url, credentials, kwargs=kwargs, client_kwargs=client_kwargs
         )[0]
+
+    record_bucket_input(bucket_url, file_glob)
 
     files_chunk: List[FileItem] = []
 

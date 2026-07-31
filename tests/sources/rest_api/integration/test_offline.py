@@ -1,5 +1,5 @@
 import re
-from typing import Any, List, Optional
+from typing import Any, List, Optional, cast
 from unittest import mock
 from urllib.parse import parse_qs, urlsplit
 
@@ -10,6 +10,7 @@ import dlt
 from dlt.common import pendulum
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.rest_client.paginators import BaseReferencePaginator
+from dlt.sources.rest_api.config_setup import TRestApiDataLocation
 from dlt.sources.rest_api import (
     ClientConfig,
     Endpoint,
@@ -200,6 +201,28 @@ def test_load_mock_api(mock_api_server, config):
     assert table_counts["posts"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
     assert table_counts["post_details"] == DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
     assert table_counts["post_comments"] == 50 * DEFAULT_PAGE_SIZE * DEFAULT_TOTAL_PAGES
+
+    # every resource records the endpoint it read, the dependent ones (transformers) included,
+    # once each however many pages they paginated
+    extract_info = pipeline.last_trace.last_extract_info
+    inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
+    by_resource = {location["resource_name"]: location for location in inputs}
+    assert set(by_resource) == {"posts", "post_comments", "post_details"}
+    for location in inputs:
+        assert location["kind"] == "rest_api"
+        assert location["location"] == "https://api.example.com"
+    # the configured endpoint is recorded as is, never a resolved request url
+    expected_paths = {}
+    for resource in config["resources"]:
+        if isinstance(resource, str):
+            expected_paths[resource] = resource
+        else:
+            endpoint = resource["endpoint"]
+            expected_paths[resource["name"]] = (
+                endpoint if isinstance(endpoint, str) else endpoint["path"]
+            )
+    for name, location in by_resource.items():
+        assert cast(TRestApiDataLocation, location)["endpoints"] == [expected_paths[name]]
 
     with pipeline.sql_client() as client:
         posts_table = client.make_qualified_table_name("posts")
@@ -2081,3 +2104,17 @@ def test_dependent_resource_parallelized_with_incremental(mock_api_server):
         f"SELECT MIN(id) FROM {post_comments_table}",
         [45],
     )
+
+
+def test_rest_api_endpoint_location_is_sanitized() -> None:
+    """A location is never allowed to carry credentials"""
+    from dlt.sources.helpers.rest_client.client import RESTClient
+    from dlt.sources.rest_api.config_setup import record_endpoint_input
+
+    resource = dlt.resource([{"id": 1}], name="posts")
+    record_endpoint_input(
+        resource, RESTClient(base_url="https://api.example.com?api_key=top_secret"), "posts"
+    )
+    location = cast(TRestApiDataLocation, resource.inputs[0])
+    assert "top_secret" not in str(location)
+    assert location["location"] == "https://api.example.com?api_key=***"

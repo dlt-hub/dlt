@@ -234,6 +234,49 @@ def test_connection_string_str_repr() -> None:
     assert str(c) == "postgres://loader:***@localhost:5432/dlt_data"
 
 
+@pytest.mark.parametrize(
+    "connection_string,expected",
+    [
+        ("postgresql://loader:pass@example.com:5432/dlt_data", "postgresql://example.com:5432"),
+        # the dbapi driver is not part of the identity, the backend is
+        ("postgresql+psycopg2://u:p@example.com:5432/db", "postgresql://example.com:5432"),
+        # a private or local address is reported as configured, a scope is not an identity
+        ("postgresql://example.com/dlt_data", "postgresql://example.com"),
+        ("postgresql://loader:pass@localhost:5432/dlt_data", "postgresql://localhost:5432"),
+        ("mssql+pyodbc://u:p@host:1433/db?driver=ODBC+Driver+18", "mssql://host:1433"),
+        # file based backends are identified by the database path
+        ("sqlite:////tmp/abs.db", "sqlite:///tmp/abs.db"),
+        ("sqlite:///rel.db", "sqlite://rel.db"),
+        # transient backends are reported as configured too, the backend alone is a valid scope
+        ("sqlite:///:memory:", "sqlite://:memory:"),
+        ("sqlite://", "sqlite://"),
+    ],
+    ids=[
+        "postgres",
+        "postgres-with-driver",
+        "postgres-no-port",
+        "postgres-localhost",
+        "mssql-with-query",
+        "sqlite-absolute",
+        "sqlite-relative",
+        "sqlite-memory",
+        "sqlite-no-database",
+    ],
+)
+def test_connection_string_physical_location(connection_string: str, expected: str) -> None:
+    """A scope names the engine and address, never credentials or connect options"""
+    location = ConnectionStringCredentials(connection_string).physical_location()
+    assert location == expected
+    assert "pass" not in location and "loader" not in location
+
+
+def test_connection_string_physical_location_ignores_credentials() -> None:
+    """The same database read by two users is reported with the same scope"""
+    loader = ConnectionStringCredentials("postgresql://loader:a@example.com:5432/dlt_data")
+    admin = ConnectionStringCredentials("postgresql://admin:b@example.com:5432/dlt_data")
+    assert loader.physical_location() == admin.physical_location()
+
+
 def test_gcp_service_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpServiceAccountCredentials().parse_native_representation(1)
