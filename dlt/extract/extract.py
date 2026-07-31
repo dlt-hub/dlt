@@ -12,6 +12,7 @@ from dlt.common.data_writers.writers import TDataItemFormat
 from dlt.common.metrics import (
     EMPTY_DATA_WRITER_METRICS,
     DataWriterAndCustomMetrics,
+    TDataLocation,
     aggregate_job_metrics,
 )
 from dlt.common.pipeline import (
@@ -400,6 +401,12 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     continue
                 hints[name] = hint
 
+        inputs: List[TDataLocation] = []
+        for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():
+            inputs.extend(
+                {**location, "resource_name": resource.name} for location in resource.inputs
+            )
+
         return {
             "started_at": None,
             "finished_at": None,
@@ -409,6 +416,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
             "resource_metrics": resource_metrics,
             "dag": source.resources.selected_dag,
             "hints": clean_hints,
+            "inputs": inputs,
         }
 
     def _handle_empty_tables(

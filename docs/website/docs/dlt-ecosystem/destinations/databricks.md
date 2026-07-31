@@ -359,6 +359,15 @@ create_indexes=true
 ```
 :::
 
+:::note
+Table and column comments (from `description` or the `table_comment`/`column_comment` adapter hints) are emitted by default. dlt system tables (`_dlt_*`) are never annotated. Set `create_comments` to `false` to disable all comment/description DDL.
+```toml
+[destination.databricks]
+# Do not emit COMMENT clauses for tables and columns
+create_comments=false
+```
+:::
+
 For additional hints specific to Databricks, see the [Databricks adapter](#databricks-adapter) section.
 
 ## Staging support

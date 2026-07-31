@@ -637,6 +637,66 @@ if __name__ == "__main__":
     load_info = load()
 ```
 
+#### Retrying only the schema update (evolution)
+
+When several pipelines run **in parallel against the same dataset** — parallel Airflow tasks, partitioned
+backfills, or several processes sharing one schema — they can race on DDL. Each run independently reads the
+destination, sees that a table does not exist yet (or that a new column has not been added), and emits its own
+`CREATE TABLE` / `ALTER TABLE ... ADD COLUMN`. The first run wins; the others fail because the table or column
+now already exists. The same happens during schema evolution when two runs add the same new column at once.
+
+`dlt` wraps such a failure in a `SchemaUpdateError`. It is safe to retry: on the next attempt `dlt` re-reads the destination and applies
+only what is still missing, so parallel runs converge. Use `retry_schema_update` to retry just this part:
+
+```py
+from tenacity import retry, stop_after_attempt, retry_if_exception, wait_random_exponential
+from dlt.pipeline.helpers import retry_schema_update
+
+if __name__ == "__main__":
+    pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination="duckdb", dataset_name="games_data")
+
+    @retry(
+        stop=stop_after_attempt(5),
+        # random jitter spreads retries so colliding parallel runs do not wake up and retry in lockstep
+        wait=wait_random_exponential(multiplier=1, max=30),
+        retry=retry_if_exception(retry_schema_update()),
+        reraise=True,
+    )
+    def load():
+        data = chess_source(["magnuscarlsen", "rpragchess"], start_month="2022/11", end_month="2022/12")
+        return pipeline.run(data)
+
+    load_info = load()
+```
+
+Why the **random jitter** matters: when many parallel runs collide on the same DDL and all back off by the same
+fixed amount, they wake up together and collide again — a "thundering herd". `wait_random_exponential` adds
+randomness to each wait, so the runs spread out over time and converge instead of fighting.
+
+`retry_schema_update` retries a schema-update failure regardless of whether its cause is transient or terminal
+(it assumes that other updates run in parallel and next run will reconcile invalid migration).
+It composes with `retry_load` — retry the schema evolution here and defer every other load failure to `retry_load`:
+
+```py
+from tenacity import retry, stop_after_attempt, retry_if_exception, wait_random_exponential
+from dlt.pipeline.helpers import retry_load, retry_schema_update
+
+if __name__ == "__main__":
+    pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination="duckdb", dataset_name="games_data")
+
+    @retry(
+        stop=stop_after_attempt(5),
+        wait=wait_random_exponential(multiplier=1, max=30),
+        retry=retry_if_exception(retry_schema_update()) | retry_if_exception(retry_load()),
+        reraise=True,
+    )
+    def load():
+        data = chess_source(["magnuscarlsen", "rpragchess"], start_month="2022/11", end_month="2022/12")
+        return pipeline.run(data)
+
+    load_info = load()
+```
+
 ### Allow a graceful shutdown
 `dlt` attempts a graceful shutdown of a running pipeline by installing custom signal handlers. In those handlers SIGINT (Ctrl-C) and SIGTERM
 are intercepted. Handlers are activated when pipeline runs and have the following effect:

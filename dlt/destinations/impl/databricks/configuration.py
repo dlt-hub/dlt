@@ -248,6 +248,8 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Tells if to keep the files in internal (volume) stage"""
     create_indexes: bool = False
     """Whether PRIMARY KEY or FOREIGN KEY constrains should be created"""
+    create_comments: bool = True
+    """Whether table and column COMMENT clauses (from `description` or `*_comment` hints) are emitted. dlt system tables are never annotated."""
     insert_api: TDatabricksInsertApi = DEFAULT_DATABRICKS_INSERT_API
     """Ingestion backend for `append` write disposition. Can be overridden per resource via `databricks_adapter`."""
     zerobus: Optional[DatabricksZerobusConfiguration] = None
