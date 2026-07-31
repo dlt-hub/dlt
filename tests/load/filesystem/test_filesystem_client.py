@@ -9,6 +9,10 @@ from urllib.parse import urlparse
 
 import pytest
 
+from dlt.common.configuration.specs.azure_credentials import (
+    AzureCredentials,
+    AzureCredentialsWithoutDefaults,
+)
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
@@ -76,6 +80,23 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
         initial_config=config_class()._bind_dataset_name("test"),
     )
     return client
+
+
+def _mock_filesystem_client(
+    bucket_url: str, azure_account_host: Optional[str] = None
+) -> tuple[FilesystemClient, mock.Mock]:
+    fs_client = mock.Mock()
+    credentials = AzureCredentialsWithoutDefaults(
+        azure_storage_account_name="onelake",
+        azure_storage_sas_token="token",
+        azure_account_host=azure_account_host,
+    )
+    with patch(
+        "dlt.destinations.impl.filesystem.filesystem.fsspec_from_config",
+        return_value=(fs_client, "lakehouse/Files/bucket"),
+    ):
+        client = _client_factory(filesystem(bucket_url=bucket_url, credentials=credentials))
+    return client, fs_client
 
 
 @pytest.mark.parametrize(
@@ -160,6 +181,48 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
         assert client.get_table_prefix("letters").endswith("_data/letters/")
     else:
         assert client.get_table_prefix("letters").endswith("_data/letters.")
+
+
+@pytest.mark.parametrize(
+    "bucket_url,azure_account_host",
+    [
+        (
+            "abfss://workspace@onelake.dfs.fabric.microsoft.com/lakehouse/Files/bucket",
+            None,
+        ),
+        ("az://container/bucket", "onelake.blob.fabric.microsoft.com"),
+    ],
+)
+def test_onelake_directory_probes_strip_trailing_separator(
+    bucket_url: str, azure_account_host: Optional[str]
+) -> None:
+    client, fs_client = _mock_filesystem_client(bucket_url, azure_account_host)
+    fs_client.isdir.return_value = False
+    fs_client.exists.return_value = False
+
+    client.initialize_storage(["items"])
+    fs_client.isdir.assert_called_once_with(client.dataset_path.rstrip("/"))
+
+    fs_client.exists.reset_mock()
+    client._delete_table_files(["items"])
+    fs_client.exists.assert_called_once_with(client.get_table_dir("items").rstrip("/"))
+
+    fs_client.exists.reset_mock()
+    client._exists("/")
+    fs_client.exists.assert_called_once_with("/")
+
+
+def test_regular_azure_directory_probes_keep_trailing_separator() -> None:
+    client, fs_client = _mock_filesystem_client(
+        "abfss://container@account.dfs.core.windows.net/bucket"
+    )
+    fs_client.isdir.return_value = False
+    fs_client.exists.return_value = False
+
+    client.initialize_storage(["items"])
+
+    fs_client.isdir.assert_called_once_with(client.dataset_path)
+    assert client.dataset_path.endswith("/")
 
 
 def test_table_prefix_resolves_standard_extra_placeholders() -> None:
