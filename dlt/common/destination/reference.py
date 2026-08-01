@@ -508,7 +508,7 @@ def describe_dataset_location(
         "kind": "dataset",
         "resource_name": resource_name,
         # a sink has no public location, its identity is carried only by the fingerprint
-        "location": config.physical_location(),
+        "location": config.data_location(),
         "version": data_location_version(schema_refs),
         "schemas": schema_refs,
         "tables": list(tables),

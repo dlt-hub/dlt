@@ -28,7 +28,6 @@ from dlt.common.destination.reference import AnyDestination, TDestinationReferen
 from dlt.common.destination.client import JobClientBase, SupportsOpenTables, WithStateSync
 from dlt.common.schema import Schema
 from dlt.common.typing import Self
-from dlt.common.warnings import Dlt100DeprecationWarning, deprecated
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
     C_DLT_LOADS_TABLE_LOAD_ID,
@@ -73,7 +72,7 @@ class Dataset:
 
         self._sql_client: SqlClientBase[Any] = None
         self._opened_sql_client: SqlClientBase[Any] = None
-        self._table_client: SupportsOpenTables = None
+        self._destination_client: JobClientBase = None
 
     def ibis(self, read_only: bool = False) -> IbisBackend:
         """Get an ibis backend for the dataset.
@@ -86,7 +85,9 @@ class Dataset:
 
         return create_ibis_backend(
             destination=self._destination,
-            client=self.destination_client,
+            # the backend owns the client: it takes the connection and mutates the config, so
+            # the backend must not receive the shared client
+            client=self._create_destination_client(),
             read_only=read_only,
             schemas=self.schemas,
         )
@@ -160,16 +161,28 @@ class Dataset:
         """Provide table names as completion suggestion in interactive environments."""
         return self.tables
 
-    def _is_same_dataset(self, other: dlt.Dataset) -> bool:
-        """Whether `other` is the same dataset: same physical location and dataset name."""
+    def is_same_dataset(self, other: dlt.Dataset) -> bool:
+        """Checks if `other` holds the same data as this dataset.
+
+        Two datasets are the same when they carry the same name at the same data location.
+        A query can then read either one in place of the other.
+
+        Args:
+            other (dlt.Dataset): The dataset to compare with this dataset.
+
+        Returns:
+            bool: True when both datasets name the same data. False when dlt cannot determine a
+                data location, because such a location identifies nothing and matches nothing.
+        """
         # TODO: once hardened, consider implementing __eq__ based on this method
-        return (
-            self.destination_client.config.physical_location(),
-            self.dataset_name,
-        ) == (
-            other.destination_client.config.physical_location(),
-            other.dataset_name,
-        )
+        if self is other:
+            return True
+        if self.dataset_name != other.dataset_name:
+            return False
+        try:
+            return self.destination_client.config.is_same_location(other.destination_client.config)
+        except ValueError:
+            return False
 
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
@@ -193,15 +206,14 @@ class Dataset:
         """Name of the dataset"""
         return self._dataset_name
 
-    # TODO why do we need `_opened_sql_client` and `_sql_client`? One seems used by
-    # the `dlt.Dataset` context manager and the other by `dlt.Relation`
     @property
     def sql_client(self) -> SqlClientBase[Any]:
-        # return the opened sql client if it exists
+        """The sql client of the job client of this dataset. When the dataset runs as a context
+        manager, this property returns the sql client that owns the connection from `__enter__`."""
         if self._opened_sql_client:
             return self._opened_sql_client
         if not self._sql_client:
-            self._sql_client = get_dataset_sql_client(self)
+            self._sql_client = self._get_sql_client(self.destination_client)
         return self._sql_client
 
     # TODO remove this; this seems only implemented to pass to `Relation` for it
@@ -211,32 +223,41 @@ class Dataset:
     def sql_client_class(self) -> Type[SqlClientBase[Any]]:
         return self.sql_client.__class__
 
-    # TODO if `destination_client` returns a new client each time, it shouldn't be a property
     @property
     def destination_client(self) -> JobClientBase:
+        """The job client that this dataset shares. dlt caches the client, because each new
+        client resolves the configuration again.
+
+        NOTE: a caller that owns the client, and moves its connection or mutates its config,
+        must use `_create_destination_client`. This property is not thread safe, because a
+        shared client has one connection.
+        """
+        if not self._destination_client:
+            self._destination_client = self._create_destination_client()
+        return self._destination_client
+
+    def _create_destination_client(self) -> JobClientBase:
+        """Creates a new job client for a caller that owns the client."""
         return get_dataset_destination_client(self)
 
-    # TODO should this public? This should only be accessed via `.__open__()`
+    def _get_sql_client(self, client: JobClientBase) -> SqlClientBase[Any]:
+        """Returns the sql client of `client` and binds the schemas of this dataset to it."""
+        if not isinstance(client, WithSqlClient):
+            raise SqlClientNotAvailable(
+                "dataset", self.dataset_name, client.config.destination_type
+            )
+        sql_client = client.sql_client
+        if isinstance(sql_client, WithSchemas):
+            sql_client.set_schemas(self.schemas)
+        return sql_client
+
+    # TODO should this be public? This should only be accessed via `.__open__()`
     @property
     def open_table_client(self) -> SupportsOpenTables:
-        if not self._table_client:
-            client = get_dataset_destination_client(self)
-            if isinstance(client, SupportsOpenTables):
-                self._table_client = client
-            else:
-                raise OpenTableClientNotAvailable(
-                    self.dataset_name, self._destination.destination_name
-                )
-        return self._table_client
-
-    # TODO remove method; need to update `dlthub` to avoid conflict
-    # this is only used by `dlt.hub.transformation` currently
-    def is_same_physical_destination(self, other: dlt.Dataset) -> bool:
-        """
-        Returns true if the other dataset is on the same physical destination
-        helpful if we want to run sql queries without extracting the data
-        """
-        return self.destination_client.config.can_read_from(other.destination_client.config)
+        client = self.destination_client
+        if not isinstance(client, SupportsOpenTables):
+            raise OpenTableClientNotAvailable(self.dataset_name, self._destination.destination_name)
+        return client
 
     def query(
         self,
@@ -425,25 +446,13 @@ class Dataset:
         assert (
             not self._opened_sql_client
         ), "context manager can't be used when sql client is initialized"
-        # return sql_client wrapped so it will not call close on __exit__ as dataset is managing connections
-        # use internal class
-
-        # create a new sql client
-        self._opened_sql_client = get_dataset_sql_client(self)
-
-        NoCloseClient = type(
-            "NoCloseClient",
-            (self._opened_sql_client.__class__,),
-            {
-                "__exit__": (
-                    lambda self, exc_type, exc_val, exc_tb: None
-                )  # No-operation: do not close the connection
-            },
-        )
-
-        self._opened_sql_client.__class__ = NoCloseClient
-
-        self._opened_sql_client.open_connection()
+        # this connection outlives a single query, unlike the connection of the shared client
+        client = self._get_sql_client(self._create_destination_client())
+        # the dataset owns this connection, so a caller that borrows the client must not close
+        # it on `__exit__`
+        client.owns_connection = False
+        client.open_connection()
+        self._opened_sql_client = client
         return self
 
     def __exit__(
@@ -496,27 +505,6 @@ def get_dataset_destination_client(dataset: dlt.Dataset) -> JobClientBase:
         destination=dataset._destination,
         destination_dataset_name=dataset.dataset_name,
     )[0]
-
-
-def get_dataset_sql_client(dataset: dlt.Dataset) -> SqlClientBase[Any]:
-    client = get_dataset_destination_client(dataset)
-    if isinstance(client, WithSqlClient):
-        sql_client = client.sql_client
-        if isinstance(sql_client, WithSchemas):
-            sql_client.set_schemas(dataset.schemas)
-        return sql_client
-    else:
-        raise SqlClientNotAvailable("dataset", dataset.dataset_name, client.config.destination_type)
-
-
-@deprecated(
-    "Use `destination_client.config.can_read_from(other.destination_client.config)` instead.",
-    category=Dlt100DeprecationWarning,
-    stacklevel=2,
-)
-def is_same_physical_destination(dataset1: dlt.Dataset, dataset2: dlt.Dataset) -> bool:
-    """Check if both datasets are at the same physical destination."""
-    return dataset1.destination_client.config.can_read_from(dataset2.destination_client.config)
 
 
 def _get_dataset_schema_from_destination_using_schema_name(

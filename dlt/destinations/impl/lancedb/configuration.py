@@ -12,6 +12,7 @@ from dlt.common.configuration.specs.base_configuration import (
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
+    WithAttachableEngine,
 )
 from dlt.common.pendulum import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
@@ -113,7 +114,9 @@ TEmbeddingProvider = Literal[
 
 
 @configspec
-class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
+class LanceDBClientConfiguration(
+    WithAttachableEngine, WithLocalFiles, DestinationClientDwhConfiguration
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lancedb", init=False, repr=False, compare=False
     )
@@ -200,10 +203,16 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
             return digest128(self.lance_uri)
         return ""
 
-    def physical_location(self) -> str:
-        """Returns the resolved LanceDB URI, or "" for external native clients."""
-        if not self.lance_uri or self.lance_uri == ":external:":
-            return ""
+    def data_location(self) -> str:
+        """Returns the resolved LanceDB URI, or the identity of an external client."""
+        if not self.lance_uri:
+            self._no_data_location("the configuration has no `lance_uri`")
+        if self.lance_uri == ":external:":
+            # the marker identifies no database, so the client that holds it is the only identity.
+            # `on_resolved` sets the marker when the credentials are the client. the credentials
+            # spec sets it when the spec wraps a client in `_conn`
+            client = getattr(self.credentials, "_conn", None) or self.credentials
+            return f":external:{hex(id(client))}"
 
         if self.lance_uri.startswith("db://"):
             region = self.credentials.region if self.credentials else None
@@ -222,14 +231,3 @@ class LanceDBClientConfiguration(WithLocalFiles, DestinationClientDwhConfigurati
         and returning False here enforces its usage.
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same LanceDB URI."""
-        if not isinstance(other, LanceDBClientConfiguration):
-            return False
-
-        # any table at the same location can be read via the same ATTACH (lance extension),
-        # `dataset_separator` only affects table naming and does not limit readability
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        return bool(self_loc and other_loc and self_loc == other_loc)

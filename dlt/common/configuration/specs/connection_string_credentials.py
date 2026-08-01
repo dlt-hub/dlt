@@ -46,7 +46,7 @@ class ConnectionStringCredentials(CredentialsConfiguration):
         except Exception:
             raise InvalidConnectionString(self.__class__, native_value, self.drivername)
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns a human readable location of the data, ie. `postgresql://example.com:5432`."""
         if self.host:
             address = f"{self.host}:{self.port}" if self.port else self.host
