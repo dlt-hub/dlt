@@ -9,6 +9,7 @@ import dlt
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.extract.hints import make_hints
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.utils import get_test_storage_root
 
@@ -101,6 +102,42 @@ def test_attach_foreign_lazy_model_round_trip(users_pipeline: dlt.Pipeline) -> N
     users_pipeline.run(joined_purchases(), loader_file_format="model")
 
     _assert_joined(users_pipeline.dataset().table("user_purchases"))
+
+
+def test_model_cannot_be_written_at_another_data_location(users_pipeline: dlt.Pipeline) -> None:
+    """A model attaches the datasets it joins, never the one it selects from, so it can only be
+    written where that data already is.
+    """
+    foreign = _purchases_pipeline(_duckdb_destination("purchases"))
+    joined = _join_purchases(users_pipeline, foreign)
+
+    # the foreign side is attached under its alias, the primary is selected from by bare schema
+    assert [info["alias"] for info in joined._attach_infos()] == ["attach_ds_purchases"]
+    assert '"ds_users"."users"' in joined.to_sql()
+
+    output = dlt.pipeline(
+        "attach_output_" + uniq_id(),
+        destination=_duckdb_destination("output"),
+        dataset_name="ds_output",
+    )
+    output.run(USERS, table_name="users")
+
+    primary_config = users_pipeline.dataset().destination_client.config
+    output_config = output.dataset().destination_client.config
+    # the join reads across the two databases by attaching, but a model may not be written across
+    assert output_config.can_read_from(primary_config)
+    assert output_config.can_write_from(primary_config) is False
+    # where the data already is, both hold
+    assert primary_config.can_write_from(primary_config)
+
+    # what the predicate protects against: the model selects `ds_users` from a database
+    # that has no such schema
+    @dlt.resource(table_name="user_purchases")
+    def joined_purchases() -> Any:
+        yield dlt.mark.with_hints(joined, hints=make_hints(columns=joined.columns_schema))
+
+    with pytest.raises(PipelineStepFailed):
+        output.run(joined_purchases(), loader_file_format="model")
 
 
 def test_attach_foreign_casefold(users_pipeline: dlt.Pipeline) -> None:

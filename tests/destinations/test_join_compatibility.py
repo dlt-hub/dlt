@@ -1405,3 +1405,21 @@ def test_physical_location_is_never_blank() -> None:
             continue
         # `None` says "no place at all", which never matches; "" would match the next ""
         assert location is None or location, f"{factory} reported a blank location"
+
+
+def test_reading_attaches_but_writing_does_not() -> None:
+    """A join attaches the foreign data and reads it. A model attaches only the datasets it joins,
+    never the one it selects from, so writing needs that data at this location already.
+    """
+    one = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    other = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb"))
+
+    assert one.can_read_from(other)
+    assert other.can_read_from(one)
+    assert one.can_write_from(other) is False
+    assert other.can_write_from(one) is False
+
+    # within one database both hold
+    same = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    assert one.can_read_from(same)
+    assert one.can_write_from(same)

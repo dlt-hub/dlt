@@ -179,11 +179,6 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns data location that the query engine of this destination is able to access
         using supplied credentials.
 
-        Physical location must be as wide as possible - on many destinations this describes
-        all data that can be joinded together. For destinations that can federate or attach
-        data locations you include federated/attachable data if attach interface is implemented
-        (currently only duckb)
-
         Returns:
             Optional[str]: `None` when the destination has no data location, ie. a reverse ETL
                 sink. It has no query engine either, so it can access no data at all.
@@ -224,6 +219,11 @@ class DestinationClientConfiguration(BaseConfiguration):
     def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns True if `self` can read data from `other`.
         In case of SQL engines it is an ability to SELECT / JOIN
+
+        Check must be as inclusive must be as wide as possible - on many destinations this describes
+        all data that can be joinded together. For destinations that can federate or attach
+        data locations you include federated/attachable data if attach interface is implemented
+        (currently only duckb)
         """
         if not isinstance(other, DestinationClientConfiguration):
             return False
@@ -233,8 +233,11 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns true if `self` can write data from `other`
         In case of SQL engines it is an ability to INSERT FROM
         """
-        # in most destinations, ability to read is also the same as ability to write
-        return self.can_read_from(other)
+        # a model executes on this destination and attaches only the foreign datasets it joins,
+        # never the one it selects from, so that data must already be at this data location
+        if not isinstance(other, DestinationClientConfiguration):
+            return False
+        return self.is_same_location(other)
 
     def __str__(self) -> str:
         """Return displayable destination location"""

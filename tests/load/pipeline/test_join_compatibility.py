@@ -205,13 +205,16 @@ def test_duckdb_different_database_compatible(
     destination_config: DestinationTestConfiguration,
     tmp_path: Path,
 ) -> None:
-    # any duckdb database can be attached to another one, so both read and write are possible
+    # any duckdb database can be attached to another one, so a join reads across them. a model
+    # attaches only the datasets it joins, never the one it selects from, so writing needs the
+    # data to be at this location already
     test_id = uniq_id()
     _run_two_pipeline_check(
         destination_config,
         dlt.destinations.duckdb(str(tmp_path / f"join_compat_first_{test_id}.duckdb")),
         dlt.destinations.duckdb(str(tmp_path / f"join_compat_second_{test_id}.duckdb")),
         True,
+        expected_write=False,
     )
 
 
