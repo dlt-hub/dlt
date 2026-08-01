@@ -1004,11 +1004,13 @@ def normalize_query_identifiers(
 
 
 TPhysicalDatasetRef = Tuple[Optional[str], str]
-"""Physical `(catalog alias, schema)` a dataset lives in. Alias overrides catalog name in foreign dataset"""
+"""The physical `(catalog alias, schema)` of a dataset. The alias overrides the catalog
+name of a foreign dataset"""
 
 
 class IdentifiersBinding(NamedTuple):
-    """Identifier mapping from logical (schema) namespace to destination (physical) namespace"""
+    """Maps identifiers from the logical (schema) namespace to the destination (physical)
+    namespace"""
 
     physical_ref: TPhysicalDatasetRef
     make_qualified_table_name_path: Callable[..., List[str]]
@@ -1039,16 +1041,16 @@ def bind_query(
     4. **Alias preservation**: For case-folding destinations, adds aliases to SELECT columns
        to maintain compatibility with dlt schema naming (e.g., `SELECT "VALUE" AS "value"`)
 
-    Each dataset referenced in the query resolves with its own binding: a table and its columns
-    expand and casefold using the rules of the dataset they belong to, selected by the table's
-    dataset qualifier (`node.db`). Everything else uses `default_binding`.
+    Each dataset in the query has its own binding. The dataset qualifier of the table
+    (`node.db`) selects that binding. A table and its columns expand and case-fold with the
+    rules of their own dataset. Everything else uses `default_binding`.
 
     Args:
         qualified_query: SQLGlot query expression with qualified table/column references
         sqlglot_schema: Schema mapping for name validation and column resolution
-        bindings: Per-dataset resolution rules keyed by the logical dataset qualifier
-        default_binding: Rules of the primary (output) dataset, used for unqualified
-            identifiers, aliases and output select names
+        bindings: Rules that resolve each dataset, with the logical dataset qualifier as the key
+        default_binding: Rules of the primary (output) dataset. The function applies them to
+            unqualified identifiers, aliases and output select names
 
     Returns:
         Bound query expression ready for execution on the destination database
@@ -1080,8 +1082,8 @@ def bind_query(
             if source is not None and not isinstance(source, sge.Star):
                 col.replace(source.copy())
 
-    # map alias -> logical dataset for schema-known tables, before expansion rewrites node.db;
-    # unknown tables (e.g. CTE refs) stay out so they and their columns fold with the default
+    # alias -> logical dataset for schema-known tables, taken before expansion rewrites node.db.
+    # unknown tables (for example CTE refs) are absent, so they and their columns use the default
     alias_to_db: Dict[str, Optional[str]] = {
         t.alias_or_name: t.db or None
         for t in qualified_query.find_all(sge.Table)
@@ -1089,7 +1091,7 @@ def bind_query(
     }
 
     default_casefold = default_binding.casefold_identifier
-    # any folding binding may rewrite output column names, so orig names must be preserved
+    # any case-folding binding can rewrite output column names, so the function keeps the originals
     is_casefolding = any(
         b.casefold_identifier is not str for b in (default_binding, *bindings.values())
     )
@@ -1101,20 +1103,19 @@ def bind_query(
         for i, proj in enumerate(qualified_query.selects):
             orig_selects[i] = proj.name or proj.args["alias"].name
 
-    # casefold overrides for identifiers owned by a dataset, recorded while walking their
-    # parent table/column (walk visits parents first, mutated children are visited after)
+    # case-fold overrides for identifiers that belong to a dataset, recorded at the parent
+    # table or column (the walk visits a parent first and its mutated children after)
     folds: Dict[int, Callable[[str], str]] = {}
     for node in qualified_query.walk():
         if isinstance(node, sge.Table):
-            # expand names of known tables to fully qualified physical paths using the
-            # rules of the dataset the table belongs to
+            # a known table expands to a fully-qualified physical path with the rules of its dataset
             if sqlglot_schema.column_names(node):
                 logical_db = node.db or None
                 binding = _binding_for(logical_db)
                 catalog_alias: Optional[str] = None
                 if logical_db is None:
-                    # no kwargs: clients overriding the path builder with the legacy
-                    # signature (no dataset_name/catalog) keep working
+                    # no kwargs here, so clients that override the path builder with the
+                    # legacy signature (no dataset_name/catalog) still work
                     path = binding.make_qualified_table_name_path(
                         node.name, quote=False, casefold=False
                     )
@@ -1131,7 +1132,7 @@ def bind_query(
                 # set the table name
                 if node.name != path[-1]:
                     node.this.set("this", path[-1])
-                # store casefold function for this node to change in the next pass
+                # the next pass case-folds this node with the function recorded here
                 folds[id(node.this)] = cf
                 # set the dataset/schema name
                 if node.db != path[-2]:
@@ -1141,10 +1142,10 @@ def bind_query(
                 if len(path) == 3:
                     node.set("catalog", sqlglot.to_identifier(path[0], quoted=False))
                     if (cat_ident := node.args.get("catalog")) is not None:
-                        # aliases are generated by ATTACH datasets and use casefold of primary dataset
+                        # an attach alias uses the case-fold of the primary dataset
                         folds[id(cat_ident)] = default_casefold if catalog_alias is not None else cf
         elif isinstance(node, sge.Column) and isinstance(node.this, sge.Identifier):
-            # a column name folds with the rules of the dataset its table belongs to
+            # a column name case-folds with the rules of the dataset that its table belongs to
             folds[id(node.this)] = _binding_for(alias_to_db.get(node.table)).casefold_identifier
         # quote and case-fold identifiers, TODO: maybe we could be more intelligent, but then we need to unquote ibis
         if isinstance(node, sge.Identifier):
@@ -1156,7 +1157,7 @@ def bind_query(
     # add aliases to output selects to stay compatible with dlt schema after the query
     if orig_selects:
         for i, orig in orig_selects.items():
-            # post-fold output name catches foreign-folded columns under an identity default
+            # a foreign binding can fold a column even when the default case-fold is the identity
             if qualified_query.selects[i].output_name != orig:
                 # somehow we need to alias just top select in UNION (tested on Snowflake)
                 sel_expr = qualified_query.selects[i]

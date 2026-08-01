@@ -11,8 +11,11 @@ ENCRYPTION_PURPOSE = "dlt-model-secrets"
 
 @configspec
 class PipelineEncryptionContext(ContainerInjectableContext):
-    """Encrypts and decrypts secrets without exposing the encryption key. If not provided
-    pipeline context is used to get pipeline secrets which will be used as seed to derive the key"""
+    """Encrypts and decrypts secrets. The encryption key stays hidden from the caller.
+
+    If `secret` is not set, this context reads the secret of the active pipeline. It then derives
+    the key from that secret.
+    """
 
     secret: Annotated[Optional[str], NotResolved()] = None
 
@@ -34,21 +37,22 @@ class PipelineEncryptionContext(ContainerInjectableContext):
 
         secret = self.secret
         if secret is None:
-            # inline: dlt.common.pipeline imports utils/data_writers, importing it here would cycle
+            # inline: dlt.common.pipeline imports utils/data_writers, a top-level import is circular
             from dlt.common.pipeline import current_pipeline
 
             pipeline = current_pipeline()
             if pipeline is None:
                 raise ValueError(
-                    "No encryption secret available: run within a pipeline or inject a"
-                    " `PipelineEncryptionContext`. For a restarted or detached load, set a"
-                    " permanent `pipeline_salt`."
+                    "dlt found no encryption secret. Run this code in an active pipeline. As an"
+                    " alternative, inject a `PipelineEncryptionContext`. For a restarted or"
+                    " detached load, set a permanent `pipeline_salt`."
                 )
             secret = pipeline.encryption_seed
         return derive_encryption_key(secret, ENCRYPTION_PURPOSE)
 
 
 def pipeline_encryption() -> PipelineEncryptionContext:
-    """Returns the active encryption context: an injected one, or a default that falls back to the
-    active pipeline's secret."""
+    """Returns the active encryption context. The caller can inject this context. Without an
+    injected context, the default context uses the secret of the active pipeline.
+    """
     return Container()[PipelineEncryptionContext]

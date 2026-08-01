@@ -242,12 +242,13 @@ def test_merge_row_counts() -> None:
 
 
 def test_merge_keyed_groups_keeps_the_position_of_a_replaced_group() -> None:
-    """Order carries meaning for the callers (attach statements run in sequence), so a replaced
-    group takes the place of the one it supersedes and only genuinely new keys go to the end."""
+    """Order carries meaning for the callers (attach statements run in sequence). A replaced
+    group takes the place of the group that it supersedes. Only genuinely new keys go to the
+    end."""
     key_f: Callable[[Tuple[str, str]], str] = lambda item: item[0]
     original = [("ext", "load"), ("secret", "s1"), ("secret", "s2"), ("attach", "a"), ("v1", "v")]
 
-    # the whole group is swapped in place, however many items it had
+    # `merge_keyed_groups` swaps the whole group in place, however many items it had
     merged, changed = merge_keyed_groups(original, [("secret", "rotated")], key_f)
     assert merged == [("ext", "load"), ("secret", "rotated"), ("attach", "a"), ("v1", "v")]
     assert changed == [("secret", "rotated")]
@@ -257,7 +258,7 @@ def test_merge_keyed_groups_keeps_the_position_of_a_replaced_group() -> None:
     assert merged == original + [("v2", "w")]
     assert changed == [("v2", "w")]
 
-    # replacing and adding at once keeps both rules
+    # one call that replaces and adds keeps both rules
     merged, _ = merge_keyed_groups(original, [("secret", "rotated"), ("v2", "w")], key_f)
     assert merged == [
         ("ext", "load"),
@@ -267,7 +268,7 @@ def test_merge_keyed_groups_keeps_the_position_of_a_replaced_group() -> None:
         ("v2", "w"),
     ]
 
-    # an unchanged group is left alone and reported as such
+    # `merge_keyed_groups` does not move an unchanged group and reports no change
     merged, changed = merge_keyed_groups(original, [("attach", "a")], key_f)
     assert merged == original
     assert changed == []

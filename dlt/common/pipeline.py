@@ -574,7 +574,7 @@ class SupportsPipeline(Protocol):
 
     @property
     def encryption_seed(self) -> str:
-        """Master secret to derive keys that encrypt secrets in load packages, from `pipeline_salt`"""
+        """Master secret derived from `pipeline_salt`. dlt encrypts load package secrets with it"""
 
     @property
     def has_pending_data(self) -> bool:

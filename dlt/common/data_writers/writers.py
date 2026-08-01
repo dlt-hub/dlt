@@ -194,7 +194,7 @@ class JsonlWriter(DataWriter):
 
 
 class RelationToModelWriter(DataWriter):
-    """Writes incoming Relations each into a separate text file and ensures a trailing ;"""
+    """Writes each received Relation into a separate text file."""
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass

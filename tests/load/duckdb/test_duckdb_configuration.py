@@ -39,8 +39,8 @@ def test_duckdb_fingerprint(
 
 
 def test_external_connection_physical_location(tmp_path: Path) -> None:
-    """Connection-passed credentials must identify the real database file so joinability
-    and the need for an ATTACH can be told apart.
+    """Connection-passed credentials must identify the real database file. dlt then separates a
+    dataset that it can join directly from a dataset that needs an attach.
     """
     conn_a = duckdb.connect(str(tmp_path / "a.duckdb"))
     conn_b = duckdb.connect(str(tmp_path / "b.duckdb"))
@@ -55,17 +55,17 @@ def test_external_connection_physical_location(tmp_path: Path) -> None:
 
         # real file path survives config resolution (make_location keeps absolute paths)
         assert config_a.physical_location() == str(tmp_path / "a.duckdb")
-        # the same database file is read directly, another file by attaching it
+        # a connection reads the same database file directly and attaches another file to read it
         assert config_a.can_read_from(config_a2)
         assert config_a.can_read_from(config_b)
         assert config_mem.can_read_from(config_a)
         # an in-memory connection has no path to name, so the marker carries the connection
-        # identity: comparing markers alone would make any two of them look like one database
+        # identity. without this identity, any two in-memory connections look like one database
         assert config_mem.physical_location() == f":external:{hex(id(conn_mem))}"
         assert config_mem.can_read_from(
             DuckDbClientConfiguration(credentials=DuckDbCredentials(conn_mem))
         )
-        # a database living in another connection cannot be attached
+        # a connection cannot attach a database that lives inside another connection
         assert not config_a.can_read_from(config_mem)
 
         # two in-memory connections are two unrelated databases

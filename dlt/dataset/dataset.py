@@ -85,8 +85,8 @@ class Dataset:
 
         return create_ibis_backend(
             destination=self._destination,
-            # the backend takes ownership of the client: it moves the connection out and
-            # mutates the config, so it must not get the shared one
+            # the backend owns the client: it takes the connection and mutates the config, so
+            # the backend must not receive the shared client
             client=self._create_destination_client(),
             read_only=read_only,
             schemas=self.schemas,
@@ -164,15 +164,15 @@ class Dataset:
     def is_same_dataset(self, other: dlt.Dataset) -> bool:
         """Checks if `other` holds the same data as this dataset.
 
-        Two datasets are the same when they carry the same name at the same data location, so
-        either one can be read in place of the other.
+        Two datasets are the same when they carry the same name at the same data location.
+        A query can then read either one in place of the other.
 
         Args:
-            other (dlt.Dataset): Dataset to compare this one with.
+            other (dlt.Dataset): The dataset to compare with this dataset.
 
         Returns:
-            bool: True when both datasets name the same data. False when a data location cannot
-                be determined, which identifies nothing and so matches nothing.
+            bool: True when both datasets name the same data. False when dlt cannot determine a
+                data location, because such a location identifies nothing and matches nothing.
         """
         # TODO: once hardened, consider implementing __eq__ based on this method
         if self is other:
@@ -208,8 +208,8 @@ class Dataset:
 
     @property
     def sql_client(self) -> SqlClientBase[Any]:
-        """Sql client of this dataset's job client, or the one owning the connection kept open
-        by `__enter__` while the dataset is used as a context manager."""
+        """The sql client of the job client of this dataset. When the dataset runs as a context
+        manager, this property returns the sql client that owns the connection from `__enter__`."""
         if self._opened_sql_client:
             return self._opened_sql_client
         if not self._sql_client:
@@ -225,21 +225,23 @@ class Dataset:
 
     @property
     def destination_client(self) -> JobClientBase:
-        """Job client shared by this dataset. Creating one resolves configuration so it is cached.
+        """The job client that this dataset shares. dlt caches the client, because each new
+        client resolves the configuration again.
 
-        NOTE: callers that take ownership of the client (move its connection, mutate its config)
-        must use `_create_destination_client`. Not thread safe: a shared client has one connection.
+        NOTE: a caller that owns the client, and moves its connection or mutates its config,
+        must use `_create_destination_client`. This property is not thread safe, because a
+        shared client has one connection.
         """
         if not self._destination_client:
             self._destination_client = self._create_destination_client()
         return self._destination_client
 
     def _create_destination_client(self) -> JobClientBase:
-        """Creates a new job client, for callers that take ownership of it."""
+        """Creates a new job client for a caller that owns the client."""
         return get_dataset_destination_client(self)
 
     def _get_sql_client(self, client: JobClientBase) -> SqlClientBase[Any]:
-        """Takes the sql client out of `client` with this dataset's schemas bound to it."""
+        """Returns the sql client of `client` and binds the schemas of this dataset to it."""
         if not isinstance(client, WithSqlClient):
             raise SqlClientNotAvailable(
                 "dataset", self.dataset_name, client.config.destination_type
@@ -444,9 +446,10 @@ class Dataset:
         assert (
             not self._opened_sql_client
         ), "context manager can't be used when sql client is initialized"
-        # own job client: this connection outlives single queries, unlike the shared one
+        # this connection outlives a single query, unlike the connection of the shared client
         client = self._get_sql_client(self._create_destination_client())
-        # the dataset owns this connection, so borrowers must not close it on `__exit__`
+        # the dataset owns this connection, so a caller that borrows the client must not close
+        # it on `__exit__`
         client.owns_connection = False
         client.open_connection()
         self._opened_sql_client = client

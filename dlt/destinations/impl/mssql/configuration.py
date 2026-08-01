@@ -144,6 +144,6 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     def physical_location(self) -> str:
         """Returns host:port."""
         if not self.credentials or not self.credentials.host:
-            self._no_physical_location("no host is configured")
+            self._no_physical_location("the configuration has no host")
         port = self.credentials.port or 1433
         return f"{self.credentials.host}:{port}"

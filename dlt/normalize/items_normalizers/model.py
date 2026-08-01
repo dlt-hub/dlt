@@ -160,8 +160,8 @@ class ModelItemsNormalizer(ItemsNormalizer):
                 root_table_name,
             )
 
-        # the query is parsed in the dialect it was written in and emitted in the one that will
-        # execute it, so the model handed to the load job always speaks the destination's dialect
+        # sqlglot parses the query in the query dialect and writes it in the destination dialect.
+        # the model that goes to the load job therefore always uses the destination dialect
         normalized_query = outer_parsed_select.sql(dialect=destination_dialect)
         self.item_storage.write_data_item(
             self.load_id,

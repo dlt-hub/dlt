@@ -206,11 +206,11 @@ class LanceDBClientConfiguration(
     def physical_location(self) -> str:
         """Returns the resolved LanceDB URI, or the identity of an external client."""
         if not self.lance_uri:
-            self._no_physical_location("no `lance_uri` is configured")
+            self._no_physical_location("the configuration has no `lance_uri`")
         if self.lance_uri == ":external:":
-            # the marker identifies no database, so the client holding it is the only identity.
-            # `on_resolved` sets the marker when credentials are the client, the credentials spec
-            # when it wraps one in `_conn`
+            # the marker identifies no database, so the client that holds it is the only identity.
+            # `on_resolved` sets the marker when the credentials are the client. the credentials
+            # spec sets it when the spec wraps a client in `_conn`
             client = getattr(self.credentials, "_conn", None) or self.credentials
             return f":external:{hex(id(client))}"
 

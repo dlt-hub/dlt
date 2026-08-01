@@ -74,7 +74,7 @@ class LanceDBSQLClient(WithTableScanners):
         return lance_table_uri, f'SELECT * FROM "{lance_table_uri}"'
 
     def _attach_extension_statements(self) -> List[str]:
-        # the extension moved out of the community repository in duckdb 1.5.0
+        # the extension left the community repository in duckdb 1.5.0
         if pkg_version.parse(duckdb.__version__) >= pkg_version.Version("1.5.0"):
             return ["INSTALL lance;", "LOAD lance;"]
         return ["INSTALL lance FROM community;", "LOAD lance;"]

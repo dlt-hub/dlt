@@ -375,19 +375,20 @@ def test_ducklake_get_attach() -> None:
     )
 
     statements = sql_client.attach_statements(alias="attach_foo")
-    # `alias` names the local attach catalog; default local ducklake needs no storage secret
+    # `alias` names the local attach catalog. the default local ducklake needs no storage secret
     assert len(statements) == 1
     attach_statement = statements[-1]
     assert attach_statement["sql"].startswith("ATTACH IF NOT EXISTS 'ducklake:")
     assert " AS attach_foo " in attach_statement["sql"]
-    # a local duckdb/sqlite catalog embeds no password, so the ATTACH is not a secret
+    # a local duckdb catalog or sqlite catalog embeds no password, so this statement is not a
+    # secret
     assert attach_statement["secret"] is False
-    # the lake is identified by its catalog, not by the data path two lakes may share
+    # the catalog identifies the lake, not the data path that two lakes can share
     assert configuration.physical_location() != configuration.credentials.storage_url
 
 
 def test_ducklake_catalog_location_identifies_the_lake() -> None:
-    """Two lakes sharing a data path but holding different catalogs are told apart."""
+    """dlt separates two lakes that share a data path but hold different catalogs."""
     shared_storage = "s3://bucket/warehouse"
     first = DuckLakeCredentials("lake", catalog="postgres://u:p@h:5432/db", storage=shared_storage)
     second = DuckLakeCredentials(
@@ -397,8 +398,8 @@ def test_ducklake_catalog_location_identifies_the_lake() -> None:
     # a credential-free identity never leaks the catalog password
     assert "p@" not in first.catalog_location()
 
-    # a motherduck catalog carries its account in the token, so the whole native representation is
-    # digested rather than blanked - two md-hosted lakes are still told apart
+    # a motherduck catalog carries its account in the token, so dlt digests the whole native
+    # representation and does not blank it. dlt still separates two lakes that motherduck hosts
     md_a = DuckLakeCredentials("lake", catalog="md:///cat_a", storage=shared_storage)
     md_b = DuckLakeCredentials("lake", catalog="md:///cat_b", storage=shared_storage)
     assert md_a.catalog_location().startswith("md://")

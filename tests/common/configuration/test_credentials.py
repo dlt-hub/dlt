@@ -437,10 +437,10 @@ class EmbeddedCredentialsConfiguration(BaseConfiguration):
     credentials: ConnectionStringCompatCredentials = None
 
 
-def test_embedded_credentials_partial_dict_merges_native_value(
+def test_partial_dict_merges_native_value_in_embedded_credentials(
     environment: Dict[str, str],
 ) -> None:
-    """A mapping sets only some fields, the rest still come from the native value in a provider."""
+    """A mapping sets only some fields. The rest still come from the native value in a provider."""
     environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
 
     c = resolve_configuration(
@@ -448,7 +448,7 @@ def test_embedded_credentials_partial_dict_merges_native_value(
     )
 
     assert c.credentials.is_resolved()
-    # the mapping wins for the fields it sets
+    # the mapping wins for the fields that it sets
     assert c.credentials.database == "other_db"
     # the native value fills the remaining ones
     assert c.credentials.username == "loader"
@@ -456,7 +456,7 @@ def test_embedded_credentials_partial_dict_merges_native_value(
     assert c.credentials.host == "localhost"
 
 
-def test_embedded_credentials_provider_field_over_native_value(
+def test_provider_field_wins_over_native_value_in_embedded_credentials(
     environment: Dict[str, str],
 ) -> None:
     environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
@@ -473,7 +473,7 @@ def test_embedded_credentials_provider_field_over_native_value(
 def test_embedded_credentials_ignores_unparsable_native_value(
     environment: Dict[str, str],
 ) -> None:
-    """A native value of another type is ignored, the mapping resolves on its own."""
+    """dlt ignores a native value of another type. The mapping resolves on its own."""
     environment["CREDENTIALS"] = "not-a-connection-string"
 
     c = resolve_configuration(
@@ -489,7 +489,7 @@ def test_embedded_credentials_ignores_unparsable_native_value(
 
 
 def test_embedded_credentials_instance_skips_native_value(environment: Dict[str, str]) -> None:
-    """An explicit instance keeps short-circuiting the native value lookup."""
+    """An explicit instance still skips the search for the native value."""
     environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
     explicit = ConnectionStringCompatCredentials()
     explicit.drivername = "postgres"
@@ -502,13 +502,15 @@ def test_embedded_credentials_instance_skips_native_value(environment: Dict[str,
     )
 
     assert c.credentials.database == "inst_db"
-    # the native value was not merged in
+    # dlt did not merge the native value
     assert c.credentials.username is None
     assert c.credentials.password is None
 
 
-def test_embedded_credentials_merged_native_value_is_traced(environment: Dict[str, str]) -> None:
-    """The initial value is traced as any resolved value, the mapping itself stays untraced."""
+def test_merged_native_value_is_traced_in_embedded_credentials(
+    environment: Dict[str, str],
+) -> None:
+    """dlt traces the initial value as it traces any resolved value. The mapping gets no trace."""
     environment["CREDENTIALS"] = "postgres://loader:pwd@localhost:5432/dlt_data"
     tracer = get_resolved_traces()
 
@@ -517,13 +519,13 @@ def test_embedded_credentials_merged_native_value_is_traced(environment: Dict[st
     )
 
     traced = tracer._get_log_as_dict(tracer.resolved_traces)
-    # the native value is logged under the field name, explicit values are never logged
+    # dlt logs the native value under the field name. dlt never logs explicit values
     assert ".credentials" in traced
     assert traced[".credentials"].provider_name == "Environment Variables"
     assert not any(t.provider_name == "ExplicitValues" for t in tracer.resolved_traces)
 
 
-def test_embedded_credentials_empty_mapping_skips_native_value(
+def test_empty_mapping_skips_native_value_in_embedded_credentials(
     environment: Dict[str, str],
 ) -> None:
     """An empty mapping sets no fields so it is not an explicit value for the config."""

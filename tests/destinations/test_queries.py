@@ -151,7 +151,7 @@ ORDER BY i.id ASC
 
 
 def test_bind_query_per_dataset_casefold() -> None:
-    """Each identifier folds with the rules of the dataset its table belongs to."""
+    """Each identifier folds with the rules of the dataset that owns its table."""
     sqlglot_schema = SQLGlotSchema(
         {
             "crm": {"users": {"id": str}},
@@ -185,8 +185,8 @@ def test_bind_query_per_dataset_casefold() -> None:
         default_binding=default_binding,
     )
 
-    # foreign path and columns fold upper, primary side stays as-is, foreign-folded
-    # output column keeps its logical name via an alias
+    # the foreign path and the foreign columns fold to upper case. The primary side does not
+    # change. An alias keeps the logical name of the foreign-folded output column
     assert (
         bound.sql()
         == 'SELECT "u"."id" AS "id", "o"."TOTAL" AS "total" FROM "crm_ds"."users" AS "u" JOIN'

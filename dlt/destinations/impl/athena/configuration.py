@@ -76,7 +76,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical Athena location."""
-        # a fingerprint may say "cannot compute", where a location raises instead
+        # a fingerprint can say "cannot compute", where a location raises instead
         try:
             return digest128(self.physical_location())
         except ConfigurationValueError:

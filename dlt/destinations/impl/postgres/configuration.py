@@ -57,10 +57,10 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         return ""
 
     def physical_location(self) -> str:
-        """Returns host:port and the database a query engine is bound to."""
+        """Returns host:port and the database to which a query engine binds."""
         if not self.credentials or not self.credentials.host:
-            self._no_physical_location("no host is configured")
+            self._no_physical_location("the configuration has no host")
         if not self.credentials.database:
-            self._no_physical_location("no database is configured")
+            self._no_physical_location("the configuration has no database")
         port = self.credentials.port or self.DEFAULT_PORT
         return f"{self.credentials.host}:{port}/{self.credentials.database}"

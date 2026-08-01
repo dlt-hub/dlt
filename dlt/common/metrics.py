@@ -116,7 +116,7 @@ class TDataLocation(TypedDict):
     location: NotRequired[str]
     """Non-secret scope of the location, e.g. `postgresql://example.com:5432`, `s3://bucket`.
 
-    Absent when the location has no public address, ie. a reverse ETL sink.
+    The key is absent when the location has no public address, for example a reverse ETL sink.
     """
     version: NotRequired[str]
     """Version of the location's contents as a whole."""

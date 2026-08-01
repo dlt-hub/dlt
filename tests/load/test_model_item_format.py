@@ -1143,9 +1143,9 @@ def test_relation_lifecycle() -> None:
 def test_model_query_written_in_another_dialect(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """A raw query is parsed in the dialect it was written in and emitted in the one that executes
-    it. `TO_VARCHAR` is snowflake syntax that duckdb has no function for, and sqlglot renders it
-    as a cast.
+    """dlt parses a raw query in the dialect of the author and emits it in the dialect that
+    executes it. `TO_VARCHAR` is snowflake syntax. duckdb has no such function, so sqlglot
+    renders it as a cast.
     """
     pipeline = destination_config.setup_pipeline("model_dialect", dev_mode=True)
     pipeline.run(
@@ -1156,7 +1156,8 @@ def test_model_query_written_in_another_dialect(
     dataset = pipeline.dataset()
     foreign_sql = "SELECT TO_VARCHAR(a) AS a, _dlt_load_id, _dlt_id FROM example_table"
 
-    # read as duckdb the text stays `TO_VARCHAR`, which the destination cannot resolve
+    # when dlt reads the query as duckdb, the text stays `TO_VARCHAR` and the destination cannot
+    # resolve it
     with pytest.raises(DatabaseUndefinedRelation):
         dataset.query(foreign_sql, query_dialect="duckdb").fetchall()
 
@@ -1164,14 +1165,14 @@ def test_model_query_written_in_another_dialect(
     def transpiled_table() -> Any:
         relation = dataset.query(foreign_sql, query_dialect="snowflake")
         assert "TO_VARCHAR" not in relation.to_sql()
-        # the model carries the dialect that will execute it, not the one it was written in
+        # the model carries the dialect that executes it, not the dialect of the author
         model = relation.to_model()
         assert model.query_dialect == dataset.destination_dialect
         assert model.query_dialect != "snowflake"
         assert "TO_VARCHAR" not in model.to_sql()
         yield dlt.mark.with_hints(
             relation,
-            # model cannot create hints by itself
+            # a model cannot create hints by itself
             hints=make_hints(
                 columns={
                     "a": {"data_type": "text"},

@@ -43,8 +43,8 @@ class LanceSQLClient(WithTableScanners):
 
     def open_connection(self) -> DuckDBPyConnection:
         super().open_connection()
-        # not a pool statement: object-store credentials may come from a provider chain that
-        # refreshes them, and a recorded statement would replay an expired one
+        # not a pool statement: object-store credentials can come from a provider chain that
+        # refreshes them, and a recorded statement replays an expired credential
         self._create_lance_secret()
         return self._conn
 

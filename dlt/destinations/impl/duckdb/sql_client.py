@@ -165,7 +165,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
     def attach_statements(
         self, *, alias: str, tables: Optional[Collection[str]] = None
     ) -> List[TAttachStatement]:
-        # the whole database file is attached, `tables` cannot narrow it
+        # the statement attaches the whole database file, so `tables` cannot narrow it
         q_db_path = self.capabilities.escape_literal(self.credentials.database)
         q_alias = self.escape_column_name(alias)
         return [attach_statement(f"ATTACH IF NOT EXISTS {q_db_path} AS {q_alias} (READ_ONLY)")]
@@ -174,7 +174,8 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         pool = self.credentials.conn_pool
         if alias not in pool.attached_aliases:
             self._raise_on_catalog_collision(alias)
-        # from here on the pool replays them; `conn` covers the one already borrowed here
+        # from here on the pool replays the statements. `conn` covers the connection already
+        # borrowed here
         pool.add_statements(
             [ConnStatement(s["sql"], s["key"]) for s in statements],
             alias=alias,
@@ -182,15 +183,16 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         )
 
     def _raise_on_catalog_collision(self, alias: str) -> None:
-        """Reject an ATTACH alias that shadows a reserved or the primary catalog."""
+        """Raises for an attach alias that shadows a reserved catalog or the primary catalog."""
         folded = self.capabilities.casefold_identifier(alias)
         reserved = {self.capabilities.casefold_identifier(c) for c in self.RESERVED_CATALOGS}
         if folded in reserved:
             raise ValueError(
-                f"Cannot attach a foreign dataset under reserved catalog name `{alias}`."
+                f"dlt cannot attach a foreign dataset under `{alias}`, a catalog name that"
+                " duckdb reserves."
             )
         if self._conn is None:
-            # the primary catalog name is only knowable on an open connection
+            # only an open connection gives the primary catalog name
             return
         try:
             row = self._conn.execute("SELECT current_database()").fetchone()
@@ -198,7 +200,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
             row = None
         if row and row[0] and self.capabilities.casefold_identifier(str(row[0])) == folded:
             raise ValueError(
-                f"ATTACH alias `{alias}` collides with the primary database catalog name."
+                f"The attach alias `{alias}` is the name of the primary database catalog."
             )
 
     @contextmanager
@@ -652,8 +654,8 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             )
 
         # views live in this schema, so it must exist before `search_path` names it. `USE` is not
-        # needed: the pool sets `search_path` per borrow, and a pool-wide `USE` would fight the
-        # other sql clients sharing this cache database
+        # necessary here: the pool sets `search_path` on each borrow. a pool-wide `USE` fights the
+        # other sql clients that share this cache database
         q_dataset_name = self.fully_qualified_dataset_name()
         self.credentials.conn_pool.add_statements(
             [
@@ -693,7 +695,8 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         return [s for s in self.schemas.values() if table_name in s.tables]
 
     def _table_views(self, tables: Optional[Collection[str]] = None) -> Dict[str, str]:
-        """Maps `tables` to views of the same name, every table of every schema when not given."""
+        """Maps `tables` to views of the same name. When `tables` is `None`, maps every table of
+        every schema."""
         if tables is not None:
             return {table_name: table_name for table_name in tables}
         all_tables: Dict[str, str] = {}
@@ -708,7 +711,7 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
     def _build_pending_views(
         self, tables: Dict[str, str], existing_tables: Set[str]
     ) -> List[Tuple[str, str]]:
-        """Build `(view_name, select_sql)` for each table that should get a view.
+        """Builds `(view_name, select_sql)` for each table that needs a view.
 
         When a table name appears in multiple schemas, views are grouped by
         physical data location.  Co-located schemas get their columns merged
@@ -787,12 +790,13 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             self._conn.execute(f"CREATE OR REPLACE VIEW {q_view} AS {final_sql}")
 
     def _attach_extension_statements(self) -> List[str]:
-        """Non-secret INSTALL/LOAD statements needed to read this scanner's data from a foreign
-        connection. Raise `NotImplementedError` when the scanner requires fsspec registration."""
-        raise NotImplementedError(f"`{type(self).__name__}` cannot be attached via SQL statements.")
+        """Non-secret `INSTALL` and `LOAD` statements that read the data of this scanner from a
+        foreign connection. Raises `NotImplementedError` when the scanner needs an fsspec
+        filesystem that only this process registers."""
+        raise NotImplementedError(f"dlt cannot attach `{type(self).__name__}` with SQL statements.")
 
     def _attach_secret_statements(self) -> List[str]:
-        """Credential-bearing `CREATE SECRET` statements needed to read this scanner's data."""
+        """Credential-bearing `CREATE SECRET` statements that read the data of this scanner."""
         return []
 
     def attach_statements(
@@ -803,17 +807,19 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         # extensions load first, then secrets, then the views that reference them by scope
         statements = [attach_statement(s) for s in self._attach_extension_statements()]
         statements += [
-            # one key for the whole set so re-issuing it replaces the credentials it rotates
+            # one key for the whole set: when the client emits the set again, it replaces the
+            # rotated credentials
             attach_statement(s, secret=True, key=f"{alias}:secret")
             for s in self._attach_secret_statements()
         ]
         statements.append(attach_statement(f"ATTACH IF NOT EXISTS ':memory:' AS {q_alias}"))
         statements.append(attach_statement(f"CREATE SCHEMA IF NOT EXISTS {q_alias}.{q_schema}"))
-        # every view costs a data-location listing, so only build the ones the query asked for.
-        # nothing exists in the freshly attached catalog, so no view can be skipped as existing
+        # every view costs one list operation on the data location, so this method builds only
+        # the views that the query needs. the fresh attach catalog holds nothing, so no view
+        # already exists
         for view_name, select_sql in self._build_pending_views(self._table_views(tables), set()):
             q_view = f"{q_alias}.{q_schema}.{self.escape_column_name(view_name)}"
-            # keyed on the view: data that grew since the last query redefines it in place
+            # the key is the view: data that grew since the last query redefines the view in place
             statements.append(
                 attach_statement(f"CREATE OR REPLACE VIEW {q_view} AS {select_sql}", key=q_view)
             )

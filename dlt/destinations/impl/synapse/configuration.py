@@ -62,8 +62,8 @@ class SynapseClientConfiguration(MsSqlClientConfiguration):
     ]
 
     def physical_location(self) -> str:
-        """Returns host:port and the database: unlike mssql, Synapse has no cross-db joins."""
+        """Returns host:port and the database. Synapse has no cross-database joins, unlike mssql."""
         host = super().physical_location()
         if not self.credentials.database:
-            self._no_physical_location("no database is configured")
+            self._no_physical_location("the configuration has no database")
         return f"{host}/{self.credentials.database}"

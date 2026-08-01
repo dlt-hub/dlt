@@ -52,9 +52,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     the catalog and dlt deletes the table files itself."""
 
     ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("file", "s3", "az", "abfss", "hf")
-    """Protocols a foreign DuckDB engine reads with SQL alone, mirroring the `CREATE SECRET`
-    statements `DuckDbSqlClient` can build. The rest (`gs`, `sftp`, `gdrive`, ...) reach their data
-    through an fsspec registration that lives only in the process that made it."""
+    """Protocols a foreign DuckDB engine reads with SQL alone. These protocols mirror the
+    `CREATE SECRET` statements that `DuckDbSqlClient` builds. The other protocols (`gs`, `sftp`,
+    `gdrive`) access their data through an fsspec filesystem that only the process which
+    registered it holds."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -69,7 +70,7 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     def physical_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or the absolute local path."""
         if not self.bucket_url:
-            self._no_physical_location("no `bucket_url` is configured")
+            self._no_physical_location("the configuration has no `bucket_url`")
 
         if self.is_local_path(self.bucket_url):
             return self.make_local_path(self.make_file_url(self.bucket_url))

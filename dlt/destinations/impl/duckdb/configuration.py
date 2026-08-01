@@ -40,18 +40,18 @@ else:
 
 DUCK_DB_NAME_PAT = "%s.duckdb"
 NON_ATTACHABLE_LOCATIONS = (":memory:", ":external:")
-"""Databases living inside a single connection, which no other connection can ATTACH."""
+"""Databases that live inside a single connection. No other connection can attach them."""
 
 
 class ConnStatement(NamedTuple):
     """A database-scoped statement a pool runs on each connection it opens"""
 
-    # runs on the connection the pool keeps, so `SET SESSION` and `USE` would not reach the sessions
-    # cloned from it - those belong in `pragmas` and `local_config`
+    # runs on the connection the pool keeps, so `SET SESSION` and `USE` do not apply to the
+    # sessions cloned from it. `pragmas` and `local_config` hold those
     sql: str
     key: Optional[str] = None
-    """What the statement configures, defaults to the SQL. Statements sharing a key are replaced as
-    a group"""
+    """What the statement configures. The default is the SQL itself. The pool replaces all
+    statements with the same key as one group"""
 
 
 @configspec(init=False)
@@ -66,7 +66,8 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
     """Pragmas set applied to each borrowed connection"""
     statements: Annotated[Optional[List[str]], SecretSentinel] = None
     """Database-scoped SQL run on each newly opened connection, after `extensions` and
-    `global_config`, for what those cannot express: `INSTALL`, `ATTACH`, `CREATE SECRET`"""
+    `global_config`. This field holds the statements those two fields cannot express, such as
+    `INSTALL`, `ATTACH` and `CREATE SECRET`"""
     local_config: Optional[Dict[str, Any]] = None
     """Local config applied to each borrowed connection"""
     conn_pool: Annotated[Optional["DuckDbConnectionPool"], NotResolved()] = None
@@ -150,7 +151,7 @@ class DuckDbConnectionPool:
         self._conn: DuckDBPyConnection = None
         self._statements: List[ConnStatement] = []
         self.attached_aliases: Set[str] = set()
-        """ATTACH aliases already registered on this pool, shared by all its sql clients"""
+        """Attach aliases already registered on this pool. All its sql clients share them"""
         if external_conn := getattr(credentials, "_external_conn", None):
             if self.always_open_connection:
                 raise ConfigurationValueError("External connections not supported")
@@ -204,7 +205,7 @@ class DuckDbConnectionPool:
                             new_conn.sql(f"LOAD {extension}")
 
                     self._apply_config(new_conn, "GLOBAL", global_config)
-                    # before local config: a statement may create the schema that `search_path` names
+                    # before local config: a statement can create the schema that `search_path` names
                     self._execute_statements(new_conn)
                     # apply local config to original connection
                     self._apply_local_config(new_conn, local_config, pragmas)
@@ -237,16 +238,19 @@ class DuckDbConnectionPool:
         alias: str = None,
         conn: DuckDBPyConnection = None,
     ) -> List[ConnStatement]:
-        """Registers `statements` to run on each connection this pool opens, returns the new ones.
+        """Registers `statements` to run on each connection this pool opens. Returns the
+        statements that are new.
 
         Args:
             statements: Database-scoped statements, see `ConnStatement`.
-            alias: ATTACH catalog the statements bring in, remembered in `attached_aliases`.
-            conn: Connection to apply them to right away. Only needed with
-                `always_open_connection`, where the pool keeps none of its own.
+            alias: The attach catalog that the statements add. The pool keeps it in
+                `attached_aliases`.
+            conn: The connection that gets the statements at once. This argument is necessary
+                only with `always_open_connection`, where the pool keeps no connection of its own.
         """
         with self._conn_lock:
-            # an unkeyed statement is keyed by its own SQL, which de-duplicates identical ones
+            # an unkeyed statement takes its own SQL as the key, so two identical statements
+            # merge into one
             merged, added = merge_keyed_groups(
                 self._statements, statements, lambda s: s.key or s.sql
             )
@@ -254,7 +258,7 @@ class DuckDbConnectionPool:
                 if conn := conn or self._conn:
                     for statement in added:
                         conn.execute(statement.sql)
-                # recorded last: one that could not run must not be replayed on every connection
+                # recorded last: the pool must not replay a statement which failed to run
                 self._statements = merged
             if alias:
                 self.attached_aliases.add(alias)
@@ -375,8 +379,9 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
             extensions: List of DuckDB extensions to load on each newly opened connection
             global_config: Dictionary of global configuration settings applied once on each newly opened connection
             pragmas: List of PRAGMA statements to be applied to each cursor connection
-            statements: Database-scoped SQL run on each newly opened connection, e.g. `INSTALL`,
-                `ATTACH`, `CREATE SECRET`. Session settings belong in `pragmas`/`local_config`
+            statements: Database-scoped SQL run on each newly opened connection, for example
+                `INSTALL`, `ATTACH` and `CREATE SECRET`. Session settings belong in `pragmas`
+                or `local_config`
             local_config: Dictionary of local configuration settings applied to each cursor connection
         """
         self._apply_init_value(conn_or_path)
@@ -414,29 +419,30 @@ class DuckDbClientConfiguration(
         self.create_indexes = create_indexes
 
     def physical_location(self) -> str:
-        """Returns the database file path, or the marker of a database living inside a query
-        engine followed by that engine's identity."""
+        """Returns the database file path. For a database that lives inside a query engine,
+        returns the marker of that database and the identity of the engine."""
         if not self.credentials or not self.credentials.database:
-            self._no_physical_location("no database is configured")
+            self._no_physical_location("the configuration has no database")
         database = self.credentials.database
         if database not in NON_ATTACHABLE_LOCATIONS:
             return database
-        # the marker identifies no database, so the query engine holding it is the only identity.
-        # comparing markers alone would make any two in-memory databases look like one
+        # the marker identifies no database, so the query engine that holds it is the only
+        # identity. markers alone make any two in-memory databases look like one
         conn = getattr(self.credentials, "_external_conn", None)
         if conn is None and self.credentials.conn_pool:
             conn = self.credentials.conn_pool._conn
         if conn is None:
-            self._no_physical_location(f"`{database}` has no open connection to identify it by")
+            self._no_physical_location(f"`{database}` has no open connection that identifies it")
         return f"{database}{hex(id(conn))}"
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:
-        """Returns False for a database this query engine already opened, whose every schema it
-        accesses."""
+        """Returns False for a database that this query engine already opened. The engine
+        accesses every schema of that database."""
         return not self.is_same_location(other)
 
     def attach_type(self) -> Optional[TAttachType]:
-        """Returns None for a database that lives inside a query engine: no path to attach."""
+        """Returns None for a database that lives inside a query engine. Such a database has no
+        path to attach."""
         if self.credentials and self.credentials.database in NON_ATTACHABLE_LOCATIONS:
             return None
         return super().attach_type()

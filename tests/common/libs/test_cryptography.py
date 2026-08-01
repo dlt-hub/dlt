@@ -19,7 +19,7 @@ def test_derived_key_is_deterministic() -> None:
 
 
 def test_derived_key_depends_on_secret_and_purpose() -> None:
-    # different secret or different purpose yields an independent key from the same inputs
+    # a different secret, or a different purpose, gives a key that does not match
     assert derive_encryption_key("secret-a", "model") != derive_encryption_key("secret-b", "model")
     assert derive_encryption_key("secret-a", "model") != derive_encryption_key("secret-a", "state")
 

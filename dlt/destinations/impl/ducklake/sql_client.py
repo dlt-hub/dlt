@@ -100,19 +100,21 @@ class DuckLakeSqlClient(DuckDbSqlClient):
     def attach_statements(
         self, *, alias: str, tables: Optional[Collection[str]] = None
     ) -> List[TAttachStatement]:
-        # the whole lake is attached, `tables` cannot narrow it
+        # the statements attach the whole lake, so `tables` cannot narrow it
         statements: List[TAttachStatement] = []
         storage = self.credentials.storage
         if not storage.is_local_filesystem:
             secret_name = self.create_secret_name(storage.bucket_url)
             statements += [
-                # one key for the whole set so re-issuing it replaces the credentials it rotates
+                # one key for the whole set: when the client emits the set again, it replaces
+                # the rotated credentials
                 attach_statement(s, secret=True, key=f"{alias}:secret")
                 for s in self._build_secret_statements(
                     storage.bucket_url, storage.credentials, secret_name, "", False
                 )
             ]
-        # `alias` names the local attach catalog; metadata_schema must stay the original lake's
+        # `alias` names the local attach catalog. `metadata_schema` must stay the schema of the
+        # original lake
         attach = self.build_attach_statement(
             ducklake_name=alias,
             metadata_schema=self.credentials.metadata_schema or self.credentials.ducklake_name,
@@ -121,7 +123,7 @@ class DuckLakeSqlClient(DuckDbSqlClient):
             override_data_path=self.override_data_path,
             automatic_migration=self.automatic_migration,
         )
-        # postgres/mysql catalogs embed the password in the ATTACH url, so it is a secret
+        # postgres and mysql catalogs embed the password in the attach url, so it is a secret
         is_secret = getattr(self.credentials.catalog, "drivername", "") in (
             "postgres",
             "postgresql",

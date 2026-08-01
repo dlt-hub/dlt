@@ -47,7 +47,7 @@ class FilesystemSqlClient(WithTableScanners):
         if self.is_abfss:
             self._global_config["azure_transport_option_type"] = "curl"
             # TODO: we need to frontload the httpfs extension for abfss for some reason.
-            # `extensions` cannot express it: it only LOADs, it does not INSTALL
+            # `extensions` cannot express it: that field only runs `LOAD`, never `INSTALL`
             self.credentials.conn_pool.add_statements(
                 [ConnStatement("INSTALL httpfs; LOAD httpfs")]
             )
@@ -106,8 +106,8 @@ class FilesystemSqlClient(WithTableScanners):
         config = self.remote_client.config
         if config.attach_type() is None:
             raise NotImplementedError(
-                f"filesystem protocol `{config.protocol}` needs fsspec registration and cannot be"
-                " attached via SQL statements"
+                f"The filesystem protocol `{config.protocol}` needs an fsspec registration."
+                " dlt cannot attach this protocol with SQL statements."
             )
         return ["INSTALL httpfs; LOAD httpfs"] if self.is_abfss else []
 
@@ -122,14 +122,14 @@ class FilesystemSqlClient(WithTableScanners):
         )
         if not secret_statements:
             raise NotImplementedError(
-                f"no duckdb secret available for protocol `{self.remote_client.config.protocol}`"
+                f"duckdb has no secret for the protocol `{self.remote_client.config.protocol}`."
             )
         return secret_statements
 
     def open_connection(self) -> duckdb.DuckDBPyConnection:
         super().open_connection()
-        # not a pool statement: for protocols duckdb has no secret for this registers an fsspec
-        # filesystem, and the statements it does emit may embed a token that expires
+        # not a pool statement. for a protocol that duckdb has no secret for, this call registers
+        # an fsspec filesystem. the statements it does emit can embed a token that expires
         self.create_secret(
             self.remote_client.config.bucket_url,
             self.remote_client.config.credentials,

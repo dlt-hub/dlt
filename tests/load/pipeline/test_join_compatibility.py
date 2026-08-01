@@ -186,8 +186,8 @@ def test_same_database_join_compatibility(
     first_destination, second_destination = _make_same_database_destinations(
         destination_config, tmp_path, test_id
     )
-    # sqlite gives every dataset its own database file and a connection attaches only its own,
-    # so sharing a connection string does not put two datasets in reach of each other
+    # sqlite gives every dataset its own database file, and a connection attaches only its own
+    # file. two datasets that share a connection string still cannot access each other
     expected = destination_config.destination_name != "sqlalchemy_sqlite"
     # filesystem at the same location is readable but dlt is the only writing engine
     expected_write = False if destination_config.destination_type == "filesystem" else None
@@ -205,9 +205,9 @@ def test_duckdb_different_database_compatible(
     destination_config: DestinationTestConfiguration,
     tmp_path: Path,
 ) -> None:
-    # any duckdb database can be attached to another one, so a join reads across them. a model
-    # attaches only the datasets it joins, never the one it selects from, so writing needs the
-    # data to be at this location already
+    # duckdb can attach any other duckdb database, so a join reads across them. a model attaches
+    # only the datasets that it joins, and never the dataset that it selects from. dlt therefore
+    # writes a model only where the data already is
     test_id = uniq_id()
     _run_two_pipeline_check(
         destination_config,
@@ -227,7 +227,7 @@ def test_filesystem_different_location_readable_not_writable(
     destination_config: DestinationTestConfiguration,
     tmp_path: Path,
 ) -> None:
-    # a duckdb engine attaches the other location's scanner catalog, but dlt is the only
+    # a duckdb engine attaches the scanner catalog of the other location, but dlt is the only
     # engine that writes to a filesystem
     first_destination, second_destination = _make_filesystem_different_location_destinations(
         tmp_path, uniq_id()

@@ -115,8 +115,8 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
             self.resolve()
 
     def on_resolved(self) -> None:
-        # `ducklake` is autoloaded by the ATTACH naming it, and this pool opens a connection per
-        # borrow, so installing it explicitly would pay a repository check every time
+        # the attach statement that names `ducklake` autoloads the extension. this pool opens a
+        # connection per borrow, so an explicit `INSTALL` pays a repository check every time
         # set connection pool so it always opens a new connection on borrow.
         # connection duplication for parallelism does not work for ducklake.
         self.conn_pool = DuckDbConnectionPool(self, always_open_connection=True)
@@ -130,8 +130,9 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
             return self.storage.bucket_url
 
     def catalog_location(self) -> str:
-        """Returns a non-secret catalog identity which locates the ducklake, digesting the catalog
-        when it has no credential-free one so two lakes are never taken for the same."""
+        """Returns a non-secret catalog identity which locates the ducklake. When the catalog has
+        no credential-free identity, this method digests the catalog. Two lakes then never get
+        the same identity."""
         if not self.catalog:
             return ""
 
@@ -157,8 +158,8 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
                 f"#{metadata_schema}"
             )
 
-        # a MotherDuck-hosted catalog carries its account in the token, so the whole native
-        # representation is digested to keep the identity non-secret
+        # a MotherDuck-hosted catalog carries its account in the token, so this method digests
+        # the whole native representation and keeps the identity non-secret
         native = str(self.catalog.to_native_representation())
         return f"{drivername}://{digest128(f'{native}#{metadata_schema}')}"
 
@@ -189,11 +190,12 @@ class DuckLakeClientConfiguration(
     def physical_location(self) -> str:
         """Returns the catalog identity which locates the ducklake."""
         if not self.credentials or not (location := self.credentials.catalog_location()):
-            self._no_physical_location("no ducklake catalog is configured")
+            self._no_physical_location("the configuration has no ducklake catalog")
         return location
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:
-        """Returns False within one lake, whose every schema the query engine already accesses."""
+        """Returns False within one lake. The query engine already accesses every schema of that
+        lake."""
         return not self.is_same_location(other)
 
     def on_resolved(self) -> None:

@@ -24,12 +24,12 @@ def _import_fernet() -> Any:
 
 
 def generate_secret() -> str:
-    """Generates a random high-entropy url-safe secret."""
+    """Generates a random url-safe secret with high entropy."""
     return base64.urlsafe_b64encode(os.urandom(32)).decode("ascii")
 
 
 def derive_encryption_key(secret: str, purpose: str) -> str:
-    """Derives a url-safe Fernet key from `secret` for `purpose` via HKDF-SHA256."""
+    """Derives a url-safe Fernet key from `secret` for `purpose` with HKDF-SHA256."""
 
     try:
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
@@ -47,7 +47,7 @@ def derive_encryption_key(secret: str, purpose: str) -> str:
 
 
 def encrypt_text(key: str, text: str) -> str:
-    """Encrypts `text` with a Fernet `key`, returning a url-safe token."""
+    """Encrypts `text` with a Fernet `key`. Returns a url-safe token."""
     token = _import_fernet()(key.encode("ascii")).encrypt(text.encode("utf-8"))
     return cast(str, token.decode("ascii"))
 
@@ -58,7 +58,7 @@ def decrypt_text(key: str, token: str) -> str:
     try:
         return cast(str, fernet(key.encode("ascii")).decrypt(token.encode("ascii")).decode("utf-8"))
     except Exception as e:
-        raise ValueError("Could not decrypt token: the encryption key does not match.") from e
+        raise ValueError("dlt cannot decrypt the token. The encryption key does not match.") from e
 
 
 def is_pem(data: str) -> bool:

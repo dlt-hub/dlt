@@ -313,17 +313,17 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         return ""
 
     def physical_location(self) -> str:
-        """Returns the server location, narrowed to the data one query engine accesses, which the
-        dialect decides."""
+        """Returns the server location. The dialect narrows this location to the data that one
+        query engine accesses."""
         backend = self.get_backend_name()
         if not backend or not self.credentials:
-            self._no_physical_location("no connection string is configured")
+            self._no_physical_location("the configuration has no connection string")
         server_location = self._server_location()
         if not server_location:
             if SqlalchemyCredentials.is_memory_database(
                 self.credentials.database, self.credentials.query
             ):
-                # the database lives in the engine, which is then the only identity there is
+                # the database lives in the engine, so the engine is the only identity
                 managed = self.credentials._ensure_managed_engine()
                 handle = managed._engine if managed._engine is not None else managed
                 return f"{backend}://:memory:{hex(id(handle))}"
@@ -331,11 +331,11 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         location = f"{backend}://{server_location}"
 
         if backend == "sqlite":
-            # every dataset is a separate database file and a query engine attaches only its own
+            # every dataset is a separate database file. a query engine attaches only its own file
             return f"{location}#{self.dataset_name}"
         if backend in ("mysql", "mssql", "duckdb"):
-            # database is schema-like here, so a query engine reads across the server's databases.
-            # a duckdb file is the whole location already, appending its database repeats the path
+            # database is schema-like here, so a query engine reads across the databases of the
+            # server. a duckdb file is the whole location already, and its database repeats the path
             return location
         # remaining dialects (postgresql, oracle, db2, unknown) bind a query engine to a single
         # database: oracle needs db links and db2 needs federation to query across databases

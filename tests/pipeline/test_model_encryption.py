@@ -52,14 +52,15 @@ def test_pipeline_encryption_seed_from_salt_is_stable() -> None:
 def test_encryption_context_never_exposes_key() -> None:
     ctx = PipelineEncryptionContext(secret="master-secret")
     assert not hasattr(ctx, "key")
-    # the round-trip works without ever returning the derived key
+    # the round-trip works and never returns the derived key
     token = ctx.encrypt_text("credential")
     assert "credential" not in token
     assert ctx.decrypt_text(token) == "credential"
 
 
 def test_encryption_context_injected_secret_round_trip() -> None:
-    # an injected secret drives encrypt/decrypt regardless of pipeline (e.g. detached/pool load)
+    # an injected secret encrypts and decrypts for any pipeline, for example a detached load
+    # or a pool load
     secret = "master-" + uniq_id()
     with Container().injectable_context(PipelineEncryptionContext(secret=secret)):
         text = _model_text(_attach())
@@ -74,12 +75,12 @@ def test_encryption_context_injected_secret_round_trip() -> None:
 def test_model_secret_statements_are_encrypted() -> None:
     dlt.pipeline("enc_model_" + uniq_id(), destination="duckdb")
     text = _model_text(_attach())
-    # secret value is hidden, but structure stays human-readable
+    # the model text hides the secret value, but the structure stays human-readable
     assert "topsecret" not in text
     assert "HUGGINGFACE" not in text
     assert "attach_x" in text
     assert "ATTACH IF NOT EXISTS ':memory:' AS attach_x" in text
-    # the same instance decrypts back to the original secret
+    # the same instance decrypts the original secret
     attach = SqlModel.from_file(io.StringIO(text)).attach
     assert _secret_sql(attach) == [SECRET]
 
@@ -88,27 +89,29 @@ def test_model_secret_undecryptable_after_restart() -> None:
     name = "enc_restart_" + uniq_id()
     dlt.pipeline(name, destination="duckdb")
     text = _model_text(_attach())
-    # a fresh instance (new ephemeral key) cannot decrypt; user is told to set a permanent salt
+    # a fresh instance (new ephemeral key) cannot decrypt the model. the error message tells the
+    # user to set a permanent salt
     dlt.pipeline(name, destination="duckdb")
     with pytest.raises(ValueError, match="pipeline_salt"):
         SqlModel.from_file(io.StringIO(text)).attach
 
 
 def test_model_rewritten_without_encryption_key() -> None:
-    """Normalize rewrites the query of a model it cannot decrypt: it runs in a process worker
-    which has neither the pipeline nor the key that encrypted the attach statements."""
+    """Normalize rewrites the query of a model that it cannot decrypt. Normalize runs in a
+    process worker that has neither the pipeline nor the key that encrypted the attach info."""
     secret = "master-" + uniq_id()
     with Container().injectable_context(PipelineEncryptionContext(secret=secret)):
         text = _model_text(_attach())
 
-    # a key that could not decrypt this model still rewrites it, so no key is needed at all
+    # a key that cannot decrypt this model still rewrites it, so the rewrite needs no key at all
     with Container().injectable_context(PipelineEncryptionContext(secret="other-" + uniq_id())):
         rewritten = str(SqlModel.from_file(io.StringIO(text)).with_query("SELECT 2 AS b", "duckdb"))
     assert "SELECT 2 AS b" in rewritten
-    # ciphertext carried over verbatim; re-encrypting changes it even under the original key
+    # the rewrite copies the ciphertext exactly. dlt encrypts the same secret to a different
+    # ciphertext, even under the original key
     assert rewritten.splitlines()[1] == text.splitlines()[1]
 
-    # the key that wrote the model still decrypts what normalize handed on
+    # the key that wrote the model still decrypts the model that normalize rewrote
     with Container().injectable_context(PipelineEncryptionContext(secret=secret)):
         assert _secret_sql(SqlModel.from_file(io.StringIO(rewritten)).attach) == [SECRET]
 
@@ -117,7 +120,7 @@ def test_model_secret_decryptable_with_permanent_salt() -> None:
     salt = "permanent-" + uniq_id()
     dlt.pipeline("enc_perm_a_" + uniq_id(), destination="duckdb", pipeline_salt=salt)
     text = _model_text(_attach())
-    # a different instance sharing the salt derives the same key and decrypts
+    # a different instance that shares the salt derives the same key and decrypts the secret
     dlt.pipeline("enc_perm_b_" + uniq_id(), destination="duckdb", pipeline_salt=salt)
     attach = SqlModel.from_file(io.StringIO(text)).attach
     assert _secret_sql(attach) == [SECRET]

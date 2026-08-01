@@ -118,7 +118,7 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         return getattr(self.native_connection, name)
 
     def __enter__(self) -> Self:
-        # a connection owned from outside is already open, borrowing a second one would leak it
+        # a connection owned from outside is already open. a second open call leaks that connection
         if self.owns_connection:
             self.open_connection()
         return self
@@ -262,8 +262,8 @@ SELECT 1
 
         Args:
             dataset_name: Override the default dataset name for cross-dataset references.
-            catalog: Override the catalog component, e.g. an ATTACH alias for a foreign
-                dataset. When set, it replaces `catalog_name()` in the path.
+            catalog: The catalog component to use, for example the attach alias of a foreign
+                dataset. This value replaces `catalog_name()` in the path.
         """
         path: List[str] = []
         if catalog is not None:
@@ -405,24 +405,27 @@ class WithAttach(ABC):
     """Mixin for SQL clients that can attach foreign datasets into their query engine."""
 
     attach_type: ClassVar[TAttachType]
-    """What the statements this client emits require of the query engine running them. The
-    configuration answers whether a destination may be attached at all, see `attach_type` there."""
+    """What the statements of this client require of the query engine that runs them. The
+    configuration decides whether a foreign engine can attach this destination at all. The
+    `attach_type` method there gives that answer."""
 
     @abstractmethod
     def attach_statements(
         self, *, alias: str, tables: Optional[Collection[str]] = None
     ) -> List[TAttachStatement]:
-        """Statements that attach this client's dataset into a foreign primary query engine.
+        """Statements that attach the dataset of this client into a foreign primary query engine.
 
         Args:
-            alias: Catalog name the dataset is accessed under after attaching.
-            tables: dlt table names the query needs, letting clients that materialize tables
-                one by one skip the rest. `None` covers the whole dataset.
+            alias: The catalog name under which the query accesses the dataset once this
+                client attaches it.
+            tables: The dlt table names that the query needs. A client which materializes
+                tables one by one skips the rest. `None` covers the whole dataset.
         """
 
     @abstractmethod
     def attach(self, alias: str, statements: Sequence[TAttachStatement]) -> None:
-        """Record `statements` under `alias` and apply them to the current connection when open."""
+        """Records `statements` under `alias`. Applies them to the current connection when it
+        is open."""
 
 
 class DBApiCursorImpl(DBApiCursor):

@@ -249,21 +249,23 @@ def test_join_across_different_physical_destinations_attaches(
         rel = dataset.table("users")
         other_rel = other_dataset.table("other_data")
 
-        # duckdb ATTACH makes the foreign database accessible under a prefixed catalog
+        # a duckdb `ATTACH` makes the foreign database accessible under a prefixed catalog
         joined = rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
         assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
         assert f"attach_{other_dataset.sql_client.dataset_name}" in joined.to_sql()
 
-        # a primary that cannot attach the foreign location still rejects the join. patch the
-        # instance, so the foreign config keeps its ability and the reverse direction still works
+        # a primary that cannot attach the foreign location still rejects the join. The patch
+        # applies to the instance, so the foreign config keeps its ability and the reverse
+        # direction still works
         primary_config = dataset.destination_client.config
         monkeypatch.setattr(primary_config, "can_attach", lambda attach_type: False)
-        with pytest.raises(ValueError, match="cannot access data") as reject:
+        with pytest.raises(ValueError, match="cannot access the data") as reject:
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
-        # access is one-way here, so the message offers the swap instead of materializing
+        # only one direction accesses the data here, so the message offers the swap and does
+        # not materialize
         assert "can join" in str(reject.value)
-        assert f"run the query on dataset '{other_dataset.dataset_name}'" in str(reject.value)
-        # both locations are named, which a bare credentials display could not tell apart
+        assert f"Run the query on dataset '{other_dataset.dataset_name}'" in str(reject.value)
+        # the message names both locations, which a bare credentials display cannot distinguish
         assert primary_config.physical_location() in str(reject.value)
         assert other_dataset.destination_client.config.physical_location() in str(reject.value)
 
@@ -295,18 +297,18 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
         a_config = ds_a.destination_client.config
         b_config = ds_b.destination_client.config
         assert a_config.physical_location() != b_config.physical_location()
-        # duckdb reports the other database as readable because it can be attached
+        # duckdb reports the other database as readable because duckdb can attach it
         assert a_config.can_read_from(b_config)
 
-        # ATTACH relaxes the physical-destination guard, but two datasets sharing a name on
-        # different locations cannot be disambiguated by dataset name alone
+        # an `ATTACH` relaxes the physical-destination guard. But the dataset name alone cannot
+        # distinguish two datasets that share a name on different locations
         with pytest.raises(ValueError, match="same name located on two different destinations"):
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
 
 
 def test_join_rejects_two_foreign_datasets_sharing_a_name() -> None:
-    """Two foreign datasets of one name would bind to a single ATTACH alias, silently reading
-    the tables of whichever was joined last."""
+    """Two foreign datasets of one name bind to a single `ATTACH` alias. The query then reads the
+    tables of the dataset that the user joined last."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         pipelines_dir = str(tmp_path / "pipelines_dir")
@@ -335,7 +337,7 @@ def test_join_rejects_two_foreign_datasets_sharing_a_name() -> None:
 
         ds_a, ds_b = foreign_datasets
         ds_primary = primary.dataset()
-        # a shared name at two locations is not one dataset, which is what the join guard asks
+        # a shared name at two locations is not one dataset. The join guard asks exactly this
         assert ds_a.is_same_dataset(ds_a)
         assert ds_a.is_same_dataset(dlt.dataset(ds_a._destination, shared_dataset_name))
         assert not ds_a.is_same_dataset(ds_b)
@@ -345,13 +347,13 @@ def test_join_rejects_two_foreign_datasets_sharing_a_name() -> None:
             ds_a.table("orders"), on="users.id = orders.user_id"
         )
 
-        with pytest.raises(ValueError, match="is already joined into this relation") as reject:
+        with pytest.raises(ValueError, match="already contains a different dataset") as reject:
             joined.join(ds_b.table("refunds"), on="users.id = refunds.user_id")
-        # both locations are named so the user can tell which two datasets clashed
+        # the message names both locations, so the user sees which two datasets clashed
         assert ds_a.destination_client.config.physical_location() in str(reject.value)
         assert ds_b.destination_client.config.physical_location() in str(reject.value)
 
-        # the same foreign dataset reached through another `Dataset` instance is not a collision
+        # the same foreign dataset accessed through another `Dataset` instance is not a collision
         same_ds_b = dlt.dataset(ds_b._destination, shared_dataset_name)
         joined_b = (
             primary.dataset()
@@ -396,23 +398,23 @@ def test_join_rejects_cross_dataset_on_unsupported_destination(
 
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
-        # one database file, yet each dataset lives in its own attached file, so a query engine
-        # accesses only the dataset it opened
+        # one database file, yet each dataset lives in its own attached file. A query engine
+        # accesses only the dataset that it opened
         assert ds_a.destination_client.config.physical_location() != (
             ds_b.destination_client.config.physical_location()
         )
 
-        # sqlite attaches only its own dataset file, so the other one is inaccessible and there
-        # is no direction that works: materializing is the only remedy
-        with pytest.raises(ValueError, match="cannot access data") as reject:
+        # sqlite attaches only its own dataset file, so the other one is inaccessible. No
+        # direction works, and the user must materialize the data
+        with pytest.raises(ValueError, match="cannot access the data") as reject:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
         assert "Materialize" in str(reject.value)
         assert "can join" not in str(reject.value)
 
 
 def test_join_cross_dataset_on_filesystem_attaches() -> None:
-    """Two datasets in one bucket are each materialized into their own query engine, so the query
-    accesses the second one by attaching it."""
+    """dlt materializes each of two datasets in one bucket into its own query engine. The query
+    then attaches the second dataset and accesses it."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         bucket_url = FilesystemConfiguration.make_file_url(str(tmp_path / "data"))
@@ -2519,7 +2521,8 @@ def test_magic_join_after_foreign_base_table_resolves_local_target() -> None:
 
 
 def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) -> None:
-    """Attach statements and destination clients are built lazily and only once."""
+    """The relation builds the attach info and the destination clients on the first read, and only
+    once."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         crm = dlt.pipeline(
@@ -2561,28 +2564,28 @@ def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) ->
         joined = crm_dataset.table("users").join(
             sales_dataset.table("orders"), on="users.id = orders.user_id"
         )
-        # deciding that a join is legal needs no statements
+        # dlt needs no statements to decide that a join is legal
         assert built_aliases == []
 
-        # binding identifiers needs the catalog alias only
+        # dlt needs only the catalog alias to bind identifiers
         assert "attach_sales_data" in joined.to_sql()
         assert built_aliases == []
 
         assert len(joined.df()) == 1
-        # one build per foreign dataset, memoized for further reads
+        # dlt builds once per foreign dataset and memoizes the result for further reads
         assert built_aliases == ["attach_sales_data"]
         joined.df()
         joined.to_model()
         assert built_aliases == ["attach_sales_data"]
 
-        # a relation chained off the join reuses what was memoized for that dataset
+        # a relation chained from the join reuses the memoized result for that dataset
         assert len(joined.where("users.id = 1").df()) == 1
         assert built_aliases == ["attach_sales_data"]
 
-        # one cached destination client per dataset, however many times it is consulted
+        # one cached destination client per dataset, however many times the relation uses it
         assert sorted(created_clients) == ["crm_data", "sales_data"]
 
-        # a second foreign dataset is memoized next to the first one, not instead of it
+        # dlt memoizes a second foreign dataset next to the first one, not instead of it
         support = dlt.pipeline(
             pipeline_name="attach_cost_support",
             pipelines_dir=str(tmp_path / "pipelines_dir"),
@@ -2600,7 +2603,7 @@ def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) ->
 
 
 def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.MonkeyPatch) -> None:
-    """A relation chained off a join reads a second foreign table, so the attach must grow."""
+    """A relation chained from a join reads a second foreign table, so the attach must grow."""
     asked_for: list[Any] = []
     original_attach_statements = WithTableScanners.attach_statements
 
@@ -2619,7 +2622,7 @@ def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.Monkey
             dataset_name="crm_data",
         )
         crm.run([{"id": 1}], table_name="users")
-        # a scanner destination materializes one view per table, so only the needed ones are built
+        # a scanner destination materializes one view per table, so it builds only the needed ones
         sales = dlt.pipeline(
             pipeline_name="attach_grow_sales",
             pipelines_dir=str(tmp_path / "pipelines_dir"),
@@ -2641,13 +2644,13 @@ def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.Monkey
         assert joined._foreign_datasets["sales_data"].attach_tables == frozenset({"orders"})
         assert asked_for == [["orders"]]
 
-        # the chained join needs `items` too, which the memoized descriptor does not cover
+        # the chained join needs `items` too, which the memoized attach info does not cover
         chained = joined.join("sales_data.items", on="orders.id = items.id")
         assert len(chained.df()) == 1
         assert chained._foreign_datasets["sales_data"].attach_tables == frozenset(
             {"orders", "items"}
         )
-        # only the table missing from the descriptor is described again
+        # dlt describes again only the table that is missing from the attach info
         assert asked_for == [["orders"], ["items"]]
 
         def _views(info: Any) -> List[str]:
@@ -2657,16 +2660,16 @@ def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.Monkey
                 if s["sql"].startswith("CREATE OR REPLACE VIEW")
             ]
 
-        # the descriptor stays cumulative and a table no query referenced never gets a view
+        # the attach info stays cumulative. A table that no query referenced never gets a view
         views = _views(chained._attach_infos()[0])
         assert len(views) == 2
         assert not any("untouched" in sql for sql in views)
-        # a persisted model carries every view, it has no prior attach state to build on
+        # a persisted model carries every view. It has no earlier attach state to use
         assert _views(chained.to_model().attach[0]) == views
 
 
 def test_attach_statements_stay_bounded_when_foreign_data_grows() -> None:
-    """A view redefined over grown data replaces its recorded definition, it does not pile up."""
+    """A view over grown data replaces its recorded definition. Definitions do not accumulate."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         crm = dlt.pipeline(
@@ -2677,7 +2680,7 @@ def test_attach_statements_stay_bounded_when_foreign_data_grows() -> None:
         )
         crm.run([{"id": 1}], table_name="users")
         # a scanner destination embeds the concrete file list in its view, so the SQL changes
-        # every time data is loaded
+        # every time the pipeline loads data
         sales = dlt.pipeline(
             pipeline_name="attach_bounded_sales",
             pipelines_dir=str(tmp_path / "pipelines_dir"),
@@ -2705,6 +2708,6 @@ def test_attach_statements_stay_bounded_when_foreign_data_grows() -> None:
             )
 
         assert len(set(recorded)) == 1, f"attach statements grew: {recorded}"
-        # the single recorded view keeps being replaced by the newest definition
+        # the newest definition always replaces the single recorded view
         assert len(set(view_sqls)) == 3
         assert sum(1 for s in pool._statements if s.sql.startswith("CREATE OR REPLACE VIEW")) == 1

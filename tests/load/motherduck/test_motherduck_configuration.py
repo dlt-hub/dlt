@@ -45,7 +45,7 @@ def test_motherduck_fingerprint(connection_string: str, expected_fingerprint: st
 
 
 def test_motherduck_physical_location_digests_the_token() -> None:
-    """The token is the only account identity there is, so the location carries its digest."""
+    """The token is the only account identity, so the location carries a digest of the token."""
     config = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:///dlt_data?token=TOKEN")
     )
@@ -63,15 +63,16 @@ def test_motherduck_attach_statements() -> None:
     )
 
     assert config.attach_type() == "motherduck"
-    # LOAD autoinstalls, so no INSTALL is emitted. LOAD + ATTACH stay cleartext; only the token
-    # line is a secret (encrypted when persisted)
+    # `LOAD` installs the extension automatically, so dlt emits no `INSTALL`. the `LOAD` line and
+    # the `ATTACH` line stay cleartext. only the token line is a secret, and dlt encrypts it in
+    # the model file
     assert sql_client.attach_statements(alias="attach_ds_a") == [
         attach_statement("LOAD motherduck"),
         attach_statement("SET motherduck_token=E'TOKEN'", secret=True, key="attach_ds_a:token"),
         attach_statement("ATTACH IF NOT EXISTS E'md:my_db' AS \"attach_ds_a\""),
     ]
 
-    # a quote in the token cannot terminate the string literal it sits in
+    # a quote in the token cannot terminate the string literal that holds it
     credentials.password = "TO'KEN"
     assert (
         sql_client.attach_statements(alias="attach_ds_a")[1]["sql"]
@@ -80,16 +81,16 @@ def test_motherduck_attach_statements() -> None:
 
 
 def test_motherduck_cannot_execute_motherduck_attach() -> None:
-    """MotherDuck can be attached into duckdb, but not into another MotherDuck connection."""
+    """A duckdb connection can attach MotherDuck, but another MotherDuck connection cannot."""
     credentials = MotherDuckCredentials("md:my_db?motherduck_token=TOKEN")
     md_config = MotherDuckClientConfiguration(credentials=credentials)._bind_dataset_name("ds_a")
     duck_credentials = DuckDbCredentials(":memory:")
     duck_config = DuckDbClientConfiguration(credentials=duck_credentials)._bind_dataset_name("ds_b")
 
-    # a token can only be set before a connection is initialized, and MotherDuck rejects catalog
+    # dlt can set a token only before it initializes a connection. MotherDuck also rejects catalog
     # aliases in workspace mode
     assert md_config.can_attach("motherduck") is False
-    # local databases and scanner views are plain duckdb attaches and stay allowed
+    # a local database and a scanner view attach as plain duckdb databases, so dlt allows both
     assert md_config.can_attach("duckdb") is True
     assert duck_config.can_attach("motherduck") is True
     assert duck_config.can_attach("duckdb") is True

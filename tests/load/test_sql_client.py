@@ -624,14 +624,16 @@ def test_transaction_isolation(client: SqlJobClientBaseWithDestinationTestConfig
 def test_connection_owned_from_outside(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
-    """With `owns_connection` False a borrower gets the client but not the connection lifetime:
-    `with` must neither open a second connection nor close the owner's."""
+    """When `owns_connection` is False, a borrower receives the client but not the connection
+    lifetime. The `with` block must not open a second connection and must not close the
+    connection of the owner.
+    """
     client.update_stored_schema()
     sql_client = client.sql_client
     version_table_name = sql_client.make_qualified_table_name(client.schema.version_table_name)
     query = f"SELECT schema_name FROM {version_table_name}"
 
-    # a client owns its connection unless an outside owner takes over
+    # if no outside owner takes control, a client owns its connection
     assert sql_client.owns_connection is True
     owned_conn = sql_client.native_connection
     assert owned_conn is not None
@@ -640,10 +642,10 @@ def test_connection_owned_from_outside(
     try:
         with sql_client as borrowed:
             assert borrowed is sql_client
-            # a second connection here would leak: the owner already opened one
+            # a second connection here leaks, because the owner already opened one
             assert borrowed.native_connection is owned_conn
             assert len(borrowed.execute_sql(query)) == 1
-        # the borrower left the owner's connection alone
+        # the borrower did not change the connection of the owner
         assert sql_client.native_connection is owned_conn
         assert len(sql_client.execute_sql(query)) == 1
 
@@ -656,14 +658,15 @@ def test_connection_owned_from_outside(
     finally:
         sql_client.owns_connection = True
 
-    # the owner still closes on demand and, once it owns the connection again, on exit
+    # the owner still closes the connection on demand. after the owner owns the connection again,
+    # the `with` block closes it on exit
     sql_client.close_connection()
     assert not sql_client.native_connection
     with sql_client:
         assert sql_client.native_connection is not None
     assert not sql_client.native_connection
 
-    # leave the connection open, the fixture tears the dataset down through it
+    # the connection stays open, because the fixture drops the dataset through it
     sql_client.open_connection()
     assert len(sql_client.execute_sql(query)) == 1
 

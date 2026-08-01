@@ -19,8 +19,8 @@ def test_base_fingerprint_ignores_physical_location() -> None:
 
 
 def test_base_destination_identifies_no_data_location() -> None:
-    """A destination that names no place reports `None`, never a blank location that would compare
-    equal to the next blank one. Fingerprinting stays optional."""
+    """A destination that names no place reports `None`. It never reports a blank location, because
+    a blank location compares equal to the next blank one. The fingerprint stays optional."""
     config = DestinationClientConfiguration()
 
     assert config.physical_location() is None

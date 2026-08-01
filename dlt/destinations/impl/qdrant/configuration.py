@@ -156,10 +156,12 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         return ""
 
     def physical_location(self) -> str:
-        """Returns the Qdrant connection location, or the path a local instance persists to."""
+        """Returns the Qdrant connection location, or the path where a local instance stores its
+        data."""
         if location := (self.qd_location or self.qd_path):
             return location
-        # with neither, qdrant runs in memory, so the client holding it is its only identity
+        # without a location and a path, qdrant runs in memory, so the client that holds it is
+        # the only identity
         client = getattr(self.credentials, "_external_client", None) or self.credentials
         return f":memory:{hex(id(client))}"
 

@@ -1060,11 +1060,12 @@ class Pipeline(SupportsPipeline):
 
     @property
     def encryption_seed(self) -> str:
-        """Master secret used to derive keys that encrypt secrets associated with pipeline.
+        """Master secret. dlt derives from it the keys that encrypt secret values of the pipeline.
 
-        A user-set `pipeline_salt` yields a stable secret; the default (name-derived) salt yields a
-        random per-instance secret, so encrypted secrets are ephemeral and cannot be decrypted
-        after a restart unless a permanent `pipeline_salt` is configured.
+        A `pipeline_salt` that the user sets gives a stable master secret. The default salt is a
+        digest of the pipeline name. With the default salt, dlt makes a new random master secret
+        for each pipeline instance. dlt then cannot decrypt the values after a restart. A
+        permanent `pipeline_salt` removes this limit.
         """
         from dlt.common.libs.cryptography import generate_secret
 

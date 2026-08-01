@@ -65,5 +65,5 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     def physical_location(self) -> str:
         """Returns configured BigQuery location."""
         if not self.location:
-            self._no_physical_location("no BigQuery location is configured")
+            self._no_physical_location("the configuration has no BigQuery location")
         return self.location

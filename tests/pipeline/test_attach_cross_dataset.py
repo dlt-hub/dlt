@@ -18,7 +18,7 @@ PURCHASES = [
     {"purchase_id": 10, "user_id": 1, "sku": "W-001"},
     {"purchase_id": 11, "user_id": 1, "sku": "G-001"},
     {"purchase_id": 12, "user_id": 2, "sku": "W-001"},
-    {"purchase_id": 13, "user_id": 99, "sku": "X-999"},  # orphan, dropped by INNER JOIN
+    {"purchase_id": 13, "user_id": 99, "sku": "X-999"},  # an orphan row: the INNER JOIN drops it
 ]
 
 
@@ -38,7 +38,7 @@ def _purchases_pipeline(destination: Any, **run_kwargs: Any) -> dlt.Pipeline:
 
 @pytest.fixture
 def users_pipeline() -> dlt.Pipeline:
-    """Primary pipeline holding `users` in its own duckdb database."""
+    """Primary pipeline that holds `users` in its own duckdb database."""
     pipeline = dlt.pipeline(
         "attach_users_" + uniq_id(),
         destination=_duckdb_destination("users"),
@@ -66,7 +66,8 @@ def test_attach_foreign_duckdb_eager(users_pipeline: dlt.Pipeline) -> None:
     foreign = _purchases_pipeline(_duckdb_destination("purchases"))
     joined = _join_purchases(users_pipeline, foreign)
 
-    # the foreign database is reached under a prefixed ATTACH catalog, not a bare schema
+    # the primary connection accesses the foreign database under a prefixed attach catalog,
+    # not a bare schema
     (info,) = joined._attach_infos()
     assert info["attach_type"] == "duckdb"
     assert info["alias"] == "attach_ds_purchases"
@@ -77,7 +78,9 @@ def test_attach_foreign_duckdb_eager(users_pipeline: dlt.Pipeline) -> None:
 
 
 def test_attach_foreign_filesystem_eager(users_pipeline: dlt.Pipeline) -> None:
-    """A filesystem foreign dataset is attached as a catalog of duckdb views over its files."""
+    """The primary connection attaches a filesystem foreign dataset as a catalog of duckdb
+    views over its files.
+    """
     bucket_url = FilesystemConfiguration.make_file_url(
         os.path.join(get_test_storage_root(), "purchases_" + uniq_id())
     )
@@ -91,7 +94,9 @@ def test_attach_foreign_filesystem_eager(users_pipeline: dlt.Pipeline) -> None:
 
 
 def test_attach_foreign_lazy_model_round_trip(users_pipeline: dlt.Pipeline) -> None:
-    """The join is serialized into a `.model` file and re-attached by the load job."""
+    """The extract step writes the join into a `.model` file. The load job attaches the
+    foreign dataset again.
+    """
     foreign = _purchases_pipeline(_duckdb_destination("purchases"))
     joined = _join_purchases(users_pipeline, foreign)
 
@@ -105,13 +110,14 @@ def test_attach_foreign_lazy_model_round_trip(users_pipeline: dlt.Pipeline) -> N
 
 
 def test_model_cannot_be_written_at_another_data_location(users_pipeline: dlt.Pipeline) -> None:
-    """A model attaches the datasets it joins, never the one it selects from, so it can only be
-    written where that data already is.
+    """A model attaches the datasets that it joins. A model never attaches the dataset that it
+    selects from, so dlt can write the model only where that data already is.
     """
     foreign = _purchases_pipeline(_duckdb_destination("purchases"))
     joined = _join_purchases(users_pipeline, foreign)
 
-    # the foreign side is attached under its alias, the primary is selected from by bare schema
+    # the query attaches the foreign side under its alias and selects the primary side by
+    # bare schema
     assert [info["alias"] for info in joined._attach_infos()] == ["attach_ds_purchases"]
     assert '"ds_users"."users"' in joined.to_sql()
 
@@ -124,13 +130,14 @@ def test_model_cannot_be_written_at_another_data_location(users_pipeline: dlt.Pi
 
     primary_config = users_pipeline.dataset().destination_client.config
     output_config = output.dataset().destination_client.config
-    # the join reads across the two databases by attaching, but a model may not be written across
+    # the join attaches the second database and reads across both, but dlt cannot write a
+    # model across them
     assert output_config.can_read_from(primary_config)
     assert output_config.can_write_from(primary_config) is False
-    # where the data already is, both hold
+    # where the data already is, both predicates return True
     assert primary_config.can_write_from(primary_config)
 
-    # what the predicate protects against: the model selects `ds_users` from a database
+    # the predicate prevents this error: the model selects `ds_users` from a database
     # that has no such schema
     @dlt.resource(table_name="user_purchases")
     def joined_purchases() -> Any:
@@ -150,8 +157,8 @@ def test_attach_foreign_casefold(users_pipeline: dlt.Pipeline) -> None:
     joined = _join_purchases(users_pipeline, foreign)
 
     sql = joined.to_sql()
-    # foreign schema, table and columns fold upper while the primary side keeps its casing;
-    # the ATTACH alias belongs to the primary namespace so it folds with the primary rules
+    # the foreign schema, table and columns fold upper while the primary side keeps its casing.
+    # the attach alias belongs to the primary namespace, so it folds with the primary rules
     assert '"attach_ds_purchases"."DS_PURCHASES"."PURCHASES"' in sql
     assert '"ds_users"."users"' in sql
     assert '"USER_ID"' in sql

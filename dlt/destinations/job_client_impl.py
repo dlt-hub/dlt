@@ -170,21 +170,21 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
         sql_client = self._job_client.sql_client
         if attach:
-            # the model was built against the input dataset but runs here, so this destination's
-            # own ability to attach is what decides
+            # dlt built the model against the input dataset. the model runs here, so this
+            # destination decides whether it can attach the foreign datasets
             config = self._job_client.config
             if not isinstance(sql_client, WithAttach) or not isinstance(
                 config, WithAttachableEngine
             ):
                 raise ValueError(
                     f"Destination `{config.destination_type}` cannot attach the"
-                    " foreign datasets required by this model."
+                    " foreign datasets that this model needs."
                 )
             for info in attach:
                 if not config.can_attach(info["attach_type"]):
                     raise ValueError(
-                        f"Destination `{config.destination_type}` cannot execute"
-                        f" `{info['attach_type']}` attach statements required by this model."
+                        f"Destination `{config.destination_type}` cannot execute the"
+                        f" `{info['attach_type']}` attach statements that this model needs."
                     )
                 sql_client.attach(info["alias"], info["statements"])
         insert_statement = self._insert_statement_from_select_statement(
@@ -203,8 +203,8 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
-        # table paths were bound when the model was built and a foreign one carries its ATTACH
-        # alias as catalog, so rewriting parts here would strip the alias off it
+        # dlt binds every table path when it builds the model. a foreign path carries its attach
+        # alias as the catalog, so this method must not rewrite the parts
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense

@@ -638,7 +638,7 @@ def extend_list_deduplicated(
 
 
 def group_by_key(items: Sequence[TAny], key_f: Callable[[TAny], str]) -> Dict[str, List[TAny]]:
-    """Groups `items` by `key_f`, preserving their order within and across groups"""
+    """Groups `items` by `key_f`. Keeps the order of the items in each group and between groups"""
     groups: Dict[str, List[TAny]] = {}
     for item in items:
         groups.setdefault(key_f(item), []).append(item)
@@ -650,7 +650,8 @@ def merge_keyed_groups(
     extending_list: Sequence[TAny],
     key_f: Callable[[TAny], str],
 ) -> Tuple[List[TAny], List[TAny]]:
-    """Extends the first list by the second, replacing whole groups of items sharing a key.
+    """Extends the first list with the second list. Each group of items with the same key
+    replaces the whole group with that key in the first list.
 
     Returns the merged list and the items that changed.
     """
@@ -660,7 +661,7 @@ def merge_keyed_groups(
     if not changed:
         return list(original_list), []
 
-    # a replaced group keeps the position of the one it supersedes, order carries meaning here
+    # a new group keeps the position of the group that it replaces. the order carries meaning here
     merged: List[TAny] = []
     placed: Set[str] = set()
     for item in original_list:

@@ -441,8 +441,8 @@ def test_lance_commit_job_retry_idempotency(
 def test_lance_joins_lancedb_across_destinations(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Lance and LanceDB both read `.lance` data through the same duckdb extension, so a query on
-    either one reaches the other by attaching it.
+    """Lance and LanceDB both read `.lance` data through the same duckdb extension. A query on
+    either destination attaches the other destination and accesses its data.
     """
     lance_pipeline = destination_config.setup_pipeline(
         pipeline_name="test_lance_joins_lancedb", dev_mode=True
@@ -462,7 +462,7 @@ def test_lance_joins_lancedb_across_destinations(
     lance_ds = lance_pipeline.dataset()
     lancedb_ds = lancedb_pipeline.dataset()
 
-    # lance reads the lancedb dataset by attaching it
+    # lance attaches the lancedb dataset and reads it
     joined = lance_ds.table("users").join(lancedb_ds.table("tags"), on="users.id = tags.id")
     assert joined._foreign_datasets[lancedb_ds.dataset_name].alias is not None
     df = joined.df()

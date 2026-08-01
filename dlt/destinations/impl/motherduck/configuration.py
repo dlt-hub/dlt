@@ -131,10 +131,10 @@ class MotherDuckClientConfiguration(
     )
 
     def physical_location(self) -> str:
-        """Returns the account, whose every database one query engine accesses. The token is the
-        only account identity there is, so it is digested."""
+        """Returns the account. One query engine accesses every database of that account. The
+        token is the only account identity, so this method digests it."""
         if not (token := self.fingerprint()):
-            self._no_physical_location("no MotherDuck access token is configured")
+            self._no_physical_location("dlt found no MotherDuck access token")
         return f"md://{token}"
 
     def fingerprint(self) -> str:
@@ -144,8 +144,8 @@ class MotherDuckClientConfiguration(
         return ""
 
     def _access_token(self) -> Optional[str]:
-        """Returns the token the connection will authenticate with, which `on_partial` accepts from
-        the environment as well as from the credentials."""
+        """Returns the token that the connection uses to authenticate. `on_partial` accepts this
+        token from the environment and from the credentials."""
         if self.credentials and self.credentials.password:
             return self.credentials.password
         return os.environ.get(MOTHERDUCK_DEFAULT_TOKEN_ENV) or os.environ.get(
@@ -153,15 +153,17 @@ class MotherDuckClientConfiguration(
         )
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:
-        """Returns False within one account, whose every database the query engine accesses."""
+        """Returns False within one account. The query engine accesses every database of that
+        account."""
         return not self.is_same_location(other)
 
     def attach_type(self) -> Optional[TAttachType]:
         return "motherduck"
 
     def can_attach(self, attach_type: TAttachType) -> bool:
-        """Returns True only for plain duckdb: a MotherDuck query engine cannot attach another
-        MotherDuck database, as the token must be set before the connection is opened."""
+        """Returns True only for plain duckdb. A MotherDuck query engine cannot attach another
+        MotherDuck database, because the client must set the token before it opens the
+        connection."""
         return attach_type == "duckdb"
 
 

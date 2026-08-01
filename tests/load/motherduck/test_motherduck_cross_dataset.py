@@ -29,7 +29,7 @@ def test_attach_join_motherduck_and_ducklake(
 
     ducklake = dlt.pipeline(
         "attach_lake_" + suffix,
-        # the lake gets its own catalog and storage: the default ones are shared between tests
+        # the lake receives its own catalog and storage, because all tests share the default ones
         destination=dlt.destinations.ducklake(
             credentials=DuckLakeCredentials(
                 catalog=f"sqlite:///{tmp_path / 'lake_catalog.sqlite'}",
@@ -52,11 +52,12 @@ def test_attach_join_motherduck_and_ducklake(
         .table("users")
         .join(foreign.dataset().table("purchases"), on="users.id = purchases.user_id")
     )
-    # attaching MotherDuck is its own mechanism; a DuckLake is a plain duckdb attach
+    # MotherDuck has its own attach mechanism. a DuckLake attaches as a plain duckdb database
     expected_attach_type = "duckdb" if motherduck_is_primary else "motherduck"
     assert [info["attach_type"] for info in joined._attach_infos()] == [expected_attach_type]
 
-    # the foreign dataset is attached and the join runs on the primary, no data is pulled here
+    # dlt attaches the foreign dataset and runs the join on the primary. this process reads no
+    # data here
     @dlt.resource(table_name="user_purchases")
     def joined_purchases() -> Any:
         yield dlt.mark.with_hints(joined, hints=make_hints(columns=joined.columns_schema))
@@ -64,7 +65,7 @@ def test_attach_join_motherduck_and_ducklake(
     primary.run(joined_purchases(), loader_file_format="model")
 
     df = primary.dataset().table("user_purchases").order_by("purchases__purchase_id").df()
-    # orphan user_id=99 dropped by INNER
+    # the INNER JOIN drops the orphan row user_id=99
     assert list(df["name"]) == ["Alice", "Alice", "Bob"]
     assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
 
@@ -77,7 +78,9 @@ def test_attach_join_motherduck_and_ducklake(
 def test_motherduck_foreign_dataset_needs_no_attach(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Datasets sharing a token are accessible without ATTACH: MotherDuck attaches the workspace."""
+    """Datasets that share a token are accessible without an attach, because MotherDuck attaches
+    the whole workspace.
+    """
     suffix = uniq_id()
     primary = destination_config.setup_pipeline(
         "attach_md_p_" + suffix, dataset_name="ds_md_p_" + suffix
@@ -95,7 +98,7 @@ def test_motherduck_foreign_dataset_needs_no_attach(
         .join(foreign_dataset.table("purchases"), on="users.id = purchases.user_id")
     )
     assert joined._attach_infos() == []
-    # both sides qualify with the real catalog, no attach alias is introduced
+    # both sides qualify with the real catalog and dlt introduces no attach alias
     sql = joined.to_sql()
     assert f'"{foreign_dataset.sql_client.dataset_name}"."purchases"' in sql
     assert "attach_" not in sql
@@ -112,24 +115,28 @@ def test_motherduck_foreign_dataset_needs_no_attach(
 def test_motherduck_rejects_foreign_motherduck_account(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Another MotherDuck account is inaccessible: its token cannot be set on a live connection."""
+    """dlt cannot access another MotherDuck account, because dlt cannot set its token on a live
+    connection.
+    """
     suffix = uniq_id()
     primary = destination_config.setup_pipeline(
         "attach_md_acct_" + suffix, dataset_name="ds_md_acct_" + suffix
     )
     primary.run(crm(0))
 
-    # a schema is passed so resolving the foreign dataset needs no connection
+    # the test passes a schema, so dlt resolves the foreign dataset without a connection
     other_account = dlt.dataset(
         dlt.destinations.motherduck(credentials="md:other_db?motherduck_token=NOT_OUR_TOKEN"),
         "ds_other_" + suffix,
         schema=primary.default_schema,
     )
-    # a MotherDuck connection cannot attach another account, and neither can the reverse
-    with pytest.raises(ValueError, match="cannot access data") as reject:
+    # a MotherDuck connection cannot attach another account, and that account cannot attach this
+    # connection
+    with pytest.raises(ValueError, match="cannot access the data") as reject:
         primary.dataset().table("users").join(
             other_account.table("products"), on="users.id = products.product_id"
         )
-    # the two accounts are named apart by their token digests, which no credentials display shows
+    # the token digests separate the two accounts. no display of the credentials shows these
+    # digests
     assert "Materialize" in str(reject.value)
     assert "NOT_OUR_TOKEN" not in str(reject.value)

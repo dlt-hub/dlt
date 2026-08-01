@@ -917,7 +917,7 @@ def test_changing_relation_with_query() -> None:
 def test_ibis_backend_gets_own_client(
     dataset: dlt.Dataset, monkeypatch: pytest.MonkeyPatch
 ) -> None:
-    """The ibis backend takes ownership of the client so each call must get a new one."""
+    """The ibis backend owns the client, so each call must get a new client."""
     shared_client = dataset.destination_client
 
     created: list[Any] = []
@@ -933,7 +933,7 @@ def test_ibis_backend_gets_own_client(
     dataset.ibis()
     backend = dataset.ibis()
 
-    # each backend built its own client and none of them is the dataset's shared one
+    # each backend built its own client, and none of them is the shared client of the dataset
     assert len(created) == 2
     assert all(client is not shared_client for client in created)
     assert "purchases" in backend.list_tables(database=dataset.dataset_name)

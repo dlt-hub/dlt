@@ -432,15 +432,15 @@ def _resolve_config_field(
                     embedded_config = default_value
             else:
                 embedded_config = inner_hint()
-            # a mapping holds only the fields the caller set, the remaining ones may still come from
-            # an initial value. NOTE: BaseConfiguration is a Mapping so instances must be excluded
+            # a mapping holds only the fields that the caller set. the other fields can come from an
+            # initial value. NOTE: BaseConfiguration is a Mapping, so this check excludes instances
             explicit_mapping = isinstance(explicit_value, C_Mapping) and not isinstance(
                 explicit_value, BaseConfiguration
             )
             if explicit_mapping:
                 foreign_keys = set(explicit_value) - set(embedded_config.get_resolvable_fields())
-                # an empty mapping, or one naming fields of another spec of an union, is not an
-                # explicit value for this config so the initial value is handled as it was before
+                # an empty mapping, or one that names fields of another spec in a union, is not an
+                # explicit value for this config. the code then handles the initial value as before
                 explicit_mapping = bool(explicit_value) and not foreign_keys
             # only config with sections may look for initial values
             # TODO: all this code can be moved into _resolve_configuration
@@ -469,8 +469,8 @@ def _resolve_config_field(
                         initial_traces,
                     )
                     if explicit_mapping:
-                        # initial value provides defaults for fields not set in the mapping. it may
-                        # hold credentials of another type, then it is ignored as it was before
+                        # the initial value provides defaults for fields that the mapping omits.
+                        # the code ignores an initial value with credentials of another type
                         with contextlib.suppress(InvalidNativeValue):
                             _maybe_parse_native_value(
                                 embedded_config, initial_value, embedded_sections

@@ -13,8 +13,8 @@ from dlt.destinations.sql_client import (
 
 class MotherDuckSqlClient(DuckDbSqlClient):
     attach_type: ClassVar[TAttachType] = "motherduck"
-    """Separate from `duckdb` because these statements set a token before the connection is
-    initialized and name a catalog alias, neither of which a MotherDuck connection accepts."""
+    """Separate from `duckdb` because these statements set a token before dlt initializes the
+    connection. They also name a catalog alias. A MotherDuck connection accepts neither."""
 
     def __init__(
         self,
@@ -29,15 +29,15 @@ class MotherDuckSqlClient(DuckDbSqlClient):
     def attach_statements(
         self, *, alias: str, tables: Optional[Collection[str]] = None
     ) -> List[TAttachStatement]:
-        # the whole database is attached, `tables` cannot narrow it
+        # the statements attach the whole database, so `tables` cannot narrow it
         q_alias = self.escape_column_name(alias)
         escape_literal = self.capabilities.escape_literal
         attach = f"ATTACH IF NOT EXISTS {escape_literal(f'md:{self.database_name}')} AS {q_alias}"
         token = cast(MotherDuckCredentials, self.credentials).password
         if token:
-            # `SET motherduck_token` does not exist until the extension is loaded, and the token
-            # must be set before ATTACH. LOAD autoinstalls, so no INSTALL is needed. Only the
-            # token line is secret
+            # `SET motherduck_token` does not exist until `LOAD` loads the extension, and the
+            # token must precede the attach statement. `LOAD` autoinstalls, so `INSTALL` is not
+            # necessary. only the token line is secret
             statements = [
                 attach_statement("LOAD motherduck"),
                 attach_statement(

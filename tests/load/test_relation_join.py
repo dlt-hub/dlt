@@ -40,7 +40,9 @@ def _skip_unsupported(destination_config: DestinationTestConfiguration) -> None:
 
 
 def _assert_users_purchases(relation: dlt.Relation) -> None:
-    """Asserts `crm.users` joined to `inventory.purchases`, orphan `user_id=99` dropped by INNER."""
+    """Makes sure that the join of `crm.users` to `inventory.purchases` is correct. The
+    `INNER JOIN` drops the orphan row `user_id=99`.
+    """
     df = relation.order_by("purchases__purchase_id").df()
     assert list(df["name"]) == ["Alice", "Alice", "Bob"]
     assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
@@ -286,10 +288,11 @@ def test_cross_dataset_explicit_join(
 def test_cross_destination_attach_join_hf(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Join a local duckdb primary with a Hugging Face dataset, reading it and materializing it.
+    """A local duckdb primary joins a Hugging Face dataset. The test reads the join and then
+    materializes it.
 
-    Attaching `hf://` requires a credential, so the lazy path also covers a secret that is
-    encrypted into the `.model` file and decrypted by the load job.
+    dlt must have a credential to attach `hf://`. Lazy materialization therefore also covers a
+    secret that dlt encrypts into the `.model` file and the load job decrypts.
     """
     suffix = uniq_id()
     primary = dlt.pipeline(
@@ -314,7 +317,8 @@ def test_cross_destination_attach_join_hf(
     assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
     _assert_users_purchases(joined)
 
-    # materialize into the primary; the load job re-attaches the hf dataset and its secret
+    # lazy materialization writes into the primary. the load job attaches the hf dataset and its
+    # secret again
     @dlt.resource(table_name="user_purchases")
     def joined_purchases() -> Any:
         yield dlt.mark.with_hints(joined, hints=make_hints(columns=joined.columns_schema))
