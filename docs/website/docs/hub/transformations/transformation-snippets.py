@@ -90,7 +90,7 @@ def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_END loading_to_other_datasets
 
     # @@@DLT_SNIPPET_START loading_to_other_datasets_other_engine
-    # Different engine (Postgres → DuckDB)
+    # different engine (DuckDB → Postgres)
     duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
     duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
     # @@@DLT_SNIPPET_END loading_to_other_datasets_other_engine
@@ -131,7 +131,7 @@ def multiple_transformation_instructions_snippet(
     # @@@DLT_SNIPPET_START multiple_transformation_instructions
     import dlt
 
-    # this (probably nonsensical) transformation will create a union of the customers and purchases tables
+    # this transformation creates a union of the customers and purchases tables
     @dlt.hub.transformation(write_disposition="append")
     def union_of_tables(dataset: dlt.Dataset) -> Any:
         yield dataset.table("purchases")
@@ -192,8 +192,8 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
         )
         yield enriched_purchases
 
-    # You can even use a different dialect than the one used by the destination by supplying the dialect parameter
-    # dlt will compile the query to the right destination dialect
+    # you can use a different dialect than the destination with the query_dialect parameter.
+    # dlt compiles the query to the right destination dialect
     @dlt.hub.transformation
     def enriched_purchases_postgres(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
@@ -246,7 +246,7 @@ def transformations_join_same_destination_snippet(tmp_path: Path) -> None:
     )
 
     # @@@DLT_SNIPPET_START transformations_join_same_destination
-    # pass two input datasets; the transformation joins across them
+    # pass two input datasets. the transformation joins across them
     @dlt.hub.transformation(table_name="user_orders")
     def user_orders(crm: dlt.Dataset, sales: dlt.Dataset) -> Any:
         yield crm["users"].join(sales["orders"], on="users.id = orders.user_id")
@@ -365,10 +365,10 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
         # Take first 5 rows
         yield sorted_customers.slice(0, 5)
 
-    # Example tables (replace with your actual data)
+    # the same join with dataframes
     @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
-        # get both fully tables as dataframes
+        # get both full tables as dataframes
         purchases = dataset.table("purchases").df()
         customers = dataset.table("customers").df()
 
@@ -422,7 +422,7 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
         )
         yield enriched_purchases
 
-    # Let's run the transformation and see that the name column in the NEW table is also marked as PII
+    # run the transformation. the name column in the new table is also marked as PII
     fruitshop_pipeline.run(enriched_purchases(fruitshop_pipeline.dataset()))
     assert (
         fruitshop_pipeline.dataset().schema.tables["enriched_purchases"]["columns"][
@@ -469,7 +469,7 @@ def in_transit_transformations_snippet() -> None:
     )
     transit_pipeline.run(source)
 
-    # load aggregated data to a warehouse destination
+    # define the aggregation transformation
     @dlt.hub.transformation
     def orders_per_store(dataset: dlt.Dataset) -> Any:
         orders = dataset.table("orders").to_ibis()
