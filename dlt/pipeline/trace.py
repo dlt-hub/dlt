@@ -35,7 +35,7 @@ from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 
-TRACE_ENGINE_VERSION = 1
+TRACE_ENGINE_VERSION = 2
 TRACE_FILE_NAME = "trace.pickle"
 
 

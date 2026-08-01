@@ -116,8 +116,11 @@ class TRequireSpec(TypedDict, total=False):
     """Workspace profile name to activate for this job."""
     provider: str
     """Infra provider identifier (e.g. `"modal"`). Runtime default when unset."""
+    instance: Dict[str, Any]
+    """Runner instance requirements, e.g. `{"size": "medium"}`. Consult the online
+    documentation for all supported instance configuration keys."""
     machine: str
-    """Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
+    """Deprecated: use `instance` instead. Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
     region: str
     """Runner region for placement (e.g. `"us-east-1"`, `"eu-west"`)."""
     timezone: str
@@ -340,6 +343,30 @@ class TJobDefinitionDeprecated(TypedDict, total=False):
     refresh: Annotated[TRefreshPolicy, Deprecated(maps_to="refresh_propagation")]
     allow_external_schedulers: Annotated[
         bool, Deprecated(maps_to="incremental_mode", convert=_bool_to_incremental_mode)
+    ]
+
+
+def _machine_to_instance(machine: str) -> Any:
+    return {"size": machine}
+
+
+class TRequireSpecDeprecated(TypedDict, total=False):
+    """Deprecated `require` fields and their replacements.
+
+    Consumed by `apply_deprecations` at the job decorators, module detectors, and
+    `migrate_job_definition`.
+    """
+
+    machine: Annotated[
+        str,
+        Deprecated(
+            maps_to="instance",
+            convert=_machine_to_instance,
+            message=(
+                "`require.machine` is deprecated, use `require.instance` instead"
+                " (e.g. `{'instance': {'size': 'medium'}}`)"
+            ),
+        ),
     ]
 
 

@@ -59,14 +59,14 @@ jobs:
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
-            uv_sync_args: '--resolution lowest-direct' # could also be 'direct'
+            uv_sync_args: '--resolution lowest-direct'
 
           # linux test with newest available allowed packages (will update lockfile, should not be committed if run locally)
           - label: linux-upgrade-3.11
             os: blacksmith-8vcpu-ubuntu-2404
             python-version: "3.11"
             shell: bash
-            uv_sync_args: '--upgrade' # could also be 'direct'
+            uv_sync_args: '--upgrade'
 
           # windows tests
           - label: windows-3.11
@@ -82,6 +82,10 @@ jobs:
       run:
         shell: ${{ matrix.platform.shell }}
     runs-on: ${{ matrix.platform.os }}
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
+      UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
 
     steps:
       - name: Check out
@@ -109,11 +113,10 @@ jobs:
           python-version: ${{ matrix.platform.python-version }}
           activate-environment: true
           enable-cache: true
+          cache-suffix: ${{ matrix.platform.label }}
 
       - name: Install dependencies
         run: make install-common-core
-        env:
-          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
         if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run common tests with minimum dependencies
@@ -128,8 +131,6 @@ jobs:
 
       - name: Install min dependencies to import core source
         run: make install-common-source
-        env:
-          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
         if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run min dependencies source tests
@@ -138,8 +139,6 @@ jobs:
 
       - name: Install duckdb dependencies
         run: make install-pipeline-min
-        env:
-          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
         if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run pipeline tests with minimum deps
@@ -158,8 +157,6 @@ jobs:
 
       - name: Install workspace dependencies
         run: make install-workspace
-        env:
-          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
         if: matrix.suite == 'common/pipeline-mindeps-workspace'
 
       - name: Run workspace tests
@@ -170,8 +167,6 @@ jobs:
 
       - name: Install pipeline and sources dependencies
         run: make install-pipeline-full
-        env:
-          UV_SYNC_ARGS: ${{ matrix.platform.uv_sync_args }}
         if: matrix.suite == 'pipeline-full' || matrix.suite == 'sqlalchemy-2'
 
       - name: Run extract and pipeline tests

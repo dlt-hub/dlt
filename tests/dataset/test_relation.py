@@ -908,3 +908,34 @@ def test_changing_relation_with_query() -> None:
 
     with pytest.raises(LineageFailedException):
         relation.select("hello", "hillo").to_sql()
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
+)
+def test_ibis_backend_gets_own_client(
+    dataset: dlt.Dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ibis backend owns the client, so each call must get a new client."""
+    shared_client = dataset.destination_client
+
+    created: list[Any] = []
+    original_create = dlt.Dataset._create_destination_client
+
+    def _counting_create(self: Any) -> Any:
+        client = original_create(self)
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(dlt.Dataset, "_create_destination_client", _counting_create)
+
+    dataset.ibis()
+    backend = dataset.ibis()
+
+    # each backend built its own client, and none of them is the shared client of the dataset
+    assert len(created) == 2
+    assert all(client is not shared_client for client in created)
+    assert "purchases" in backend.list_tables(database=dataset.dataset_name)
+    # the dataset keeps its own client usable
+    assert len(dataset.table("purchases").df()) == 3

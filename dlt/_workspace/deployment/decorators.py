@@ -1,6 +1,6 @@
 import inspect
 from functools import update_wrapper, wraps
-from typing import Any, Callable, List, Optional, Sequence, Type, Union, overload
+from typing import Any, Callable, List, Optional, Sequence, Type, Union, cast, overload
 
 from typing_extensions import TypeVar
 
@@ -8,7 +8,7 @@ from dlt.common.configuration import get_fun_spec, with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.pipeline import SupportsPipeline, TRefreshMode
 from dlt.common.reflection.inspect import iscoroutinefunction
-from dlt.common.typing import AnyFun, Generic, ParamSpec
+from dlt.common.typing import AnyFun, DictStrAny, Generic, ParamSpec
 from dlt.common.utils import get_callable_name, get_module_name
 from dlt.common.warnings import apply_deprecations
 
@@ -38,6 +38,7 @@ from dlt._workspace.deployment.typing import (
     TIntervalSpec,
     TJobDefinition,
     TJobDefinitionDeprecated,
+    TRequireSpecDeprecated,
     TJobExposeSpec,
     TJobRef,
     TJobType,
@@ -306,6 +307,16 @@ def _job(
     exec_spec.setdefault("concurrency", 1)
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
+    if require is not None:
+        require_spec: DictStrAny = dict(require)
+        apply_deprecations(
+            TRequireSpecDeprecated,
+            require_spec,
+            path="@job require",
+            since=WORKSPACE_DEPRECATED_SINCE,
+            stacklevel=4,
+        )
+        require = cast(TRequireSpec, require_spec)
     wrapper.require = require
     wrapper.deliver = deliver
     wrapper.interval = interval
@@ -405,8 +416,10 @@ def job(
             `manual` (`False` to disable manual triggering).
 
         require: Runtime resource requirements. Accepts `TRequireSpec` with:
-            `dependency_groups`, `profile` (workspace profile), `machine`
-            (machine spec), `region` (runner placement), `static_egress_ips`
+            `dependency_groups`, `profile` (workspace profile), `instance`
+            (runner instance requirements, e.g. `{"size": "medium"}`; consult
+            the online documentation for all supported keys),
+            `region` (runner placement), `static_egress_ips`
             (static outbound IPs for third-party allowlists).
 
         deliver: A `@dlt.source`, standalone `@dlt.resource`, or called source
@@ -518,7 +531,7 @@ def interactive(
             `tags`, `starred`, `manual`. The `interface` argument is merged
             into expose automatically.
         require: Runtime resource requirements. Accepts `TRequireSpec` with:
-            `dependency_groups`, `profile`, `machine`, `region`, `static_egress_ips`.
+            `dependency_groups`, `profile`, `instance`, `region`, `static_egress_ips`.
         spec: Optional configuration spec class.
 
     Returns:
@@ -588,7 +601,7 @@ def pipeline_run(
         expose: UI presentation (`TJobExposeSpec`): `tags`, `starred`, `manual`.
 
         require: Resource requirements (`TRequireSpec`): `dependency_groups`,
-            `profile`, `machine`, `region`, `static_egress_ips`.
+            `profile`, `instance`, `region`, `static_egress_ips`.
 
         interval: Overall time range for interval-based scheduling.
 

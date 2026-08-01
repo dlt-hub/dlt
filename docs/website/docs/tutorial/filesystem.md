@@ -191,7 +191,7 @@ python filesystem_pipeline.py
 You should see the output of the pipeline execution in the terminal. The output will also display the location of the DuckDB database file where the data is stored:
 
 ```sh
-Pipeline hospital_data_pipeline load step completed in 4.11 seconds
+Pipeline hospital_data_pipeline load step finished in 4.11 seconds
 1 load package(s) were loaded to destination duckdb and into dataset hospital_data
 The duckdb destination used duckdb:////Users/vmishechk/PycharmProjects/dlt/hospital_data_pipeline.duckdb location to store data
 Load package 1726074108.8017762 is LOADED and contains no failed jobs

@@ -58,7 +58,9 @@ def test_runnable_job_results() -> None:
     assert j.state() == "ready"
     j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "retry"
-    assert j.failed_message() == "Oh no!"
+    # failed_message is the full traceback, not just the exception message
+    assert "Oh no!" in j.failed_message()
+    assert "Traceback" in j.failed_message()
     assert isinstance(j.exception(), Exception)
     metrics_3 = j.metrics()
     assert metrics_3.state == "retry"
@@ -75,7 +77,9 @@ def test_runnable_job_results() -> None:
     assert j.state() == "ready"
     j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "failed"
-    assert j.failed_message() == "Oh no!"
+    # failed_message is the full traceback, not just the exception message
+    assert "Oh no!" in j.failed_message()
+    assert "Traceback" in j.failed_message()
     assert isinstance(j.exception(), Exception)
     metrics_4 = j.metrics()
     assert metrics_4.state == "failed"

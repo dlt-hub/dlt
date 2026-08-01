@@ -55,6 +55,7 @@ from dlt._workspace.deployment.typing import (
     TFreshnessConstraint,
     TJobDefinition,
     TJobDefinitionDeprecated,
+    TRequireSpecDeprecated,
     TJobRef,
     TTrigger,
     WORKSPACE_DEPRECATED_SINCE,
@@ -130,6 +131,15 @@ def migrate_job_definition(
             since=WORKSPACE_DEPRECATED_SINCE,
             warn=False,
         )
+        require = job_dict.get("require")
+        if require:
+            apply_deprecations(
+                TRequireSpecDeprecated,
+                require,
+                path="jobs require",
+                since=WORKSPACE_DEPRECATED_SINCE,
+                warn=False,
+            )
         from_engine = 2
 
     if from_engine != to_engine:
@@ -354,13 +364,18 @@ def validate_job_definition(
             " prevents refresh runs"
         )
 
-    declared_profile = (job_def.get("require") or {}).get("profile")
+    require = job_def.get("require") or {}
+    declared_profile = require.get("profile")
     if declared_profile is not None and is_local_profile(declared_profile):
         errors.append(
             f"job {ref!r}: require.profile {declared_profile!r} is a local-only profile"
             " and cannot be assumed by deployed jobs"
             f" (local-only profiles: {', '.join(sorted(LOCAL_PROFILES))})"
         )
+
+    instance = require.get("instance")
+    if instance is not None and not isinstance(instance, dict):
+        errors.append(f"job {ref!r}: require.instance must be an object")
 
     # dashboard job constraints
     if ref == DASHBOARD_JOB_REF:

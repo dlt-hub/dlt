@@ -900,3 +900,35 @@ and (max-height : 850px) {
 
 
 /* continue modal css :end */
+
+.plain-details details,
+.plain-details [class*="details_"] {
+  background: transparent !important;
+  border: none !important;
+  box-shadow: none !important;
+  margin: 0.25rem 0 1rem !important;
+}
+
+.plain-details [class*="collapsibleContent_"] {
+  border-top: none !important;
+}
+
+.plain-details summary::before {
+  border-color: transparent transparent transparent var(--ifm-color-primary) !important;
+}
+
+.harness-loop {
+  margin: 1.5rem 0 2rem;
+  text-align: center;
+}
+
+.harness-loop p {
+  margin: 0;
+}
+
+.harness-loop img {
+  width: 100%;
+  max-width: 1000px;
+  height: auto;
+  border-radius: 8px;
+}

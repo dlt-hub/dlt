@@ -67,10 +67,26 @@ def test_main_sets_active_host(monkeypatch: pytest.MonkeyPatch) -> None:
 
 def test_cli_cmd_formats_with_active_host() -> None:
     fmt.set_cli_host_name("dlthub")
-    assert fmt.cli_cmd("pipeline info") == "dlthub pipeline info"
+    # pipeline commands are mapped to the verb-first `local pipeline` form
+    assert fmt.cli_cmd("pipeline info") == "dlthub local pipeline info"
+    assert fmt.cli_cmd("pipeline my_pipe trace") == "dlthub local pipeline trace my_pipe"
+    assert (
+        fmt.cli_cmd("pipeline my_pipe load-package 123 row-counts")
+        == "dlthub local pipeline load-package my_pipe 123 row-counts"
+    )
+    assert fmt.cli_cmd("pipeline -v my_pipe info") == "dlthub local pipeline -v info my_pipe"
+    assert fmt.cli_cmd("pipeline my_pipe sync") == "dlthub local pipeline sync my_pipe"
+    # non-pipeline commands only swap the group word
+    assert fmt.cli_cmd("schema") == "dlthub local schema"
+    assert fmt.cli_cmd("init pokemon bigquery") == "dlthub pipeline init pokemon bigquery"
     assert fmt.cli_cmd() == "dlthub"
 
     fmt.set_cli_host_name("dlt")
+    # dlt host keeps the canonical OSS form
+    assert (
+        fmt.cli_cmd("pipeline my_pipe load-package 123 row-counts")
+        == "dlt pipeline my_pipe load-package 123 row-counts"
+    )
     assert fmt.cli_cmd("init") == "dlt init"
 
 

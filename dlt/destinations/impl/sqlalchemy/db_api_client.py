@@ -363,10 +363,16 @@ class SqlalchemyClient(SqlClientBase[Connection]):
         quote: bool = True,
         casefold: bool = True,
         dataset_name: Optional[str] = None,
+        catalog: Optional[str] = None,
     ) -> List[str]:
         path: List[str] = []
-        # no catalog for sqlalchemy
-        if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
+        if catalog is not None:
+            if self.dialect.requires_name_normalize and casefold:  # type: ignore[attr-defined]
+                catalog = str(self.dialect.normalize_name(catalog))  # type: ignore[func-returns-value]
+            if quote:
+                catalog = self.dialect.identifier_preparer.quote_identifier(catalog)  # type: ignore[attr-defined]
+            path.append(catalog)
+        elif catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
 
         effective_dataset = dataset_name or self.dataset_name

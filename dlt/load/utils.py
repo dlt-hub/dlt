@@ -1,8 +1,7 @@
 from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
-from itertools import groupby
 
 from dlt.common import logger
-from dlt.common.storages.load_package import LoadJobInfo, PackageStorage, TPackageJobState
+from dlt.common.storages.load_package import PackageStorage, TPackageJobState
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
     get_nested_tables,
@@ -13,6 +12,12 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import TTableSchema
 from dlt.common.destination.client import JobClientBase, WithStagingDataset, LoadJob
+from dlt.common.destination.exceptions import (
+    DestinationException,
+    DestinationSchemaTampered,
+    DestinationUndefinedEntity,
+    SchemaUpdateError,
+)
 from dlt.load.configuration import LoaderConfiguration
 from dlt.common.destination import DestinationCapabilitiesContext
 
@@ -219,12 +224,23 @@ def _init_dataset_and_update_schema(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
         f" {staging_text}"
     )
-    applied_update = job_client.update_stored_schema(
-        only_tables=update_tables,
-        expected_update=expected_update,
-        # force schema update if tables dropped or truncated via refresh
-        force=bool(drop_tables or initial_truncate_tables),
-    )
+    try:
+        applied_update = job_client.update_stored_schema(
+            only_tables=update_tables,
+            expected_update=expected_update,
+            # force schema update if tables dropped or truncated via refresh
+            force=bool(drop_tables or initial_truncate_tables),
+        )
+    except (DestinationSchemaTampered, DestinationUndefinedEntity):
+        # a tampered schema or a genuinely missing entity are terminal and must surface as-is
+        raise
+    except DestinationException as schema_ex:
+        raise SchemaUpdateError.from_cause(
+            job_client.schema.name,
+            update_tables,
+            schema_ex,
+            staging_dataset=staging_info,
+        ) from schema_ex
     if truncate_tables or initial_truncate_tables:
         if initial_truncate_tables:
             truncate_tables = initial_truncate_tables | (truncate_tables or set())

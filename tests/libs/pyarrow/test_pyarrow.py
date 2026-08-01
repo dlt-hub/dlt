@@ -1,3 +1,6 @@
+import base64
+import struct
+import time
 from datetime import timezone, datetime, date, timedelta  # noqa: I251
 from copy import deepcopy
 from typing import List, Any
@@ -198,6 +201,18 @@ def test_nested_type_serialization_deserialization():
     assert str(schema.field("nested_column").type) == str(
         roundtrip_schema.field("nested_column").type
     )
+
+
+def test_serialize_type_is_deterministic():
+    """The serialized nested type must be byte-stable so the schema version hash does not churn."""
+    nested_type = pa.struct([pa.field("a", pa.int64()), pa.field("b", pa.string())])
+    serialized = serialize_type(nested_type)
+    # advance the wall clock past a second boundary: bytes must not change (no timestamp embedded)
+    time.sleep(1.1)
+    assert serialized == serialize_type(nested_type)
+    # the gzip header MTIME must be 0 (no wall clock embedded), regardless of python version
+    payload = base64.b64decode(serialized[len("arrow-ipc:") :])
+    assert struct.unpack("<I", payload[4:8])[0] == 0
 
 
 def test_py_arrow_to_table_schema_columns_dict_in_struct():

@@ -240,6 +240,46 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
         assert_github_pipeline_end_state(pipeline, github_schema, 2)
 
 
+@skip_on_312
+def test_dataset_on_schema_stored_by_old_dlt(test_storage: FileStorage) -> None:
+    """`dlt.dataset` reads the stored schema straight from the destination, without any pipeline
+    state, so it must migrate it like every other stored schema load.
+    """
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
+        # 0.3.0 stores an engine 5 schema in the destination
+        with Venv.create(
+            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
+        ) as venv:
+            venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+            print(
+                venv.run_script(
+                    "../tests/pipeline/cases/github_pipeline/github_pipeline.py", "duckdb", "20"
+                )
+            )
+
+        duckdb_cfg = resolve_configuration(
+            DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
+            sections=("destination", "duckdb"),
+        )
+        dataset = dlt.dataset(duckdb(credentials=duckdb_cfg.credentials), GITHUB_DATASET)
+
+        issues = dataset.schema.tables["issues"]
+        # 9 -> 10 renamed the data type and derived row and parent keys from the old hints
+        assert issues["columns"]["assignee"]["data_type"] == "json"
+        assert issues["columns"]["_dlt_id"]["row_key"] is True
+        assignees = dataset.schema.tables["issues__assignees"]
+        assert assignees["columns"]["_dlt_parent_id"]["parent_key"] is True
+        assert "foreign_key" not in assignees["columns"]["_dlt_parent_id"]
+        # 10 -> 11 pins the legacy path separator behavior
+        assert dataset.schema._normalizers_config["use_break_path_on_normalize"] is False
+
+        assert len(dataset.issues.fetchall()) == 20
+
+
 @pytest.mark.parametrize(
     "initially_compressed", (True, False), ids=("initially_compressed", "initially_uncompressed")
 )

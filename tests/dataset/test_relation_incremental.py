@@ -65,6 +65,13 @@ def _where(relation: dlt.Relation) -> sge.Expression:
     return where_node.this
 
 
+def _from_source(query: sge.Expression) -> sge.Expression:
+    # sqlglot >= 28 renamed `from` to `from_` internally
+    from_expr = query.args.get("from_") or query.args.get("from")
+    assert isinstance(from_expr, sge.From), f"Expected FROM clause, got {from_expr!r}"
+    return from_expr.this
+
+
 def _column_name(expr: sge.Expression) -> str:
     assert isinstance(expr, sge.Column), f"Expected Column, got {expr!r}"
     return expr.args["this"].name
@@ -376,10 +383,10 @@ def test_incremental_aggregate_branches_on_cursor_qualifier(
     bare = dlt.sources.incremental("id", initial_value=0, end_value=END_VALUE_ID)
     bare_rel = incremental_dataset.table("events").incremental(bare)
     bare_agg = bare_rel._incremental_aggregate_relation().sqlglot_expression
-    bare_inner_subq = bare_agg.args["from_"].this
+    bare_inner_subq = _from_source(bare_agg)
     assert isinstance(bare_inner_subq, sge.Subquery)
     bare_inner_select = bare_inner_subq.this
-    bare_inner_from = bare_inner_select.args["from_"].this
+    bare_inner_from = _from_source(bare_inner_select)
     assert isinstance(
         bare_inner_from, sge.Subquery
     ), "Bare cursor: base query must be wrapped as a subquery"
@@ -391,10 +398,10 @@ def test_incremental_aggregate_branches_on_cursor_qualifier(
     )
     dotted_rel = incremental_dataset.table("events").incremental(dotted)
     dotted_agg = dotted_rel._incremental_aggregate_relation().sqlglot_expression
-    dotted_inner_subq = dotted_agg.args["from_"].this
+    dotted_inner_subq = _from_source(dotted_agg)
     assert isinstance(dotted_inner_subq, sge.Subquery)
     dotted_inner_select = dotted_inner_subq.this
-    dotted_inner_from = dotted_inner_select.args["from_"].this
+    dotted_inner_from = _from_source(dotted_inner_select)
     assert isinstance(
         dotted_inner_from, sge.Table
     ), "Qualified cursor: inline-projection path must keep the base table in FROM"

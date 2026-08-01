@@ -486,6 +486,11 @@ const sidebars = {
     },
     {
       type: "category",
+      label: "AI Harness",
+      items: ["hub/ai-harness/introduction", "hub/ai-harness/installation", "hub/ai-harness/toolkits"],
+    },
+    {
+      type: "category",
       label: "Ingestion",
       items: [
         "hub/ingestion/init",
