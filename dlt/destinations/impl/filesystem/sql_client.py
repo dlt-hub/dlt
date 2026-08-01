@@ -43,7 +43,6 @@ class FilesystemSqlClient(WithTableScanners):
         super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
-        self.iceberg_initialized = False
         if self.is_abfss:
             self._global_config["azure_transport_option_type"] = "curl"
             # TODO: we need to frontload the httpfs extension for abfss for some reason.
@@ -51,6 +50,9 @@ class FilesystemSqlClient(WithTableScanners):
             self.credentials.conn_pool.add_statements(
                 [ConnStatement("INSTALL httpfs; LOAD httpfs")]
             )
+        self.credentials.conn_pool.add_statements(
+            [ConnStatement(sql) for sql in self._iceberg_setup_statements()]
+        )
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
@@ -109,7 +111,8 @@ class FilesystemSqlClient(WithTableScanners):
                 f"The filesystem protocol `{config.protocol}` needs an fsspec registration."
                 " dlt cannot attach this protocol with SQL statements."
             )
-        return ["INSTALL httpfs; LOAD httpfs"] if self.is_abfss else []
+        statements = ["INSTALL httpfs; LOAD httpfs"] if self.is_abfss else []
+        return statements + self._iceberg_setup_statements()
 
     def _attach_secret_statements(self) -> List[str]:
         if self.remote_client.config.protocol == "file":
@@ -186,9 +189,11 @@ class FilesystemSqlClient(WithTableScanners):
             from_statement = f"delta_scan('{table_location}')"
         elif table_format == "iceberg":
             table_location = table_location.rstrip("/")
-            if not self.iceberg_initialized:
-                self._setup_iceberg(self._conn)
-                self.iceberg_initialized = True
+            if Version(duckdb.__version__) <= Version("1.1.2"):
+                raise NotImplementedError(
+                    f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
+                    " snapshot discovery. Please install duckdb >= 1.1.3"
+                )
 
             from dlt.common.libs.pyiceberg import get_last_metadata_file
 

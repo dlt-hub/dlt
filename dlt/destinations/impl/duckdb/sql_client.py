@@ -804,6 +804,11 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
     ) -> List[TAttachStatement]:
         q_alias = self.escape_column_name(alias)
         q_schema = self.escape_column_name(self.dataset_name)
+        # every view costs one list operation on the data location, so this method builds only
+        # the views that the query needs. the fresh attach catalog holds nothing, so no view
+        # already exists. describing a view is also what tells the scanner which extensions it
+        # needs, so this runs before `_attach_extension_statements`
+        pending_views = self._build_pending_views(self._table_views(tables), set())
         # extensions load first, then secrets, then the views that reference them by scope
         statements = [attach_statement(s) for s in self._attach_extension_statements()]
         statements += [
@@ -814,10 +819,7 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
         ]
         statements.append(attach_statement(f"ATTACH IF NOT EXISTS ':memory:' AS {q_alias}"))
         statements.append(attach_statement(f"CREATE SCHEMA IF NOT EXISTS {q_alias}.{q_schema}"))
-        # every view costs one list operation on the data location, so this method builds only
-        # the views that the query needs. the fresh attach catalog holds nothing, so no view
-        # already exists
-        for view_name, select_sql in self._build_pending_views(self._table_views(tables), set()):
+        for view_name, select_sql in pending_views:
             q_view = f"{q_alias}.{q_schema}.{self.escape_column_name(view_name)}"
             # the key is the view: data that grew since the last query redefines the view in place
             statements.append(
@@ -851,20 +853,16 @@ class WithTableScanners(DuckDbSqlClient, WithSchemas):
             yield cursor
 
     @staticmethod
-    def _setup_iceberg(conn: duckdb.DuckDBPyConnection) -> None:
-        if Version(duckdb.__version__) <= Version("1.1.2"):
-            raise NotImplementedError(
-                f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
-                " snapshot discovery. Please install duckdb >= 1.1.3"
-            )
-        # needed to make persistent secrets work in new connection
-        # https://github.com/duckdb/duckdb_iceberg/issues/83
-        conn.execute("FROM duckdb_secrets()")
+    def _iceberg_setup_statements() -> List[str]:
+        """Database-scoped SQL that prepares a connection to read iceberg tables."""
+        statements = []
 
-        # `duckdb_iceberg` extension does not support autoloading
-        # https://github.com/duckdb/duckdb_iceberg/issues/71
-        if Version(duckdb.__version__) < Version("1.2.0"):
-            conn.execute("INSTALL Iceberg FROM core_nightly; LOAD iceberg")
+        # reading the secret table once makes a persistent secret visible to `iceberg_scan`.
+        # https://github.com/duckdb/duckdb_iceberg/issues/83 is fixed upstream, but old duckdb
+        # still carries the bug and the statement costs well under a millisecond
+        if Version(duckdb.__version__) < Version("1.4.2"):
+            statements.append("FROM duckdb_secrets()")
+        return statements
 
     def __del__(self) -> None:
         if self.memory_db:
