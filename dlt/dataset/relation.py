@@ -108,20 +108,20 @@ _FILTER_OP_MAP = {
 TJoinType = Literal["left", "right", "inner", "full"]
 
 
-def _location_display(dataset: "dlt.Dataset", config: DestinationClientConfiguration) -> str:
+def _location_display(config: DestinationClientConfiguration) -> str:
+    """Identifies the data location of `config`, falling back to what it displays as."""
     try:
-        where = config.physical_location() or str(config)
+        return config.physical_location() or str(config)
     except ValueError:
-        where = str(config)
-    return f"dataset '{dataset.dataset_name}' on '{where}'"
+        return str(config)
 
 
 class _ForeignDataset(NamedTuple):
-    """A dataset joined into a relation from outside its own, and how it is reached."""
+    """A dataset joined into a relation from outside its own, and how its data is accessed."""
 
     dataset: "dlt.Dataset"
     alias: Optional[str]
-    """ATTACH catalog alias, `None` when the dataset is reachable without an attach."""
+    """ATTACH catalog alias, `None` when the data is accessible without an attach."""
     attach_type: Optional[TAttachType] = None
     """Engine needed to replay attach info. `None` when `alias` is."""
     attach_tables: Optional[FrozenSet[str]] = None
@@ -569,10 +569,11 @@ class Relation(WithSqlClient):
         return rel
 
     def _resolve_foreign_dataset(self, foreign_dataset: "dlt.Dataset") -> _ForeignDataset:
-        """Tells how this relation reaches `foreign_dataset`, attaching it when out of reach.
+        """Tells how this relation accesses the data of `foreign_dataset`, attaching it when the
+        query engine cannot access it directly.
 
         Raises:
-            ValueError: When the dataset can only be reached by an attach that is not possible.
+            ValueError: When the data is only accessible by an attach that is not possible.
         """
         primary_config = self._dataset.destination_client.config
         foreign_config = foreign_dataset.destination_client.config
@@ -580,24 +581,27 @@ class Relation(WithSqlClient):
             primary_name = self._dataset._destination.destination_name
             foreign_name = foreign_dataset._destination.destination_name
             if foreign_config.can_read_from(primary_config):
-                # only this reason has a remedy other than materializing: reach is one-way, so
+                # only this reason has a remedy other than materializing: access is one-way, so
                 # the same two datasets join when the query runs on the other one
                 remedy = (
-                    f" `{foreign_name}` reaches `{primary_name}` the other way round, so run the"
+                    f" `{foreign_name}` can join `{primary_name}` so run the"
                     f" query on dataset '{foreign_dataset.dataset_name}' and join this one into it."
                 )
             else:
-                remedy = " Materialize the dataset you want to join into a reachable destination."
+                remedy = (
+                    " Materialize the dataset you want to join into an accessible data location."
+                )
             raise ValueError(
-                f"A query on dataset '{self._dataset.dataset_name}' cannot reach dataset"
-                f" '{foreign_dataset.dataset_name}': one `{primary_name}` connection does not reach"
-                f" both {_location_display(self._dataset, primary_config)} and"
-                f" {_location_display(foreign_dataset, foreign_config)}.{remedy}"
+                f"Cannot join dataset '{self._dataset.dataset_name}' with dataset"
+                f" '{foreign_dataset.dataset_name}': query engine of destination `{primary_name}`"
+                f" at data location '{_location_display(primary_config)}' cannot access data of"
+                f" destination `{foreign_name}` at data location"
+                f" '{_location_display(foreign_config)}'.{remedy}"
             )
 
-        # a dataset already in reach needs no statements. a configuration that does not answer
-        # defaults to attaching, which always works, so a destination predating the mixin keeps
-        # being attached rather than silently queried through a catalog nobody attached
+        # data the query engine already accesses needs no statements. a configuration that does
+        # not answer defaults to attaching, which always works, so a destination predating the
+        # mixin keeps being attached rather than silently queried through a catalog nobody attached
         needs_attach = (
             primary_config.needs_attach(foreign_config)
             if isinstance(primary_config, WithAttachableEngine)
@@ -625,7 +629,7 @@ class Relation(WithSqlClient):
             this_config = primary_dataset.destination_client.config
             target_config = foreign_dataset.destination_client.config
 
-            # reachability is decided in `_resolve_foreign_dataset`, which this guard precedes:
+            # data access is decided in `_resolve_foreign_dataset`, which this guard precedes:
             # foreignness is keyed on the dataset name, so same-named datasets never get there
             if primary_dataset.dataset_name == foreign_dataset.dataset_name and not (
                 this_config.is_same_location(target_config)
@@ -1150,7 +1154,7 @@ class Relation(WithSqlClient):
         bindings: Dict[str, IdentifiersBinding] = {self._dataset.dataset_name: default_binding}
         for ds_name, fds in self._foreign_datasets.items():
             # bind with the foreign client so paths and casefolding follow that destination.
-            # an attached dataset is reached under its catalog alias, not by schema alone
+            # an attached dataset is accessed under its catalog alias, not by schema alone
             client = fds.dataset.sql_client
             bindings[ds_name] = _binding(client, (fds.alias, client.dataset_name))
         return bindings, default_binding

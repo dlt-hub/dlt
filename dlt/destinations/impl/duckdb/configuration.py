@@ -414,14 +414,14 @@ class DuckDbClientConfiguration(
         self.create_indexes = create_indexes
 
     def physical_location(self) -> str:
-        """Returns the database file path, or the marker of a database living inside a connection
-        followed by that connection's identity."""
+        """Returns the database file path, or the marker of a database living inside a query
+        engine followed by that engine's identity."""
         if not self.credentials or not self.credentials.database:
             self._no_physical_location("no database is configured")
         database = self.credentials.database
         if database not in NON_ATTACHABLE_LOCATIONS:
             return database
-        # the marker names no database, so the connection holding it is the only identity there is.
+        # the marker identifies no database, so the query engine holding it is the only identity.
         # comparing markers alone would make any two in-memory databases look like one
         conn = getattr(self.credentials, "_external_conn", None)
         if conn is None and self.credentials.conn_pool:
@@ -431,12 +431,12 @@ class DuckDbClientConfiguration(
         return f"{database}{hex(id(conn))}"
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:
-        """Returns False for a database this connection already opened, every schema of which it
-        reaches."""
+        """Returns False for a database this query engine already opened, whose every schema it
+        accesses."""
         return not self.is_same_location(other)
 
     def attach_type(self) -> Optional[TAttachType]:
-        """Returns None for a database that lives inside a connection: no path to attach."""
+        """Returns None for a database that lives inside a query engine: no path to attach."""
         if self.credentials and self.credentials.database in NON_ATTACHABLE_LOCATIONS:
             return None
         return super().attach_type()

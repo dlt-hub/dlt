@@ -159,7 +159,9 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
         """Returns the Qdrant connection location, or the path a local instance persists to."""
         if location := (self.qd_location or self.qd_path):
             return location
-        self._no_physical_location("neither `qd_location` nor `qd_path` is configured")
+        # with neither, qdrant runs in memory, so the client holding it is its only identity
+        client = getattr(self.credentials, "_external_client", None) or self.credentials
+        return f":memory:{hex(id(client))}"
 
     # TODO: qdrant supports cross collection (and cross instance) writes via point streaming
     # (scroll -> upsert, see `qdrant_client.migrate`). this is not SQL so it requires a

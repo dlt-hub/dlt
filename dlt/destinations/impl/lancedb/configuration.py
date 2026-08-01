@@ -208,7 +208,7 @@ class LanceDBClientConfiguration(
         if not self.lance_uri:
             self._no_physical_location("no `lance_uri` is configured")
         if self.lance_uri == ":external:":
-            # the marker names no database, so the client holding it is the only identity there is.
+            # the marker identifies no database, so the client holding it is the only identity.
             # `on_resolved` sets the marker when credentials are the client, the credentials spec
             # when it wraps one in `_conn`
             client = getattr(self.credentials, "_conn", None) or self.credentials

@@ -52,14 +52,14 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     the catalog and dlt deletes the table files itself."""
 
     NON_ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("gs", "gcs", "memory")
-    """Protocols reachable only through fsspec registration, so not expressible as SQL statements."""
+    """Protocols accessible only through fsspec registration, so not expressible as SQL."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
 
     def attach_type(self) -> Optional[TAttachType]:
-        """Returns None for a protocol a foreign DuckDB engine cannot reach with SQL statements."""
+        """Returns None for a protocol a foreign DuckDB engine cannot access with SQL."""
         if self.protocol in self.NON_ATTACHABLE_PROTOCOLS:
             return None
         return super().attach_type()

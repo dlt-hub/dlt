@@ -176,8 +176,8 @@ class DestinationClientConfiguration(BaseConfiguration):
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
     def physical_location(self) -> Optional[str]:
-        """Returns location of data that connection to this destination is able to read using
-        supplied credentials.
+        """Returns data location that the query engine of this destination is able to access
+        using supplied credentials.
 
         Physical location must be as wide as possible - on many destinations this describes
         all data that can be joinded together. For destinations that can federate or attach
@@ -185,8 +185,8 @@ class DestinationClientConfiguration(BaseConfiguration):
         (currently only duckb)
 
         Returns:
-            Optional[str]: `None` when the destination names no place at all, ie. a reverse ETL
-                sink. Such a destination cannot be queried, so it is never in reach of anything.
+            Optional[str]: `None` when the destination has no data location, ie. a reverse ETL
+                sink. It has no query engine either, so it can access no data at all.
 
         Raises:
             ConfigurationValueError: When the location cannot be computed from this configuration.
@@ -194,11 +194,11 @@ class DestinationClientConfiguration(BaseConfiguration):
         return None
 
     def _no_physical_location(self, reason: str) -> NoReturn:
-        """Raises for a location that cannot be computed, rather than returning a blank one that
-        would compare equal to the next blank one."""
+        """Raises for a data location that cannot be computed, rather than returning a blank one
+        that would compare equal to the next blank one."""
         raise ConfigurationValueError(
             f"Physical location of destination `{self.destination_type}` cannot be determined:"
-            f" {reason}. A resolved configuration always names the place its queries reach."
+            f" {reason}. A resolved configuration always identifies the data location it accesses."
         )
 
     # TODO: If we ever clean up fingerprinting across all destinations, consider making
@@ -217,7 +217,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         """
         if self.destination_type != other.destination_type:
             return False
-        # a destination naming no place shares it with nothing, not even another such destination
+        # a destination without a data location shares none, not even with another such one
         location = self.physical_location()
         return location is not None and location == other.physical_location()
 
@@ -273,15 +273,15 @@ class WithAttachableEngine:
 
     def can_attach(self, attach_type: "TAttachType") -> bool:
         """Tells if this destination's engine can execute `attach_type` statements."""
-        # a duckdb connection runs plain attaches and the motherduck handshake alike
+        # a duckdb query engine runs plain attaches and the motherduck handshake alike
         return attach_type in ("duckdb", "motherduck")
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:
-        """Tells if `other` must be attached, or one connection here already reaches it."""
+        """Tells if `other` must be attached, or this query engine already accesses its data."""
         return True
 
     def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True when `other` is already in reach, or can be attached into it."""
+        """Returns True when this query engine already accesses `other`, or can attach it."""
         if super().can_read_from(other):  # type: ignore[misc]
             return True
         attach_type = other.attach_type() if isinstance(other, WithAttachableEngine) else None

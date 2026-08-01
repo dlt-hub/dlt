@@ -402,20 +402,20 @@ class WithSchemas(ABC):
 
 
 class WithAttach(ABC):
-    """Mixin for SQL clients that can attach foreign datasets into their connection."""
+    """Mixin for SQL clients that can attach foreign datasets into their query engine."""
 
     attach_type: ClassVar[TAttachType]
-    """What the statements this client emits require of the connection running them. The
+    """What the statements this client emits require of the query engine running them. The
     configuration answers whether a destination may be attached at all, see `attach_type` there."""
 
     @abstractmethod
     def attach_statements(
         self, *, alias: str, tables: Optional[Collection[str]] = None
     ) -> List[TAttachStatement]:
-        """Statements that attach this client's dataset into a foreign primary connection.
+        """Statements that attach this client's dataset into a foreign primary query engine.
 
         Args:
-            alias: Catalog name the dataset is reached under after attaching.
+            alias: Catalog name the dataset is accessed under after attaching.
             tables: dlt table names the query needs, letting clients that materialize tables
                 one by one skip the rest. `None` covers the whole dataset.
         """

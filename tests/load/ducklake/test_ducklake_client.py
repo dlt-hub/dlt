@@ -12,6 +12,7 @@ from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DuckLakeClientConfiguration,
     DEFAULT_DUCKLAKE_NAME,
+    _get_ducklake_capabilities,
 )
 
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
@@ -352,8 +353,6 @@ def test_ducklake_override_data_path_config() -> None:
     )
     assert configuration.override_data_path is True
 
-    from dlt.destinations.impl.ducklake.configuration import _get_ducklake_capabilities
-
     sql_client = DuckLakeSqlClient(
         dataset_name="foo",
         staging_dataset_name="foo_staging",
@@ -365,8 +364,6 @@ def test_ducklake_override_data_path_config() -> None:
 
 
 def test_ducklake_get_attach() -> None:
-    from dlt.destinations.impl.ducklake.configuration import _get_ducklake_capabilities
-
     configuration = resolve_configuration(
         DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="foo")
     )

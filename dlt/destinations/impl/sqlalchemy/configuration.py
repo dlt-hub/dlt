@@ -313,7 +313,8 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         return ""
 
     def physical_location(self) -> str:
-        """Returns the server location, narrowed to what the dialect lets one connection reach."""
+        """Returns the server location, narrowed to the data one query engine accesses, which the
+        dialect decides."""
         backend = self.get_backend_name()
         if not backend or not self.credentials:
             self._no_physical_location("no connection string is configured")
@@ -326,18 +327,18 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                 managed = self.credentials._ensure_managed_engine()
                 handle = managed._engine if managed._engine is not None else managed
                 return f"{backend}://:memory:{hex(id(handle))}"
-            self._no_physical_location("the connection string names no host or database")
+            self._no_physical_location("the connection string identifies no host or database")
         location = f"{backend}://{server_location}"
 
         if backend == "sqlite":
-            # every dataset is a separate database file and a connection attaches only its own
+            # every dataset is a separate database file and a query engine attaches only its own
             return f"{location}#{self.dataset_name}"
         if backend in ("mysql", "mssql", "duckdb"):
-            # database is schema-like here, so a connection queries across the server's databases.
+            # database is schema-like here, so a query engine reads across the server's databases.
             # a duckdb file is the whole location already, appending its database repeats the path
             return location
-        # remaining dialects (postgresql, oracle, db2, unknown) bind a connection to a single
+        # remaining dialects (postgresql, oracle, db2, unknown) bind a query engine to a single
         # database: oracle needs db links and db2 needs federation to query across databases
         if not (database := self.credentials.database):
-            self._no_physical_location(f"the `{backend}` connection string names no database")
+            self._no_physical_location(f"the `{backend}` connection string identifies no database")
         return f"{location}/{database}"

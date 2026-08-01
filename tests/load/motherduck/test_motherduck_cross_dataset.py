@@ -1,9 +1,3 @@
-"""Cross-dataset joins between MotherDuck and a DuckLake, executed on the destination.
-
-A MotherDuck connection attaches everything but another MotherDuck database locally, so a local
-DuckLake is read by the client and its rows are shipped to MotherDuck as the query runs.
-"""
-
 from pathlib import Path
 from typing import Any
 
@@ -83,7 +77,7 @@ def test_attach_join_motherduck_and_ducklake(
 def test_motherduck_foreign_dataset_needs_no_attach(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Datasets sharing a token are reachable without ATTACH: MotherDuck attaches the workspace."""
+    """Datasets sharing a token are accessible without ATTACH: MotherDuck attaches the workspace."""
     suffix = uniq_id()
     primary = destination_config.setup_pipeline(
         "attach_md_p_" + suffix, dataset_name="ds_md_p_" + suffix
@@ -118,7 +112,7 @@ def test_motherduck_foreign_dataset_needs_no_attach(
 def test_motherduck_rejects_foreign_motherduck_account(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Another MotherDuck account is unreachable: its token cannot be set on a live connection."""
+    """Another MotherDuck account is inaccessible: its token cannot be set on a live connection."""
     suffix = uniq_id()
     primary = destination_config.setup_pipeline(
         "attach_md_acct_" + suffix, dataset_name="ds_md_acct_" + suffix
@@ -132,7 +126,7 @@ def test_motherduck_rejects_foreign_motherduck_account(
         schema=primary.default_schema,
     )
     # a MotherDuck connection cannot attach another account, and neither can the reverse
-    with pytest.raises(ValueError, match="cannot reach dataset") as reject:
+    with pytest.raises(ValueError, match="cannot access data") as reject:
         primary.dataset().table("users").join(
             other_account.table("products"), on="users.id = products.product_id"
         )

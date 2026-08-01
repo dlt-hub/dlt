@@ -16,6 +16,7 @@ from dlt.dataset._join import (
     _to_join_ref,
 )
 from dlt.dataset.relation import TJoinType
+from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient, WithTableScanners
 from tests.dataset.utils import TCrossDs3Fixture, TCrossDsFixture, TLoadsFixture
 
 
@@ -248,7 +249,7 @@ def test_join_across_different_physical_destinations_attaches(
         rel = dataset.table("users")
         other_rel = other_dataset.table("other_data")
 
-        # duckdb ATTACH makes the foreign database reachable under a prefixed catalog
+        # duckdb ATTACH makes the foreign database accessible under a prefixed catalog
         joined = rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
         assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
         assert f"attach_{other_dataset.sql_client.dataset_name}" in joined.to_sql()
@@ -257,10 +258,10 @@ def test_join_across_different_physical_destinations_attaches(
         # instance, so the foreign config keeps its ability and the reverse direction still works
         primary_config = dataset.destination_client.config
         monkeypatch.setattr(primary_config, "can_attach", lambda attach_type: False)
-        with pytest.raises(ValueError, match="cannot reach dataset") as reject:
+        with pytest.raises(ValueError, match="cannot access data") as reject:
             rel.join(other_rel, on="users._dlt_id = other_data._dlt_id")
-        # reach is one-way here, so the message offers the swap instead of materializing
-        assert "the other way round" in str(reject.value)
+        # access is one-way here, so the message offers the swap instead of materializing
+        assert "can join" in str(reject.value)
         assert f"run the query on dataset '{other_dataset.dataset_name}'" in str(reject.value)
         # both locations are named, which a bare credentials display could not tell apart
         assert primary_config.physical_location() in str(reject.value)
@@ -336,23 +337,23 @@ def test_join_rejects_cross_dataset_on_unsupported_destination(
 
         ds_a = pipeline_a.dataset()
         ds_b = pipeline_b.dataset()
-        # one database file, yet each dataset lives in its own attached file, so a connection
-        # reaches only the dataset it opened
+        # one database file, yet each dataset lives in its own attached file, so a query engine
+        # accesses only the dataset it opened
         assert ds_a.destination_client.config.physical_location() != (
             ds_b.destination_client.config.physical_location()
         )
 
-        # sqlite attaches only its own dataset file, so the other one is out of reach and there
+        # sqlite attaches only its own dataset file, so the other one is inaccessible and there
         # is no direction that works: materializing is the only remedy
-        with pytest.raises(ValueError, match="cannot reach dataset") as reject:
+        with pytest.raises(ValueError, match="cannot access data") as reject:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
         assert "Materialize" in str(reject.value)
-        assert "the other way round" not in str(reject.value)
+        assert "can join" not in str(reject.value)
 
 
 def test_join_cross_dataset_on_filesystem_attaches() -> None:
-    """Two datasets in one bucket are each materialized into their own engine, so the query
-    reaches the second one by attaching it."""
+    """Two datasets in one bucket are each materialized into their own query engine, so the query
+    accesses the second one by attaching it."""
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         bucket_url = FilesystemConfiguration.make_file_url(str(tmp_path / "data"))
@@ -372,7 +373,7 @@ def test_join_cross_dataset_on_filesystem_attaches() -> None:
         sales.run([{"id": 10, "user_id": 1}], table_name="orders", loader_file_format="parquet")
 
         ds_crm, ds_sales = crm.dataset(), sales.dataset()
-        # one bucket, so the datasets are co-located yet each needs its own attach
+        # one bucket, so both datasets share a data location yet each needs its own attach
         assert ds_crm.destination_client.config.physical_location() == (
             ds_sales.destination_client.config.physical_location()
         )
@@ -2460,8 +2461,6 @@ def test_magic_join_after_foreign_base_table_resolves_local_target() -> None:
 
 def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) -> None:
     """Attach statements and destination clients are built lazily and only once."""
-    from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
-
     with tempfile.TemporaryDirectory() as tmp:
         tmp_path = pathlib.Path(tmp)
         crm = dlt.pipeline(
@@ -2541,46 +2540,8 @@ def test_attach_info_built_once_per_relation(monkeypatch: pytest.MonkeyPatch) ->
         assert built_aliases == ["attach_sales_data", "attach_support_data"]
 
 
-def test_registering_foreign_dataset_drops_its_memo() -> None:
-    """Adding a foreign dataset invalidates what was memoized under its name."""
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = pathlib.Path(tmp)
-        crm = dlt.pipeline(
-            pipeline_name="attach_memo_crm",
-            pipelines_dir=str(tmp_path / "pipelines_dir"),
-            destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
-            dataset_name="crm_data",
-        )
-        crm.run([{"id": 1}], table_name="users")
-        sales = dlt.pipeline(
-            pipeline_name="attach_memo_sales",
-            pipelines_dir=str(tmp_path / "pipelines_dir"),
-            destination=dlt.destinations.duckdb(str(tmp_path / "sales.duckdb")),
-            dataset_name="sales_data",
-        )
-        sales.run([{"id": 10, "user_id": 1}], table_name="orders")
-
-        joined = (
-            crm.dataset()
-            .table("users")
-            .join(sales.dataset().table("orders"), on="users.id = orders.user_id")
-        )
-        # the alias is resolved on registration, the descriptor only on first use
-        assert joined._foreign_datasets["sales_data"].alias == "attach_sales_data"
-        assert joined._foreign_datasets["sales_data"].attach_info is None
-        assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
-        assert joined._foreign_datasets["sales_data"].attach_info is not None
-
-        # the descriptor describes the dataset resolved under that name, so it must not survive it
-        joined._foreign_datasets["sales_data"] = joined._resolve_foreign_dataset(sales.dataset())
-        assert joined._foreign_datasets["sales_data"].attach_info is None
-        assert [info["alias"] for info in joined._attach_infos()] == ["attach_sales_data"]
-
-
 def test_attach_covers_tables_added_by_a_chained_join(monkeypatch: pytest.MonkeyPatch) -> None:
     """A relation chained off a join reads a second foreign table, so the attach must grow."""
-    from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
-
     asked_for: list[Any] = []
     original_attach_statements = WithTableScanners.attach_statements
 

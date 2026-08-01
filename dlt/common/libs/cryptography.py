@@ -29,11 +29,8 @@ def generate_secret() -> str:
 
 
 def derive_encryption_key(secret: str, purpose: str) -> str:
-    """Derives a url-safe Fernet key from `secret` for `purpose` via HKDF-SHA256.
+    """Derives a url-safe Fernet key from `secret` for `purpose` via HKDF-SHA256."""
 
-    Distinct `purpose` values yield independent keys from the same secret. `secret` must be
-    high-entropy (HKDF does not stretch weak inputs).
-    """
     try:
         from cryptography.hazmat.primitives.kdf.hkdf import HKDF
         from cryptography.hazmat.primitives import hashes

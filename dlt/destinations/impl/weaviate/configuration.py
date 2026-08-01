@@ -77,7 +77,7 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
         """Returns the host part of the connection URL."""
         hostname = urlparse(self.credentials.url).hostname if self.credentials else None
         if not hostname:
-            self._no_physical_location("the connection URL names no host")
+            self._no_physical_location("the connection URL identifies no host")
         return hostname
 
     def can_read_from(self, other: DestinationClientConfiguration) -> bool:

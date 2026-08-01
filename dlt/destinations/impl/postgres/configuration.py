@@ -57,7 +57,7 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         return ""
 
     def physical_location(self) -> str:
-        """Returns host:port and the database a connection is bound to."""
+        """Returns host:port and the database a query engine is bound to."""
         if not self.credentials or not self.credentials.host:
             self._no_physical_location("no host is configured")
         if not self.credentials.database:

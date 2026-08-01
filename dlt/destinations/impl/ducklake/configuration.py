@@ -193,7 +193,7 @@ class DuckLakeClientConfiguration(
         return location
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:
-        """Returns False within one lake, every schema of which the connection already reaches."""
+        """Returns False within one lake, whose every schema the query engine already accesses."""
         return not self.is_same_location(other)
 
     def on_resolved(self) -> None:

@@ -228,13 +228,20 @@ def test_external_engine_database_not_relocated() -> None:
     # a sqlite connection attaches only its own dataset file, so the dataset is part of the reach
     assert c.physical_location() == f"sqlite://{os.path.abspath('relative_data.db')}#test_dataset"
 
-    # in-memory external engine has no physical identity
+    # an in-memory engine names no file, so it is identified by the engine holding the database
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
             credentials=SqlalchemyCredentials(sa.create_engine("sqlite:///:memory:"))
         )._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.physical_location() == ""
+    assert c.physical_location().startswith("sqlite://:memory:")
+    # and two of them are never taken for the same database
+    other = resolve_configuration(
+        SqlalchemyClientConfiguration(
+            credentials=SqlalchemyCredentials(sa.create_engine("sqlite:///:memory:"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    assert c.physical_location() != other.physical_location()
 
 
 def test_engine_kwargs_forwarded_to_credentials() -> None:

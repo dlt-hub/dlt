@@ -253,9 +253,9 @@ def test_base_can_read_from_default_true_when_same_physical_location() -> None:
     assert_joinable(config1, config2)
 
 
-def test_destination_naming_no_location_is_in_reach_of_nothing() -> None:
-    """`None` is not a place, so it never matches - not even another `None`. That is what keeps a
-    sink out of reach without every such destination having to override `can_read_from`."""
+def test_destination_without_data_location_accesses_no_data() -> None:
+    """`None` is not a data location, so it never matches - not even another `None`. That is what
+    keeps a sink inaccessible without every such destination overriding `can_read_from`."""
     sink = DummyClientConfiguration()
     assert sink.physical_location() is None
     assert sink.can_read_from(DummyClientConfiguration()) is False
@@ -508,7 +508,7 @@ NO_LOCATION_DEST_CASES = [
 
 @pytest.mark.parametrize("factory", NO_LOCATION_DEST_CASES)
 def test_physical_location_raises_when_not_configured(factory: ConfigFactory) -> None:
-    with pytest.raises(ConfigurationValueError):
+    with pytest.raises(ConfigurationValueError, match="cannot be determined"):
         factory().physical_location()
 
 
@@ -678,7 +678,7 @@ DUCKDB_JOIN_CASES = [
         id="duckdb_same_path",
     ),
     pytest.param(
-        # another database file is reachable by attaching it
+        # another database file is accessible by attaching it
         lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db1.duckdb")),
         lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb")),
         True,
@@ -839,7 +839,7 @@ ATHENA_JOIN_CASES = [
         True,
         id="athena_catalog_case_insensitive",
     ),
-    # same catalog with region unspecified on both sides: treated as co-located
+    # same catalog with region unspecified on both sides: treated as one data location
     pytest.param(
         lambda: AthenaClientConfiguration(
             credentials=AwsCredentials(),
@@ -1002,14 +1002,14 @@ def test_motherduck_different_tokens_are_not_proven_joinable() -> None:
     assert_not_joinable(c1, c2)
 
 
-def test_motherduck_without_token_names_no_account() -> None:
+def test_motherduck_without_token_identifies_no_account() -> None:
     """The token is the account identity, so without one there is nothing to compare - and nothing
     to connect with either, which makes it a configuration error rather than a failed join."""
     with_token = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
     )
     without_token = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db"))
-    with pytest.raises(ConfigurationValueError):
+    with pytest.raises(ConfigurationValueError, match="no MotherDuck access token"):
         without_token.physical_location()
     with pytest.raises(ConfigurationValueError):
         with_token.can_read_from(without_token)
@@ -1223,7 +1223,7 @@ def test_lance_physical_location(factory: ConfigFactory, expected: str) -> None:
     ],
 )
 def test_lance_physical_location_raises_when_not_configured(factory: ConfigFactory) -> None:
-    with pytest.raises(ConfigurationValueError):
+    with pytest.raises(ConfigurationValueError, match="cannot be determined"):
         factory().physical_location()
 
 
@@ -1269,7 +1269,7 @@ def test_qdrant_physical_location_but_not_joinable() -> None:
 
 
 def test_physical_location_never_carries_secrets() -> None:
-    """The location is compared in the clear, so a secret identity must reach it digested."""
+    """The location is compared in the clear, so a secret identity must arrive digested."""
     token = "sup3rsecret-token"
     md = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials(f"md:///my_db?token={token}")
@@ -1285,8 +1285,8 @@ def test_physical_location_never_carries_secrets() -> None:
     assert password not in lake.physical_location()
 
 
-def test_physical_location_tells_reachable_apart() -> None:
-    """Two configs share a location when one connection reaches both."""
+def test_physical_location_tells_data_locations_apart() -> None:
+    """Two configs share a data location when one query engine accesses both."""
     # a MotherDuck token grants the whole account
     same_token = MotherDuckCredentials("md:///db_a?token=T"), MotherDuckCredentials(
         "md:///db_b?token=T"
@@ -1308,7 +1308,7 @@ def test_physical_location_tells_reachable_apart() -> None:
     assert lake.physical_location() == same.physical_location()
     assert lake.physical_location() != other_schema.physical_location()
 
-    # a destination with no SQL engine keeps a location to display, but reaches nothing with it
+    # a destination with no query engine keeps a location to display, but accesses nothing
     qdrant = QdrantClientConfiguration(qd_location="https://q")
     assert qdrant.physical_location() == "https://q"
     assert not qdrant.can_read_from(QdrantClientConfiguration(qd_location="https://q"))
@@ -1321,12 +1321,12 @@ def test_physical_location_tells_reachable_apart() -> None:
 
 def test_can_read_from_is_asymmetric() -> None:
     """`assert_join_result` asserts both directions, so the asymmetry needs its own test: an
-    attachable dataset is in reach of a non-attachable one, never the other way round."""
+    attachable dataset is accessible to a non-attachable one, never the other way round."""
     root = active().local_dir
     attachable = FilesystemDestinationClientConfiguration(
         bucket_url=os.path.join(root, "bucket")
     )._bind_dataset_name("ds")
-    # gs is reachable only through fsspec registration, so no engine can attach it
+    # gs is accessible only through fsspec registration, so no query engine can attach it
     not_attachable = FilesystemDestinationClientConfiguration(
         bucket_url="gs://bucket/path"
     )._bind_dataset_name("ds")
@@ -1337,18 +1337,15 @@ def test_can_read_from_is_asymmetric() -> None:
     assert not attachable.can_read_from(not_attachable)
 
 
-# needs_attach() - decides whether an ATTACH is emitted, so it must agree with co-location
-
-
-def test_needs_attach_agrees_with_co_location() -> None:
-    """One connection reaches every schema of the database it opened, and nothing else."""
+def test_needs_attach_agrees_with_is_same_location() -> None:
+    """One query engine accesses every schema of the database it opened, and nothing else."""
     one = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
     same = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
     other = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb"))
     assert one.needs_attach(same) is False
     assert one.needs_attach(other) is True
-    # an in-memory database is only ever reached through the connection holding it, so that
-    # connection is its identity - dlt rejects `:memory:` as a credential string for this reason
+    # an in-memory database is only ever accessed through the query engine holding it, so that
+    # engine is its identity - dlt rejects `:memory:` as a credential string for this reason
     conn = duckdb.connect()
     try:
         in_memory = DuckDbClientConfiguration(credentials=DuckDbCredentials(conn))
@@ -1376,9 +1373,9 @@ def test_needs_attach_agrees_with_co_location() -> None:
 
 
 def test_needs_attach_across_destination_types() -> None:
-    """Two destination types may name the same path and still be different engines, so a location
-    match across types must not be read as "already in reach" - that would emit no ATTACH and
-    query a catalog nobody attached.
+    """Two destination types may identify the same path and still be different query engines, so
+    a location match across types must not be read as "already accessible" - that would emit no
+    ATTACH and query a catalog nobody attached.
     """
     shared = os.path.abspath("shared_location")
     duck = DuckDbClientConfiguration(credentials=DuckDbCredentials(shared))._bind_dataset_name("a")
@@ -1386,7 +1383,7 @@ def test_needs_attach_across_destination_types() -> None:
     bucket = FilesystemDestinationClientConfiguration(bucket_url=shared)._bind_dataset_name("b")
 
     assert duck.physical_location() == bucket.physical_location()
-    # reachable only by attaching the bucket's scanner views, never directly
+    # accessible only by attaching the bucket's scanner views, never directly
     assert duck.can_read_from(bucket)
     assert duck.needs_attach(bucket) is True
 
