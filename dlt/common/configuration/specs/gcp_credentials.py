@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import sys
 from typing import Any, ClassVar, Final, List, Tuple, Union, Dict, Optional
 
@@ -23,9 +24,25 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.utils import is_interactive
 
-
 # GCS scope required for OAuth2 token requests
 GCS_SCOPE = "https://www.googleapis.com/auth/devstorage.read_write"
+
+
+def _maybe_read_credentials_file(native_value: str) -> str:
+    """Return file contents if ``native_value`` is a path to an existing file.
+
+    Lets users point ``credentials`` at a service-account / oauth json *file*
+    instead of pasting the json itself. Anything that is not an existing file
+    path (json content included) is returned unchanged.
+    """
+    try:
+        if os.path.isfile(native_value):
+            with open(native_value, encoding="utf-8") as f:
+                return f.read()
+    except (OSError, ValueError):
+        # value too long for a path, contains null bytes, etc. -> not a file
+        pass
+    return native_value
 
 
 def _get_pyiceberg_fileio_config(credentials: Any, project_id: Optional[str]) -> Dict[str, Any]:
@@ -134,10 +151,20 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergC
         if service_dict is None:
             # check if type is str
             GcpCredentials.parse_native_representation(self, native_value)
+            # allow a path to a credentials file in place of the json itself
+            native_value = _maybe_read_credentials_file(native_value)
             # if not instance of service account credentials then check type and try to parse native value
             try:
                 service_dict = json.loads(native_value)
             except Exception:
+                raise InvalidGoogleServicesJson(self.__class__, native_value)
+            # reject oauth client secrets / user info so a credentials union can
+            # fall through to GcpOAuthCredentials instead of mis-parsing here (#3328)
+            if (
+                not isinstance(service_dict, dict)
+                or bool(service_dict.keys() & {"client_secret", "installed", "web"})
+                or service_dict.get("type") == "authorized_user"
+            ):
                 raise InvalidGoogleServicesJson(self.__class__, native_value)
 
         self._from_info_dict(service_dict)
@@ -203,6 +230,8 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
         if oauth_dict is None:
             # check if type is str
             GcpCredentials.parse_native_representation(self, native_value)
+            # allow a path to a credentials file in place of the json itself
+            native_value = _maybe_read_credentials_file(native_value)
             # if not instance of oauth2 credentials try to parse native value
             try:
                 oauth_dict = json.loads(native_value)
@@ -210,6 +239,12 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
                 if len(oauth_dict) == 1:
                     oauth_dict = next(iter(oauth_dict.values()))
             except Exception:
+                raise InvalidGoogleOauth2Json(self.__class__, native_value)
+            # reject service account json so a credentials union can fall through
+            # to GcpServiceAccountCredentials instead of mis-parsing here (#3328)
+            if isinstance(oauth_dict, dict) and (
+                oauth_dict.get("type") == "service_account" or "private_key" in oauth_dict
+            ):
                 raise InvalidGoogleOauth2Json(self.__class__, native_value)
         self._from_info_dict(oauth_dict)
 
