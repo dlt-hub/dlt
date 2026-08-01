@@ -265,18 +265,18 @@ def test_connection_string_str_repr() -> None:
         "sqlite-no-database",
     ],
 )
-def test_connection_string_physical_location(connection_string: str, expected: str) -> None:
+def test_connection_string_data_location(connection_string: str, expected: str) -> None:
     """A scope names the engine and address, never credentials or connect options"""
-    location = ConnectionStringCredentials(connection_string).physical_location()
+    location = ConnectionStringCredentials(connection_string).data_location()
     assert location == expected
     assert "pass" not in location and "loader" not in location
 
 
-def test_connection_string_physical_location_ignores_credentials() -> None:
+def test_connection_string_data_location_ignores_credentials() -> None:
     """The same database read by two users is reported with the same scope"""
     loader = ConnectionStringCredentials("postgresql://loader:a@example.com:5432/dlt_data")
     admin = ConnectionStringCredentials("postgresql://admin:b@example.com:5432/dlt_data")
-    assert loader.physical_location() == admin.physical_location()
+    assert loader.data_location() == admin.data_location()
 
 
 def test_gcp_service_credentials_native_representation(environment) -> None:

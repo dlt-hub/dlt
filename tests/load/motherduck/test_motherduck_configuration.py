@@ -44,15 +44,15 @@ def test_motherduck_fingerprint(connection_string: str, expected_fingerprint: st
     assert config.fingerprint() == expected_fingerprint
 
 
-def test_motherduck_physical_location_digests_the_token() -> None:
+def test_motherduck_data_location_digests_the_token() -> None:
     """The token is the only account identity, so the location carries a digest of the token."""
     config = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:///dlt_data?token=TOKEN")
     )
 
     assert config.fingerprint() == digest128("TOKEN")
-    assert config.physical_location() == f"md://{digest128('TOKEN')}"
-    assert "TOKEN" not in config.physical_location()
+    assert config.data_location() == f"md://{digest128('TOKEN')}"
+    assert "TOKEN" not in config.data_location()
 
 
 def test_motherduck_attach_statements() -> None:

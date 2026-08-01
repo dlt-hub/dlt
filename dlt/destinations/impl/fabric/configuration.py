@@ -167,10 +167,10 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     Both have UTF-8 encoding. LongAsMax=yes is automatically configured.
     """
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns host:port."""
         if not self.credentials or not self.credentials.host:
-            self._no_physical_location("the configuration has no host")
+            self._no_data_location("the configuration has no host")
         port = self.credentials.port or 1433
         return f"{self.credentials.host}:{port}"
 
@@ -178,7 +178,7 @@ class FabricClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         """Returns a fingerprint of the physical Fabric location."""
         # a fingerprint can say "cannot compute", where a location raises instead
         try:
-            return digest128(self.physical_location())
+            return digest128(self.data_location())
         except ConfigurationValueError:
             return ""
 

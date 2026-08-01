@@ -130,11 +130,11 @@ class MotherDuckClientConfiguration(
         False  # should unique indexes be created, this slows loading down massively
     )
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the account. One query engine accesses every database of that account. The
         token is the only account identity, so this method digests it."""
         if not (token := self.fingerprint()):
-            self._no_physical_location("dlt found no MotherDuck access token")
+            self._no_data_location("dlt found no MotherDuck access token")
         return f"md://{token}"
 
     def fingerprint(self) -> str:

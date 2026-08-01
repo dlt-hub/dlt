@@ -272,7 +272,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             ).startswith("md:"):
                 if self.credentials.is_external_engine:
                     # external engines are never rebuilt from credentials: keep the engine's
-                    # database so physical_location() reports the file actually written to
+                    # database so data_location() reports the file actually written to
                     if db and not os.path.isabs(db):
                         self.credentials.database = os.path.abspath(db)
                 elif not db or not os.path.isabs(db):
@@ -312,12 +312,12 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             return digest128(server_location)
         return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the server location. The dialect narrows this location to the data that one
         query engine accesses."""
         backend = self.get_backend_name()
         if not backend or not self.credentials:
-            self._no_physical_location("the configuration has no connection string")
+            self._no_data_location("the configuration has no connection string")
         server_location = self._server_location()
         if not server_location:
             if SqlalchemyCredentials.is_memory_database(
@@ -327,7 +327,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                 managed = self.credentials._ensure_managed_engine()
                 handle = managed._engine if managed._engine is not None else managed
                 return f"{backend}://:memory:{hex(id(handle))}"
-            self._no_physical_location("the connection string identifies no host or database")
+            self._no_data_location("the connection string identifies no host or database")
         location = f"{backend}://{server_location}"
 
         if backend == "sqlite":
@@ -340,5 +340,5 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
         # remaining dialects (postgresql, oracle, db2, unknown) bind a query engine to a single
         # database: oracle needs db links and db2 needs federation to query across databases
         if not (database := self.credentials.database):
-            self._no_physical_location(f"the `{backend}` connection string identifies no database")
+            self._no_data_location(f"the `{backend}` connection string identifies no database")
         return f"{location}/{database}"

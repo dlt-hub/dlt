@@ -56,11 +56,11 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return digest128(self.credentials.host)
         return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns host:port and the database to which a query engine binds."""
         if not self.credentials or not self.credentials.host:
-            self._no_physical_location("the configuration has no host")
+            self._no_data_location("the configuration has no host")
         if not self.credentials.database:
-            self._no_physical_location("the configuration has no database")
+            self._no_data_location("the configuration has no database")
         port = self.credentials.port or self.DEFAULT_PORT
         return f"{self.credentials.host}:{port}/{self.credentials.database}"

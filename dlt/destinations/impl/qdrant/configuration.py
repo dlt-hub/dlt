@@ -155,7 +155,7 @@ class QdrantClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguratio
             return digest128(self.qd_location)
         return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the Qdrant connection location, or the path where a local instance stores its
         data."""
         if location := (self.qd_location or self.qd_path):

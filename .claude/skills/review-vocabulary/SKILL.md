@@ -74,7 +74,7 @@ under 20 words, one instruction per sentence. **Never delete a remedy. Never inv
 the message has none — a remedy needs facts the string does not interpolate.
 
 **Count the assembled sentence, not the fragment.** Some messages are built by a helper that wraps
-a short reason in a frame — `_no_physical_location(reason)` in
+a short reason in a frame — `_no_data_location(reason)` in
 `dlt/common/destination/client.py` is the current example. Read the helper first, then judge each
 reason as the clause it becomes inside the finished sentence. A four-word reason can push the
 assembled sentence past 20 words.
@@ -156,7 +156,7 @@ Two rules apply across every group:
 | Never | Because |
 |---|---|
 | reach, reaches, reachable, in reach of, out of reach, get to | one word for one concept — `access` |
-| physical location, physical destination, physical dataset (in prose) | say **data location**; the method `physical_location()` keeps its name |
+| physical location, physical destination, physical dataset (in prose) | say **data location**; the method `data_location()` keeps its name |
 
 **Rulings**
 

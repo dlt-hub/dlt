@@ -40,7 +40,7 @@ def test_ducklake_fingerprint(
     assert config.fingerprint() == expected_fingerprint
 
 
-def test_ducklake_fingerprint_uses_storage_not_physical_location() -> None:
+def test_ducklake_fingerprint_uses_storage_not_data_location() -> None:
     config = DuckLakeClientConfiguration(
         credentials=DuckLakeCredentials(
             "my_ducklake",
@@ -49,6 +49,6 @@ def test_ducklake_fingerprint_uses_storage_not_physical_location() -> None:
         )
     )
 
-    assert config.physical_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
+    assert config.data_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
     assert config.fingerprint() == digest128("s3://dlt-ci-test-bucket")
-    assert config.fingerprint() != digest128(config.physical_location())
+    assert config.fingerprint() != digest128(config.data_location())

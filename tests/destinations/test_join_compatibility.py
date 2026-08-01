@@ -101,13 +101,13 @@ ExpectedLocation: TypeAlias = Union[str, Callable[[], str]]
 
 
 class _PhysicalDestinationConfig(DestinationClientConfiguration):
-    def __init__(self, physical_location: str = "", display_value: Optional[str] = None) -> None:
+    def __init__(self, data_location: str = "", display_value: Optional[str] = None) -> None:
         super().__init__()
-        self._physical_location = physical_location
+        self._data_location = data_location
         self._display_value = display_value
 
-    def physical_location(self) -> str:
-        return self._physical_location
+    def data_location(self) -> str:
+        return self._data_location
 
     def __str__(self) -> str:
         if self._display_value is not None:
@@ -241,13 +241,13 @@ def _lance_multi_base_config(
     return c
 
 
-def test_base_can_read_from_default_false_when_physical_locations_differ() -> None:
+def test_base_can_read_from_default_false_when_data_locations_differ() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host2")
     assert_not_joinable(config1, config2)
 
 
-def test_base_can_read_from_default_true_when_same_physical_location() -> None:
+def test_base_can_read_from_default_true_when_same_data_location() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host1")
     assert_joinable(config1, config2)
@@ -257,13 +257,13 @@ def test_destination_without_data_location_accesses_no_data() -> None:
     """`None` is not a data location, so it never matches. Not even another `None` matches.
     A sink is inaccessible for this reason, and no such destination overrides `can_read_from`."""
     sink = DummyClientConfiguration()
-    assert sink.physical_location() is None
+    assert sink.data_location() is None
     assert sink.can_read_from(DummyClientConfiguration()) is False
     assert sink.can_read_from(sink) is False
     assert sink.can_write_from(sink) is False
 
     custom = CustomDestinationClientConfiguration()
-    assert custom.physical_location() is None
+    assert custom.data_location() is None
     assert custom.can_read_from(CustomDestinationClientConfiguration()) is False
     assert not sink.can_read_from(_PhysicalDestinationConfig("host1"))
 
@@ -286,7 +286,7 @@ def test_is_same_location_ignores_the_credentials_display() -> None:
     assert not config1.is_same_location(_PhysicalDestinationConfig("host2"))
 
 
-# physical_location() extraction across destinations
+# data_location() extraction across destinations
 
 PHYSICAL_DEST_CASES = [
     # Postgres: host:port format
@@ -474,10 +474,10 @@ PHYSICAL_DEST_CASES = [
 
 
 @pytest.mark.parametrize("factory,expected", PHYSICAL_DEST_CASES)
-def test_physical_location(factory: ConfigFactory, expected: ExpectedLocation) -> None:
+def test_data_location(factory: ConfigFactory, expected: ExpectedLocation) -> None:
     if callable(expected):
         expected = expected()
-    assert factory().physical_location() == expected
+    assert factory().data_location() == expected
 
 
 # a config that cannot name its location raises an error. It does not report a blank
@@ -508,9 +508,9 @@ NO_LOCATION_DEST_CASES = [
 
 
 @pytest.mark.parametrize("factory", NO_LOCATION_DEST_CASES)
-def test_physical_location_raises_when_not_configured(factory: ConfigFactory) -> None:
+def test_data_location_raises_when_not_configured(factory: ConfigFactory) -> None:
     with pytest.raises(ConfigurationValueError, match="cannot determine the data location"):
-        factory().physical_location()
+        factory().data_location()
 
 
 # can_read_from() matrices (symmetric)
@@ -921,16 +921,16 @@ def test_can_read_from_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bo
 def test_cross_type_rejection(f1: ConfigFactory, f2: ConfigFactory) -> None:
     c1, c2 = f1(), f2()
     if isinstance(c2, _PhysicalDestinationConfig):
-        c2._physical_location = c1.physical_location()
+        c2._data_location = c1.data_location()
     assert_not_joinable(c1, c2)
 
 
-def test_cross_type_different_physical_locations() -> None:
+def test_cross_type_different_data_locations() -> None:
     sf = SnowflakeClientConfiguration(
         credentials=SnowflakeCredentials("snowflake://u:p@a1.snowflake.com/db")
     )
     bq = BigQueryClientConfiguration(location="US")
-    assert sf.physical_location() != bq.physical_location()
+    assert sf.data_location() != bq.data_location()
     assert_not_joinable(sf, bq)
 
 
@@ -1001,13 +1001,13 @@ def test_filesystem_cannot_read_from_non_filesystem() -> None:
     assert_not_joinable(c, other)
 
 
-def test_motherduck_token_not_exposed_as_physical_location() -> None:
+def test_motherduck_token_not_exposed_as_data_location() -> None:
     """The token is the only account identity there is, so the location carries its digest."""
     md = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
     )
-    assert md.physical_location() == f"md://{md.fingerprint()}"
-    assert "token" not in md.physical_location()
+    assert md.data_location() == f"md://{md.fingerprint()}"
+    assert "token" not in md.data_location()
 
 
 def test_motherduck_can_read_from_same_token_without_exposing_location() -> None:
@@ -1041,7 +1041,7 @@ def test_motherduck_without_token_identifies_no_account() -> None:
     )
     without_token = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db"))
     with pytest.raises(ConfigurationValueError, match="no MotherDuck access token"):
-        without_token.physical_location()
+        without_token.data_location()
     with pytest.raises(ConfigurationValueError):
         with_token.can_read_from(without_token)
     with pytest.raises(ConfigurationValueError):
@@ -1242,8 +1242,8 @@ def test_lance_can_read_from(f1: ConfigFactory, f2: ConfigFactory, expected: boo
         ),
     ],
 )
-def test_lance_physical_location(factory: ConfigFactory, expected: str) -> None:
-    assert factory().physical_location() == expected
+def test_lance_data_location(factory: ConfigFactory, expected: str) -> None:
+    assert factory().data_location() == expected
 
 
 @pytest.mark.parametrize(
@@ -1253,9 +1253,9 @@ def test_lance_physical_location(factory: ConfigFactory, expected: str) -> None:
         pytest.param(lambda: LanceClientConfiguration(), id="empty"),
     ],
 )
-def test_lance_physical_location_raises_when_not_configured(factory: ConfigFactory) -> None:
+def test_lance_data_location_raises_when_not_configured(factory: ConfigFactory) -> None:
     with pytest.raises(ConfigurationValueError, match="cannot determine the data location"):
-        factory().physical_location()
+        factory().data_location()
 
 
 def test_lance_can_never_write() -> None:
@@ -1277,57 +1277,57 @@ def test_lance_and_lancedb_can_join_with_each_other() -> None:
     assert_joinable(lance, lancedb)
 
 
-def test_weaviate_physical_location_but_not_joinable() -> None:
+def test_weaviate_data_location_but_not_joinable() -> None:
     c1 = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(url="https://cluster.weaviate.cloud")
     )
     c2 = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(url="https://cluster.weaviate.cloud")
     )
-    assert c1.physical_location() == "cluster.weaviate.cloud"
+    assert c1.data_location() == "cluster.weaviate.cloud"
     assert_not_joinable(c1, c2)
 
 
-def test_qdrant_physical_location_but_not_joinable() -> None:
+def test_qdrant_data_location_but_not_joinable() -> None:
     c1 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
     c2 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
-    assert c1.physical_location() == "https://cluster.qdrant.io"
+    assert c1.data_location() == "https://cluster.qdrant.io"
     assert_not_joinable(c1, c2)
     assert not c1.can_write_from(c2)
 
 
-# physical_location() - `can_read_from` derives its answer from this key
+# data_location() - `can_read_from` derives its answer from this key
 
 
-def test_physical_location_never_carries_secrets() -> None:
+def test_data_location_never_carries_secrets() -> None:
     """dlt compares the location in the clear, so a secret identity must arrive as a digest."""
     token = "sup3rsecret-token"
     md = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials(f"md:///my_db?token={token}")
     )
-    assert md.physical_location()
-    assert token not in md.physical_location()
+    assert md.data_location()
+    assert token not in md.data_location()
 
     password = "sup3rsecret-password"
     lake = DuckLakeClientConfiguration(
         credentials=_ducklake_creds(f"postgres://u:{password}@h:5432/db", "lake")
     )
-    assert lake.physical_location()
-    assert password not in lake.physical_location()
+    assert lake.data_location()
+    assert password not in lake.data_location()
 
 
-def test_physical_location_tells_data_locations_apart() -> None:
+def test_data_location_tells_data_locations_apart() -> None:
     """Two configs share a data location when one query engine accesses both."""
     # one MotherDuck token accesses the whole account
     same_token = MotherDuckCredentials("md:///db_a?token=T"), MotherDuckCredentials(
         "md:///db_b?token=T"
     )
     a, b = (MotherDuckClientConfiguration(credentials=c) for c in same_token)
-    assert a.physical_location() == b.physical_location()
+    assert a.data_location() == b.data_location()
     other = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:///db_a?token=OTHER")
     )
-    assert a.physical_location() != other.physical_location()
+    assert a.data_location() != other.data_location()
 
     # one ducklake is one metadata schema inside one catalog
     catalog = "postgres://u:p@h:5432/db"
@@ -1336,15 +1336,15 @@ def test_physical_location_tells_data_locations_apart() -> None:
     other_schema = DuckLakeClientConfiguration(
         credentials=_ducklake_creds(catalog, "lake", metadata_schema="other")
     )
-    assert lake.physical_location() == same.physical_location()
-    assert lake.physical_location() != other_schema.physical_location()
+    assert lake.data_location() == same.data_location()
+    assert lake.data_location() != other_schema.data_location()
 
     # a destination with no query engine keeps a location to display, but accesses nothing
     qdrant = QdrantClientConfiguration(qd_location="https://q")
-    assert qdrant.physical_location() == "https://q"
+    assert qdrant.data_location() == "https://q"
     assert not qdrant.can_read_from(QdrantClientConfiguration(qd_location="https://q"))
     weaviate = WeaviateClientConfiguration(credentials=WeaviateCredentials(url="https://w"))
-    assert weaviate.physical_location() == "w"
+    assert weaviate.data_location() == "w"
     assert not weaviate.can_read_from(
         WeaviateClientConfiguration(credentials=WeaviateCredentials(url="https://w"))
     )
@@ -1413,13 +1413,13 @@ def test_needs_attach_across_destination_types() -> None:
     # a duckdb database and a local bucket are both bare absolute paths
     bucket = FilesystemDestinationClientConfiguration(bucket_url=shared)._bind_dataset_name("b")
 
-    assert duck.physical_location() == bucket.physical_location()
+    assert duck.data_location() == bucket.data_location()
     # duckdb accesses the scanner views of the bucket only through an attach, never directly
     assert duck.can_read_from(bucket)
     assert duck.needs_attach(bucket) is True
 
 
-def test_physical_location_is_never_blank() -> None:
+def test_data_location_is_never_blank() -> None:
     """dlt compares a location for equality, so a blank one reads as "these two are the same
     place". Every config either names its place or refuses to guess.
     """
@@ -1431,7 +1431,7 @@ def test_physical_location_is_never_blank() -> None:
 
     for factory in factories:
         try:
-            location = factory().physical_location()
+            location = factory().data_location()
         except ConfigurationValueError:
             continue
         # `None` says "no place at all", which never matches. An empty location matches

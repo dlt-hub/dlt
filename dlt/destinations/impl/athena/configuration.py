@@ -62,7 +62,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     def _is_s3_tables_catalog(self) -> bool:
         return is_s3_tables_catalog(self.aws_data_catalog)
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns region/catalog, or just the catalog when region is unavailable."""
         # athena catalog names are case-insensitive, AWS docs spell the default `AwsDataCatalog`
         catalog = (self.aws_data_catalog or DEFAULT_AWS_DATA_CATALOG).lower()
@@ -78,7 +78,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
         """Returns a fingerprint of the physical Athena location."""
         # a fingerprint can say "cannot compute", where a location raises instead
         try:
-            return digest128(self.physical_location())
+            return digest128(self.data_location())
         except ConfigurationValueError:
             return ""
 

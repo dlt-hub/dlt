@@ -102,7 +102,7 @@ def test_ducklake_configuration_default() -> None:
     # file url
     assert credentials.storage.bucket_url.startswith("file://")
     expected_loc = f"sqlite://{local_dir / 'ducklake.sqlite'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
@@ -121,7 +121,7 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
     expected_loc = f"duckdb://{local_dir / 'ducklake.duckdb'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
@@ -139,7 +139,7 @@ def test_ducklake_configuration_ducklake_name() -> None:
     assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "my_ducklake.files")
     expected_loc = f"sqlite://{local_dir / 'my_ducklake.sqlite'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_destination_name() -> None:
@@ -157,7 +157,7 @@ def test_ducklake_configuration_destination_name() -> None:
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "ducklake.files")
     expected_loc = f"sqlite://{local_dir / 'ducklake.sqlite'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
@@ -202,7 +202,7 @@ def test_ducklake_configuration_storage_credentials() -> None:
     )
     # NOTE: dataset folders will be created in /lake/
     assert credentials.storage_url == "s3://dlt-ci-test-bucket/lake"
-    assert configuration.physical_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
+    assert configuration.data_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
 
 
 def test_ducklake_configuration_catalog_credentials() -> None:
@@ -384,7 +384,7 @@ def test_ducklake_get_attach() -> None:
     # secret
     assert attach_statement["secret"] is False
     # the catalog identifies the lake, not the data path that two lakes can share
-    assert configuration.physical_location() != configuration.credentials.storage_url
+    assert configuration.data_location() != configuration.credentials.storage_url
 
 
 def test_ducklake_catalog_location_identifies_the_lake() -> None:

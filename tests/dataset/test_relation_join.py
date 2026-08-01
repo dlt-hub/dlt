@@ -266,8 +266,8 @@ def test_join_across_different_physical_destinations_attaches(
         assert "can join" in str(reject.value)
         assert f"Run the query on dataset '{other_dataset.dataset_name}'" in str(reject.value)
         # the message names both locations, which a bare credentials display cannot distinguish
-        assert primary_config.physical_location() in str(reject.value)
-        assert other_dataset.destination_client.config.physical_location() in str(reject.value)
+        assert primary_config.data_location() in str(reject.value)
+        assert other_dataset.destination_client.config.data_location() in str(reject.value)
 
 
 def test_join_rejects_same_name_on_different_physical_destinations() -> None:
@@ -296,7 +296,7 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
         assert ds_a.dataset_name == ds_b.dataset_name
         a_config = ds_a.destination_client.config
         b_config = ds_b.destination_client.config
-        assert a_config.physical_location() != b_config.physical_location()
+        assert a_config.data_location() != b_config.data_location()
         # duckdb reports the other database as readable because duckdb can attach it
         assert a_config.can_read_from(b_config)
 
@@ -350,8 +350,8 @@ def test_join_rejects_two_foreign_datasets_sharing_a_name() -> None:
         with pytest.raises(ValueError, match="already contains a different dataset") as reject:
             joined.join(ds_b.table("refunds"), on="users.id = refunds.user_id")
         # the message names both locations, so the user sees which two datasets clashed
-        assert ds_a.destination_client.config.physical_location() in str(reject.value)
-        assert ds_b.destination_client.config.physical_location() in str(reject.value)
+        assert ds_a.destination_client.config.data_location() in str(reject.value)
+        assert ds_b.destination_client.config.data_location() in str(reject.value)
 
         # the same foreign dataset accessed through another `Dataset` instance is not a collision
         same_ds_b = dlt.dataset(ds_b._destination, shared_dataset_name)
@@ -400,8 +400,8 @@ def test_join_rejects_cross_dataset_on_unsupported_destination(
         ds_b = pipeline_b.dataset()
         # one database file, yet each dataset lives in its own attached file. A query engine
         # accesses only the dataset that it opened
-        assert ds_a.destination_client.config.physical_location() != (
-            ds_b.destination_client.config.physical_location()
+        assert ds_a.destination_client.config.data_location() != (
+            ds_b.destination_client.config.data_location()
         )
 
         # sqlite attaches only its own dataset file, so the other one is inaccessible. No
@@ -435,8 +435,8 @@ def test_join_cross_dataset_on_filesystem_attaches() -> None:
 
         ds_crm, ds_sales = crm.dataset(), sales.dataset()
         # one bucket, so both datasets share a data location yet each needs its own attach
-        assert ds_crm.destination_client.config.physical_location() == (
-            ds_sales.destination_client.config.physical_location()
+        assert ds_crm.destination_client.config.data_location() == (
+            ds_sales.destination_client.config.data_location()
         )
         joined = ds_crm.table("users").join(
             ds_sales.table("orders"), on="users.id = orders.user_id"

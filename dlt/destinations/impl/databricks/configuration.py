@@ -291,12 +291,12 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
         """Returns a fingerprint of the physical Databricks location."""
         # a fingerprint can say "cannot compute", where a location raises instead
         try:
-            return digest128(self.physical_location())
+            return digest128(self.data_location())
         except ConfigurationValueError:
             return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the server hostname."""
         if not self.credentials or not self.credentials.server_hostname:
-            self._no_physical_location("the configuration has no server hostname")
+            self._no_data_location("the configuration has no server hostname")
         return self.credentials.server_hostname

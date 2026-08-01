@@ -175,7 +175,7 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
-    def physical_location(self) -> Optional[str]:
+    def data_location(self) -> Optional[str]:
         """Returns the data location that the query engine of this destination can access
         with the supplied credentials.
 
@@ -191,7 +191,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         """
         return None
 
-    def _no_physical_location(self, reason: str) -> NoReturn:
+    def _no_data_location(self, reason: str) -> NoReturn:
         """Raises when a data location cannot be computed. This method does not return a blank
         location, because two blank locations compare equal."""
         raise ConfigurationValueError(
@@ -201,7 +201,7 @@ class DestinationClientConfiguration(BaseConfiguration):
         )
 
     # TODO: If we ever clean up fingerprinting across all destinations, consider making
-    # the default `digest128(self.physical_location())`. This will break telemetry
+    # the default `digest128(self.data_location())`. This will break telemetry
     # semantics, so it must be a deliberate cutover.
     def fingerprint(self) -> str:
         """Returns a destination fingerprint derived from selected configuration fields."""
@@ -218,8 +218,8 @@ class DestinationClientConfiguration(BaseConfiguration):
             return False
         # a destination without a data location matches no destination, not even another
         # destination without one
-        location = self.physical_location()
-        return location is not None and location == other.physical_location()
+        location = self.data_location()
+        return location is not None and location == other.data_location()
 
     def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns True if `self` can read data from `other`.

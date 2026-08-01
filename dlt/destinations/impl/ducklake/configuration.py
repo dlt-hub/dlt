@@ -187,10 +187,10 @@ class DuckLakeClientConfiguration(
             return ""
         return self.credentials.storage.fingerprint()
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the catalog identity which locates the ducklake."""
         if not self.credentials or not (location := self.credentials.catalog_location()):
-            self._no_physical_location("the configuration has no ducklake catalog")
+            self._no_data_location("the configuration has no ducklake catalog")
         return location
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:

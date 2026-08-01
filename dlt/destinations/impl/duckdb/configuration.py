@@ -105,7 +105,7 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
 
     @staticmethod
     def _external_conn_database(conn: DuckDBPyConnection) -> str:
-        """Returns the file path of the connection's current database so physical_location()
+        """Returns the file path of the connection's current database so data_location()
         identifies it, ':external:' for in-memory databases or when the path cannot be read.
         """
         try:
@@ -418,11 +418,11 @@ class DuckDbClientConfiguration(
         )
         self.create_indexes = create_indexes
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the database file path. For a database that lives inside a query engine,
         returns the marker of that database and the identity of the engine."""
         if not self.credentials or not self.credentials.database:
-            self._no_physical_location("the configuration has no database")
+            self._no_data_location("the configuration has no database")
         database = self.credentials.database
         if database not in NON_ATTACHABLE_LOCATIONS:
             return database
@@ -432,7 +432,7 @@ class DuckDbClientConfiguration(
         if conn is None and self.credentials.conn_pool:
             conn = self.credentials.conn_pool._conn
         if conn is None:
-            self._no_physical_location(f"`{database}` has no open connection that identifies it")
+            self._no_data_location(f"`{database}` has no open connection that identifies it")
         return f"{database}{hex(id(conn))}"
 
     def needs_attach(self, other: DestinationClientConfiguration) -> bool:

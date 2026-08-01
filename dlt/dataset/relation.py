@@ -112,7 +112,7 @@ def _location_display(config: DestinationClientConfiguration) -> str:
     """Identifies the data location of `config`. Uses the display text of `config` instead, when
     the location is empty or cannot be computed."""
     try:
-        return config.physical_location() or str(config)
+        return config.data_location() or str(config)
     except ValueError:
         return str(config)
 

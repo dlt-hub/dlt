@@ -67,10 +67,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
             return None
         return super().attach_type()
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or the absolute local path."""
         if not self.bucket_url:
-            self._no_physical_location("the configuration has no `bucket_url`")
+            self._no_data_location("the configuration has no `bucket_url`")
 
         if self.is_local_path(self.bucket_url):
             return self.make_local_path(self.make_file_url(self.bucket_url))

@@ -455,13 +455,13 @@ class LanceClientConfiguration(
         """Returns a fingerprint of the configured storage."""
         return self.storage.fingerprint() if self.storage else ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the Lance catalog root which identifies the namespace."""
         # for `rest` catalogs the location is the namespace server uri
         if self.catalog_type == "rest":
             if isinstance(self.credentials, RestCatalogCredentials) and self.credentials.uri:
                 return f"rest:{self.credentials.uri.rstrip('/')}"
-            self._no_physical_location("the `rest` catalog has no namespace server URI")
+            self._no_data_location("the `rest` catalog has no namespace server URI")
 
         # for `dir` catalogs the explicit manifest root takes precedence
         catalog_root: Optional[str] = None
@@ -474,7 +474,7 @@ class LanceClientConfiguration(
             # same fallback as on_resolved: catalog colocates with data storage
             catalog_root = self.storage.namespace_uri
         if not catalog_root:
-            self._no_physical_location("the configuration has no catalog root and no data storage")
+            self._no_data_location("the configuration has no catalog root and no data storage")
         return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
 
     def can_write_from(self, other: DestinationClientConfiguration) -> bool:
