@@ -166,9 +166,9 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         self, *, alias: str, tables: Optional[Collection[str]] = None
     ) -> List[TAttachStatement]:
         # the whole database file is attached, `tables` cannot narrow it
-        db_path = self.credentials.database
+        q_db_path = self.capabilities.escape_literal(self.credentials.database)
         q_alias = self.escape_column_name(alias)
-        return [attach_statement(f"ATTACH IF NOT EXISTS '{db_path}' AS {q_alias} (READ_ONLY)")]
+        return [attach_statement(f"ATTACH IF NOT EXISTS {q_db_path} AS {q_alias} (READ_ONLY)")]
 
     def attach(self, alias: str, statements: Sequence[TAttachStatement]) -> None:
         pool = self.credentials.conn_pool

@@ -952,6 +952,37 @@ def test_filesystem_can_read_from_any_duckdb_engine(url1: str, url2: str, expect
     assert_join_result(c1, c2, expected)
 
 
+@pytest.mark.parametrize(
+    "bucket_url,attachable",
+    [
+        pytest.param("/local/p", True, id="file"),
+        pytest.param("s3://b/p", True, id="s3"),
+        pytest.param("az://c/p", True, id="az"),
+        pytest.param("abfss://c@a.dfs.core.windows.net/p", True, id="abfss"),
+        pytest.param("hf://datasets/d", True, id="hf"),
+        pytest.param("gs://b/p", False, id="gs"),
+        pytest.param("gcs://b/p", False, id="gcs"),
+        pytest.param("memory://m", False, id="memory"),
+        pytest.param("sftp://h/p", False, id="sftp"),
+        pytest.param("gdrive://f", False, id="gdrive"),
+        pytest.param("abfs://c/p", False, id="abfs"),
+        pytest.param("adl://c/p", False, id="adl"),
+        pytest.param("azure://c/p", False, id="azure"),
+    ],
+)
+def test_filesystem_attachable_only_for_protocols_with_duckdb_secrets(
+    bucket_url: str, attachable: bool
+) -> None:
+    """A protocol duckdb has no `CREATE SECRET` for is reachable only through an fsspec
+    registration local to this process, so a foreign engine must not be told it can read it."""
+    fs = FilesystemDestinationClientConfiguration(bucket_url=bucket_url)
+    duck = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    assert (fs.attach_type() is not None) is attachable
+    assert duck.can_read_from(fs) is attachable
+    # a same-location join needs no attach, so it stays possible either way
+    assert fs.can_read_from(FilesystemDestinationClientConfiguration(bucket_url=bucket_url))
+
+
 def test_filesystem_can_never_write() -> None:
     """dlt is the only engine that writes to filesystem, so SQL write is never possible."""
     c1 = FilesystemDestinationClientConfiguration(bucket_url="s3://b/p")

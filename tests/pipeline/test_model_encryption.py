@@ -68,7 +68,7 @@ def test_encryption_context_injected_secret_round_trip() -> None:
         assert _secret_sql(attach) == [SECRET]
     with Container().injectable_context(PipelineEncryptionContext(secret="wrong-" + uniq_id())):
         with pytest.raises(ValueError, match="does not match"):
-            SqlModel.from_file(io.StringIO(text))
+            SqlModel.from_file(io.StringIO(text)).attach
 
 
 def test_model_secret_statements_are_encrypted() -> None:
@@ -91,7 +91,26 @@ def test_model_secret_undecryptable_after_restart() -> None:
     # a fresh instance (new ephemeral key) cannot decrypt; user is told to set a permanent salt
     dlt.pipeline(name, destination="duckdb")
     with pytest.raises(ValueError, match="pipeline_salt"):
-        SqlModel.from_file(io.StringIO(text))
+        SqlModel.from_file(io.StringIO(text)).attach
+
+
+def test_model_rewritten_without_encryption_key() -> None:
+    """Normalize rewrites the query of a model it cannot decrypt: it runs in a process worker
+    which has neither the pipeline nor the key that encrypted the attach statements."""
+    secret = "master-" + uniq_id()
+    with Container().injectable_context(PipelineEncryptionContext(secret=secret)):
+        text = _model_text(_attach())
+
+    # a key that could not decrypt this model still rewrites it, so no key is needed at all
+    with Container().injectable_context(PipelineEncryptionContext(secret="other-" + uniq_id())):
+        rewritten = str(SqlModel.from_file(io.StringIO(text)).with_query("SELECT 2 AS b", "duckdb"))
+    assert "SELECT 2 AS b" in rewritten
+    # ciphertext carried over verbatim; re-encrypting changes it even under the original key
+    assert rewritten.splitlines()[1] == text.splitlines()[1]
+
+    # the key that wrote the model still decrypts what normalize handed on
+    with Container().injectable_context(PipelineEncryptionContext(secret=secret)):
+        assert _secret_sql(SqlModel.from_file(io.StringIO(rewritten)).attach) == [SECRET]
 
 
 def test_model_secret_decryptable_with_permanent_salt() -> None:

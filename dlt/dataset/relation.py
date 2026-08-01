@@ -556,17 +556,38 @@ class Relation(WithSqlClient):
         if isinstance(other, dlt.Relation):
             for ds_name, fds in other._foreign_datasets.items():
                 if ds_name != self._dataset.dataset_name:
-                    foreign_datasets[ds_name] = self._resolve_foreign_dataset(fds.dataset)
+                    foreign_datasets = self._register_foreign_dataset(foreign_datasets, fds.dataset)
             if target_is_foreign:
-                foreign_datasets[target.dataset_name] = self._resolve_foreign_dataset(
-                    other._dataset
-                )
+                foreign_datasets = self._register_foreign_dataset(foreign_datasets, other._dataset)
 
         rel = self.__copy__()
         rel._sqlglot_expression = query
         rel._foreign_datasets = foreign_datasets
 
         return rel
+
+    def _register_foreign_dataset(
+        self, foreign_datasets: Dict[str, _ForeignDataset], foreign_dataset: "dlt.Dataset"
+    ) -> Dict[str, _ForeignDataset]:
+        """Resolves `foreign_dataset` into `foreign_datasets`, keyed by its dataset name.
+
+        Raises:
+            ValueError: When the name is already taken by a dataset holding different data.
+        """
+        ds_name = foreign_dataset.dataset_name
+        registered = foreign_datasets.get(ds_name)
+        if registered is not None and not registered.dataset.is_same_dataset(foreign_dataset):
+            raise ValueError(
+                f"Cannot join dataset '{ds_name}' at data location"
+                f" '{_location_display(foreign_dataset.destination_client.config)}': a different"
+                f" dataset named '{ds_name}' at data location"
+                f" '{_location_display(registered.dataset.destination_client.config)}' is already"
+                " joined into this relation. Tables are qualified by dataset name, so the two"
+                " cannot be told apart. Materialize one of them into a dataset with another name,"
+                " or join them in separate relations."
+            )
+        foreign_datasets[ds_name] = self._resolve_foreign_dataset(foreign_dataset)
+        return foreign_datasets
 
     def _resolve_foreign_dataset(self, foreign_dataset: "dlt.Dataset") -> _ForeignDataset:
         """Tells how this relation accesses the data of `foreign_dataset`, attaching it when the

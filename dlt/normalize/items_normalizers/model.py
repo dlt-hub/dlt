@@ -126,7 +126,6 @@ class ModelItemsNormalizer(ItemsNormalizer):
         sql_dialect = model.query_dialect
         destination_dialect = self.config.destination_capabilities.sqlglot_dialect
         select_statement = model.to_sql()
-        attach = model.attach
 
         parsed_select = sqlglot.parse_one(select_statement, read=sql_dialect)
 
@@ -168,7 +167,7 @@ class ModelItemsNormalizer(ItemsNormalizer):
             self.load_id,
             self.schema.name,
             root_table_name,
-            SqlModel.from_query_string(normalized_query, destination_dialect, attach=attach),
+            model.with_query(normalized_query, destination_dialect),
             {},
         )
 

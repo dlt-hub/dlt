@@ -67,9 +67,16 @@ def test_motherduck_attach_statements() -> None:
     # line is a secret (encrypted when persisted)
     assert sql_client.attach_statements(alias="attach_ds_a") == [
         attach_statement("LOAD motherduck"),
-        attach_statement("SET motherduck_token='TOKEN'", secret=True, key="attach_ds_a:token"),
-        attach_statement("ATTACH IF NOT EXISTS 'md:my_db' AS \"attach_ds_a\""),
+        attach_statement("SET motherduck_token=E'TOKEN'", secret=True, key="attach_ds_a:token"),
+        attach_statement("ATTACH IF NOT EXISTS E'md:my_db' AS \"attach_ds_a\""),
     ]
+
+    # a quote in the token cannot terminate the string literal it sits in
+    credentials.password = "TO'KEN"
+    assert (
+        sql_client.attach_statements(alias="attach_ds_a")[1]["sql"]
+        == "SET motherduck_token=E'TO''KEN'"
+    )
 
 
 def test_motherduck_cannot_execute_motherduck_attach() -> None:

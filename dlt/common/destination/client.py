@@ -179,6 +179,9 @@ class DestinationClientConfiguration(BaseConfiguration):
         """Returns data location that the query engine of this destination is able to access
         using supplied credentials.
 
+        Location should be limited to data that can be accessed without additional attach
+        or federation with other locations.
+
         Returns:
             Optional[str]: `None` when the destination has no data location, ie. a reverse ETL
                 sink. It has no query engine either, so it can access no data at all.
@@ -918,9 +921,12 @@ class SqlModel:
 
     Serializes to and parses from the `.model` file format: a `dialect:` line, an optional
     `attach:` JSON line (with `secret`-flagged statements encrypted), then the SQL body.
+
+    There's no anti-tamper protection on the generated file as a whole. Text is encrypted
+    to prevent leaking sensitive information ie. by dumping pipeline working dir to a backup.
     """
 
-    __slots__ = ("_query", "_dialect", "_attach")
+    __slots__ = ("_query", "_dialect", "_attach", "_attach_text")
 
     def __init__(
         self,
@@ -931,6 +937,7 @@ class SqlModel:
         self._query = query
         self._dialect = dialect
         self._attach = attach
+        self._attach_text: Optional[str] = None
 
     def to_sql(self) -> str:
         return self._query
@@ -944,8 +951,36 @@ class SqlModel:
 
     @property
     def attach(self) -> Optional[List[TAttachInfo]]:
-        """Serializable attach descriptors to re-attach foreign datasets before executing."""
+        """Serializable attach descriptors to re-attach foreign datasets before executing.
+
+        Decrypts the `secret`-flagged statements of a model read from a file, so only a step that
+        runs them needs the encryption key.
+        """
+        if self._attach is None and self._attach_text is not None:
+            attach: List[TAttachInfo] = json.loads(self._attach_text)
+            self._decrypt_attach_statements(attach)
+            self._attach = attach
         return self._attach
+
+    def with_query(self, query: str, dialect: Optional[str] = None) -> "SqlModel":
+        """Returns a copy of this model with `query` and `dialect` replaced.
+
+        Attach descriptors move over as they are stored, so a model read from a file is rewritten
+        without decrypting the secrets it carries.
+
+        Args:
+            query (str): The SQL query replacing this model's.
+            dialect (Optional[str]): The dialect `query` is written in.
+
+        Returns:
+            SqlModel: A new model with the same attach descriptors.
+
+        Raises:
+            ValueError: If the parsed query is not a `sqlglot.exp.Select`.
+        """
+        model = self.from_query_string(query, dialect, attach=self._attach)
+        model._attach_text = self._attach_text
+        return model
 
     def __str__(self) -> str:
         """Serializes to `.model` text: dialect line, optional attach line, then the SQL body.
@@ -953,7 +988,10 @@ class SqlModel:
         Attach statements flagged `secret` are encrypted with the active pipeline encryption.
         """
         header = "dialect: " + (self._dialect or "") + "\n"
-        if self._attach:
+        if self._attach_text is not None:
+            # written back as read, so re-encrypting with a key this step may not have is avoided
+            header += "attach: " + self._attach_text + "\n"
+        elif self._attach:
             header += self._serialize_attach(self._attach)
         return header + self._query + "\n"
 
@@ -992,8 +1030,8 @@ class SqlModel:
         """Creates a `SqlModel` by reading `.model` text produced by `str(model)`.
 
         Reads the `dialect:` line (falling back to `fallback_dialect`), an optional `attach:` line
-        whose `secret`-flagged statements are decrypted, then the remaining SQL body. The SQL is
-        stored as read, not re-parsed.
+        kept as stored, then the remaining SQL body. Neither the SQL nor the attach line is parsed,
+        so the secrets the latter carries are decrypted only when `attach` is read.
 
         Args:
             file_obj (IO[str]): A file-like object opened in text mode.
@@ -1009,16 +1047,17 @@ class SqlModel:
         dialect = parsed_dialect if parsed_dialect else fallback_dialect
 
         # an optional "attach: <json>\n" line precedes the SQL; a non-attach line is SQL and is kept
-        attach: Optional[List[TAttachInfo]] = None
+        attach_text: Optional[str] = None
         next_line = file_obj.readline()
         if next_line.startswith("attach:"):
-            attach = json.loads(next_line.split(":", 1)[1].strip())
-            cls._decrypt_attach_statements(attach)
+            attach_text = next_line.split(":", 1)[1].strip()
             sql_statement = file_obj.read()
         else:
             sql_statement = next_line + file_obj.read()
 
-        return cls(query=sql_statement, dialect=dialect, attach=attach)
+        model = cls(query=sql_statement, dialect=dialect)
+        model._attach_text = attach_text
+        return model
 
     @staticmethod
     def _serialize_attach(attach: Sequence[TAttachInfo]) -> str:

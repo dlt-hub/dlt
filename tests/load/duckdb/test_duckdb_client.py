@@ -1087,3 +1087,30 @@ def test_with_attach_interface() -> None:
     assert sibling.credentials.conn_pool is pool
     with sibling as client:
         assert client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')[0][0] == 1
+
+
+def test_attach_escapes_database_path() -> None:
+    """A quote in the database path must not break out of the ATTACH string literal."""
+    suffix = uniq_id()
+    root = get_test_storage_root()
+    primary_pipeline = dlt.pipeline(
+        "esc_a_" + suffix,
+        destination=duckdb(os.path.join(root, f"esc_a_{suffix}.duckdb")),
+        dataset_name="ds_a",
+    )
+    primary_pipeline.run([{"id": 1}], table_name="t")
+    foreign_pipeline = dlt.pipeline(
+        "esc_b_" + suffix,
+        destination=duckdb(os.path.join(root, f"esc_o'brien_{suffix}.duckdb")),
+        dataset_name="ds_b",
+    )
+    foreign_pipeline.run([{"id": 1}], table_name="t")
+
+    foreign = cast(DuckDbSqlClient, foreign_pipeline.sql_client())
+    (statement,) = foreign.attach_statements(alias="attach_ds_b")
+    assert "''" in statement["sql"]
+
+    primary = cast(DuckDbSqlClient, primary_pipeline.sql_client())
+    with primary as client:
+        client.attach("attach_ds_b", [statement])
+        assert client.execute_sql('SELECT COUNT(*) FROM "attach_ds_b"."ds_b"."t"')[0][0] == 1

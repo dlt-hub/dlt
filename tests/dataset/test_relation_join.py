@@ -304,6 +304,65 @@ def test_join_rejects_same_name_on_different_physical_destinations() -> None:
             ds_a.table("users").join(ds_b.table("orders"), on="users.id = orders.user_id")
 
 
+def test_join_rejects_two_foreign_datasets_sharing_a_name() -> None:
+    """Two foreign datasets of one name would bind to a single ATTACH alias, silently reading
+    the tables of whichever was joined last."""
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = pathlib.Path(tmp)
+        pipelines_dir = str(tmp_path / "pipelines_dir")
+        shared_dataset_name = "same_name_two_foreign"
+
+        primary = dlt.pipeline(
+            pipeline_name="same_name_two_foreign_primary",
+            pipelines_dir=pipelines_dir,
+            destination=dlt.destinations.duckdb(str(tmp_path / "primary.duckdb")),
+            dataset_name="ds_primary",
+        )
+        primary.run([{"id": 1}], table_name="users")
+
+        # both foreign datasets carry `orders` and `refunds` under the same dataset name
+        foreign_datasets = []
+        for db_name in ("a", "b"):
+            foreign = dlt.pipeline(
+                pipeline_name=f"same_name_two_foreign_{db_name}",
+                pipelines_dir=pipelines_dir,
+                destination=dlt.destinations.duckdb(str(tmp_path / f"{db_name}.duckdb")),
+                dataset_name=shared_dataset_name,
+            )
+            foreign.run([{"user_id": 1, "src": db_name}], table_name="orders")
+            foreign.run([{"user_id": 1, "src": db_name}], table_name="refunds")
+            foreign_datasets.append(foreign.dataset())
+
+        ds_a, ds_b = foreign_datasets
+        ds_primary = primary.dataset()
+        # a shared name at two locations is not one dataset, which is what the join guard asks
+        assert ds_a.is_same_dataset(ds_a)
+        assert ds_a.is_same_dataset(dlt.dataset(ds_a._destination, shared_dataset_name))
+        assert not ds_a.is_same_dataset(ds_b)
+        assert not ds_a.is_same_dataset(ds_primary)
+
+        joined = ds_primary.table("users").join(
+            ds_a.table("orders"), on="users.id = orders.user_id"
+        )
+
+        with pytest.raises(ValueError, match="is already joined into this relation") as reject:
+            joined.join(ds_b.table("refunds"), on="users.id = refunds.user_id")
+        # both locations are named so the user can tell which two datasets clashed
+        assert ds_a.destination_client.config.physical_location() in str(reject.value)
+        assert ds_b.destination_client.config.physical_location() in str(reject.value)
+
+        # the same foreign dataset reached through another `Dataset` instance is not a collision
+        same_ds_b = dlt.dataset(ds_b._destination, shared_dataset_name)
+        joined_b = (
+            primary.dataset()
+            .table("users")
+            .join(ds_b.table("orders"), on="users.id = orders.user_id")
+        )
+        joined_b = joined_b.join(same_ds_b.table("refunds"), on="users.id = refunds.user_id")
+        assert list(joined_b._foreign_datasets) == [shared_dataset_name]
+        assert joined_b.df()["orders__src"].to_list() == ["b"]
+
+
 @pytest.mark.parametrize(
     "make_destination",
     [

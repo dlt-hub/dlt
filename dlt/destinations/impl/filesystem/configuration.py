@@ -51,8 +51,10 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     files in place (e.g. rejected purge, deferred GC). When false, the table is dropped from
     the catalog and dlt deletes the table files itself."""
 
-    NON_ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("gs", "gcs", "memory")
-    """Protocols accessible only through fsspec registration, so not expressible as SQL."""
+    ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("file", "s3", "az", "abfss", "hf")
+    """Protocols a foreign DuckDB engine reads with SQL alone, mirroring the `CREATE SECRET`
+    statements `DuckDbSqlClient` can build. The rest (`gs`, `sftp`, `gdrive`, ...) reach their data
+    through an fsspec registration that lives only in the process that made it."""
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
@@ -60,7 +62,7 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
 
     def attach_type(self) -> Optional[TAttachType]:
         """Returns None for a protocol a foreign DuckDB engine cannot access with SQL."""
-        if self.protocol in self.NON_ATTACHABLE_PROTOCOLS:
+        if self.protocol not in self.ATTACHABLE_PROTOCOLS:
             return None
         return super().attach_type()
 

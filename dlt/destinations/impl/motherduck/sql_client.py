@@ -31,7 +31,8 @@ class MotherDuckSqlClient(DuckDbSqlClient):
     ) -> List[TAttachStatement]:
         # the whole database is attached, `tables` cannot narrow it
         q_alias = self.escape_column_name(alias)
-        attach = f"ATTACH IF NOT EXISTS 'md:{self.database_name}' AS {q_alias}"
+        escape_literal = self.capabilities.escape_literal
+        attach = f"ATTACH IF NOT EXISTS {escape_literal(f'md:{self.database_name}')} AS {q_alias}"
         token = cast(MotherDuckCredentials, self.credentials).password
         if token:
             # `SET motherduck_token` does not exist until the extension is loaded, and the token
@@ -40,7 +41,9 @@ class MotherDuckSqlClient(DuckDbSqlClient):
             statements = [
                 attach_statement("LOAD motherduck"),
                 attach_statement(
-                    f"SET motherduck_token='{token}'", secret=True, key=f"{alias}:token"
+                    f"SET motherduck_token={escape_literal(token)}",
+                    secret=True,
+                    key=f"{alias}:token",
                 ),
                 attach_statement(attach),
             ]

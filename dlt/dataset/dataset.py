@@ -161,6 +161,29 @@ class Dataset:
         """Provide table names as completion suggestion in interactive environments."""
         return self.tables
 
+    def is_same_dataset(self, other: dlt.Dataset) -> bool:
+        """Checks if `other` holds the same data as this dataset.
+
+        Two datasets are the same when they carry the same name at the same data location, so
+        either one can be read in place of the other.
+
+        Args:
+            other (dlt.Dataset): Dataset to compare this one with.
+
+        Returns:
+            bool: True when both datasets name the same data. False when a data location cannot
+                be determined, which identifies nothing and so matches nothing.
+        """
+        # TODO: once hardened, consider implementing __eq__ based on this method
+        if self is other:
+            return True
+        if self.dataset_name != other.dataset_name:
+            return False
+        try:
+            return self.destination_client.config.is_same_location(other.destination_client.config)
+        except ValueError:
+            return False
+
     @property
     def sqlglot_schema(self) -> SQLGlotSchema:
         """SQLGlot schema of the dataset derived from all dlt schemas."""
