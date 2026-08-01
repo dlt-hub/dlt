@@ -114,6 +114,22 @@ To write your queries in SQL, create a `Relation` from a query on your dataset. 
 
 The identifiers in these raw SQL expressions are the table and column names of your dlt schema. They are **not** the names of your destination database schema.
 
+#### Write in one SQL dialect, run in another
+
+Pass `query_dialect` to say which dialect you wrote. dlt parses the query in that dialect and emits it in the dialect of the destination, so a query you wrote for one warehouse runs on another.
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_dialect_transpilation-->
+
+The duckdb query above is not valid mssql. `||` is a string concatenation that mssql spells `+`, and mssql has no `LIMIT` clause. dlt emits this instead:
+
+```sql
+SELECT TOP 10 [purchases].[customer] + ' (' + [purchases].[city] + ')' AS [label], [purchases].[amount] AS [amount]
+FROM [analytics].[purchases] AS [purchases]
+ORDER BY [purchases].[amount] DESC
+```
+
+A model job carries the dialect of the destination, never the dialect you wrote in. Without `query_dialect`, dlt reads the query in the dialect of the destination, and a construct that only the source dialect knows reaches the destination unchanged.
+
 ## Transformations of multiple datasets
 
 A transformation receives its input datasets as arguments, so passing **more than one** `dlt.Dataset` lets you join across them. dlt inspects where the inputs and the output live and picks how to run the join:

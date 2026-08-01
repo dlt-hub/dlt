@@ -682,3 +682,48 @@ def incremental_scheduler_window_snippet() -> None:
 
     ids = sorted(row[0] for row in pipeline.dataset().table("orders_window").fetchall())
     assert ids == [2, 3, 4]
+
+
+def sql_dialect_transpilation_snippet() -> None:
+    from dlt.common.schema import Schema
+
+    schema = Schema("shop")
+    schema.update_table(
+        {
+            "name": "purchases",
+            "columns": {
+                "customer": {"name": "customer", "data_type": "text"},
+                "city": {"name": "city", "data_type": "text"},
+                "amount": {"name": "amount", "data_type": "double"},
+            },
+        }
+    )
+
+    # @@@DLT_SNIPPET_START sql_dialect_transpilation
+    # the query is duckdb SQL, but the dataset writes to mssql
+    mssql_dataset = dlt.dataset(
+        dlt.destinations.mssql(credentials="mssql://user:pw@host:1433/warehouse"),
+        "analytics",
+        schema=schema,
+    )
+
+    top_customers = mssql_dataset.query(
+        """
+        SELECT customer || ' (' || city || ')' AS label, amount
+        FROM purchases
+        ORDER BY amount DESC
+        LIMIT 10
+        """,
+        query_dialect="duckdb",
+    )
+
+    # dlt emits the query in the dialect of the destination. `||` becomes `+`,
+    # `LIMIT` becomes `TOP`, and the identifiers take mssql quoting
+    print(top_customers.to_sql())
+    # @@@DLT_SNIPPET_END sql_dialect_transpilation
+
+    emitted = top_customers.to_sql()
+    assert "TOP 10" in emitted
+    assert "LIMIT" not in emitted
+    assert "+ ' (' +" in emitted
+    assert "||" not in emitted
