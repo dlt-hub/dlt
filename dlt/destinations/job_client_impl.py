@@ -201,31 +201,11 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
-        target_catalog = sql_client.catalog_name(quote=False)
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
-        # Parse SELECT
+        # table paths were bound when the model was built and a foreign one carries its ATTACH
+        # alias as catalog, so rewriting parts here would strip the alias off it
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
-
-        # Adjust table parts (catalog/db/this) based on dialect and catalog presence
-        if select_dialect != destination_dialect:
-            # TODO: We might need this
-            for table in parsed_select.find_all(sqlglot.exp.Table):
-                parts = list(table.parts)
-                if target_catalog:
-                    if len(parts) == 3:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
-                    elif len(parts) == 2:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.to_identifier(parts[1].name))
-                else:
-                    if len(parts) == 3:
-                        table.set("catalog", None)
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
         top_level_select = parsed_select.find(sqlglot.exp.Select)
