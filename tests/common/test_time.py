@@ -1056,6 +1056,20 @@ def test_ensure_datetime_utc_default_tz(value, default_tz, expected: datetime) -
     assert result.tzinfo == timezone.utc
 
 
+def test_ensure_datetime_zoneinfo_aware_input() -> None:
+    """A datetime already carrying a named ZoneInfo tzinfo converts correctly, without the
+    pendulum round-trip that drops the offset on old pendulum versions."""
+    # 01:00 Berlin (winter, +01:00) == 00:00 UTC
+    berlin = datetime(2024, 1, 15, 1, 0, tzinfo=ZoneInfo("Europe/Berlin"))
+    assert ensure_datetime(berlin).utcoffset() == timedelta(hours=1)
+    assert ensure_datetime_utc(berlin) == datetime(2024, 1, 15, 0, 0, tzinfo=timezone.utc)
+    assert ensure_datetime_utc(berlin).isoformat() == "2024-01-15T00:00:00+00:00"
+    # convert to a different named zone (Tokyo, UTC+9)
+    assert ensure_datetime_in_tz(berlin, ZoneInfo("Asia/Tokyo")) == datetime(
+        2024, 1, 15, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")
+    )
+
+
 @pytest.mark.parametrize(
     "value, tz, expected_wall_clock",
     [

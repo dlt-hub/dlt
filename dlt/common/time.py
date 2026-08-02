@@ -195,6 +195,10 @@ def ensure_datetime(value: TAnyDateTime) -> datetime.datetime:
     Returns:
         A stdlib `datetime.datetime` that preserves original timezone.
     """
+    if isinstance(value, datetime.datetime):
+        # return stdlib datetimes directly, preserving tzinfo. avoids the pendulum
+        # round-trip that drops a named ZoneInfo offset on old pendulum versions
+        return to_py_datetime(value)
     return to_py_datetime(ensure_pendulum_datetime_non_utc(value))
 
 
