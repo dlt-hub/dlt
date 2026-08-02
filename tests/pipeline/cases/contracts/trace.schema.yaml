@@ -89,8 +89,12 @@ tables:
         description: dlthub library version (if installed)
         data_type: text
         nullable: true
-      execution_context__run_context:
-        description: Run context class name (e.g. PluggableRunContext)
+      execution_context__run_context__name:
+        description: Run context name (e.g. dlt)
+        data_type: text
+        nullable: true
+      execution_context__run_context__profile:
+        description: Active profile name (if run context supports profiles)
         data_type: text
         nullable: true
       started_at:
@@ -917,6 +921,11 @@ tables:
         nullable: true
       config_type_name:
         description: Configuration spec class name that requested the value
+        data_type: text
+        nullable: true
+      provider_location:
+        description: Human readable location within the provider (e.g. the toml file) holding the
+          value
         data_type: text
         nullable: true
       _dlt_parent_id:

@@ -135,7 +135,7 @@ def test_plugin_execution_context() -> None:
     from dlt.common.runtime.exec_info import get_execution_context
 
     context = get_execution_context()
-    assert context["run_context"] == "dlt-test"
+    assert context["run_context"] == {"name": "dlt-test"}
 
 
 def test_cli_hook(script_runner: ScriptRunner) -> None:
