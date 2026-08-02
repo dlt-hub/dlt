@@ -20,7 +20,9 @@ from dlt._workspace.run_context import (
     switch_profile,
 )
 from dlt._workspace.cli.echo import always_choose
+from dlt.common.configuration.providers import CONFIG_TOML, SECRETS_TOML
 from dlt.common.runtime.exceptions import RunContextNotAvailable
+from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.runtime.run_context import DOT_DLT, RunContext, global_dir
 from dlt.common.utils import custom_environ
 
@@ -86,6 +88,51 @@ def test_workspace_profile() -> None:
         assert_dev_config()
         assert ctx.configured_profiles() == ["dev"]
         assert ctx._profile_has_config("dev") is True
+
+
+def test_workspace_trace() -> None:
+    """Pipeline trace run in a workspace carries run context name and profile and resolved config values"""
+    with isolated_workspace("default", profile="dev") as ctx:
+        assert get_execution_context()["run_context"] == {"name": ctx.name, "profile": "dev"}
+
+        @dlt.resource
+        def data(
+            config_val: str = dlt.config.value,
+            config_val_ovr: str = dlt.config.value,
+            secrets_val_dev: str = dlt.secrets.value,
+        ):
+            yield {"config_val": config_val, "config_val_ovr": config_val_ovr}
+
+        pipeline = dlt.pipeline(pipeline_name="workspace_trace", destination="duckdb")
+        pipeline.run(data())
+
+        trace = pipeline.last_trace
+        assert trace.execution_context["run_context"] == {"name": ctx.name, "profile": "dev"}
+
+        resolved = {v.key: v for v in trace.resolved_config_values}
+        assert resolved["config_val"].value == "config.toml"
+        # value comes from the profile file which takes precedence
+        assert resolved["config_val_ovr"].value == "dev.config.toml"
+        # secret values are not stored in the trace
+        assert resolved["secrets_val_dev"].is_secret_hint is True
+        assert resolved["secrets_val_dev"].value is None
+        # profile and base toml files are merged into a single provider so the exact file that
+        # held the value is in the location, not in the provider name
+        assert resolved["config_val_ovr"].provider_name == CONFIG_TOML
+        assert resolved["secrets_val_dev"].provider_name == SECRETS_TOML
+        assert resolved["config_val_ovr"].provider_location == "dev." + CONFIG_TOML
+        assert resolved["secrets_val_dev"].provider_location == "dev." + SECRETS_TOML
+        # key not present in the profile file comes from the base file
+        assert resolved["config_val"].provider_location == CONFIG_TOML
+
+        # profile switch is reflected in the next trace
+        ctx = ctx.switch_profile("prod")
+        pipeline = dlt.pipeline(pipeline_name="workspace_trace", destination="duckdb")
+        pipeline.run([{"foo": 1}], table_name="table_foo")
+        assert pipeline.last_trace.execution_context["run_context"] == {
+            "name": ctx.name,
+            "profile": "prod",
+        }
 
 
 def test_profile_switch_no_workspace():

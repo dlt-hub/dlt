@@ -50,13 +50,23 @@ class SerializableResolvedValueTrace(NamedTuple):
     sections: Sequence[str]
     provider_name: str
     config_type_name: str
+    provider_location: str = ""
+    """Exact location (ie. a file path) of the value within the provider"""
 
     def asdict(self) -> StrAny:
         """A dictionary representation that is safe to load."""
         return {k: v for k, v in self._asdict().items() if k not in ("value", "default_value")}
 
     def asstr(self, verbosity: int = 0) -> str:
-        return f"{self.key}->{self.value} in {'.'.join(self.sections)} by {self.provider_name}"
+        full_key = ".".join((*self.sections, self.key))
+        value = "<secret>" if self.is_secret_hint else self.value
+        msg = f"`{full_key}` = {value} from `{self.provider_name}`"
+        # provider name of toml providers is already the file name
+        if self.provider_location and self.provider_location != self.provider_name:
+            msg += f" in `{self.provider_location}`"
+        if verbosity > 1:
+            msg += f" for `{self.config_type_name}`"
+        return msg
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
@@ -282,6 +292,7 @@ def end_trace_step(
             v.sections,
             v.provider_name,
             str(type(v.config).__qualname__),
+            v.provider_location,
         ),
         get_resolved_traces().resolved_traces,
     )

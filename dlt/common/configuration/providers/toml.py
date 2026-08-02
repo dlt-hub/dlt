@@ -1,5 +1,6 @@
 import os
 import tomlkit
+import tomlkit.container
 import tomlkit.exceptions
 import tomlkit.items
 from contextlib import contextmanager
@@ -12,6 +13,7 @@ from .doc import BaseDocProvider, CustomLoaderDocProvider
 
 CONFIG_TOML = "config.toml"
 SECRETS_TOML = "secrets.toml"
+VALUE_ORIGIN_ATTR = "_origin"
 
 
 class StringTomlProvider(BaseDocProvider):
@@ -88,6 +90,13 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
     def _resolve_toml_paths(self, file_name: str, resolvable_dirs: List[str]) -> List[str]:
         return [os.path.join(d, file_name) for d in resolvable_dirs]
+
+    def get_value_location(self, key: str, pipeline_name: Optional[str], *sections: str) -> str:
+        """Get location (file name) via origin tags on toml Items created when file was loaded."""
+        origin: str = getattr(
+            self._find_toml_item(key, pipeline_name, *sections), VALUE_ORIGIN_ATTR, None
+        )
+        return origin or os.path.basename(super().get_value_location(key, pipeline_name, *sections))
 
     def write_toml(self) -> None:
         assert (
@@ -201,6 +210,35 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             # Not in a Streamlit context
             return None
 
+    @staticmethod
+    def _tag_origins(container: tomlkit.container.Container, origin: str) -> None:
+        """Tags each item in `container` with `origin` name of a file it was parsed from."""
+        for key, item in container.body:
+            if key is None:
+                continue
+            setattr(item, VALUE_ORIGIN_ATTR, origin)
+            if isinstance(item, (tomlkit.items.Table, tomlkit.items.InlineTable)):
+                SettingsTomlProvider._tag_origins(item.value, origin)
+            elif isinstance(item, tomlkit.items.AoT):
+                for table in item.body:
+                    SettingsTomlProvider._tag_origins(table.value, origin)
+
+    def _find_toml_item(
+        self, key: str, pipeline_name: Optional[str], *sections: str
+    ) -> Optional[tomlkit.items.Item]:
+        full_path = self.get_key_path(key, pipeline_name, *sections)
+        container: tomlkit.container.Container = self._config_toml
+        try:
+            for k in full_path[:-1]:
+                node = container.item(k)
+                # out of order tables are proxied and do not expose items
+                if not isinstance(node, (tomlkit.items.Table, tomlkit.items.InlineTable)):
+                    return None
+                container = node.value
+            return container.item(full_path[-1])
+        except KeyError:
+            return None
+
     def _read_toml_file(self, toml_path: str) -> tomlkit.TOMLDocument:
         if os.path.isfile(toml_path):
             with open(toml_path, "r", encoding="utf-8") as f:
@@ -219,6 +257,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             result_toml: Optional[tomlkit.TOMLDocument] = None
             for path in toml_paths:
                 if (loaded_toml := self._read_toml_file(path)) is not None:
+                    self._tag_origins(loaded_toml, os.path.basename(path))
                     if result_toml is None:
                         result_toml = loaded_toml
                     else:

@@ -26,7 +26,10 @@ from dlt.common.configuration.providers.toml import (
     StringTomlProvider,
     TomlProviderReadException,
 )
+from dlt.common.configuration.providers.dictionary import DictionaryProvider
+from dlt.common.configuration.providers.environ import EnvironProvider
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
+from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     GcpServiceAccountCredentialsWithoutDefaults,
@@ -70,8 +73,9 @@ def test_secrets_from_toml_secrets(toml_providers: ConfigProvidersContainer) -> 
     # only two traces because TSecretValue won't be checked in config.toml provider
     traces = py_ex.value.traces["secret_value"]
     assert len(traces) == 2
-    assert traces[0] == LookupTrace("Environment Variables", [], "SECRET_VALUE", None)
-    assert traces[1] == LookupTrace("secrets.toml", [], "secret_value", None)
+    # values that were not found have no location
+    assert traces[0] == LookupTrace("Environment Variables", [], "SECRET_VALUE", None, "")
+    assert traces[1] == LookupTrace("secrets.toml", [], "secret_value", None, "")
 
     with pytest.raises(ConfigFieldMissingException) as py_ex:
         resolve.resolve_configuration(WithCredentialsConfiguration())
@@ -87,6 +91,12 @@ def test_toml_types(toml_providers: ConfigProvidersContainer) -> None:
         if isinstance(v, datetime.datetime):
             v = pendulum.parse("1979-05-27T07:32:00-08:00")
         assert v == c[k]
+
+    # all resolved values know the file they came from, also bools, floats and inline tables
+    tracer = get_resolved_traces()
+    traces = tracer._get_log_as_dict(tracer.resolved_traces)
+    for k in COERCIONS:
+        assert traces[f"typecheck.{k}"].provider_location == CONFIG_TOML
 
 
 def test_config_provider_order(toml_providers: ConfigProvidersContainer, environment: Any) -> None:
@@ -144,6 +154,11 @@ def test_secrets_toml_credentials(
         GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "bigquery")
     )
     assert c.project_id.endswith("destination.bigquery.credentials")
+    # credentials are enumerated field by field from a toml table, each field knows its location
+    tracer = get_resolved_traces()
+    traces = tracer._get_log_as_dict(tracer.resolved_traces)
+    assert traces["destination.bigquery.credentials.project_id"].provider_location == SECRETS_TOML
+    assert traces["destination.bigquery.credentials.private_key"].provider_location == SECRETS_TOML
     # there are no destination.gcp_storage.credentials so it will fallback to "destination"."credentials"
     c = resolve.resolve_configuration(
         GcpServiceAccountCredentialsWithoutDefaults(), sections=("destination", "gcp_storage")
@@ -313,6 +328,34 @@ def test_toml_global_config() -> None:
     assert os.path.join(settings_dir, "secrets.toml") in secrets.locations
     # CI creates secrets.toml so actually those are sometimes present
     # assert os.path.join(settings_dir, "secrets.toml") not in secrets.present_locations
+
+
+def test_toml_value_location() -> None:
+    """Provider tells the exact file a value came from, also when several files are merged"""
+    global_dir = "./tests/common/cases/configuration/dlt_home"
+    settings_dir = "./tests/common/cases/configuration/.dlt"
+    config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
+
+    # location is a file name so files with the same name in settings and global dir look alike
+    assert config.get_value_location("param1", None, "api", "params") == CONFIG_TOML
+    assert config.get_value_location("log_level", None, "runtime") == CONFIG_TOML
+    assert config.get_value_location("float_val", None, "typecheck") == CONFIG_TOML
+    assert config.get_value_location("param_global", None, "api", "params") == CONFIG_TOML
+    # bools are tagged as well
+    assert config.get_value_location("dlthub_telemetry", None, "runtime") == CONFIG_TOML
+    # tables have locations too
+    assert config.get_value_location("typecheck", None) == CONFIG_TOML
+    # dotted keys and values in nested tables
+    assert config.get_value_location("port", None, "api") == CONFIG_TOML
+    assert config.get_value_location("max_range", None, "sources") == CONFIG_TOML
+
+    # values written at runtime are not tagged and fall back to the provider location
+    config.set_value("written", "x", None)
+    assert config.get_value_location("written", None) == CONFIG_TOML
+
+    # providers that do not know the exact location return empty string
+    assert EnvironProvider().get_value_location("log_level", None, "runtime") == ""
+    assert DictionaryProvider().get_value_location("log_level", None, "runtime") == ""
 
 
 def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
@@ -546,6 +589,8 @@ key2 = "value2"
 
     assert provider.get_value("key1", "", "section1", "subsection") == ("value1", "section1.subsection.key1")  # type: ignore[arg-type]
     assert provider.get_value("key2", "", "section2", "subsection") == ("value2", "section2.subsection.key2")  # type: ignore[arg-type]
+    # provider has no locations to report
+    assert provider.get_value_location("key1", None, "section1", "subsection") == ""
 
     # test basic writing
     provider = StringTomlProvider("")
@@ -580,6 +625,8 @@ def test_custom_loader(toml_providers: ConfigProvidersContainer) -> None:
     provider = CustomLoaderDocProvider("yaml", loader, True)
     assert provider.name == "yaml"
     assert provider.supports_secrets is True
+    # loader was registered without locations
+    assert provider.get_value_location("datetime", None, "data_types") == ""
     assert provider.to_toml().startswith("[destination")
     assert provider.to_yaml().startswith("destination:")
     value, _ = provider.get_value("datetime", datetime.datetime, None, "data_types")
