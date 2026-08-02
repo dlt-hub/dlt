@@ -29,6 +29,15 @@ class TDeprecated(TypedDict, total=False):
     plain: str
 
 
+class TNestedDeprecated(TypedDict, total=False):
+    old_x: Annotated[str, Deprecated(maps_to="new_x")]
+
+
+class TOuterDeprecated(TypedDict, total=False):
+    old_a: Annotated[str, Deprecated(maps_to="new_a")]
+    child: TNestedDeprecated
+
+
 def test_apply_deprecations_converts_warns_and_removes() -> None:
     doc = {
         "old_a": "x",  # identity convert -> new_a
@@ -48,6 +57,24 @@ def test_apply_deprecations_converts_warns_and_removes() -> None:
     assert doc == {"new_a": "x", "new_b": 42, "plain": "p", "keep": 1}
     # a warning per converted deprecated key (old_a, old_b, old_c)
     assert len(record) == 3
+
+
+def test_apply_deprecations_recurses_into_nested_schema() -> None:
+    doc: Dict[str, Any] = {"old_a": "a", "child": {"old_x": "x", "keep": 1}}
+    # one call migrates the top-level field and recurses into the nested schema
+    with pytest.warns(DltDeprecationWarning) as record:
+        apply_deprecations(TOuterDeprecated, doc, since="1.0.0")
+
+    assert doc == {"new_a": "a", "child": {"new_x": "x", "keep": 1}}
+    # one warning for the top-level field, one for the nested field
+    assert len(record) == 2
+
+
+def test_apply_deprecations_skips_nested_when_not_a_dict() -> None:
+    # `child` present but not a dict: recursion is skipped and the value is untouched
+    doc: Dict[str, Any] = {"child": "not-a-dict"}
+    apply_deprecations(TOuterDeprecated, doc, since="1.0.0")
+    assert doc == {"child": "not-a-dict"}
 
 
 def test_apply_deprecations_options_and_messages() -> None:

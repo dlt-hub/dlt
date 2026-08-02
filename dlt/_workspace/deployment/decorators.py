@@ -1,6 +1,6 @@
 import inspect
 from functools import update_wrapper, wraps
-from typing import Any, Callable, List, Optional, Sequence, Type, Union, cast, overload
+from typing import Any, Callable, List, Optional, Sequence, Type, Union, overload
 
 from typing_extensions import TypeVar
 
@@ -8,7 +8,7 @@ from dlt.common.configuration import get_fun_spec, with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.pipeline import SupportsPipeline, TRefreshMode
 from dlt.common.reflection.inspect import iscoroutinefunction
-from dlt.common.typing import AnyFun, DictStrAny, Generic, ParamSpec
+from dlt.common.typing import AnyFun, Generic, ParamSpec
 from dlt.common.utils import get_callable_name, get_module_name
 from dlt.common.warnings import apply_deprecations
 
@@ -38,7 +38,6 @@ from dlt._workspace.deployment.typing import (
     TIntervalSpec,
     TJobDefinition,
     TJobDefinitionDeprecated,
-    TRequireSpecDeprecated,
     TJobExposeSpec,
     TJobRef,
     TJobType,
@@ -274,7 +273,9 @@ def _job(
     **kwargs: Any,
 ) -> Any:
     """Common decorator implementation for all job types."""
-    # accept deprecated arg names, convert them to their replacements, warn
+    # accept deprecated arg names (including nested `require`), convert, warn
+    if require is not None:
+        kwargs["require"] = dict(require)
     apply_deprecations(
         TJobDefinitionDeprecated,
         kwargs,
@@ -282,6 +283,7 @@ def _job(
         since=WORKSPACE_DEPRECATED_SINCE,
         stacklevel=4,
     )
+    require = kwargs.pop("require", None)
     if incremental_mode is None:
         incremental_mode = kwargs.pop("incremental_mode", None)
     else:
@@ -307,16 +309,6 @@ def _job(
     exec_spec.setdefault("concurrency", 1)
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
-    if require is not None:
-        require_spec: DictStrAny = dict(require)
-        apply_deprecations(
-            TRequireSpecDeprecated,
-            require_spec,
-            path="@job require",
-            since=WORKSPACE_DEPRECATED_SINCE,
-            stacklevel=4,
-        )
-        require = cast(TRequireSpec, require_spec)
     wrapper.require = require
     wrapper.deliver = deliver
     wrapper.interval = interval

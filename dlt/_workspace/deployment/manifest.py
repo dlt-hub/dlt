@@ -55,7 +55,6 @@ from dlt._workspace.deployment.typing import (
     TFreshnessConstraint,
     TJobDefinition,
     TJobDefinitionDeprecated,
-    TRequireSpecDeprecated,
     TJobRef,
     TTrigger,
     WORKSPACE_DEPRECATED_SINCE,
@@ -131,15 +130,6 @@ def migrate_job_definition(
             since=WORKSPACE_DEPRECATED_SINCE,
             warn=False,
         )
-        require = job_dict.get("require")
-        if require:
-            apply_deprecations(
-                TRequireSpecDeprecated,
-                require,
-                path="jobs require",
-                since=WORKSPACE_DEPRECATED_SINCE,
-                warn=False,
-            )
         from_engine = 2
 
     if from_engine != to_engine:

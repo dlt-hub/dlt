@@ -333,29 +333,12 @@ def _bool_to_incremental_mode(allow_external: bool) -> Any:
     return "interval" if allow_external else SkipDeprecation
 
 
-class TJobDefinitionDeprecated(TypedDict, total=False):
-    """Deprecated job-definition fields and their replacements.
-
-    Single source of the old to new field mapping, consumed by `apply_deprecations` at the
-    job decorators and by `migrate_job_definition`.
-    """
-
-    refresh: Annotated[TRefreshPolicy, Deprecated(maps_to="refresh_propagation")]
-    allow_external_schedulers: Annotated[
-        bool, Deprecated(maps_to="incremental_mode", convert=_bool_to_incremental_mode)
-    ]
-
-
 def _machine_to_instance(machine: str) -> Any:
     return {"size": machine}
 
 
 class TRequireSpecDeprecated(TypedDict, total=False):
-    """Deprecated `require` fields and their replacements.
-
-    Consumed by `apply_deprecations` at the job decorators, module detectors, and
-    `migrate_job_definition`.
-    """
+    """Deprecated `require` fields and their replacements."""
 
     machine: Annotated[
         str,
@@ -368,6 +351,21 @@ class TRequireSpecDeprecated(TypedDict, total=False):
             ),
         ),
     ]
+
+
+class TJobDefinitionDeprecated(TypedDict, total=False):
+    """Deprecated job-definition fields and their replacements.
+
+    Single source of the old to new field mapping, consumed by `apply_deprecations` at the
+    job decorators and by `migrate_job_definition`. Nested specs (e.g. `require`) migrate
+    recursively.
+    """
+
+    refresh: Annotated[TRefreshPolicy, Deprecated(maps_to="refresh_propagation")]
+    allow_external_schedulers: Annotated[
+        bool, Deprecated(maps_to="incremental_mode", convert=_bool_to_incremental_mode)
+    ]
+    require: TRequireSpecDeprecated
 
 
 class TJobsDeploymentManifest(TypedDict):

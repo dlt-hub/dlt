@@ -11,6 +11,7 @@ from dlt.common.typing import (
     get_type_globals,
     get_type_hints,
     is_annotated,
+    is_typeddict,
 )
 from dlt.version import __version__
 
@@ -133,7 +134,8 @@ def apply_deprecations(
     For every `Annotated[..., Deprecated(...)]` field of `deprecation_spec` present in `doc`:
     emits a `DltDeprecationWarning` (unless `warn` is False), runs the marker's `convert`,
     writes the result under `Deprecated.maps_to`, and drops the old key (unless `remove` is
-    False). Mutates `doc` in place and returns it.
+    False). A field typed as a nested deprecation `TypedDict` migrates its sub-document
+    recursively. Mutates `doc` in place and returns it.
 
     Args:
         deprecation_spec (Type[_TypedDict]): TypedDict whose keys are deprecated field names.
@@ -153,31 +155,45 @@ def apply_deprecations(
         deprecation_spec, include_extras=True, globalns=get_type_globals(deprecation_spec)
     )
     for old_key, hint in hints.items():
-        if old_key not in doc or not is_annotated(hint):
+        if old_key not in doc:
             continue
-        _, *metadata = get_args(hint)
-        marker = next((m for m in metadata if isinstance(m, Deprecated)), None)
-        if marker is None:
-            continue
-        if warn:
-            message = (
-                marker.message
-                or f"Field `{old_key}` is deprecated at `{path}`, use `{marker.maps_to}` instead"
-            )
-            warnings.warn(
-                DltDeprecationWarning(
-                    message,
-                    since=marker.since or since,
-                    expected_due=marker.expected_due or expected_due,
-                ),
+        if is_annotated(hint):
+            _, *metadata = get_args(hint)
+            marker = next((m for m in metadata if isinstance(m, Deprecated)), None)
+            if marker is not None:
+                if warn:
+                    message = (
+                        marker.message
+                        or f"Field `{old_key}` is deprecated at `{path}`, use `{marker.maps_to}` instead"
+                    )
+                    warnings.warn(
+                        DltDeprecationWarning(
+                            message,
+                            since=marker.since or since,
+                            expected_due=marker.expected_due or expected_due,
+                        ),
+                        stacklevel=stacklevel,
+                    )
+                if not (prefer_new and marker.maps_to in doc):
+                    converted = marker.convert(doc[old_key])
+                    if converted is not SkipDeprecation:
+                        doc[marker.maps_to] = converted
+                if remove:
+                    del doc[old_key]
+                continue
+        # a field typed as a nested deprecation schema migrates its sub-document
+        if is_typeddict(hint) and isinstance(doc[old_key], dict):
+            apply_deprecations(
+                hint,
+                doc[old_key],
+                path=f"{path}.{old_key}",
+                since=since,
+                expected_due=expected_due,
+                warn=warn,
+                remove=remove,
+                prefer_new=prefer_new,
                 stacklevel=stacklevel,
             )
-        if not (prefer_new and marker.maps_to in doc):
-            converted = marker.convert(doc[old_key])
-            if converted is not SkipDeprecation:
-                doc[marker.maps_to] = converted
-        if remove:
-            del doc[old_key]
     return doc
 
 
