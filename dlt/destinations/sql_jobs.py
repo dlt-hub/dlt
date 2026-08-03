@@ -7,6 +7,7 @@ from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TAnyDateTime, TypedDict
 
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TSortOrder,
     TColumnProp,
 )
@@ -183,6 +184,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "insert-only":
             merge_sql = cls.gen_upsert_sql(table_chain, sql_client, insert_only=True)
+        elif merge_strategy == "cdc":
+            merge_sql = cls.gen_cdc_sql(table_chain, sql_client)
         elif merge_strategy == "scd2":
             merge_sql = cls.gen_scd2_sql(table_chain, sql_client)
 
@@ -907,6 +910,187 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                                 WHERE {deleted_cond}
                             );
                         """)
+        return sql
+
+    @classmethod
+    def _get_compare_columns(cls, table: PreparedTableSchema) -> List[str]:
+        """Returns names of columns used to detect changed rows.
+
+        Excludes key columns and dlt system columns whose values change on every load.
+        """
+        key_props = ("primary_key", "row_key", "parent_key", "root_key", "hard_delete")
+        return [
+            name
+            for name, column in table["columns"].items()
+            if name != C_DLT_LOAD_ID and not any(column.get(prop) for prop in key_props)
+        ]
+
+    @classmethod
+    def gen_cdc_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        """Generates SQL statements for the `cdc` merge strategy.
+
+        Staging data is treated as a complete snapshot of the source: new rows are inserted,
+        rows whose compared columns differ are updated and rows absent from staging are deleted
+        from the destination. The optional `x-merge-filter` hint narrows the comparison to the
+        same scope on both staging and destination tables.
+        """
+        sql: List[str] = []
+        root_table = table_chain[0]
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+        escape_column_id = sql_client.escape_column_name
+        escape_lit = sql_client.capabilities.escape_literal
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+
+        # process table hints
+        primary_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "primary_key"),
+            escape_column_id,
+        )
+        hard_delete_col, deleted_cond = cls._get_hard_delete_col_and_cond(
+            root_table,
+            escape_column_id,
+            escape_lit,
+        )
+        merge_filter = cast(Optional[str], root_table.get("x-merge-filter"))
+
+        staging_source = staging_root_table_name
+        target_source = root_table_name
+        if merge_filter:
+            staging_source = f"(SELECT * FROM {staging_root_table_name} WHERE {merge_filter})"
+            target_source = f"(SELECT * FROM {root_table_name} WHERE {merge_filter})"
+
+        on_str = " AND ".join([f"s.{c} = d.{c}" for c in primary_keys])
+        nested_tables = table_chain[1:]
+        if nested_tables:
+            root_row_key_column = escape_column_id(
+                cls.get_row_key_col(
+                    table_chain,
+                    root_table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
+            )
+            # delete nested rows of deleted parents before the merge removes the parents
+            for table in nested_tables:
+                table_name, _ = sql_client.get_qualified_table_names(table["name"])
+                root_key_column = escape_column_id(
+                    cls.get_root_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
+                    )
+                )
+                sql.append(f"""
+                    DELETE FROM {table_name}
+                    WHERE {root_key_column} IN (
+                        SELECT d.{root_row_key_column}
+                        FROM {target_source} d
+                        WHERE NOT EXISTS (SELECT 1 FROM {staging_source} s WHERE {on_str})
+                    );
+                """)
+                if hard_delete_col is not None:
+                    sql.append(f"""
+                        DELETE FROM {table_name}
+                        WHERE {root_key_column} IN (
+                            SELECT {root_row_key_column}
+                            FROM {staging_root_table_name}
+                            WHERE {deleted_cond}
+                        );
+                    """)
+
+        # generate merge statement for root table
+        root_table_column_names = list(map(escape_column_id, root_table["columns"]))
+        compare_columns = cls._escape_list(cls._get_compare_columns(root_table), escape_column_id)
+        key = primary_keys[0]
+        select_str = ", ".join(
+            [
+                f"COALESCE(s.{c}, d.{c}) AS {c}" if c in primary_keys else f"s.{c} AS {c}"
+                for c in root_table_column_names
+            ]
+        )
+        change_branches = [f"WHEN s.{key} IS NULL THEN 'D'"]
+        if hard_delete_col is not None:
+            change_branches.append(
+                f"WHEN s.{deleted_cond} THEN CASE WHEN d.{key} IS NULL THEN NULL ELSE 'D' END"
+            )
+        change_branches.append(f"WHEN d.{key} IS NULL THEN 'I'")
+        if compare_columns:
+            changed_cond = " OR ".join([f"s.{c} IS DISTINCT FROM d.{c}" for c in compare_columns])
+            change_branches.append(f"WHEN {changed_cond} THEN 'U'")
+        change_str = "CASE " + " ".join(change_branches) + " END"
+
+        update_str = ", ".join([c + " = " + "s." + c for c in root_table_column_names])
+        col_str = ", ".join(["{alias}" + c for c in root_table_column_names])
+        sql.append(f"""
+            MERGE INTO {root_table_name} d USING (
+                SELECT * FROM (
+                    SELECT {select_str}, {change_str} AS _dlt_change_type
+                    FROM {staging_source} s
+                    FULL OUTER JOIN {target_source} d ON {on_str}
+                ) changes WHERE _dlt_change_type IS NOT NULL
+            ) s
+            ON {on_str}
+            WHEN MATCHED AND s._dlt_change_type = 'D' THEN DELETE
+            WHEN MATCHED THEN UPDATE SET {update_str}
+            WHEN NOT MATCHED
+                THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+        """)
+
+        # generate statements for nested tables if they exist
+        for table in nested_tables:
+            nested_row_key_column = escape_column_id(
+                cls.get_row_key_col(
+                    table_chain,
+                    table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
+            )
+            root_key_column = escape_column_id(
+                cls.get_root_key_col(
+                    table_chain,
+                    table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
+            )
+            table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+            table_column_names = list(map(escape_column_id, table["columns"]))
+            nested_compare_columns = cls._escape_list(
+                cls._get_compare_columns(table), escape_column_id
+            )
+            update_clause = ""
+            if nested_compare_columns:
+                nested_changed_cond = " OR ".join(
+                    [f"s.{c} IS DISTINCT FROM d.{c}" for c in nested_compare_columns]
+                )
+                nested_update_str = ", ".join([c + " = " + "s." + c for c in table_column_names])
+                update_clause = (
+                    f"WHEN MATCHED AND ({nested_changed_cond}) THEN UPDATE SET {nested_update_str}"
+                )
+            col_str = ", ".join(["{alias}" + c for c in table_column_names])
+
+            sql.append(f"""
+                MERGE INTO {table_name} d USING {staging_table_name} s
+                ON d.{nested_row_key_column} = s.{nested_row_key_column}
+                {update_clause}
+                WHEN NOT MATCHED
+                    THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
+            """)
+            # delete records for elements no longer in the list
+            sql.append(f"""
+                DELETE FROM {table_name}
+                WHERE {root_key_column} IN (SELECT {root_row_key_column} FROM {staging_root_table_name})
+                AND {nested_row_key_column} NOT IN (SELECT {nested_row_key_column} FROM {staging_table_name});
+            """)
         return sql
 
     @classmethod

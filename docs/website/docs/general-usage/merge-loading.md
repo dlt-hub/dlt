@@ -9,7 +9,7 @@ Merge loading allows you to update existing data in your destination tables, rat
 
 To perform a merge load, you need to specify the `write_disposition` as `merge` on your resource and provide a `primary_key` or `merge_key`.
 
-Depending on your use case, you can choose from four different merge strategies.
+Depending on your use case, you can choose from five different merge strategies.
 
 ## Merge strategies
 
@@ -17,6 +17,7 @@ Depending on your use case, you can choose from four different merge strategies.
 2. [`scd2` strategy](#scd2-strategy)
 3. [`upsert` strategy](#upsert-strategy)
 4. [`insert-only` strategy](#insert-only-strategy)
+5. [`cdc` strategy](#cdc-strategy)
 
 ## `delete-insert` strategy
 
@@ -720,3 +721,70 @@ def my_insert_only_resource():
     ...
 ...
 ```
+
+## `cdc` strategy
+
+:::warning
+The `cdc` merge strategy is currently supported for these destinations:
+- `duckdb` (requires `duckdb` >= 1.4.0)
+- `snowflake`
+:::
+
+The `cdc` merge strategy treats the loaded data as a complete snapshot of the source and derives inserts, updates, and deletes from it in a single `MERGE` statement:
+- *insert* a record if the key does not exist in the target table
+- *update* a record only if at least one of its data columns actually changed
+- *delete* a record if the key exists in the target table but is absent from the snapshot
+
+Use this strategy when the source performs hard deletes without deletion markers and you want the target table to mirror the source exactly. Because unchanged records are never rewritten, the strategy plays well with change consumers downstream, for example Snowflake Streams only capture the records that were actually inserted, updated, or deleted.
+
+Change detection compares all data columns except keys and dlt system columns (`_dlt_id`, `_dlt_load_id`). Updated records receive the `_dlt_load_id` of the load that changed them, while untouched records keep the load id of their last change.
+
+You can also [delete records](#delete-records) with the `hard_delete` hint. Records marked as deleted are removed from the target table even when present in the snapshot and are never inserted.
+
+### `cdc` versus `upsert`
+
+Unlike the `upsert` strategy, the `cdc` strategy:
+1. **deletes** records that are absent from the loaded snapshot
+2. **skips updates** for records whose values did not change
+
+Like `upsert`, the `cdc` strategy:
+1. needs a `primary_key`
+2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
+3. does not support `merge_key`
+4. generates deterministic `_dlt_id` based on primary key
+
+### Example: `cdc` merge strategy
+```py
+@dlt.resource(
+    write_disposition={"disposition": "merge", "strategy": "cdc"},
+    primary_key="my_primary_key"
+)
+def my_cdc_resource():
+    ...
+...
+```
+
+### Limit the comparison scope with `merge_filter`
+
+By default, the full table is compared, and any target record missing from the snapshot is deleted. For large tables where changes only happen within a known window (e.g., the last three months), you can pass a `merge_filter` SQL condition. It is applied to both the loaded data and the target table, so records outside the window are neither compared nor deleted:
+
+```py
+@dlt.resource(
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "cdc",
+        "merge_filter": "updated_at >= CURRENT_DATE - 90",
+    },
+    primary_key="my_primary_key",
+)
+def my_windowed_resource():
+    # yield a complete snapshot of the same window
+    ...
+...
+```
+
+The filter is a raw SQL condition executed on the destination, so use destination column names and syntax. Make sure the loaded data covers exactly the filtered window, otherwise records missing from the snapshot but inside the window are deleted.
+
+### Nested tables
+
+Nested tables follow their parent records: nested rows of deleted parents are deleted, removed list elements are deleted, and new elements are inserted. Change detection also applies to nested rows.
