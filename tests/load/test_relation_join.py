@@ -8,6 +8,7 @@ import pytest
 import dlt
 from dlt import Pipeline
 from dlt.common.destination import Destination
+from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.utils import uniq_id
 from dlt.dataset.relation import TJoinType
 from dlt.extract.hints import make_hints
@@ -272,7 +273,9 @@ def test_cross_dataset_explicit_join(
     assert casefold(ds_a.sql_client.dataset_name) in sql, sql
     assert casefold(ds_b.sql_client.dataset_name) in sql, sql
 
-    if ds_a.destination_client.config.protocol != "gs":  # type: ignore[attr-defined]
+    config = ds_a.destination_client.config
+    skip = isinstance(config, FilesystemConfiguration) and config.protocol == "gs"
+    if not skip:
         _assert_users_purchases(joined)
 
 
