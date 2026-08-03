@@ -1,48 +1,46 @@
 ---
 title: Deploy your first pipeline with dltHub
-description: Scaffold a fresh dltHub workspace and let your coding agent deploy a pipeline to the managed platform in a few minutes
+description: Create a dltHub workspace, deploy a sample pipeline, and view the loaded data in a few minutes
 keywords: [dlthub, deploy, first pipeline, getting started, workspace, dlthub-start, onboarding]
 ---
 
 # Deploy your first pipeline with dltHub
 
-Go from nothing to a pipeline running on the managed [dltHub platform](https://app.dlthub.com/). 
-`dlthub-start` scaffolds a workspace, signs you in, and installs the [AI Harness](https://github.com/dlt-hub/dlthub-ai-workbench) for your coding agent, **the agent then deploys and runs your first pipeline for you**.
+New to dltHub and just want to try or learn it? This guide takes you from an empty directory to a sample pipeline running on the managed [dltHub platform](https://app.dlthub.com/). 
+
+`dlthub-start` creates a ready-to-run workspace, connects it to dltHub, and configures your coding agent. The agent then deploys and runs a sample pipeline for you. 
+
+By the end of this guide, you will have loaded data into the Playground destination and opened it in the dltHub UI.
 
 Already have a `dlt` pipeline? See [Workspace setup](../pipeline-operations/workspace-setup.md) to convert an existing
 project into a dltHub workspace.
 
 ## Before you start
 
-- **Python 3.10–3.14** and [uv](https://docs.astral.sh/uv/) (recommended). See [installation](installation.md) for
+- **Python 3.10–3.14** and [uv](https://docs.astral.sh/uv/) (recommended). See [Installation](installation.md) for
   alternatives.                               
-- **A coding agent** on your `PATH`: Claude Code, Cursor, or Codex.                                                 
-- **A dltHub account.** `dlthub-start` signs you in via OAuth (GitHub, Google, or email) and creates your account on
-   first login. Use is governed by the [dltHub License](../license.md). You automatically get a [Playground workspace](playground-workspace.md) to complete this guide with no setup required. 
-- dltHub is commercial; use is governed by the ([license](../license.md)). On sign-up you get a [Playground workspace](playground-workspace.md) 
-so you can complete this guide with no setup or cloud credentials.      
+- **A coding agent**: Claude Code, Cursor, or Codex.                                                 
+- **A dGitHub, Google, or email login** `dlthub-start` uses OAuth 2.0 (GitHub, Google, or email) to sign you in and creates your dltHub Account on girst login. You automatically get a [Playground workspace](playground-workspace.md), so you do not need to configure cloud credentials to complete this guide.
 
-## 1. Scaffold, sign in, pick your agent
+dltHub is commercial. Use is governed by the [license](../license.md). 
 
-Run this in an empty directory — the folder name becomes your project package name:
+## 1. Setup your ready-to-run dltHub workspace
+
+Run this command in an empty directory. The directory name becomes your project package name:
 
 ```sh
 uvx dlthub-start@latest
 ```
 
-No arguments needed; the CLI is interactive and walks you through each step:
+No arguments are needed. The CLI guides you through the following steps:
 
-1. **Scaffolds a workspace** into the current directory (or a `./playground` folder if it isn't empty).
+1. **Creates a workspace** in the current directory.
 2. **Installs dependencies** with `uv sync` into `.venv`.
-3. **Signs you in and connects a workspace**: opens an OAuth flow in your browser (creating your dltHub account on first
-   use) and binds the project to your personal **Playground workspace**.
-4. **Asks which coding agent you use** (Claude / Cursor / Codex) and adds that agent's workbench files — skills plus the
-   dltHub MCP server.
-5. **Offers to launch the agent** with a handoff prompt that tells it to continue onboarding using the
-   `deploy-run-sample-pipeline` skill.
+3. **Signs you in and connects the project to dltHub.** An OAuth 2.0 flow opens in your browser and creates your account on first login. The project is then connected to your Playground workspace.
+4. **Configure your coding Agent** Select Claude Code, Cursor, or Codex, and `dlthub-start` adds the corresponding dltHub toolkits.
+5. **Offers to launch the agent** with a handoff prompt that continues the onboarding workflow using the `deploy-run-sample-pipeline` skill.
 
 
-<!--  
 ```text
 ✓ Workspace ready — dependencies installed in .venv
 Project package name: starter-test
@@ -62,48 +60,38 @@ How do you want to continue?
 ● Launch claude now and hand it this prompt
 ```
 
-Accept the launch and the agent picks up in the same terminal. If you decline, you can start the agent yourself later and
-paste the prompt it printed — nothing is lost.
+Accept the launch, and the agent continues in the same terminal. If you decline, you can launch the agent later and paste the printed handoff prompt.
 
 :::tip Explore first, then build your own
-`dlthub-start` is the quickest way to explore dltHub end-to-end. It connects a personal
-[Playground workspace](playground-workspace.md) and wires an **AI workbench** into your coding agent. Ask the agent to
-build a pipeline for any source one-shot (for example, *"load the GitHub API into DuckDB"*) and it will write **and
-deploy** it from scratch. Already have a `dlt` pipeline you maintain? See
+`dlthub-start` is the quickest way to explore dltHub end-to-end. The sample pipeline lets you explore the complete dltHub workflow without configuring a destination. Once it is running, you can use the same coding agent to build and deploy a pipeline for your own source. Already have a `dlt` pipeline you maintain? See
 [Workspace setup](../pipeline-operations/workspace-setup.md) to bring it onto the platform instead.
 :::
- --> 
 
-## 2. What you got
+
+### What you got
 
 ```text
 starter-test/
-├── pyproject.toml      # dlt[hub] + dependencies
-├── pipeline.py         # the Sample Shop pipeline
-├── __deployment__.py   # declares the deployable jobs
-├── README.md           # what to do next
+├── pyproject.toml      # project dependencies and configuration
+├── pipeline.py         # sample REST API pipeline
+├── __deployment__.py   # deployable job definitions
+├── README.md           # next steps and project guidance
 ├── .dlt/               # config, secrets, and the .workspace marker
-└── .claude/            # agent workbench: skills + MCP server (or .cursor/ / .codex/)
+└── .claude/            # agent toolkits: skills + MCP server (or .cursor/ / .codex/)
 ```
 
-`pipeline.py` loads the Sample Shop dataset from a public sample REST API into the platform-managed [**Playground destination**](../getting-started/playground-workspace.md), with no warehouse, bucket, or credentials to configure. It's already a deployable job:
+`pipeline.py` loads the Sample Shop dataset from a public sample REST API into the platform-managed [**Playground destination**](../getting-started/playground-workspace.md). No warehouse, bucket, or credentials are required.
 
-- decorated with `@run.pipeline`;
-- listed in `__deployment__.py`.
+The pipeline is decorated with `@run.pipeline` and registered as a deployable job in `__deployment__.py`.
 
 See [Deployments](../pipeline-operations/deployments.md) for how the manifest works.
 
-## 3. Let the agent deploy and run the sample
+## 2. Let the agent deploy and run the sample
 
-Hand over to the agent, which uses our [platform toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master). It has the skills:
-- `prepare-deployment`
-- `setup-runtime`
-- `deploy-workspace`
-- `debug-deployment`
+The agent now uses the dltHub [platform toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master) to guide the deployment and run the sample pipeline. The toolkit provides the dltHub-specific instructions and commands, while the dltHub CLI and managed platform handle the deployment and execution. You can follow each command in the terminal.
 
-Tell the agent to "deploy to dltHub" and it will deploy the workspace, run the sample pipeline, and open the dataset browser. Every step is an ordinary CLI command, so you can follow along or run them yourself.
 
-First, it deploys the workspace by uploading your files and registering every job in `__deployment__.py`:
+First, it deploys the workspace by syncing your files and rregistering the jobs defined in `__deployment__.py`:
 
 ```sh
 uv run dlthub deploy
@@ -130,30 +118,32 @@ The data lands in the `sample_shop` dataset on your [Playground destination](../
 https://app.dlthub.com/w/<workspace-id>/runs/<run-id>
 ```
 
-Finally, it opens the `onboarding_success` notebook so you can browse the loaded tables. At this point your first pipeline has run on the platform and the data is ready to query.
+Finally, it opens the `onboarding_success` notebook so you can browse the loaded tables. At this point, your first pipeline has run on the platform and the data is ready to query.
 
-![alt text](https://storage.googleapis.com/dlt-blog-images/onboarding-dashboard.png)
+The notebook shows the tables created in the sample_shop dataset.
+![The onboarding notebook showing the tables loaded by the Sample Shop pipeline](https://storage.googleapis.com/dlt-blog-images/onboarding-dashboard.png)
 
-## 4. Re-run and inspect
+## 3. Rerun and inspect the pipeline
 
-The `dlthub` CLI works in two modes:
-- **`dlthub …`** - operates on the connected cloud workspace
-- **`dlthub local …`** - runs on your machine using the local `dev` [profile](../pipeline-operations/profiles)
+After the first successful run, you can rerun the pipeline or open your workspace in the dltHub UI:
 
-```sh
-uv run dlthub run load_sample_shop -f      # run on the platform, follow logs until it finishes
-uv run dlthub show                         # open the workspace overview in the browser
-```
+`uv run dlthub run load_sample_shop -f` runs the pipeline on the managed platform and follows its logs until it finishes.
+`uv run dlthub show` opens the connected workspace in your browser.
 
-## 5. Point production at a cloud destination
+To run jobs locally instead, use dlthub local. Local runs use the `dev` [profile](../pipeline-operations/profiles).
+
+
+## 4. Continue with your own setup
+
+### Point production at a cloud destination
 
 The Playground destination is great for testing but isn't meant for production. For real data, you'll want to load into a destination you own.
 
-The recommended approach: use an alias like `warehouse` in your code, then configure what it actually points to in each [profile](../pipeline-operations/profiles.md). This way the same code runs on local DuckDB during development and on your cloud warehouse in production.
+You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../getting-started/playground-workspace.md) and [profiles](../pipeline-operations/profiles) for the complete configuration.
 
-Set your pipeline's destination to the alias:
+Set the destination on the `dlt.pipeline` inside your decorated job. Use a named destination such as warehouse so that the same pipeline code can run against different destinations in `dev` and `prod`profile:
 
-```py
+```python
 import dlt
 from dlt.hub import run
 
@@ -162,32 +152,40 @@ from dlt.hub import run
 def load_sample_shop():
     pipeline = dlt.pipeline(
         pipeline_name="sample_shop_pipeline",
-        destination="warehouse",   # alias, resolved per profile
+        destination="warehouse",
         dataset_name="sample_shop",
     )
-    ...
+
+    pipeline.run(...)
 ```
 
-Then configure the alias differently for each profile in `.dlt/` (secrets files are gitignored):
+The name warehouse is an alias. Configure what it points to for each profile in the `.dlt/` directory.
 
-```toml
-# dev.config.toml: local development
+For example, use DuckDB for local development:
+
+`.dlt/dev.config.toml`
+```yml
 [destination.warehouse]
 destination_type = "duckdb"
 ```
+Then configure a cloud destination for production:
 
-```toml
-# prod.config.toml: production runs on the platform
+`.dlt/prod.config.toml`
+```yml
 [destination.warehouse]
-destination_type = "motherduck"
-```
-
-```toml
-# prod.secrets.toml: production credentials
+destination_type = "snowflake"
+```yml
+Add the corresponding Snowflake credentials to `.dlt/prod.secrets.toml`:
+```yml
 [destination.warehouse.credentials]
 database = "your_database"
-password = "your-service-token"
+username = "your_username"
+password = "your_password"
+host = "your_account_identifier"
+warehouse = "your_warehouse"
+role = "your_role"
 ```
+Local runs use the dev profile, while batch jobs on the dltHub platform use the prod profile. The pipeline code therefore remains unchanged while the destination changes between environments.
 
 Supported destinations include
 [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md),
@@ -196,10 +194,8 @@ Supported destinations include
 [S3](../../dlt-ecosystem/destinations/filesystem.md), and
 [many more](../../dlt-ecosystem/destinations).
 
-For the full setup (synced vs. local profiles, and read-only `access` credentials for interactive jobs) see
-[Workspace setup](../pipeline-operations/workspace-setup.md) and [Profiles](../pipeline-operations/profiles.md).
 
-## 6. Schedule the pipeline
+### Schedule the pipeline
 
 Scheduling is declarative: add a trigger to the job and redeploy.
 
@@ -219,7 +215,7 @@ uv run dlthub deploy
 
 See [Triggers and scheduling](../pipeline-operations/triggers.md) for cron, intervals, and follow-ups.
 
-## 7. Build your own pipeline with your coding agent
+### Build your own pipeline with your coding agent
 
 With the sample running, the same agent session is ready to build a pipeline for **your own** source. Ask it:
 
@@ -234,11 +230,13 @@ step 1:
 - **Deploys and runs it** on the platform, iterating on failures.
 - **Opens the dashboard** so you can explore the loaded data right away.
 
-Note that the sample loads into the Playground destination. When you build your own pipeline you pick a real destination
+Note that the sample loads into the Playground destination. When you build your own pipeline, you pick a real destination
 of your own — see [step 5](#5-point-production-at-a-cloud-destination).
 
+The sample pipeline uses the Playground destination. For your own pipeline, you can continue using Playground while experimenting or configure a production destination.
+
 For the production-grade path (auth, incremental loading, more endpoints) see the
-[dltHub AI Workbench](../ingestion/rest-api-source.md).
+[dltHub AI Harness](../ingestion/rest-api-source.md).
 
 ## Next steps
 
@@ -247,3 +245,28 @@ For the production-grade path (auth, incremental loading, more endpoints) see th
 - Reshape your data with [Transformations](../transformations/index.md).
 - Add [data quality checks](../data-quality/index.md) to catch issues early.
 - Work through the [advanced example](platform-tutorial.md): a full starter pack with pipelines, transformations, and a dashboard.
+
+
+## Troubleshooting
+
+```text
+uvx: command not found
+```
+
+Install the CLI with pip install dlthub-start (into your current Python environment) and run dlthub-start instead. The CLI will still offer to install uv before syncing the generated workspace dependencies.
+
+
+```text
+My workspace landed in a playground/-1 subdirectory
+```
+
+That's expected when the target wasn't empty: rather than refuse, the CLI scaffolds into a free directory and prints where it went. To control the location, pass an explicit empty target — uvx dlthub-start@latest my-workspace — or run from an empty directory. The CLI never writes into a non-empty directory; it picks a fresh one alongside it.
+
+`uv sync` fails
+
+Re-run with `--verbose` to see subprocess output:
+
+```uvx dlthub-start@latest my-workspace --verbose```
+
+If the scaffold was created successfully, you can also enter the workspace and run `uv sync` directly after fixing the underlying dependency or network issue.
+
