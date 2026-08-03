@@ -161,19 +161,21 @@ The name `warehouse` is an alias. Configure what it points to for each profile i
 For example, use DuckDB for local development:
 
 `.dlt/dev.config.toml`
-```yml
+```toml
 [destination.warehouse]
 destination_type = "duckdb"
 ```
+
 Then configure a cloud destination for production:
 
 `.dlt/prod.config.toml`
-```yml
+```toml
 [destination.warehouse]
 destination_type = "snowflake"
-```yml
+```
+
 Add the corresponding Snowflake credentials to `.dlt/prod.secrets.toml`:
-```yml
+```toml
 [destination.warehouse.credentials]
 database = "your_database"
 username = "your_username"
@@ -263,7 +265,9 @@ That's expected when the target wasn't empty: rather than refuse, the CLI scaffo
 
 Rerun with `--verbose` to see subprocess output:
 
-```uvx dlthub-start@latest my-workspace --verbose```
+```sh
+uvx dlthub-start@latest my-workspace --verbose
+```
 
 If the scaffold was created successfully, you can also enter the workspace and run `uv sync` directly after fixing the underlying dependency or network issue.
 
