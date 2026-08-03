@@ -6,8 +6,8 @@ keywords: [dlthub, deploy, first pipeline, getting started, workspace, dlthub-st
 
 # Deploy your first pipeline with dltHub
 
-Go from nothing to a pipeline running on the managed dltHub platform. `dlthub-start` scaffolds a workspace, signs you in,
-and installs the AI workbench for your coding agent — **the agent then deploys and runs your first pipeline for you**.
+Go from nothing to a pipeline running on the managed [dltHub platform](https://app.dlthub.com/). 
+`dlthub-start` scaffolds a workspace, signs you in, and installs the [AI Harness](https://github.com/dlt-hub/dlthub-ai-workbench) for your coding agent, **the agent then deploys and runs your first pipeline for you**.
 
 Already have a `dlt` pipeline? See [Workspace setup](../pipeline-operations/workspace-setup.md) to convert an existing
 project into a dltHub workspace.
@@ -18,8 +18,7 @@ project into a dltHub workspace.
   alternatives.                               
 - **A coding agent** on your `PATH`: Claude Code, Cursor, or Codex.                                                 
 - **A dltHub account.** `dlthub-start` signs you in via OAuth (GitHub, Google, or email) and creates your account on
-   first login. Use is governed by the [dltHub License](../license.md). You automatically get a [Playground           
-  workspace](playground-workspace.md) to complete this guide with no setup required. 
+   first login. Use is governed by the [dltHub License](../license.md). You automatically get a [Playground workspace](playground-workspace.md) to complete this guide with no setup required. 
 - dltHub is commercial; use is governed by the ([license](../license.md)). On sign-up you get a [Playground workspace](playground-workspace.md) 
 so you can complete this guide with no setup or cloud credentials.      
 
@@ -87,8 +86,7 @@ starter-test/
 └── .claude/            # agent workbench: skills + MCP server (or .cursor/ / .codex/)
 ```
 
-`pipeline.py` loads the **Sample Shop** dataset from a public sample REST API into the platform-managed
-[**Playground destination**](../getting-started/playground-workspace.md), with no warehouse, bucket, or credentials to configure. It's already a deployable job:
+`pipeline.py` loads the Sample Shop dataset from a public sample REST API into the platform-managed [**Playground destination**](../getting-started/playground-workspace.md), with no warehouse, bucket, or credentials to configure. It's already a deployable job:
 
 - decorated with `@run.pipeline`;
 - listed in `__deployment__.py`.
@@ -105,7 +103,7 @@ Hand over to the agent, which uses our [platform toolkit](https://github.com/dlt
 
 Tell the agent to "deploy to dltHub" and it will deploy the workspace, run the sample pipeline, and open the dataset browser. Every step is an ordinary CLI command, so you can follow along or run them yourself.
 
-First, it deploys the workspace — uploading your files and registering every job in `__deployment__.py`:
+First, it deploys the workspace by uploading your files and registering every job in `__deployment__.py`:
 
 ```sh
 uv run dlthub deploy
@@ -118,7 +116,7 @@ Synced changed workspace configuration
 ```
 
 The scaffold ships three jobs: `load_sample_shop` (the pipeline), `onboarding_success` (a notebook that browses the
-loaded data), and `dashboard`.
+loaded data), and the [observability `dashboard`](../ingestion/dashboard.md).
 
 Then it runs the pipeline on the platform and follows the logs until it finishes:
 
@@ -126,7 +124,7 @@ Then it runs the pipeline on the platform and follows the logs until it finishes
 uv run dlthub run load_sample_shop -f
 ```
 
-The data lands in the `sample_shop` dataset on your [Playground destination](../ingestion/playground.md) — storage the platform provisions automatically. When the run finishes, the agent prints a link to view it in the web UI:
+The data lands in the `sample_shop` dataset on your [Playground destination](../ingestion/playground.md), a managed storage included with every workspace. When the run finishes, the agent prints a link to view it in the web UI:
 
 ```text
 https://app.dlthub.com/w/<workspace-id>/runs/<run-id>
@@ -134,11 +132,13 @@ https://app.dlthub.com/w/<workspace-id>/runs/<run-id>
 
 Finally, it opens the `onboarding_success` notebook so you can browse the loaded tables. At this point your first pipeline has run on the platform and the data is ready to query.
 
+![alt text](https://storage.googleapis.com/dlt-blog-images/onboarding-dashboard.png)
+
 ## 4. Re-run and inspect
 
 The `dlthub` CLI works in two modes:
-- **`dlthub …`** — operates on the connected cloud workspace
-- **`dlthub local …`** — runs on your machine using the local `dev` profile
+- **`dlthub …`** - operates on the connected cloud workspace
+- **`dlthub local …`** - runs on your machine using the local `dev` [profile](../pipeline-operations/profiles)
 
 ```sh
 uv run dlthub run load_sample_shop -f      # run on the platform, follow logs until it finishes
