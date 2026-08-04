@@ -352,6 +352,23 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
+def test_replace_does_not_truncate_sibling_tables() -> None:
+    """Regression for #4265: with layout `{table_name}`, truncating `event` must not
+    delete files of the sibling table `events`."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}"
+    client = _client_factory(filesystem("random_location"))
+    client.initialize_storage()
+    event_file = client.pathlib.join(client.dataset_path, "event.jsonl")
+    events_file = client.pathlib.join(client.dataset_path, "events.jsonl")
+    client.fs_client.touch(event_file)
+    client.fs_client.touch(events_file)
+
+    client.truncate_tables(["event"])
+
+    assert not client.fs_client.isfile(event_file)
+    assert client.fs_client.isfile(events_file)
+
+
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""

@@ -419,30 +419,27 @@ def test_get_table_prefix_layout() -> None:
         get_table_prefix_layout("{schema_name}/{table_name}{load_id}.{file_id}.{ext}")
 
 
-def test_get_table_prefix_layout_table_name_at_end() -> None:
-    """When {table_name} terminates the layout, a dot separator must be appended
-    to avoid matching sibling table names (e.g. 'event' matching 'events.jsonl.gz')."""
-    # {table_name} at end → dot appended for implicit extension
-    prefix = get_table_prefix_layout("{table_name}")
-    assert prefix == "{table_name}."
-    assert prefix.format(table_name="event") == "event."
-
-    # {table_name} with full path prefix at end → dot appended
-    prefix = get_table_prefix_layout("{schema_name}/{table_name}")
-    assert prefix == "{schema_name}/{table_name}."
-    assert prefix.format(schema_name="my_schema", table_name="event") == "my_schema/event."
-
-    # {table_name}/{ext} at end → dot from {ext} suffices, no extra dot
-    prefix = get_table_prefix_layout("{table_name}.{ext}")
-    assert prefix == "{table_name}."
-
-    # {table_name}/ → slash separator suffices
-    prefix = get_table_prefix_layout("{table_name}/")
-    assert prefix == "{table_name}/"
-
-    # {schema_name}/{table_name}/{load_id}.{ext} → slash before {load_id} suffices
-    prefix = get_table_prefix_layout("{schema_name}/{table_name}/{load_id}.{ext}")
-    assert prefix == "{schema_name}/{table_name}/"
+@pytest.mark.parametrize(
+    "layout,expected_prefix",
+    [
+        # {table_name} at end → dot appended for the implicit extension
+        ("{table_name}", "{table_name}."),
+        # full path prefix at end → dot appended
+        ("{schema_name}/{table_name}", "{schema_name}/{table_name}."),
+        # dot from {ext} suffices
+        ("{table_name}.{ext}", "{table_name}."),
+        # dot before another placeholder also separates
+        ("{table_name}.{load_id}", "{table_name}."),
+        # slash separator suffices
+        ("{table_name}/", "{table_name}/"),
+        # slash before the next placeholder suffices
+        ("{schema_name}/{table_name}/{load_id}.{ext}", "{schema_name}/{table_name}/"),
+    ],
+)
+def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix: str) -> None:
+    """When {table_name} terminates the layout, the separator (dot or slash) is kept
+    in the prefix so sibling tables (e.g. 'event' vs 'events.jsonl.gz') are not matched."""
+    assert get_table_prefix_layout(layout) == expected_prefix
 
 
 def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -> None:
