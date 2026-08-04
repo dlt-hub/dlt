@@ -120,16 +120,16 @@ Finally, the agent opens the `onboarding_success` notebook. This Marimo notebook
 
 ## 3. Rerun and inspect the pipeline
 
-After the first successful run, you can rerun the pipeline or open your workspace in the dltHub UI:
-
+After the first successful run, you can rerun the pipeline or open your workspace in the dltHub UI.
+To rerun the pipeline on the managed platform and follow its logs until it finishes, run:
 ```sh
 uv run dlthub run load_sample_shop -f
 ``` 
-runs the pipeline on the managed platform and follows its logs until it finishes.
+To open the connected workspace in your browser, run:
 ```sh
 uv run dlthub show
 ```
-opens the connected workspace in your browser.
+
 ![In the UI you can then inspect your job runs and pipeline health](https://storage.googleapis.com/dlt-blog-images/onboarding-rerun.png)
 
 
@@ -230,6 +230,8 @@ uv run dlthub deploy
 
 See [triggers and scheduling](../pipeline-operations/triggers.md) for cron, intervals, and follow-ups.
 ![Jobs table showing the load_sample_shop batch job on the prod profile, scheduled to run every 10 minutes, with the last run completed and the next run in 9 minutes](https://storage.googleapis.com/dlt-blog-images/onboarding-trigger.png)
+
+You can also manage the job directly from the UI. Open the Actions menu next to the job to start a run, update its schedule, or remove the schedule.
 
 
 ### Build your own pipeline with your coding agent
