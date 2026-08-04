@@ -1130,7 +1130,7 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
             True,
             id="same_database",
         ),
-        # a dataset is a database and one endpoint reaches every database of the cluster
+        # a dataset is a database and one endpoint accesses every database of the cluster
         pytest.param(
             lambda: _lancedb_config("db1"),
             lambda: _lancedb_config("db2"),
@@ -1180,7 +1180,7 @@ def test_lancedb_without_a_cluster_has_no_location() -> None:
     unidentified = _lancedb_config("db1", host_override=None, api_key=None, region=None)
     identified = _lancedb_config("db1")
 
-    with pytest.raises(ConfigurationValueError, match="no `api_key` identifies"):
+    with pytest.raises(ConfigurationValueError, match="neither `host_override` nor `api_key`"):
         unidentified.data_location()
     with pytest.raises(ConfigurationValueError):
         identified.can_read_from(unidentified)
@@ -1200,7 +1200,7 @@ def test_lancedb_external_client_is_its_own_location() -> None:
 
     assert_joinable(on_client, same_client)
     assert_not_joinable(on_client, other_client)
-    # the client wins over an endpoint, which it may not even be using
+    # the client wins over an endpoint, which it need not be using
     assert on_client.data_location() != _lancedb_config("db1").data_location()
 
 

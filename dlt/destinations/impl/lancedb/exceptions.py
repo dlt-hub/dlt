@@ -37,11 +37,11 @@ class LanceDBCommitTagNotApplied(DestinationTerminalException):
             ]
         )
         super().__init__(
-            f"Load {load_id} is committed but the commit tag `{tag}` could not be applied to"
-            f" `{table_name}` at version {version}. The data is loaded and complete, only the tag"
-            f" is missing, so the dataset cannot be rolled back to `{tag}` and that version is not"
-            " pinned against the background cleanup of the cluster. `dlt` does not retry a"
-            f" committed load, so create the tag yourself:\n\n{remediation}\n"
+            f"Load {load_id} is committed but the commit tag `{tag}` was not applied to"
+            f" `{table_name}` at version {version}. The data is complete and only the tag is"
+            f" missing. The dataset cannot be rolled back to `{tag}`, and the cluster does not"
+            " retain that version against its background cleanup. `dlt` does not retry a committed"
+            f" load, so create the tag yourself:\n\n{remediation}\n"
         )
 
 

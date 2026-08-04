@@ -1005,18 +1005,18 @@ def test_dataset_is_a_database_recorded_by_a_sentinel(
         client.drop_storage()
 
 
-# a pinned database is shared with every other dataset, so this must not run beside them
+# a configured database is shared with every other dataset, so this must not run beside them
 @pytest.mark.serial
 @pytest.mark.parametrize(
     "destination_config",
     LANCEDB_ONLY_CONFS,
     ids=lambda x: x.name,
 )
-def test_drop_storage_of_pinned_database_keeps_foreign_tables(
+def test_drop_storage_keeps_foreign_dataset(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Dropping a dataset of a pinned database may only remove tables of the current schema."""
-    # pinning a database makes it the dataset, and it may hold tables of other writers
+    """Dropping a dataset can only remove destination tables of the current schema."""
+    # configuring a database makes it the dataset, and it can hold tables of a foreign dataset
     pinned_database = "pinned_" + uniq_id()
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__DATABASE"] = pinned_database
     pipeline = dlt.pipeline(

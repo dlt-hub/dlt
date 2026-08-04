@@ -44,8 +44,7 @@ def statement_query_command(query: str) -> bytes:
 
 
 def interpolate_parameters(query: str, parameters: Optional[Sequence[Any]]) -> str:
-    """Escapes `parameters` into `query`, used because Flight SQL prepared statements are optional
-    and commonly unimplemented by servers."""
+    """Escapes `parameters` into `query`."""
     if not parameters:
         return query
     return query % tuple(escape_lancedb_literal(parameter) for parameter in parameters)
@@ -123,7 +122,7 @@ class FlightSqlCursor:
         while (batch := self._next_batch()) is not None:
             pending.append(batch)
             pending_rows += batch.num_rows
-            # server batches may be larger than `chunk_size`, so split rather than overshoot
+            # server batches can be larger than `chunk_size`, so split rather than overshoot
             while pending_rows >= chunk_size:
                 table = pyarrow.Table.from_batches(pending, self._schema)
                 yield table.slice(0, chunk_size)

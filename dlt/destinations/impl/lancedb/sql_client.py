@@ -139,7 +139,7 @@ class LanceDBSqlClient(SqlClientBase[pyflightsql.FlightSqlConnection], WithReado
         Args:
             table_name: Table to address, optional.
             quote: Whether to escape each component.
-            casefold: Whether to casefold each component.
+            casefold: Whether to case-fold each component.
             dataset_name: Dataset to address instead of this one, which is how references to another
                 dataset are qualified.
             catalog: Catalog to address instead of the dataset. A dataset is a database here, so it

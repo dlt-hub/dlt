@@ -119,10 +119,7 @@ class LanceDBTypeMapper(TypeMapperImpl):
         return super().from_destination_type(db_type, precision, scale)
 
     def to_null_column_expression(self, column: TColumnSchema) -> str:
-        """Returns the expression adding `column` to a table, filled with nulls.
-
-        The managed cluster plans column additions as SQL, so the arrow type of the column is
-        carried by `arrow_cast` to keep it identical to the one used when creating a table.
-        """
+        """Returns the expression adding `column` to a table, filled with nulls."""
+        # the cluster plans column additions as SQL, so `arrow_cast` carries the arrow type
         arrow_type = self.to_destination_type(column, None)
         return f"arrow_cast(NULL, '{arrow_type_to_datafusion(arrow_type)}')"

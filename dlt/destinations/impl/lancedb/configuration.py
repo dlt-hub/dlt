@@ -47,7 +47,7 @@ class LanceDBCredentials(CredentialsConfiguration):
     headers: Optional[Dict[str, str]] = None
     """Extra HTTP headers sent to the cluster."""
     weak_read_consistency_interval_seconds: float = 0.0
-    """(Enterprise cluster does not honor this) How stale a read of the managed client may be, in seconds."""
+    """(Enterprise cluster does not honor this) How stale a read of the managed client can be, in seconds."""
 
     _conn: Annotated[Optional["RemoteDBConnection"], NotResolved()] = None
     _conns: Annotated[Optional[Dict[Tuple[str, float], "RemoteDBConnection"]], NotResolved()] = None
@@ -61,7 +61,7 @@ class LanceDBCredentials(CredentialsConfiguration):
 
     def parse_native_representation(self, native_value: Any) -> None:
         try:
-            # database may be passed as an already connected managed client
+            # database can be passed as an already connected managed client
             from lancedb.remote.db import RemoteDBConnection
 
             if isinstance(native_value, RemoteDBConnection):
@@ -153,15 +153,15 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
         default="lancedb", init=False, repr=False, compare=False
     )
     credentials: LanceDBCredentials = None
-    # dataset_name is optional: a pinned `credentials.database` is the dataset when it is not set
+    # dataset_name is optional: a configured `credentials.database` is the dataset when it is not set
     dataset_name: Final[Optional[str]] = dataclasses.field(  # type: ignore
         default=None, init=False, repr=False, compare=False
     )
     commit_tag: Optional[str] = None
-    """Tag applied to every table of the dataset after a successful load, so the whole dataset can be read back as one consistent snapshot."""
+    """Tag applied to every table of the dataset after a successful load, so the whole dataset can be read back as one tagged version."""
 
     embeddings: Optional[LanceEmbeddingsConfiguration] = None
-    """Optional embeddings configuration to add a vector embedding column."""
+    """Embeddings config. Adds a vector column when set."""
 
     dataset_sentinel_namespace_name: str = "_dlt_sentinel"
     """Namespace marking a dataset as created."""
@@ -172,21 +172,22 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
         if not (self.credentials.database or self.dataset_name):
             raise ConfigurationValueError(
                 "LanceDB needs a dataset, which becomes the database holding its tables. Set"
-                " `dataset_name` on the pipeline, or pin one database for all datasets with"
+                " `dataset_name` on the pipeline, or configure one database for all datasets with"
                 " `destination.lancedb.credentials.database`."
             )
 
     def normalize_dataset_name(self, schema: Schema) -> str:
-        """Returns the database holding the tables of `schema`, which is the dataset itself.
+        """Returns the database where the schema tables of `schema` are materialized, which is the
+        dataset itself.
 
         Raises:
-            ConfigurationValueError: If `credentials.database` pins a database and `dataset_name`
-                names a different one.
+            ConfigurationValueError: If `credentials.database` configures a database and
+                `dataset_name` names a different one.
         """
         pinned_database = self.credentials.database if self.credentials else None
         if not pinned_database:
             return super().normalize_dataset_name(schema)
-        # a pinned database is the dataset, and holds every schema, so no schema suffix is added
+        # a configured database is the dataset, and holds every schema, so no schema suffix is added
         if self.dataset_name and schema.naming.normalize_table_identifier(
             self.dataset_name
         ) != schema.naming.normalize_table_identifier(pinned_database):
@@ -208,12 +209,11 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
     def data_location(self) -> str:
         """Returns the cluster, which is where every dataset of this destination lives.
 
-        A dataset is a database of the cluster and one Arrow Flight SQL endpoint reaches all of them
-        without attaching anything, so the location excludes the database: two datasets of one
-        cluster are joinable and must compare equal.
+        The location excludes the database: one Arrow Flight SQL endpoint accesses every database of
+        the cluster, so two datasets of one cluster must compare equal.
         """
         if not self.credentials:
-            self._no_data_location("the configuration has no credentials")
+            self._no_data_location("the config has no credentials")
         # an external client keeps its endpoint to itself, so the client object is the only identity
         if self.credentials._conn is not None:
             return f"lancedb-client:{hex(id(self.credentials._conn))}"
@@ -223,13 +223,10 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
         # Cloud shares a region between tenants, and the api key is the only tenant identity
         if self.credentials.api_key:
             return f"lancedb-cloud:{self.credentials.region}:{digest128(self.credentials.api_key)}"
-        self._no_data_location(
-            "no `host_override` names an Enterprise cluster and no `api_key` identifies a LanceDB"
-            " Cloud account"
-        )
+        self._no_data_location("neither `host_override` nor `api_key` is set")
 
     def can_write_from(self, other: DestinationClientConfiguration) -> bool:
-        """LanceDB does not have an engine can execute SQL (or any other lazy model) to write data.
-        So "dlt" is that engine and will materialize eagerly.
+        """LanceDB has no engine that can execute SQL or run a model job, so `dlt` is that engine
+        and materializes eagerly.
         """
         return False

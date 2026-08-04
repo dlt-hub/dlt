@@ -89,18 +89,18 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
     ) -> None:
         """Configure the LanceDB destination to use in a pipeline.
 
-        Connects to a managed LanceDB Enterprise or Cloud cluster. Datasets are namespaces of the
-        database and reads go through the cluster's Arrow Flight SQL endpoint.
+        Connects to a managed LanceDB Enterprise or Cloud cluster. Each dataset is a database of the
+        cluster and reads go through its Arrow Flight SQL endpoint.
 
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
             credentials (Union["RemoteDBConnection", LanceDBCredentials, Dict[str, Any]]): Credentials to connect to the
-                managed database. Can be an instance of `LanceDBCredentials` or
+                managed cluster. Can be an instance of `LanceDBCredentials` or
                 an already connected managed LanceDB client or
                 a dictionary with the credentials parameters.
             commit_tag (Optional[str]): Tag applied to every table of the dataset after a successful
-                load, so the dataset can be read back as one consistent snapshot.
+                load, so the dataset can be read back as one tagged version.
             embeddings (Union[LanceEmbeddingsConfiguration, Dict[str, Any]], optional): Embedding provider,
                 model, and credentials. If not provided, no vector column is added.
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type

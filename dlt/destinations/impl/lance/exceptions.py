@@ -29,7 +29,7 @@ class LanceEmbeddingsConfigurationMissing(DestinationTerminalException):
         columns_str = ", ".join(f"'{col}'" for col in columns)
         super().__init__(
             f"Table `{table_name}` has columns marked for embedding ({columns_str}) but is"
-            " missing embeddings configuration. Either configure `embeddings` on the"
+            " missing embeddings config. Either configure `embeddings` on the"
             f" {destination_name} destination or remove the `embed` argument from"
             f" `{destination_name}_adapter()`."
         )

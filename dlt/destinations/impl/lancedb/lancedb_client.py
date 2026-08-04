@@ -79,8 +79,7 @@ if TYPE_CHECKING:
     from dlt.destinations.impl.lancedb.sql_client import LanceDBSqlClient
 
 ON_BAD_VECTORS = "null"
-"""Text that cannot be embedded, like an empty string, lands with a null vector instead of failing
-the load. Matches the `lance` destination, which writes such vectors as null."""
+"""Text that cannot be embedded lands with a null vector, as in the `lance` destination."""
 
 
 class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
@@ -186,13 +185,13 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         """Drops the tables of the dataset and the sentinel that records it as created."""
         existing_tables = self.list_table_names()
         if self.config.credentials.database:
-            # a pinned database is shared by every dataset and may hold tables of other writers,
-            # so only the tables of the current schema may be dropped
+            # a configured database is shared by every dataset and can hold tables of a foreign
+            # dataset, so only destination tables that materialize a schema table can be dropped
             to_drop = [name for name in self.schema.tables if name in existing_tables]
             logger.warning(
-                "Dataset of a pinned database got dropped. Only tables known in the current dlt"
-                f" schema ({len(to_drop)} of {len(existing_tables)}) were removed from database"
-                f" `{self.dataset_name}`."
+                "A configured database can hold a foreign dataset, so `dlt` removed only the"
+                f" destination tables of the current schema ({len(to_drop)} of"
+                f" {len(existing_tables)}) from database `{self.dataset_name}`."
             )
         else:
             to_drop = existing_tables
@@ -306,11 +305,10 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             merge_key: Key for update/merge operations.
             merge_strategy: Merge strategy resolved for the table.
             remove_orphans (bool): Whether to remove orphans after insertion (only merge disposition).
-            delete_condition (str): SQL filter limiting which rows orphan removal may delete.
+            delete_condition (str): SQL filter limiting which rows orphan removal can delete.
 
         Returns:
-            int: Version the write created. Reading it back instead would be subject to the staleness
-                of the cluster, so a caller that needs to name this version must use this.
+            int: Version the write created, which a caller must use instead of reading it back.
 
         Raises:
             DestinationTerminalException: If the write disposition is unsupported or the records
@@ -322,7 +320,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
                 return int(tbl.add(records, on_bad_vectors=ON_BAD_VECTORS).version)
             elif write_disposition == "merge":
                 # LanceDB requires identical schemas for when_not_matched_by_source_delete
-                # The source data schema must exactly match the target table schema (column names,
+                # The incoming arrow schema must match the target table schema (column names,
                 # order, and types). Only after 22. does it work with chunks and embeddings
                 if self.config.embeddings:
                     records = add_vector_column(
@@ -356,22 +354,13 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
 
     @staticmethod
     def _advance_table_version(tbl: "lancedb.table.Table") -> int:
-        """Commits a delete that matches nothing, to make the preceding commit readable.
-
-        A managed cluster commits merges and column additions without advancing the current version
-        of the table, so a cluster that caches reads keeps serving the version before them: merged
-        rows stay invisible and an added column is missing from the schema that the next write
-        validates against. Deletes do advance the version and carry no data or schema of their own,
-        which makes an empty one a safe way to publish the commit. Not needed for appends, which
-        advance the version themselves.
-
-        Returns:
-            int: Version the delete created.
-        """
+        """Publishes the preceding commit by committing a delete that matches nothing."""
+        # a cluster commits merges and column additions without advancing the version, so a cached
+        # read keeps serving the version before them. appends advance the version themselves
         return int(tbl.delete("1 = 0").version)
 
     def list_owned_table_names(self) -> List[str]:
-        """Returns the tables of the dataset that `dlt` owns."""
+        """Returns the destination tables of the dataset that materialize a schema table."""
 
         return [name for name in self.list_table_names() if name in self.schema.tables]
 

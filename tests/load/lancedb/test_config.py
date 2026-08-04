@@ -46,7 +46,7 @@ def test_lancedb_configuration() -> None:
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
         sections=("destination", "lancedb"),
     )
-    # no database is pinned, so every dataset becomes a database of its own
+    # no database is configured, so every dataset becomes a database of its own
     assert config.credentials.database is None
     assert config.embeddings.provider == "openai"
     assert config.embeddings.name == "text-embedding-3-small"
@@ -94,8 +94,8 @@ def test_dataset_becomes_database(
     assert config.normalize_dataset_name(Schema("events")) == expected_database
 
 
-def test_pinned_database_holds_every_schema() -> None:
-    """A pinned database is the dataset, so a second schema does not get a database of its own."""
+def test_configured_database_holds_every_schema() -> None:
+    """The configured database is the dataset, so a second schema does not get one of its own."""
     config = LanceDBClientConfiguration(
         credentials=LanceDBCredentials(database="dlt-ci-5")
     )._bind_dataset_name(dataset_name=None, default_schema_name="events")
@@ -105,7 +105,7 @@ def test_pinned_database_holds_every_schema() -> None:
 
 
 def test_dataset_gets_a_database_per_schema() -> None:
-    """Without a pin, a non-default schema keeps the dlt suffix and so becomes another database."""
+    """Without a configured database, a non-default schema keeps the dlt suffix and becomes one."""
     config = LanceDBClientConfiguration(credentials=LanceDBCredentials())._bind_dataset_name(
         dataset_name="sales", default_schema_name="events"
     )
@@ -115,7 +115,7 @@ def test_dataset_gets_a_database_per_schema() -> None:
 
 
 def test_dataset_name_stays_optional() -> None:
-    """A pinned database stands in for the dataset, so `dlt` must not autogenerate a name."""
+    """The configured database stands in for the dataset, so `dlt` must not autogenerate a name."""
     assert not LanceDBClientConfiguration.needs_dataset_name()
 
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__API_KEY"] = "secret"
@@ -124,7 +124,7 @@ def test_dataset_name_stays_optional() -> None:
     assert pipeline.dataset_name is None
 
 
-def test_dataset_without_name_needs_a_pinned_database() -> None:
+def test_dataset_without_name_needs_a_configured_database() -> None:
     """Without a database to fall back on, the missing dataset is caught while resolving."""
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__API_KEY"] = "secret"
 
@@ -135,7 +135,7 @@ def test_dataset_without_name_needs_a_pinned_database() -> None:
         )
 
 
-def test_pinned_database_resolves_without_a_dataset() -> None:
+def test_configured_database_resolves_without_a_dataset() -> None:
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__API_KEY"] = "secret"
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__DATABASE"] = "dlt-ci-5"
 
@@ -147,7 +147,7 @@ def test_pinned_database_resolves_without_a_dataset() -> None:
     assert config.normalize_dataset_name(Schema("events")) == "dlt-ci-5"
 
 
-def test_pinned_database_rejects_a_different_dataset() -> None:
+def test_configured_database_rejects_a_different_dataset() -> None:
     config = LanceDBClientConfiguration(
         credentials=LanceDBCredentials(database="dlt-ci-5")
     )._bind_dataset_name(dataset_name="sales")

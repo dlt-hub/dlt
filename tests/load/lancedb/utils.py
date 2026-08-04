@@ -86,7 +86,7 @@ def read_over_sql(
 ) -> pa.Table:
     """Reads a table through the dataset, which for `lancedb` goes over Arrow Flight SQL.
 
-    The endpoint takes no consistency setting, so it may lag by the cluster's
+    The endpoint takes no consistency setting, so it can lag by the cluster's
     `weak_read_consistency_interval_seconds`. When `expected_rows` is given the read is retried
     until the rows appear or that bound elapses, which keeps loading tests deterministic on a
     cluster configured for weak reads.
@@ -111,7 +111,7 @@ def read_over_sql(
 
 
 def sql_staleness_bound() -> float:
-    """Returns how long a Flight SQL read may lag behind a write, in seconds."""
+    """Returns how long a Flight SQL read can lag behind a write, in seconds."""
     from dlt.common.configuration import resolve_configuration
     from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 

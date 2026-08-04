@@ -130,7 +130,7 @@ def rollback_to_commit_tag(
         )
 
     skipped: List[str] = []
-    # a restore appends a new version, so the head moving past the one recorded here publishes it
+    # a restore appends a new version, so a current version past the one recorded here publishes it
     heads_before: Dict[str, int] = {}
     for table_name in client.list_owned_table_names():
         table = client.open_table(table_name)
@@ -164,17 +164,13 @@ def rollback_to_commit_tag(
 def _wait_for_restore(
     client: "LanceDBClient", table_name: str, head_before: int, deadline: float
 ) -> None:
-    """Waits until the managed client shows the version the restore of `table_name` appended.
-
-    A restore reaches the SQL endpoint at once but the managed client tens of seconds later, and a
-    write in between fails, so this wait is what makes a rollback usable. The deadline is shared by
-    every table of the rollback, since their restores propagate at the same time.
-    """
+    """Waits until the managed client shows the version the restore of `table_name` appended."""
+    # the managed client lags the SQL endpoint by tens of seconds and a write in between fails
     while time.monotonic() < deadline:
         if client.open_table(table_name).version > head_before:
             return
         time.sleep(ROLLBACK_POLL_SECONDS)
     logger.warning(
         f"The managed client still does not show the restore of `{table_name}`. A load started now"
-        " may fail, so retry it or wait longer."
+        " can fail, so retry it or wait longer."
     )

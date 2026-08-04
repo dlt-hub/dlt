@@ -21,7 +21,7 @@ CHARACTERS: List[Dict[str, Any]] = [
 
 
 def characters_table() -> pa.Table:
-    """Vectors must be a fixed size list, a python list of floats normalizes into a child table."""
+    """Vectors must be a fixed size list, a python list of floats normalizes into a nested table."""
     return pa.table(
         {
             "id": pa.array([character["id"] for character in CHARACTERS]),

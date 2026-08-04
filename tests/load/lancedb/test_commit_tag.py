@@ -1,4 +1,4 @@
-"""`commit_tag` tags every table of a dataset so a load can be read back as one snapshot."""
+"""`commit_tag` tags every table of a dataset so a load can be read back as one tagged version."""
 
 import os
 from typing import TYPE_CHECKING, Any, Dict, Generator, cast
@@ -101,7 +101,7 @@ def test_commit_tag_snapshots_every_table_at_each_load(
             alpha_tags = tags_of(client, "alpha")
             assert alpha_tags["load_2"]["version"] > alpha_tags["load_1"]["version"]
 
-            # the `load_2` snapshot is alpha after its second load and beta after its first
+            # the `load_2` tag is alpha after its second load and beta after its first
             assert rows_at_tag(client, "alpha", "load_2") == 3
             assert rows_at_tag(client, "beta", "load_2") == 3
             assert rows_at_tag(client, "alpha", "load_1") == 2
@@ -117,7 +117,7 @@ def test_commit_tag_snapshots_every_table_at_each_load(
             beta_tags = tags_of(client, "beta")
             assert beta_tags["load_3"]["version"] > beta_tags["load_2"]["version"]
 
-            # the earlier snapshots still read what they named
+            # the earlier tags still read what they named
             assert rows_at_tag(client, "beta", "load_1") == 3
             assert rows_at_tag(client, "beta", "load_2") == 3
             assert rows_at_tag(client, "beta", "load_3") == 7
@@ -190,17 +190,17 @@ def test_commit_tag_moves_when_reused(
             client.drop_storage()
 
 
-# a pinned database is shared with every other dataset, so this must not run beside them
+# a configured database is shared with every other dataset, so this must not run beside them
 @pytest.mark.serial
 @pytest.mark.parametrize(
     "destination_config",
     LANCEDB_ONLY_CONFS,
     ids=lambda x: x.name,
 )
-def test_commit_tag_leaves_foreign_tables_alone(
+def test_commit_tag_leaves_foreign_dataset_alone(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Only tables `dlt` owns may be tagged, which matters in a database shared with other writers."""
+    """Only tables `dlt` owns can be tagged, which matters in a database a foreign dataset shares."""
     pinned_database = "pinned_tag_" + uniq_id()
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__DATABASE"] = pinned_database
     pipeline = dlt.pipeline(

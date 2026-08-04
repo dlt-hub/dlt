@@ -15,7 +15,7 @@ def test_lancedb_ollama_endpoint_configuration() -> None:
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__DATABASE"] = "dlt-ci"
     os.environ["DESTINATION__LANCEDB__EMBEDDINGS__PROVIDER"] = "ollama"
     os.environ["DESTINATION__LANCEDB__EMBEDDINGS__NAME"] = "nomic-embed-text"
-    # the provider host is provider specific and reaches `EmbeddingFunction.create()` via kwargs
+    # the provider host is provider specific and is passed to `EmbeddingFunction.create()` via kwargs
     os.environ["DESTINATION__LANCEDB__EMBEDDINGS__KWARGS"] = (
         '{"host": "http://198.163.194.3:24233"}'
     )
