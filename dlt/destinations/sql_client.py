@@ -5,15 +5,20 @@ import inspect
 from types import TracebackType
 from typing import (
     Any,
+    Callable,
     ClassVar,
+    Collection,
     ContextManager,
     Dict,
     Generic,
     Iterator,
+    Literal,
     Optional,
     Sequence,
+    Set,
     Tuple,
     Type,
+    TypeVar,
     AnyStr,
     List,
     Generator,
@@ -27,6 +32,13 @@ from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.utils import concat_strings_with_limit
+from dlt.common.destination.attach import (
+    TAttachInfo as TAttachInfo,
+    TAttachStatement as TAttachStatement,
+    TAttachType as TAttachType,
+    attach_statement as attach_statement,
+    merge_attach as merge_attach,
+)
 from dlt.common.destination.client import JobClientBase
 
 from dlt.destinations.exceptions import (
@@ -71,6 +83,8 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
     """Normalized staging dataset name"""
     capabilities: DestinationCapabilitiesContext
     """Instance of adjusted destination capabilities"""
+    owns_connection: bool = True
+    """When False, `__exit__` keeps the connection open: an outside owner closes it"""
 
     def __init__(
         self,
@@ -104,13 +118,16 @@ class SqlClientBase(ABC, Generic[TNativeConn]):
         return getattr(self.native_connection, name)
 
     def __enter__(self) -> Self:
-        self.open_connection()
+        # a connection owned from outside is already open. a second open call leaks that connection
+        if self.owns_connection:
+            self.open_connection()
         return self
 
     def __exit__(
         self, exc_type: Type[BaseException], exc_val: BaseException, exc_tb: TracebackType
     ) -> None:
-        self.close_connection()
+        if self.owns_connection:
+            self.close_connection()
 
     @property
     @abstractmethod
@@ -238,15 +255,24 @@ SELECT 1
         quote: bool = True,
         casefold: bool = True,
         dataset_name: Optional[str] = None,
+        catalog: Optional[str] = None,
     ) -> List[str]:
         """Returns a list with path components leading from catalog to table_name.
         Used to construct fully qualified names. `table_name` is optional.
 
         Args:
             dataset_name: Override the default dataset name for cross-dataset references.
+            catalog: The catalog component to use, for example the attach alias of a foreign
+                dataset. This value replaces `catalog_name()` in the path.
         """
         path: List[str] = []
-        if catalog_name := self.catalog_name(quote=quote, casefold=casefold):
+        if catalog is not None:
+            if casefold:
+                catalog = self.capabilities.casefold_identifier(catalog)
+            if quote:
+                catalog = self.capabilities.escape_identifier(catalog)
+            path.append(catalog)
+        elif catalog_name := self.catalog_name(quote=quote, casefold=casefold):
             path.append(catalog_name)
         effective_dataset = dataset_name or self.dataset_name
         if casefold:
@@ -373,6 +399,33 @@ class WithSchemas(ABC):
 
     @abstractmethod
     def set_schemas(self, schemas: Sequence[Schema]) -> None: ...
+
+
+class WithAttach(ABC):
+    """Mixin for SQL clients that can attach foreign datasets into their query engine."""
+
+    attach_type: ClassVar[TAttachType]
+    """What the statements of this client require of the query engine that runs them. The
+    configuration decides whether a foreign engine can attach this destination at all. The
+    `attach_type` method there gives that answer."""
+
+    @abstractmethod
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
+        """Statements that attach the dataset of this client into a foreign primary query engine.
+
+        Args:
+            alias: The catalog name under which the query accesses the dataset once this
+                client attaches it.
+            tables: The dlt table names that the query needs. A client which materializes
+                tables one by one skips the rest. `None` covers the whole dataset.
+        """
+
+    @abstractmethod
+    def attach(self, alias: str, statements: Sequence[TAttachStatement]) -> None:
+        """Records `statements` under `alias`. Applies them to the current connection when it
+        is open."""
 
 
 class DBApiCursorImpl(DBApiCursor):

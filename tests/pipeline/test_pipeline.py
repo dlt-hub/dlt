@@ -2770,6 +2770,12 @@ def test_dispatch_rows_to_tables(github_resource: DltResource):
             assert table["write_disposition"] == "merge"
             assert table["columns"]["id"]["primary_key"] is True
 
+    # dispatched tables are not knowable before items flow, they still land in one output location
+    outputs = [location for metrics in info.metrics.values() for location in metrics[0]["outputs"]]
+    dispatched = [o for o in outputs if o["resource_name"] == "github_repo_events"]
+    assert len(dispatched) == 1
+    assert set(dispatched[0]["tables"]) == {t["name"] for t in p.default_schema.data_tables()}
+
 
 def test_resource_name_in_schema() -> None:
     @dlt.resource(table_name="some_table")

@@ -12,6 +12,7 @@ from dlt.destinations.impl.ducklake.configuration import (
     DuckLakeCredentials,
     DuckLakeClientConfiguration,
     DEFAULT_DUCKLAKE_NAME,
+    _get_ducklake_capabilities,
 )
 
 from dlt.destinations.impl.ducklake.sql_client import DuckLakeSqlClient
@@ -101,7 +102,7 @@ def test_ducklake_configuration_default() -> None:
     # file url
     assert credentials.storage.bucket_url.startswith("file://")
     expected_loc = f"sqlite://{local_dir / 'ducklake.sqlite'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_duckdb_catalog() -> None:
@@ -120,7 +121,7 @@ def test_ducklake_configuration_duckdb_catalog() -> None:
     conn_str = credentials.catalog.to_native_representation()
     assert conn_str.endswith(str(local_dir / "ducklake.duckdb"))
     expected_loc = f"duckdb://{local_dir / 'ducklake.duckdb'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_ducklake_name() -> None:
@@ -138,7 +139,7 @@ def test_ducklake_configuration_ducklake_name() -> None:
     assert conn_str.endswith(str(local_dir / "my_ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "my_ducklake.files")
     expected_loc = f"sqlite://{local_dir / 'my_ducklake.sqlite'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_destination_name() -> None:
@@ -156,7 +157,7 @@ def test_ducklake_configuration_destination_name() -> None:
     assert conn_str.endswith(str(local_dir / "ducklake.sqlite"))
     assert credentials.storage_url == str(local_dir / "ducklake.files")
     expected_loc = f"sqlite://{local_dir / 'ducklake.sqlite'}"
-    assert configuration.physical_location() == expected_loc
+    assert configuration.data_location() == expected_loc
 
 
 def test_ducklake_configuration_pipeline_name() -> None:
@@ -201,7 +202,7 @@ def test_ducklake_configuration_storage_credentials() -> None:
     )
     # NOTE: dataset folders will be created in /lake/
     assert credentials.storage_url == "s3://dlt-ci-test-bucket/lake"
-    assert configuration.physical_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
+    assert configuration.data_location() == "postgres://localhost:5432/dlt_data#my_ducklake"
 
 
 def test_ducklake_configuration_catalog_credentials() -> None:
@@ -352,8 +353,6 @@ def test_ducklake_override_data_path_config() -> None:
     )
     assert configuration.override_data_path is True
 
-    from dlt.destinations.impl.ducklake.configuration import _get_ducklake_capabilities
-
     sql_client = DuckLakeSqlClient(
         dataset_name="foo",
         staging_dataset_name="foo_staging",
@@ -362,6 +361,54 @@ def test_ducklake_override_data_path_config() -> None:
         override_data_path=configuration.override_data_path,
     )
     assert "OVERRIDE_DATA_PATH true" in sql_client.attach_statement
+
+
+def test_ducklake_get_attach() -> None:
+    configuration = resolve_configuration(
+        DuckLakeClientConfiguration()._bind_dataset_name(dataset_name="foo")
+    )
+    sql_client = DuckLakeSqlClient(
+        dataset_name="foo",
+        staging_dataset_name="foo_staging",
+        credentials=configuration.credentials,
+        capabilities=_get_ducklake_capabilities(),
+    )
+
+    statements = sql_client.attach_statements(alias="attach_foo")
+    # `alias` names the local attach catalog. the default local ducklake needs no storage secret
+    assert len(statements) == 1
+    attach_statement = statements[-1]
+    assert attach_statement["sql"].startswith("ATTACH IF NOT EXISTS 'ducklake:")
+    assert " AS attach_foo " in attach_statement["sql"]
+    # a local duckdb catalog or sqlite catalog embeds no password, so this statement is not a
+    # secret
+    assert attach_statement["secret"] is False
+    # the catalog identifies the lake, not the data path that two lakes can share
+    assert configuration.data_location() != configuration.credentials.storage_url
+
+
+def test_ducklake_catalog_location_identifies_the_lake() -> None:
+    """dlt separates two lakes that share a data path but hold different catalogs."""
+    shared_storage = "s3://bucket/warehouse"
+    first = DuckLakeCredentials("lake", catalog="postgres://u:p@h:5432/db", storage=shared_storage)
+    second = DuckLakeCredentials(
+        "lake", catalog="postgres://u:p@h:5432/db", storage=shared_storage, metadata_schema="other"
+    )
+    assert first.catalog_location() != second.catalog_location()
+    # a credential-free identity never leaks the catalog password
+    assert "p@" not in first.catalog_location()
+
+    # a motherduck catalog carries its account in the token, so dlt digests the whole native
+    # representation and does not blank it. dlt still separates two lakes that motherduck hosts
+    md_a = DuckLakeCredentials("lake", catalog="md:///cat_a", storage=shared_storage)
+    md_b = DuckLakeCredentials("lake", catalog="md:///cat_b", storage=shared_storage)
+    assert md_a.catalog_location().startswith("md://")
+    assert md_a.catalog_location() != md_b.catalog_location()
+    # the metadata schema selects the lake inside a motherduck catalog too
+    md_other_schema = DuckLakeCredentials(
+        "lake", catalog="md:///cat_a", storage=shared_storage, metadata_schema="other"
+    )
+    assert md_a.catalog_location() != md_other_schema.catalog_location()
 
 
 def test_ducklake_conn_pool_always_open() -> None:

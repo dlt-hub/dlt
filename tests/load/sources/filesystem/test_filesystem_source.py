@@ -1,5 +1,5 @@
 import os
-from typing import Any, Dict, List
+from typing import Any, Dict, List, cast
 
 from fsspec import AbstractFileSystem
 
@@ -10,6 +10,7 @@ from dlt.common import pendulum
 from dlt.common.storages import fsspec_filesystem
 from dlt.common.typing import TSortOrder
 from dlt.extract.resource import DltResource
+from dlt.sources.filesystem.helpers import TFilesystemDataLocation
 from dlt.sources.filesystem import filesystem, readers, FileItem, FileItemDict, read_csv
 from dlt.sources.filesystem.helpers import fsspec_from_resource
 
@@ -156,6 +157,15 @@ def test_csv_transformers(
     met_files.apply_hints(write_disposition="merge", merge_key="date")
     load_info = pipeline.run(met_files.with_name("met_csv"))
     assert_load_info(load_info)
+
+    # the bucket is listed by the pipe root, which is extracted but not selected
+    extract_info = pipeline.last_trace.last_extract_info
+    inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
+    assert len(inputs) == 1
+    assert inputs[0]["kind"] == "filesystem"
+    assert cast(TFilesystemDataLocation, inputs[0])["glob"] == "met_csv/A801/*.csv"
+    assert inputs[0]["location"].endswith("standard_source/samples")
+    assert inputs[0]["resource_name"] != "met_csv"
 
     # print(pipeline.last_trace.last_normalize_info)
     # must contain 24 rows of A881

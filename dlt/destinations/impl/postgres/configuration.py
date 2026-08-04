@@ -43,6 +43,7 @@ class PostgresCredentials(ConnectionStringCredentials):
 class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     destination_type: Final[str] = dataclasses.field(default="postgres", init=False, repr=False, compare=False)  # type: ignore[misc]
     credentials: PostgresCredentials = None
+    DEFAULT_PORT: ClassVar[int] = 5432
 
     create_indexes: bool = True
 
@@ -55,28 +56,11 @@ class PostgresClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return digest128(self.credentials.host)
         return ""
 
-    def physical_location(self) -> str:
-        """Returns host:port as the physical location identifier."""
-        if self.credentials and self.credentials.host:
-            port = self.credentials.port or 5432
-            return f"{self.credentials.host}:{port}"
-        return ""
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same Postgres host:port and database."""
-        if not isinstance(other, PostgresClientConfiguration):
-            return False
-        if self.destination_type != other.destination_type:
-            return False
-
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if not self_loc or not other_loc or self_loc != other_loc:
-            return False
-
-        self_db = self.credentials.database if self.credentials else None
-        other_db = other.credentials.database if other.credentials else None
-        if not self_db or not other_db or self_db != other_db:
-            return False
-
-        return True
+    def data_location(self) -> str:
+        """Returns host:port and the database to which a query engine binds."""
+        if not self.credentials or not self.credentials.host:
+            self._no_data_location("the configuration has no host")
+        if not self.credentials.database:
+            self._no_data_location("the configuration has no database")
+        port = self.credentials.port or self.DEFAULT_PORT
+        return f"{self.credentials.host}:{port}/{self.credentials.database}"

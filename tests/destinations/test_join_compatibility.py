@@ -5,18 +5,21 @@ from typing import Callable, cast, Optional, Union
 
 from typing_extensions import TypeAlias
 
+import duckdb
 import pytest
 
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import (
     AwsCredentials,
     ConnectionStringCredentials,
     GcpServiceAccountCredentials,
 )
 from dlt.common.destination.client import DestinationClientConfiguration
+from dlt.destinations.impl.destination.configuration import CustomDestinationClientConfiguration
+from dlt.destinations.impl.dummy.configuration import DummyClientConfiguration
 from dlt.common.runtime.run_context import active
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
-from dlt.common.warnings import Dlt100DeprecationWarning
-from dlt.dataset.dataset import Dataset, is_same_physical_destination
+from dlt.common.utils import digest128
 from dlt.destinations.impl.postgres.configuration import (
     PostgresClientConfiguration,
     PostgresCredentials,
@@ -98,28 +101,18 @@ ExpectedLocation: TypeAlias = Union[str, Callable[[], str]]
 
 
 class _PhysicalDestinationConfig(DestinationClientConfiguration):
-    def __init__(self, physical_location: str = "", display_value: Optional[str] = None) -> None:
+    def __init__(self, data_location: str = "", display_value: Optional[str] = None) -> None:
         super().__init__()
-        self._physical_location = physical_location
+        self._data_location = data_location
         self._display_value = display_value
 
-    def physical_location(self) -> str:
-        return self._physical_location
+    def data_location(self) -> str:
+        return self._data_location
 
     def __str__(self) -> str:
         if self._display_value is not None:
             return self._display_value
         return super().__str__()
-
-
-class _DestinationClientStub:
-    def __init__(self, config: DestinationClientConfiguration) -> None:
-        self.config = config
-
-
-class _DatasetStub:
-    def __init__(self, config: DestinationClientConfiguration) -> None:
-        self.destination_client = _DestinationClientStub(config)
 
 
 def assert_joinable(
@@ -248,22 +241,31 @@ def _lance_multi_base_config(
     return c
 
 
-def test_base_can_read_from_default_false_when_physical_locations_differ() -> None:
+def test_base_can_read_from_default_false_when_data_locations_differ() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host2")
     assert_not_joinable(config1, config2)
 
 
-def test_base_can_read_from_default_true_when_same_physical_location() -> None:
+def test_base_can_read_from_default_true_when_same_data_location() -> None:
     config1 = _PhysicalDestinationConfig("host1")
     config2 = _PhysicalDestinationConfig("host1")
     assert_joinable(config1, config2)
 
 
-def test_base_can_read_from_default_false_when_empty_physical_location() -> None:
-    config1 = DestinationClientConfiguration()
-    config2 = _PhysicalDestinationConfig("host1")
-    assert_not_joinable(config1, config2)
+def test_destination_without_data_location_accesses_no_data() -> None:
+    """`None` is not a data location, so it never matches. Not even another `None` matches.
+    A sink is inaccessible for this reason, and no such destination overrides `can_read_from`."""
+    sink = DummyClientConfiguration()
+    assert sink.data_location() is None
+    assert sink.can_read_from(DummyClientConfiguration()) is False
+    assert sink.can_read_from(sink) is False
+    assert sink.can_write_from(sink) is False
+
+    custom = CustomDestinationClientConfiguration()
+    assert custom.data_location() is None
+    assert custom.can_read_from(CustomDestinationClientConfiguration()) is False
+    assert not sink.can_read_from(_PhysicalDestinationConfig("host1"))
 
 
 def test_base_can_read_from_returns_false_for_non_config() -> None:
@@ -273,18 +275,18 @@ def test_base_can_read_from_returns_false_for_non_config() -> None:
     assert not config.can_read_from(42)  # type: ignore[arg-type]
 
 
-def test_is_same_physical_location_delegates_to_can_read_from() -> None:
+def test_is_same_location_ignores_the_credentials_display() -> None:
+    """Two configs that name one place are the same place, even when their text differs."""
     config1 = _PhysicalDestinationConfig("host1", "first-display")
     config2 = _PhysicalDestinationConfig("host1", "second-display")
     assert str(config1) != str(config2)
 
-    with pytest.warns(Dlt100DeprecationWarning, match="can_read_from"):
-        assert is_same_physical_destination(
-            cast(Dataset, _DatasetStub(config1)), cast(Dataset, _DatasetStub(config2))
-        )
+    assert config1.is_same_location(config2)
+    assert config1.can_read_from(config2)
+    assert not config1.is_same_location(_PhysicalDestinationConfig("host2"))
 
 
-# physical_location() extraction across destinations
+# data_location() extraction across destinations
 
 PHYSICAL_DEST_CASES = [
     # Postgres: host:port format
@@ -292,28 +294,25 @@ PHYSICAL_DEST_CASES = [
         lambda: PostgresClientConfiguration(
             credentials=PostgresCredentials("postgresql://u:p@h:5432/db")
         ),
-        "h:5432",
+        "h:5432/db",
         id="pg_explicit_port",
     ),
     pytest.param(
-        lambda: PostgresClientConfiguration(credentials=PostgresCredentials("postgresql://h")),
-        "h:5432",
+        lambda: PostgresClientConfiguration(credentials=PostgresCredentials("postgresql://h/db")),
+        "h:5432/db",
         id="pg_default_port",
-    ),
-    pytest.param(
-        lambda: PostgresClientConfiguration(credentials=PostgresCredentials()), "", id="pg_no_host"
     ),
     # Redshift
     pytest.param(
         lambda: RedshiftClientConfiguration(
             credentials=RedshiftCredentials("redshift://u:p@h:5439/db")
         ),
-        "h:5439",
+        "h:5439/db",
         id="rs_explicit_port",
     ),
     pytest.param(
-        lambda: RedshiftClientConfiguration(credentials=RedshiftCredentials("redshift://h")),
-        "h:5439",
+        lambda: RedshiftClientConfiguration(credentials=RedshiftCredentials("redshift://h/db")),
+        "h:5439/db",
         id="rs_default_port",
     ),
     # Snowflake
@@ -323,11 +322,6 @@ PHYSICAL_DEST_CASES = [
         ),
         "sf.snowflakecomputing.com",
         id="sf_host",
-    ),
-    pytest.param(
-        lambda: SnowflakeClientConfiguration(credentials=SnowflakeCredentials()),
-        "",
-        id="sf_no_host",
     ),
     # BigQuery: joinability is determined by location
     pytest.param(
@@ -346,7 +340,6 @@ PHYSICAL_DEST_CASES = [
         "US",
         id="bq_default_location",
     ),
-    pytest.param(lambda: BigQueryClientConfiguration(location=""), "", id="bq_no_location"),
     # MSSQL / Synapse
     pytest.param(
         lambda: MsSqlClientConfiguration(credentials=MsSqlCredentials("mssql://h")),
@@ -354,11 +347,8 @@ PHYSICAL_DEST_CASES = [
         id="mssql_host",
     ),
     pytest.param(
-        lambda: MsSqlClientConfiguration(credentials=MsSqlCredentials()), "", id="mssql_no_host"
-    ),
-    pytest.param(
-        lambda: SynapseClientConfiguration(credentials=SynapseCredentials("mssql://h")),
-        "h:1433",
+        lambda: SynapseClientConfiguration(credentials=SynapseCredentials("mssql://h/db")),
+        "h:1433/db",
         id="synapse_host",
     ),
     # ClickHouse
@@ -451,8 +441,12 @@ PHYSICAL_DEST_CASES = [
     ),
     pytest.param(
         lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
-        "",
-        id="dl_md_cat_no_identity",
+        # no credential-free identity, so dlt digests the native catalog, never a blank location
+        lambda: "md://"
+        + digest128(
+            f"{_ducklake_creds('md:///md_db', 'lake').catalog.to_native_representation()}#lake"
+        ),
+        id="dl_md_cat_digest",
     ),
     # Fabric
     pytest.param(
@@ -470,25 +464,53 @@ PHYSICAL_DEST_CASES = [
         id="fabric_default_port",
     ),
     pytest.param(
-        lambda: FabricClientConfiguration(credentials=FabricCredentials()),
-        "",
-        id="fabric_no_host",
-    ),
-    pytest.param(
         lambda: MotherDuckClientConfiguration(
             credentials=MotherDuckCredentials("md:db?motherduck_token=token")
         ),
-        "",
-        id="md_empty",
+        lambda: f"md://{digest128('token')}",
+        id="md_token_digest",
     ),
 ]
 
 
 @pytest.mark.parametrize("factory,expected", PHYSICAL_DEST_CASES)
-def test_physical_location(factory: ConfigFactory, expected: ExpectedLocation) -> None:
+def test_data_location(factory: ConfigFactory, expected: ExpectedLocation) -> None:
     if callable(expected):
         expected = expected()
-    assert factory().physical_location() == expected
+    assert factory().data_location() == expected
+
+
+# a config that cannot name its location raises an error. It does not report a blank
+# location. A blank location compares equal to the next blank one, which reads as
+# "these two are the same place"
+
+NO_LOCATION_DEST_CASES = [
+    pytest.param(
+        lambda: PostgresClientConfiguration(credentials=PostgresCredentials()), id="pg_no_host"
+    ),
+    pytest.param(
+        lambda: PostgresClientConfiguration(credentials=PostgresCredentials("postgresql://h")),
+        id="pg_no_database",
+    ),
+    pytest.param(
+        lambda: SnowflakeClientConfiguration(credentials=SnowflakeCredentials()),
+        id="sf_no_host",
+    ),
+    pytest.param(lambda: BigQueryClientConfiguration(location=""), id="bq_no_location"),
+    pytest.param(
+        lambda: MsSqlClientConfiguration(credentials=MsSqlCredentials()), id="mssql_no_host"
+    ),
+    pytest.param(
+        lambda: FabricClientConfiguration(credentials=FabricCredentials()),
+        id="fabric_no_host",
+    ),
+]
+
+
+@pytest.mark.parametrize("factory", NO_LOCATION_DEST_CASES)
+def test_data_location_raises_when_not_configured(factory: ConfigFactory) -> None:
+    with pytest.raises(ConfigurationValueError, match="cannot determine the data location"):
+        factory().data_location()
 
 
 # can_read_from() matrices (symmetric)
@@ -657,9 +679,10 @@ DUCKDB_JOIN_CASES = [
         id="duckdb_same_path",
     ),
     pytest.param(
+        # duckdb attaches another database file, so the query accesses it
         lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db1.duckdb")),
         lambda: DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb")),
-        False,
+        True,
         id="duckdb_diff_path",
     ),
 ]
@@ -694,7 +717,7 @@ DUCKLAKE_JOIN_CASES = [
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("postgres://u@h:5432/db", "lake2")
         ),
-        False,
+        True,
         id="dl_sql_cat_diff_name",
     ),
     # sql catalogs: explicit metadata schema overrides the name
@@ -715,15 +738,15 @@ DUCKLAKE_JOIN_CASES = [
         lambda: DuckLakeClientConfiguration(
             credentials=_ducklake_creds("postgres://u@h:5432/db", "lake", metadata_schema="meta2")
         ),
-        False,
+        True,
         id="dl_sql_cat_diff_metadata_schema",
     ),
     # md catalogs have no non-secret identity
     pytest.param(
         lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
         lambda: DuckLakeClientConfiguration(credentials=_ducklake_creds("md:///md_db", "lake")),
-        False,
-        id="dl_md_cat_not_joinable",
+        True,
+        id="dl_md_cat_joinable",
     ),
 ]
 
@@ -817,7 +840,7 @@ ATHENA_JOIN_CASES = [
         True,
         id="athena_catalog_case_insensitive",
     ),
-    # same catalog with region unspecified on both sides: treated as co-located
+    # the same catalog, and no region on either side: dlt treats this as one data location
     pytest.param(
         lambda: AthenaClientConfiguration(
             credentials=AwsCredentials(),
@@ -859,8 +882,10 @@ def test_can_read_from_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bo
     "f1,f2",
     [
         pytest.param(
-            lambda: PostgresClientConfiguration(credentials=PostgresCredentials("postgresql://h")),
-            lambda: _PhysicalDestinationConfig("h:5432"),
+            lambda: PostgresClientConfiguration(
+                credentials=PostgresCredentials("postgresql://h/db")
+            ),
+            lambda: _PhysicalDestinationConfig("h:5432/db"),
             id="pg_vs_base",
         ),
         pytest.param(
@@ -896,36 +921,66 @@ def test_can_read_from_matrix(f1: ConfigFactory, f2: ConfigFactory, expected: bo
 def test_cross_type_rejection(f1: ConfigFactory, f2: ConfigFactory) -> None:
     c1, c2 = f1(), f2()
     if isinstance(c2, _PhysicalDestinationConfig):
-        c2._physical_location = c1.physical_location()
+        c2._data_location = c1.data_location()
     assert_not_joinable(c1, c2)
 
 
-def test_cross_type_different_physical_locations() -> None:
+def test_cross_type_different_data_locations() -> None:
     sf = SnowflakeClientConfiguration(
         credentials=SnowflakeCredentials("snowflake://u:p@a1.snowflake.com/db")
     )
     bq = BigQueryClientConfiguration(location="US")
-    assert sf.physical_location() != bq.physical_location()
+    assert sf.data_location() != bq.data_location()
     assert_not_joinable(sf, bq)
 
 
-# NOTE: reading across different filesystem locations requires auto ATTACH in the
-# duckdb view layer; until then only the same storage location is readable
+# a duckdb engine attaches any other filesystem location, so all of these join
 @pytest.mark.parametrize(
     "url1,url2,expected",
     [
         pytest.param("s3://b/p1", "s3://b/p2", True, id="same_bucket_different_prefix"),
-        pytest.param("s3://b1/p", "s3://b2/p", False, id="different_bucket"),
-        pytest.param("s3://b/p", "gs://b/p", False, id="different_scheme_same_bucket"),
+        pytest.param("s3://b1/p", "s3://b2/p", True, id="different_bucket"),
+        pytest.param("s3://b/p", "az://b/p", True, id="different_scheme_same_bucket"),
         pytest.param("/local/p", "/local/p", True, id="same_local_path"),
-        pytest.param("/local/p1", "/local/p2", False, id="different_local_path"),
-        pytest.param("s3://b/p", "/local/p", False, id="remote_vs_local"),
+        pytest.param("/local/p1", "/local/p2", True, id="different_local_path"),
+        pytest.param("s3://b/p", "/local/p", True, id="remote_vs_local"),
     ],
 )
-def test_filesystem_can_read_from_same_location(url1: str, url2: str, expected: bool) -> None:
+def test_filesystem_can_read_from_any_duckdb_engine(url1: str, url2: str, expected: bool) -> None:
     c1 = FilesystemDestinationClientConfiguration(bucket_url=url1)
     c2 = FilesystemDestinationClientConfiguration(bucket_url=url2)
     assert_join_result(c1, c2, expected)
+
+
+@pytest.mark.parametrize(
+    "bucket_url,attachable",
+    [
+        pytest.param("/local/p", True, id="file"),
+        pytest.param("s3://b/p", True, id="s3"),
+        pytest.param("az://c/p", True, id="az"),
+        pytest.param("abfss://c@a.dfs.core.windows.net/p", True, id="abfss"),
+        pytest.param("hf://datasets/d", True, id="hf"),
+        pytest.param("gs://b/p", False, id="gs"),
+        pytest.param("gcs://b/p", False, id="gcs"),
+        pytest.param("memory://m", False, id="memory"),
+        pytest.param("sftp://h/p", False, id="sftp"),
+        pytest.param("gdrive://f", False, id="gdrive"),
+        pytest.param("abfs://c/p", False, id="abfs"),
+        pytest.param("adl://c/p", False, id="adl"),
+        pytest.param("azure://c/p", False, id="azure"),
+    ],
+)
+def test_filesystem_attachable_only_for_protocols_with_duckdb_secrets(
+    bucket_url: str, attachable: bool
+) -> None:
+    """duckdb has no `CREATE SECRET` for some protocols. Only this process registers such a
+    protocol with fsspec, so dlt never tells a foreign engine that it can access the data."""
+    fs = FilesystemDestinationClientConfiguration(bucket_url=bucket_url)
+    duck = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    assert (fs.attach_type() is not None) is attachable
+    assert duck.can_read_from(fs) is attachable
+    # a same-location join needs no attach, so it stays possible either way
+    assert fs.can_read_from(FilesystemDestinationClientConfiguration(bucket_url=bucket_url))
 
 
 def test_filesystem_can_never_write() -> None:
@@ -946,11 +1001,13 @@ def test_filesystem_cannot_read_from_non_filesystem() -> None:
     assert_not_joinable(c, other)
 
 
-def test_motherduck_token_not_exposed_as_physical_location() -> None:
+def test_motherduck_token_not_exposed_as_data_location() -> None:
+    """The token is the only account identity there is, so the location carries its digest."""
     md = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
     )
-    assert md.physical_location() == ""
+    assert md.data_location() == f"md://{md.fingerprint()}"
+    assert "token" not in md.data_location()
 
 
 def test_motherduck_can_read_from_same_token_without_exposing_location() -> None:
@@ -976,16 +1033,19 @@ def test_motherduck_different_tokens_are_not_proven_joinable() -> None:
     assert_not_joinable(c1, c2)
 
 
-def test_motherduck_can_read_from_missing_token() -> None:
-    """Missing token cannot join."""
+def test_motherduck_without_token_identifies_no_account() -> None:
+    """The token is the account identity. Without a token there is nothing to compare and no way
+    to connect. dlt raises a configuration error instead of a failed join."""
     with_token = MotherDuckClientConfiguration(
         credentials=MotherDuckCredentials("md:db?motherduck_token=token")
     )
     without_token = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db"))
-    assert_not_joinable(with_token, without_token)
-    w1 = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db1"))
-    w2 = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db2"))
-    assert_not_joinable(w1, w2)
+    with pytest.raises(ConfigurationValueError, match="no MotherDuck access token"):
+        without_token.data_location()
+    with pytest.raises(ConfigurationValueError):
+        with_token.can_read_from(without_token)
+    with pytest.raises(ConfigurationValueError):
+        without_token.can_write_from(with_token)
 
 
 def test_motherduck_can_read_from_non_motherduck() -> None:
@@ -1014,10 +1074,7 @@ def test_motherduck_can_write_from_same_token() -> None:
     )
     assert not c1.can_write_from(other)
     assert not other.can_write_from(c1)
-    # missing token cannot write even for the same catalog
-    without_token = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:db"))
-    assert not c1.can_write_from(without_token)
-    assert not without_token.can_write_from(c1)
+    # a missing token is a configuration error, which another test covers
 
 
 SQLA_CASES = [
@@ -1074,7 +1131,7 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
         pytest.param(
             lambda: _lancedb_config("/tmp/db1.lancedb"),
             lambda: _lancedb_config("/tmp/db2.lancedb"),
-            False,
+            True,
             id="different_uri",
         ),
         pytest.param(
@@ -1094,7 +1151,7 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
         pytest.param(
             lambda: _lancedb_config(":external:"),
             lambda: _lancedb_config(":external:"),
-            False,
+            True,
             id="external_native_client",
         ),
     ],
@@ -1127,14 +1184,13 @@ def test_lancedb_can_never_write() -> None:
         pytest.param(
             lambda: _lance_config("file:///tmp/lance1"),
             lambda: _lance_config("file:///tmp/lance2"),
-            False,
+            True,
             id="different_catalog",
         ),
-        # TODO: flip to True when cross dataset joins are implemented
         pytest.param(
             lambda: _lance_config("file:///tmp/lance", dataset_name="dataset1"),
             lambda: _lance_config("file:///tmp/lance", dataset_name="dataset2"),
-            False,
+            True,
             id="different_dataset_same_catalog",
         ),
         pytest.param(
@@ -1152,7 +1208,7 @@ def test_lancedb_can_never_write() -> None:
         pytest.param(
             lambda: _lance_rest_config("http://127.0.0.1:2333"),
             lambda: _lance_rest_config("http://other:2333"),
-            False,
+            True,
             id="different_rest_namespace",
         ),
     ],
@@ -1184,12 +1240,22 @@ def test_lance_can_read_from(f1: ConfigFactory, f2: ConfigFactory, expected: boo
             "rest:http://127.0.0.1:2333",
             id="rest_namespace_uri",
         ),
-        pytest.param(lambda: _lance_rest_config(None), "", id="rest_without_uri"),
-        pytest.param(lambda: LanceClientConfiguration(), "", id="empty"),
     ],
 )
-def test_lance_physical_location(factory: ConfigFactory, expected: str) -> None:
-    assert factory().physical_location() == expected
+def test_lance_data_location(factory: ConfigFactory, expected: str) -> None:
+    assert factory().data_location() == expected
+
+
+@pytest.mark.parametrize(
+    "factory",
+    [
+        pytest.param(lambda: _lance_rest_config(None), id="rest_without_uri"),
+        pytest.param(lambda: LanceClientConfiguration(), id="empty"),
+    ],
+)
+def test_lance_data_location_raises_when_not_configured(factory: ConfigFactory) -> None:
+    with pytest.raises(ConfigurationValueError, match="cannot determine the data location"):
+        factory().data_location()
 
 
 def test_lance_can_never_write() -> None:
@@ -1204,26 +1270,189 @@ def test_lance_can_never_write() -> None:
     assert not c1.can_write_from(c1)
 
 
-def test_lance_and_lancedb_cannot_join_with_each_other() -> None:
+def test_lance_and_lancedb_can_join_with_each_other() -> None:
+    """Both read `.lance` data through the same duckdb extension, so either attaches the other."""
     lance = _lance_config("file:///tmp/lance")
     lancedb = _lancedb_config("file:///tmp/lance")
-    assert_not_joinable(lance, lancedb)
+    assert_joinable(lance, lancedb)
 
 
-def test_weaviate_physical_location_but_not_joinable() -> None:
+def test_weaviate_data_location_but_not_joinable() -> None:
     c1 = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(url="https://cluster.weaviate.cloud")
     )
     c2 = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(url="https://cluster.weaviate.cloud")
     )
-    assert c1.physical_location() == "cluster.weaviate.cloud"
+    assert c1.data_location() == "cluster.weaviate.cloud"
     assert_not_joinable(c1, c2)
 
 
-def test_qdrant_physical_location_but_not_joinable() -> None:
+def test_qdrant_data_location_but_not_joinable() -> None:
     c1 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
     c2 = QdrantClientConfiguration(qd_location="https://cluster.qdrant.io")
-    assert c1.physical_location() == "https://cluster.qdrant.io"
+    assert c1.data_location() == "https://cluster.qdrant.io"
     assert_not_joinable(c1, c2)
     assert not c1.can_write_from(c2)
+
+
+# data_location() - `can_read_from` derives its answer from this key
+
+
+def test_data_location_never_carries_secrets() -> None:
+    """dlt compares the location in the clear, so a secret identity must arrive as a digest."""
+    token = "sup3rsecret-token"
+    md = MotherDuckClientConfiguration(
+        credentials=MotherDuckCredentials(f"md:///my_db?token={token}")
+    )
+    assert md.data_location()
+    assert token not in md.data_location()
+
+    password = "sup3rsecret-password"
+    lake = DuckLakeClientConfiguration(
+        credentials=_ducklake_creds(f"postgres://u:{password}@h:5432/db", "lake")
+    )
+    assert lake.data_location()
+    assert password not in lake.data_location()
+
+
+def test_data_location_tells_data_locations_apart() -> None:
+    """Two configs share a data location when one query engine accesses both."""
+    # one MotherDuck token accesses the whole account
+    same_token = MotherDuckCredentials("md:///db_a?token=T"), MotherDuckCredentials(
+        "md:///db_b?token=T"
+    )
+    a, b = (MotherDuckClientConfiguration(credentials=c) for c in same_token)
+    assert a.data_location() == b.data_location()
+    other = MotherDuckClientConfiguration(
+        credentials=MotherDuckCredentials("md:///db_a?token=OTHER")
+    )
+    assert a.data_location() != other.data_location()
+
+    # one ducklake is one metadata schema inside one catalog
+    catalog = "postgres://u:p@h:5432/db"
+    lake = DuckLakeClientConfiguration(credentials=_ducklake_creds(catalog, "lake"))
+    same = DuckLakeClientConfiguration(credentials=_ducklake_creds(catalog, "lake"))
+    other_schema = DuckLakeClientConfiguration(
+        credentials=_ducklake_creds(catalog, "lake", metadata_schema="other")
+    )
+    assert lake.data_location() == same.data_location()
+    assert lake.data_location() != other_schema.data_location()
+
+    # a destination with no query engine keeps a location to display, but accesses nothing
+    qdrant = QdrantClientConfiguration(qd_location="https://q")
+    assert qdrant.data_location() == "https://q"
+    assert not qdrant.can_read_from(QdrantClientConfiguration(qd_location="https://q"))
+    weaviate = WeaviateClientConfiguration(credentials=WeaviateCredentials(url="https://w"))
+    assert weaviate.data_location() == "w"
+    assert not weaviate.can_read_from(
+        WeaviateClientConfiguration(credentials=WeaviateCredentials(url="https://w"))
+    )
+
+
+def test_can_read_from_is_asymmetric() -> None:
+    """`assert_join_result` asserts both directions, so the asymmetry needs its own test. An
+    attachable dataset is accessible to a non-attachable one. The reverse is not true."""
+    root = active().local_dir
+    attachable = FilesystemDestinationClientConfiguration(
+        bucket_url=os.path.join(root, "bucket")
+    )._bind_dataset_name("ds")
+    # only fsspec registers gs in this process, so no query engine can attach it
+    not_attachable = FilesystemDestinationClientConfiguration(
+        bucket_url="gs://bucket/path"
+    )._bind_dataset_name("ds")
+
+    assert attachable.attach_type() == "duckdb"
+    assert not_attachable.attach_type() is None
+    assert not_attachable.can_read_from(attachable)
+    assert not attachable.can_read_from(not_attachable)
+
+
+def test_needs_attach_agrees_with_is_same_location() -> None:
+    """One query engine accesses every schema of the database that it opened, and nothing else."""
+    one = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    same = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    other = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb"))
+    assert one.needs_attach(same) is False
+    assert one.needs_attach(other) is True
+    # only the query engine that holds an in-memory database accesses it, so that engine is its
+    # identity. dlt rejects `:memory:` as a credential string for this reason
+    conn = duckdb.connect()
+    try:
+        in_memory = DuckDbClientConfiguration(credentials=DuckDbCredentials(conn))
+        shared = DuckDbClientConfiguration(credentials=DuckDbCredentials(conn))
+        assert in_memory.needs_attach(shared) is False
+        assert in_memory.needs_attach(one) is True
+        assert one.needs_attach(in_memory) is True
+        assert in_memory.needs_attach(
+            DuckDbClientConfiguration(credentials=DuckDbCredentials(duckdb.connect()))
+        )
+    finally:
+        conn.close()
+
+    # one MotherDuck token accesses the whole account
+    token = MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:a?token=T"))
+    assert (
+        token.needs_attach(
+            MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:b?token=T"))
+        )
+        is False
+    )
+    assert token.needs_attach(
+        MotherDuckClientConfiguration(credentials=MotherDuckCredentials("md:b?token=OTHER"))
+    )
+
+
+def test_needs_attach_across_destination_types() -> None:
+    """Two destination types can identify the same path and still be different query engines.
+    dlt must not read a location match across types as "already accessible". Such a match emits
+    no `ATTACH` and queries a catalog that nobody attached.
+    """
+    shared = os.path.abspath("shared_location")
+    duck = DuckDbClientConfiguration(credentials=DuckDbCredentials(shared))._bind_dataset_name("a")
+    # a duckdb database and a local bucket are both bare absolute paths
+    bucket = FilesystemDestinationClientConfiguration(bucket_url=shared)._bind_dataset_name("b")
+
+    assert duck.data_location() == bucket.data_location()
+    # duckdb accesses the scanner views of the bucket only through an attach, never directly
+    assert duck.can_read_from(bucket)
+    assert duck.needs_attach(bucket) is True
+
+
+def test_data_location_is_never_blank() -> None:
+    """dlt compares a location for equality, so a blank one reads as "these two are the same
+    place". Every config either names its place or refuses to guess.
+    """
+    factories = [
+        cast(ConfigFactory, case.values[0])
+        for case in [*PHYSICAL_DEST_CASES, *NO_LOCATION_DEST_CASES]
+    ]
+    assert len(factories) > 30
+
+    for factory in factories:
+        try:
+            location = factory().data_location()
+        except ConfigurationValueError:
+            continue
+        # `None` says "no place at all", which never matches. An empty location matches
+        # the next empty one
+        assert location is None or location, f"{factory} reported a blank location"
+
+
+def test_reading_attaches_but_writing_does_not() -> None:
+    """A join attaches the foreign data and reads it. A model attaches only the datasets that it
+    joins, never the one that it selects from. A model therefore writes only when this location
+    already holds that data.
+    """
+    one = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    other = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db2.duckdb"))
+
+    assert one.can_read_from(other)
+    assert other.can_read_from(one)
+    assert one.can_write_from(other) is False
+    assert other.can_write_from(one) is False
+
+    # within one database both hold
+    same = DuckDbClientConfiguration(credentials=DuckDbCredentials("p/db.duckdb"))
+    assert one.can_read_from(same)
+    assert one.can_write_from(same)
