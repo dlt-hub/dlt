@@ -132,6 +132,7 @@ class LanceDBSqlClient(SqlClientBase[pyflightsql.FlightSqlConnection], WithReado
         quote: bool = True,
         casefold: bool = True,
         dataset_name: Optional[str] = None,
+        catalog: Optional[str] = None,
     ) -> List[str]:
         """Returns `[database, "public", table]` for a table of `dataset_name` or of this dataset.
 
@@ -141,6 +142,8 @@ class LanceDBSqlClient(SqlClientBase[pyflightsql.FlightSqlConnection], WithReado
             casefold: Whether to casefold each component.
             dataset_name: Dataset to address instead of this one, which is how references to another
                 dataset are qualified.
+            catalog: Catalog to address instead of the dataset. A dataset is a database here, so it
+                already is the catalog and this replaces it.
 
         Returns:
             List[str]: Path components from catalog to table.
@@ -151,7 +154,8 @@ class LanceDBSqlClient(SqlClientBase[pyflightsql.FlightSqlConnection], WithReado
                 identifier = self.capabilities.casefold_identifier(identifier)
             return self.capabilities.escape_identifier(identifier) if quote else identifier
 
-        path = [render(dataset_name or self.dataset_name), render(PUBLIC_SCHEMA_NAME)]
+        database = catalog or dataset_name or self.dataset_name
+        path = [render(database), render(PUBLIC_SCHEMA_NAME)]
         if table_name:
             path.append(render(table_name))
         return path

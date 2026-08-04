@@ -200,27 +200,36 @@ class LanceDBClientConfiguration(DestinationClientDwhConfiguration):
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the cluster."""
-        location = self.physical_location()
-        return digest128(location) if location else ""
-
-    def physical_location(self) -> str:
-        """Returns the identity of the cluster, which serves every dataset as its own database."""
-        if not self.credentials:
+        try:
+            return digest128(self.data_location())
+        except ConfigurationValueError:
             return ""
+
+    def data_location(self) -> str:
+        """Returns the cluster, which is where every dataset of this destination lives.
+
+        A dataset is a database of the cluster and one Arrow Flight SQL endpoint reaches all of them
+        without attaching anything, so the location excludes the database: two datasets of one
+        cluster are joinable and must compare equal.
+        """
+        if not self.credentials:
+            self._no_data_location("the configuration has no credentials")
+        # an external client keeps its endpoint to itself, so the client object is the only identity
+        if self.credentials._conn is not None:
+            return f"lancedb-client:{hex(id(self.credentials._conn))}"
+        # an Enterprise cluster is dedicated, so its endpoint identifies it
         if self.credentials.host_override:
-            return self.credentials.host_override.rstrip("/")
-        return f"lancedb-cloud:{self.credentials.region}" if self.credentials.region else ""
+            return f"lancedb:{self.credentials.host_override.rstrip('/')}"
+        # Cloud shares a region between tenants, and the api key is the only tenant identity
+        if self.credentials.api_key:
+            return f"lancedb-cloud:{self.credentials.region}:{digest128(self.credentials.api_key)}"
+        self._no_data_location(
+            "no `host_override` names an Enterprise cluster and no `api_key` identifies a LanceDB"
+            " Cloud account"
+        )
 
     def can_write_from(self, other: DestinationClientConfiguration) -> bool:
-        """LanceDB does not have an engine that can write. `dlt` is that engine,
-        and returning False here enforces its usage.
+        """LanceDB does not have an engine can execute SQL (or any other lazy model) to write data.
+        So "dlt" is that engine and will materialize eagerly.
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for any dataset on the same cluster, which is what joins across them need."""
-        if not isinstance(other, LanceDBClientConfiguration):
-            return False
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        return bool(self_loc and other_loc and self_loc == other_loc)

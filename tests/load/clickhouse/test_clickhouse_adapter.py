@@ -3,6 +3,7 @@ import pytest
 from typing import Generator, Dict, List, Literal, cast
 
 import dlt
+from dlt.common.destination.exceptions import SchemaUpdateTerminalError
 from dlt.common.schema.exceptions import UnboundColumnException
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
 from dlt.destinations.adapters import clickhouse_adapter
@@ -508,6 +509,9 @@ def test_clickhouse_adapter_expr_fails(
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(res_upper, **destination_config.run_kwargs)
     cause = pip_ex.value.__cause__
+    # happens during schema update
+    assert isinstance(cause, SchemaUpdateTerminalError)
+    cause = cause.__cause__
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 47.")  # UNKNOWN_IDENTIFIER
 
@@ -521,6 +525,8 @@ def test_clickhouse_adapter_expr_fails(
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(res_nullable, **destination_config.run_kwargs)
     cause = pip_ex.value.__cause__
+    assert isinstance(cause, SchemaUpdateTerminalError)
+    cause = cause.__cause__
     assert isinstance(cause, DatabaseTerminalException)
     assert str(cause).startswith("Code: 44.")  # ILLEGAL_COLUMN
 

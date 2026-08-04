@@ -10,6 +10,7 @@ from typing import (
 
 from dlt.common.jsonpath import TAnyJsonPath
 from dlt.common.exceptions import TerminalException
+from dlt.common.destination.exceptions import SchemaUpdateError
 from dlt.common.schema.typing import TSimpleRegex
 from dlt.common.pipeline import pipeline_state as current_pipeline_state, TRefreshMode
 from dlt.common.storages.load_package import TLoadPackageDropTablesState
@@ -57,6 +58,28 @@ def retry_load(
         return True
 
     return _retry_load
+
+
+def retry_schema_update() -> Callable[[BaseException], bool]:
+    """A retry strategy for Tenacity that repeats the `load` step when a schema update fails.
+
+    Schema update errors typically happen when several pipelines run in parallel and race to create the
+    same table or add the same column. Retrying is safe: `dlt` re-reads the destination and applies only
+    the changes that are still missing. Compose with `retry_load` to also retry other load failures.
+
+    >>> from tenacity import Retrying, stop_after_attempt, retry_if_exception
+    >>> from dlt.pipeline.helpers import retry_load, retry_schema_update
+    >>> should_retry = retry_if_exception(retry_schema_update()) | retry_if_exception(retry_load(("load", "extract")))
+    >>> for attempt in Retrying(stop=stop_after_attempt(5), retry=should_retry, reraise=True):
+    >>>     with attempt:
+    >>>         pipeline.run(data)
+    """
+
+    def _retry_schema_update(ex: BaseException) -> bool:
+        # only the load step raises it, as the context of PipelineStepFailed
+        return isinstance(ex, SchemaUpdateError) or isinstance(ex.__context__, SchemaUpdateError)
+
+    return _retry_schema_update
 
 
 class pipeline_drop:

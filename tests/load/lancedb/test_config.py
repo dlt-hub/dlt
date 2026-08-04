@@ -157,28 +157,49 @@ def test_pinned_database_rejects_a_different_dataset() -> None:
 
 
 @pytest.mark.parametrize(
-    "host_override,region,expected_location",
+    "host_override,api_key,region,expected_location",
     [
-        pytest.param(None, None, "", id="unresolved"),
-        pytest.param(None, "us-east-1", "lancedb-cloud:us-east-1", id="cloud"),
         pytest.param(
             "https://cluster.example.com/",
+            "secret",
             "us-east-1",
-            "https://cluster.example.com",
-            id="enterprise",
+            "lancedb:https://cluster.example.com",
+            id="enterprise-endpoint-identifies-it",
+        ),
+        # Cloud shares a region between tenants, so the api key is the only account identity
+        pytest.param(
+            None,
+            "secret",
+            "us-east-1",
+            f"lancedb-cloud:us-east-1:{digest128('secret')}",
+            id="cloud-account",
         ),
     ],
 )
-def test_lancedb_fingerprint(
-    host_override: Optional[str], region: Optional[str], expected_location: str
+def test_lancedb_data_location(
+    host_override: Optional[str],
+    api_key: Optional[str],
+    region: Optional[str],
+    expected_location: str,
 ) -> None:
     # the location identifies the cluster, not a database, because every dataset is a database
     config = LanceDBClientConfiguration(
-        credentials=LanceDBCredentials(host_override=host_override, region=region)
+        credentials=LanceDBCredentials(host_override=host_override, api_key=api_key, region=region)
     )
 
-    assert config.physical_location() == expected_location
-    assert config.fingerprint() == (digest128(expected_location) if expected_location else "")
+    assert config.data_location() == expected_location
+    assert config.fingerprint() == digest128(expected_location)
+
+
+def test_lancedb_without_a_cluster_has_no_data_location() -> None:
+    config = LanceDBClientConfiguration(
+        credentials=LanceDBCredentials(host_override=None, api_key=None, region=None)
+    )
+
+    with pytest.raises(ConfigurationValueError):
+        config.data_location()
+    # telemetry must not raise, so a fingerprint of nothing is blank
+    assert config.fingerprint() == ""
 
 
 def test_lancedb_can_read_from() -> None:

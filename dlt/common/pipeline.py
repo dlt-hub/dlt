@@ -225,6 +225,7 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):
             "resource_metrics": [],
             "dag": [],
             "hints": [],
+            "inputs": [],
         }
         for load_id, metrics_list in self.metrics.items():
             for idx, metrics in enumerate(metrics_list):
@@ -245,6 +246,10 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):
                         {**extend, "resource_name": name, **hints}
                         for name, hints in metrics["hints"].items()
                     ]
+                )
+                # traces restored from an older dlt have no inputs
+                load_metrics["inputs"].extend(
+                    [{**extend, **location} for location in metrics.get("inputs", [])]
                 )
                 load_metrics["job_metrics"].extend(
                     self.writer_metrics_asdict(metrics["job_metrics"], extend=extend)
@@ -348,7 +353,7 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
         d = super().asdict()
         # transform metrics
         d.pop("metrics")
-        load_metrics: Dict[str, List[Any]] = {"job_metrics": []}
+        load_metrics: Dict[str, List[Any]] = {"job_metrics": [], "outputs": []}
         for load_id, metrics_list in self.metrics.items():
             # one set of metrics per package id
             assert len(metrics_list) == 1
@@ -361,6 +366,10 @@ class LoadInfo(StepInfo[LoadMetrics], _LoadInfo):
                         **job_metrics._asdict(),
                     }
                 )
+            # traces restored from an older dlt have no outputs
+            load_metrics["outputs"].extend(
+                [{"load_id": load_id, **location} for location in metrics.get("outputs", [])]
+            )
 
         d.update(load_metrics)
         return d
@@ -562,6 +571,10 @@ class SupportsPipeline(Protocol):
     """Stores last "good" run context, where run ends with successful loading of the data"""
     collector: Collector
     """A collector that tracks the progress of the pipeline"""
+
+    @property
+    def encryption_seed(self) -> str:
+        """Master secret derived from `pipeline_salt`. dlt encrypts load package secrets with it"""
 
     @property
     def has_pending_data(self) -> bool:
