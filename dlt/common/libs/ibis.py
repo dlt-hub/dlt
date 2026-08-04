@@ -177,16 +177,26 @@ class _DltBackend(SQLBackend, NoUrl, NoExampleLoader):
     def current_database(self) -> str:
         return self._dataset.dataset_name
 
+    @property
+    def _unified_schema(self) -> DltSchema:
+        """Returns one schema holding the tables of every schema of the dataset."""
+
+        schemas = self._dataset.schemas
+        if len(schemas) > 1:
+            return schemas[0].unify_schemas(list(schemas[1:]))
+        return schemas[0]
+
     # required for marimo DataSources UI to work
     def list_tables(
         self, *, like: Optional[str] = None, database: Union[tuple[str, str], str, None] = None
     ) -> list[str]:
         """Return the list of table names"""
-        return list(self._dataset.schema.tables.keys())
+        schema = self._unified_schema
+        return schema.data_table_names() + schema.dlt_table_names()
 
     # required for marimo DataSources UI to work
     def get_schema(self, table_name: str, *args: Any, **kwargs: Any) -> sch.Schema:
-        return _to_ibis_schema(self._dataset.table(table_name).schema)
+        return _to_ibis_schema(self._unified_schema.get_table(table_name))
 
     # required for marimo DataSources UI to work
     def _get_schema_using_query(self, query: str) -> sch.Schema:
