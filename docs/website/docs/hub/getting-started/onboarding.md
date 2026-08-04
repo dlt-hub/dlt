@@ -114,21 +114,26 @@ The data lands in the `sample_shop` dataset on your Playground destination, the 
 https://app.dlthub.com/w/<workspace-id>/runs/<run-id>
 ```
 
-Finally, it opens the `onboarding_success` notebook so you can browse the loaded tables. At this point, your first pipeline has run on the platform and the data is ready to query.
-
-The notebook shows the tables created in the `sample_shop` dataset.
+At this point, your first pipeline has run on the platform and the data is ready to query.
+Finally, the agent opens the `onboarding_success` notebook. This Marimo notebook is included in the starter workspace specifically for this onboarding guide. It lets you browse the tables created by the Sample Shop pipeline and confirms that the data was loaded successfully.
 ![The onboarding notebook showing the tables loaded by the Sample Shop pipeline](https://storage.googleapis.com/dlt-blog-images/onboarding-dashboard.png)
 
 ## 3. Rerun and inspect the pipeline
 
 After the first successful run, you can rerun the pipeline or open your workspace in the dltHub UI:
 
-`uv run dlthub run load_sample_shop -f` runs the pipeline on the managed platform and follows its logs until it finishes.
-`uv run dlthub show` opens the connected workspace in your browser.
+```sh
+uv run dlthub run load_sample_shop -f
+``` 
+runs the pipeline on the managed platform and follows its logs until it finishes.
+```sh
+uv run dlthub show
+```
+opens the connected workspace in your browser.
 ![In the UI you can then inspect your job runs and pipeline health](https://storage.googleapis.com/dlt-blog-images/onboarding-rerun.png)
 
 
-For a more detailed view, open the [workspace observability dashboard](../ingestion/dashboard.md) from the Notebooks section. The dashboard lets you inspect pipeline metadata, query data in the destination, review traces and exceptions, check previous pipeline runs, and verify incremental loading behavior.
+For ongoing monitoring, open the [workspace observability dashboard](../ingestion/dashboard.md) from the Notebooks section. Unlike the `onboarding_success` notebook, this dashboard is not specific to the sample pipeline or this tutorial. It is available as a general workspace tool for inspecting your pipelines and datasets. You can use it to review pipeline metadata, query destination data, inspect traces and exceptions, check run history, and verify incremental loading behavior.
 
 
 ![Observability dashboard showing pipeline metadata, run history, traces, and loaded datasets](https://storage.googleapis.com/dlt-blog-images/observability-dashboard.png)
