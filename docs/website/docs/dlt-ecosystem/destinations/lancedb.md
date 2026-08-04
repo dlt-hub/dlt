@@ -1,15 +1,15 @@
 ---
-title: LanceDB
+title: 🧪 LanceDB Enterprise / Cloud
 description: LanceDB is a multimodal lakehouse for AI that can be used as a destination in dlt.
 keywords: [ lancedb, vector database, destination, dlt ]
 ---
 
-# LanceDB
+# 🧪 LanceDB Enterprise
 
 [LanceDB](https://lancedb.com/) is a multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. You can store data objects in it and search them by similarity.
 This destination helps you load data into LanceDB from [dlt resources](../../general-usage/resource.md).
 
-This destination connects to a **managed LanceDB Enterprise or Cloud cluster**. The cluster does all
+This destination connects to a [**LanceDB Enterprise cluster**](https://docs.lancedb.com/enterprise/index) or LanceDB Cloud. The cluster does all
 storage IO, so `dlt` needs no object store credentials. To load into a self-managed Lance lakehouse
 of your own — a directory or REST catalog over your own bucket — use the
 [`lance` destination](./lance.md) instead.
@@ -46,7 +46,7 @@ database = "my_database"  # optional, sets one database as the dataset, see belo
 host_override = "https://my-cluster.example.com"  # required for Enterprise, omit for LanceDB Cloud
 region = "us-east-1"  # region of a LanceDB Cloud database
 flightsql_host = "my-flight-endpoint.example.com"  # enables SQL reads, see below
-weak_read_consistency_interval_seconds = 0  # how stale a managed client read can be
+read_consistency_interval_seconds = 0  # how stale a managed client read can be
 
 [destination.lancedb.embeddings]
 provider = "ollama"
@@ -63,7 +63,7 @@ api_key = "embedding_model_provider_api_key"  # not needed for providers without
 - The `flightsql_host` is the Arrow Flight SQL endpoint used for reading. Enterprise serves it from a
   separate load balancer, on port `10025` by default (`flightsql_port`, `flightsql_tls`). Without it,
   loading works but [reading](#access-loaded-data) is disabled.
-- The `weak_read_consistency_interval_seconds` asks the managed client for reads no staler than the given number of seconds. See [read freshness](#read-freshness).
+- The `read_consistency_interval_seconds` asks the managed client for reads no staler than the given number of seconds. See [read freshness](#read-freshness).
 
 The `embeddings` section is shared with the [lance](lance.md) destination and is optional: leave it
 out and no vector column is added.
@@ -366,26 +366,19 @@ round trip.
 
 ### Read freshness
 
-A cluster serves reads no staler than its own `weak_read_consistency_interval_seconds`, and `dlt`
+A cluster serves reads no staler than its own `read_consistency_interval_seconds`, and `dlt`
 exposes a credential of the same name that asks a connection for a tighter bound:
 
 ```toml
 [destination.lancedb.credentials]
-weak_read_consistency_interval_seconds = 10  # managed client reads can lag by up to 10s
+read_consistency_interval_seconds = 10  # managed client reads can lag by up to 10s
 ```
 
 Loading always reads the latest version regardless of this setting, so a merge never matches against
 stale rows.
 
 :::caution
-On the Enterprise cluster we measured, this setting made **no difference at all**. Timing how long a
-merge takes to become readable over six runs, a reader saw it after `26.0 ± 0.7s` whether the
-interval was `0`, left unset, or set to `600s` — the same value in every single run. The delay is
-server-side visibility that no client setting shortens, so treat the credential as a request the
-cluster can ignore, not as a guarantee.
-
-The Arrow Flight SQL endpoint has no equivalent setting and was far fresher in the same measurement,
-serving the merge within `1.8s`. It is the reader that sees a load promptly.
+On the Enterprise cluster we measured, this setting made **no difference at all** - that includes 0 (default) value. 
 :::
 
 ### Vector search in SQL
@@ -501,14 +494,16 @@ This structure ensures proper record identification and maintains consistency wi
 
 #### Orphan Removal
 
-LanceDB **automatically removes orphaned chunks** when updating or deleting parent documents during a merge operation. To disable this feature:
+A merge can **remove orphaned chunks** — records of a nested table whose parent document is gone. It
+is **off by default**, because it needs the `_dlt_load_id` column and accepts a single merge key.
+Enable it per resource:
 
 ```py
 pipeline.run(
   lancedb_adapter(
     movies,
     embed="title",
-    no_remove_orphans=True # Disable with the `no_remove_orphans` flag.
+    remove_orphans=True
   ),
   write_disposition={"disposition": "merge", "strategy": "upsert"},
   primary_key=["doc_id", "chunk_id"],
@@ -519,7 +514,7 @@ While it's possible to omit the `merge_key` for brevity (in which case it is ass
 explicitly specifying both is recommended for clarity.
 
 :::note
-Orphan removal requires the presence of the `_dlt_id` and `_dlt_load_id` fields, which are not included by default when arrow tables are loaded. You must [enable it](../../dlt-ecosystem/verified-sources/arrow-pandas#add-_dlt_load_id-and-_dlt_id-to-your-tables) by setting the `add_dlt_id` option to `true` in the normalize configuration.
+Orphan removal requires the presence of the `_dlt_id` and `_dlt_load_id` fields, which are not included by default when arrow tables are loaded. If you enable it for an arrow source, also [enable those fields](../../dlt-ecosystem/verified-sources/arrow-pandas#add-_dlt_load_id-and-_dlt_id-to-your-tables) by setting the `add_dlt_id` option to `true` in the normalize config.
 :::
 
 ### Append
@@ -531,27 +526,28 @@ This is the default disposition. It will append the data to the existing data in
 - `commit_tag`: Names the version every table has at the end of a load, which retains it against cleanup and gives a rollback target. See [name a load](#name-a-load-with-commit_tag).
 - `embeddings`: Embedding provider, model and credentials. See [configure the destination](#configure-the-destination).
 
-## Current limitations
+## Current limitations (LanceDB Enterprise)
 
-Some of these are cluster side gaps rather than `dlt` limitations, verified against LanceDB Enterprise:
-
-- **Adding a column goes through SQL, not arrow.** A managed cluster rejects arrow schemas when
-  altering a table, so `dlt` carries the arrow type in an `arrow_cast` expression instead. Columns
-  whose arrow type has no DataFusion name, such as structs, cannot be added to an existing table.
-- **Merges and column additions commit an extra empty delete.** A cluster commits both without
-  advancing the current version of the table, so a cluster that caches reads keeps serving the
-  version before them for a while, around 20 seconds on the cluster we measured. `dlt` publishes them
-  immediately with a delete that matches no rows, because a load reads its own writes back at once.
-  That costs one extra table version per merge and per column addition. Appends and replaces need no
-  such commit, and no data is lost either way.
+- **A merge or a column addition does not advance the table version.** The cluster commits both
+  without moving the current version, so a reader that caches keeps serving the previous version for
+  about 20 seconds. `dlt` publishes the commit at once with a delete that matches no rows, because a
+  load reads its own writes back immediately. That costs one extra version per merge and per column
+  addition. An append, a replace and a delete advance the version themselves, and no data is lost
+  either way.
+- **`read_consistency_interval_seconds` has no effect.** The cluster serves reads at its own
+  staleness, so treat the setting as a request it can ignore. See [read freshness](#read-freshness).
+- **Version and metadata changes have no transaction.** `dlt` cannot tag a table and advance its
+  version in one commit, and a load package is not atomic across its destination tables.
 - **SQL reads resolve the root namespace of a database only.** This is why a dataset is a database
   rather than a namespace: the endpoint cannot access a table in a child namespace under any
   spelling, so `dlt` never creates one.
+- **Adding a column goes through SQL, not arrow.** The cluster rejects arrow schemas when altering a
+  table, so `dlt` carries the arrow type in an `arrow_cast` expression. A column whose arrow type has
+  no DataFusion name, such as a struct, cannot be added to an existing table.
 - **No branches.** The managed client cannot select a branch, so a `commit_tag` takes their place.
   Unlike the `lance` destination there is no write isolation.
-- **Transactions are per table.** A load package is not atomic across destination tables.
-- Flight SQL has no prepared statements, no transactions, no catalog metadata queries
-  (`SHOW TABLES`, `information_schema`) and no time travel syntax.
+- **Flight SQL is query only.** It has no prepared statements, no transactions and no catalog
+  metadata queries (`SHOW TABLES`, `information_schema`).
 
 ## dbt support
 
@@ -562,4 +558,3 @@ The LanceDB destination does not support dbt integration.
 The LanceDB destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA lancedb-->
-

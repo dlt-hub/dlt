@@ -289,14 +289,14 @@ pipeline.run(
 )
 ```
 
-The `merge_key` identifies the parent document. If `merge_key` is not specified, the first element of `primary_key` is used as fallback. When orphan removal is enabled (the default), only a single merge key is supported because the orphan deletion filter operates on a single column. To use compound merge keys, disable orphan removal with `remove_orphans=False`.
+The `merge_key` identifies the parent document. If `merge_key` is not specified, the first element of `primary_key` is used as fallback. When orphan removal is enabled, only a single merge key is supported because the orphan deletion filter operates on a single column. Compound merge keys therefore need orphan removal off, which is the default.
 
 #### Orphan removal
 
-By default, when parent documents are updated or deleted during a merge, orphaned child records (chunks that no longer have a matching parent) are automatically removed. To disable this:
+A merge can remove orphaned child records — chunks that no longer have a matching parent. It is **off by default**, because it needs the `_dlt_load_id` column and accepts a single merge key. Enable it per resource:
 
 ```py
-lance_adapter(data, merge_key="doc_id", remove_orphans=False)
+lance_adapter(data, merge_key="doc_id", remove_orphans=True)
 ```
 
 ## Embeddings configuration
