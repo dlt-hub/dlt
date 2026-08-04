@@ -1,50 +1,43 @@
-from typing import cast
-import pyarrow as pa
-import pyarrow.parquet as pq
-from lancedb import DBConnection
+from typing import TYPE_CHECKING
 
 from dlt.common.destination.client import (
     RunnableLoadJob,
     HasFollowupJobs,
 )
 from dlt.common.destination.utils import resolve_merge_strategy
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.schema.typing import (
     TWriteDisposition,
     TTableSchema,
 )
 from dlt.common.schema.utils import is_nested_table
 from dlt.common.storages import ParsedLoadJobFileName
+from dlt.destinations.impl.lance.utils import (
+    create_in_filter,
+    get_canonical_vector_database_doc_id_merge_key,
+)
 from dlt.destinations.impl.lancedb.schema import (
-    TArrowSchema,
     TTableLineage,
     TableJob,
-)
-from dlt.destinations.impl.lancedb.utils import (
-    get_canonical_vector_database_doc_id_merge_key,
-    create_in_filter,
-    write_records,
 )
 from dlt.destinations.job_impl import ReferenceFollowupJobRequest
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
+if TYPE_CHECKING:
+    from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
+
 
 class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
-    arrow_schema: TArrowSchema
-
     def __init__(
         self,
         file_path: str,
         table_schema: TTableSchema,
     ) -> None:
-        from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-
         super().__init__(file_path)
         self._job_client: "LanceDBClient" = None
         self._table_schema: TTableSchema = table_schema
 
     def run(self) -> None:
-        db_client: DBConnection = self._job_client.db_client
-        fq_table_name: str = self._job_client.make_qualified_table_name(self._table_schema["name"])
         write_disposition: TWriteDisposition = self._load_table.get("write_disposition", "append")
 
         merge_key: str = None
@@ -61,13 +54,11 @@ class LanceDBLoadJob(RunnableLoadJob, HasFollowupJobs):
             )
 
         with open(self._file_path, mode="rb") as f:
-            arrow_table: pa.Table = pq.read_table(f)
+            arrow_table: pa.Table = pa.parquet.read_table(f)
 
-        write_records(
+        self._job_client.write_records(
             arrow_table,
-            db_client=db_client,
-            vector_field_name=self._job_client.config.vector_field_name,
-            table_name=fq_table_name,
+            self._table_schema["name"],
             write_disposition=write_disposition,
             merge_key=merge_key,
             merge_strategy=merge_strategy,
@@ -79,14 +70,11 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
         self,
         file_path: str,
     ) -> None:
-        from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-
         super().__init__(file_path)
         self._job_client: "LanceDBClient" = None
         self.references = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
-        db_client: DBConnection = self._job_client.db_client
         table_lineage: TTableLineage = [
             TableJob(
                 table_schema=self._job_client.prepare_load_table(
@@ -100,10 +88,8 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
 
         for job in table_lineage:
             target_is_root_table = not is_nested_table(job.table_schema)
-            fq_table_name = self._job_client.make_qualified_table_name(job.table_name)
-            file_path = job.file_path
-            with open(file_path, mode="rb") as f:
-                payload_arrow_table: pa.Table = pq.read_table(f)
+            with open(job.file_path, mode="rb") as f:
+                payload_arrow_table: pa.Table = pa.parquet.read_table(f)
 
             if target_is_root_table:
                 canonical_doc_id_field = get_canonical_vector_database_doc_id_merge_key(
@@ -140,11 +126,9 @@ class LanceDBRemoveOrphansJob(RunnableLoadJob):
                 )
                 merge_key = dlt_id
 
-            write_records(
+            self._job_client.write_records(
                 payload_arrow_table,
-                db_client=db_client,
-                vector_field_name=self._job_client.config.vector_field_name,
-                table_name=fq_table_name,
+                job.table_name,
                 write_disposition="merge",
                 merge_key=merge_key,
                 remove_orphans=True,

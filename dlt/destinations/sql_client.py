@@ -366,6 +366,15 @@ class WithSqlClient(ABC):
         pass
 
 
+class WithReadonlyClient:
+    """Marker for SQL clients that only read, so a job client does not open them for a load.
+
+    Entering a job client opens the connection it writes through. A read only client is not part of
+    that, and opening one may need an endpoint or a cache that a load does not require, so whoever
+    wants to query through it opens it explicitly.
+    """
+
+
 class WithSchemas(ABC):
     """Mixin for SQL clients that can manage tables across multiple dlt schemas."""
 

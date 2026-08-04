@@ -1,7 +1,7 @@
 import pyarrow as pa
 import pytest
 
-from dlt.destinations.impl.lancedb.utils import create_in_filter
+from dlt.destinations.impl.lance.utils import create_in_filter
 from dlt.destinations.impl.lancedb.exceptions import is_lancedb_not_found_error
 
 
@@ -27,3 +27,5 @@ def test_lancedb_exception_parsing() -> None:
     assert is_lancedb_not_found_error("Column 'test_column' not found")
     assert is_lancedb_not_found_error("Missing value for column 'test_column'")
     assert is_lancedb_not_found_error("Missing column 'test_column'")
+    assert is_lancedb_not_found_error("Table dlt_ci.my_table does not exist")
+    assert not is_lancedb_not_found_error("Internal server error")

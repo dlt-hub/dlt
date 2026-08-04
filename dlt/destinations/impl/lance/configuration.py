@@ -245,6 +245,8 @@ class LanceEmbeddingsConfiguration(BaseConfiguration):
     """
     name: str = None
     """Name of model used by provider to generate embeddings, e.g. `embed-english-v3.0`."""
+    dimensions: Optional[int] = None
+    """Dimensionality of the generated embeddings. Inferred from the model when not set."""
     max_retries: Optional[int] = 3
     """Number of retries for embedding requests. Set to 0 to disable retries."""
     kwargs: Optional[Dict[str, Any]] = None

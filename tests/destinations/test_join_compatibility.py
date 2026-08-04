@@ -198,15 +198,13 @@ def _sqla_config(conn_str: str) -> SqlalchemyClientConfiguration:
 
 
 def _lancedb_config(
-    lance_uri: str,
+    database: Optional[str],
     dataset_name: str = "dataset",
-    dataset_separator: str = "___",
+    host_override: Optional[str] = None,
 ) -> LanceDBClientConfiguration:
     """Build resolved LanceDB config."""
     c = LanceDBClientConfiguration(
-        lance_uri=lance_uri,
-        credentials=LanceDBCredentials(uri=lance_uri),
-        dataset_separator=dataset_separator,
+        credentials=LanceDBCredentials(database=database, host_override=host_override),
     )
     c._bind_dataset_name(dataset_name)
     return c
@@ -1066,36 +1064,35 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
     "f1,f2,expected",
     [
         pytest.param(
-            lambda: _lancedb_config("/tmp/db.lancedb"),
-            lambda: _lancedb_config("/tmp/db.lancedb"),
+            lambda: _lancedb_config("db1"),
+            lambda: _lancedb_config("db1"),
             True,
-            id="same_uri",
+            id="same_database",
         ),
         pytest.param(
-            lambda: _lancedb_config("/tmp/db1.lancedb"),
-            lambda: _lancedb_config("/tmp/db2.lancedb"),
+            lambda: _lancedb_config("db1"),
+            lambda: _lancedb_config("db2"),
             False,
-            id="different_uri",
+            id="different_database",
         ),
+        # namespaces of the same database are all readable over the same SQL endpoint
         pytest.param(
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_name="dataset1"),
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_name="dataset2"),
+            lambda: _lancedb_config("db1", dataset_name="dataset1"),
+            lambda: _lancedb_config("db1", dataset_name="dataset2"),
             True,
-            id="different_dataset_same_uri",
-        ),
-        # any table at the same location is readable via the same ATTACH,
-        # separator only affects table naming
-        pytest.param(
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_separator="___"),
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_separator="__"),
-            True,
-            id="different_separator_same_uri",
+            id="different_dataset_same_database",
         ),
         pytest.param(
-            lambda: _lancedb_config(":external:"),
-            lambda: _lancedb_config(":external:"),
+            lambda: _lancedb_config("db1", host_override="https://cluster1"),
+            lambda: _lancedb_config("db1", host_override="https://cluster2"),
             False,
-            id="external_native_client",
+            id="same_database_different_cluster",
+        ),
+        pytest.param(
+            lambda: _lancedb_config(None),
+            lambda: _lancedb_config(None),
+            False,
+            id="unresolved_database",
         ),
     ],
 )
@@ -1105,8 +1102,8 @@ def test_lancedb_can_read_from(f1: ConfigFactory, f2: ConfigFactory, expected: b
 
 def test_lancedb_can_never_write() -> None:
     """dlt is the only engine that writes to LanceDB, so SQL write is never possible."""
-    c1 = _lancedb_config("/tmp/db.lancedb")
-    c2 = _lancedb_config("/tmp/db.lancedb")
+    c1 = _lancedb_config("db1")
+    c2 = _lancedb_config("db1")
     # same location is readable but not writable
     assert c1.can_read_from(c2)
     assert not c1.can_write_from(c2)
@@ -1206,7 +1203,7 @@ def test_lance_can_never_write() -> None:
 
 def test_lance_and_lancedb_cannot_join_with_each_other() -> None:
     lance = _lance_config("file:///tmp/lance")
-    lancedb = _lancedb_config("file:///tmp/lance")
+    lancedb = _lancedb_config("db1")
     assert_not_joinable(lance, lancedb)
 
 

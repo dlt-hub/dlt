@@ -12,14 +12,18 @@ pytestmark = pytest.mark.essential
 
 
 def test_lancedb_ollama_endpoint_configuration() -> None:
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER"] = "ollama"
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL"] = "nomic-embed-text"
-    os.environ["DESTINATION__LANCEDB__EMBEDDING_MODEL_PROVIDER_HOST"] = "http://198.163.194.3:24233"
+    os.environ["DESTINATION__LANCEDB__CREDENTIALS__DATABASE"] = "dlt-ci"
+    os.environ["DESTINATION__LANCEDB__EMBEDDINGS__PROVIDER"] = "ollama"
+    os.environ["DESTINATION__LANCEDB__EMBEDDINGS__NAME"] = "nomic-embed-text"
+    # the provider host is provider specific and reaches `EmbeddingFunction.create()` via kwargs
+    os.environ["DESTINATION__LANCEDB__EMBEDDINGS__KWARGS"] = (
+        '{"host": "http://198.163.194.3:24233"}'
+    )
 
     config = resolve_configuration(
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
         sections=("destination", "lancedb"),
     )
-    assert config.embedding_model_provider == "ollama"
-    assert config.embedding_model == "nomic-embed-text"
-    assert config.embedding_model_provider_host == "http://198.163.194.3:24233"
+    assert config.embeddings.provider == "ollama"
+    assert config.embeddings.name == "nomic-embed-text"
+    assert config.embeddings.kwargs == {"host": "http://198.163.194.3:24233"}

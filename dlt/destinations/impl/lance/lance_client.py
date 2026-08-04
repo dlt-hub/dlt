@@ -500,7 +500,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         if embedding_fields:
             if vector_column not in columns:
-                vec_size = self.embedding_function.ndims()
+                vec_size = self.config.embeddings.dimensions or self.embedding_function.ndims()
                 arrow_schema = arrow_schema.append(
                     pa.field(vector_column, pa.list_(pa.float32(), vec_size))
                 )
