@@ -82,26 +82,6 @@ out and no vector column is added.
 A row whose embedded column is empty or `NULL` has nothing to embed, so it lands with a `NULL`
 vector rather than failing the load. The row and its other columns are preserved.
 
-:::info Available model providers
-- "bedrock-text"
-- "cohere"
-- "colbert"
-- "colpali"
-- "gemini-text"
-- "gte-text"
-- "huggingface"
-- "imagebind"
-- "instructor"
-- "jina"
-- "ollama"
-- "open-clip"
-- "openai"
-- "sentence-transformers"
-- "siglip"
-- "voyageai"
-- "watsonx"
-:::
-
 ### Datasets are databases
 
 The `dataset_name` of a pipeline is a **database** of the cluster, and all tables of the dataset,
@@ -558,6 +538,9 @@ This is the default disposition. It will append the data to the existing data in
   either way.
 - **`read_consistency_interval_seconds` has no effect.** The cluster serves reads at its own
   staleness, so treat the setting as a request it can ignore. See [read freshness](#read-freshness).
+- **A filtered query that selects no column of the table panics.** The simplest case is
+  `SELECT COUNT(*) FROM t WHERE id = 1`, which returns `must either specify a row count or at least
+  one column`.
 - **Version and metadata changes have no transaction.** `dlt` cannot tag a table and advance its
   version in one commit, and a load package is not atomic across its destination tables.
 - **SQL reads resolve the root namespace of a database only.** This is why a dataset is a database

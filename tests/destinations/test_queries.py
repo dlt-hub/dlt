@@ -51,7 +51,7 @@ def test_with_load_id_filter():
     )
     expected = (
         "SELECT 'my_table' AS table_name, "
-        "COUNT(*) AS row_count "
+        'COUNT("_dlt_load_id") AS row_count '
         'FROM "my_table" '
         "WHERE \"_dlt_load_id\" = 'abcd-123'"
     )

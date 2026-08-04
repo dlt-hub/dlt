@@ -85,7 +85,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
     ) -> "BaseBackend":
         """Creates the dlt ibis backend, which runs expressions over the Arrow Flight SQL endpoint."""
         from dlt.common.libs.ibis import _DltBackend
-        from dlt.destinations.dataset import dataset
+        from dlt.dataset import dataset
 
         # ibis has no LanceDB backend, so the dlt backend compiles expressions and lets the dlt sql
         # client execute them
