@@ -6,10 +6,10 @@ keywords: [ lancedb, vector database, destination, dlt ]
 
 # LanceDB
 
-[LanceDB](https://lancedb.com/) is a multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. It allows you to store data objects and perform similarity searches over them.
+[LanceDB](https://lancedb.com/) is a multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. You can store data objects in it and search them by similarity.
 This destination helps you load data into LanceDB from [dlt resources](../../general-usage/resource.md).
 
-This destination connects to a **managed LanceDB Enterprise or Cloud database**. The cluster does all
+This destination connects to a **managed LanceDB Enterprise or Cloud cluster**. The cluster does all
 storage IO, so `dlt` needs no object store credentials. To load into a self-managed Lance lakehouse
 of your own — a directory or REST catalog over your own bucket — use the
 [`lance` destination](./lance.md) instead.
@@ -31,7 +31,7 @@ To use LanceDB as a destination, make sure `dlt` is installed with the `lancedb`
 pip install "dlt[lancedb]"
 ```
 
-The lancedb extra only installs `dlt` and `lancedb`. You will need to install your model provider's SDK.
+The lancedb extra installs only `dlt` and `lancedb`. Install your model provider's SDK as well.
 
 You can find which libraries you need by also referring to the [LanceDB docs](https://docs.lancedb.com/embedding/index#embedding-model-providers).
 
@@ -42,24 +42,24 @@ Configure the destination in the dlt secrets file located at `~/.dlt/secrets.tom
 ```toml
 [destination.lancedb.credentials]
 api_key = "api_key"
-database = "my_database"  # optional, pins one database as the dataset, see below
+database = "my_database"  # optional, sets one database as the dataset, see below
 host_override = "https://my-cluster.example.com"  # required for Enterprise, omit for LanceDB Cloud
 region = "us-east-1"  # region of a LanceDB Cloud database
 flightsql_host = "my-flight-endpoint.example.com"  # enables SQL reads, see below
-weak_read_consistency_interval_seconds = 0  # how stale a managed client read may be
+weak_read_consistency_interval_seconds = 0  # how stale a managed client read can be
 
 [destination.lancedb.embeddings]
 provider = "ollama"
 name = "mxbai-embed-large"
-kwargs = { host = "http://localhost:11434" }  # provider specific arguments, e.g. a custom endpoint
+kwargs = { host = "http://localhost:11434" }  # provider specific arguments, for example a custom endpoint
 
 [destination.lancedb.embeddings.credentials]
 api_key = "embedding_model_provider_api_key"  # not needed for providers without authentication (ollama, sentence-transformers)
 ```
 
 - The `api_key` authenticates to the cluster. It is required.
-- The `host_override` is the endpoint of an Enterprise cluster. Leave it out for LanceDB Cloud, which is reached through `region`.
-- The `database` is optional. Leave it out and every [dataset becomes a database](#datasets-are-databases); set it to [pin one database](#pinning-one-database) for the destination.
+- The `host_override` is the endpoint of an Enterprise cluster. Leave it out for LanceDB Cloud, which `region` identifies.
+- The `database` is optional. Leave it out and every [dataset becomes a database](#datasets-are-databases). Set it to [configure one database](#configure-one-database) for the destination.
 - The `flightsql_host` is the Arrow Flight SQL endpoint used for reading. Enterprise serves it from a
   separate load balancer, on port `10025` by default (`flightsql_port`, `flightsql_tls`). Without it,
   loading works but [reading](#access-loaded-data) is disabled.
@@ -68,8 +68,8 @@ api_key = "embedding_model_provider_api_key"  # not needed for providers without
 The `embeddings` section is shared with the [lance](lance.md) destination and is optional: leave it
 out and no vector column is added.
 
-- The `provider` generates the embeddings, e.g. `cohere` or `openai`.
-- The `name` is the provider's model, e.g. `embed-english-v3.0`.
+- The `provider` generates the embeddings, for example `cohere` or `openai`.
+- The `name` is the provider's model, for example `embed-english-v3.0`.
   Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/.
 - The `vector_column` names the column holding the embeddings. Defaults to `vector`.
 - The `dimensions` sets the embedding dimensionality. Inferred from the model when not set.
@@ -121,20 +121,20 @@ A database is created on the first load. Dataset names are normalized like any o
 
 `dlt` also creates an empty namespace named `_dlt_sentinel` in the database. A database that holds no
 tables cannot be told apart from one that was never created, so this namespace is what records that
-the dataset exists. `drop_storage` removes the tables and then the sentinel; the emptied database is
+the dataset exists. `drop_storage` removes the tables and then the sentinel. The emptied database is
 indistinguishable from one that never existed, and it holds nothing.
 
-#### Pinning one database
+#### Configure one database
 
-Setting `credentials.database` pins the destination to a single database, which then **is** the
-dataset — useful to load into a database whose name is not a valid dataset name, since pinning skips
-normalization. The dataset must name that same database, otherwise the load is refused rather than
-writing somewhere you did not ask for:
+Setting `credentials.database` gives the destination a single database, which then **is** the
+dataset. This loads into a database whose name is not a valid dataset name, because a configured name
+skips normalization. The dataset must name that same database, otherwise the load is refused rather
+than writing somewhere you did not ask for:
 
 ```py
 import dlt
 
-# `dlt-ci-5` would normalize to `dlt_ci_5`, so pin it and name the dataset after it
+# `dlt-ci-5` normalizes to `dlt_ci_5`, so configure it and name the dataset after it
 pipeline = dlt.pipeline(
     "movies",
     destination=dlt.destinations.lancedb(credentials={"database": "dlt-ci-5", "api_key": "..."}),
@@ -142,10 +142,10 @@ pipeline = dlt.pipeline(
 )
 ```
 
-A pinned database may hold tables `dlt` did not create, so `drop_storage` removes only the tables of
-the current schema there and warns about what it skipped.
+The configured database can hold tables of a foreign dataset, so `drop_storage` removes only the
+destination tables of the current schema there and warns about what it skipped.
 
-Passing an already connected client pins its database the same way:
+Passing an already connected client configures its database the same way:
 
 ```py
 import lancedb
@@ -178,7 +178,7 @@ print(joined.df())
 
 ### Name a load with `commit_tag`
 
-Set `commit_tag` to name the version each table reaches at the end of a load:
+Set `commit_tag` to name the version each table has at the end of a load:
 
 ```toml
 [destination.lancedb]
@@ -186,9 +186,9 @@ commit_tag = "nightly"
 ```
 
 Every table `dlt` owns gets the tag, including the `dlt` tables and tables that received no data in
-that load, so the tag names the **whole dataset** as it stood when the load finished. Tables in the
-database that `dlt` did not create are never tagged, which matters when you
-[pin one database](#pinning-one-database) that other writers share.
+that load, so the tag names the **whole dataset** as it stood when the load finished. Tables of a
+foreign dataset in the same database are never tagged, which matters when you
+[configure one database](#configure-one-database) that a foreign dataset shares.
 
 Loading again under the same name moves the tag forward, so a fixed name like `nightly` is a rolling
 pointer to the last completed load. Use a fresh name per load only when you intend to keep every one
@@ -196,7 +196,7 @@ of them — see the retention note below.
 
 A tag does two useful things.
 
-#### It pins a version against cleanup
+#### It retains a version against cleanup
 
 An Enterprise cluster compacts and prunes in the background: `optimize()` is a no-op there, and old
 versions are eventually removed. **A tagged version is exempt** — it is retained regardless of age
@@ -221,7 +221,7 @@ started too early fails.
 
 :::caution
 LanceDB has no transaction spanning tables, so a rollback is applied table by table. If it fails part
-way the dataset mixes versions; the tables already restored are logged, and running it again is safe.
+way the dataset mixes versions. The tables already restored are logged, and running it again is safe.
 :::
 
 To read a tagged version without rolling back, check it out through the managed client:
@@ -234,7 +234,7 @@ with pipeline.destination_client() as client:
 ```
 
 The Arrow Flight SQL endpoint has no time-travel syntax, so `dataset()` always reads the current
-version — tags are reachable only through the managed client or by rolling back.
+version. Only the managed client or a rollback can access a tag.
 
 Data tables are tagged before the load is committed, so a tagging failure aborts the load and `dlt`
 retries it. The `_dlt_loads` table is tagged immediately after the row that marks the load complete,
@@ -292,16 +292,16 @@ info = pipeline.run(
 
 The data is now loaded into LanceDB.
 
-To use **vector search** after loading, you **must specify which fields LanceDB should generate embeddings for**. Do this by wrapping the data (or dlt resource) with the **`lancedb_adapter`** function. Above we requested the embedding to be created on `title` column using the configured embedding provider and model.
+To use **vector search** after loading, you **must specify which fields LanceDB generates embeddings for**. Do this by wrapping the data (or dlt resource) with the **`lancedb_adapter`** function. Above we requested the embedding to be created on `title` column using the configured embedding provider and model.
 
 :::note
 The `movies` table lives in the root namespace of the [database named after the
-dataset](#datasets-are-databases), which is how the SQL endpoint reaches it.
+dataset](#datasets-are-databases), which is how the SQL endpoint accesses it.
 :::
 
 ## Use an adapter to specify columns to vectorize
 
-Out of the box, LanceDB will act as a normal database. To use LanceDB's embedding facilities, you'll need to specify which fields you'd like to embed in your dlt resource.
+By default, LanceDB acts as a normal database. To use its embedding functions, specify which fields to embed in your dlt resource.
 
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
@@ -311,7 +311,7 @@ lancedb_adapter(data, embed="title")
 
 It accepts the following arguments:
 
-- `data`: a dlt resource object, or a Python data structure (e.g., a list of dictionaries).
+- `data`: a dlt resource object, or a Python data structure (for example, a list of dictionaries).
 - `embed`: a name of the field or a list of names to generate embeddings for.
 
 Returns: [dlt resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
@@ -325,7 +325,7 @@ lancedb_adapter(
 )
 ```
 
-When using the `lancedb_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
+Apply the `lancedb_adapter` directly to resources, not to the whole source. Here is an example:
 
 ```py
 products_tables = sql_database().with_resources("products", "customers")
@@ -343,7 +343,7 @@ info = pipeline.run(products_tables)
 ```
 
 ## Load data with Arrow or Pandas
-Both `dlt` and `LanceDB` support Arrow and Pandas natively. You will be able to [ingest data with high performance](../verified-sources/arrow-pandas.md) and without unnecessary rewrites and copies.
+Both `dlt` and `LanceDB` support Arrow and Pandas natively. You can [ingest data with high performance](../verified-sources/arrow-pandas.md) without unnecessary rewrites and copies.
 
 If you plan to use `merge` write disposition, remember to [enable load ids](../verified-sources/) tracking for arrow tables.
 
@@ -371,7 +371,7 @@ exposes a credential of the same name that asks a connection for a tighter bound
 
 ```toml
 [destination.lancedb.credentials]
-weak_read_consistency_interval_seconds = 10  # managed client reads may lag by up to 10s
+weak_read_consistency_interval_seconds = 10  # managed client reads can lag by up to 10s
 ```
 
 Loading always reads the latest version regardless of this setting, so a merge never matches against
@@ -382,7 +382,7 @@ On the Enterprise cluster we measured, this setting made **no difference at all*
 merge takes to become readable over six runs, a reader saw it after `26.0 ± 0.7s` whether the
 interval was `0`, left unset, or set to `600s` — the same value in every single run. The delay is
 server-side visibility that no client setting shortens, so treat the credential as a request the
-cluster may ignore, not as a guarantee.
+cluster can ignore, not as a guarantee.
 
 The Arrow Flight SQL endpoint has no equivalent setting and was far fresher in the same measurement,
 serving the merge within `1.8s`. It is the reader that sees a load promptly.
@@ -421,7 +421,7 @@ with pipeline.destination_client() as job_client:
 ```
 
 ## Bring your own vectors
-By default `dlt` will add a vector column automatically using the embeddings indicated in `lancedb_adapter`. You can also choose to pass vector data explicitly. Currently this function is available only if
+When `embeddings` is configured, `dlt` adds a vector column using the fields marked in `lancedb_adapter`. You can also pass vector data explicitly. Currently this function is available only if
 you yield Arrow tables with properly created schema. Remember to declare your vector as fixed length:
 
 ```py
@@ -493,7 +493,7 @@ pipeline.run(
 ```
 
 The `primary_key` uniquely identifies each record, typically comprising a document ID and a chunk ID.
-The `merge_key`, which cannot be compound, should correspond to the canonical `doc_id` used in vector databases and represent the document identifier in your data model.
+The `merge_key`, which cannot be compound, must correspond to the canonical `doc_id` used in vector databases and represent the document identifier in your data model.
 It must be the first element of the `primary_key`.
 This `merge_key` is crucial for document identification and orphan removal during merge operations.
 This structure ensures proper record identification and maintains consistency with vector database concepts.
@@ -528,7 +528,7 @@ This is the default disposition. It will append the data to the existing data in
 
 ## Additional destination options
 
-- `commit_tag`: Names the version every table reaches at the end of a load, which pins it against cleanup and gives a rollback target. See [name a load](#name-a-load-with-commit_tag).
+- `commit_tag`: Names the version every table has at the end of a load, which retains it against cleanup and gives a rollback target. See [name a load](#name-a-load-with-commit_tag).
 - `embeddings`: Embedding provider, model and credentials. See [configure the destination](#configure-the-destination).
 
 ## Current limitations
@@ -545,17 +545,17 @@ Some of these are cluster side gaps rather than `dlt` limitations, verified agai
   That costs one extra table version per merge and per column addition. Appends and replaces need no
   such commit, and no data is lost either way.
 - **SQL reads resolve the root namespace of a database only.** This is why a dataset is a database
-  rather than a namespace: a table placed in a child namespace is invisible to the endpoint under
-  every spelling, so `dlt` never creates one.
-- **No branches.** The managed client cannot target a branch, so `commit_tag` snapshots take their
-  place. Unlike the `lance` destination there is no write isolation.
-- **Transactions are per table.** A load is not atomic across tables.
+  rather than a namespace: the endpoint cannot access a table in a child namespace under any
+  spelling, so `dlt` never creates one.
+- **No branches.** The managed client cannot select a branch, so a `commit_tag` takes their place.
+  Unlike the `lance` destination there is no write isolation.
+- **Transactions are per table.** A load package is not atomic across destination tables.
 - Flight SQL has no prepared statements, no transactions, no catalog metadata queries
   (`SHOW TABLES`, `information_schema`) and no time travel syntax.
 
 ## dbt support
 
-The LanceDB destination doesn't support dbt integration.
+The LanceDB destination does not support dbt integration.
 
 ## Syncing of `dlt` state
 

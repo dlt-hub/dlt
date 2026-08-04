@@ -6,7 +6,7 @@ keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, bran
 
 # Lance
 
-[Lance](https://lance.org) is an open-source columnar data format designed for AI/ML workloads, with native support for versioning, zero-copy access, and fast vector search. The `lance` destination lets you load data into Lance datasets stored on local disk or cloud object storage (S3, Azure, GCS).
+[Lance](https://lance.org) is an open-source columnar data format designed for AI/ML workloads, with native support for versioning, zero-copy access, and fast vector search. The `lance` destination lets you load data into lance tables stored on local disk or cloud object storage (S3, Azure, GCS).
 
 Optionally, the destination can generate **vector embeddings** using the [LanceDB](https://lancedb.com/) embedding functions library.
 
@@ -16,10 +16,10 @@ Optionally, the destination can generate **vector embeddings** using the [LanceD
 :::note Lance vs. LanceDB destination
 dlt ships two Lance-related destinations:
 
-- **`lance`** (this page) — stores data on local disk or cloud object storage (S3, GCS, Azure). Uses the [`lance`](https://github.com/lancedb/lance) library for table management and, optionally, the [`lancedb`](https://github.com/lancedb/lancedb) library for embedding generation.
-- **`lancedb`** ([docs](lancedb.md)) — stores data locally or on [LanceDB Cloud](https://docs.lancedb.com/cloud/index). Uses the `lancedb` library exclusively for all operations.
+- **`lance`** (this page) — a self-managed lakehouse. Stores data on local disk or cloud object storage (S3, GCS, Azure), using the [`lance`](https://github.com/lancedb/lance) library for table management and, optionally, the [`lancedb`](https://github.com/lancedb/lancedb) library for embedding generation.
+- **`lancedb`** ([docs](lancedb.md)) — a managed [LanceDB Enterprise or Cloud](https://docs.lancedb.com/cloud/index) cluster. The cluster does all storage IO, so `dlt` needs no object store credentials, and reads go through the cluster's Arrow Flight SQL endpoint.
 
-The `lancedb` destination will be phased out in favor of `lance`.
+Use `lance` to own your storage and catalog. Use `lancedb` to load into a managed cluster.
 :::
 
 ## Setup guide
@@ -69,7 +69,7 @@ bucket_url = "/my/dir"
 
 ### Cloud storage
 
-Cloud credentials use the same configuration fields as the [filesystem destination](filesystem.md#set-up-the-destination-and-credentials), just under `destination.lance.storage` instead of `destination.filesystem`. Under the hood, credentials are passed to the [object_store](https://docs.rs/object_store/latest/object_store/) Rust crate (not `fsspec`), so some filesystem-specific options are not supported.
+Cloud credentials use the same config fields as the [filesystem destination](filesystem.md#set-up-the-destination-and-credentials), just under `destination.lance.storage` instead of `destination.filesystem`. Internally, credentials are passed to the [object_store](https://docs.rs/object_store/latest/object_store/) Rust crate (not `fsspec`), so some filesystem-specific options are not supported.
 
 #### Amazon S3
 
@@ -192,7 +192,7 @@ You can disable `manifest_enabled` only when the pipeline does not use a `datase
 Lance REST Namespace support is an **experimental feature**.
 :::
 
-To connect to a Lance REST Namespace server, set `catalog_type = "rest"` and provide the REST server URI. You may also need to set `api_key` and/or `auth_token` if the server requires authentication.
+To connect to a Lance REST Namespace server, set `catalog_type = "rest"` and provide the REST server URI. If the server requires authentication, also set `api_key` or `auth_token`, or both.
 
 ```toml
 [destination.lance]
@@ -209,7 +209,7 @@ auth_token = "..."   # sent as Authorization: Bearer <auth_token>
 
 ## Branching
 
-Lance datasets support [branches](https://lance.org/guide/tags_and_branches/) — lightweight version pointers for isolated reads and writes. Configure a branch name to direct all pipeline operations to that branch:
+Every lance table supports [branches](https://lance.org/guide/tags_and_branches/) — lightweight version pointers for isolated reads and writes. Configure a branch name to direct all pipeline operations to that branch:
 
 ```toml
 [destination.lance]
@@ -227,9 +227,9 @@ pipeline = dlt.pipeline(
 )
 ```
 
-When `branch_name` is not set, the default `main` branch is used. Branches are created automatically on first write if they don't exist.
+When `branch_name` is not set, the default `main` branch is used. Branches are created automatically on first write if they do not exist.
 
-Branching is dataset-wide — all tables, including dlt system tables (`_dlt_version`, `_dlt_loads`, `_dlt_pipeline_state`), are read from and written to the configured branch. This means each branch maintains its own pipeline state, schema history, and load metadata, providing full isolation between branches. Schemas can evolve independently in different branches.
+Branching is dataset-wide — all tables, including the `dlt` tables (`_dlt_version`, `_dlt_loads`, `_dlt_pipeline_state`), are read from and written to the configured branch. This means each branch maintains its own pipeline state, schema history, and load metadata, providing full isolation between branches. Schemas can evolve independently in different branches.
 
 ## Advanced: separate catalog location
 
@@ -254,10 +254,10 @@ Any field left empty under `credentials` falls back to the corresponding `storag
 
 All [write dispositions](../../general-usage/incremental-loading.md#choosing-a-write-disposition) are supported.
 
-Each table receives a single lance commit per load, regardless of how many job files the
+Each table receives a single lance commit per load package, regardless of how many job files the
 load produces: load jobs write data fragments in parallel without committing and a followup
 job commits them in one atomic version. Readers never observe a partially loaded table and
-parallel jobs do not contend on dataset versions.
+parallel jobs do not contend on table versions.
 
 ### Append
 
@@ -271,8 +271,8 @@ Replaces all data in the table with a single overwrite commit:
 info = pipeline.run(movies, table_name="movies", write_disposition="replace")
 ```
 
-Tables of a replaced resource that receive no data in a load (e.g. a nested table absent
-from the current run) are truncated before loading; tables receiving data are replaced
+Tables of a replaced resource that receive no data in a load (for example a nested table absent
+from the current run) are truncated before loading. Tables receiving data are replaced
 atomically by their overwrite commit, without an intermediate truncation.
 
 ### Merge (upsert)
@@ -321,7 +321,7 @@ Any additional provider-specific arguments can be passed via `kwargs`:
 api_base = "https://my-proxy.example.com/v1"
 ```
 
-Then use `lance_adapter` to specify which columns should be embedded. The destination automatically adds a column named after `vector_column` (default: `"vector"`) to store the generated embeddings:
+Then use `lance_adapter` to specify which columns to embed. The destination automatically adds a column named after `vector_column` (default: `"vector"`) to store the generated embeddings:
 
 ```py
 from dlt.destinations.adapters import lance_adapter
@@ -343,7 +343,7 @@ dataset = pipeline.dataset()
 df = dataset["movies"].df()
 ```
 
-Reads go through an in-memory DuckDB instance that scans the Lance datasets via views. The DuckDB lance extension caches each dataset per connection at the version it was first opened, so a table read on an **already-open** connection does not pick up data written afterwards — **neither new rows nor schema changes (new columns) are visible** until the connection is refreshed. Enable `always_refresh_views` to refresh on every read; dlt then reopens the DuckDB connection (dropping the cached dataset) and recreates the scanner views, so reads observe the latest dataset version:
+Reads go through an in-memory DuckDB instance that scans the lance tables via views. The DuckDB lance extension caches each table per connection at the version it was first opened, so a read on an **already-open** connection does not pick up data written afterwards — **neither new rows nor schema changes (new columns) are visible** until the connection is refreshed. Enable `always_refresh_views` to refresh on every read. dlt then reopens the DuckDB connection (dropping the cached table) and recreates the scanner views, so reads observe the latest table version:
 
 ```toml
 [destination.lance]
