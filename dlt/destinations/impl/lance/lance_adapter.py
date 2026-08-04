@@ -6,8 +6,7 @@ from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
 
-DEFAULT_REMOVE_ORPHANS = True
-
+DEFAULT_REMOVE_ORPHANS = False
 VECTORIZE_HINT = "x-lance-embed"
 REMOVE_ORPHANS_HINT = "x-lance-remove-orphans"
 
@@ -28,8 +27,8 @@ def lance_adapter(
             It can be a single column name as a string, or a list of column names.
         merge_key (TColumnNames): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
-        remove_orphans (bool): Whether to remove orphaned records in child
-            tables with no parent records after merges to maintain referential integrity.
+        remove_orphans (bool): Whether a merge removes records of nested tables whose parent
+            record is gone. Off by default.
 
     Returns:
         DltResource: A resource with applied Lance-specific hints.

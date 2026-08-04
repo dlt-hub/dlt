@@ -3,19 +3,15 @@ from typing import TYPE_CHECKING, Any, Dict, List
 
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationTerminalException
-from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
-from dlt.destinations.utils import get_resource_for_adapter
+from dlt.destinations.impl.lance.lance_adapter import DEFAULT_REMOVE_ORPHANS, lance_adapter
 from dlt.extract import DltResource
-from dlt.extract.items import TTableHintTemplate
 
 if TYPE_CHECKING:
     import dlt
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
 
-VECTORIZE_HINT = "x-lancedb-embed"
-NO_REMOVE_ORPHANS_HINT = "x-lancedb-remove-orphans"
 ROLLBACK_TIMEOUT_SECONDS = 120.0
 """How long to wait for a restore to become visible to the managed client."""
 ROLLBACK_POLL_SECONDS = 2.0
@@ -25,7 +21,7 @@ def lancedb_adapter(
     data: Any,
     embed: TColumnNames = None,
     merge_key: TColumnNames = None,
-    no_remove_orphans: bool = False,
+    remove_orphans: bool = DEFAULT_REMOVE_ORPHANS,
 ) -> DltResource:
     """Prepares data for the LanceDB destination by specifying which columns should be embedded.
 
@@ -37,8 +33,8 @@ def lancedb_adapter(
             It can be a single column name as a string, or a list of column names.
         merge_key (TColumnNames, optional): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
-        no_remove_orphans (bool): Specify whether to remove orphaned records in child
-            tables with no parent records after merges to maintain referential integrity.
+        remove_orphans (bool): Whether a merge removes records of nested tables whose parent
+            record is gone. Off by default.
 
     Returns:
         DltResource: A resource with applied LanceDB-specific hints.
@@ -51,41 +47,8 @@ def lancedb_adapter(
         >>> lancedb_adapter(data, embed="description")
         [DltResource with hints applied]
     """
-    resource = get_resource_for_adapter(data)
-
-    additional_table_hints: Dict[str, TTableHintTemplate[Any]] = {}
-    column_hints: TTableSchemaColumns = None
-
-    if embed:
-        if isinstance(embed, str):
-            embed = [embed]
-        if not isinstance(embed, list):
-            raise ValueError(
-                "`embed` must be a list of column names or a single column name as a string."
-            )
-        column_hints = {}
-
-        # TODO: warn if hint exists and we override nullable
-        for column_name in embed:
-            column_hints[column_name] = {
-                "name": column_name,
-                VECTORIZE_HINT: True,  # type: ignore[misc]
-                "nullable": True,  # must be nullable because lance will override it anyway
-            }
-
-    additional_table_hints[NO_REMOVE_ORPHANS_HINT] = no_remove_orphans
-
-    if column_hints or additional_table_hints or merge_key:
-        resource.apply_hints(
-            merge_key=merge_key, columns=column_hints, additional_table_hints=additional_table_hints
-        )
-    else:
-        raise ValueError(
-            "You must must provide at least either the `embed` or `merge_key` or `remove_orphans`"
-            " argument if using the adapter."
-        )
-
-    return resource
+    # both destinations read the same hints, so the `lance` adapter applies them for this one too
+    return lance_adapter(data, embed=embed, merge_key=merge_key, remove_orphans=remove_orphans)
 
 
 def rollback_to_commit_tag(
