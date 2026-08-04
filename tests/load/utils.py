@@ -66,7 +66,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.exceptions import CantExtractTablePrefix
 from dlt.destinations.impl.filesystem.configuration import FilesystemDestinationClientConfiguration
-from dlt.destinations.sql_client import SqlClientBase
+from dlt.destinations.sql_client import SqlClientBase, WithReadonlyClient, WithSqlClient
 from dlt.destinations.job_client_impl import SqlJobClientBase
 
 from tests.utils import (
@@ -1329,12 +1329,12 @@ def yield_client(
         if enter_client:
             with client:
                 try:
-                    from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
-
-                    # open table scanners automatically, context manager above does not do that
-                    if issubclass(client.sql_client_class, WithTableScanners):
+                    # a read only sql client is not opened by the context manager above
+                    if isinstance(client, WithSqlClient) and issubclass(
+                        client.sql_client_class, WithReadonlyClient
+                    ):
                         client.sql_client.open_connection()
-                except (ImportError, MissingDependencyException):
+                except MissingDependencyException:
                     pass
                 yield client
         else:
