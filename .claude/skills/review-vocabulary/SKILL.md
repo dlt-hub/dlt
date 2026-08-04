@@ -44,7 +44,7 @@ In scope, when the branch **added or changed** the line:
 | Snippet files a page pulls from | `*snippets.py` — comments as docs, code as a test (see below) |
 
 When the maintainer asks for a **whole-file** docs review, pre-existing prose in those files is in
-scope too. Say which mode you are in; the default is added-or-changed lines only.
+scope too. Say which mode you are in. The default is added-or-changed lines only.
 
 Out of scope:
 
@@ -59,7 +59,7 @@ Out of scope:
 
 ## Classification
 
-Get this right first; every other rule depends on it.
+Get this right first. Every other rule depends on it.
 
 | Text | Mode | Limit | Shape |
 |---|---|---|---|
@@ -100,7 +100,7 @@ them**. They therefore get two reviews at once, against two different rule sets:
 Consequences worth knowing:
 
 - **Comments inside a snippet render to the reader**, so a stale or wrong one is a doc bug, not a
-  code-hygiene nit. Judge them as prose. A comment that labels a step is INSTRUCTION; a comment
+  code-hygiene nit. Judge them as prose. A comment that labels a step is INSTRUCTION. A comment
   that explains behavior is REFERENCE.
 - **The repo comment rule still applies to the code.** Default to no comment. But a snippet is
   teaching material, so a comment that would be redundant in library code can earn its place here.
@@ -117,7 +117,7 @@ One word, one meaning, one part of speech (Rules 1.11, 9.4). Apply the tables be
 rewriting.
 
 The vocabulary is organised in **groups**, one per area of dlt. A group is self-contained: its
-included terms, its excluded terms, and the rulings that are easy to get wrong in that area. Groups
+included terms, its excluded terms, and the exceptions that are easy to get wrong in that area. Groups
 grow independently — a review only needs the groups its diff touches, and adding an area means
 adding a group, not editing the others.
 
@@ -132,12 +132,16 @@ Groups defined so far:
 | [G5 — Configuration and credentials](#g5--configuration-and-credentials) | configs, credentials, secrets |
 | [G6 — dlt entities](#g6--dlt-entities) | destinations, datasets, schemas, tables, load packages — the official entity model |
 
-Two rules apply across every group:
+Four rules apply across every group:
 
 - **`dlt` is the sentence subject in messages.** That is how an error gets active voice with a
   named agent (Rule 3.6): "dlt cannot join…", "dlt cannot determine…". House style.
 - **A banned word is banned for one meaning, not always.** Every group below names its legal
   exceptions. Check them before "fixing" a hit.
+- **Every included term is a noun** unless its row says otherwise. Do not verb it (Rule 1.7).
+- **An exception records a legal use, in one sentence of 25 words, and there is at most one per
+  banned term.** A term that needs two exceptions has a ban that is too wide. Narrow the ban
+  instead of adding prose. Anything derivable from the two tables belongs in a table cell.
 
 ---
 
@@ -157,21 +161,15 @@ Two rules apply across every group:
 | Never | Because |
 |---|---|
 | reach, reaches, reachable, in reach of, out of reach, get to | one word for one concept — `access` |
-| physical location, physical destination, physical dataset (in prose) | say **data location**; the method `data_location()` keeps its name |
+| physical location, physical destination, physical dataset (in prose) | say **data location**. The method `data_location()` keeps its name |
 
-**Rulings**
+**Exceptions**
 
-- **`access` is a VERB.** Do not introduce noun uses — no "data access", no "access is one-way".
-  Write "the engine accesses the data", "only one direction accesses the data". Pre-existing noun
-  uses stay.
-- **`reach` is not always `access`.** "`SET SESSION` would not reach the cloned sessions" means
-  *propagate to*, not *read data from*. A literal swap changes the meaning — restructure
-  (Rule 9.1). Two more senses turn up in destination prose: *arrives at* ("the version each table
-  reaches at the end of a load") and *is passed to* ("the host reaches `create()` via kwargs").
-  Neither is `access`.
-- **The official entity model says *"physical location"*; `data location` still wins.** The method is
-  `data_location()`, and the model is being corrected. Do not cite the model to reintroduce
-  "physical location".
+- `reach` also means *propagate to*, *arrive at*, *connect via* and *is passed to*. Restructure those
+  (Rule 9.1) rather than swapping in `access`.
+- Pre-existing noun uses of `access` stay.
+- The entity model says *"physical location"*, but the method is `data_location()`, so `data
+  location` wins.
 
 ---
 
@@ -198,15 +196,11 @@ Two rules apply across every group:
 | attach instructions | one name — **attach statements** |
 | foreign table | `foreign` attaches to `dataset`, not to `table` |
 
-**Rulings**
+**Exceptions**
 
-- **`descriptor` is legal for the Python descriptor protocol.** `dlt/common/utils.py` describes a
-  real Python descriptor. The ban covers naming the `TAttachInfo` object only.
-- **`attach info` and `attach statement` are different things.** One is the whole descriptor for a
-  foreign dataset; the other is a single SQL statement inside it. Do not collapse them.
-- **`foreign` attaches to `dataset`, never to `table`.** There is no "foreign table" — a table is in a
-  foreign dataset or it is not. This keeps one meaning for `foreign`: not ours. A foreign dataset does
-  not need another destination; one database can hold two datasets, only one of which dlt manages.
+- `descriptor` is legal for the Python descriptor protocol, as in `dlt/common/utils.py`.
+- A foreign dataset needs no second destination. One database can hold two datasets, and `dlt`
+  manages one of them.
 
 ---
 
@@ -227,11 +221,10 @@ Two rules apply across every group:
 | model extraction | not a thing — it is a **model job** |
 | executed here | say **eager materialization** |
 
-**Rulings**
+**Exceptions**
 
-- **`lazy` and `eager` are legal only for materialization.** dlt has both. Using `lazily` to mean
-  *on first use* (memoization) is a second meaning for one word — write "on the first read".
-- **A model job is the artifact; lazy materialization is the path.** Use the one you mean.
+- `lazily` meaning *on first use* is banned, because dlt has real lazy materialization. Write "on the
+  first read".
 
 ---
 
@@ -247,12 +240,11 @@ Two rules apply across every group:
 
 | Never | Because |
 |---|---|
-| casefold, post-fold (in prose) | one spelling — **case-fold**; the identifier `casefold_identifier` keeps its name |
+| casefold, post-fold (in prose) | one spelling — **case-fold**. The identifier `casefold_identifier` keeps its name |
 
-**Rulings**
+**Exceptions**
 
-- **Hyphenated compounds on the `fold` root are legal** — "foreign-folded output column" reads
-  correctly and is in use. The ban is on the bare spelling `casefold` in prose.
+- Hyphenated compounds on the `fold` root are legal, as in "foreign-folded output column".
 
 ---
 
@@ -268,16 +260,13 @@ Two rules apply across every group:
 
 | Never | Because |
 |---|---|
-| configuration (for the object) | `config`; keep "configuration error" when it names `ConfigurationValueError` |
-| pin, pinned, pinning | vague — it hides which mechanism acts. Write the specific verb: **configure**, **set** |
+| configuration (for the object) | `config`. Keep "configuration error" when it names `ConfigurationValueError` |
+| pin, pinned, pinning | one word for three mechanisms — binding a config value, exempting a version from cleanup, fixing a dependency. Name the mechanism: **configure**, **set**. The noun becomes **the configured database** |
 
-**Rulings**
+**Exceptions**
 
-- **`pin` is banned in every sense.** It has been used for "bind a config value to one target", "exempt
-  a version from cleanup", and "fix a dependency version" — three mechanisms, one word. Name the
-  mechanism instead. The noun goes with it: "a pinned database" becomes "the configured database".
-- **`dlt profile pin` is being removed.** Until it is, `pin_profile()` and the "pinned profile" prose in
-  `profiles.md` are legacy uses. Do not extend them, and do not cite them as a precedent.
+- `dlt profile pin` keeps the word until that command is removed. Do not extend it, and do not cite
+  it as a precedent.
 
 ---
 
@@ -320,34 +309,21 @@ rather than picking one silently.
 | source meaning the incoming rows of a merge | `source` is a root entity — a Python module that extracts |
 | bare table where both table kinds appear in one sentence | say which |
 
-**Rulings**
+**Defaults**
 
-- **A dataset is physical.** It is where the schema tables of a schema version are materialized as
-  destination tables — not a namespace, not a label, not a logical grouping. Every ruling about
-  `dataset` follows from that: it lives on exactly one destination, it holds destination tables, and
-  two datasets stay distinct objects even when one database holds both.
-- **Bare `schema` means the pipeline schema.** The model states it: *"'Schema', alone, refers to the
-  `Pipeline Schema`. It shouldn't be confused with `Table Schema`."* Qualify to `dlt schema` only in a
-  file that also names a table schema, an arrow schema, or a SQL schema. Grep the file, not the line.
-  `dlt schema` stays legal — 22 hits in `docs/`.
-- **Bare `table` takes the default of its scope.** In `dlt/destinations/impl/**` and destination doc
-  pages it means **destination table**; in core, schema, normalize and extract it means **schema
-  table**. Qualify only where both meet. This codifies existing practice: no destination
-  implementation says "destination table" in a comment or docstring even once, while
-  `common/schema/utils.py` says bare "table" 70 times for schema tables. A global default would add
-  ~55 qualifications to one destination and leave it out of step with every other.
-- **`table schema` and `schema table` are different things and near-anagrams.** One is a column
-  layout, the other a table in a schema version. Never put both in one sentence; restructure
-  (Rule 9.1).
-- **`load` as a loose noun is legal** — 128 hits in `docs/`, so a ban is too wide. But a sentence
-  claiming something about **commit, atomicity, retry, or ordering must name the entity**, because
-  those are the claims that go wrong. *"A load is not atomic across tables"* becomes *"A load package
-  is not atomic across destination tables."*
-- **`job` is the load-package job.** G3's **model job** is one kind of it. dlt's **job client** and
-  **sql client** are unrelated and keep their names.
-- **`` `dlt` tables `` is established** for `_dlt_loads` / `_dlt_version` / `_dlt_pipeline_state` —
-  8 doc pages. Not a violation of the table rule.
-- **`destination` is a noun.** No verb use.
+- Bare `schema` is the pipeline schema. Qualify as `dlt schema` only where a table schema, an arrow
+  schema or a SQL schema shares the file.
+- Bare `table` follows its scope: **destination table** in `dlt/destinations/impl/**` and destination
+  doc pages, **schema table** in core, normalize and extract. Qualify only where both meet.
+
+**Exceptions**
+
+- `load` as a loose noun is legal. A claim about commit, atomicity, retry or ordering must name the
+  entity instead.
+- `` `dlt` tables `` is established for `_dlt_loads`, `_dlt_version` and `_dlt_pipeline_state`.
+- `job` is the load-package job. G3's model job is one kind, and dlt's job client is unrelated.
+- `table schema` and `schema table` are near-anagrams for different things. Never put both in one
+  sentence.
 
 ---
 
@@ -468,7 +444,7 @@ data location".
 Never just record a term. Take these eight steps.
 
 1. **Pick the group.** No group fits? Add one. Give it the next `G<n>`, an index entry, and the
-   three parts: included, excluded, rulings. A group without excluded terms is not finished.
+   three parts: included, excluded, exceptions. A group without excluded terms is not finished.
 2. **Research the usage.** Grep `dlt/`, `tests/` and `docs/` for the word and every synonym. Count
    the hits. Read enough to find the meanings in play. One word often covers two concepts.
 3. **Derive the banned set.** A term is useless without one. For each synonym and inflection,
@@ -477,14 +453,14 @@ Never just record a term. Take these eight steps.
    type name. `access` won because `needs_attach` already said "accesses its data". `attach info`
    won because the type is `TAttachInfo`.
 5. **Name the false positives.** `descriptor` is banned for `TAttachInfo` and correct for the
-   Python descriptor protocol. Put the exception in the rulings, or the next run "fixes" it.
+   Python descriptor protocol. Record it under exceptions, or the next run "fixes" it.
 6. **Fix the part of speech.** Say noun or verb, and ban the other use. `access` is a verb, so
    "data access" is a violation.
 7. **Test the ban before you write it.** Grep for the word you intend to exclude. Compliant prose
    already uses it? Then the ban is too wide. Narrow it to the meaning you mean. `inaccessible`
    and `foreign-folded` passed this check and stay legal. `casefold` and `attach instructions`
    failed it and are banned.
-8. **Update this file.** Add rows to both tables. Add a ruling when the term has a legal exception.
+8. **Update this file.** Add rows to both tables. Add an exception only for a legal use.
    State what becomes newly compliant and what becomes newly non-compliant. A term that flips
    direction turns compliant prose into findings.
 
