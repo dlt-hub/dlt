@@ -352,6 +352,27 @@ always_refresh_views = true
 
 This adds a small overhead per read, so leave it disabled unless you read tables back after writing them through a long-lived dataset connection (or read evolving schemas).
 
+### Ibis backend
+
+`dataset.ibis()` returns an ibis **duckdb** backend over the same scanner views, so every duckdb
+feature of ibis is available. It needs the `ibis-framework` package:
+
+```py
+backend = pipeline.dataset().ibis()
+
+print(backend.list_tables())
+print(backend.table("movies").select("title").limit(5).to_pandas())
+```
+
+The backend takes ownership of the duckdb connection, and its views are created when you obtain it.
+A table written afterwards stays invisible to that backend, so get a new one after a load.
+
+A single relation converts without duckdb, which keeps the rest of the query in `dlt`:
+
+```py
+items = pipeline.dataset().table("movies").to_ibis()
+```
+
 ### Low-level Lance access
 
 For operations specific to the Lance format — such as version management, tagging, or direct reads — use `open_lance_dataset` on the destination client. It returns a `lance.LanceDataset` from the [lance](https://github.com/lancedb/lance) library:

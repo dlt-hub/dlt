@@ -364,6 +364,28 @@ print(dataset("select title from movies limit 5").arrow())
 Results are served as Arrow, so `arrow()` and `iter_arrow(chunk_size=...)` stream without a row by row
 round trip.
 
+### Ibis backend
+
+`ibis` has no LanceDB backend, so `dataset.ibis()` returns the `dlt` backend instead. It compiles an
+ibis expression to SQL and lets the Flight SQL endpoint run it, which needs `flightsql_host` and the
+`ibis-framework` package:
+
+```py
+backend = pipeline.dataset().ibis()
+
+print(backend.list_tables())
+print(backend.table("movies").select("title").limit(5).to_pandas())
+```
+
+A single relation converts on its own, which keeps the rest of the query in `dlt`:
+
+```py
+items = pipeline.dataset().table("movies").to_ibis()
+```
+
+`list_tables()` covers every schema of the dataset, not only the default one. The `read_only` flag of
+`dataset.ibis()` is accepted and ignored, because the endpoint reads only.
+
 ### Read freshness
 
 A cluster serves reads no staler than its own `read_consistency_interval_seconds`, and `dlt`
