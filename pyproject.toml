@@ -183,10 +183,9 @@ dremio = [
     "pyarrow>=16.0.0",
 ]
 lancedb = [
-    "lancedb>=0.22.0",
+    # namespaces and table tags on managed connections
+    "lancedb>=0.33.0",
     "pyarrow>=16.0.0",
-    "duckdb>=1.4.3",
-    # duckdb >= 1.4.0 doesn't work with ibis < 11.0.0
     "ibis-framework>=12.0.0"
 ]
 lance = [
