@@ -61,9 +61,10 @@ from dlt.destinations.impl.lancedb.exceptions import (
     lancedb_error,
 )
 from dlt.destinations.impl.lancedb.jobs import LanceDBLoadJob, LanceDBRemoveOrphansJob
-from dlt.destinations.impl.lancedb.lancedb_adapter import (
+from dlt.destinations.impl.lance.lance_adapter import (
+    DEFAULT_REMOVE_ORPHANS,
+    REMOVE_ORPHANS_HINT,
     VECTORIZE_HINT,
-    NO_REMOVE_ORPHANS_HINT,
 )
 from dlt.destinations.impl.lancedb.schema import (
     add_vector_column,
@@ -395,8 +396,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             if is_nested_table(load_table):
                 continue
 
-            # Check if this table has orphan removal enabled (either explicitly or via merge strategy)
-            has_orphan_removal = not load_table.get(NO_REMOVE_ORPHANS_HINT)
+            has_orphan_removal = load_table.get(REMOVE_ORPHANS_HINT, DEFAULT_REMOVE_ORPHANS)
             merge_keys = get_columns_names_with_prop(load_table, "merge_key")
             uses_merge_strategy = load_table.get("write_disposition", "") == "merge"
 
@@ -680,7 +680,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         if (
             first_table_in_chain.get("write_disposition") == "merge"
             and merge_strategy != "insert-only"
-            and not first_table_in_chain.get(NO_REMOVE_ORPHANS_HINT)
+            and first_table_in_chain.get(REMOVE_ORPHANS_HINT, DEFAULT_REMOVE_ORPHANS)
         ):
             all_job_paths_ordered = [
                 job.file_path

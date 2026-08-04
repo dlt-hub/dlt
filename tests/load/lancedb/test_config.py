@@ -264,17 +264,17 @@ def test_flightsql_headers() -> None:
     ]
 
 
-def test_weak_read_consistency_interval() -> None:
+def test_read_consistency_interval() -> None:
     credentials = LanceDBCredentials()
-    assert credentials.weak_read_consistency_interval_seconds == 0.0
+    assert credentials.read_consistency_interval_seconds == 0.0
 
     os.environ["DESTINATION__LANCEDB__CREDENTIALS__API_KEY"] = "secret"
-    os.environ["DESTINATION__LANCEDB__CREDENTIALS__WEAK_READ_CONSISTENCY_INTERVAL_SECONDS"] = "10"
+    os.environ["DESTINATION__LANCEDB__CREDENTIALS__READ_CONSISTENCY_INTERVAL_SECONDS"] = "10"
     config = resolve_configuration(
         LanceDBClientConfiguration()._bind_dataset_name(dataset_name="dataset"),
         sections=("destination", "lancedb"),
     )
-    assert config.credentials.weak_read_consistency_interval_seconds == 10.0
+    assert config.credentials.read_consistency_interval_seconds == 10.0
 
 
 def test_commit_tag_from_factory() -> None:

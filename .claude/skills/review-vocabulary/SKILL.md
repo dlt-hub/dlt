@@ -125,11 +125,12 @@ Groups defined so far:
 
 | Group | Covers |
 |---|---|
-| [G1 — Data access and locations](#g1--data-access-and-locations) | destinations, datasets, physical locations, join compatibility |
+| [G1 — Data access and locations](#g1--data-access-and-locations) | destinations, datasets, data locations, join compatibility |
 | [G2 — Attach and foreign datasets](#g2--attach-and-foreign-datasets) | cross-destination joins, attach info, catalog aliases |
 | [G3 — Transformations and materialization](#g3--transformations-and-materialization) | relations, transformations, model jobs, eager and lazy paths |
 | [G4 — Identifiers and SQL generation](#g4--identifiers-and-sql-generation) | naming conventions, case-folding, query binding |
 | [G5 — Configuration and credentials](#g5--configuration-and-credentials) | configs, credentials, secrets |
+| [G6 — dlt entities](#g6--dlt-entities) | destinations, datasets, schemas, tables, load packages — the official entity model |
 
 Two rules apply across every group:
 
@@ -165,7 +166,12 @@ Two rules apply across every group:
   uses stay.
 - **`reach` is not always `access`.** "`SET SESSION` would not reach the cloned sessions" means
   *propagate to*, not *read data from*. A literal swap changes the meaning — restructure
-  (Rule 9.1).
+  (Rule 9.1). Two more senses turn up in destination prose: *arrives at* ("the version each table
+  reaches at the end of a load") and *is passed to* ("the host reaches `create()` via kwargs").
+  Neither is `access`.
+- **The official entity model says *"physical location"*; `data location` still wins.** The method is
+  `data_location()`, and the model is being corrected. Do not cite the model to reintroduce
+  "physical location".
 
 ---
 
@@ -180,6 +186,8 @@ Two rules apply across every group:
 | the SQL keyword | `` `ATTACH` `` in backticks |
 | the action in prose | **attach** (lowercase, a verb) |
 | the catalog a foreign dataset lands under | **attach alias** |
+| a dataset this destination does not manage | **foreign dataset** |
+| a destination table inside one | **a table in a foreign dataset** |
 
 **Excluded**
 
@@ -188,6 +196,7 @@ Two rules apply across every group:
 | descriptor (for `TAttachInfo`) | `attach info` matches the type and the method `_attach_infos()` |
 | bare `ATTACH` as a prose noun, `ATTACHed`, "attaches" as a plural noun | backtick the keyword, or use the verb |
 | attach instructions | one name — **attach statements** |
+| foreign table | `foreign` attaches to `dataset`, not to `table` |
 
 **Rulings**
 
@@ -195,6 +204,9 @@ Two rules apply across every group:
   real Python descriptor. The ban covers naming the `TAttachInfo` object only.
 - **`attach info` and `attach statement` are different things.** One is the whole descriptor for a
   foreign dataset; the other is a single SQL statement inside it. Do not collapse them.
+- **`foreign` attaches to `dataset`, never to `table`.** There is no "foreign table" — a table is in a
+  foreign dataset or it is not. This keeps one meaning for `foreign`: not ours. A foreign dataset does
+  not need another destination; one database can hold two datasets, only one of which dlt manages.
 
 ---
 
@@ -257,13 +269,94 @@ Two rules apply across every group:
 | Never | Because |
 |---|---|
 | configuration (for the object) | `config`; keep "configuration error" when it names `ConfigurationValueError` |
+| pin, pinned, pinning | vague — it hides which mechanism acts. Write the specific verb: **configure**, **set** |
+
+**Rulings**
+
+- **`pin` is banned in every sense.** It has been used for "bind a config value to one target", "exempt
+  a version from cleanup", and "fix a dependency version" — three mechanisms, one word. Name the
+  mechanism instead. The noun goes with it: "a pinned database" becomes "the configured database".
+- **`dlt profile pin` is being removed.** Until it is, `pin_profile()` and the "pinned profile" prose in
+  `profiles.md` are legacy uses. Do not extend them, and do not cite them as a precedent.
+
+---
+
+### G6 — dlt entities
+
+Derived from [dlt Entities, their Lifecycles and Relations](https://app.notion.com/p/2679fb8e23cf80169921c4ea069bfff8),
+which is the authority for this group. When that page and this table disagree, say so in the proposal
+rather than picking one silently.
+
+**Included**
+
+| Concept | Write |
+|---|---|
+| the data store, a root entity | **destination** |
+| its identifying name | **destination name** |
+| the module implementing it | **destination type** |
+| what it can do | **destination capabilities** |
+| the physical object where the schema tables of a schema version are materialized | **dataset** |
+| the temporary one before it | **staging dataset** |
+| a physical table in a dataset | **destination table** |
+| the pipeline schema | **schema** |
+| one immutable revision of it | **schema version**, identified by **version hash** |
+| the revision now in force | **active schema version** |
+| a table as the schema defines it | **schema table** |
+| one table's column layout | **table schema** |
+| the `pa.Schema` object specifically | **arrow schema** |
+| a unit of data to load, a root entity | **load package**, identified by **load id** |
+| the four steps of a run | **extract step**, **normalize step**, **load step**, **sync** |
+| one unit of work in a package | **job** |
+| putting a dataset onto a destination | **materialize** |
+
+**Excluded**
+
+| Never | Because |
+|---|---|
+| database schema | `destination-tables.md` defines it as the loaded set of tables, which is roughly a dataset. On a destination where a dataset *is* a database it becomes a third meaning |
+| physical schema, destination schema | **schema** for the definition, **table schema** for the layout |
+| target, sink, data store (for a destination) | one name — **destination** |
+| schema meaning a dataset | `pipeline.md` glosses a dataset as *"`schema` in relational databases"*. Legal in general usage, fatal on a destination that has a real SQL schema |
+| source meaning the incoming rows of a merge | `source` is a root entity — a Python module that extracts |
+| bare table where both table kinds appear in one sentence | say which |
+
+**Rulings**
+
+- **A dataset is physical.** It is where the schema tables of a schema version are materialized as
+  destination tables — not a namespace, not a label, not a logical grouping. Every ruling about
+  `dataset` follows from that: it lives on exactly one destination, it holds destination tables, and
+  two datasets stay distinct objects even when one database holds both.
+- **Bare `schema` means the pipeline schema.** The model states it: *"'Schema', alone, refers to the
+  `Pipeline Schema`. It shouldn't be confused with `Table Schema`."* Qualify to `dlt schema` only in a
+  file that also names a table schema, an arrow schema, or a SQL schema. Grep the file, not the line.
+  `dlt schema` stays legal — 22 hits in `docs/`.
+- **Bare `table` takes the default of its scope.** In `dlt/destinations/impl/**` and destination doc
+  pages it means **destination table**; in core, schema, normalize and extract it means **schema
+  table**. Qualify only where both meet. This codifies existing practice: no destination
+  implementation says "destination table" in a comment or docstring even once, while
+  `common/schema/utils.py` says bare "table" 70 times for schema tables. A global default would add
+  ~55 qualifications to one destination and leave it out of step with every other.
+- **`table schema` and `schema table` are different things and near-anagrams.** One is a column
+  layout, the other a table in a schema version. Never put both in one sentence; restructure
+  (Rule 9.1).
+- **`load` as a loose noun is legal** — 128 hits in `docs/`, so a ban is too wide. But a sentence
+  claiming something about **commit, atomicity, retry, or ordering must name the entity**, because
+  those are the claims that go wrong. *"A load is not atomic across tables"* becomes *"A load package
+  is not atomic across destination tables."*
+- **`job` is the load-package job.** G3's **model job** is one kind of it. dlt's **job client** and
+  **sql client** are unrelated and keep their names.
+- **`` `dlt` tables `` is established** for `_dlt_loads` / `_dlt_version` / `_dlt_pipeline_state` —
+  8 doc pages. Not a violation of the table rule.
+- **`destination` is a noun.** No verb use.
 
 ---
 
 ### Legal technical nouns — never replace, any group (Rules 1.5, 1.8)
 
 attach, attach alias, attach info, attach statement, catalog, config, data location, dataset,
-destination, duckdb, iceberg, materialization, model job, pipeline, relation, scanner, vended.
+destination, destination table, duckdb, foreign dataset, iceberg, job, load id, load package,
+materialization, model job, pipeline, relation, scanner, schema table, schema version, table schema,
+vended.
 
 ## Rules this codebase breaks most
 

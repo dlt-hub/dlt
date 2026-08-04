@@ -377,7 +377,7 @@ def test_pipeline_merge(destination_config: DestinationTestConfiguration) -> Non
     def movies_data() -> Any:
         yield data
 
-    get_adapter(destination_config)(movies_data, embed=["description"], no_remove_orphans=True)
+    get_adapter(destination_config)(movies_data, embed=["description"], remove_orphans=False)
 
     pipeline = destination_config.setup_pipeline(
         pipeline_name="movies",
@@ -423,7 +423,7 @@ def test_pipeline_insert_only_merge(destination_config: DestinationTestConfigura
     def movies_data() -> Any:
         yield data
 
-    get_adapter(destination_config)(movies_data, no_remove_orphans=True)
+    get_adapter(destination_config)(movies_data, remove_orphans=False)
 
     pipeline = destination_config.setup_pipeline(
         pipeline_name="movies_insert_only",
@@ -446,7 +446,7 @@ def test_pipeline_insert_only_merge(destination_config: DestinationTestConfigura
     def movies_update() -> Any:
         yield updated_data
 
-    get_adapter(destination_config)(movies_update, no_remove_orphans=True)
+    get_adapter(destination_config)(movies_update, remove_orphans=False)
 
     info = pipeline.run(movies_update.with_name("movies_data")())
     assert_load_info(info)
@@ -534,7 +534,7 @@ def test_merge_github_nested(destination_config: DestinationTestConfiguration) -
 
     adapter = get_adapter(destination_config)
     info = pipe.run(
-        adapter(data[:17], embed=["title", "body"], no_remove_orphans=True),
+        adapter(data[:17], embed=["title", "body"], remove_orphans=False),
         table_name="issues",
         write_disposition={"disposition": "merge", "strategy": "upsert"},
         primary_key="id",

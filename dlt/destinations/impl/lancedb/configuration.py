@@ -46,7 +46,7 @@ class LanceDBCredentials(CredentialsConfiguration):
     """Whether the Arrow Flight SQL endpoint requires TLS."""
     headers: Optional[Dict[str, str]] = None
     """Extra HTTP headers sent to the cluster."""
-    weak_read_consistency_interval_seconds: float = 0.0
+    read_consistency_interval_seconds: float = 0.0
     """(Enterprise cluster does not honor this) How stale a read of the managed client can be, in seconds."""
 
     _conn: Annotated[Optional["RemoteDBConnection"], NotResolved()] = None
@@ -88,7 +88,7 @@ class LanceDBCredentials(CredentialsConfiguration):
         Args:
             database (str): Name of the database, which is the dataset being read or written.
             read_consistency_interval_seconds (Optional[float]): Overrides
-                `weak_read_consistency_interval_seconds`. Pass `0` to always read the latest version.
+                `read_consistency_interval_seconds`. Pass `0` to always read the latest version.
 
         Returns:
             RemoteDBConnection: Connection shared by all callers asking for the same database and
@@ -99,7 +99,7 @@ class LanceDBCredentials(CredentialsConfiguration):
             return self._conn
 
         interval = (
-            self.weak_read_consistency_interval_seconds
+            self.read_consistency_interval_seconds
             if read_consistency_interval_seconds is None
             else read_consistency_interval_seconds
         )

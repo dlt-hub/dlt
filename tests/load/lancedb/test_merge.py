@@ -60,6 +60,8 @@ def test_lancedb_remove_nested_orphaned_records(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
+
     run_1 = [
         {
             "id": 1,
@@ -174,7 +176,7 @@ def test_lancedb_remove_orphaned_records_root_table(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    get_adapter(destination_config)(identity_resource)
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "1a"},
@@ -246,7 +248,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    get_adapter(destination_config)(identity_resource)
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
 
     run_1 = [
         {"doc_id": "A", "chunk_hash": "1a"},
@@ -327,6 +329,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
     get_adapter(destination_config)(
         documents,
         embed=["chunk"],
+        remove_orphans=True,
     )
 
     pipeline = destination_config.setup_pipeline(
@@ -404,7 +407,7 @@ def test_lancedb_compound_merge_key_root_table(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    get_adapter(destination_config)(identity_resource, no_remove_orphans=True)
+    get_adapter(destination_config)(identity_resource, remove_orphans=False)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "a", "foo": "bar", "child": [{"val": 1}, {"val": 2}]},
@@ -475,6 +478,8 @@ def test_must_provide_at_least_primary_key_on_merge_disposition(
     @dlt.resource(write_disposition={"disposition": "merge", "strategy": "upsert"})
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
+
+    get_adapter(destination_config)(some_data, remove_orphans=True)
 
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_must_provide_both_primary_and_merge_key_on_merge_disposition",

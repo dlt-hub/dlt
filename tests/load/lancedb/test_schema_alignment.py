@@ -6,7 +6,7 @@ from decimal import Decimal
 
 import dlt
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.lancedb.utils import LANCE_DEST_CONFS, open_lance_table
+from tests.load.lancedb.utils import LANCE_DEST_CONFS, get_adapter, open_lance_table
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
@@ -279,6 +279,8 @@ def test_missing_column_in_second_load(
     )
     def identity_resource_without_orphan_removal(data: pa.Table) -> Generator[pa.Table, None, None]:
         yield data
+
+    get_adapter(destination_config)(identity_resource_with_orphan_removal, remove_orphans=True)
 
     resource = (
         identity_resource_with_orphan_removal

@@ -1,4 +1,4 @@
-from typing import Any, Dict, Optional, Type, Union, TYPE_CHECKING
+from typing import Any, Dict, Optional, Sequence, Type, Union, TYPE_CHECKING
 
 from dlt.common.data_writers.escape import escape_lancedb_literal, escape_postgres_identifier
 from dlt.common.destination.configuration import ParquetFormatConfiguration
@@ -25,6 +25,8 @@ def _get_type_mapper() -> Type[DataTypeMapper]:
 
 
 if TYPE_CHECKING:
+    from dlt.common.libs.ibis import BaseBackend
+    from dlt.common.schema import Schema
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
     from lancedb.remote.db import RemoteDBConnection
 
@@ -77,6 +79,19 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
 
         return LanceDBClient
+
+    def create_ibis_backend(
+        self, client: "LanceDBClient", read_only: bool = False, schemas: Sequence["Schema"] = ()
+    ) -> "BaseBackend":
+        """Creates the dlt ibis backend, which runs expressions over the Arrow Flight SQL endpoint."""
+        from dlt.common.libs.ibis import _DltBackend
+        from dlt.destinations.dataset import dataset
+
+        # ibis has no LanceDB backend, so the dlt backend compiles expressions and lets the dlt sql
+        # client execute them
+        return _DltBackend.from_dataset(
+            dataset(self, client.dataset_name, schema=list(schemas) or client.schema)
+        )
 
     def __init__(
         self,

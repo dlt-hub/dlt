@@ -87,7 +87,7 @@ def read_over_sql(
     """Reads a table through the dataset, which for `lancedb` goes over Arrow Flight SQL.
 
     The endpoint takes no consistency setting, so it can lag by the cluster's
-    `weak_read_consistency_interval_seconds`. When `expected_rows` is given the read is retried
+    `read_consistency_interval_seconds`. When `expected_rows` is given the read is retried
     until the rows appear or that bound elapses, which keeps loading tests deterministic on a
     cluster configured for weak reads.
 
@@ -123,7 +123,7 @@ def sql_staleness_bound() -> float:
     )
     if not config.credentials:
         return 0.0
-    return float(config.credentials.weak_read_consistency_interval_seconds or 0)
+    return float(config.credentials.read_consistency_interval_seconds or 0)
 
 
 def get_table_location(client: TLanceDestinationClient, table_name: str) -> str:
@@ -135,24 +135,13 @@ def get_table_location(client: TLanceDestinationClient, table_name: str) -> str:
 def get_adapter(destination_config: DestinationTestConfiguration) -> Callable[..., DltResource]:
     """Returns appropriate adapter function for given destination configuration.
 
-    For `lance` destination, wraps the adapter to accept `no_remove_orphans` (the `lancedb`
-    destination convention) and translates it to `remove_orphans` so tests can use a
-    uniform interface.
+    Both adapters take the same `embed`, `merge_key` and `remove_orphans` arguments, and both leave
+    orphan removal off, so a test of it must ask for it.
     """
     if destination_config.destination_type == "lance":
         from dlt.destinations.impl.lance.lance_adapter import lance_adapter
 
-        def _lance_adapter(
-            data: Any,
-            embed: TColumnNames = None,
-            merge_key: TColumnNames = None,
-            no_remove_orphans: bool = False,
-        ) -> DltResource:
-            return lance_adapter(
-                data, embed=embed, merge_key=merge_key, remove_orphans=not no_remove_orphans
-            )
-
-        return _lance_adapter
+        return lance_adapter
     elif destination_config.destination_type == "lancedb":
         from dlt.destinations.impl.lancedb.lancedb_adapter import lancedb_adapter
 
@@ -162,13 +151,9 @@ def get_adapter(destination_config: DestinationTestConfiguration) -> Callable[..
 
 
 def get_vectorize_hint(destination_config: DestinationTestConfiguration) -> str:
-    """Returns appropriate vectorize hint key for destination configuration."""
-    if destination_config.destination_type == "lance":
-        from dlt.destinations.impl.lance.lance_adapter import VECTORIZE_HINT
-    elif destination_config.destination_type == "lancedb":
-        from dlt.destinations.impl.lancedb.lancedb_adapter import VECTORIZE_HINT
-    else:
-        raise ValueError(f"Unexpected destination type: {destination_config.destination_type}")
+    """Returns the vectorize hint key, which both destinations share."""
+    from dlt.destinations.impl.lance.lance_adapter import VECTORIZE_HINT
+
     return VECTORIZE_HINT
 
 
