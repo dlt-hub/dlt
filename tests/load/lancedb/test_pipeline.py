@@ -771,6 +771,8 @@ def test_lancedb_remove_nested_orphaned_records_with_chunks(
             ]
             yield {"doc_id": doc_id, "doc_text": doc["text"], "embeddings": embeddings}
 
+    get_adapter(destination_config)(documents, remove_orphans=True)
+
     @dlt.source(max_table_nesting=1)
     def documents_source(
         docs: List[DictStrAny],
