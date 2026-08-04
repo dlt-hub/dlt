@@ -100,8 +100,7 @@ Synced changed workspace configuration
 3 job(s) found in __deployment__
 ```
 
-The scaffold ships three jobs: `load_sample_shop` (the pipeline), `onboarding_success` (a notebook that browses the
-loaded data), and the [observability `dashboard`](../ingestion/dashboard.md).
+The scaffold ships three jobs: `load_sample_shop` (the pipeline), `onboarding_success` (a notebook that browses the loaded data), and the [observability dashboard](../ingestion/dashboard.md).
 
 Then it runs the pipeline on the platform and follows the logs until it finishes:
 
@@ -126,8 +125,20 @@ After the first successful run, you can rerun the pipeline or open your workspac
 
 `uv run dlthub run load_sample_shop -f` runs the pipeline on the managed platform and follows its logs until it finishes.
 `uv run dlthub show` opens the connected workspace in your browser.
+![In the UI you can then inspect your job runs and pipeline health](https://storage.googleapis.com/dlt-blog-images/onboarding-rerun.png)
 
-To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [profile](../pipeline-operations/profiles).
+
+For a more detailed view, open the [workspace observability dashboard](../ingestion/dashboard.md) from the Notebooks section. The dashboard lets you inspect pipeline metadata, query data in the destination, review traces and exceptions, check previous pipeline runs, and verify incremental loading behavior.
+
+
+![Observability dashboard showing pipeline metadata, run history, traces, and loaded datasets](https://storage.googleapis.com/dlt-blog-images/observability-dashboard.png)
+
+
+To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [Profile](../pipeline-operations/profiles).
+
+
+
+
 
 
 ## 4. Continue with your own setup
@@ -136,9 +147,9 @@ To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [p
 
 The Playground destination is great for testing but isn't meant for production. For real data, you'll want to load into a destination you own.
 
-You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../getting-started/playground-workspace.md) and [profiles](../pipeline-operations/profiles) for the complete configuration.
+You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../getting-started/playground-workspace.md) and [Profiles](../pipeline-operations/profiles) for the complete configuration.
 
-Set the destination on the `dlt.pipeline` inside your decorated job. Use a named destination such as `warehouse` so that the same pipeline code can run against different destinations in `dev` and `prod`profile:
+Set the destination on the `dlt.pipeline` inside your decorated job. Use a named destination such as `warehouse` so that the same pipeline code can run against different destinations in `dev` and `prod` profile:
 
 ```python
 import dlt
@@ -184,7 +195,7 @@ host = "your_account_identifier"
 warehouse = "your_warehouse"
 role = "your_role"
 ```
-Local runs use the `dev` profile, while batch jobs on the dltHub platform use the prod profile. The pipeline code therefore remains unchanged while the destination changes between environments.
+Local runs, via `dlthub run local`, use the `dev` profile, while batch jobs on the dltHub platform use the `prod` profile. The pipeline code therefore remains unchanged while the destination changes between environments.
 
 Supported destinations include
 [MotherDuck](../../dlt-ecosystem/destinations/motherduck.md),
@@ -213,6 +224,8 @@ uv run dlthub deploy
 ```
 
 See [triggers and scheduling](../pipeline-operations/triggers.md) for cron, intervals, and follow-ups.
+![Jobs table showing the load_sample_shop batch job on the prod profile, scheduled to run every 10 minutes, with the last run completed and the next run in 9 minutes](https://storage.googleapis.com/dlt-blog-images/onboarding-trigger.png)
+
 
 ### Build your own pipeline with your coding agent
 
