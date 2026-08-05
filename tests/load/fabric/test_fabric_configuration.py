@@ -234,7 +234,9 @@ def test_fabric_time_allowed_through_parquet() -> None:
 
     table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
     caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
-    time_col = cast(TColumnSchema, {"name": "t", "data_type": "time", "precision": 6, "nullable": True})
+    time_col = cast(
+        TColumnSchema, {"name": "t", "data_type": "time", "precision": 6, "nullable": True}
+    )
 
     synapse_mapper = SynapseTypeMapper(caps)
     with pytest.raises(Exception):
