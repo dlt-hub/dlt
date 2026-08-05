@@ -1244,6 +1244,12 @@ tables:
       location:
         data_type: text
         nullable: true
+      dataset_name:
+        data_type: text
+        nullable: true
+      physical_dataset_name:
+        data_type: text
+        nullable: true
     parent: trace__steps
   trace__steps__load_info__outputs__schemas:
     columns:

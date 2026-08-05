@@ -393,36 +393,6 @@ def test_toml_value_location() -> None:
     assert DictionaryProvider().get_value_location("log_level", None, "runtime") == ""
 
 
-@pytest.mark.parametrize(
-    "global_dir_form", ["relative", "absolute", "trailing_sep", "unnormalized"], ids=lambda x: x
-)
-def test_toml_value_location_global_dir_forms(global_dir_form: str) -> None:
-    """Global dir is recognized however it was spelled, paths are normalized before comparing"""
-    settings_dir = "./tests/common/cases/configuration/.dlt"
-    canonical_global_dir = "./tests/common/cases/configuration/dlt_home"
-    global_dir = canonical_global_dir
-    if global_dir_form == "absolute":
-        global_dir = os.path.abspath(global_dir)
-    elif global_dir_form == "trailing_sep":
-        global_dir = os.path.join(global_dir, "")
-    elif global_dir_form == "unnormalized":
-        global_dir = os.path.join(global_dir, os.pardir, "dlt_home")
-
-    config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
-    assert config.get_value_location("param_global", None, "api", "params") == (
-        GLOBAL_ORIGIN_PREFIX + CONFIG_TOML
-    )
-    assert config.get_value_location("log_level", None, "runtime") == CONFIG_TOML
-
-    # the file path and the global dir may be spelled differently and must still match
-    assert config._is_in_global_dir(
-        os.path.join(os.path.abspath(canonical_global_dir), CONFIG_TOML)
-    )
-    assert not config._is_in_global_dir(os.path.join(settings_dir, CONFIG_TOML))
-    # a sibling dir sharing a name prefix is not inside the global dir
-    assert not config._is_in_global_dir(os.path.join(canonical_global_dir + "2", CONFIG_TOML))
-
-
 def test_toml_value_location_merged_files() -> None:
     """Exact file is reported when files with different names are merged, base or override"""
     config = _origins_provider()

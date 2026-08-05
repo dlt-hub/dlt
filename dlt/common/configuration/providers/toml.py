@@ -85,7 +85,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             file_name (str): The name of `toml` file to load
             resolvable_dirs (List[str]): A list of directories to resolve the file from.
                               Files will be merged into each other in the order the directories are specified. Provider is writeable if only one dir specified.
-            global_dir (str, optional): Which of the `resolvable_dirs` is the `dlt` global dir. Values from it are located with a `global:` prefix so that files sharing a name are told apart.
+            global_dir (str, optional): Which of the `resolvable_dirs` is the `dlt` global dir.
 
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
@@ -113,7 +113,9 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         return [os.path.join(d, file_name) for d in resolvable_dirs]
 
     def get_value_location(self, key: str, pipeline_name: Optional[str], *sections: str) -> str:
-        """Get location (file name) of a value from the origins doc built when files were loaded."""
+        """Get location (file name) of a value from the origins doc built when files were loaded.
+        Values from it are located with a `global:` prefix so that files sharing a name are told apart.
+        """
         node = self._origins_node(self.get_key_path(key, pipeline_name, *sections))
         if node is None:
             return ""
