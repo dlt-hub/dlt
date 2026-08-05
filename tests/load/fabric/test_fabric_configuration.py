@@ -235,11 +235,15 @@ def test_fabric_type_mapper_nvarchar_to_varchar_length() -> None:
     caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
     mapper = FabricTypeMapper(caps)
 
-    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "precision": 100, "nullable": True})
+    col = cast(
+        TColumnSchema, {"name": "c", "data_type": "text", "precision": 100, "nullable": True}
+    )
     assert mapper.to_destination_type(col, table) == "varchar(400)"
 
     # 2001*4=8004 > 8000 → varchar(max)
-    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "precision": 2001, "nullable": True})
+    col = cast(
+        TColumnSchema, {"name": "c", "data_type": "text", "precision": 2001, "nullable": True}
+    )
     assert mapper.to_destination_type(col, table) == "varchar(max)"
 
     col = cast(TColumnSchema, {"name": "c", "data_type": "text", "nullable": True})
