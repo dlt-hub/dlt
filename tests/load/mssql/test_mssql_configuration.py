@@ -218,11 +218,6 @@ def test_to_odbc_dsn_driver_not_specified() -> None:
     ]
 
 
-# ---------------------------------------------------------------------------
-# Authentication methods
-# ---------------------------------------------------------------------------
-
-
 class _FakeAccessToken:
     token = "fake-access-token"
 
@@ -382,11 +377,6 @@ def test_mssql_resolve_configuration_token_authentication() -> None:
     assert uses_token_authentication(resolved) is True
     assert type(resolved.default_credentials()).__name__ == "DeviceCodeCredential"
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
-
-
-# ---------------------------------------------------------------------------
-# Injectable access_token / azure_credential (precedence over `authentication`)
-# ---------------------------------------------------------------------------
 
 
 class _RaisingTokenCredential:
