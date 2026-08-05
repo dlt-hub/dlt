@@ -211,6 +211,17 @@ def check_layout(
     return list(all_placeholders), placeholders
 
 
+def _ensure_ext_in_layout(layout: str, placeholders: Sequence[str]) -> str:
+    """Append `{ext}` to the layout if it is missing.
+
+    `create_path` and `get_table_prefix_layout` both require the layout to
+    contain `{ext}` so paths and table prefixes end with a dot separator.
+    """
+    if "ext" not in placeholders:
+        return f"{layout}.{{ext}}"
+    return layout
+
+
 def create_path(
     layout: str,
     file_name: str,
@@ -238,11 +249,8 @@ def create_path(
     params.update(datetime_params)
 
     _, placeholders = check_layout(layout, params)
+    layout = _ensure_ext_in_layout(layout, placeholders)
     path = layout.format(**params)
-
-    # if extension is not defined, we append it at the end
-    if "ext" not in placeholders:
-        path += f".{job_info.full_extension()}"
 
     return path
 
@@ -276,10 +284,7 @@ def get_table_prefix_layout(
             )
         raise CantExtractTablePrefix(layout, details)
 
-    # create_path appends ".<ext>" when the layout has no {ext}, so normalize the
-    # layout to keep the separator after {table_name} in the prefix below
-    if "ext" not in placeholders:
-        layout += ".{ext}"
+    layout = _ensure_ext_in_layout(layout, placeholders)
 
     # we include the char after the table_name here, this should be a separator not a new placeholder
     # this is to prevent selecting tables that have the same starting name -> {table_name}/
