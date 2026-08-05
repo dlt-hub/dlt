@@ -3,7 +3,7 @@ import sys
 import pytest
 import yaml
 from pathlib import Path
-from typing import Any, Dict, Type
+from typing import Any, Dict, List, Tuple, Type
 import datetime  # noqa: I251
 from unittest.mock import Mock
 
@@ -18,6 +18,7 @@ from dlt.common.known_env import DLT_DATA_DIR, DLT_PROJECT_DIR
 from dlt.common.configuration.providers.toml import (
     SECRETS_TOML,
     CONFIG_TOML,
+    GLOBAL_ORIGIN_PREFIX,
     BaseDocProvider,
     CustomLoaderDocProvider,
     SettingsTomlProvider,
@@ -330,32 +331,231 @@ def test_toml_global_config() -> None:
     # assert os.path.join(settings_dir, "secrets.toml") not in secrets.present_locations
 
 
+class ProfileLikeTomlProvider(SettingsTomlProvider):
+    """Loads `dev.{file_name}` before `{file_name}` in each dir, like the workspace profiles do"""
+
+    def _resolve_toml_paths(self, file_name: str, resolvable_dirs: List[str]) -> List[str]:
+        paths = []
+        for d in resolvable_dirs:
+            paths.append(os.path.join(d, f"dev.{file_name}"))
+            paths.append(os.path.join(d, file_name))
+        return paths
+
+
+ORIGINS_CASES_DIR = "./tests/common/cases/configuration/origins"
+ORIGINS_GLOBAL_DIR = os.path.join(ORIGINS_CASES_DIR, "global")
+
+
+def _origins_provider() -> ProfileLikeTomlProvider:
+    """Profile provider over a settings and a global dir: four files, all sharing two names"""
+    return ProfileLikeTomlProvider(
+        CONFIG_TOML,
+        False,
+        CONFIG_TOML,
+        [ORIGINS_CASES_DIR, ORIGINS_GLOBAL_DIR],
+        ORIGINS_GLOBAL_DIR,
+    )
+
+
 def test_toml_value_location() -> None:
     """Provider tells the exact file a value came from, also when several files are merged"""
     global_dir = "./tests/common/cases/configuration/dlt_home"
     settings_dir = "./tests/common/cases/configuration/.dlt"
     config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
 
-    # location is a file name so files with the same name in settings and global dir look alike
-    assert config.get_value_location("param1", None, "api", "params") == CONFIG_TOML
+    global_config_toml = GLOBAL_ORIGIN_PREFIX + CONFIG_TOML
+
+    # values from the settings dir
     assert config.get_value_location("log_level", None, "runtime") == CONFIG_TOML
     assert config.get_value_location("float_val", None, "typecheck") == CONFIG_TOML
-    assert config.get_value_location("param_global", None, "api", "params") == CONFIG_TOML
-    # bools are tagged as well
-    assert config.get_value_location("dlthub_telemetry", None, "runtime") == CONFIG_TOML
+    # settings and global file share a name so the global one is marked to tell them apart
+    assert config.get_value_location("param_global", None, "api", "params") == global_config_toml
+    assert config.get_value_location("dlthub_telemetry", None, "runtime") == global_config_toml
+    # present in both files, the settings dir wins the value and the location
+    assert config.get_value("param1", str, None, "api", "params") == ("a", "api.params.param1")
+    assert config.get_value_location("param1", None, "api", "params") == CONFIG_TOML
     # tables have locations too
     assert config.get_value_location("typecheck", None) == CONFIG_TOML
     # dotted keys and values in nested tables
     assert config.get_value_location("port", None, "api") == CONFIG_TOML
     assert config.get_value_location("max_range", None, "sources") == CONFIG_TOML
 
-    # values written at runtime are not tagged and fall back to the provider location
+    # values written at runtime are in no file
     config.set_value("written", "x", None)
-    assert config.get_value_location("written", None) == CONFIG_TOML
+    assert config.get_value_location("written", None) == ""
+
+    # without a global dir nothing is marked global
+    config = ConfigTomlProvider(settings_dir=settings_dir)
+    assert config.get_value_location("log_level", None, "runtime") == CONFIG_TOML
 
     # providers that do not know the exact location return empty string
     assert EnvironProvider().get_value_location("log_level", None, "runtime") == ""
     assert DictionaryProvider().get_value_location("log_level", None, "runtime") == ""
+
+
+@pytest.mark.parametrize(
+    "global_dir_form", ["relative", "absolute", "trailing_sep", "unnormalized"], ids=lambda x: x
+)
+def test_toml_value_location_global_dir_forms(global_dir_form: str) -> None:
+    """Global dir is recognized however it was spelled, paths are normalized before comparing"""
+    settings_dir = "./tests/common/cases/configuration/.dlt"
+    canonical_global_dir = "./tests/common/cases/configuration/dlt_home"
+    global_dir = canonical_global_dir
+    if global_dir_form == "absolute":
+        global_dir = os.path.abspath(global_dir)
+    elif global_dir_form == "trailing_sep":
+        global_dir = os.path.join(global_dir, "")
+    elif global_dir_form == "unnormalized":
+        global_dir = os.path.join(global_dir, os.pardir, "dlt_home")
+
+    config = ConfigTomlProvider(settings_dir=settings_dir, global_dir=global_dir)
+    assert config.get_value_location("param_global", None, "api", "params") == (
+        GLOBAL_ORIGIN_PREFIX + CONFIG_TOML
+    )
+    assert config.get_value_location("log_level", None, "runtime") == CONFIG_TOML
+
+    # the file path and the global dir may be spelled differently and must still match
+    assert config._is_in_global_dir(
+        os.path.join(os.path.abspath(canonical_global_dir), CONFIG_TOML)
+    )
+    assert not config._is_in_global_dir(os.path.join(settings_dir, CONFIG_TOML))
+    # a sibling dir sharing a name prefix is not inside the global dir
+    assert not config._is_in_global_dir(os.path.join(canonical_global_dir + "2", CONFIG_TOML))
+
+
+def test_toml_value_location_merged_files() -> None:
+    """Exact file is reported when files with different names are merged, base or override"""
+    config = _origins_provider()
+    dev_config_toml = "dev." + CONFIG_TOML
+    global_config_toml = GLOBAL_ORIGIN_PREFIX + CONFIG_TOML
+    global_dev_config_toml = GLOBAL_ORIGIN_PREFIX + dev_config_toml
+
+    # four merged files share two names, each value is still traced to the exact one
+    assert config.get_value_location("dev_only", None) == dev_config_toml
+    assert config.get_value_location("base_only", None) == CONFIG_TOML
+    assert config.get_value_location("global_dev_only", None) == global_dev_config_toml
+    assert config.get_value_location("global_only", None) == global_config_toml
+    # present in all four, the settings dir profile file wins value and location
+    assert config.get_value("shared", str, None) == ("from_dev", "shared")
+    assert config.get_value_location("shared", None) == dev_config_toml
+    # within the global dir the profile file still beats the base one
+    assert config.get_value("key", str, None, "gtbl") == ("from_global_dev", "gtbl.key")
+    assert config.get_value_location("key", None, "gtbl") == global_dev_config_toml
+    assert config.get_value_location("from_global_base", None, "gtbl") == global_config_toml
+    assert config.get_value_location("gtbl", None) == global_config_toml
+    # tomlkit cannot subclass bool, so bools are the one type a doc walk must not unwrap
+    assert config.get_value("create_indexes", bool, None) == (False, "create_indexes")
+    assert config.get_value_location("create_indexes", None) == CONFIG_TOML
+    # tables merge key by key, so each key keeps the file it actually came from
+    assert config.get_value_location("from_base", None, "tbl") == CONFIG_TOML
+    assert config.get_value_location("shared_key", None, "tbl") == dev_config_toml
+    assert config.get_value_location("from_dev", None, "tbl") == dev_config_toml
+    assert config.get_value_location("deep", None, "tbl", "sub") == CONFIG_TOML
+    # a table both files contribute to is reported as the lower precedence one
+    assert config.get_value_location("tbl", None) == CONFIG_TOML
+    # dotted keys, inline tables and arrays of tables
+    assert config.get_value_location("key", None, "dotted") == CONFIG_TOML
+    assert config.get_value_location("it", None, "inline") == CONFIG_TOML
+    assert config.get_value_location("a", None, "inline", "it") == CONFIG_TOML
+    assert config.get_value_location("aot", None) == CONFIG_TOML
+    # `ooo` is split by `other` so tomlkit merges it behind an out of order table proxy
+    assert config.get_value_location("x", None, "ooo", "first") == CONFIG_TOML
+    assert config.get_value_location("z", None, "ooo", "second") == CONFIG_TOML
+
+    # unknown keys have no location
+    assert config.get_value_location("unknown", None) == ""
+    assert config.get_value_location("unknown", None, "tbl") == ""
+
+
+def test_toml_value_location_runtime_writes() -> None:
+    """Values written at runtime are in no file, `preserve` brings the file origins back"""
+    config = _origins_provider()
+    dev_config_toml = "dev." + CONFIG_TOML
+
+    config.set_value("written", "x", None)
+    assert config.get_value_location("written", None) == ""
+    # overwriting a value read from a file forgets that file
+    config.set_value("base_only", "x", None)
+    assert config.get_value_location("base_only", None) == ""
+    # writing into a table forgets just the written key
+    config.set_value("from_base", 2, None, "tbl")
+    assert config.get_value_location("from_base", None, "tbl") == ""
+    assert config.get_value_location("shared_key", None, "tbl") == dev_config_toml
+    # deleting a value forgets it as well
+    config.set_value("deep", None, None, "tbl", "sub")
+    assert config.get_value_location("deep", None, "tbl", "sub") == ""
+
+    # a fragment under a key merges from the root and forgets only the keys it sets
+    config = _origins_provider()
+    config.set_fragment("tbl", "[tbl]\nfrom_base = 3\n", None)
+    assert config.get_value("from_base", int, None, "tbl") == (3, "tbl.from_base")
+    assert config.get_value_location("from_base", None, "tbl") == ""
+    assert config.get_value_location("shared_key", None, "tbl") == dev_config_toml
+
+    # a fragment without a key replaces the whole document so no value comes from a file
+    config = _origins_provider()
+    config.set_fragment(None, "[tbl]\nfrom_base = 3\n", None)
+    assert config.get_value_location("from_base", None, "tbl") == ""
+    assert config.get_value_location("base_only", None) == ""
+
+    # a value that is no fragment at all is written under `key` like set_value would
+    config = _origins_provider()
+    config.set_fragment("base_only", "plain", None)
+    assert config.get_value("base_only", str, None) == ("plain", "base_only")
+    assert config.get_value_location("base_only", None) == ""
+    assert config.get_value_location("dev_only", None) == dev_config_toml
+
+    # preserve restores the origins together with the document
+    config = _origins_provider()
+    with config.preserve():
+        config.set_value("base_only", "x", None)
+        assert config.get_value_location("base_only", None) == ""
+    assert config.get_value_location("base_only", None) == CONFIG_TOML
+    assert config.get_value_location("dev_only", None) == dev_config_toml
+
+
+def test_toml_value_location_odd_fragments() -> None:
+    """Dropping origins never raises on fragment shapes that do not match the origins doc"""
+    config = _origins_provider()
+
+    # yaml fragment with a null, a list and a table replacing what was a plain value
+    config.set_fragment("k", "shared: null\naot: [1, 2]\nbase_only:\n  nested: 1\n", None)
+    for key in ("shared", "aot", "base_only"):
+        assert config.get_value_location(key, None) == ""
+    # a key that never had an origin, and one nested under a value that is not a table
+    config.set_fragment("k", "unknown_key: 1\ncreate_indexes:\n  nested: 2\n", None)
+    assert config.get_value_location("unknown_key", None) == ""
+    assert config.get_value_location("create_indexes", None) == ""
+    # untouched keys keep their origin
+    assert config.get_value_location("dev_only", None) == "dev." + CONFIG_TOML
+
+    # docs that are not mappings and empty paths have nothing to forget
+    config._drop_origin(())
+    not_mappings: List[Any] = [{}, [1, 2], "text", None, 7]
+    for doc in not_mappings:
+        config._drop_origins(doc)
+    assert config.get_value_location("dev_only", None) == "dev." + CONFIG_TOML
+
+
+@pytest.mark.parametrize("provider_kind", ["merged_names", "settings_and_global"])
+def test_toml_value_location_covers_whole_doc(provider_kind: str) -> None:
+    """Origins doc keeps the config doc shape so every value and table has a location"""
+    if provider_kind == "merged_names":
+        config: SettingsTomlProvider = _origins_provider()
+    else:
+        config = ConfigTomlProvider(
+            settings_dir="./tests/common/cases/configuration/.dlt",
+            global_dir="./tests/common/cases/configuration/dlt_home",
+        )
+
+    def assert_located(doc: Dict[str, Any], sections: Tuple[str, ...] = ()) -> None:
+        for key, value in doc.items():
+            assert config.get_value_location(key, None, *sections) != "", ".".join((*sections, key))
+            if isinstance(value, dict):
+                assert_located(value, sections + (key,))
+
+    assert config._config_doc
+    assert_located(config._config_doc)
 
 
 def test_write_value(toml_providers: ConfigProvidersContainer) -> None:

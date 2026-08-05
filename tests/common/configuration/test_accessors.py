@@ -268,10 +268,12 @@ def test_values_context_manager(writable_kind: str, environment: Any) -> None:
             assert "scoped" not in writable.to_toml()
             assert writable._config_doc == writable._config_toml.unwrap()
 
-        # values written at runtime are not tagged: toml falls back to its file, doc has no location
+        # values written at runtime are in no file so neither provider knows a location
         dlt.config["written"] = "x"
-        expected_location = CONFIG_TOML if writable_kind == "toml" else ""
-        assert writable.get_value_location("written", None) == expected_location
+        assert writable.get_value_location("written", None) == ""
+        if isinstance(writable, SettingsTomlProvider):
+            # preserve restored the origins along with the document
+            assert writable.get_value_location("api_type", None) == CONFIG_TOML
 
         # a preset key is restored to its previous value on exit
         dlt.config["existing"] = "before"
