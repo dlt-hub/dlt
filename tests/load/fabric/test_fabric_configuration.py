@@ -268,11 +268,6 @@ def test_fabric_type_mapper_scales_varchar_precision(data_type: TDataType) -> No
     assert mapper.to_destination_type(col, table) == "varchar(40)"
 
 
-# ---------------------------------------------------------------------------
-# Authentication methods
-# ---------------------------------------------------------------------------
-
-
 class _FakeAccessToken:
     token = "fake-access-token"
 
@@ -427,11 +422,6 @@ def test_fabric_resolve_configuration_token_authentication() -> None:
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
 
 
-# ---------------------------------------------------------------------------
-# Injectable access_token / azure_credential (precedence over `authentication`)
-# ---------------------------------------------------------------------------
-
-
 class _RaisingTokenCredential:
     """A TokenCredential whose `get_token` must never be called (used to prove precedence)."""
 
@@ -503,11 +493,6 @@ def test_fabric_resolve_configuration_access_token_without_service_principal() -
     assert resolved.is_resolved()
     assert uses_token_authentication(resolved) is True
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
-
-
-# ---------------------------------------------------------------------------
-# NotebookUtils credential
-# ---------------------------------------------------------------------------
 
 
 def _make_jwt(exp: int) -> str:
