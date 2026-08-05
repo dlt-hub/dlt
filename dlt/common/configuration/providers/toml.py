@@ -3,8 +3,10 @@ import tomlkit
 import tomlkit.exceptions
 import tomlkit.items
 from contextlib import contextmanager
-from typing import Any, Iterator, Optional, List
+from pathlib import PurePath
+from typing import Any, Dict, Iterator, Mapping, Optional, List, Sequence, Tuple
 
+from dlt.common.configuration.utils import auto_config_fragment
 from dlt.common.utils import update_dict_nested
 from dlt.common.configuration.exceptions import ConfigProviderException
 
@@ -12,6 +14,22 @@ from .doc import BaseDocProvider, CustomLoaderDocProvider
 
 CONFIG_TOML = "config.toml"
 SECRETS_TOML = "secrets.toml"
+GOOGLE_COLAB_ORIGIN = "google_colab"
+STREAMLIT_ORIGIN = "streamlit"
+GLOBAL_ORIGIN_PREFIX = "global:"
+
+
+class TValueOrigins(Dict[str, Any]):
+    """Mirrors a config doc shape: leaf values are origin names, tables carry their own origin."""
+
+    origin: str = ""
+
+    def clone(self) -> "TValueOrigins":
+        cloned = TValueOrigins(
+            {k: v.clone() if isinstance(v, TValueOrigins) else v for k, v in self.items()}
+        )
+        cloned.origin = self.origin
+        return cloned
 
 
 class StringTomlProvider(BaseDocProvider):
@@ -47,6 +65,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         supports_secrets: bool,
         file_name: str,
         resolvable_dirs: List[str],
+        global_dir: str = None,
     ) -> None:
         """Creates config provider from a `toml` file
 
@@ -64,7 +83,9 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             name(str): name of the provider when registering in context
             supports_secrets(bool): allows to store secret values in this provider
             file_name (str): The name of `toml` file to load
-            resolvable_dirs (List[str]): A list of directories to resolve the file from, files will be merged into each other in the order the directories are specified. Provider is writeable if only one dir specified.
+            resolvable_dirs (List[str]): A list of directories to resolve the file from.
+                              Files will be merged into each other in the order the directories are specified. Provider is writeable if only one dir specified.
+            global_dir (str, optional): Which of the `resolvable_dirs` is the `dlt` global dir.
 
         Raises:
             TomlProviderReadException: File could not be read, most probably `toml` parsing error
@@ -77,6 +98,8 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
         )
         # read toml files and set present locations
         self._present_locations: List[str] = []
+        self._global_dir = global_dir
+        self._value_origins = TValueOrigins()
         self._config_toml = self._read_toml_files(name, file_name, self._toml_paths)
 
         super().__init__(
@@ -88,6 +111,15 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
     def _resolve_toml_paths(self, file_name: str, resolvable_dirs: List[str]) -> List[str]:
         return [os.path.join(d, file_name) for d in resolvable_dirs]
+
+    def get_value_location(self, key: str, pipeline_name: Optional[str], *sections: str) -> str:
+        """Get location (file name) of a value from the origins doc built when files were loaded.
+        Values from it are located with a `global:` prefix so that files sharing a name are told apart.
+        """
+        node = self._origins_node(self.get_key_path(key, pipeline_name, *sections))
+        if node is None:
+            return ""
+        return node.origin if isinstance(node, TValueOrigins) else node
 
     def write_toml(self) -> None:
         assert (
@@ -111,17 +143,20 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             pass
         if hasattr(value, "unwrap"):
             value = value.unwrap()
+        self._drop_origin(self.get_key_path(key, pipeline_name, *sections))
         super().set_value(key, value, pipeline_name, *sections)
 
     @contextmanager
     def preserve(self) -> Iterator[None]:
         # set_value writes the tomlkit document in sync with the dict, so restore it too
         saved_toml = tomlkit.parse(tomlkit.dumps(self._config_toml))
+        saved_origins = self._value_origins.clone()
         with super().preserve():
             try:
                 yield
             finally:
                 self._config_toml = saved_toml
+                self._value_origins = saved_origins
 
     @property
     def is_empty(self) -> bool:
@@ -146,6 +181,14 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             )
         except ConvertError:
             pass
+        # re-parse to learn what _set_fragment actually wrote: a whole doc, a root merge or a value
+        if (fragment := auto_config_fragment(value_or_fragment)) is not None:
+            if key is None:
+                self._value_origins = TValueOrigins()
+            else:
+                self._drop_origins(fragment)
+        else:
+            self._drop_origin(self.get_key_path(key, pipeline_name, *sections))
         super().set_fragment(key, value_or_fragment, pipeline_name, *sections)
 
     def to_toml(self) -> str:
@@ -201,6 +244,59 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             # Not in a Streamlit context
             return None
 
+    def _is_in_global_dir(self, path: str) -> bool:
+        """Tells if `path` sits in the global dir. On Windows paths compare case insensitively."""
+        if not self._global_dir:
+            return False
+        # PurePath folds case and separators on Windows but keeps ".." verbatim, abspath resolves it
+        return PurePath(os.path.abspath(path)).is_relative_to(os.path.abspath(self._global_dir))
+
+    def _path_origin(self, path: str) -> str:
+        """Names the file `path`, marking the global dir so files sharing a name are told apart."""
+        if self._is_in_global_dir(path):
+            return GLOBAL_ORIGIN_PREFIX + os.path.basename(path)
+        return os.path.basename(path)
+
+    @staticmethod
+    def _doc_origins(doc: Mapping[str, Any], origin: str) -> TValueOrigins:
+        """Mirrors `doc` shape replacing each value with `origin`, tables carry `origin` as well."""
+        origins = TValueOrigins()
+        origins.origin = origin
+        for k, v in doc.items():
+            origins[k] = (
+                SettingsTomlProvider._doc_origins(v, origin) if isinstance(v, dict) else origin
+            )
+        return origins
+
+    def _origins_node(self, full_path: Sequence[str]) -> Any:
+        """Returns origins doc node under `full_path` or None if not known."""
+        node: Any = self._value_origins
+        for k in full_path:
+            if not isinstance(node, dict) or k not in node:
+                return None
+            node = node[k]
+        return node
+
+    def _drop_origin(self, full_path: Sequence[str]) -> None:
+        """Forgets origin of a value under `full_path`, dropping whole subtree for tables."""
+        if not full_path:
+            return
+        parent = self._origins_node(full_path[:-1])
+        if isinstance(parent, dict):
+            parent.pop(full_path[-1], None)
+
+    def _drop_origins(self, doc: Mapping[str, Any], path: Tuple[str, ...] = ()) -> None:
+        """Forgets origins of all values present in `doc`, a fragment merged from the root."""
+        if not isinstance(doc, dict):
+            return
+        for k, v in doc.items():
+            sub_path = path + (k,)
+            # a fragment table merges key by key, but it replaces a value that was not a table
+            if isinstance(v, dict) and isinstance(self._origins_node(sub_path), dict):
+                self._drop_origins(v, sub_path)
+            else:
+                self._drop_origin(sub_path)
+
     def _read_toml_file(self, toml_path: str) -> tomlkit.TOMLDocument:
         if os.path.isfile(toml_path):
             with open(toml_path, "r", encoding="utf-8") as f:
@@ -219,21 +315,27 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
             result_toml: Optional[tomlkit.TOMLDocument] = None
             for path in toml_paths:
                 if (loaded_toml := self._read_toml_file(path)) is not None:
+                    origins = self._doc_origins(loaded_toml.unwrap(), self._path_origin(path))
                     if result_toml is None:
-                        result_toml = loaded_toml
+                        result_toml, self._value_origins = loaded_toml, origins
                     else:
+                        # files are merged highest precedence first, so accumulated values win
                         result_toml = update_dict_nested(loaded_toml, result_toml)
+                        self._value_origins = update_dict_nested(origins, self._value_origins)
                     # store as present location
                     self._present_locations.append(path)
 
             # if nothing was found, try to load from google colab or streamlit
             if result_toml is None:
+                origin = None
                 if (result_toml := self._read_google_colab_secrets(name, file_name)) is not None:
-                    pass
+                    origin = GOOGLE_COLAB_ORIGIN
                 elif (result_toml := self._read_streamlit_secrets(name, file_name)) is not None:
-                    pass
+                    origin = STREAMLIT_ORIGIN
                 else:
                     result_toml = tomlkit.document()
+                if origin:
+                    self._value_origins = self._doc_origins(result_toml.unwrap(), origin)
 
             return result_toml
         except Exception as ex:
@@ -242,7 +344,7 @@ class SettingsTomlProvider(CustomLoaderDocProvider):
 
 class ConfigTomlProvider(SettingsTomlProvider):
     def __init__(self, settings_dir: str, global_dir: str = None) -> None:
-        super().__init__(CONFIG_TOML, False, CONFIG_TOML, [settings_dir, global_dir])
+        super().__init__(CONFIG_TOML, False, CONFIG_TOML, [settings_dir, global_dir], global_dir)
 
     @property
     def is_writable(self) -> bool:
@@ -251,7 +353,7 @@ class ConfigTomlProvider(SettingsTomlProvider):
 
 class SecretsTomlProvider(SettingsTomlProvider):
     def __init__(self, settings_dir: str, global_dir: str = None) -> None:
-        super().__init__(SECRETS_TOML, True, SECRETS_TOML, [settings_dir, global_dir])
+        super().__init__(SECRETS_TOML, True, SECRETS_TOML, [settings_dir, global_dir], global_dir)
 
     @property
     def is_writable(self) -> bool:
