@@ -121,14 +121,17 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
 
     def add_limit(
         self,
-        max_items: Optional[int] = None,
-        max_time: Optional[float] = None,
-        count_rows: Optional[bool] = False,
-    ) -> Self:
-        """Limits selected resources on every source created by this factory.
+        max_items: int | None = None,
+        max_time: float | None = None,
+        count_rows: bool | None = False,
+    ) -> None:
+        """Add a post-processor to the source factory that add limits to the source instance.
 
-        Same semantics as DltSource.add_limit. Returns the factory for chaining;
-        call the factory to obtain a source, e.g. ``factory.add_limit(10)()``.
+        This mutates the source factory globally. Sources instantiated after adding the post-processor
+        will all receive the limit.
+
+        Returns nothing to match `.add_postprocessor()` instead of `resource.add_limit()` which returns the
+        mutated resource
         """
 
         def _limit_postprocessor(
@@ -137,18 +140,16 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
             if inspect.isawaitable(src):
 
                 async def _limit_async() -> TDltSourceImpl:
-                    source = await src  # type: ignore[misc]
-                    return source.add_limit(
-                        max_items, max_time=max_time, count_rows=count_rows
-                    )
+                    source = await src
+                    source.add_limit(max_items, max_time=max_time, count_rows=count_rows)
+                    return source
 
                 return _limit_async()
-            return src.add_limit(  # type: ignore[union-attr]
-                max_items, max_time=max_time, count_rows=count_rows
-            )
+            else:
+                src.add_limit(max_items, max_time=max_time, count_rows=count_rows)
+                return src
 
-        self.add_postprocessor(_limit_postprocessor)  # type: ignore[arg-type]
-        return self
+        self.add_postprocessor(_limit_postprocessor)
 
     def _apply_postprocessors(self, source: TDltSourceImpl) -> TDltSourceImpl:
         for func in self._postprocessors:
