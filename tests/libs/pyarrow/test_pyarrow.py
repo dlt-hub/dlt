@@ -596,3 +596,25 @@ def test_cast_non_ns_columns_are_noop_and_return_same_object() -> None:
     )
     out = cast_connectorx_temporal_columns(tbl)
     assert out is tbl
+
+
+@pytest.mark.parametrize("narrow_first", [True, False], ids=["narrow-first", "wide-first"])
+def test_local_dataset_reader_unifies_fragment_schemas(tmp_path: Any, narrow_first: bool) -> None:
+    """A column added mid-load leaves job files with different schemas, in either order."""
+    import pyarrow.parquet as pq
+
+    from dlt.common.libs.pyarrow import get_local_dataset_reader
+
+    narrow = str(tmp_path / "narrow.parquet")
+    wide = str(tmp_path / "wide.parquet")
+    pq.write_table(pa.table({"a": pa.array([1])}), narrow)
+    pq.write_table(pa.table({"a": pa.array([2]), "b": pa.array(["x"])}), wide)
+
+    paths = [narrow, wide] if narrow_first else [wide, narrow]
+    table = get_local_dataset_reader(paths).read_all()
+
+    assert table.column_names == ["a", "b"]
+    assert table.num_rows == 2
+    assert sorted(table.column("a").to_pylist()) == [1, 2]
+    # the row that carries the added column keeps its value, the other is null
+    assert sorted(table.column("b").to_pylist(), key=lambda v: v is None) == ["x", None]

@@ -799,8 +799,14 @@ def get_local_dataset_reader(file_paths: Sequence[str]) -> pyarrow.RecordBatchRe
     # NOTE: import inline, pyarrow.dataset pulls heavy dependencies
     import pyarrow.dataset
 
+    dataset = pyarrow.dataset.dataset(file_paths)
+    # a dataset takes the schema of its first fragment and drops columns only later files carry
+    schema = pyarrow.unify_schemas(
+        [fragment.physical_schema for fragment in dataset.get_fragments()],
+        promote_options="default",
+    )
     return (
-        pyarrow.dataset.dataset(file_paths)
+        pyarrow.dataset.dataset(file_paths, schema=schema)
         .scanner(batch_size=65536, batch_readahead=2, fragment_readahead=1)
         .to_reader()
     )
