@@ -1,5 +1,5 @@
 ---
-title: 🧪 LanceDB Enterprise / Cloud
+title: 🧪 LanceDB Enterprise
 description: LanceDB is a multimodal lakehouse for AI that can be used as a destination in dlt.
 keywords: [ lancedb, vector database, destination, dlt ]
 ---
