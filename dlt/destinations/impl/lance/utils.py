@@ -1,5 +1,7 @@
+from typing import Union
+
 from dlt.common import logger
-from dlt.common.data_writers.escape import escape_lancedb_literal
+from dlt.common.data_writers.escape import escape_datafusion_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.schema import TTableSchema
@@ -48,15 +50,11 @@ def _cast_to_target_types(
     return pa.RecordBatchReader.from_batches(cast_schema, (b.cast(cast_schema) for b in source))
 
 
-def create_in_filter(field_name: str, array: pa.Array) -> str:
-    """Filters all rows where `field_name` is one of the values in the `array`
-
-    If `array` is dictionary-encoded (pa.DictionaryType) we emit the
-     *distinct* values stored in its dictionary.
-    """
+def create_in_filter(field_name: str, array: Union[pa.Array, pa.ChunkedArray]) -> str:
+    """Filters all rows where `field_name` is one of the distinct values in the `array`."""
+    # a key column repeats its value per row and the filter is bounded by `max_query_length`
+    values = array.unique()
     if pa.types.is_dictionary(array.type):
-        # use the dictionary payload (unique categorical values).
-        values_py = array.dictionary.to_pylist()
-    else:
-        values_py = array.to_pylist()
-    return f"{field_name} IN ({', '.join(map(escape_lancedb_literal, values_py))})"
+        # a chunked array carries one dictionary per chunk, `unique` unifies them first
+        values = values.dictionary
+    return f"{field_name} IN ({', '.join(map(escape_datafusion_literal, values.to_pylist()))})"

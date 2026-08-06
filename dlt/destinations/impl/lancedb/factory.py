@@ -1,6 +1,6 @@
 from typing import Any, Dict, Optional, Sequence, Type, Union, TYPE_CHECKING
 
-from dlt.common.data_writers.escape import escape_lancedb_literal, escape_postgres_identifier
+from dlt.common.data_writers.escape import escape_datafusion_literal, escape_postgres_identifier
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
@@ -53,7 +53,7 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps.supports_multiple_statements = False
         caps.sqlglot_dialect = "postgres"
         caps.escape_identifier = escape_postgres_identifier
-        caps.escape_literal = escape_lancedb_literal
+        caps.escape_literal = escape_datafusion_literal
         # arrow field names are stored and matched verbatim
         caps.has_case_sensitive_identifiers = True
 

@@ -14,7 +14,7 @@ from typing import Any, Iterator, List, Optional, Sequence, Tuple
 import pyarrow
 from pyarrow import flight
 
-from dlt.common.data_writers.escape import escape_lancedb_literal
+from dlt.common.data_writers.escape import escape_datafusion_literal
 
 apilevel = "2.0"
 threadsafety = 1
@@ -47,7 +47,7 @@ def interpolate_parameters(query: str, parameters: Optional[Sequence[Any]]) -> s
     """Escapes `parameters` into `query`."""
     if not parameters:
         return query
-    return query % tuple(escape_lancedb_literal(parameter) for parameter in parameters)
+    return query % tuple(escape_datafusion_literal(parameter) for parameter in parameters)
 
 
 def connect(

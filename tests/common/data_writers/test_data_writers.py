@@ -20,6 +20,7 @@ from dlt.common.data_writers.escape import (
     escape_duckdb_literal,
     escape_bigquery_literal,
     escape_bigquery_identifier,
+    escape_datafusion_literal,
     escape_snowflake_literal,
     format_datetime_literal,
     format_datetime_value,
@@ -146,6 +147,31 @@ def test_string_literal_escape() -> None:
         == '\'@schema."%my table"/"load_id"\''
     )
     assert escape_snowflake_literal("file:///tmp/o'hara/f.jsonl") == "'file:///tmp/o''hara/f.jsonl'"
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        pytest.param("abc", "'abc'", id="plain"),
+        pytest.param("O'Brien", "'O''Brien'", id="quote"),
+        # datafusion reads a backslash literally, so escaping it would match a different value
+        pytest.param("a\\b", "'a\\b'", id="backslash"),
+        pytest.param("a\nb", "'a\nb'", id="newline"),
+        pytest.param("a\rb", "'a\rb'", id="carriage-return"),
+        pytest.param("a\\nb", "'a\\nb'", id="literal-backslash-n"),
+        pytest.param("a\x00b", "'ab'", id="nul-stripped"),
+        # datafusion has no `from_base64`, a binary is a hex string literal
+        pytest.param(b"hello_word", "X'68656c6c6f5f776f7264'", id="bytes"),
+        pytest.param(None, "NULL", id="none"),
+    ],
+)
+def test_datafusion_literal_escape(value: Any, expected: str) -> None:
+    assert escape_datafusion_literal(value) == expected
+
+
+def test_datafusion_literal_escape_separates_newline_from_backslash_n() -> None:
+    """A newline and a literal backslash-n are different values and must not escape alike."""
+    assert escape_datafusion_literal("a\nb") != escape_datafusion_literal("a\\nb")
 
 
 @pytest.mark.parametrize("escaper", ALL_LITERAL_ESCAPE)

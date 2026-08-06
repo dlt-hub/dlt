@@ -10,13 +10,28 @@ pytestmark = pytest.mark.essential
 
 
 def test_create_filter_condition() -> None:
+    # datafusion reads a backslash literally, so the newline stays one and only the quote doubles
     assert (
-        create_in_filter("_dlt_load_id", pa.array(["A", "B", "C'c\n"]))
-        == "_dlt_load_id IN ('A', 'B', 'C''c\\n')"
+        create_in_filter("_dlt_load_id", pa.array(["A", "B", "C'c\n", "D\\d"]))
+        == "_dlt_load_id IN ('A', 'B', 'C''c\n', 'D\\d')"
     )
     assert (
         create_in_filter("_dlt_load_id", pa.array([1.2, 3, 5 / 2]))
         == "_dlt_load_id IN (1.2, 3.0, 2.5)"
+    )
+    # a key column repeats its value once per row, the filter only needs the distinct ones
+    assert (
+        create_in_filter("_dlt_root_id", pa.array(["B", "A", "B"])) == "_dlt_root_id IN ('B', 'A')"
+    )
+    # a chunked array carries one dictionary per chunk
+    assert (
+        create_in_filter(
+            "_dlt_root_id",
+            pa.chunked_array(
+                [pa.array(["A", "B"]).dictionary_encode(), pa.array(["C", "A"]).dictionary_encode()]
+            ),
+        )
+        == "_dlt_root_id IN ('A', 'B', 'C')"
     )
 
 
