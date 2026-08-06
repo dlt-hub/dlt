@@ -9,6 +9,10 @@ from dlt.common.utils import uniq_id
 from dlt.destinations.impl.lancedb.configuration import LanceDBClientConfiguration
 
 from tests.load.lancedb.utils import read_over_sql
+from tests.utils import skip_if_not_active
+
+# every test here loads into a cluster, so it must not run when only `lance` is active
+skip_if_not_active("lancedb")
 
 pytestmark = pytest.mark.essential
 
