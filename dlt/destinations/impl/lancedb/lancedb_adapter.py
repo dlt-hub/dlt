@@ -1,10 +1,10 @@
 import time
-from typing import TYPE_CHECKING, Any, Dict, List
+from typing import TYPE_CHECKING, Any, Dict, List, Optional
 
 from dlt.common import logger
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.typing import TColumnNames
-from dlt.destinations.impl.lance.lance_adapter import DEFAULT_REMOVE_ORPHANS, lance_adapter
+from dlt.destinations.impl.lance.lance_adapter import lance_adapter
 from dlt.extract import DltResource
 
 if TYPE_CHECKING:
@@ -21,7 +21,7 @@ def lancedb_adapter(
     data: Any,
     embed: TColumnNames = None,
     merge_key: TColumnNames = None,
-    remove_orphans: bool = DEFAULT_REMOVE_ORPHANS,
+    remove_orphans: Optional[bool] = None,
 ) -> DltResource:
     """Prepares data for the LanceDB destination by specifying which columns should be embedded.
 
@@ -33,8 +33,8 @@ def lancedb_adapter(
             It can be a single column name as a string, or a list of column names.
         merge_key (TColumnNames, optional): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
-        remove_orphans (bool): Whether a merge removes records of nested tables whose parent
-            record is gone. Off by default.
+        remove_orphans (Optional[bool]): Whether a merge deletes the chunks a reloaded document no
+            longer produces. Defaults to `None`, which turns it on for a single merge key.
 
     Returns:
         DltResource: A resource with applied LanceDB-specific hints.

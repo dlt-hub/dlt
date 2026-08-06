@@ -1,7 +1,12 @@
+from typing import List
+
 import pyarrow as pa
 import pytest
 
-from dlt.destinations.impl.lance.utils import create_in_filter
+from dlt.common.schema import TSchemaTables
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.destinations.impl.lance.lance_adapter import REMOVE_ORPHANS_HINT
+from dlt.destinations.impl.lance.utils import create_in_filter, set_remove_orphans_hint
 from dlt.destinations.impl.lancedb.exceptions import is_lancedb_not_found_error
 
 
@@ -33,6 +38,48 @@ def test_create_filter_condition() -> None:
         )
         == "_dlt_root_id IN ('A', 'B', 'C')"
     )
+
+
+def _doc_tables(merge_keys: List[str]) -> TSchemaTables:
+    return {
+        "doc": {
+            "name": "doc",
+            "columns": {
+                key: {"name": key, "data_type": "text", "nullable": False, "merge_key": True}
+                for key in merge_keys
+            },
+        },
+        "doc__chunk": {"name": "doc__chunk", "parent": "doc", "columns": {}},
+    }
+
+
+@pytest.mark.parametrize("table_name", ["doc", "doc__chunk"])
+@pytest.mark.parametrize(
+    "merge_keys,expected",
+    [([], False), (["doc_id"], True), (["doc_id", "chunk_hash"], False)],
+)
+def test_remove_orphans_hint_follows_merge_key(
+    table_name: str, merge_keys: List[str], expected: bool
+) -> None:
+    tables = _doc_tables(merge_keys)
+    table = set_remove_orphans_hint(tables[table_name], tables)  # type: ignore[arg-type]
+    assert table[REMOVE_ORPHANS_HINT] is expected  # type: ignore[literal-required]
+
+
+@pytest.mark.parametrize("table_name", ["doc", "doc__chunk"])
+@pytest.mark.parametrize("hint", [True, False])
+def test_remove_orphans_hint_explicit_wins(table_name: str, hint: bool) -> None:
+    # a single merge key would resolve to True, the resource opted out of it
+    tables = _doc_tables(["doc_id"])
+    tables["doc"][REMOVE_ORPHANS_HINT] = hint  # type: ignore[literal-required]
+    table = set_remove_orphans_hint(tables[table_name], tables)  # type: ignore[arg-type]
+    assert table[REMOVE_ORPHANS_HINT] is hint  # type: ignore[literal-required]
+
+
+def test_remove_orphans_hint_is_not_overwritten() -> None:
+    tables = _doc_tables(["doc_id"])
+    table: PreparedTableSchema = {**tables["doc"], REMOVE_ORPHANS_HINT: False}  # type: ignore[misc]
+    assert set_remove_orphans_hint(table, tables)[REMOVE_ORPHANS_HINT] is False  # type: ignore[literal-required]
 
 
 def test_lancedb_exception_parsing() -> None:

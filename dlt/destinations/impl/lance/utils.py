@@ -10,14 +10,11 @@ from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     get_inherited_table_hint,
+    get_root_table,
     is_nested_table,
 )
 from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
-from dlt.destinations.impl.lance.lance_adapter import (
-    DEFAULT_REMOVE_ORPHANS,
-    REMOVE_ORPHANS_HINT,
-    VECTORIZE_HINT,
-)
+from dlt.destinations.impl.lance.lance_adapter import REMOVE_ORPHANS_HINT, VECTORIZE_HINT
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 
@@ -76,14 +73,19 @@ def create_in_filter(field_name: str, array: Union[pa.Array, pa.ChunkedArray]) -
 def set_remove_orphans_hint(
     table: PreparedTableSchema, schema_tables: TSchemaTables
 ) -> PreparedTableSchema:
-    """Resolves `REMOVE_ORPHANS_HINT` on `table`, inheriting it from the parent table chain."""
-    if REMOVE_ORPHANS_HINT not in table:
-        inherited_hint = get_inherited_table_hint(
-            schema_tables, table["name"], REMOVE_ORPHANS_HINT, allow_none=True
-        )
-        table[REMOVE_ORPHANS_HINT] = (  # type: ignore[literal-required]
-            DEFAULT_REMOVE_ORPHANS if inherited_hint is None else inherited_hint
-        )
+    """Resolves `REMOVE_ORPHANS_HINT` on `table`, inheriting it from the parent table chain and
+    otherwise following the merge key, which names the document a reload replaces."""
+    if REMOVE_ORPHANS_HINT in table:
+        return table
+
+    hint = get_inherited_table_hint(
+        schema_tables, table["name"], REMOVE_ORPHANS_HINT, allow_none=True
+    )
+    if hint is None:
+        # a nested table carries no merge key of its own, the document is named on the root
+        root_table = get_root_table(schema_tables, table["name"])
+        hint = len(get_columns_names_with_prop(root_table, "merge_key")) == 1
+    table[REMOVE_ORPHANS_HINT] = hint  # type: ignore[literal-required]
     return table
 
 
@@ -99,7 +101,7 @@ def verify_lance_tables(
             continue
 
         merge_keys = get_columns_names_with_prop(load_table, "merge_key")
-        if load_table.get(REMOVE_ORPHANS_HINT, DEFAULT_REMOVE_ORPHANS) and len(merge_keys) > 1:
+        if load_table.get(REMOVE_ORPHANS_HINT, False) and len(merge_keys) > 1:
             raise DestinationTerminalException(
                 f"Multiple merge keys are not supported when {destination_name} orphan removal is"
                 f" enabled: {merge_keys}"

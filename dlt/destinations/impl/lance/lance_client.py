@@ -71,7 +71,6 @@ from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
 )
 from dlt.destinations.impl.lance.lance_adapter import (
-    DEFAULT_REMOVE_ORPHANS,
     VECTORIZE_HINT,
     REMOVE_ORPHANS_HINT,
 )
