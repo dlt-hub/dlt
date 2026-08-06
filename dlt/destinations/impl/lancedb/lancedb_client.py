@@ -44,28 +44,20 @@ from dlt.common.schema.typing import (
     TLoaderMergeStrategy,
     TTableSchemaColumns,
     TColumnSchema,
-    TTableSchema,
     TWriteDisposition,
 )
-from dlt.common.schema.utils import (
-    get_columns_names_with_prop,
-    is_nested_table,
-)
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
-from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
+from dlt.destinations.impl.lance.utils import set_remove_orphans_hint, verify_lance_tables
 from dlt.destinations.impl.lancedb.exceptions import (
     LanceDBCommitTagNotApplied,
     lancedb_error,
 )
-from dlt.destinations.impl.lancedb.jobs import LanceDBLoadJob, LanceDBRemoveOrphansJob
-from dlt.destinations.impl.lance.lance_adapter import (
-    DEFAULT_REMOVE_ORPHANS,
-    REMOVE_ORPHANS_HINT,
-    VECTORIZE_HINT,
-)
+from dlt.destinations.impl.lancedb.jobs import LanceDBLoadJob, LanceDBMergeJob
+from dlt.destinations.impl.lance.lance_adapter import VECTORIZE_HINT
 from dlt.destinations.impl.lancedb.schema import (
     add_vector_column,
     make_arrow_table_schema,
@@ -73,7 +65,10 @@ from dlt.destinations.impl.lancedb.schema import (
     TArrowField,
 )
 from dlt.destinations.impl.lancedb.type_mapper import LanceDBTypeMapper
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest
+from dlt.destinations.job_impl import (
+    FinalizedLoadJobWithFollowupJobs,
+    ReferenceFollowupJobRequest,
+)
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
@@ -294,26 +289,15 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         write_disposition: Optional[TWriteDisposition] = "append",
         merge_key: Optional[str] = None,
         merge_strategy: Optional[TLoaderMergeStrategy] = None,
-        remove_orphans: bool = False,
-        delete_condition: Optional[str] = None,
+        when_not_matched_by_source_delete_expr: Optional[str] = None,
     ) -> int:
-        """Inserts records into a table of the dataset namespace, computing embeddings server side.
+        """Inserts records into a table of the dataset namespace.
 
-        Args:
-            records: The data to be inserted as payload.
-            table_name: The name of the table to insert into.
-            write_disposition: One of `skip`, `append`, `replace`, `merge`.
-            merge_key: Key for update/merge operations.
-            merge_strategy: Merge strategy resolved for the table.
-            remove_orphans (bool): Whether to remove orphans after insertion (only merge disposition).
-            delete_condition (str): SQL filter limiting which rows orphan removal can delete.
+        `when_not_matched_by_source_delete_expr` bounds which rows a merge may delete, and without
+        it a merge deletes nothing.
 
         Returns:
             int: Version the write created, which a caller must use instead of reading it back.
-
-        Raises:
-            DestinationTerminalException: If the write disposition is unsupported or the records
-                do not fit the table schema.
         """
         tbl = self.open_table(table_name)
         try:
@@ -327,20 +311,15 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
                     records = add_vector_column(
                         records, tbl.schema, self.config.embeddings.vector_column
                     )
-                if remove_orphans:
-                    tbl.merge_insert(merge_key).when_not_matched_by_source_delete(
-                        delete_condition
-                    ).execute(records, on_bad_vectors=ON_BAD_VECTORS)
-                elif merge_strategy == "insert-only":
-                    tbl.merge_insert(merge_key).when_not_matched_insert_all().execute(
-                        records, on_bad_vectors=ON_BAD_VECTORS
+                merge_builder = tbl.merge_insert(merge_key)
+                if merge_strategy != "insert-only":
+                    merge_builder = merge_builder.when_matched_update_all()
+                merge_builder = merge_builder.when_not_matched_insert_all()
+                if when_not_matched_by_source_delete_expr:
+                    merge_builder = merge_builder.when_not_matched_by_source_delete(
+                        when_not_matched_by_source_delete_expr
                     )
-                else:
-                    tbl.merge_insert(
-                        merge_key
-                    ).when_matched_update_all().when_not_matched_insert_all().execute(
-                        records, on_bad_vectors=ON_BAD_VECTORS
-                    )
+                merge_builder.execute(records, on_bad_vectors=ON_BAD_VECTORS)
                 # the publishing delete lands after the merge, so its version is the current one
                 return self._advance_table_version(tbl)
             else:
@@ -389,41 +368,11 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
     ) -> List[PreparedTableSchema]:
         loaded_tables = super().verify_schema(only_tables, new_jobs)
-
-        # Verify LanceDB-specific requirements for root tables
-        for load_table in loaded_tables:
-            # Skip nested tables as they inherit behavior from parent tables
-            if is_nested_table(load_table):
-                continue
-
-            has_orphan_removal = load_table.get(REMOVE_ORPHANS_HINT, DEFAULT_REMOVE_ORPHANS)
-            merge_keys = get_columns_names_with_prop(load_table, "merge_key")
-            uses_merge_strategy = load_table.get("write_disposition", "") == "merge"
-
-            # Validate merge key constraints when orphan removal is enabled
-            if has_orphan_removal and len(merge_keys) > 1:
-                raise DestinationTerminalException(
-                    "Multiple merge keys are not supported when LanceDB orphan removal is"
-                    f" enabled: {merge_keys}"
-                )
-
-            # Check if _dlt_load_id column is required but not present
-            requires_dlt_ids = has_orphan_removal and uses_merge_strategy
-            if requires_dlt_ids and "_dlt_load_id" not in load_table["columns"].keys():
-                raise DestinationTerminalException(
-                    "The `_dlt_load_id` column is required for tables with orphan removal or merge"
-                    " keys. Enable this by setting"
-                    " `NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID=TRUE` or an equivalent in"
-                    " config.toml."
-                )
-
-            if not self.config.embeddings:
-                if embed_columns := get_columns_names_with_prop(load_table, VECTORIZE_HINT):
-                    raise LanceEmbeddingsConfigurationMissing(
-                        load_table["name"], embed_columns, "lancedb"
-                    )
-
+        verify_lance_tables(loaded_tables, bool(self.config.embeddings), "lancedb")
         return loaded_tables
+
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        return set_remove_orphans_hint(super().prepare_load_table(table_name), self.schema.tables)
 
     @lancedb_error
     def update_stored_schema(
@@ -660,36 +609,32 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False
     ) -> LoadJob:
         if ReferenceFollowupJobRequest.is_reference_job(file_path):
-            return LanceDBRemoveOrphansJob(file_path)
-        else:
-            return LanceDBLoadJob(file_path, table)
+            return LanceDBMergeJob(file_path, table)
+        if table["write_disposition"] == "merge":
+            # all job files of the table merge in one pass in `LanceDBMergeJob`
+            return FinalizedLoadJobWithFollowupJobs(file_path)
+        return LanceDBLoadJob(file_path, table)
 
     def create_table_chain_completed_followup_jobs(
         self,
-        table_chain: Sequence[TTableSchema],
+        table_chain: Sequence[PreparedTableSchema],
         completed_table_chain_jobs: Optional[Sequence[LoadJobInfo]] = None,
     ) -> List[FollowupJobRequest]:
+        assert completed_table_chain_jobs is not None
         jobs = super().create_table_chain_completed_followup_jobs(
-            table_chain, completed_table_chain_jobs  # type: ignore[arg-type]
+            table_chain, completed_table_chain_jobs
         )
-        # orphan removal replaces old versions of docs, skip for insert-only
-        first_table_in_chain = table_chain[0]
-        merge_strategy = resolve_merge_strategy(
-            {first_table_in_chain["name"]: first_table_in_chain}, first_table_in_chain
-        )
-        if (
-            first_table_in_chain.get("write_disposition") == "merge"
-            and merge_strategy != "insert-only"
-            and first_table_in_chain.get(REMOVE_ORPHANS_HINT, DEFAULT_REMOVE_ORPHANS)
-        ):
-            all_job_paths_ordered = [
+        # `tbl.add` already committed the other dispositions, only a merge needs a pass after them
+        if table_chain[0].get("write_disposition") != "merge":
+            return jobs
+        # one merge job per table over all its completed job files
+        for table in table_chain:
+            file_paths = [
                 job.file_path
-                for table in table_chain
                 for job in completed_table_chain_jobs
-                if job.job_file_info.table_name == table.get("name")
+                if job.job_file_info.table_name == table["name"]
             ]
-            root_table_file_name = FileStorage.get_file_name_from_file_path(
-                all_job_paths_ordered[0]
-            )
-            jobs.append(ReferenceFollowupJobRequest(root_table_file_name, all_job_paths_ordered))
+            if file_paths:
+                file_name = FileStorage.get_file_name_from_file_path(file_paths[0])
+                jobs.append(ReferenceFollowupJobRequest(file_name, file_paths))
         return jobs

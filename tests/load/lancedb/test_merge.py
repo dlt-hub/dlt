@@ -157,6 +157,69 @@ def test_lancedb_remove_nested_orphaned_records(
     LANCE_DEST_CONFS,
     ids=lambda x: x.name,
 )
+def test_remove_orphans_across_multiple_job_files(
+    destination_config: DestinationTestConfiguration,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rows of one document that span several job files survive orphan removal."""
+    # rotate job files so a single document's children land in more than one parquet file
+    monkeypatch.setenv("NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS", "2")
+
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_remove_orphans_across_multiple_job_files",
+        dev_mode=True,
+    )
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="id",
+        merge_key="id",
+    )
+    def identity_resource(
+        data: List[DictStrAny],
+    ) -> Generator[List[DictStrAny], None, None]:
+        yield data
+
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
+
+    run_1 = [
+        {"id": 1, "child": [{"bar": bar} for bar in range(5)]},
+        {"id": 2, "child": [{"bar": 100}]},
+    ]
+    info = pipeline.run(identity_resource(run_1))
+    assert_load_info(info)
+
+    # the premise of the test: `parent__child` really was written as several job files
+    child_jobs = [
+        job
+        for job in info.load_packages[0].jobs["completed_jobs"]
+        if job.job_file_info.table_name == "parent__child"
+        and job.job_file_info.file_format == "parquet"
+    ]
+    assert len(child_jobs) > 1
+
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        children = read_arrow_table(open_lance_table(client, "parent__child")).to_pydict()
+        assert set(children["bar"]) == {0, 1, 2, 3, 4, 100}
+
+    # shrinking a document removes exactly its dropped children, leaving the other document alone
+    run_2 = [{"id": 1, "child": [{"bar": 0}, {"bar": 1}]}]
+    info = pipeline.run(identity_resource(run_2))
+    assert_load_info(info)
+
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        children = read_arrow_table(open_lance_table(client, "parent__child")).to_pydict()
+        assert set(children["bar"]) == {0, 1, 100}
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
 def test_lancedb_remove_orphaned_records_root_table(
     destination_config: DestinationTestConfiguration,
 ) -> None:

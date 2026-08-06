@@ -1,11 +1,24 @@
-from typing import Union
+from typing import Sequence, Union
 
 from dlt.common import logger
 from dlt.common.data_writers.escape import escape_datafusion_literal
 from dlt.common.destination.exceptions import DestinationTerminalException
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.libs.pyarrow import pyarrow as pa
-from dlt.common.schema import TTableSchema
-from dlt.common.schema.utils import get_columns_names_with_prop, get_first_column_name_with_prop
+from dlt.common.schema import TSchemaTables, TTableSchema
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    get_first_column_name_with_prop,
+    get_inherited_table_hint,
+    is_nested_table,
+)
+from dlt.destinations.impl.lance.exceptions import LanceEmbeddingsConfigurationMissing
+from dlt.destinations.impl.lance.lance_adapter import (
+    DEFAULT_REMOVE_ORPHANS,
+    REMOVE_ORPHANS_HINT,
+    VECTORIZE_HINT,
+)
+from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 
 
 def get_canonical_vector_database_doc_id_merge_key(
@@ -58,3 +71,68 @@ def create_in_filter(field_name: str, array: Union[pa.Array, pa.ChunkedArray]) -
         # a chunked array carries one dictionary per chunk, `unique` unifies them first
         values = values.dictionary
     return f"{field_name} IN ({', '.join(map(escape_datafusion_literal, values.to_pylist()))})"
+
+
+def set_remove_orphans_hint(
+    table: PreparedTableSchema, schema_tables: TSchemaTables
+) -> PreparedTableSchema:
+    """Resolves `REMOVE_ORPHANS_HINT` on `table`, inheriting it from the parent table chain."""
+    if REMOVE_ORPHANS_HINT not in table:
+        inherited_hint = get_inherited_table_hint(
+            schema_tables, table["name"], REMOVE_ORPHANS_HINT, allow_none=True
+        )
+        table[REMOVE_ORPHANS_HINT] = (  # type: ignore[literal-required]
+            DEFAULT_REMOVE_ORPHANS if inherited_hint is None else inherited_hint
+        )
+    return table
+
+
+def verify_lance_tables(
+    loaded_tables: Sequence[PreparedTableSchema],
+    has_embeddings: bool,
+    destination_name: str = "lance",
+) -> None:
+    """Raises if a table cannot be loaded into a lance format destination."""
+    for load_table in loaded_tables:
+        # nested tables inherit the behavior of their parent
+        if is_nested_table(load_table):
+            continue
+
+        merge_keys = get_columns_names_with_prop(load_table, "merge_key")
+        if load_table.get(REMOVE_ORPHANS_HINT, DEFAULT_REMOVE_ORPHANS) and len(merge_keys) > 1:
+            raise DestinationTerminalException(
+                f"Multiple merge keys are not supported when {destination_name} orphan removal is"
+                f" enabled: {merge_keys}"
+            )
+
+        if not has_embeddings:
+            if embed_columns := get_columns_names_with_prop(load_table, VECTORIZE_HINT):
+                raise LanceEmbeddingsConfigurationMissing(
+                    load_table["name"], embed_columns, destination_name
+                )
+
+
+def get_orphan_scope_key_col(load_table: PreparedTableSchema, dataset_name: str) -> str:
+    """Returns the column identifying the documents a load owns in `load_table`: the root key for a
+    nested table, the canonical doc id merge key for a root table."""
+    if is_nested_table(load_table):
+        return SqlMergeFollowupJob.get_root_key_col(
+            [load_table], load_table, dataset_name, dataset_name
+        )
+    return get_canonical_vector_database_doc_id_merge_key(load_table)
+
+
+def build_orphan_scope_filter(
+    load_table: PreparedTableSchema, file_paths: Sequence[str], dataset_name: str
+) -> str:
+    """Builds a SQL filter scoping orphan deletion to the documents present in `file_paths`.
+
+    `file_paths` must be all job files of `load_table`: a subset scopes the delete to itself and
+    removes what the remaining files wrote.
+    """
+    key_col = get_orphan_scope_key_col(load_table, dataset_name)
+    # only the key column is materialized, the payload stays on disk
+    keys = pa.concat_tables(pa.parquet.read_table(path, columns=[key_col]) for path in file_paths)[
+        key_col
+    ]
+    return create_in_filter(key_col, keys)

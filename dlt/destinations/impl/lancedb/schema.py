@@ -1,7 +1,8 @@
 """Utilities for creating arrow schemas from table schemas."""
-from collections import namedtuple
 from typing import (
+    Iterator,
     List,
+    Union,
     cast,
     Optional,
 )
@@ -21,8 +22,7 @@ TArrowDataType: TypeAlias = pa.DataType
 TArrowField: TypeAlias = pa.Field
 NULL_SCHEMA: TArrowSchema = pa.schema([])
 """Empty pyarrow Schema with no fields."""
-TableJob = namedtuple("TableJob", ["table_schema", "table_name", "file_path"])
-TTableLineage: TypeAlias = List[TableJob]
+TArrowData: TypeAlias = Union[pa.Table, pa.RecordBatchReader]
 
 
 def arrow_schema_to_dict(schema: TArrowSchema) -> DictStrAny:
@@ -92,7 +92,13 @@ def make_arrow_table_schema(
     return pa.schema(arrow_schema, metadata=metadata)
 
 
-def add_vector_column(records: pa.table, table_schema: pa.schema, vector_column: str) -> pa.table:
+def add_vector_column(
+    records: TArrowData, table_schema: TArrowSchema, vector_column: str
+) -> TArrowData:
+    """Inserts a null `vector_column` at the index the table holds it at, when records omit it.
+
+    A merge matches the payload schema against the table by name, order and type.
+    """
     # vector column already there
     if vector_column in records.schema.names or vector_column not in table_schema.names:
         return records
@@ -100,6 +106,16 @@ def add_vector_column(records: pa.table, table_schema: pa.schema, vector_column:
     col = table_schema.field(vector_column)
     idx = table_schema.get_field_index(vector_column)
 
-    nulls = pa.nulls(len(records), type=col.type)
+    if isinstance(records, pa.RecordBatchReader):
+        fields = list(records.schema)
+        out_schema = pa.schema(
+            fields[:idx] + [col] + fields[idx:], metadata=records.schema.metadata
+        )
 
-    return records.add_column(idx, col, nulls)
+        def batches() -> Iterator[pa.RecordBatch]:
+            for batch in records:
+                yield batch.add_column(idx, col, pa.nulls(batch.num_rows, type=col.type))
+
+        return pa.RecordBatchReader.from_batches(out_schema, batches())
+
+    return records.add_column(idx, col, pa.nulls(len(records), type=col.type))

@@ -293,7 +293,7 @@ The `merge_key` identifies the parent document. If `merge_key` is not specified,
 
 #### Orphan removal
 
-A merge can remove orphaned child records — chunks that no longer have a matching parent. It is **off by default**, because it needs the `_dlt_load_id` column and accepts a single merge key. Enable it per resource:
+A merge can remove orphaned child records — chunks that no longer have a matching parent. It is **off by default**, and accepts a single merge key. Enable it per resource:
 
 ```py
 lance_adapter(data, merge_key="doc_id", remove_orphans=True)

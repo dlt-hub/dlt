@@ -497,8 +497,7 @@ This structure ensures proper record identification and maintains consistency wi
 #### Orphan Removal
 
 A merge can **remove orphaned chunks** — records of a nested table whose parent document is gone. It
-is **off by default**, because it needs the `_dlt_load_id` column and accepts a single merge key.
-Enable it per resource:
+is **off by default**, and accepts a single merge key. Enable it per resource:
 
 ```py
 pipeline.run(
@@ -516,7 +515,7 @@ While it's possible to omit the `merge_key` for brevity (in which case it is ass
 explicitly specifying both is recommended for clarity.
 
 :::note
-Orphan removal requires the presence of the `_dlt_id` and `_dlt_load_id` fields, which are not included by default when arrow tables are loaded. If you enable it for an arrow source, also [enable those fields](../../dlt-ecosystem/verified-sources/arrow-pandas#add-_dlt_load_id-and-_dlt_id-to-your-tables) by setting the `add_dlt_id` option to `true` in the normalize config.
+Orphan removal matches rows on `_dlt_id`, which arrow sources generate randomly per load, so a row of an earlier load is never matched. Give such a resource a `primary_key` so the row key is derived from it and stays stable across loads.
 :::
 
 ### Append
