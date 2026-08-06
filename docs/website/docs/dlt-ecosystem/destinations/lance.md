@@ -289,15 +289,31 @@ pipeline.run(
 )
 ```
 
-The `merge_key` identifies the parent document. If `merge_key` is not specified, the first element of `primary_key` is used as fallback. When orphan removal is enabled, only a single merge key is supported because the orphan deletion filter operates on a single column. Compound merge keys therefore need orphan removal off, which is the default.
+A vectorized document is usually split into chunks, one row per chunk, so the two keys identify
+different things: `primary_key` identifies a **chunk**, and `merge_key` identifies the **document**
+it belongs to.
 
-#### Orphan removal
+#### Remove orphaned chunks when a document is reloaded
 
-A merge can remove orphaned child records — chunks that no longer have a matching parent. It is **off by default**, and accepts a single merge key. Enable it per resource:
+Reloading a document usually means its text changed: some chunks survive, some are new, and some no
+longer exist. An upsert writes the new chunks and updates the surviving ones, but the chunks that
+disappeared stay in the table — so a similarity search keeps returning text the document no longer
+contains. **Orphan removal deletes them.** This is its main job, and it works on the root table of
+chunks: the `merge_key` scopes deletion to the documents this load carries, so chunks of every other
+document are left alone.
+
+It does the same one level down, removing records of a nested table whose parent record is gone.
+
+A single `merge_key` names the document, so **orphan removal is on whenever a resource defines one**.
+Without a merge key it stays off. Pass `remove_orphans` to override that:
 
 ```py
-lance_adapter(data, merge_key="doc_id", remove_orphans=True)
+lance_adapter(data, merge_key="doc_id", remove_orphans=False)
 ```
+
+`remove_orphans=True` also turns it on for a resource with no merge key, where the first element of
+the `primary_key` becomes the document id. A compound merge key is rejected, since the deletion
+filter takes one column.
 
 ## Embeddings configuration
 

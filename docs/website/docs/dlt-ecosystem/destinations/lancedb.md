@@ -221,9 +221,10 @@ retries it. The `_dlt_loads` table is tagged immediately after the row that mark
 and that one cannot be retried: if it fails, the error names the tag and the exact version so you can
 create it by hand.
 
-### Define your data source
+### Load vectorized documents with optional chunking
 
-For example:
+A document is a row, and the column you name in `lancedb_adapter(embed=...)` is the one LanceDB
+embeds so you can search it by similarity. Start with one row per document:
 
 ```py
 import dlt
@@ -249,7 +250,7 @@ movies = [
 ]
 ```
 
-### Create a pipeline:
+#### Create a pipeline
 
 ```py
 pipeline = dlt.pipeline(
@@ -258,7 +259,7 @@ pipeline = dlt.pipeline(
 )
 ```
 
-### Run the pipeline:
+#### Run the pipeline
 
 ```py
 info = pipeline.run(
@@ -277,6 +278,75 @@ To use **vector search** after loading, you **must specify which fields LanceDB 
 :::note
 The `movies` table lives in the root namespace of the [database named after the
 dataset](#datasets-are-databases), which is how the SQL endpoint accesses it.
+:::
+
+#### Chunk long documents
+
+A document too long to embed as a single vector is split into chunks, and each chunk becomes a row.
+Document identity and chunk identity are then two different things, and the resource must declare
+both:
+
+```py
+@dlt.resource(
+  primary_key=["doc_id", "chunk_hash"],
+  merge_key="doc_id",
+  write_disposition={"disposition": "merge", "strategy": "upsert"},
+)
+def rag_docs(documents):
+  for document in documents:
+    for chunk in chunk_text(document["body"]):
+      yield {
+        "doc_id": document["id"],
+        "chunk_hash": digest128(chunk),
+        "chunk": chunk,
+      }
+```
+
+- `primary_key` identifies a **chunk**, so a chunk whose text changes becomes a different row.
+- `merge_key` identifies the **document**. It cannot be compound and must be the first element of
+  `primary_key`.
+
+Embed the chunk column rather than the whole document:
+
+```py
+pipeline.run(lancedb_adapter(rag_docs(documents), embed="chunk"))
+```
+
+#### Remove orphaned chunks when a document is reloaded
+
+Reloading a document usually means its text changed: some chunks survive, some are new, and some no
+longer exist. An upsert writes the new chunks and updates the surviving ones, but the chunks that
+disappeared stay in the table — so a similarity search keeps returning text the document no longer
+contains. **Orphan removal deletes them.** This is its main job, and it works on the root table of
+chunks, which is why the `merge_key` matters: deletion is scoped to the documents this load carries,
+so chunks of every other document are left alone.
+
+It does the same one level down, removing records of a nested table whose parent record is gone.
+
+A single `merge_key` names the document, so **orphan removal is on whenever a resource defines one**
+— `rag_docs` above needs nothing further. Without a merge key it stays off. Pass `remove_orphans` to
+override that:
+
+```py
+pipeline.run(
+  lancedb_adapter(
+    rag_docs(documents),
+    embed="chunk",
+    remove_orphans=False
+  )
+)
+```
+
+`remove_orphans=True` also turns it on for a resource with no merge key, where the first element of
+the `primary_key` becomes the document id. A compound merge key is rejected, since the deletion
+filter takes one column.
+
+The resource above already carries the keys and the write disposition, so they do not need repeating
+here. On a resource that does not, pass `merge_key` to `lancedb_adapter` and `primary_key` and
+`write_disposition` to `run`.
+
+:::note
+Orphan removal matches rows on `_dlt_id`, which arrow sources generate randomly per load, so a row of an earlier load is never matched. Give such a resource a `primary_key` so the row key is derived from it and stays stable across loads.
 :::
 
 ## Use an adapter to specify columns to vectorize
@@ -494,29 +564,11 @@ This `merge_key` is crucial for document identification and orphan removal durin
 This structure ensures proper record identification and maintains consistency with vector database concepts.
 
 
-#### Orphan Removal
-
-A merge can **remove orphaned chunks** — records of a nested table whose parent document is gone. It
-is **off by default**, and accepts a single merge key. Enable it per resource:
-
-```py
-pipeline.run(
-  lancedb_adapter(
-    movies,
-    embed="title",
-    remove_orphans=True
-  ),
-  write_disposition={"disposition": "merge", "strategy": "upsert"},
-  primary_key=["doc_id", "chunk_id"],
-)
-```
-
 While it's possible to omit the `merge_key` for brevity (in which case it is assumed to be the first entry of `primary_key`),
 explicitly specifying both is recommended for clarity.
 
-:::note
-Orphan removal matches rows on `_dlt_id`, which arrow sources generate randomly per load, so a row of an earlier load is never matched. Give such a resource a `primary_key` so the row key is derived from it and stays stable across loads.
-:::
+With a `merge_key` set, a merge also deletes the chunks a reloaded document no longer produces — see
+[remove orphaned chunks when a document is reloaded](#remove-orphaned-chunks-when-a-document-is-reloaded).
 
 ### Append
 
