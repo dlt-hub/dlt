@@ -1,3 +1,4 @@
+import time
 from typing import TYPE_CHECKING, Dict, Iterator, Optional, Sequence, List, Any
 
 from dlt.common import logger
@@ -9,18 +10,21 @@ from dlt.common.destination.client import (
     RunnableLoadJob,
 )
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.common.schema import TColumnSchema, TColumnHint, Schema
 from dlt.common.schema.typing import TColumnType
 
 from dlt.common.storages.load_package import ParsedLoadJobFileName
-from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
 from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob, SqlMergeFollowupJob
 
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
-from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, build_odbc_dsn
+from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
 from dlt.destinations.sql_client import SqlClientBase
+
+if TYPE_CHECKING:
+    from dlt.common.libs.pyarrow import pyarrow
 
 
 HINT_TO_MSSQL_ATTR: Dict[TColumnHint, str] = {"unique": "UNIQUE"}
@@ -90,72 +94,76 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         return SqlMergeFollowupJob._new_temp_table_name("#" + table_name, op, sql_client)
 
 
-class MssqlParquetCopyJob(AdbcParquetCopyJob):
-    _config: MsSqlClientConfiguration
-    # mssql ADBC driver buffers the full input stream in memory; flush per row-group
-    # to bound peak memory and avoid OOM on large parquet files
-    _ingest_per_rowgroup: bool = True
+class MsSqlBulkCopyArrowJob(RunnableLoadJob, HasFollowupJobs):
+    """Streams a parquet load file into its table with mssql-python's native Arrow bulk copy."""
 
-    if TYPE_CHECKING:
-        from adbc_driver_manager.dbapi import Connection
+    def __init__(self, file_path: str) -> None:
+        super().__init__(file_path)
+        self._job_client: MsSqlJobClient = None
 
-    def _connect(self) -> "Connection":
-        from adbc_driver_manager import dbapi
+    def run(self) -> None:
+        from dlt.common.libs.pyarrow import pyarrow, pq_stream_with_new_columns
 
-        self._config = self._job_client.config  # type: ignore[assignment]
-        # a separate connection from the mssql-python one, and go-mssqldb cannot use an Entra
-        # token: with `access_token`/`azure_credential` set this job authenticates from whatever
-        # the DSN still carries (query `uid`/`pwd`), or fails to sign in when it carries nothing
-        conn_dsn = self.odbc_to_go_mssql_dsn(self._config.credentials.get_odbc_dsn_dict())
-        conn_str = build_odbc_dsn(conn_dsn)
-        return dbapi.connect(driver="mssql", db_kwargs={"uri": conn_str})
+        config = self._job_client.config
+        # bulk copy re-authenticates on a native connection of its own. It mints a fresh token from
+        # `token_provider` or from `Authentication=`, but never reads the `attrs_before` struct that
+        # carries a pre-acquired `access_token`, so it would sign in with no credential at all.
+        if config.credentials.access_token:
+            raise DestinationTerminalException(
+                "`access_token` cannot be combined with the parquet loader file format on mssql:"
+                " the native Arrow bulk copy opens its own connection and only re-acquires a token"
+                " from `azure_credential` or `authentication`. Configure one of those instead, or"
+                ' load with `loader_file_format="insert_values"`.'
+            )
 
-    @staticmethod
-    def odbc_to_go_mssql_dsn(dsn: Dict[str, Any]) -> Dict[str, Any]:
-        """Converts odbc connection string to go connection string used by ADBC"""
-        # DSN keys are already normalized to upper case
-        result: Dict[str, Any] = {}
+        sql_client = self._job_client.sql_client
+        qualified_table_name = sql_client.make_qualified_table_name(self.load_table_name)
 
-        for upper, value in dsn.items():
-            if value is None:
-                continue
+        with pyarrow.parquet.ParquetFile(self._file_path) as parquet_file:
+            arrow_schema = parquet_file.schema_arrow
+            num_rows = parquet_file.metadata.num_rows
 
-            v = str(value)
+        if num_rows == 0:
+            logger.info(f"{self._file_name} is empty, skipping bulk copy to {qualified_table_name}")
+            return
 
-            if upper == "ENCRYPT":
-                v = v.strip().lower()
+        # map explicitly instead of letting bulk copy align on ordinal position: a column added by a
+        # later `ALTER TABLE` sits at the end of the table but keeps its schema order in the file
+        column_mappings = [
+            (index, sql_client.escape_column_name(name, quote=False))
+            for index, name in enumerate(arrow_schema.names)
+        ]
 
-                # ODBC: yes/mandatory/true/1 → go-mssqldb: true (TLS on)
-                if v in {"yes", "true", "1", "mandatory"}:
-                    v = "true"
+        def _iter_batches() -> Iterator["pyarrow.RecordBatch"]:
+            for table in pq_stream_with_new_columns(self._file_path, ()):
+                yield from table.to_batches()
 
-                # ODBC: strict → go-mssqldb strict (if supported by the driver)
-                elif v in {"strict"}:
-                    v = "strict"
+        t_ = time.monotonic()
+        cursor = sql_client.native_connection.cursor()
+        try:
+            result = cursor.bulkcopy_arrow(
+                qualified_table_name,
+                pyarrow.RecordBatchReader.from_batches(arrow_schema, _iter_batches()),
+                timeout=config.bulk_copy_timeout,
+                column_mappings=column_mappings,
+                keep_nulls=True,
+            )
+        except Exception as ex:
+            # the driver commits in batches the server sizes, on a connection dlt cannot roll back,
+            # so a failure may already have committed a prefix of the file. Fail terminally rather
+            # than let dlt retry the job and duplicate those rows.
+            raise DestinationTerminalException(
+                f"Arrow bulk copy of {self._file_name} into {qualified_table_name} failed and may"
+                " have committed part of the file. The job is not retried so the rows are not"
+                " duplicated; inspect the table before loading again."
+            ) from ex
+        finally:
+            cursor.close()
 
-                # ODBC: optional → go-mssqldb optional (login only)
-                elif v in {"optional"}:
-                    v = "optional"
-
-                # ODBC: no/false/0/disabled → go-mssqldb disable (no TLS at all)
-                # This mirrors your previous string hack:
-                #   .replace("=yes", "=1").replace("=no", "=disable")
-                elif v in {"no", "false", "0", "disabled", "disable"}:
-                    v = "disable"
-
-            elif upper == "TRUSTSERVERCERTIFICATE":
-                v = v.strip().lower()
-
-                # ODBC uses yes/no; go-mssqldb expects true/false (but is lenient);
-                # we normalize explicitly.
-                if v in {"yes", "true", "1"}:
-                    v = "true"
-                elif v in {"no", "false", "0"}:
-                    v = "false"
-
-            result[upper] = v
-
-        return result
+        logger.info(
+            f"{result.get('rows_copied')} rows copied from {self._file_name} to"
+            f" {qualified_table_name} in {time.monotonic() - t_} s"
+        )
 
 
 class MsSqlJobClient(InsertValuesJobClient):
@@ -187,7 +195,7 @@ class MsSqlJobClient(InsertValuesJobClient):
         if not job:
             parsed_file = ParsedLoadJobFileName.parse(file_path)
             if parsed_file.file_format == "parquet":
-                job = MssqlParquetCopyJob(file_path)
+                job = MsSqlBulkCopyArrowJob(file_path)
         return job
 
     def _create_merge_followup_jobs(
