@@ -3,13 +3,15 @@
 import base64
 import json
 import os
-import struct
 import sys
 import time
 from typing import Optional, cast
 from unittest.mock import MagicMock
 
 import pytest
+
+from mssql_python import TokenProvider
+from mssql_python.auth import acquire_token_from_credential
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
@@ -431,7 +433,11 @@ def test_fabric_resolve_configuration_authentication_passthrough() -> None:
 
 
 class _RaisingTokenCredential:
-    """A TokenCredential whose `get_token` must never be called (used to prove precedence)."""
+    """A TokenCredential whose `get_token` must never be called.
+
+    dlt hands `azure_credential` to mssql-python untouched, so nothing on the dlt side may call
+    it — neither the losing side of a precedence rule nor the winning one.
+    """
 
     def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
         raise AssertionError("azure_credential.get_token() should not have been called")
@@ -443,11 +449,13 @@ def test_fabric_access_token_and_azure_credential_default_to_none() -> None:
     assert creds.azure_credential is None
 
 
-def test_fabric_azure_credential_is_injected() -> None:
-    creds = _warehouse_credentials(azure_credential=_FakeTokenCredential())
-    attrs = creds.to_odbc_attrs_before()
-    assert attrs is not None
-    assert attrs[1256][4:].decode("utf-16-le") == "fake-access-token"
+def test_fabric_azure_credential_is_handed_to_the_driver() -> None:
+    """dlt passes the credential object through and never acquires a token itself."""
+    credential = _RaisingTokenCredential()
+    creds = _warehouse_credentials(azure_credential=credential)
+
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
 
 
 def test_fabric_access_token_wins_over_azure_credential() -> None:
@@ -457,6 +465,8 @@ def test_fabric_access_token_wins_over_azure_credential() -> None:
     attrs = creds.to_odbc_attrs_before()
     assert attrs is not None
     assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+    # the credential must not also reach the driver: it rejects two token sources at once
+    assert creds.to_odbc_token_provider() is None
 
 
 def test_fabric_access_token_takes_precedence_over_default_service_principal() -> None:
@@ -476,9 +486,8 @@ def test_fabric_access_token_takes_precedence_over_default_service_principal() -
 
 
 def test_fabric_azure_credential_takes_precedence_over_authentication() -> None:
-    creds = _warehouse_credentials(
-        "ActiveDirectoryDeviceCode", azure_credential=_FakeTokenCredential()
-    )
+    credential = _RaisingTokenCredential()
+    creds = _warehouse_credentials("ActiveDirectoryDeviceCode", azure_credential=credential)
     creds.on_partial()
 
     assert creds.has_default_credentials() is False
@@ -486,9 +495,8 @@ def test_fabric_azure_credential_takes_precedence_over_authentication() -> None:
     dsn = creds.get_odbc_dsn_dict()
     assert "AUTHENTICATION" not in dsn
 
-    attrs = creds.to_odbc_attrs_before()
-    assert attrs is not None
-    assert attrs[1256][4:].decode("utf-16-le") == "fake-access-token"
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
 
 
 def test_fabric_resolve_configuration_access_token_without_service_principal() -> None:
@@ -631,14 +639,35 @@ def test_fabric_notebookutils_dsn_has_no_authentication_key(
     assert "PWD" not in dsn
 
 
-def test_fabric_notebookutils_attrs_before(mock_notebookutils: MagicMock) -> None:
+def test_fabric_notebookutils_is_handed_to_the_driver(mock_notebookutils: MagicMock) -> None:
+    """The notebook credential reaches mssql-python as `token_provider`, unqueried by dlt."""
     creds = _warehouse_credentials("fab_notebookutils")
     creds.on_partial()
-    attrs = creds.to_odbc_attrs_before()
-    assert attrs is not None
-    token_struct = attrs[1256]
-    length = struct.unpack("<I", token_struct[:4])[0]
-    assert length == len(token_struct) - 4
+
+    assert creds.to_odbc_token_provider() is creds.azure_credential
+    assert creds.to_odbc_attrs_before() is None
+    mock_notebookutils.credentials.getToken.assert_not_called()
+
+
+def test_fabric_notebookutils_satisfies_the_driver_token_provider_protocol(
+    mock_notebookutils: MagicMock,
+) -> None:
+    """mssql-python calls `get_token(scope)` positionally and reads `.token` off the result.
+
+    The annotation is the static half of the check — `TokenProvider` is the protocol the driver
+    declares for `token_provider=` — and running its own acquisition helper is the runtime half.
+    """
+    provider: TokenProvider = FabNotebookUtilsCredential("sql")
+
+    # the helper is annotated with azure-identity's stricter `TokenCredential`, while the driver
+    # documents (and `TokenProvider` describes) the broader `get_token(scope)` contract
+    token_struct, expires_on = acquire_token_from_credential(provider)  # type: ignore[arg-type]
+
+    raw_token = token_struct[4:].decode("utf-16-le")
+    assert raw_token == mock_notebookutils.credentials.getToken.return_value
+    assert expires_on > time.time()
+    # the audience is bound at construction; the scope the driver passes is accepted and ignored
+    mock_notebookutils.credentials.getToken.assert_called_once_with("https://database.windows.net/")
 
 
 def test_fabric_notebookutils_does_not_replace_explicit_azure_credential(
@@ -658,3 +687,5 @@ def test_fabric_access_token_precedence_over_notebookutils(
     attrs = creds.to_odbc_attrs_before()
     assert attrs is not None
     assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+    assert creds.to_odbc_token_provider() is None
+    mock_notebookutils.credentials.getToken.assert_not_called()
