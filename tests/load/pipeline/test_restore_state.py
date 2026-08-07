@@ -624,18 +624,17 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
 
-    # restore before the import schema changes and retain its original import link
+    # restore while the import schema is unchanged: the original link must survive the sync
     p._wipe_working_folder()
     p = dlt.pipeline(
         pipeline_name=pipeline_name,
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path,
     )
-    p.run(
+    p.sync_destination(
         destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
-        **destination_config.run_kwargs,
     )
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
@@ -656,25 +655,25 @@ def test_restore_schemas_while_import_schemas_exist(
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path,
     )
-    # use run to get changes
-    p.run(
+    p.sync_destination(
         destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
-        **destination_config.run_kwargs,
     )
+    # sync leaves the restored schema unlinked, so the modified import is applied before extract
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
     assert imported_after_restore in schema.tables
-
-    # check if attached to import schema
     assert schema._imported_version_hash == imported_version_hash
+
     # extract some data with restored pipeline
     p.run(["C", "D", "E"], table_name="blacklist", **destination_config.run_kwargs)
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
     assert normalized_blacklist in schema.tables
+    assert imported_after_restore in schema.tables
+    assert schema._imported_version_hash == imported_version_hash
 
 
 @pytest.mark.skip("Not implemented")
