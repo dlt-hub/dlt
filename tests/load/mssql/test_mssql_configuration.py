@@ -1,8 +1,10 @@
 import os
+from typing import Any, Dict, List, Optional
 
 import pytest
 
 import mssql_python
+from azure.identity import DefaultAzureCredential
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
@@ -376,10 +378,25 @@ def test_mssql_resolve_configuration_authentication_passthrough() -> None:
 
 
 class _RaisingTokenCredential:
-    """A TokenCredential whose `get_token` must never be called (used to prove precedence)."""
+    """A TokenCredential whose `get_token` must never be called.
+
+    dlt hands `azure_credential` to mssql-python untouched, so nothing on the dlt side may call
+    it — neither the losing side of a precedence rule nor the winning one.
+    """
 
     def get_token(self, *scopes: str, **kwargs: object) -> _FakeAccessToken:
         raise AssertionError("azure_credential.get_token() should not have been called")
+
+
+class _MinimalTokenProvider:
+    """The narrowest shape mssql-python documents: a single positional scope, no kwargs."""
+
+    def __init__(self) -> None:
+        self.scopes: List[str] = []
+
+    def get_token(self, scope: str) -> _FakeAccessToken:
+        self.scopes.append(scope)
+        return _FakeAccessToken()
 
 
 def test_mssql_access_token_and_azure_credential_default_to_none() -> None:
@@ -393,11 +410,32 @@ def test_mssql_no_attrs_without_token_or_credential() -> None:
     assert creds.to_odbc_attrs_before() is None
 
 
-def test_mssql_azure_credential_is_injected() -> None:
-    creds = _mssql_credentials(azure_credential=_FakeTokenCredential())
-    attrs = creds.to_odbc_attrs_before()
-    assert attrs is not None
-    assert attrs[1256][4:].decode("utf-16-le") == "fake-access-token"
+def test_mssql_azure_credential_is_handed_to_the_driver() -> None:
+    """dlt passes the credential object through and never acquires a token itself."""
+    credential = _RaisingTokenCredential()
+    creds = _mssql_credentials(azure_credential=credential)
+
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
+
+
+@pytest.mark.parametrize(
+    "credential",
+    [
+        pytest.param(_FakeTokenCredential(), id="azure_identity_shape"),
+        pytest.param(_MinimalTokenProvider(), id="minimal_get_token_scope"),
+        pytest.param(DefaultAzureCredential, id="default_azure_credential"),
+    ],
+)
+def test_mssql_token_provider_shapes_pass_through_unchanged(credential: object) -> None:
+    """Every provider shape mssql-python accepts reaches it as the same object dlt was given."""
+    if credential is DefaultAzureCredential:
+        # constructing it performs no I/O; a token is only requested on get_token()
+        credential = DefaultAzureCredential()
+    creds = _mssql_credentials(azure_credential=credential)
+
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
 
 
 def test_mssql_access_token_wins_over_azure_credential() -> None:
@@ -407,6 +445,8 @@ def test_mssql_access_token_wins_over_azure_credential() -> None:
     attrs = creds.to_odbc_attrs_before()
     assert attrs is not None
     assert attrs[1256][4:].decode("utf-16-le") == "explicit-token"
+    # the credential must not also reach the driver: it rejects two token sources at once
+    assert creds.to_odbc_token_provider() is None
 
 
 def test_mssql_access_token_takes_precedence_over_authentication() -> None:
@@ -430,7 +470,8 @@ def test_mssql_access_token_takes_precedence_over_authentication() -> None:
 
 
 def test_mssql_azure_credential_takes_precedence_over_authentication() -> None:
-    creds = _mssql_credentials("ActiveDirectoryDeviceCode", azure_credential=_FakeTokenCredential())
+    credential = _RaisingTokenCredential()
+    creds = _mssql_credentials("ActiveDirectoryDeviceCode", azure_credential=credential)
     creds.on_partial()
 
     assert creds.has_default_credentials() is False
@@ -438,9 +479,28 @@ def test_mssql_azure_credential_takes_precedence_over_authentication() -> None:
     dsn = creds.get_odbc_dsn_dict()
     assert "AUTHENTICATION" not in dsn
 
-    attrs = creds.to_odbc_attrs_before()
-    assert attrs is not None
-    assert attrs[1256][4:].decode("utf-16-le") == "fake-access-token"
+    assert creds.to_odbc_token_provider() is credential
+    assert creds.to_odbc_attrs_before() is None
+
+
+@pytest.mark.parametrize("token_key", ["access_token", "azure_credential"])
+def test_mssql_query_authentication_key_dropped_for_explicit_token(token_key: str) -> None:
+    """`authentication` in the query string bypasses `apply_authentication_to_dsn`.
+
+    Left in, mssql-python would reject the `token_provider` combination outright and would let its
+    own `Authentication=` sign-in overwrite an injected `access_token`.
+    """
+    token = "explicit-token" if token_key == "access_token" else _RaisingTokenCredential()
+    creds = MsSqlCredentials(
+        "mssql://sql.example.com/test_db?authentication=ActiveDirectoryDefault&uid=u&pwd=p&Encrypt=yes"
+    )
+    setattr(creds, token_key, token)
+
+    dsn = creds.get_odbc_dsn_dict()
+    assert "AUTHENTICATION" not in dsn
+    assert "UID" not in dsn
+    assert "PWD" not in dsn
+    assert dsn["ENCRYPT"] == "yes"
 
 
 def test_mssql_resolve_configuration_access_token_without_username_password() -> None:
@@ -462,12 +522,71 @@ def test_mssql_resolve_configuration_azure_credential_without_username_password(
     creds.host = "sql.example.com"
     creds.database = "test_db"
     creds.driver = "ODBC Driver 18 for SQL Server"
-    creds.azure_credential = _FakeTokenCredential()
+    credential = _RaisingTokenCredential()
+    creds.azure_credential = credential
 
     resolved = resolve_configuration(creds)
 
     assert resolved.is_resolved()
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
+    assert resolved.to_odbc_token_provider() is credential
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected",
+    [
+        pytest.param({"username": "loader", "password": "s"}, None, id="sql_login"),
+        pytest.param({"authentication": "ActiveDirectoryDefault"}, "dsn", id="authentication"),
+        pytest.param(
+            {"authentication": "ActiveDirectoryServicePrincipal", "azure_client_id": "c"},
+            "dsn",
+            id="service_principal",
+        ),
+        pytest.param({"access_token": "t"}, "attrs_before", id="access_token"),
+        pytest.param(
+            {"azure_credential": _RaisingTokenCredential()}, "token_provider", id="azure_credential"
+        ),
+        pytest.param(
+            {"access_token": "t", "azure_credential": _RaisingTokenCredential()},
+            "attrs_before",
+            id="access_token_over_credential",
+        ),
+        pytest.param(
+            {
+                "authentication": "ActiveDirectoryDefault",
+                "azure_credential": _RaisingTokenCredential(),
+            },
+            "token_provider",
+            id="credential_over_authentication",
+        ),
+        pytest.param(
+            {
+                "authentication": "ActiveDirectoryDefault",
+                "access_token": "t",
+                "azure_credential": _RaisingTokenCredential(),
+            },
+            "attrs_before",
+            id="access_token_over_both",
+        ),
+    ],
+)
+def test_mssql_exactly_one_authentication_mechanism_reaches_the_driver(
+    kwargs: Dict[str, Any], expected: Optional[str]
+) -> None:
+    """mssql-python raises `InterfaceError` when two token sources arrive together.
+
+    Whatever is configured, at most one of `Authentication=`, `attrs_before` and `token_provider`
+    may be populated, and it must be the one precedence selects.
+    """
+    creds = _mssql_credentials(**kwargs)
+
+    mechanisms = {
+        "dsn": "AUTHENTICATION" in creds.get_odbc_dsn_dict(),
+        "attrs_before": creds.to_odbc_attrs_before() is not None,
+        "token_provider": creds.to_odbc_token_provider() is not None,
+    }
+
+    assert [name for name, used in mechanisms.items() if used] == ([expected] if expected else [])
 
 
 def test_mssql_distinct_raw_tokens_are_not_pooled_by_connection_string_alone() -> None:
@@ -487,3 +606,58 @@ def test_mssql_distinct_raw_tokens_are_not_pooled_by_connection_string_alone() -
     token_struct_a = creds_a.to_odbc_attrs_before()[1256]
     token_struct_b = creds_b.to_odbc_attrs_before()[1256]
     assert compute_token_identity(token_struct_a) != compute_token_identity(token_struct_b)
+
+
+class _FailingTokenCredential:
+    """Stands in for a credential that cannot sign in (expired CLI login, unreachable IMDS, ...)."""
+
+    def get_token(self, scope: str) -> _FakeAccessToken:
+        raise ValueError("credential could not acquire a token")
+
+
+def _mssql_client(creds: MsSqlCredentials) -> MsSqlClient:
+    return MsSqlClient("dataset", "staging_dataset", creds, mssql().capabilities())
+
+
+def test_mssql_token_provider_failure_keeps_credential_error_as_cause() -> None:
+    """The driver acquires the token inside `connect()`, before any network I/O.
+
+    A failing credential must therefore surface as a driver exception dlt already classifies,
+    with the original credential error still reachable as its cause.
+    """
+    creds = _mssql_credentials(azure_credential=_FailingTokenCredential())
+
+    with pytest.raises(mssql_python.OperationalError) as exc_info:
+        _mssql_client(creds).open_connection()
+
+    cause = exc_info.value.__cause__
+    assert isinstance(cause, ValueError)
+    assert str(cause) == "credential could not acquire a token"
+
+    assert MsSqlClient.is_dbapi_exception(exc_info.value)
+    db_ex = MsSqlClient._make_database_exception(exc_info.value)
+    assert isinstance(db_ex, DatabaseTransientException)
+
+
+def test_mssql_token_provider_rejected_alongside_other_token_sources() -> None:
+    """The exclusivity dlt upholds is enforced by the driver, not merely assumed.
+
+    Both combinations are rejected before any token acquisition or network I/O, so a regression in
+    dlt's precedence surfaces as a hard `InterfaceError` rather than a silently ignored token.
+    """
+    provider = _MinimalTokenProvider()
+
+    with pytest.raises(mssql_python.InterfaceError, match="Authentication"):
+        mssql_python.connect(
+            "SERVER=sql.example.com,1433;DATABASE=test_db;AUTHENTICATION=ActiveDirectoryDefault",
+            token_provider=provider,
+        )
+
+    with pytest.raises(mssql_python.InterfaceError, match="SQL_COPT_SS_ACCESS_TOKEN"):
+        mssql_python.connect(
+            "SERVER=sql.example.com,1433;DATABASE=test_db",
+            attrs_before=_mssql_credentials(access_token="t").to_odbc_attrs_before(),  # type: ignore[arg-type]
+            token_provider=provider,
+        )
+
+    assert provider.scopes == []

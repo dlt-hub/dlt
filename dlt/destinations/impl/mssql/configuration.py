@@ -13,10 +13,13 @@ from dlt.common.destination.client import DestinationClientDwhWithStagingConfigu
 from dlt.common.utils import digest128
 
 # ODBC attribute used to inject a pre-acquired Entra ID access token via `attrs_before`, for the
-# explicit `access_token`/`azure_credential` credential fields.
+# explicit `access_token` credential field.
 # https://learn.microsoft.com/sql/connect/odbc/using-azure-active-directory#authenticating-with-an-access-token
 SQL_COPT_SS_ACCESS_TOKEN = 1256
-SQL_TOKEN_SCOPE = "https://database.windows.net/.default"
+
+# dropped from the DSN query too, not just from `apply_authentication_to_dsn`: mssql-python rejects
+# `token_provider` next to `Authentication=`, and its own sign-in would overwrite an `access_token`
+_TOKEN_INCOMPATIBLE_DSN_KEYS = frozenset({"authentication", "uid", "pwd"})
 
 # Entra ID authentication methods supported by mssql-python's `Authentication=` connection
 # option. mssql-python performs the sign-in for all of them; dlt only builds the DSN.
@@ -43,22 +46,34 @@ def _normalize_authentication(authentication: str) -> str:
     return _AUTHENTICATION_ALIASES.get(authentication.lower(), authentication)
 
 
-def build_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
-    """Return `attrs_before` with a directly injected Entra ID access token, or None."""
-    if credentials.access_token:
-        token = str(credentials.access_token)
-    elif credentials.azure_credential:
-        token = credentials.azure_credential.get_token(SQL_TOKEN_SCOPE).token
-    else:
+def uses_explicit_token(credentials: Any) -> bool:
+    """True when `access_token` or `azure_credential` bypasses `authentication`."""
+    return bool(credentials.access_token or credentials.azure_credential)
+
+
+def build_access_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
+    """Return `attrs_before` with the pre-acquired `access_token`, or None."""
+    if not credentials.access_token:
         return None
-    encoded_token = token.encode("utf-16-le")
+    encoded_token = str(credentials.access_token).encode("utf-16-le")
     token_struct = struct.pack(f"<I{len(encoded_token)}s", len(encoded_token), encoded_token)
     return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
 
 
+def select_token_provider(credentials: Any) -> Any | None:
+    """Return the credential mssql-python should acquire Entra ID tokens from, or None.
+
+    `access_token` is already a token and keeps the `attrs_before` path, so it suppresses the
+    provider — mssql-python rejects both token sources being supplied at once.
+    """
+    if credentials.access_token:
+        return None
+    return credentials.azure_credential
+
+
 def validate_authentication(credentials: Any) -> None:
     """Validate the configured authentication method."""
-    if credentials.access_token or credentials.azure_credential:
+    if uses_explicit_token(credentials):
         # A token (or a credential able to fetch one) was injected directly: it takes
         # precedence over `authentication`, whose value does not need to be validated.
         return
@@ -81,8 +96,8 @@ def validate_authentication(credentials: Any) -> None:
 
 def apply_authentication_to_dsn(credentials: Any, params: dict[str, Any]) -> None:
     """Add UID/PWD/Authentication keys to an ODBC DSN dict based on the authentication method."""
-    # an injected token takes precedence: auth is handled entirely through attrs_before
-    if credentials.access_token or credentials.azure_credential:
+    # an explicit token takes precedence: auth is handled entirely outside the DSN
+    if uses_explicit_token(credentials):
         return
     authentication = credentials.authentication
     if not authentication:
@@ -179,10 +194,13 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     """Service Principal client secret, used with `ActiveDirectoryServicePrincipal` authentication."""
 
     access_token: Optional[TSecretStrValue] = None
-    """Pre-acquired Entra ID access token, injected as-is. Takes precedence over `azure_credential` and `authentication`"""
+    """Pre-acquired Entra ID access token, injected as-is. Takes precedence over `azure_credential`
+    and `authentication`. Use it for sovereign clouds, whose scope `azure_credential` cannot reach"""
 
     azure_credential: Annotated[Optional[Any], NotResolved()] = None
-    """A `TokenCredential` injected at runtime, e.g. `DefaultAzureCredential()`. Takes precedence over `authentication` but not over `access_token`"""
+    """A `TokenCredential` injected at runtime, e.g. `DefaultAzureCredential()`, handed to
+    mssql-python as `token_provider`. Takes precedence over `authentication` but not over
+    `access_token`. The driver acquires the token for the Azure commercial SQL scope only"""
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
@@ -235,6 +253,8 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
             # unnecessary since the driver handles long/max types natively, so neither belongs
             # in the DSN.
             skip_keys = {"driver", "connect_timeout", "longasmax"}
+            if uses_explicit_token(self):
+                skip_keys |= _TOKEN_INCOMPATIBLE_DSN_KEYS
             params.update(
                 {k.upper(): v for k, v in self.query.items() if k.lower() not in skip_keys}
             )
@@ -245,8 +265,12 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return build_odbc_dsn(params)
 
     def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
-        """Return `attrs_before` with a directly injected Entra ID access token, or None."""
-        return build_token_attrs_before(self)
+        """Return `attrs_before` with the pre-acquired `access_token`, or None."""
+        return build_access_token_attrs_before(self)
+
+    def to_odbc_token_provider(self) -> Any | None:
+        """Return the `azure_credential` mssql-python acquires tokens from, or None."""
+        return select_token_provider(self)
 
 
 @configspec
