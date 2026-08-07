@@ -45,8 +45,8 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
         # timeout) on the first connection any process opens, unless the application calls
         # `mssql_python.pooling()` first — which dlt does not do, since these defaults are
         # already sane for our workload. Since v1.13 the pool key is identity-aware only for the
-        # `Authentication=` methods the driver acquires a token for itself: `ActiveDirectoryMsi`
-        # and (off Windows) `ActiveDirectoryInteractive`/`ActiveDirectoryDeviceCode` get an
+        # `Authentication=` methods the driver acquires a token for itself: `ActiveDirectoryMsi`,
+        # `ActiveDirectoryDeviceCode`, and (off Windows) `ActiveDirectoryInteractive` get an
         # account discriminator and are refreshed by the driver on near-expiry checkout. The rest
         # are not refreshed: `ActiveDirectoryServicePrincipal`, `ActiveDirectoryPassword` and
         # `ActiveDirectoryIntegrated` are handled natively by ODBC and pool on the bare connection
