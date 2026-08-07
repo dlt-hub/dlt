@@ -10,7 +10,8 @@ from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
 from dlt.destinations.impl.mssql.configuration import (
     apply_authentication_to_dsn,
-    build_token_attrs_before,
+    build_access_token_attrs_before,
+    select_token_provider,
     validate_authentication,
 )
 
@@ -28,8 +29,8 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     `ActiveDirectoryDefault` (alias `default`), `ActiveDirectoryDeviceCode`. All are passed
     straight through as `Authentication=` in the DSN — mssql-python performs the sign-in.
 
-    `fab_notebookutils` is the exception: not an mssql-python method, so dlt acquires the token
-    from the Fabric NotebookUtils credential API and injects it via `attrs_before`.
+    `fab_notebookutils` is the exception: not an mssql-python method, so dlt builds a credential
+    backed by the Fabric NotebookUtils API and hands it to the driver as `token_provider`.
 
     Alternatively, `access_token` or `azure_credential` can be injected directly, bypassing
     `authentication` entirely (see their docstrings for precedence).
@@ -54,7 +55,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     `ActiveDirectoryServicePrincipal` (default), `ActiveDirectoryPassword`,
     `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`,
     `ActiveDirectoryDefault` (alias `default`), `ActiveDirectoryDeviceCode`. Fabric runtime:
-    `fab_notebookutils`, whose token dlt injects itself."""
+    `fab_notebookutils`, whose credential dlt builds and hands to the driver."""
 
     username: str | None = None
     """User principal name, used with `ActiveDirectoryPassword` authentication."""
@@ -63,10 +64,13 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     """Password, used with `ActiveDirectoryPassword` authentication."""
 
     access_token: Optional[TSecretStrValue] = None
-    """Pre-acquired Entra ID access token, injected as-is. Takes precedence over `azure_credential` and `authentication`"""
+    """Pre-acquired Entra ID access token, injected as-is. Takes precedence over `azure_credential`
+    and `authentication`. Use it for sovereign clouds, whose scope `azure_credential` cannot reach"""
 
     azure_credential: Annotated[Optional[Any], NotResolved()] = None
-    """A `TokenCredential` injected at runtime, e.g. `DefaultAzureCredential()`. Takes precedence over `authentication` but not over `access_token`"""
+    """A `TokenCredential` injected at runtime, e.g. `DefaultAzureCredential()`, handed to
+    mssql-python as `token_provider`. Takes precedence over `authentication` but not over
+    `access_token`. The driver acquires the token for the Azure commercial SQL scope only"""
 
     # Override to make optional - not needed for Fabric Warehouse credentials (only for staging)
     azure_storage_account_name: Optional[str] = None
@@ -106,8 +110,12 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         return params
 
     def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
-        """Return `attrs_before` with a directly injected Entra ID access token, or None."""
-        return build_token_attrs_before(self)
+        """Return `attrs_before` with the pre-acquired `access_token`, or None."""
+        return build_access_token_attrs_before(self)
+
+    def to_odbc_token_provider(self) -> Optional[Any]:
+        """Return the `azure_credential` mssql-python acquires tokens from, or None."""
+        return select_token_provider(self)
 
     def to_odbc_dsn(self) -> str:
         """Build the ODBC connection string."""
