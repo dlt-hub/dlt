@@ -77,14 +77,27 @@ jobs:
     # repository, and dlt has many: without this, a maintainer reviewing an
     # unrelated pull request passes the allowlist gate and starts a job that can
     # only fail. The bot labels the pull requests it opens.
+    #
+    # A comment carrying `<!-- agentic-docs -->` is the bot's own and starts
+    # nothing. This is not hygiene, it is a self-trigger that happened: the bot's
+    # position request shows an example line reading `/position under Pipeline
+    # operations, add a section to Profiles`, which matched the `/position` arm
+    # below. The comment is posted with the maintainer's PAT, so the allowlist
+    # gate passed, and the driver read the bot's own example as an instruction —
+    # resolving to a real dlt page and starting to write the wrong page into it.
+    # Filtering by author cannot work, because the PAT belongs to a person.
+    # `github.event.comment.body` is the raw body here, markers included, unlike
+    # what the driver's fetch returns.
     if: |
       (github.event_name == 'issues' &&
        contains(github.event.issue.labels.*.name, 'documentation') &&
        contains(github.event.issue.labels.*.name, 'agent')) ||
       (github.event_name == 'issue_comment' &&
+       !contains(github.event.comment.body, '<!-- agentic-docs -->') &&
        !github.event.issue.pull_request &&
        contains(github.event.comment.body, '/position')) ||
       (github.event_name == 'issue_comment' &&
+       !contains(github.event.comment.body, '<!-- agentic-docs -->') &&
        github.event.issue.pull_request &&
        contains(github.event.issue.labels.*.name, 'agentic-docs') &&
        contains(github.event.comment.body, '/revise')) ||
