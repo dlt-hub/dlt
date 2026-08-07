@@ -5,7 +5,6 @@ import pytest
 
 import mssql_python
 from mssql_python import TokenProvider
-from mssql_python.auth import acquire_token_from_credential
 from azure.identity import DefaultAzureCredential
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
@@ -454,6 +453,9 @@ def test_mssql_minimal_token_provider_satisfies_the_driver_calling_convention() 
     A provider with no `*args`/`**kwargs` is the one most likely to break on a signature change,
     and dlt now hands such objects straight to mssql-python without ever calling them itself.
     """
+    # private API (not in __all__/.pyi); scoped so a rename only breaks this test
+    from mssql_python.auth import acquire_token_from_credential
+
     provider = _MinimalTokenProvider()
     # mypy gates the structural conformance to the protocol the driver declares for token_provider=
     checked: TokenProvider = provider
@@ -572,6 +574,27 @@ def test_mssql_resolve_configuration_access_token_without_username_password() ->
     assert resolved.is_resolved()
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
     assert resolved.to_odbc_attrs_before()[1256][4:].decode("utf-16-le") == "explicit-token"
+
+
+def test_mssql_resolve_configuration_falsy_azure_credential() -> None:
+    """`on_partial` must test the credential by identity, not truthiness.
+
+    A credential delegating `__len__` to an empty cache is falsy but perfectly usable. Treated as
+    absent it drops through to the SQL-login branch and demands `username`/`password` that the
+    token path never uses. Only `resolve_configuration` exercises `on_partial`, so the
+    `to_odbc_*` matrix cannot catch this.
+    """
+    creds = MsSqlCredentials()
+    creds.host = "sql.example.com"
+    creds.database = "test_db"
+    credential = _FalsyTokenCredential()
+    creds.azure_credential = credential
+
+    resolved = resolve_configuration(creds)
+
+    assert resolved.is_resolved()
+    assert resolved.to_odbc_token_provider() is credential
+    assert "AUTHENTICATION" not in _dsn_dict(resolved)
 
 
 def test_mssql_resolve_configuration_azure_credential_without_username_password() -> None:

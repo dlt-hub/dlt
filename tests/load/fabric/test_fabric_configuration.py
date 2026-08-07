@@ -11,7 +11,6 @@ from unittest.mock import MagicMock
 import pytest
 
 from mssql_python import TokenProvider
-from mssql_python.auth import acquire_token_from_credential
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
@@ -657,6 +656,9 @@ def test_fabric_notebookutils_satisfies_the_driver_token_provider_protocol(
     The annotation is the static half of the check — `TokenProvider` is the protocol the driver
     declares for `token_provider=` — and running its own acquisition helper is the runtime half.
     """
+    # private API (not in __all__/.pyi); scoped so a rename only breaks this test
+    from mssql_python.auth import acquire_token_from_credential
+
     provider: TokenProvider = FabNotebookUtilsCredential("sql")
 
     # the helper is annotated with azure-identity's stricter `TokenCredential`, while the driver
