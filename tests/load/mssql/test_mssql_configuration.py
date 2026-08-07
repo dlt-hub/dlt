@@ -552,9 +552,9 @@ def test_mssql_query_authentication_keys_kept_without_explicit_token() -> None:
     assert dsn["TRUSTED_CONNECTION"] == "yes"
 
 
-def test_mssql_adbc_dsn_dict_keeps_query_credentials() -> None:
-    """`get_odbc_dsn_dict()` also feeds `MssqlParquetCopyJob`, whose go-mssqldb driver cannot use
-    an Entra token — dropping query credentials there would leave it with no way to authenticate."""
+def test_mssql_dsn_dict_keeps_query_credentials() -> None:
+    """`get_odbc_dsn_dict()` reports the credentials as configured; only `to_odbc_dsn()` drops the
+    keys an explicit token supersedes."""
     creds = MsSqlCredentials(_AUTH_QUERY_DSN)
     creds.access_token = "explicit-token"
 
