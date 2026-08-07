@@ -149,6 +149,12 @@ dlthub job trigger "tag:backfill"
 dlthub run backfill --refresh    # explicit refresh on a single job
 ```
 
+`run_context["refresh"]` is `True` in three cases:
+
+- **First run:** the job has never completed successfully, which is the natural moment for a backfill.
+- **Explicit request:** you pass `--refresh` to `dlthub run`, `dlthub local run`, or `dlthub job trigger`.
+- **Cascade:** an upstream job with `refresh="always"` (or a `--refresh` triggered on an upstream) propagates the signal through the freshness graph. `refresh="block"` on a job severs the cascade at that node.
+
 Note that the refresh signal will not drop your data automatically, you should use one of the [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
 ```py
 @run.pipeline(
@@ -164,6 +170,56 @@ def build_report(run_context: TJobRunContext):
     )
 ```
 Above we tell `dlt` to truncate all tables belonging to resources in `data_source()` if the refresh signal got passed in the `refresh` flag.
+
+### Refresh a single resource
+
+For a targeted rebuild, combine `refresh="always"` with `with_resources(*resources)` and drive the resource list from configuration so one job covers every table. The job below drops and reloads only the tables named at runtime:
+
+```py
+from typing import List
+
+import dlt
+from dlt.hub import run
+
+from fruitshop_pipeline import fruitshop
+
+fruitshop_pipeline = dlt.pipeline(
+    pipeline_name="fruitshop",
+    destination="fruitshop_destination",
+    dataset_name="fruitshop_data",
+)
+
+
+@run.pipeline(fruitshop_pipeline, refresh="always", expose={"tags": ["refresh"]})
+def refresh_tables(resources: List[str] = None):
+    """Rebuild only the named tables. Leaves siblings alone."""
+    resources = resources or ["customers"]
+    fruitshop_pipeline.refresh = "drop_resources"
+    print(fruitshop_pipeline.run(fruitshop().with_resources(*resources)))
+```
+
+Configure the resource list per profile in `.dlt/<profile>.config.toml`:
+
+```toml
+[jobs.refresh_jobs.refresh_tables]
+resources = ["inventory"]
+```
+
+The section key is `[jobs.<module>.<job>]`. Use `[jobs.<module>]` to configure every job in the module. Since configuration is per profile, `dev.config.toml` can point at a small table for fast local runs while `prod.config.toml` names the real one.
+
+Override on the CLI for a one-off:
+
+```sh
+dlthub local run refresh_tables -c 'resources=["purchases"]'
+```
+
+Then trigger every refresh job on the platform with a tag selector:
+
+```sh
+dlthub job trigger tag:refresh
+```
+
+See [doing a full or partial refresh](../../general-usage/incremental-loading.md#doing-a-full-or-partial-refresh) for `drop_data` vs `drop_resources` vs `drop_sources` semantics. Use `drop_data` when the schema is still correct and only the rows should be replaced. Use `drop_resources` when the schema changed and the table should be recreated.
 
 ## Tags and bulk triggering
 
