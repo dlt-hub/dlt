@@ -262,12 +262,12 @@ destination. Everything else in `dlt`'s type matrix is passed through natively.
 ### Loading with INSERT statements
 
 Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We send multiple
-sql statements in a single batch. In case you observe odbc driver locking (i.e. when connection with open transaction leaks into the pool) you can:
+sql statements in a single batch. In case you observe driver locking (i.e. when connection with open transaction leaks into the pool) you can:
 
-1. disable `pyodbc` connection pool.
+1. disable the connection pool that `mssql-python` enables by default.
 ```py
-import pyodbc
-pyodbc.pooling = False
+import mssql_python
+mssql_python.pooling(enabled=False)
 ```
 
 2. disable batching of multiple statements in `dlt`
