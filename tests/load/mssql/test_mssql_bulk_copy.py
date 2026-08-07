@@ -19,7 +19,7 @@ from dlt.destinations.impl.mssql.configuration import MsSqlCredentials
 from tests.pipeline.utils import assert_load_info, load_table_counts
 
 # mark all tests as essential, do not remove
-pytestmark = [pytest.mark.essential, pytest.mark.mssql]
+pytestmark = pytest.mark.essential
 
 
 @pytest.fixture
