@@ -40,11 +40,12 @@ in when normal dependency resolution runs.
 mssql-python pools connections by default. Since v1.13 the pool key is identity-aware for the
 `Authentication=` methods where the driver acquires the token itself (`ActiveDirectoryMsi`,
 `ActiveDirectoryDeviceCode`, and off Windows `ActiveDirectoryInteractive`), and those pooled
-connections are refreshed by the driver when their token nears expiry. `ActiveDirectoryDefault`
-and the raw tokens passed through `access_token`/`azure_credential` are pooled by token hash
-instead — distinct tokens never share a connection — but are **not** refreshed on expiry: if a
-long-running pipeline's token expires while its connection sits pooled, the next use fails and
-dlt does not renew it.
+connections are refreshed by the driver when their token nears expiry. `ActiveDirectoryDefault`,
+`access_token` and `azure_credential` are pooled by token hash instead — distinct tokens never
+share a connection — but are **not** refreshed on expiry: if a long-running pipeline's token
+expires while its connection sits pooled, the next use fails and dlt does not renew it. Handing
+`azure_credential` to the driver does not change this; a custom provider is keyed on the token it
+mints, not on the provider object.
 :::
 
 ### Create a pipeline
@@ -140,6 +141,35 @@ azure_tenant_id = "your-tenant-id"
 azure_client_id = "your-client-id"
 azure_client_secret = "your-client-secret"
 ```
+
+#### Passing a credential object or a token yourself
+
+Instead of naming a method, you can hand `dlt` a credential object through `azure_credential`. It is
+passed straight to the driver, which acquires the token, so any object with a `get_token(scope)`
+method works — every `azure-identity` credential, or your own wrapper:
+
+```py
+from azure.identity import DefaultAzureCredential
+
+pipeline = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.mssql(credentials={
+    "host": "loader.database.windows.net",
+    "database": "dlt_data",
+    "azure_credential": DefaultAzureCredential(),
+  }),
+  dataset_name='chess_data')
+```
+
+A pre-acquired token goes in `access_token` instead, which wins over both `azure_credential` and
+`authentication`.
+
+:::note Sovereign clouds
+The driver requests the token for the Azure **commercial** SQL scope
+(`https://database.windows.net/.default`). Azure US Government, Azure China and Azure Germany need a
+different audience, and a token minted for the wrong one is rejected at login. For those, acquire
+the token yourself for the right scope and pass it as `access_token`.
+:::
 
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
 ```py

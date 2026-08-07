@@ -38,7 +38,7 @@ The method is selected with the `authentication` credential option. For every me
 
 `ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`. `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias `default`, which covers managed identity, environment and Azure CLI) and `ActiveDirectoryDeviceCode` need no further fields.
 
-The exception is **`fab_notebookutils`**, for pipelines running inside a Fabric notebook. There is no environment, managed identity or Azure CLI login to sign in with there, so `dlt` acquires the token itself from the notebook runtime through [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials) and injects it into the connection. It authenticates as whoever runs the notebook, so that identity needs write access to the warehouse:
+The exception is **`fab_notebookutils`**, for pipelines running inside a Fabric notebook. There is no environment, managed identity or Azure CLI login to sign in with there, so `dlt` builds a credential backed by the notebook runtime's [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials) API and hands it to the driver, which acquires the token from it. It authenticates as whoever runs the notebook, so that identity needs write access to the warehouse:
 
 ```toml
 [destination.fabric.credentials]
@@ -88,6 +88,10 @@ host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
 database = "mydb"
 authentication = "default"
 ```
+
+You can also inject a credential object as `azure_credential` or a pre-acquired token as
+`access_token`, exactly as for [MS SQL](./mssql.md#passing-a-credential-object-or-a-token-yourself)
+— including the sovereign-cloud caveat.
 
 ## Write disposition
 All write dispositions are supported, including the [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies.

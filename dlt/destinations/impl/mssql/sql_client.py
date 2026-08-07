@@ -40,6 +40,11 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
         # mssql-python installs and manages its own driver dependency, so the connection string
         # carries no DRIVER, and it signs in for every supported Entra ID authentication method
         # itself from the `Authentication=` DSN keyword — dlt injects no `attrs_before` for those.
+        # An `azure_credential` is handed over whole as `token_provider`, leaving acquisition,
+        # validation and expiry capture to the driver; only a pre-acquired `access_token` still
+        # travels as a packed `attrs_before` struct, which is also the sovereign-cloud escape hatch
+        # since `token_provider` is fixed to the Azure commercial SQL scope. The driver rejects any
+        # two of the three being supplied at once.
         #
         # mssql-python auto-enables connection pooling (default: 100 connections, 600s idle
         # timeout) on the first connection any process opens, unless the application calls
@@ -50,15 +55,18 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
         # account discriminator and are refreshed by the driver on near-expiry checkout. The rest
         # are not refreshed: `ActiveDirectoryServicePrincipal`, `ActiveDirectoryPassword` and
         # `ActiveDirectoryIntegrated` are handled natively by ODBC and pool on the bare connection
-        # string, like plain SQL login, while `ActiveDirectoryDefault` and the raw tokens dlt
-        # injects via `attrs_before` (`access_token`/`azure_credential`) hash into the same
+        # string, like plain SQL login, while `ActiveDirectoryDefault`, the `access_token` struct
+        # and the token the driver mints from an `azure_credential` all hash into the same
         # non-refreshing pool bucket — distinct tokens land in distinct pools even with an
-        # identical DSN, but the caller remains responsible for the token's lifetime.
+        # identical DSN, but the caller remains responsible for the token's lifetime. Delegating
+        # to `token_provider` does not change that: v1.13 keys a custom provider on the token it
+        # mints, not on the provider object, so a rotated token opens a new bucket.
         self._conn = mssql_python.connect(
             self.credentials.to_odbc_dsn(),
             autocommit=True,
             attrs_before=self.credentials.to_odbc_attrs_before(),  # type: ignore[arg-type]
             timeout=self.credentials.connect_timeout,
+            token_provider=self.credentials.to_odbc_token_provider(),
         )
         return self._conn
 
