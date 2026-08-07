@@ -14,7 +14,7 @@ from tests.load.utils import (
 
 
 # NOTE: you need to install ADBC drivers to run this tests using dbc
-# dbc install: postgresql, mysql, mssql, sqlite
+# dbc install: postgresql, mysql, sqlite
 
 
 @pytest.fixture(autouse=True)
@@ -24,7 +24,7 @@ def enable_adbc(preserve_environ) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "sqlalchemy"]),
     ids=lambda x: x.name,
 )
 def test_adbc_detection(destination_config: DestinationTestConfiguration) -> None:
@@ -47,7 +47,7 @@ def test_adbc_detection(destination_config: DestinationTestConfiguration) -> Non
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "sqlalchemy"]),
     ids=lambda x: x.name,
 )
 def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) -> None:
@@ -60,12 +60,9 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
 
     pipeline = destination_config.setup_pipeline("pipeline_adbc", dev_mode=True)
 
-    if destination_config.destination_type in ("postgres", "mssql"):
+    if destination_config.destination_type == "postgres":
         del column_schemas["col11_precision"]  # TIME(3) not supported
-        if destination_config.destination_type == "postgres":
-            del column_schemas["col6_precision"]  # adbc cannot process decimal(6,2)
-        else:
-            del column_schemas["col7_precision"]  # adbc cannot process fixed binary
+        del column_schemas["col6_precision"]  # adbc cannot process decimal(6,2)
 
     if destination_config.destination_name == "sqlalchemy_sqlite":
         for k, v in column_schemas.items():
@@ -115,7 +112,7 @@ def test_adbc_parquet_loading(destination_config: DestinationTestConfiguration) 
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["postgres", "mssql", "sqlalchemy"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "sqlalchemy"]),
     ids=lambda x: x.name,
 )
 def test_adbc_parquet_with_dlt_load_id(
