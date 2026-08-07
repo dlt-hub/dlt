@@ -25,6 +25,7 @@ from dlt.common.utils import custom_environ, digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
+import dlt.destinations.path_utils
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
     HfFilesystemDestinationClientConfiguration,
@@ -367,6 +368,24 @@ def test_replace_does_not_truncate_sibling_tables() -> None:
 
     assert not client.fs_client.isfile(event_file)
     assert client.fs_client.isfile(events_file)
+
+
+def test_unsafe_layout_separator_warning(mocker) -> None:
+    """`_` can occur in a table name so the `event` prefix also selects `event__child` files."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}_{load_id}.{file_id}.{ext}"
+    logger_mock = mocker.patch("dlt.destinations.path_utils.logger")
+    # the warning is emitted once per layout and naming convention, process-wide
+    dlt.destinations.path_utils._log_unsafe_prefix_separators.cache_clear()
+
+    # dlt creates a job client many times per run but warns the user once
+    _client_factory(filesystem("random_location"))
+    _client_factory(filesystem("random_location"))
+    logger_mock.warning.assert_called_once()
+    assert "'_'" in logger_mock.warning.call_args[0][0]
+
+    logger_mock.reset_mock()
+    _client_factory(filesystem("random_location", warn_unsafe_layout_separators=False))
+    logger_mock.warning.assert_not_called()
 
 
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)

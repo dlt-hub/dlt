@@ -1,8 +1,10 @@
 import re
 import os
+from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 from dlt.common import logger
+from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.time import (
@@ -212,14 +214,58 @@ def check_layout(
 
 
 def _ensure_ext_in_layout(layout: str, placeholders: Sequence[str]) -> str:
-    """Append `{ext}` to the layout if it is missing.
-
-    `create_path` and `get_table_prefix_layout` both require the layout to
-    contain `{ext}` so paths and table prefixes end with a dot separator.
-    """
+    """Returns the layout with `{ext}` appended when the layout does not contain it."""
     if "ext" not in placeholders:
         return f"{layout}.{{ext}}"
     return layout
+
+
+def _survives_normalization(naming: NamingConvention, separator: str) -> bool:
+    """Tells if `separator` can occur inside a table name normalized with `naming`."""
+    # nested tables are joined with PATH_SEPARATOR after normalization strips it from identifiers
+    if separator in naming.PATH_SEPARATOR:
+        return True
+    # a separator on its own normalizes to a placeholder, the probe embeds it in an identifier
+    probe = f"a{separator}b"
+    return naming.normalize_table_identifier(probe) == probe
+
+
+def get_unsafe_prefix_separators(prefix: str, naming: NamingConvention) -> List[str]:
+    """Returns separators in a table prefix that `naming` allows inside table names."""
+    unsafe: List[str] = []
+    table_name_index = prefix.index("{table_name}")
+
+    if "{schema_name}" in prefix[:table_name_index]:
+        segment = prefix[prefix.index("{schema_name}") + 13 : table_name_index]
+        if _survives_normalization(naming, segment):
+            unsafe.append(segment)
+
+    # only one character after {table_name} is in the prefix, a longer literal does not separate
+    separator = prefix[table_name_index + 12 :]
+    if separator and _survives_normalization(naming, separator):
+        unsafe.append(separator)
+
+    return list(dict.fromkeys(unsafe))
+
+
+def warn_on_unsafe_prefix_separators(layout: str, prefix: str, naming: NamingConvention) -> None:
+    """Emits a single warning naming the table prefix separators that are unsafe for `naming`."""
+    unsafe = get_unsafe_prefix_separators(prefix, naming)
+    if not unsafe:
+        return
+    _log_unsafe_prefix_separators(layout, ", ".join(repr(sep) for sep in unsafe), naming.name())
+
+
+# dlt creates a job client many times per run, so the cache emits this warning once
+@lru_cache(maxsize=None)
+def _log_unsafe_prefix_separators(layout: str, separators: str, naming_name: str) -> None:
+    logger.warning(
+        f"Layout `{layout}` separates `{{table_name}}` with {separators}, which the"
+        f" `{naming_name}` naming convention also allows inside table names. dlt names a nested"
+        " table `event__child`, so a `replace` of `event` also deletes the child files."
+        " Use a separator that the naming convention removes, for example `/` or `.`."
+        " To keep this layout, set `warn_unsafe_layout_separators=False` on the destination."
+    )
 
 
 def create_path(
@@ -259,9 +305,12 @@ def get_table_prefix_layout(
     layout: str,
     supported_prefix_placeholders: Sequence[str] = SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS,
     table_needs_own_folder: bool = False,
+    naming: Optional[NamingConvention] = None,
 ) -> str:
     """get layout fragment that defines positions of the table, cutting other placeholders
     allowed `supported_prefix_placeholders` that may appear before table.
+
+    With `naming`, this also warns when a prefix separator can occur inside a table name.
     """
     placeholders = get_placeholders(layout)
     # fail if table name is not defined
@@ -284,17 +333,21 @@ def get_table_prefix_layout(
             )
         raise CantExtractTablePrefix(layout, details)
 
-    layout = _ensure_ext_in_layout(layout, placeholders)
+    # keep `layout` as written by the user so exceptions and warnings do not quote the {ext} we add
+    ext_layout = _ensure_ext_in_layout(layout, placeholders)
 
     # we include the char after the table_name here, this should be a separator not a new placeholder
     # this is to prevent selecting tables that have the same starting name -> {table_name}/
-    prefix = layout[: layout.index("{table_name}") + 13]
+    prefix = ext_layout[: ext_layout.index("{table_name}") + 13]
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
     if prefix[-1] != "/" and table_needs_own_folder:
         raise CantExtractTablePrefix(
             layout, "Table requires it's own folder, please add a '/' after your {table_name}. "
         )
+
+    if naming:
+        warn_on_unsafe_prefix_separators(layout, prefix, naming)
 
     return prefix
 
