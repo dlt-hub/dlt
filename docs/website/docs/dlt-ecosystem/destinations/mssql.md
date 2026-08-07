@@ -91,12 +91,11 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 
 You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
 
-:::warning Changed in 1.30.0
-When `access_token` or `azure_credential` is set, an `authentication`, `uid`, `pwd` or
-`trusted_connection` query key is now dropped from the connection string instead of being passed
-through. Previously the driver acted on it and signed in as that identity, silently ignoring the
-token you configured — so a config carrying both authenticated as the wrong principal. If you relied
-on the query key, drop the token field instead. Other query keys are unaffected.
+:::note
+`authentication`, `uid`, `pwd` and `trusted_connection` query keys are dropped from the connection
+string when `access_token` or `azure_credential` is set — otherwise the driver would sign in as that
+identity and ignore the token you configured. Pick one or the other. Every other query key is passed
+through untouched.
 :::
 
 **To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
@@ -177,6 +176,17 @@ The driver requests the token for the Azure **commercial** SQL scope
 (`https://database.windows.net/.default`). Azure US Government, Azure China and Azure Germany need a
 different audience, and a token minted for the wrong one is rejected at login. For those, acquire
 the token yourself for the right scope and pass it as `access_token`.
+:::
+
+:::warning Entra ID tokens do not reach the parquet loader
+[Fast loading with parquet](#fast-loading-with-parquet) is the default when the ADBC driver is
+installed, and it opens its **own** connection through go-mssqldb, which cannot use an Entra ID
+access token. With `access_token` or `azure_credential` configured, that connection falls back to
+whatever credentials the connection string still carries — so the load either signs in as a
+different identity than the rest of the pipeline, or fails to sign in at all.
+
+Until this is resolved, use a SQL login when loading with parquet, or force
+`loader_file_format="insert_values"` to keep everything on the token-authenticated connection.
 :::
 
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
