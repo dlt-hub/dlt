@@ -54,13 +54,24 @@ def uses_explicit_token(credentials: Any) -> bool:
     return bool(credentials.access_token) or credentials.azure_credential is not None
 
 
-def build_access_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
+def build_access_token_attrs_before(credentials: Any) -> Optional[Dict[int, bytes]]:
     """Return `attrs_before` with the pre-acquired `access_token`, or None."""
     if not credentials.access_token:
         return None
     encoded_token = str(credentials.access_token).encode("utf-16-le")
     token_struct = struct.pack(f"<I{len(encoded_token)}s", len(encoded_token), encoded_token)
     return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
+
+
+def strip_token_incompatible_keys(credentials: Any, params: Dict[str, Any]) -> Dict[str, Any]:
+    """Drop DSN keys an explicit Entra token supersedes, so only one identity reaches the driver.
+
+    Applies to the ODBC connection string only. `get_odbc_dsn_dict()` also feeds the ADBC parquet
+    job, whose driver cannot use an Entra token and still needs whatever credentials it was given.
+    """
+    if not uses_explicit_token(credentials):
+        return params
+    return {k: v for k, v in params.items() if k.lower() not in _TOKEN_INCOMPATIBLE_DSN_KEYS}
 
 
 def select_token_provider(credentials: Any) -> Optional[Any]:
@@ -234,7 +245,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return query
 
     def on_partial(self) -> None:
-        if self.authentication or self.access_token or self.azure_credential:
+        if self.authentication or uses_explicit_token(self):
             # Entra ID methods supply their own credentials and do not rely on username/password;
             # resolve once we have a target. `on_resolved` validates.
             if self.host and self.database:
@@ -262,17 +273,9 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         return params
 
     def to_odbc_dsn(self) -> str:
-        params = self.get_odbc_dsn_dict()
-        if uses_explicit_token(self):
-            # BREAKING: an `authentication`/`uid`/`pwd`/`trusted_connection` query key is no longer
-            # passed through when `access_token`/`azure_credential` is set. It used to reach the
-            # driver and silently authenticate as a different identity than the configured token.
-            params = {
-                k: v for k, v in params.items() if k.lower() not in _TOKEN_INCOMPATIBLE_DSN_KEYS
-            }
-        return build_odbc_dsn(params)
+        return build_odbc_dsn(strip_token_incompatible_keys(self, self.get_odbc_dsn_dict()))
 
-    def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
+    def to_odbc_attrs_before(self) -> Optional[Dict[int, bytes]]:
         """Return `attrs_before` with the pre-acquired `access_token`, or None."""
         return build_access_token_attrs_before(self)
 

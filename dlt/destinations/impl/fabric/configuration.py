@@ -12,6 +12,7 @@ from dlt.destinations.impl.mssql.configuration import (
     apply_authentication_to_dsn,
     build_access_token_attrs_before,
     select_token_provider,
+    strip_token_incompatible_keys,
     validate_authentication,
 )
 
@@ -109,7 +110,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
         apply_authentication_to_dsn(self, params)
         return params
 
-    def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
+    def to_odbc_attrs_before(self) -> Optional[Dict[int, bytes]]:
         """Return `attrs_before` with the pre-acquired `access_token`, or None."""
         return build_access_token_attrs_before(self)
 
@@ -119,7 +120,8 @@ class FabricCredentials(AzureServicePrincipalCredentials):
 
     def to_odbc_dsn(self) -> str:
         """Build the ODBC connection string."""
-        params = self.get_odbc_dsn_dict()
+        # no free-form query passthrough here today, so this only guards a future one
+        params = strip_token_incompatible_keys(self, self.get_odbc_dsn_dict())
         return ";".join(f"{k}={v}" for k, v in params.items())
 
     def to_native_credentials(self) -> Optional[Any]:
