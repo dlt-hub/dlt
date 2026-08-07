@@ -25,6 +25,7 @@ from tests.load.utils import (
     TEST_FILE_LAYOUTS,
     FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
     FILE_LAYOUT_CLASSIC,
+    FILE_LAYOUT_TABLE_NAME_ONLY,
     FILE_LAYOUT_TABLE_NOT_FIRST,
     destinations_configs,
     DestinationTestConfiguration,
@@ -348,6 +349,7 @@ def test_athena_file_layouts(destination_config: DestinationTestConfiguration, l
     if layout in [
         FILE_LAYOUT_CLASSIC,  # table not in own folder
         FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,  # table not in own folder
+        FILE_LAYOUT_TABLE_NAME_ONLY,  # table not in own folder, dlt appends `.{ext}`
         FILE_LAYOUT_TABLE_NOT_FIRST,  # table not the first variable
     ]:
         with pytest.raises(CantExtractTablePrefix):

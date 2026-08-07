@@ -76,6 +76,9 @@ STANDARD_PLACEHOLDERS = DATETIME_PLACEHOLDERS.union(
 
 SUPPORTED_TABLE_NAME_PREFIX_PLACEHOLDERS = ("schema_name",)
 
+TABLE_NAME_PLACEHOLDER = "{table_name}"
+SCHEMA_NAME_PLACEHOLDER = "{schema_name}"
+
 
 def normalize_path_sep(pathlib: Any, path: str) -> str:
     """Normalizes path in `path` separator to one used by `pathlib`"""
@@ -233,15 +236,16 @@ def _survives_normalization(naming: NamingConvention, separator: str) -> bool:
 def get_unsafe_prefix_separators(prefix: str, naming: NamingConvention) -> List[str]:
     """Returns separators in a table prefix that `naming` allows inside table names."""
     unsafe: List[str] = []
-    table_name_index = prefix.index("{table_name}")
+    table_name_index = prefix.index(TABLE_NAME_PLACEHOLDER)
 
-    if "{schema_name}" in prefix[:table_name_index]:
-        segment = prefix[prefix.index("{schema_name}") + 13 : table_name_index]
+    if SCHEMA_NAME_PLACEHOLDER in prefix[:table_name_index]:
+        schema_name_index = prefix.index(SCHEMA_NAME_PLACEHOLDER)
+        segment = prefix[schema_name_index + len(SCHEMA_NAME_PLACEHOLDER) : table_name_index]
         if _survives_normalization(naming, segment):
             unsafe.append(segment)
 
     # only one character after {table_name} is in the prefix, a longer literal does not separate
-    separator = prefix[table_name_index + 12 :]
+    separator = prefix[table_name_index + len(TABLE_NAME_PLACEHOLDER) :]
     if separator and _survives_normalization(naming, separator):
         unsafe.append(separator)
 
@@ -261,9 +265,13 @@ def warn_on_unsafe_prefix_separators(layout: str, prefix: str, naming: NamingCon
 def _log_unsafe_prefix_separators(layout: str, separators: str, naming_name: str) -> None:
     logger.warning(
         f"Layout `{layout}` separates `{{table_name}}` with {separators}, which the"
-        f" `{naming_name}` naming convention also allows inside table names. dlt names a nested"
-        " table `event__child`, so a `replace` of `event` also deletes the child files."
-        " Use a separator that the naming convention removes, for example `/` or `.`."
+        f" `{naming_name}` naming convention also allows inside table names. The prefix of one"
+        " table then selects the files of another, so `replace` and `drop` delete too much."
+        " Under `snake_case` the nested table of `event` is named `event__child`, so the `event_`"
+        " prefix also selects the child files, while `/` and `.` are safe because `snake_case`"
+        " removes them from table names. `duck_case` and `direct` keep `/` and `.` inside table"
+        " names, so under them no separator is safe and table names must not contain the one you"
+        " pick."
         " To keep this layout, set `warn_unsafe_layout_separators=False` on the destination."
     )
 
@@ -338,7 +346,8 @@ def get_table_prefix_layout(
 
     # we include the char after the table_name here, this should be a separator not a new placeholder
     # this is to prevent selecting tables that have the same starting name -> {table_name}/
-    prefix = ext_layout[: ext_layout.index("{table_name}") + 13]
+    table_name_end = ext_layout.index(TABLE_NAME_PLACEHOLDER) + len(TABLE_NAME_PLACEHOLDER)
+    prefix = ext_layout[: table_name_end + 1]
     if prefix[-1] == "{":
         raise CantExtractTablePrefix(layout, "A separator is required after a {table_name}. ")
     if prefix[-1] != "/" and table_needs_own_folder:

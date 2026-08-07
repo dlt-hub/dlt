@@ -41,7 +41,11 @@ from dlt.destinations.impl.filesystem.filesystem import (
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load, setup_loader
 from tests.utils import get_test_storage_root, clean_test_storage, init_test_logging
-from tests.load.utils import TEST_FILE_LAYOUTS
+from tests.load.utils import (
+    TEST_FILE_LAYOUTS,
+    FILE_LAYOUT_TABLE_FOLDER_ONLY,
+    FILE_LAYOUT_TABLE_NAME_ONLY,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -244,7 +248,10 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         ) as load_info,
     ):
         client, jobs, _, load_id = load_info
+        # dlt appends `.{ext}` to a layout that does not declare it
         layout = client.config.layout
+        if "{ext}" not in layout:
+            layout += ".{ext}"
         dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
 
         # Assert dataset dir exists
@@ -393,6 +400,9 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
     if default_buckets_env.startswith("hf://"):
         pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+    if layout in (FILE_LAYOUT_TABLE_NAME_ONLY, FILE_LAYOUT_TABLE_FOLDER_ONLY):
+        # without {load_id} and {file_id} every load writes the same path so it cannot keep two copies
+        pytest.skip(f"layout {layout} cannot append, each load overwrites the previous one")
 
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout

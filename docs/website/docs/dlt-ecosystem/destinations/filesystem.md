@@ -567,7 +567,8 @@ A few things to know when specifying your filename layout:
   - include the `{table_name}` placeholder in your layout
   - not have any other placeholders except for the `{schema_name}` placeholder before the table_name placeholder and
   - have a separator after the table_name placeholder
-- The separator after `{table_name}` must be a character that your [naming convention](../../general-usage/naming-convention.md) removes from table names. `dlt` selects the files of a table by this prefix. With `_` under `snake_case`, the prefix of `event` also matches the nested table `event__child`, so a `replace` of `event` deletes the child files.
+- The separator after `{table_name}` must be a character that your [naming convention](../../general-usage/naming-convention.md) removes from table names. `dlt` selects the files of a table by this prefix. With `_` under `snake_case`, the prefix of `event` also matches the nested table `event__child`, so a `replace` of `event` deletes the child files. `/` and `.` are safe under `snake_case`.
+- `duck_case` and `direct` keep `/` and `.` inside table names, so under those conventions no separator is safe. Make sure your table names do not contain the separator you pick.
 - `dlt` warns when a layout has such a separator. To silence the warning, set `warn_unsafe_layout_separators=False` on the destination.
 
 Please note:
