@@ -36,6 +36,15 @@ SUPPORTED_AUTHENTICATION = frozenset(
     }
 )
 
+# Entra ID methods msodbcsql signs in with natively but mssql-py-core does not implement, so they
+# reach the driver fine on the ODBC connection and are rejected on the native bulk copy connection.
+BULK_COPY_UNSUPPORTED_AUTHENTICATION = frozenset(
+    {
+        "ActiveDirectoryPassword",
+        "ActiveDirectoryIntegrated",
+    }
+)
+
 # Thin alias for `ActiveDirectoryDefault`, resolved by `_normalize_authentication`.
 _AUTHENTICATION_ALIASES = {
     "default": "ActiveDirectoryDefault",
@@ -292,7 +301,7 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     create_indexes: bool = False
     has_case_sensitive_identifiers: bool = False
     bulk_copy_timeout: int = 3600
-    """Timeout in seconds for a single native Arrow bulk copy, which loads one parquet file."""
+    """Timeout in seconds for a single native Arrow bulk copy, which loads one parquet load file."""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the configured host."""
