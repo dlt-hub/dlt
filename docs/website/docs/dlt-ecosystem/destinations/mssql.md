@@ -178,15 +178,12 @@ different audience, and a token minted for the wrong one is rejected at login. F
 the token yourself for the right scope and pass it as `access_token`.
 :::
 
-:::warning Entra ID tokens do not reach the parquet loader
-[Fast loading with parquet](#fast-loading-with-parquet) is the default when the ADBC driver is
-installed, and it opens its **own** connection through go-mssqldb, which cannot use an Entra ID
-access token. With `access_token` or `azure_credential` configured, that connection falls back to
-whatever credentials the connection string still carries — so the load either signs in as a
-different identity than the rest of the pipeline, or fails to sign in at all.
-
-Until this is resolved, use a SQL login when loading with parquet, or force
-`loader_file_format="insert_values"` to keep everything on the token-authenticated connection.
+:::warning `access_token` cannot be used with parquet
+[Fast loading with parquet](#fast-loading-with-parquet) opens its **own** connection and signs in
+again. It re-acquires a token from `azure_credential` or from `authentication`, so those keep
+working, but it never sees a pre-acquired `access_token`. A parquet load job configured with
+`access_token` fails immediately with a terminal error rather than signing in as the wrong
+identity — use `azure_credential`, or keep that pipeline on `insert_values`.
 :::
 
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
@@ -205,44 +202,44 @@ recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: MSSQL su
 
 ## Data loading
 
-:::tip
-We recommend using ADBC + parquet to load data. We observed 10x - 100x increase in loading speed compared to the INSERT method. **parquet** file format
-will activate automatically if the right driver is present in the system. 
-:::
+Data is loaded with INSERT statements by default. The [parquet](../file-formats.md#parquet) file
+format is much faster and is available whenever `pyarrow` is installed, but you have to ask for it —
+see [fast loading with parquet](#fast-loading-with-parquet) for the trade-off.
 
 ### Fast loading with parquet
 
-[parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/). **mssql** driver is provided by
-[Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
+Parquet load files are streamed straight into SQL Server with mssql-python's native Arrow bulk copy,
+which needs no additional driver — just `pyarrow`:
+
 ```sh
-pip install adbc-driver-manager dbc
-dbc install mssql
+pip install "dlt[mssql,parquet]"
 ```
 
-with `uv` you can run `dbc` directly:
-```sh
-uv tool run dbc search
+Select it per pipeline or per resource:
+
+```py
+pipeline.run(data_iter, table_name="unsw_flow", loader_file_format="parquet")
 ```
-`dlt` will make **parquet** the preferred file format once driver is detected at runtime. This method is 10x-70x faster than INSERT and
-we make it a default for all input data types.
 
-Not all arrow data types are supported by the driver, see driver docs for more details:
-* fixed length binary
-* time with precision different than microseconds
+`dlt` reads the load file one row group at a time and hands the driver a `pyarrow.RecordBatchReader`,
+so peak memory does not grow with the file size. Source columns are mapped to destination columns by
+name rather than by ordinal position, which keeps loads correct after a schema evolution appends a
+column to the table.
 
-We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
+:::caution Parquet load jobs are not retried
+Bulk copy runs on a connection of its own and commits in batches sized by the server, so `dlt` cannot
+roll it back. If a parquet load job fails part-way, some of its rows may already be committed —
+`dlt` therefore fails the job terminally instead of retrying it and duplicating those rows. Inspect
+the table before you load again.
 
-:::caution
-It looks like ADBC driver is based on [go-mssqldb](https://github.com/denisenkom/go-mssqldb?tab=readme-ov-file)
-
-DSN format is different. We translate a few overlapping keys. `pyodbc` and `adbc` ignore unknown keys so you can specify keys for both in the same string.
+`insert_values` has no such caveat: each load file is one transaction. That is why it stays the
+preferred format.
 :::
 
-You can go back to `insert_values` by passing `loader_file_format` to a resource or pipeline
-```py
-# revert to INSERT statements
-pipeline.run(data_iter, dataset_name="speed_test_2", write_disposition="replace", table_name="unsw_flow", loader_file_format="insert_values")
-```
+Not all arrow data types are supported:
+* fixed length binary
+* time with precision different than microseconds
+* dictionary-encoded arrays, which `dlt` disables when writing parquet for this destination
 
 ### Loading with INSERT statements
 
@@ -263,7 +260,7 @@ dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dl
 
 ## Supported file formats
 * [insert-values](../file-formats.md#sql-insert) is used by default
-* [parquet](../file-formats.md#parquet) is used if mssql ADBC driver is installed
+* [parquet](../file-formats.md#parquet) is available when `pyarrow` is installed, and is opt-in
 
 ## Supported column hints
 **mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
