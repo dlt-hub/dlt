@@ -160,7 +160,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
     port: int = 1433
     connect_timeout: int = 30
     driver: Optional[str] = None
-    """DEPRECATED: ignored, mssql-python bundles its own driver"""
+    """DEPRECATED: ignored, mssql-python installs and manages its own driver dependency"""
 
     authentication: str | None = None
     """Authentication method. Empty (default) uses plain SQL login (`username`/`password`).
@@ -199,7 +199,8 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
         if self.driver:
             warnings.warn(
                 DltDeprecationWarning(
-                    "`driver` is deprecated and ignored; mssql-python bundles its own driver",
+                    "`driver` is deprecated and ignored; mssql-python installs and manages its"
+                    " own driver dependency",
                     since="1.30.0",
                 ),
                 stacklevel=2,
@@ -222,7 +223,7 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
             self.resolve()
 
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
-        # mssql-python bundles its own driver, so no DRIVER key is emitted.
+        # mssql-python installs and manages its own driver dependency, so no DRIVER key is emitted.
         params: dict[str, Any] = {
             "SERVER": f"{self.host},{self.port}",
             "DATABASE": self.database,

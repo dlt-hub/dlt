@@ -19,16 +19,21 @@ pip install "dlt[mssql]"
 ### Prerequisites
 
 This destination uses the [mssql-python](https://github.com/microsoft/mssql-python) driver, which is
-installed automatically with `dlt[mssql]` and bundles the SQL Server client libraries. No separate
-ODBC driver installation is required.
+installed automatically with `dlt[mssql]` together with its `mssql-python-odbc` dependency, providing
+the SQL Server client libraries. No separate ODBC driver installation is required.
 
 :::warning
 **`dlt[mssql]`, `dlt[synapse]` and `dlt[fabric]` install `mssql-python` instead of `pyodbc`.** Existing
 credentials keep working: a `driver` option, whether set directly or as a `?driver=` connection string
-parameter, is accepted and ignored with a deprecation warning, since mssql-python selects its own
-driver. Two things do change for code that reaches past the destination: `to_odbc_dsn()` no longer
-emits a `DRIVER=` key, and `MsSqlCredentials.SUPPORTED_DRIVERS` is gone, along with the error it
-raised for unrecognized driver names.
+parameter, is accepted and ignored with a deprecation warning, since mssql-python installs and manages
+its own driver dependency. Two things do change for code that reaches past the destination: `to_odbc_dsn()`
+no longer emits a `DRIVER=` key, and `MsSqlCredentials.SUPPORTED_DRIVERS` is gone, along with the error
+it raised for unrecognized driver names.
+
+If you install `mssql-python` with `pip install --no-deps`, or from a private/mirrored index, make
+sure `mssql-python-odbc` is installed or mirrored alongside it — the driver binaries live in that
+companion package, not in `mssql-python` itself, and a plain `pip install mssql-python` only pulls it
+in when normal dependency resolution runs.
 :::
 
 ### Create a pipeline

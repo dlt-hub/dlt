@@ -21,8 +21,9 @@ This will install `dlt` with the `mssql` extra, which contains all the dependenc
 ### Prerequisites
 
 This destination uses the [mssql-python](https://github.com/microsoft/mssql-python) driver, which is
-installed automatically with `dlt[fabric]` and bundles the SQL Server client libraries. No separate
-ODBC driver installation is required.
+installed automatically with `dlt[fabric]` together with its `mssql-python-odbc` dependency, providing
+the SQL Server client libraries. No separate ODBC driver installation is required (see the
+[MS SQL prerequisites](./mssql.md#prerequisites) for the private-index/`--no-deps` caveat).
 
 ### Authentication
 
@@ -236,8 +237,8 @@ The **fabric** destination **does not** create UNIQUE indexes by default on colu
 create_indexes=true
 ```
 
-The `driver` credential option is deprecated and ignored: mssql-python bundles its own driver, so
-no ODBC driver name needs to be configured.
+The `driver` credential option is deprecated and ignored: mssql-python installs and manages its own
+driver dependency, so no ODBC driver name needs to be configured.
 
 ## Differences from MSSQL Destination
 
