@@ -92,7 +92,7 @@ class FabricCredentials(AzureServicePrincipalCredentials):
     def get_odbc_dsn_dict(self) -> Dict[str, Any]:
         """Build ODBC DSN dictionary with Fabric-specific settings.
 
-        mssql-python bundles its own driver, so no DRIVER key is emitted.
+        mssql-python installs and manages its own driver dependency, so no DRIVER key is emitted.
         """
         params: dict[str, Any] = {
             "SERVER": f"{self.host},{self.port}",
