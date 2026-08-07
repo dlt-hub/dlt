@@ -178,12 +178,20 @@ different audience, and a token minted for the wrong one is rejected at login. F
 the token yourself for the right scope and pass it as `access_token`.
 :::
 
-:::warning `access_token` cannot be used with parquet
+:::warning Not every credential works with parquet
 [Fast loading with parquet](#fast-loading-with-parquet) opens its **own** connection and signs in
-again. It re-acquires a token from `azure_credential` or from `authentication`, so those keep
-working, but it never sees a pre-acquired `access_token`. A parquet load job configured with
-`access_token` fails immediately with a terminal error rather than signing in as the wrong
-identity — use `azure_credential`, or keep that pipeline on `insert_values`.
+again, and that connection supports fewer methods than the ODBC one. It cannot use:
+
+* `access_token` — a pre-acquired token is never handed to it,
+* `authentication = "ActiveDirectoryPassword"` and `"ActiveDirectoryIntegrated"` — it does not
+  implement them.
+
+A parquet load job configured with any of these fails immediately with a terminal error, before any
+row is sent, rather than signing in as the wrong identity. Use `azure_credential`, another
+`ActiveDirectory*` method, or keep that pipeline on `insert_values`.
+
+`authentication = "ActiveDirectoryInteractive"` does work, but the bulk copy connection acquires its
+own token — off Windows that can open a browser prompt in the middle of a load.
 :::
 
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
@@ -226,20 +234,30 @@ so peak memory does not grow with the file size. Source columns are mapped to de
 name rather than by ordinal position, which keeps loads correct after a schema evolution appends a
 column to the table.
 
-:::caution Parquet load jobs are not retried
-Bulk copy runs on a connection of its own and commits in batches sized by the server, so `dlt` cannot
-roll it back. If a parquet load job fails part-way, some of its rows may already be committed —
-`dlt` therefore fails the job terminally instead of retrying it and duplicating those rows. Inspect
-the table before you load again.
+Each load file is sent as a **single transactional batch**, so a job that fails part-way commits
+nothing and is retried like any other load job. The flip side is that one file is one transaction:
+a very large load file means a long-lived transaction and a correspondingly large log. Control it
+with the [parquet writer's](../file-formats.md#parquet) `file_max_items` / `file_max_bytes` rather
+than by splitting the batch.
 
-`insert_values` has no such caveat: each load file is one transaction. That is why it stays the
-preferred format.
+A bulk copy is given one hour to complete. Change it with `bulk_copy_timeout` (seconds):
+
+```toml
+[destination.mssql]
+bulk_copy_timeout = 7200
+```
+
+:::caution Parquet does not fire triggers or check constraints
+Bulk copy uses SQL Server's bulk-load path, which by default skips INSERT triggers and CHECK/FOREIGN
+KEY constraints. `insert_values` fires and checks both. Switching a table to parquet therefore
+changes its semantics if you rely on either. UNIQUE indexes are always enforced.
+
+This — together with the credential limits above and the fact that end-to-end validation of the
+native path is still young — is why `insert_values` stays the preferred format and parquet is opt-in.
 :::
 
-Not all arrow data types are supported:
-* fixed length binary
-* time with precision different than microseconds
-* dictionary-encoded arrays, which `dlt` disables when writing parquet for this destination
+Arrow dictionary-encoded arrays are not supported, so `dlt` writes plain columns for this
+destination. Everything else in `dlt`'s type matrix is passed through natively.
 
 ### Loading with INSERT statements
 
