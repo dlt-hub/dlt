@@ -249,11 +249,13 @@ class SchemaUpdateError(DestinationException):
             failed_op = f"update tables {self.table_names} in the {dataset}"
         else:
             failed_op = f"create the {dataset}"
+        # cause may be unrelated (ie. missing permissions) so the concurrency hint is optionality
         super().__init__(
-            f"dlt cannot {failed_op} of schema `{schema_name}`. Cause: {cause}. This error happens"
-            " when several pipelines load to the same dataset at the same time. A retry is safe."
-            " dlt reads the destination again and applies only the missing changes. To retry the"
-            " load, use the `retry_schema_update` helper. For more information, see"
+            f"dlt cannot {failed_op} of schema `{schema_name}`. Cause: {cause}. If you are running"
+            " several pipelines that load to the same dataset at the same time, the cause above may"
+            " indicate a conflict between them. In that case a retry is safe: dlt reads the"
+            " destination again and applies only the missing changes. To retry the load, use the"
+            " `retry_schema_update` helper. For more information, see"
             " https://dlthub.com/docs/running-in-production/running#retrying-only-the-schema-update-evolution"
         )
 
