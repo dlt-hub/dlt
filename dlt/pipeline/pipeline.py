@@ -97,7 +97,7 @@ from dlt.common.pipeline import (
     TRefreshMode,
 )
 from dlt.common.schema import Schema
-from dlt.common.utils import is_interactive, simple_repr, without_none
+from dlt.common.utils import digest256, is_interactive, simple_repr, without_none
 from dlt.common.warnings import deprecated, Dlt04DeprecationWarning, DltDeprecationWarning
 from dlt.common.versioned_state import (
     json_encode_state,
@@ -346,6 +346,7 @@ class Pipeline(SupportsPipeline):
         self.last_run_context: TLastRunContext = None
 
         self.pipeline_salt = pipeline_salt
+        self._encryption_seed: Optional[str] = None
         self.config = config
         self.run_context = config.runtime.pluggable_run_context.context
         self.dev_mode = dev_mode
@@ -962,7 +963,7 @@ class Pipeline(SupportsPipeline):
             self._state_to_props(state)
             self._schema_storage.clear_storage()
         for schema in schemas:
-            self._schema_storage.save_schema(schema)
+            self._schema_storage.save_schema(schema, link_import_schema=False)
         # must run after _state_to_props so first_run is not overwritten from restored state
         if update_last_run_context:
             self._update_last_run_context()
@@ -1056,6 +1057,25 @@ class Pipeline(SupportsPipeline):
         # abort-flagged packages are scheduled for cleanup, not real pending work
         load_storage = self._get_load_storage()
         return any(not load_storage.normalized_packages.has_abort_flag(lid) for lid in normalized)
+
+    @property
+    def encryption_seed(self) -> str:
+        """Master secret. dlt derives from it the keys that encrypt secret values of the pipeline.
+
+        A `pipeline_salt` that the user sets gives a stable master secret. The default salt is a
+        digest of the pipeline name. With the default salt, dlt makes a new random master secret
+        for each pipeline instance. dlt then cannot decrypt the values after a restart. A
+        permanent `pipeline_salt` removes this limit.
+        """
+        from dlt.common.libs.cryptography import generate_secret
+
+        if self._encryption_seed is None:
+            self._encryption_seed = (
+                generate_secret()
+                if self.pipeline_salt == digest256(self.pipeline_name)
+                else self.pipeline_salt
+            )
+        return self._encryption_seed
 
     @property
     def schemas(self) -> SchemaStorage:

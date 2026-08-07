@@ -193,8 +193,8 @@ class JsonlWriter(DataWriter):
         )
 
 
-class ModelWriter(DataWriter):
-    """Writes incoming items row by row into a text file and ensures a trailing ;"""
+class RelationToModelWriter(DataWriter):
+    """Writes each received Relation into a separate text file."""
 
     def write_header(self, columns_schema: TTableSchemaColumns) -> None:
         pass
@@ -202,9 +202,7 @@ class ModelWriter(DataWriter):
     def write_data(self, items: Sequence[TDataItem]) -> None:
         super().write_data(items)
         for item in items:
-            dialect = item.query_dialect
-            query = item.to_sql()
-            self._f.write("dialect: " + (dialect or "") + "\n" + query + "\n")
+            self._f.write(str(item.to_model()))
 
     @classmethod
     def writer_spec(cls) -> FileWriterSpec:
@@ -939,7 +937,7 @@ ALL_WRITERS: List[Type[DataWriter]] = [
     ArrowToJsonlWriter,
     ArrowToTypedJsonlListWriter,
     ArrowToCsvWriter,
-    ModelWriter,
+    RelationToModelWriter,
 ]
 
 WRITER_SPECS: Dict[FileWriterSpec, Type[DataWriter]] = {

@@ -85,6 +85,11 @@ jobs:
       - name: Check that CLI docs are up to date
         run: make check-cli-docs
 
+      - name: Install ODBC driver
+        run: |
+          sudo apt-get update
+          sudo ACCEPT_EULA=Y apt-get install --yes msodbcsql18
+
       - name: Install dependencies
         run: cd docs && make dev
 

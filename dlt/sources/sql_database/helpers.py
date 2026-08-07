@@ -478,7 +478,7 @@ def record_table_input(
             TSqlDatabaseDataLocation(
                 kind="sql_database",
                 resource_name=resource.name,
-                location=credentials.physical_location(),
+                location=credentials.data_location(),
                 database=credentials.database,
                 db_schema=db_schema,
                 tables=[table_name],

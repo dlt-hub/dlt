@@ -30,6 +30,7 @@ from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 from dlt.common.destination.client import (
     DestinationClientConfiguration,
     DestinationClientDwhConfiguration,
+    WithAttachableEngine,
 )
 from dlt.common.storages.configuration import (
     FileSystemCredentials,
@@ -326,7 +327,9 @@ class LanceNamespacePool:
 
 
 @configspec
-class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration):
+class LanceClientConfiguration(
+    WithAttachableEngine, WithLocalFiles, DestinationClientDwhConfiguration
+):
     destination_type: Final[str] = dataclasses.field(  # type: ignore
         default="lance", init=False, repr=False, compare=False
     )
@@ -452,13 +455,13 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         """Returns a fingerprint of the configured storage."""
         return self.storage.fingerprint() if self.storage else ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the Lance catalog root which identifies the namespace."""
         # for `rest` catalogs the location is the namespace server uri
         if self.catalog_type == "rest":
             if isinstance(self.credentials, RestCatalogCredentials) and self.credentials.uri:
                 return f"rest:{self.credentials.uri.rstrip('/')}"
-            return ""
+            self._no_data_location("the `rest` catalog has no namespace server URI")
 
         # for `dir` catalogs the explicit manifest root takes precedence
         catalog_root: Optional[str] = None
@@ -470,26 +473,12 @@ class LanceClientConfiguration(WithLocalFiles, DestinationClientDwhConfiguration
         elif self.storage and self.storage.bucket_url:
             # same fallback as on_resolved: catalog colocates with data storage
             catalog_root = self.storage.namespace_uri
-        if catalog_root:
-            return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
-        return ""
+        if not catalog_root:
+            self._no_data_location("the configuration has no catalog root and no data storage")
+        return f"{self.catalog_type}:{catalog_root.rstrip('/')}"
 
     def can_write_from(self, other: DestinationClientConfiguration) -> bool:
         """Lance does not have an engine that can write. `dlt` is that engine,
         and returning False here enforces its usage.
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True for the same Lance catalog and bound dlt dataset."""
-        if not isinstance(other, LanceClientConfiguration):
-            return False
-
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if not self_loc or not other_loc or self_loc != other_loc:
-            return False
-
-        # TODO: remove the dataset check when cross dataset joins are implemented. any
-        # dataset (namespace) under the same catalog root is readable via the same ATTACH
-        return self.dataset_name == other.dataset_name
