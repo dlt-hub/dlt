@@ -22,7 +22,6 @@ from dlt.destinations.insert_job_client import InsertValuesJobClient
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
 from dlt.destinations.impl.mssql.configuration import (
     BULK_COPY_UNSUPPORTED_AUTHENTICATION,
-    SUPPORTED_AUTHENTICATION,
     MsSqlClientConfiguration,
     MsSqlCredentials,
 )
@@ -135,25 +134,22 @@ class MsSqlBulkCopyArrowJob(RunnableLoadJob, HasFollowupJobs):
                 yield from table.to_batches()
 
         t_ = time.monotonic()
+        # failures propagate unclassified and dlt retries them: mssql-py-core raises plain
+        # `ValueError`/`RuntimeError`, never a DB-API error, and carries the SQL error number only
+        # in the message, so there is nothing stable to tell a terminal failure from a transient one
         cursor = sql_client.native_connection.cursor()
         try:
             result = cursor.bulkcopy_arrow(
                 qualified_table_name,
                 pyarrow.RecordBatchReader.from_batches(arrow_schema, _iter_batches()),
                 # one batch for the whole file, wrapped in its own transaction, so a failure
-                # commits nothing and dlt can retry the job like any other
+                # commits nothing and the job can be retried
                 batch_size=0,
                 use_internal_transaction=True,
                 timeout=config.bulk_copy_timeout,
                 column_mappings=column_mappings,
                 keep_nulls=True,
             )
-        except Exception as ex:
-            # classify like every other statement on this destination, which also keeps the
-            # driver's own message on the exception dlt records for the failed job
-            if sql_client.is_dbapi_exception(ex):
-                raise sql_client._make_database_exception(ex) from ex
-            raise
         finally:
             cursor.close()
 
@@ -161,8 +157,9 @@ class MsSqlBulkCopyArrowJob(RunnableLoadJob, HasFollowupJobs):
         if rows_copied != num_rows:
             raise DestinationTerminalException(
                 f"Arrow bulk copy of {self._file_name} into {qualified_table_name} reported"
-                f" {rows_copied} rows copied but the file holds {num_rows}. The table now holds an"
-                " incomplete load; the job is not retried so the copied rows are not duplicated."
+                f" {rows_copied} rows copied but the file holds {num_rows}. The copy itself either"
+                " committed the file whole or not at all, so verify the table against the load"
+                " package rather than loading it again."
             )
 
         logger.info(
@@ -187,9 +184,10 @@ class MsSqlBulkCopyArrowJob(RunnableLoadJob, HasFollowupJobs):
             raise DestinationTerminalException(
                 f"`authentication = {credentials.authentication}` cannot be combined with the"
                 " parquet loader file format on mssql: the native Arrow bulk copy connection does"
-                " not implement it. Use `azure_credential`, or one of"
-                f" {', '.join(sorted(SUPPORTED_AUTHENTICATION - BULK_COPY_UNSUPPORTED_AUTHENTICATION))},"
-                ' or load with `loader_file_format="insert_values"`.'
+                " not implement it. Use `azure_credential` instead, or load with"
+                ' `loader_file_format="insert_values"`. The remaining `ActiveDirectory*` methods do'
+                " reach bulk copy, with the caveats documented at"
+                " https://dlthub.com/docs/dlt-ecosystem/destinations/mssql#fast-loading-with-parquet."
             )
 
 

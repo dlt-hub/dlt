@@ -10,10 +10,11 @@ from unittest.mock import MagicMock
 
 import pytest
 
-mssql_python = pytest.importorskip("mssql_python")
+pytest.importorskip("mssql_python")
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.destination.exceptions import DestinationTerminalException
+from dlt.common.exceptions import TerminalException
 from dlt.common.libs.pyarrow import pyarrow
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableSchema
@@ -25,7 +26,6 @@ from dlt.destinations.impl.mssql.bulk_copy import (
 from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration, MsSqlCredentials
 from dlt.destinations.impl.mssql.mssql import MsSqlBulkCopyArrowJob
 from dlt.destinations.impl.mssql.sql_client import MsSqlClient
-from dlt.destinations.exceptions import DatabaseTerminalException, DatabaseTransientException
 
 DOCS_URL = "https://dlthub.com/docs/dlt-ecosystem/destinations/mssql#data-loading"
 
@@ -154,6 +154,8 @@ def test_bulk_copy_fails_when_fewer_rows_land_than_the_file_holds(tmp_path) -> N
 
     with pytest.raises(DestinationTerminalException, match="7 rows copied but the file holds 10"):
         job.run()
+    # terminal, so dlt does not silently load the file a second time on top of the first
+    assert cursor.bulkcopy_arrow.call_count == 1
 
 
 @pytest.mark.parametrize(
@@ -179,49 +181,33 @@ def test_bulk_copy_rejects_credentials_it_cannot_sign_in_with(
     assert cursor.bulkcopy_arrow.call_count == 0
 
 
-def test_bulk_copy_classifies_driver_errors_and_keeps_their_message(tmp_path) -> None:
-    """A transient login failure stays retryable; the driver's own text must survive."""
+@pytest.mark.parametrize(
+    "raised",
+    [
+        # what mssql-py-core really raises: a client-side conversion failure...
+        ValueError("String or binary data would be truncated"),
+        # ...and a server-side error, whose SQL number only ever appears in the message
+        RuntimeError("Sql Error: 2601: Class 14: Cannot insert duplicate key row"),
+        TimeoutError("bulk copy timed out"),
+    ],
+    ids=["client_value_error", "server_runtime_error", "timeout"],
+)
+def test_bulk_copy_failures_propagate_so_dlt_retries_them(tmp_path, raised: Exception) -> None:
+    """The core raises no DB-API error, so nothing is classified and every failure is retryable."""
     file_path = str(tmp_path / "items.1234.0.parquet")
     _write_parquet(file_path, ["id"], num_row_groups=1, rows_per_group=3)
 
     job, cursor = _make_job(file_path, rows_copied=3)
-    cursor.bulkcopy_arrow.side_effect = mssql_python.OperationalError(
-        driver_error="Database is not currently available", ddbc_error="40613"
-    )
+    cursor.bulkcopy_arrow.side_effect = raised
 
-    with pytest.raises(DatabaseTransientException) as exc_info:
+    with pytest.raises(type(raised)) as exc_info:
         job.run()
 
-    assert "40613" in str(exc_info.value)
+    # `run_managed` routes anything that is not terminal to a retry, and a retry is safe because
+    # the copy is a single transactional batch
+    assert not isinstance(exc_info.value, TerminalException)
+    assert str(raised) in str(exc_info.value)
     # the cursor is released even when the copy blows up
-    assert cursor.close.call_count == 1
-
-
-def test_bulk_copy_classifies_a_data_error_as_terminal(tmp_path) -> None:
-    file_path = str(tmp_path / "items.1234.0.parquet")
-    _write_parquet(file_path, ["id"], num_row_groups=1, rows_per_group=3)
-
-    job, cursor = _make_job(file_path, rows_copied=3)
-    cursor.bulkcopy_arrow.side_effect = mssql_python.ProgrammingError(
-        driver_error="String or binary data would be truncated", ddbc_error="22001"
-    )
-
-    with pytest.raises(DatabaseTerminalException) as exc_info:
-        job.run()
-
-    assert "String or binary data would be truncated" in str(exc_info.value)
-
-
-def test_bulk_copy_propagates_non_driver_errors_unchanged(tmp_path) -> None:
-    """A non-DBAPI failure keeps its own type so dlt's default retry classification applies."""
-    file_path = str(tmp_path / "items.1234.0.parquet")
-    _write_parquet(file_path, ["id"], num_row_groups=1, rows_per_group=3)
-
-    job, cursor = _make_job(file_path, rows_copied=3)
-    cursor.bulkcopy_arrow.side_effect = RuntimeError("token acquisition failed")
-
-    with pytest.raises(RuntimeError, match="token acquisition failed"):
-        job.run()
     assert cursor.close.call_count == 1
 
 
