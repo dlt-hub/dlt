@@ -36,6 +36,16 @@ companion package, not in `mssql-python` itself, and a plain `pip install mssql-
 in when normal dependency resolution runs.
 :::
 
+:::note Connection pooling and token expiry
+mssql-python pools connections by default. Since v1.13 the pool key is identity-aware for the
+`Authentication=` methods where the driver acquires the token itself (`ActiveDirectoryMsi`, and off
+Windows `ActiveDirectoryInteractive`/`ActiveDirectoryDeviceCode`), and those pooled connections are
+refreshed by the driver when their token nears expiry. `ActiveDirectoryDefault` and the raw tokens
+passed through `access_token`/`azure_credential` are pooled by token hash instead — distinct tokens
+never share a connection — but are **not** refreshed on expiry: if a long-running pipeline's token
+expires while its connection sits pooled, the next use fails and dlt does not renew it.
+:::
+
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**

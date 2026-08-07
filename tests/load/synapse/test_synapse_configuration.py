@@ -82,8 +82,8 @@ def test_synapse_factory() -> None:
 
 
 def test_driver_query_parameter_is_ignored() -> None:
-    # mssql-python bundles its own driver, so a legacy `driver` query parameter is ignored
-    # and the DSN carries no DRIVER key.
+    # mssql-python installs and manages its own driver dependency, so a legacy `driver` query
+    # parameter is ignored and the DSN carries no DRIVER key.
     creds = resolve_configuration(
         SynapseCredentials(
             "synapse://test_user:test_pwd@test.sql.azuresynapse.net/test_db?DRIVER=ODBC+Driver+17+for+SQL+Server"
