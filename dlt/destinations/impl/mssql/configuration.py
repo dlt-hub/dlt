@@ -17,9 +17,10 @@ from dlt.common.utils import digest128
 # https://learn.microsoft.com/sql/connect/odbc/using-azure-active-directory#authenticating-with-an-access-token
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 
-# dropped from the DSN query too, not just from `apply_authentication_to_dsn`: mssql-python rejects
-# `token_provider` next to `Authentication=`, and its own sign-in would overwrite an `access_token`
-_TOKEN_INCOMPATIBLE_DSN_KEYS = frozenset({"authentication", "uid", "pwd"})
+# mirrors mssql-python's own `_SENSITIVE_KEYS` (`auth.py`): the keys it strips from a connection
+# string once an Entra token is in play. Applied to free-form query keys, which never pass through
+# `apply_authentication_to_dsn`, so they would otherwise reach the driver and win over the token.
+_TOKEN_INCOMPATIBLE_DSN_KEYS = frozenset({"authentication", "uid", "pwd", "trusted_connection"})
 
 # Entra ID authentication methods supported by mssql-python's `Authentication=` connection
 # option. mssql-python performs the sign-in for all of them; dlt only builds the DSN.
@@ -48,7 +49,9 @@ def _normalize_authentication(authentication: str) -> str:
 
 def uses_explicit_token(credentials: Any) -> bool:
     """True when `access_token` or `azure_credential` bypasses `authentication`."""
-    return bool(credentials.access_token or credentials.azure_credential)
+    # identity, not truthiness: a credential defining `__bool__`/`__len__` would otherwise take the
+    # `authentication` branch here while `select_token_provider` still hands it to the driver
+    return bool(credentials.access_token) or credentials.azure_credential is not None
 
 
 def build_access_token_attrs_before(credentials: Any) -> dict[int, bytes] | None:
@@ -60,7 +63,7 @@ def build_access_token_attrs_before(credentials: Any) -> dict[int, bytes] | None
     return {SQL_COPT_SS_ACCESS_TOKEN: token_struct}
 
 
-def select_token_provider(credentials: Any) -> Any | None:
+def select_token_provider(credentials: Any) -> Optional[Any]:
     """Return the credential mssql-python should acquire Entra ID tokens from, or None.
 
     `access_token` is already a token and keeps the `attrs_before` path, so it suppresses the
@@ -253,8 +256,6 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
             # unnecessary since the driver handles long/max types natively, so neither belongs
             # in the DSN.
             skip_keys = {"driver", "connect_timeout", "longasmax"}
-            if uses_explicit_token(self):
-                skip_keys |= _TOKEN_INCOMPATIBLE_DSN_KEYS
             params.update(
                 {k.upper(): v for k, v in self.query.items() if k.lower() not in skip_keys}
             )
@@ -262,13 +263,20 @@ class MsSqlCredentials(ConnectionStringCredentials, CredentialsWithDefault):
 
     def to_odbc_dsn(self) -> str:
         params = self.get_odbc_dsn_dict()
+        if uses_explicit_token(self):
+            # BREAKING: an `authentication`/`uid`/`pwd`/`trusted_connection` query key is no longer
+            # passed through when `access_token`/`azure_credential` is set. It used to reach the
+            # driver and silently authenticate as a different identity than the configured token.
+            params = {
+                k: v for k, v in params.items() if k.lower() not in _TOKEN_INCOMPATIBLE_DSN_KEYS
+            }
         return build_odbc_dsn(params)
 
     def to_odbc_attrs_before(self) -> dict[int, bytes] | None:
         """Return `attrs_before` with the pre-acquired `access_token`, or None."""
         return build_access_token_attrs_before(self)
 
-    def to_odbc_token_provider(self) -> Any | None:
+    def to_odbc_token_provider(self) -> Optional[Any]:
         """Return the `azure_credential` mssql-python acquires tokens from, or None."""
         return select_token_provider(self)
 
