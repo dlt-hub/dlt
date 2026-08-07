@@ -91,6 +91,14 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 
 You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
 
+:::warning Changed in 1.30.0
+When `access_token` or `azure_credential` is set, an `authentication`, `uid`, `pwd` or
+`trusted_connection` query key is now dropped from the connection string instead of being passed
+through. Previously the driver acted on it and signed in as that identity, silently ignoring the
+token you configured — so a config carrying both authenticated as the wrong principal. If you relied
+on the query key, drop the token field instead. Other query keys are unaffected.
+:::
+
 **To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 
 ```toml

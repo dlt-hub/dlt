@@ -43,8 +43,10 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
         # An `azure_credential` is handed over whole as `token_provider`, leaving acquisition,
         # validation and expiry capture to the driver; only a pre-acquired `access_token` still
         # travels as a packed `attrs_before` struct, which is also the sovereign-cloud escape hatch
-        # since `token_provider` is fixed to the Azure commercial SQL scope. The driver rejects any
-        # two of the three being supplied at once.
+        # since `token_provider` is fixed to the Azure commercial SQL scope. The driver raises on
+        # `token_provider` paired with either of the other two, but NOT on `Authentication=` paired
+        # with an `attrs_before` token — there its own sign-in silently overwrites ours, which is
+        # why `_TOKEN_INCOMPATIBLE_DSN_KEYS` has to keep that pair apart on the dlt side.
         #
         # mssql-python auto-enables connection pooling (default: 100 connections, 600s idle
         # timeout) on the first connection any process opens, unless the application calls
