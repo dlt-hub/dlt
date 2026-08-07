@@ -223,8 +223,8 @@ class FabricClient(SynapseClient):
     ) -> LoadJob:
         """Override to handle file loading - Fabric requires staging for parquet files
 
-        Fabric doesn't use ADBC for direct parquet loading. Instead, it requires staging
-        storage (OneLake or Azure Blob) and uses COPY INTO for efficient bulk loading.
+        Fabric does not load parquet over the connection like mssql does. Instead, it requires
+        staging storage (OneLake or Azure Blob) and uses COPY INTO for efficient bulk loading.
         """
         from dlt.common.storages.load_package import ParsedLoadJobFileName
         from dlt.destinations.job_impl import ReferenceFollowupJobRequest

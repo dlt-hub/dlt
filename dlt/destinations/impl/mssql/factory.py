@@ -10,7 +10,7 @@ from dlt.common.data_writers.escape import escape_postgres_identifier, escape_ms
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 
 from dlt.common.schema.typing import TColumnSchema, TColumnType
-from dlt.destinations._adbc_jobs import make_adbc_parquet_file_format_selector
+from dlt.destinations.impl.mssql.bulk_copy import make_native_parquet_file_format_selector
 from dlt.destinations.type_mapping import TypeMapperImpl
 from dlt.destinations.impl.mssql.configuration import MsSqlCredentials, MsSqlClientConfiguration
 
@@ -121,10 +121,11 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "parquet", "model"]
-        caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
-            "mssql",
+        # parquet stays opt-in: bulk copy commits on a connection dlt cannot roll back, so a failed
+        # load job is not retryable the way an atomic `insert_values` job is
+        caps.loader_file_format_selector = make_native_parquet_file_format_selector(
             "https://dlthub.com/docs/dlt-ecosystem/destinations/mssql#data-loading",
-            prefer_parquet=True,
+            prefer_parquet=False,
         )
         caps.preferred_staging_file_format = None
         caps.supported_staging_file_formats = []
@@ -159,7 +160,7 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
             "staging-optimized",
         ]
         caps.sqlglot_dialect = "tsql"
-        # ADBC driver for MSSQL does not support dictionary-encoded Arrow arrays
+        # dictionary-encoded arrow arrays are not supported by the mssql parquet load path
         caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
 
         return caps
