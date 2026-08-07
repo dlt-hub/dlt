@@ -963,7 +963,7 @@ class Pipeline(SupportsPipeline):
             self._state_to_props(state)
             self._schema_storage.clear_storage()
         for schema in schemas:
-            self._schema_storage.save_schema(schema)
+            self._schema_storage.save_schema(schema, link_import_schema=False)
         # must run after _state_to_props so first_run is not overwritten from restored state
         if update_last_run_context:
             self._update_last_run_context()
