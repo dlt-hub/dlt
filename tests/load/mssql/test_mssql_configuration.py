@@ -3,7 +3,6 @@ import os
 import pytest
 
 import mssql_python
-from mssql_python.auth import compute_token_identity
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
@@ -477,6 +476,9 @@ def test_mssql_distinct_raw_tokens_are_not_pooled_by_connection_string_alone() -
     for raw `attrs_before` tokens (only exists from that baseline on, so this test cannot even
     collect against an older driver); it must hash the two tokens to different pool identities, so
     they cannot be described as sharing a connection-string-only pool."""
+    # private API (not in __all__/.pyi); scoped so a rename only breaks this test
+    from mssql_python.auth import compute_token_identity
+
     creds_a = _mssql_credentials(access_token="token-a")
     creds_b = _mssql_credentials(access_token="token-b")
 
