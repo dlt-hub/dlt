@@ -37,15 +37,19 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
         self.credentials = credentials
 
     def open_connection(self) -> mssql_python.Connection:
-        # mssql-python bundles its own driver, so the connection string carries no DRIVER, and it
-        # signs in for every supported Entra ID authentication method itself from the
-        # `Authentication=` DSN keyword — dlt injects no `attrs_before` for those.
+        # mssql-python installs and manages its own driver dependency, so the connection string
+        # carries no DRIVER, and it signs in for every supported Entra ID authentication method
+        # itself from the `Authentication=` DSN keyword — dlt injects no `attrs_before` for those.
         #
         # mssql-python auto-enables connection pooling (default: 100 connections, 600s idle
         # timeout) on the first connection any process opens, unless the application calls
         # `mssql_python.pooling()` first — which dlt does not do, since these defaults are
-        # already sane for our workload. The pool matches purely on connection-string text, so
-        # our credentials building a stable DSN is what makes reuse actually happen.
+        # already sane for our workload. Since v1.13 the pool key is identity-aware: for the raw
+        # tokens dlt injects via `attrs_before` (`access_token`/`azure_credential`), it appends a
+        # hash of the token to the connection-string text, so two different tokens never share a
+        # pooled connection even though their DSN is identical. Unlike driver-acquired tokens (the
+        # `Authentication=` methods above), those raw-token pool entries are not refreshed by the
+        # driver on expiry — the caller remains responsible for the token's lifetime.
         self._conn = mssql_python.connect(
             self.credentials.to_odbc_dsn(),
             autocommit=True,
