@@ -121,8 +121,8 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "parquet", "model"]
-        # parquet stays opt-in: bulk copy commits on a connection dlt cannot roll back, so a failed
-        # load job is not retryable the way an atomic `insert_values` job is
+        # parquet stays opt-in: bulk copy skips triggers and constraints that `insert_values`
+        # honours, and rejects the credentials mssql-py-core does not implement
         caps.loader_file_format_selector = make_native_parquet_file_format_selector(
             "https://dlthub.com/docs/dlt-ecosystem/destinations/mssql#data-loading",
             prefer_parquet=False,
