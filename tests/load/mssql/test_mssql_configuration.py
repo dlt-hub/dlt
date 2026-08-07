@@ -468,3 +468,15 @@ def test_mssql_resolve_configuration_azure_credential_without_username_password(
 
     assert resolved.is_resolved()
     assert "AUTHENTICATION" not in resolved.get_odbc_dsn_dict()
+
+
+def test_mssql_distinct_raw_tokens_are_not_pooled_by_connection_string_alone() -> None:
+    """Two `access_token` values produce an identical DSN — nothing in the connection-string text
+    distinguishes them. Under the supported mssql-python >=1.13 baseline, the driver's pool key is
+    identity-aware for raw tokens (hashed from `attrs_before`), so they cannot be described as
+    sharing a connection-string-only pool the way pre-1.13 pooling would have allowed."""
+    creds_a = _mssql_credentials(access_token="token-a")
+    creds_b = _mssql_credentials(access_token="token-b")
+
+    assert creds_a.to_odbc_dsn() == creds_b.to_odbc_dsn()
+    assert creds_a.to_odbc_attrs_before() != creds_b.to_odbc_attrs_before()
