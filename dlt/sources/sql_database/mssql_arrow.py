@@ -25,12 +25,15 @@ class MssqlArrowTableLoader(TableLoader):
                     for batch in reader:
                         tbl = pa.Table.from_batches([batch])
                         yield cast_connectorx_temporal_columns(tbl)
-                finally:
+                except BaseException:
                     # close before result.close(); a close failure must not mask a prior error
                     try:
                         reader.close()
                     except Exception:
                         logger.warning("failed to close mssql-python arrow reader", exc_info=True)
+                    raise
+                else:
+                    reader.close()
             finally:
                 result.close()
 
