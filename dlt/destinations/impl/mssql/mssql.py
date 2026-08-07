@@ -20,7 +20,12 @@ from dlt.destinations.sql_jobs import SqlStagingReplaceFollowupJob, SqlMergeFoll
 from dlt.destinations.insert_job_client import InsertValuesJobClient
 
 from dlt.destinations.impl.mssql.sql_client import PyOdbcMsSqlClient
-from dlt.destinations.impl.mssql.configuration import MsSqlClientConfiguration
+from dlt.destinations.impl.mssql.configuration import (
+    BULK_COPY_UNSUPPORTED_AUTHENTICATION,
+    SUPPORTED_AUTHENTICATION,
+    MsSqlClientConfiguration,
+    MsSqlCredentials,
+)
 from dlt.destinations.sql_client import SqlClientBase
 
 if TYPE_CHECKING:
@@ -105,16 +110,7 @@ class MsSqlBulkCopyArrowJob(RunnableLoadJob, HasFollowupJobs):
         from dlt.common.libs.pyarrow import pyarrow, pq_stream_with_new_columns
 
         config = self._job_client.config
-        # bulk copy re-authenticates on a native connection of its own. It mints a fresh token from
-        # `token_provider` or from `Authentication=`, but never reads the `attrs_before` struct that
-        # carries a pre-acquired `access_token`, so it would sign in with no credential at all.
-        if config.credentials.access_token:
-            raise DestinationTerminalException(
-                "`access_token` cannot be combined with the parquet loader file format on mssql:"
-                " the native Arrow bulk copy opens its own connection and only re-acquires a token"
-                " from `azure_credential` or `authentication`. Configure one of those instead, or"
-                ' load with `loader_file_format="insert_values"`.'
-            )
+        self._raise_on_unsupported_credentials(config.credentials)
 
         sql_client = self._job_client.sql_client
         qualified_table_name = sql_client.make_qualified_table_name(self.load_table_name)
@@ -144,26 +140,57 @@ class MsSqlBulkCopyArrowJob(RunnableLoadJob, HasFollowupJobs):
             result = cursor.bulkcopy_arrow(
                 qualified_table_name,
                 pyarrow.RecordBatchReader.from_batches(arrow_schema, _iter_batches()),
+                # one batch for the whole file, wrapped in its own transaction, so a failure
+                # commits nothing and dlt can retry the job like any other
+                batch_size=0,
+                use_internal_transaction=True,
                 timeout=config.bulk_copy_timeout,
                 column_mappings=column_mappings,
                 keep_nulls=True,
             )
         except Exception as ex:
-            # the driver commits in batches the server sizes, on a connection dlt cannot roll back,
-            # so a failure may already have committed a prefix of the file. Fail terminally rather
-            # than let dlt retry the job and duplicate those rows.
-            raise DestinationTerminalException(
-                f"Arrow bulk copy of {self._file_name} into {qualified_table_name} failed and may"
-                " have committed part of the file. The job is not retried so the rows are not"
-                " duplicated; inspect the table before loading again."
-            ) from ex
+            # classify like every other statement on this destination, which also keeps the
+            # driver's own message on the exception dlt records for the failed job
+            if sql_client.is_dbapi_exception(ex):
+                raise sql_client._make_database_exception(ex) from ex
+            raise
         finally:
             cursor.close()
 
+        rows_copied = result.get("rows_copied")
+        if rows_copied != num_rows:
+            raise DestinationTerminalException(
+                f"Arrow bulk copy of {self._file_name} into {qualified_table_name} reported"
+                f" {rows_copied} rows copied but the file holds {num_rows}. The table now holds an"
+                " incomplete load; the job is not retried so the copied rows are not duplicated."
+            )
+
         logger.info(
-            f"{result.get('rows_copied')} rows copied from {self._file_name} to"
-            f" {qualified_table_name} in {time.monotonic() - t_} s"
+            f"{rows_copied} rows copied from {self._file_name} to {qualified_table_name} in"
+            f" {time.monotonic() - t_} s"
         )
+
+    @staticmethod
+    def _raise_on_unsupported_credentials(credentials: MsSqlCredentials) -> None:
+        """Rejects credentials the bulk copy connection cannot sign in with, before any row moves."""
+        # bulk copy signs in again on a native connection of its own, so it only supports what
+        # mssql-py-core supports: it re-acquires from `token_provider` or `Authentication=`, but
+        # never reads the `attrs_before` struct that carries a pre-acquired `access_token`
+        if credentials.access_token:
+            raise DestinationTerminalException(
+                "`access_token` cannot be combined with the parquet loader file format on mssql:"
+                " the native Arrow bulk copy opens its own connection and only re-acquires a token"
+                " from `azure_credential` or `authentication`. Configure one of those instead, or"
+                ' load with `loader_file_format="insert_values"`.'
+            )
+        if credentials.authentication in BULK_COPY_UNSUPPORTED_AUTHENTICATION:
+            raise DestinationTerminalException(
+                f"`authentication = {credentials.authentication}` cannot be combined with the"
+                " parquet loader file format on mssql: the native Arrow bulk copy connection does"
+                " not implement it. Use `azure_credential`, or one of"
+                f" {', '.join(sorted(SUPPORTED_AUTHENTICATION - BULK_COPY_UNSUPPORTED_AUTHENTICATION))},"
+                ' or load with `loader_file_format="insert_values"`.'
+            )
 
 
 class MsSqlJobClient(InsertValuesJobClient):
