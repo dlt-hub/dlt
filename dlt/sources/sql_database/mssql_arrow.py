@@ -21,9 +21,16 @@ class MssqlArrowTableLoader(TableLoader):
             try:
                 logger.info("Using mssql-python arrow_reader for native Arrow batches")
                 reader = result.cursor.arrow_reader(batch_size=self.chunk_size)
-                for batch in reader:
-                    tbl = pa.Table.from_batches([batch])
-                    yield cast_connectorx_temporal_columns(tbl)
+                try:
+                    for batch in reader:
+                        tbl = pa.Table.from_batches([batch])
+                        yield cast_connectorx_temporal_columns(tbl)
+                finally:
+                    # close before result.close(); a close failure must not mask a prior error
+                    try:
+                        reader.close()
+                    except Exception:
+                        logger.warning("failed to close mssql-python arrow reader", exc_info=True)
             finally:
                 result.close()
 
