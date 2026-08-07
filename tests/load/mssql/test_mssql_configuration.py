@@ -4,6 +4,8 @@ from typing import Any, Dict, List, Optional
 import pytest
 
 import mssql_python
+from mssql_python import TokenProvider
+from mssql_python.auth import acquire_token_from_credential
 from azure.identity import DefaultAzureCredential
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
@@ -399,6 +401,13 @@ class _MinimalTokenProvider:
         return _FakeAccessToken()
 
 
+class _FalsyTokenCredential(_RaisingTokenCredential):
+    """A credential that is falsy but present, e.g. a wrapper delegating `__len__` to a cache."""
+
+    def __len__(self) -> int:
+        return 0
+
+
 def test_mssql_access_token_and_azure_credential_default_to_none() -> None:
     creds = MsSqlCredentials()
     assert creds.access_token is None
@@ -424,6 +433,7 @@ def test_mssql_azure_credential_is_handed_to_the_driver() -> None:
     [
         pytest.param(_FakeTokenCredential(), id="azure_identity_shape"),
         pytest.param(_MinimalTokenProvider(), id="minimal_get_token_scope"),
+        # identity only: driving DefaultAzureCredential.get_token() would reach the network
         pytest.param(DefaultAzureCredential, id="default_azure_credential"),
     ],
 )
@@ -436,6 +446,22 @@ def test_mssql_token_provider_shapes_pass_through_unchanged(credential: object) 
 
     assert creds.to_odbc_token_provider() is credential
     assert creds.to_odbc_attrs_before() is None
+
+
+def test_mssql_minimal_token_provider_satisfies_the_driver_calling_convention() -> None:
+    """The narrowest `get_token(scope)` shape must survive the driver's own acquisition path.
+
+    A provider with no `*args`/`**kwargs` is the one most likely to break on a signature change,
+    and dlt now hands such objects straight to mssql-python without ever calling them itself.
+    """
+    provider = _MinimalTokenProvider()
+    # mypy gates the structural conformance to the protocol the driver declares for token_provider=
+    checked: TokenProvider = provider
+
+    token_struct, _ = acquire_token_from_credential(checked)  # type: ignore[arg-type]
+
+    assert token_struct[4:].decode("utf-16-le") == "fake-access-token"
+    assert provider.scopes == ["https://database.windows.net/.default"]
 
 
 def test_mssql_access_token_wins_over_azure_credential() -> None:
@@ -483,24 +509,55 @@ def test_mssql_azure_credential_takes_precedence_over_authentication() -> None:
     assert creds.to_odbc_attrs_before() is None
 
 
-@pytest.mark.parametrize("token_key", ["access_token", "azure_credential"])
-def test_mssql_query_authentication_key_dropped_for_explicit_token(token_key: str) -> None:
-    """`authentication` in the query string bypasses `apply_authentication_to_dsn`.
+def _dsn_dict(creds: MsSqlCredentials) -> Dict[str, str]:
+    """Parse `to_odbc_dsn()` back into a dict — what actually reaches mssql-python."""
+    return dict(param.split("=", 1) for param in creds.to_odbc_dsn().split(";"))
 
-    Left in, mssql-python would reject the `token_provider` combination outright and would let its
-    own `Authentication=` sign-in overwrite an injected `access_token`.
+
+_AUTH_QUERY_DSN = (
+    "mssql://sql.example.com/test_db"
+    "?authentication=ActiveDirectoryDefault&uid=u&pwd=p&trusted_connection=yes&Encrypt=yes"
+)
+
+
+@pytest.mark.parametrize("token_key", ["access_token", "azure_credential"])
+def test_mssql_query_authentication_keys_dropped_for_explicit_token(token_key: str) -> None:
+    """Auth query keys bypass `apply_authentication_to_dsn` and would win over the token.
+
+    mssql-python rejects the `token_provider` combination outright, and on the `access_token` path
+    its own `Authentication=` sign-in overwrites the injected token instead. The set mirrors the
+    driver's `_SENSITIVE_KEYS`, so nothing an Entra token supersedes is left in the string.
     """
     token = "explicit-token" if token_key == "access_token" else _RaisingTokenCredential()
-    creds = MsSqlCredentials(
-        "mssql://sql.example.com/test_db?authentication=ActiveDirectoryDefault&uid=u&pwd=p&Encrypt=yes"
-    )
+    creds = MsSqlCredentials(_AUTH_QUERY_DSN)
     setattr(creds, token_key, token)
 
-    dsn = creds.get_odbc_dsn_dict()
+    dsn = _dsn_dict(creds)
     assert "AUTHENTICATION" not in dsn
     assert "UID" not in dsn
     assert "PWD" not in dsn
+    assert "TRUSTED_CONNECTION" not in dsn
+    # only auth keys go; unrelated ODBC settings still pass through
     assert dsn["ENCRYPT"] == "yes"
+
+
+def test_mssql_query_authentication_keys_kept_without_explicit_token() -> None:
+    """Without a token the passthrough is untouched — the drop is scoped to the token paths."""
+    dsn = _dsn_dict(MsSqlCredentials(_AUTH_QUERY_DSN))
+
+    assert dsn["AUTHENTICATION"] == "ActiveDirectoryDefault"
+    assert dsn["UID"] == "u"
+    assert dsn["TRUSTED_CONNECTION"] == "yes"
+
+
+def test_mssql_adbc_dsn_dict_keeps_query_credentials() -> None:
+    """`get_odbc_dsn_dict()` also feeds `MssqlParquetCopyJob`, whose go-mssqldb driver cannot use
+    an Entra token — dropping query credentials there would leave it with no way to authenticate."""
+    creds = MsSqlCredentials(_AUTH_QUERY_DSN)
+    creds.access_token = "explicit-token"
+
+    assert creds.get_odbc_dsn_dict()["UID"] == "u"
+    assert creds.get_odbc_dsn_dict()["PWD"] == "p"
 
 
 def test_mssql_resolve_configuration_access_token_without_username_password() -> None:
@@ -568,6 +625,14 @@ def test_mssql_resolve_configuration_azure_credential_without_username_password(
             "attrs_before",
             id="access_token_over_both",
         ),
+        pytest.param(
+            {
+                "authentication": "ActiveDirectoryDefault",
+                "azure_credential": _FalsyTokenCredential(),
+            },
+            "token_provider",
+            id="falsy_credential_over_authentication",
+        ),
     ],
 )
 def test_mssql_exactly_one_authentication_mechanism_reaches_the_driver(
@@ -581,7 +646,7 @@ def test_mssql_exactly_one_authentication_mechanism_reaches_the_driver(
     creds = _mssql_credentials(**kwargs)
 
     mechanisms = {
-        "dsn": "AUTHENTICATION" in creds.get_odbc_dsn_dict(),
+        "dsn": "AUTHENTICATION" in _dsn_dict(creds),
         "attrs_before": creds.to_odbc_attrs_before() is not None,
         "token_provider": creds.to_odbc_token_provider() is not None,
     }
@@ -622,8 +687,10 @@ def _mssql_client(creds: MsSqlCredentials) -> MsSqlClient:
 def test_mssql_token_provider_failure_keeps_credential_error_as_cause() -> None:
     """The driver acquires the token inside `connect()`, before any network I/O.
 
-    A failing credential must therefore surface as a driver exception dlt already classifies,
-    with the original credential error still reachable as its cause.
+    A failing credential now surfaces as a driver exception dlt's classifier recognises, with the
+    original credential error still reachable as its cause. `open_connection` carries no
+    `@raise_open_connection_error`, so the classifier is applied at the call sites that wrap driver
+    calls, not here — asserting on the raw exception is what actually reaches a caller today.
     """
     creds = _mssql_credentials(azure_credential=_FailingTokenCredential())
 
