@@ -12,8 +12,8 @@ from dlt.common.warnings import DltDeprecationWarning
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.utils import digest128
 
-# ODBC attribute used to inject a pre-acquired Entra ID access token, kept for a future explicit
-# access-token feature. Not used by any authentication method today.
+# ODBC attribute used to inject a pre-acquired Entra ID access token via `attrs_before`, for the
+# explicit `access_token`/`azure_credential` credential fields.
 # https://learn.microsoft.com/sql/connect/odbc/using-azure-active-directory#authenticating-with-an-access-token
 SQL_COPT_SS_ACCESS_TOKEN = 1256
 SQL_TOKEN_SCOPE = "https://database.windows.net/.default"

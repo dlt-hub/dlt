@@ -44,12 +44,16 @@ class MsSqlClient(SqlClientBase[mssql_python.Connection], DBTransaction):
         # mssql-python auto-enables connection pooling (default: 100 connections, 600s idle
         # timeout) on the first connection any process opens, unless the application calls
         # `mssql_python.pooling()` first — which dlt does not do, since these defaults are
-        # already sane for our workload. Since v1.13 the pool key is identity-aware: for the raw
-        # tokens dlt injects via `attrs_before` (`access_token`/`azure_credential`), it appends a
-        # hash of the token to the connection-string text, so two different tokens never share a
-        # pooled connection even though their DSN is identical. Unlike driver-acquired tokens (the
-        # `Authentication=` methods above), those raw-token pool entries are not refreshed by the
-        # driver on expiry — the caller remains responsible for the token's lifetime.
+        # already sane for our workload. Since v1.13 the pool key is identity-aware only for the
+        # `Authentication=` methods the driver acquires a token for itself: `ActiveDirectoryMsi`
+        # and (off Windows) `ActiveDirectoryInteractive`/`ActiveDirectoryDeviceCode` get an
+        # account discriminator and are refreshed by the driver on near-expiry checkout. The rest
+        # are not refreshed: `ActiveDirectoryServicePrincipal`, `ActiveDirectoryPassword` and
+        # `ActiveDirectoryIntegrated` are handled natively by ODBC and pool on the bare connection
+        # string, like plain SQL login, while `ActiveDirectoryDefault` and the raw tokens dlt
+        # injects via `attrs_before` (`access_token`/`azure_credential`) hash into the same
+        # non-refreshing pool bucket — distinct tokens land in distinct pools even with an
+        # identical DSN, but the caller remains responsible for the token's lifetime.
         self._conn = mssql_python.connect(
             self.credentials.to_odbc_dsn(),
             autocommit=True,
