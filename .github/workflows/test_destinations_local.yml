@@ -59,7 +59,7 @@ jobs:
             excluded_destination_configurations: "[\"clickhouse-parquet-staging-s3-authorization\", \"clickhouse-parquet-staging-az-authorization\", \"clickhouse-jsonl-staging-az-authorization\", \"clickhouse-jsonl-staging-s3-authorization\"]"
 
           # MSSQL (local SQL Server in Docker, no cloud credentials required).
-          # The mssql-python driver bundles its client libraries, so no ODBC driver install is needed.
+          # The mssql-python driver installs and manages its own client libraries, so no ODBC driver install is needed.
           - display_name: mssql
             destinations: "[\"mssql\"]"
             filesystem_drivers: "[\"memory\"]"

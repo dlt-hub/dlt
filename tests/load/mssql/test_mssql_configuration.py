@@ -3,6 +3,7 @@ import os
 import pytest
 
 import mssql_python
+from mssql_python.auth import compute_token_identity
 
 from dlt.common.configuration import ConfigFieldMissingException, resolve_configuration
 from dlt.common.configuration.exceptions import ConfigurationException
@@ -101,8 +102,8 @@ def test_parse_native_representation() -> None:
 
 
 def test_to_odbc_dsn() -> None:
-    # mssql-python bundles its own driver, so the DSN carries no DRIVER and any `driver`
-    # query parameter (legacy pyodbc config) is ignored.
+    # mssql-python installs and manages its own driver dependency, so the DSN carries no DRIVER
+    # and any `driver` query parameter (legacy pyodbc config) is ignored.
     creds = resolve_configuration(
         MsSqlCredentials(
             "mssql://test_user:test_pwd@sql.example.com/test_db?DRIVER=ODBC+Driver+18+for+SQL+Server"
@@ -472,11 +473,15 @@ def test_mssql_resolve_configuration_azure_credential_without_username_password(
 
 def test_mssql_distinct_raw_tokens_are_not_pooled_by_connection_string_alone() -> None:
     """Two `access_token` values produce an identical DSN — nothing in the connection-string text
-    distinguishes them. Under the supported mssql-python >=1.13 baseline, the driver's pool key is
-    identity-aware for raw tokens (hashed from `attrs_before`), so they cannot be described as
-    sharing a connection-string-only pool the way pre-1.13 pooling would have allowed."""
+    distinguishes them. `compute_token_identity` is the driver's own v1.13 pool-identity function
+    for raw `attrs_before` tokens (only exists from that baseline on, so this test cannot even
+    collect against an older driver); it must hash the two tokens to different pool identities, so
+    they cannot be described as sharing a connection-string-only pool."""
     creds_a = _mssql_credentials(access_token="token-a")
     creds_b = _mssql_credentials(access_token="token-b")
 
     assert creds_a.to_odbc_dsn() == creds_b.to_odbc_dsn()
-    assert creds_a.to_odbc_attrs_before() != creds_b.to_odbc_attrs_before()
+
+    token_struct_a = creds_a.to_odbc_attrs_before()[1256]
+    token_struct_b = creds_b.to_odbc_attrs_before()[1256]
+    assert compute_token_identity(token_struct_a) != compute_token_identity(token_struct_b)

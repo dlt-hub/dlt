@@ -81,7 +81,7 @@ def test_fabric_credentials_odbc_dsn() -> None:
     assert "LongAsMax" not in dsn_dict
     assert dsn_dict["UID"] == "test-client-id@test-tenant-id"
     assert dsn_dict["PWD"] == "test-client-secret"
-    # mssql-python bundles its own driver, so the DSN carries no DRIVER key
+    # mssql-python installs and manages its own driver dependency, so the DSN carries no DRIVER key
     assert "DRIVER" not in dsn_dict
     assert (
         dsn_dict["SERVER"]
