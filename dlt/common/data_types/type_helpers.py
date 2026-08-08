@@ -14,6 +14,8 @@ from dlt.common.wei import Wei
 from dlt.common.arithmetics import InvalidOperation, Decimal
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
+    datetime_to_timestamp,
+    ensure_datetime_utc,
     ensure_pendulum_datetime_non_utc,
     ensure_pendulum_date,
     ensure_pendulum_time,
@@ -103,9 +105,10 @@ def coerce_from_date_types(
     if to_type == "text":
         return v.isoformat()
     if to_type == "bigint":
-        return v.int_timestamp
+        # a naive value is UTC by dlt convention, `timestamp()` would read it in the machine zone
+        return datetime_to_timestamp(v)
     if to_type == "double":
-        return v.timestamp()
+        return ensure_datetime_utc(v).timestamp()
     if to_type == "date":
         return ensure_pendulum_date(v)
     if to_type == "time":

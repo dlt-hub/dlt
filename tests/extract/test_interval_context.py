@@ -12,7 +12,11 @@ import pytest
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_non_utc, ensure_pendulum_datetime_utc
+from dlt.common.time import (
+    ensure_datetime,
+    ensure_pendulum_datetime_non_utc,
+    ensure_pendulum_datetime_utc,
+)
 from dlt.common.typing import TTimeInterval
 from dlt.common.utils import uniq_id
 from dlt.extract.incremental.context import (
@@ -25,8 +29,10 @@ from dlt.extract.incremental.exceptions import ExternalSchedulerNotAvailable, Jo
 from tests.extract.utils import AssertItems, data_item_to_list
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
+    LOCAL_TIMEZONES,
     TestDataItemFormat,
     data_to_item_format,
+    local_timezone,
 )
 
 
@@ -855,6 +861,42 @@ def test_int_cursor_as_timestamp() -> None:
     inc = r.incremental._incremental
     assert inc.initial_value == start_ts
     assert inc.end_value == end_ts
+
+
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
+def test_numeric_cursor_from_naive_interval(local_tz: str) -> None:
+    """A naive interval is read as UTC, so the bounds do not depend on the machine timezone."""
+    # 2024-01-15T00:00:00Z and the following midnight
+    start_ts, end_ts = 1705276800, 1705363200
+
+    @dlt.resource()
+    def int_cursor(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", allow_external_schedulers=True
+        ),
+    ):
+        yield {"updated_at": 1705320000}
+
+    @dlt.resource()
+    def float_cursor(
+        updated_at: dlt.sources.incremental[float] = dlt.sources.incremental(
+            "updated_at", allow_external_schedulers=True
+        ),
+    ):
+        yield {"updated_at": 1705320000.5}
+
+    iv = TTimeInterval(
+        ensure_datetime("2024-01-15T00:00:00"), ensure_datetime("2024-01-16T00:00:00")
+    )
+    assert iv.start.tzinfo is None
+    with local_timezone(local_tz):
+        with Container().injectable_context(TimeIntervalContext(interval=iv)):
+            for resource, expected_type in ((int_cursor(), int), (float_cursor(), float)):
+                assert len(list(resource)) == 1
+                inc = resource.incremental._incremental
+                assert inc.initial_value == start_ts
+                assert inc.end_value == end_ts
+                assert type(inc.initial_value) is expected_type
 
 
 def test_accessor_get_and_set() -> None:
