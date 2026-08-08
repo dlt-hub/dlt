@@ -626,3 +626,47 @@ def test_injectable_context_setitem_exception_releases_lock(container: Container
     t.join(timeout=5)
     assert not t.is_alive()
     assert container[GlobalTestContext].current_value == "AFTER_FAIL"
+
+
+@pytest.mark.parametrize("spec", (InjectableTestContext, GlobalTestContext))
+def test_preserve_container_restores_contexts(spec: Type[InjectableTestContext]) -> None:
+    """A context set with the indexer does not survive `preserve_container`."""
+    # deliberately not using the `container` fixture: the leak is into the live singleton
+    container = Container()
+    assert spec not in container
+
+    with preserve_container():
+        container[spec] = spec(current_value="ADDED")
+        assert spec in container
+    assert spec not in container
+
+    original = spec(current_value="ORIGINAL")
+    container[spec] = original
+    try:
+        with preserve_container():
+            replacement = spec(current_value="REPLACEMENT")
+            container[spec] = replacement
+            del container[spec]
+            container[spec] = spec(current_value="THIRD")
+        assert container[spec] is original
+        assert original.in_container is True
+        assert replacement.in_container is False
+    finally:
+        del container[spec]
+
+
+def test_preserve_container_drops_thread_contexts() -> None:
+    """Context dicts of threads started inside `preserve_container` do not survive it."""
+    container = Container()
+    saved_thread_ids = set(container.thread_contexts)
+
+    def add_context() -> None:
+        container[InjectableTestContext] = InjectableTestContext(current_value="THREAD")
+
+    with preserve_container():
+        t = threading.Thread(target=add_context)
+        t.start()
+        t.join()
+        assert set(container.thread_contexts) > saved_thread_ids
+
+    assert set(container.thread_contexts) == saved_thread_ids

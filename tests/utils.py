@@ -367,16 +367,50 @@ def _preserve_environ() -> Iterator[None]:
                 environ[key_] = value_
 
 
+def _restore_thread_contexts(
+    container: Container,
+    saved: Dict[int, "Container._TContext"],
+) -> None:
+    """Puts back the contexts each thread held, running the add/remove callbacks."""
+    for thread_id, saved_context in saved.items():
+        context, lock = container.thread_contexts[thread_id]
+        with lock:
+            for spec in list(context):
+                if context[spec] is not saved_context.get(spec):
+                    container._thread_delitem(context, spec)
+            for spec, ctx in saved_context.items():
+                if context.get(spec) is not ctx:
+                    container._thread_setitem(context, spec, ctx)
+    for thread_id in list(container.thread_contexts):
+        if thread_id not in saved:
+            context, lock = container.thread_contexts.pop(thread_id)
+            with lock:
+                for spec in list(context):
+                    container._thread_delitem(context, spec)
+
+
 @contextlib.contextmanager
 def preserve_container() -> Iterator[None]:
-    """Saves and restores the whole Container singleton (instance and main thread id)."""
+    """Saves and restores the whole Container singleton (instance, main thread id and contexts)."""
     saved_instance = Container._INSTANCE
     saved_main_thread_id = Container._MAIN_THREAD_ID
+    # the dicts are restored in place and the locks are kept, so anything still holding a
+    # reference to a thread context sees the restored content
+    saved_contexts = (
+        {
+            thread_id: dict(context)
+            for thread_id, (context, _) in saved_instance.thread_contexts.items()
+        }
+        if saved_instance
+        else None
+    )
     try:
         yield
     finally:
         Container._INSTANCE = saved_instance
         Container._MAIN_THREAD_ID = saved_main_thread_id
+        if saved_instance is not None:
+            _restore_thread_contexts(saved_instance, saved_contexts)
 
 
 @pytest.fixture(autouse=True)
