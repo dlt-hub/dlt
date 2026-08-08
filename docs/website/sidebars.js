@@ -62,6 +62,7 @@ const sidebars = {
               id: "walkthroughs/run-a-pipeline",
               label: "Run & troubleshoot a pipeline",
             },
+            "walkthroughs/how-to-load-data-with-dlt",
           ],
         },
         {
