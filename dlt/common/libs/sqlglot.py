@@ -645,6 +645,8 @@ def build_typed_literal(
             lit = sge.Null()
         elif isinstance(v, str):
             lit = sge.Literal.string(v)
+        elif isinstance(v, bool):
+            lit = sge.Boolean(this=v)
         elif isinstance(v, (int, float)):
             lit = sge.Literal.number(v)
         elif isinstance(v, (bytes, bytearray)):

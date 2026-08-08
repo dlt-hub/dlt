@@ -29,10 +29,10 @@ class LiveSchemaStorage(SchemaStorage):
         schema = self.set_live_schema(schema)
         return schema
 
-    def save_schema(self, schema: Schema) -> str:
+    def save_schema(self, schema: Schema, link_import_schema: bool = True) -> str:
         # update the live schema with schema being saved, if no live schema exist, create one to be available for a getter
         schema = self.set_live_schema(schema)
-        rv = super().save_schema(schema)
+        rv = super().save_schema(schema, link_import_schema=link_import_schema)
         return rv
 
     def remove_schema(self, name: str) -> None:

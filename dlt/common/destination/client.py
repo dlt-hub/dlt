@@ -401,6 +401,8 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     bucket_url: str = None
     # layout of the destination files
     layout: str = DEFAULT_FILE_LAYOUT
+    warn_unsafe_layout_separators: bool = True
+    """Warns when a `layout` separator around `{table_name}` can also occur inside a table name."""
 
 
 @configspec

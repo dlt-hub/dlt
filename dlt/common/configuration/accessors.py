@@ -99,7 +99,10 @@ class _Accessor(abc.ABC):
             if provider.is_empty:
                 continue
             value, effective_field = provider.get_value(key, type_hint, None, *sections)
-            trace = LookupTrace(provider.name, sections, effective_field, value)
+            location = (
+                provider.get_value_location(key, None, *sections) if value is not None else ""
+            )
+            trace = LookupTrace(provider.name, sections, effective_field, value, location)
             traces.append(trace)
             if value is not None:
                 # log trace

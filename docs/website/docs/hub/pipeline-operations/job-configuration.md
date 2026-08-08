@@ -46,6 +46,10 @@ The dltHub platform composes the execution environment from the workspace's base
 
 ## Instance size
 
+:::warning
+This feature is in public preview
+:::
+
 Pick how much CPU and memory the job’s runner gets. Pass it under `require.instance`:
 
 ```py
