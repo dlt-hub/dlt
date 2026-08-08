@@ -1,6 +1,8 @@
 import io
 import pytest
 import time
+from datetime import datetime, timezone  # noqa: I251
+from zoneinfo import ZoneInfo
 from typing import Iterator, Any
 
 from dlt.common import pendulum, json
@@ -22,6 +24,7 @@ from dlt.common.data_writers.escape import (
     escape_bigquery_identifier,
     escape_snowflake_literal,
     format_datetime_literal,
+    format_clickhouse_datetime_literal,
     format_datetime_value,
 )
 
@@ -204,6 +207,26 @@ def test_format_datetime_value(
     assert value == expected
     # format_datetime_literal is a thin wrapper that adds quotes
     assert format_datetime_literal(v, precision=precision, no_tz=naive_input) == f"'{expected}'"
+
+
+@pytest.mark.parametrize(
+    "tz_form,expected_value",
+    [
+        ("naive", "2024-03-04 05:06:07.123456"),
+        ("utc", "2024-03-04 05:06:07.123456"),
+        # 05:06:07+01:00 is 04:06:07 UTC, and the literal must not be shifted twice
+        ("berlin", "2024-03-04 04:06:07.123456"),
+    ],
+)
+def test_format_clickhouse_datetime_literal(tz_form: str, expected_value: str) -> None:
+    """`toDateTime64` reads the literal in the zone named by its third argument."""
+    v = datetime(2024, 3, 4, 5, 6, 7, 123456)
+    if tz_form == "utc":
+        v = v.replace(tzinfo=timezone.utc)
+    elif tz_form == "berlin":
+        v = v.replace(tzinfo=ZoneInfo("Europe/Berlin"))
+
+    assert format_clickhouse_datetime_literal(v) == f"toDateTime64('{expected_value}', 6, 'UTC')"
 
 
 def test_identifier_escape() -> None:

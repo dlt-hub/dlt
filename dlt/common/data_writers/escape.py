@@ -319,5 +319,6 @@ def format_clickhouse_datetime_literal(
     v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
 ) -> str:
     """Returns clickhouse compatible function"""
+    # the literal is rendered UTC-naive, so `toDateTime64` must read it in UTC
     datetime = format_datetime_literal(v, precision, True)
-    return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"
+    return f"toDateTime64({datetime}, {precision}, 'UTC')"
