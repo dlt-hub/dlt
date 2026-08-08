@@ -24,6 +24,35 @@ UNIX_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 DEFAULT_TIMESTAMP_PRECISION = 6
 
+_CONFIGURED_TZ: datetime.tzinfo = datetime.timezone.utc
+"""Timezone `dlt` stores loaded values in. Read it through `get_configured_timezone`, or as this
+global from within this module where the read is on a per-value path."""
+
+
+def get_configured_timezone() -> datetime.tzinfo:
+    """Timezone `dlt` stores loaded values in, UTC unless a `TimezoneContext` is active."""
+    return _CONFIGURED_TZ
+
+
+def set_configured_timezone(tz: Optional[datetime.tzinfo]) -> datetime.tzinfo:
+    """Installs the timezone `dlt` stores loaded values in and returns the previous one.
+
+    Internal: only `TimezoneContext` calls this, from its container lifecycle hooks. `None`
+    resets to UTC.
+
+    Args:
+        tz: Timezone to install, `None` to reset to UTC.
+
+    Returns:
+        The timezone that was installed before this call.
+    """
+    global _CONFIGURED_TZ
+
+    previous = _CONFIGURED_TZ
+    _CONFIGURED_TZ = tz or datetime.timezone.utc
+    return previous
+
+
 precise_time: Callable[[], float] = None
 """A precise timer using win_precise_time library on windows and time.time on other systems"""
 
