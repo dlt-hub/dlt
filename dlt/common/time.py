@@ -20,6 +20,7 @@ PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0
 DAY_DURATION_SEC: float = 24 * 60 * 60.0
 UNIX_EPOCH_DATE = datetime.date(1970, 1, 1)
+UNIX_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
 DEFAULT_TIMESTAMP_PRECISION = 6
 
@@ -476,16 +477,29 @@ def to_py_date(value: datetime.date) -> datetime.date:
     return value
 
 
-def datetime_to_timestamp(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
-    return int(moment.timestamp())
+def datetime_to_timestamp(moment: datetime.datetime) -> int:
+    """Converts a datetime to whole seconds since Unix epoch, naive input taken as UTC."""
+    return _epoch_delta(moment) // datetime.timedelta(seconds=1)
 
 
-def datetime_to_timestamp_ms(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
-    return int(moment.timestamp() * 1000)
+def datetime_to_timestamp_ms(moment: datetime.datetime) -> int:
+    """Converts a datetime to whole milliseconds since Unix epoch, naive input taken as UTC."""
+    return _epoch_delta(moment) // datetime.timedelta(milliseconds=1)
 
 
-def datetime_to_timestamp_us(moment: Union[datetime.datetime, pendulum.DateTime]) -> int:
-    return datetime_to_timestamp(moment) * 1_000_000 + moment.microsecond
+def datetime_to_timestamp_us(moment: datetime.datetime) -> int:
+    """Converts a datetime to whole microseconds since Unix epoch, naive input taken as UTC."""
+    return _epoch_delta(moment) // datetime.timedelta(microseconds=1)
+
+
+def _epoch_delta(moment: datetime.datetime) -> datetime.timedelta:
+    # `timestamp()` would read a naive value in the machine timezone, dlt takes it as UTC.
+    # `to_py_datetime` because subtracting pendulum instances yields an `Interval`, which
+    # floor-divides through a lossy `Duration`
+    py_moment = to_py_datetime(moment)
+    if py_moment.tzinfo is None:
+        py_moment = py_moment.replace(tzinfo=datetime.timezone.utc)
+    return py_moment - UNIX_EPOCH
 
 
 def _datetime_from_ts_or_iso(

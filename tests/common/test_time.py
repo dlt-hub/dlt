@@ -24,6 +24,7 @@ from dlt.common.time import (
     ensure_pendulum_date,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
+    datetime_to_timestamp_us,
     detect_datetime_format,
     ensure_pendulum_datetime_non_utc,
     ensure_pendulum_time,
@@ -354,6 +355,31 @@ def test_datetime_to_timestamp_helpers(
 ) -> None:
     assert datetime_to_timestamp(datetime_obj) == timestamp
     assert datetime_to_timestamp_ms(datetime_obj) == timestamp_ms
+    assert datetime_to_timestamp_us(datetime_obj) == timestamp * 1_000_000 + 738029
+
+
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
+def test_datetime_to_timestamp_ignores_os_timezone(local_tz: str) -> None:
+    """A naive datetime is read as UTC, never in the machine timezone."""
+    naive = datetime(2024, 1, 15, 23, 30, 0, 250000)
+    # the same instant, spelled in three ways
+    values = [
+        naive,
+        naive.replace(tzinfo=timezone.utc),
+        naive.replace(tzinfo=timezone.utc).astimezone(ZoneInfo("Europe/Berlin")),
+    ]
+    with local_timezone(local_tz):
+        for value in values:
+            assert datetime_to_timestamp(value) == 1705361400
+            assert datetime_to_timestamp_ms(value) == 1705361400250
+            assert datetime_to_timestamp_us(value) == 1705361400250000
+
+
+def test_datetime_to_timestamp_us_before_epoch() -> None:
+    """Sub-second parts of a pre-epoch instant add to the microseconds, they do not cancel out."""
+    before_epoch = datetime(1960, 1, 1, 0, 0, 0, 500000, tzinfo=timezone.utc)
+    assert datetime_to_timestamp_us(before_epoch) == -315619199_500_000
+    assert datetime_to_timestamp_ms(before_epoch) == -315619199_500
 
 
 @pytest.mark.parametrize(

@@ -42,6 +42,8 @@ EXTRA_PLACEHOLDERS = {
     "random_value": dummy_callback2,
 }
 
+# tz-aware: a naive value would make every `{timestamp}` expectation below depend on
+# the machine timezone, which is exactly what layout paths must never do
 frozen_datetime = pendulum.DateTime(
     year=2024,
     month=4,
@@ -50,6 +52,7 @@ frozen_datetime = pendulum.DateTime(
     minute=32,
     second=0,
     microsecond=0,
+    tzinfo=pendulum.UTC,
 )
 
 # Each layout example is a tuple of
