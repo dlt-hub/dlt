@@ -217,6 +217,11 @@ class ArrowSchemaNormalizationResult(NamedTuple):
     columns: TTableSchemaColumns
 
 
+def get_column_timezone(column: TColumnType, tz: str) -> Optional[str]:
+    """Timezone a timestamp column is stored in, `None` when the `timezone` hint is false."""
+    return tz if column.get("timezone", True) else None
+
+
 def get_py_arrow_datatype(
     column: TColumnType,
     caps: DestinationCapabilitiesContext,
@@ -230,8 +235,7 @@ def get_py_arrow_datatype(
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        # sets timezone to None when timezone hint is false
-        timezone = tz if column.get("timezone", True) else None
+        timezone = get_column_timezone(column, tz)
         precision = column.get("precision")
         if precision is None:
             precision = caps.timestamp_precision
@@ -570,6 +574,7 @@ def normalize_py_arrow_item(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     caps: DestinationCapabilitiesContext,
+    tz: str = "UTC",
 ) -> TAnyArrowItem:
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
@@ -606,7 +611,7 @@ def normalize_py_arrow_item(
 
             # coerce type
             new_type, new_arrow_column = normalize_py_arrow_item_column(
-                column, new_field.type, item.column(idx)
+                column, new_field.type, item.column(idx), tz
             )
 
             # use renamed field
@@ -616,7 +621,7 @@ def normalize_py_arrow_item(
             # column does not exist in pyarrow. create empty field and column
             new_field = pyarrow.field(
                 column_name,
-                get_py_arrow_datatype(column, caps, "UTC"),
+                get_py_arrow_datatype(column, caps, tz),
                 nullable=is_nullable_column(column),
             )
             new_fields.append(new_field)
@@ -661,7 +666,7 @@ def should_normalize_py_arrow_item_column(
         return False
 
     # normalize if tz different
-    return arrow_type.tz != (tz if column.get("timezone", True) else None)  # type: ignore[no-any-return]
+    return arrow_type.tz != get_column_timezone(column, tz)  # type: ignore[no-any-return]
 
 
 def normalize_py_arrow_item_column(
@@ -683,7 +688,7 @@ def normalize_py_arrow_item_column(
 
     unit = arrow_type.unit
     current_tz = arrow_type.tz
-    target_tz = tz if column.get("timezone", True) else None
+    target_tz = get_column_timezone(column, tz)
 
     if target_tz is not None:
         # `cast` takes any string, so the name must be checked before it reaches a schema
