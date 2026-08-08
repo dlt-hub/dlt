@@ -2,6 +2,7 @@ import base64
 import gzip
 import uuid
 from datetime import time  # noqa: I251
+from functools import lru_cache
 from typing import (
     Any,
     Dict,
@@ -107,6 +108,18 @@ class UnsupportedArrowTypeException(DltException):
     def table_name(self, value: str) -> None:
         self._table_name = value
         self._update_message()
+
+
+class InvalidTimezoneException(DltException):
+    """Exception raised when arrow cannot resolve a timezone name."""
+
+    def __init__(self, tz: str, arrow_message: str) -> None:
+        self.tz = tz
+        super().__init__(
+            f"dlt cannot resolve timezone `{tz}`: {arrow_message}. Use a canonical IANA name, for"
+            " example `Europe/Berlin`. On Windows install `tzdata`, arrow ships no timezone"
+            " database: https://arrow.apache.org/docs/cpp/build_system.html#runtime-dependencies"
+        )
 
 
 class PyToArrowConversionException(DltException):
@@ -622,22 +635,37 @@ def normalize_py_arrow_item(
     )
 
 
+def assume_arrow_timezone(arrow_column: pyarrow.Array, tz: str) -> pyarrow.Array:
+    """Labels a naive timestamp column with `tz` without shifting the values."""
+    try:
+        return pyarrow.compute.assume_timezone(
+            arrow_column, tz, ambiguous="latest", nonexistent="latest"
+        )
+    except pyarrow.ArrowInvalid as inv_ex:
+        if "timezone database" in str(inv_ex):
+            raise InvalidTimezoneException(tz, str(inv_ex)) from inv_ex
+        raise
+
+
+@lru_cache(maxsize=None)
+def validate_arrow_timezone(tz: str) -> None:
+    """Checks that arrow can resolve `tz`, which `pyarrow.timestamp` never does."""
+    assume_arrow_timezone(pyarrow.array([0], type=pyarrow.timestamp("s")), tz)
+
+
 def should_normalize_py_arrow_item_column(
-    column: TColumnSchema, arrow_type: pyarrow.DataType
+    column: TColumnSchema, arrow_type: pyarrow.DataType, tz: str = "UTC"
 ) -> bool:
     # Only handle timestamp columns
     if not pyarrow.types.is_timestamp(arrow_type):
         return False
 
-    current_tz = arrow_type.tz
-    target_tz = "UTC" if column.get("timezone", True) else None
-
     # normalize if tz different
-    return current_tz != target_tz  # type: ignore[no-any-return]
+    return arrow_type.tz != (tz if column.get("timezone", True) else None)  # type: ignore[no-any-return]
 
 
 def normalize_py_arrow_item_column(
-    column: TColumnSchema, arrow_type: pyarrow.Field, arrow_column: pyarrow.Array
+    column: TColumnSchema, arrow_type: pyarrow.Field, arrow_column: pyarrow.Array, tz: str = "UTC"
 ) -> Tuple[pyarrow.DataType, pyarrow.Array]:
     """Normalize arrow timestamp column timezone according to dlt schema column convention.
 
@@ -645,27 +673,26 @@ def normalize_py_arrow_item_column(
         column: dlt column schema with timezone hint
         arrow_type: actual PyArrow data type
         arrow_column: actual PyArrow column data
+        tz: timezone tz-aware columns are labelled with
 
     Returns:
         Tuple of (modified_type, modified_column) or (arrow_field, arrow_column) if no changes needed
     """
-    if not should_normalize_py_arrow_item_column(column, arrow_type):
+    if not should_normalize_py_arrow_item_column(column, arrow_type, tz):
         return arrow_type, arrow_column
 
     unit = arrow_type.unit
     current_tz = arrow_type.tz
-    target_tz = "UTC" if column.get("timezone", True) else None
+    target_tz = tz if column.get("timezone", True) else None
 
-    if target_tz == "UTC":
-        # Need tz-aware UTC
+    if target_tz is not None:
+        # `cast` takes any string, so the name must be checked before it reaches a schema
+        validate_arrow_timezone(target_tz)
         if current_tz is None:
-            # Attach UTC without shifting (values already represent UTC)
-            col = pyarrow.compute.assume_timezone(
-                arrow_column, "UTC", ambiguous="latest", nonexistent="latest"
-            )
-        else:
-            # Metadata-only cast to UTC tz
-            col = pyarrow.compute.cast(arrow_column, pyarrow.timestamp(unit, "UTC"))
+            # attach UTC without shifting (values already represent UTC)
+            arrow_column = assume_arrow_timezone(arrow_column, "UTC")
+        # metadata-only cast, the instant is preserved
+        col = pyarrow.compute.cast(arrow_column, pyarrow.timestamp(unit, target_tz))
     else:
         # Need naive
         if current_tz is None:
@@ -1300,7 +1327,7 @@ def cast_arrow_array_as_column_schema(
             # cast strings to date-times
             raw_array = raw_array.cast(actual_type)
             _, inferred_array = normalize_py_arrow_item_column(
-                column_schema, actual_type, raw_array
+                column_schema, actual_type, raw_array, tz
             )
         elif dlt_data_type == "time" and "function cast_time" in error_msg:
             if "from string to" in error_msg:

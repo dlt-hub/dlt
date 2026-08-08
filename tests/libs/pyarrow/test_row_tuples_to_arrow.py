@@ -552,6 +552,34 @@ def test_row_tuples_to_arrow_various_timestamps(
     assert col_type.tz == expected_tz
 
 
+@pytest.mark.parametrize("tz", ["UTC", "Europe/Berlin", "Asia/Kolkata"])
+def test_row_tuples_to_arrow_timestamp_tz_argument(tz: str) -> None:
+    """Every way of spelling one instant lands in the requested `tz` with that instant kept.
+
+    A naive input is read as UTC, so all four spellings denote the same moment.
+    """
+    columns: TTableSchemaColumns = {"ts": {"name": "ts", "data_type": "timestamp"}}
+    instant = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+    values = [
+        "2024-01-15T23:30:00",
+        "2024-01-15T23:30:00+00:00",
+        datetime(2024, 1, 15, 23, 30),
+        instant,
+    ]
+
+    for value in values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us", tz=tz), value
+        assert tbl["ts"][0].as_py() == instant, value
+
+    # a `timezone=False` column is naive in UTC whatever `tz` says
+    columns["ts"]["timezone"] = False
+    for value in values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us")
+        assert tbl["ts"][0].as_py() == datetime(2024, 1, 15, 23, 30)
+
+
 def test_row_tuples_to_arrow_pandas_ns_downcasts_to_us() -> None:
     """pandas nanosecond precision timestamps are cast to microseconds (precision=6).
 

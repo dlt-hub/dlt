@@ -15,6 +15,7 @@ from dlt.common.libs.pyarrow import (
     should_normalize_arrow_schema,
     add_constant_column,
     add_dlt_load_id_column,
+    InvalidTimezoneException,
 )
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 
@@ -457,6 +458,23 @@ def test_normalize_py_arrow_item_column_non_timestamp() -> None:
 
     assert original_type is time_field.type
     assert original_column is time_column
+
+
+@pytest.mark.parametrize("tz", ["utc", "Nowhere/Bogus"])
+def test_normalize_py_arrow_item_column_unknown_timezone(tz: str) -> None:
+    """`pyarrow.timestamp` takes any string, so an unresolvable name must be caught here."""
+    field, column = _ts_field_and_array(None, [datetime(2021, 1, 1, 12, 0, 0)])
+
+    with pytest.raises(InvalidTimezoneException) as exc:
+        normalize_py_arrow_item_column(_ts_schema(True), field.type, column, tz)
+
+    assert tz in str(exc.value)
+    assert "canonical IANA name" in str(exc.value)
+    assert exc.value.tz == tz
+
+    # a fixed offset resolves in arrow; dlt rejects it elsewhere, not here
+    _, aware = normalize_py_arrow_item_column(_ts_schema(True), field.type, column, "+02:00")
+    assert aware[0].as_py() == datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
 
 
 def test_normalize_py_arrow_item_column_timezone_conversion() -> None:
