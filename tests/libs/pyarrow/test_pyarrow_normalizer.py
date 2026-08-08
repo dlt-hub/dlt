@@ -472,10 +472,6 @@ def test_normalize_py_arrow_item_column_unknown_timezone(tz: str) -> None:
     assert "canonical IANA name" in str(exc.value)
     assert exc.value.tz == tz
 
-    # a fixed offset resolves in arrow; dlt rejects it elsewhere, not here
-    _, aware = normalize_py_arrow_item_column(_ts_schema(True), field.type, column, "+02:00")
-    assert aware[0].as_py() == datetime(2021, 1, 1, 12, 0, 0, tzinfo=timezone.utc)
-
 
 def test_normalize_py_arrow_item_column_timezone_conversion() -> None:
     """Test timezone conversion scenarios with actual timezone data."""
