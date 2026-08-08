@@ -10,6 +10,7 @@ from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.utils import add_config_dict_to_env
 
 from dlt._workspace import known_sections as ws_known_sections
+from dlt.common import known_env
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
@@ -119,9 +120,9 @@ def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
     iv_start = entry_point.get("interval_start")
     iv_end = entry_point.get("interval_end")
     if iv_start and iv_end:
-        os.environ["DLT_INTERVAL_START"] = iv_start
-        os.environ["DLT_INTERVAL_END"] = iv_end
-        os.environ["DLT_INTERVAL_TIMEZONE"] = entry_point.get("interval_timezone", "UTC")
+        os.environ[known_env.DLT_INTERVAL_START] = iv_start
+        os.environ[known_env.DLT_INTERVAL_END] = iv_end
+        os.environ[known_env.DLT_INTERVAL_TIMEZONE] = entry_point.get("interval_timezone", "UTC")
 
     if entry_point.get("refresh") and entry_point.get("auto_refresh_pipeline_mode"):
         set_config_env_vars(

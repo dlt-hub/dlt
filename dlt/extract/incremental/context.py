@@ -9,9 +9,16 @@ from dlt.common.configuration.specs.base_configuration import (
     ContainerInjectableContext,
     configspec,
 )
+from dlt.common import known_env, logger
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext, to_iana_name
 from dlt.common.interval import full_days_interval, lag_interval
-from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, ensure_datetime_utc
+from dlt.common.time import (
+    ensure_datetime,
+    ensure_datetime_in_tz,
+    ensure_datetime_utc,
+    get_configured_timezone,
+)
 from dlt.common.typing import TAnyDateTime, TTimeInterval
 
 TAnyTimeInterval = Union[TTimeInterval, Tuple[datetime, datetime]]
@@ -65,12 +72,38 @@ class TimeIntervalContext(ContainerInjectableContext):
     @interval.setter
     def interval(self, interval: Optional[TAnyTimeInterval]) -> None:
         self._interval = _to_time_interval(interval)
+        self._install_timezone()
 
     @property
     def timezone(self) -> Optional[tzinfo]:
         """Timezone both bounds are in, `None` when there is no interval or it is naive."""
         interval = self.interval
         return interval.start.tzinfo if interval else None
+
+    def add_extras(self) -> None:
+        super().add_extras()
+        self._install_timezone()
+
+    def _install_timezone(self) -> None:
+        """Installs the interval's timezone as the one `dlt` stores loaded values in.
+
+        The timezone belongs to the run rather than to this context, so it is not restored when
+        this context is removed. `worker_affinity` then carries it to the normalize pool.
+        """
+        tz = self.timezone
+        if tz is None:
+            return
+        tz_name = to_iana_name(tz)
+        if tz_name is None:
+            logger.info(
+                f"Interval timezone `{tz}` has no IANA name, so `dlt` keeps storing values in"
+                f" {get_configured_timezone()}."
+            )
+            return
+        container = Container()
+        current = container.get(TimezoneContext)
+        if current is None or current.timezone != tz_name:
+            container[TimezoneContext] = TimezoneContext(tz_name)
 
     def _detect(self) -> Optional[TTimeInterval]:
         """Detect interval from environment. Order: dlt env vars -> Airflow -> None.
@@ -80,12 +113,12 @@ class TimeIntervalContext(ContainerInjectableContext):
         resulting interval. Partial detection (start without end, or vice versa)
         returns `None`.
         """
-        start_value = os.environ.get("DLT_INTERVAL_START")
-        end_value = os.environ.get("DLT_INTERVAL_END")
+        start_value = os.environ.get(known_env.DLT_INTERVAL_START)
+        end_value = os.environ.get(known_env.DLT_INTERVAL_END)
         if start_value and end_value:
             start_utc = ensure_datetime_utc(start_value)
             end_utc = ensure_datetime_utc(end_value)
-            tz_name = os.environ.get("DLT_INTERVAL_TIMEZONE")
+            tz_name = os.environ.get(known_env.DLT_INTERVAL_TIMEZONE)
             if tz_name:
                 tz = ZoneInfo(tz_name)
                 return TTimeInterval(start_utc.astimezone(tz), end_utc.astimezone(tz))
@@ -215,3 +248,12 @@ class _IntervalAccessor:
 
 
 interval = _IntervalAccessor()
+
+
+def timezone() -> tzinfo:
+    """Timezone `dlt` stores loaded values in. UTC unless the job interval sets one.
+
+    Unlike `dlt.current.interval.timezone`, which describes the zone the interval bounds
+    happen to carry, this is the zone `dlt` actually writes values in and is never `None`.
+    """
+    return get_configured_timezone()

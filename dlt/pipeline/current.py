@@ -22,7 +22,7 @@ from dlt.extract.state import (
     get_current_pipe_name as _get_current_pipe_name,
     get_current_pipe as _get_current_pipe,
 )
-from dlt.extract.incremental.context import interval
+from dlt.extract.incremental.context import interval, timezone
 
 if TYPE_CHECKING:
     from dlt._workspace._workspace_context import WorkspaceRunContext
@@ -64,4 +64,5 @@ __all__ = [
     "resource",
     "resource_metrics",
     "interval",
+    "timezone",
 ]
