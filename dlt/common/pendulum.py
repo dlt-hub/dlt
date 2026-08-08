@@ -30,7 +30,11 @@ def to_pendulum_tz(tz: Optional[tzinfo]) -> Optional[Union[Timezone, FixedTimezo
         if offset_seconds == 0:
             return UTC
         return fixed_timezone(offset_seconds)
-    # named timezone (pytz, dateutil, zoneinfo) - need _safe_timezone for DST
+    # named timezone (pytz, dateutil, zoneinfo) - need _safe_timezone for DST.
+    # pendulum 2 does not recognize `ZoneInfo` and silently degrades it to UTC, moving the
+    # instant, so resolve by name whenever the zone carries one
+    if zone_name := getattr(tz, "key", None) or getattr(tz, "zone", None):
+        return pendulum.timezone(zone_name)  # type: ignore[no-any-return]
     return pendulum._safe_timezone(tz)
 
 

@@ -7,6 +7,7 @@ import pytest
 from pendulum.tz import UTC, fixed_timezone
 
 from dlt.common import pendulum
+from dlt.common.pendulum import to_pendulum_tz
 from dlt.common.storages.load_package import create_load_id
 from dlt.common.time import (
     MonotonicPreciseTime,
@@ -1102,3 +1103,25 @@ def test_ensure_datetime_preserves_tz_and_naive() -> None:
 
     naive = ensure_datetime("2021-01-15T12:00:00")
     assert naive.tzinfo is None
+
+
+@pytest.mark.parametrize(
+    "zone_name,moment,offset_hours",
+    [
+        ("Europe/Berlin", datetime(2024, 1, 15, 23, 30), 1),
+        ("Europe/Berlin", datetime(2024, 7, 15, 23, 30), 2),
+        ("Asia/Kolkata", datetime(2024, 1, 15, 23, 30), 5.5),
+        ("UTC", datetime(2024, 1, 15, 23, 30), 0),
+    ],
+)
+def test_zoneinfo_keeps_its_offset(zone_name: str, moment: datetime, offset_hours: float) -> None:
+    """A `ZoneInfo` must survive the pendulum round-trip: pendulum 2 resolves one only by name."""
+    utc_moment = moment.replace(tzinfo=timezone.utc)
+    value = utc_moment.astimezone(ZoneInfo(zone_name))
+    assert value.utcoffset() == timedelta(hours=offset_hours)
+
+    # the instant is what must not move, whichever way it is spelled
+    assert ensure_pendulum_datetime_non_utc(value).utcoffset() == timedelta(hours=offset_hours)
+    assert ensure_datetime_utc(value) == utc_moment
+    assert datetime_to_timestamp(value) == int(utc_moment.timestamp())
+    assert to_pendulum_tz(ZoneInfo(zone_name)).utcoffset(moment) == timedelta(hours=offset_hours)
