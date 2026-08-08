@@ -988,3 +988,74 @@ def test_accessor_apply_lag_and_full_days() -> None:
             _interval_accessor.apply_lag("0 0 * * *")
         with pytest.raises(RuntimeError, match="no active interval"):
             _interval_accessor.apply_full_days()
+
+
+def test_accessor_timezone() -> None:
+    berlin = ZoneInfo("Europe/Berlin")
+    # no context at all, and a context without an interval
+    assert _interval_accessor.timezone is None
+    with Container().injectable_context(TimeIntervalContext()):
+        assert _interval_accessor.timezone is None
+        _interval_accessor.set(
+            TTimeInterval(
+                datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16, tzinfo=berlin)
+            )
+        )
+        # the named zone survives, so it can be passed back to ensure_datetime_in_tz
+        assert _interval_accessor.timezone == berlin
+        _interval_accessor.set(
+            TTimeInterval(
+                datetime(2024, 1, 15, tzinfo=timezone.utc),
+                datetime(2024, 1, 16, tzinfo=timezone.utc),
+            )
+        )
+        assert _interval_accessor.timezone == timezone.utc
+        # a naive interval has no zone
+        _interval_accessor.set(TTimeInterval(datetime(2024, 1, 15), datetime(2024, 1, 16)))
+        assert _interval_accessor.timezone is None
+        # taken from the start, so a mixed interval reports the start's zone
+        _interval_accessor.set(
+            TTimeInterval(datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16))
+        )
+        assert _interval_accessor.timezone == berlin
+
+
+@pytest.mark.parametrize(
+    "new_start,expected_wall_clock",
+    [
+        # naive datetime is wall clock in the interval's zone
+        (datetime(2024, 1, 10, 6, 0), datetime(2024, 1, 10, 6, 0)),
+        # a bare date string is midnight in the interval's zone
+        ("2024-01-10", datetime(2024, 1, 10, 0, 0)),
+        ("2024-01-10T06:00:00", datetime(2024, 1, 10, 6, 0)),
+        # an aware value is converted into the interval's zone, keeping the instant.
+        # 05:00 UTC is 06:00 in Berlin in January (UTC+1)
+        (datetime(2024, 1, 10, 5, 0, tzinfo=timezone.utc), datetime(2024, 1, 10, 6, 0)),
+        ("2024-01-10T05:00:00+00:00", datetime(2024, 1, 10, 6, 0)),
+    ],
+    ids=["naive-datetime", "date-string", "naive-string", "aware-datetime", "offset-string"],
+)
+def test_accessor_update_keeps_interval_timezone(
+    new_start: Any, expected_wall_clock: datetime
+) -> None:
+    """`update` takes new bounds into the interval's timezone, so both ends keep one zone."""
+    berlin = ZoneInfo("Europe/Berlin")
+    iv = TTimeInterval(datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16, tzinfo=berlin))
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        _interval_accessor.update(start=new_start)
+        updated = _interval_accessor()
+        assert updated.start == expected_wall_clock.replace(tzinfo=berlin)
+        # the untouched end and the whole interval stay in the job's zone
+        assert updated.end == iv.end
+        assert updated.start.tzinfo == updated.end.tzinfo == berlin
+        assert _interval_accessor.timezone == berlin
+
+
+def test_accessor_update_on_naive_interval() -> None:
+    """A naive interval has no zone to adopt, so bounds stay naive instead of taking
+    the machine's local zone."""
+    iv = TTimeInterval(datetime(2024, 1, 15), datetime(2024, 1, 16))
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        _interval_accessor.update(start="2024-01-10T06:00:00")
+        assert _interval_accessor() == TTimeInterval(datetime(2024, 1, 10, 6, 0), iv.end)
+        assert _interval_accessor.timezone is None

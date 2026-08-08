@@ -6,12 +6,12 @@ from zoneinfo import ZoneInfo
 import pytest
 
 from dlt.common.interval import full_days_interval, lag_cron, lag_interval
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import TTimeInterval
 
 
 def _iv(start: str, end: str) -> TTimeInterval:
-    return TTimeInterval(ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+    return TTimeInterval(ensure_datetime_utc(start), ensure_datetime_utc(end))
 
 
 @pytest.mark.parametrize(
@@ -45,9 +45,7 @@ def _iv(start: str, end: str) -> TTimeInterval:
     ],
 )
 def test_lag_cron(cron: str, dt: str, count: int, expected: str) -> None:
-    assert lag_cron(cron, ensure_pendulum_datetime_utc(dt), count) == ensure_pendulum_datetime_utc(
-        expected
-    )
+    assert lag_cron(cron, ensure_datetime_utc(dt), count) == ensure_datetime_utc(expected)
 
 
 def test_lag_cron_preserves_timezone() -> None:

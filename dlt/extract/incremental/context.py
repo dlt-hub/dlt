@@ -2,7 +2,7 @@
 
 import os
 from typing import ClassVar, Optional, Tuple, Union
-from datetime import datetime  # noqa: I251
+from datetime import datetime, tzinfo  # noqa: I251
 from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.specs.base_configuration import (
@@ -11,8 +11,8 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common.configuration.container import Container
 from dlt.common.interval import full_days_interval, lag_interval
-from dlt.common.time import ensure_datetime_utc
-from dlt.common.typing import TTimeInterval
+from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, ensure_datetime_utc
+from dlt.common.typing import TAnyDateTime, TTimeInterval
 
 TAnyTimeInterval = Union[TTimeInterval, Tuple[datetime, datetime]]
 """A `(start, end)` interval as either a `TTimeInterval` or a plain datetime tuple."""
@@ -22,6 +22,13 @@ def _to_time_interval(interval: Optional[TAnyTimeInterval]) -> Optional[TTimeInt
     if interval is None or isinstance(interval, TTimeInterval):
         return interval
     return TTimeInterval(*interval)
+
+
+def _in_interval_tz(value: TAnyDateTime, tz: Optional[tzinfo]) -> datetime:
+    # astimezone(None) would silently adopt the machine's local zone
+    if tz is None:
+        return ensure_datetime(value)
+    return ensure_datetime_in_tz(value, tz)
 
 
 @configspec
@@ -58,6 +65,12 @@ class TimeIntervalContext(ContainerInjectableContext):
     @interval.setter
     def interval(self, interval: Optional[TAnyTimeInterval]) -> None:
         self._interval = _to_time_interval(interval)
+
+    @property
+    def timezone(self) -> Optional[tzinfo]:
+        """Timezone both bounds are in, `None` when there is no interval or it is naive."""
+        interval = self.interval
+        return interval.start.tzinfo if interval else None
 
     def _detect(self) -> Optional[TTimeInterval]:
         """Detect interval from environment. Order: dlt env vars -> Airflow -> None.
@@ -116,18 +129,37 @@ class _IntervalAccessor:
     def update(
         self,
         *,
-        start: Optional[datetime] = None,
-        end: Optional[datetime] = None,
+        start: Optional[TAnyDateTime] = None,
+        end: Optional[TAnyDateTime] = None,
     ) -> None:
-        """Override `start` and/or `end`, preserving the other bound."""
+        """Override `start` and/or `end`, preserving the other bound.
+
+        Each new bound is taken into the interval's timezone: naive values (including
+        plain dates and ISO strings without an offset) are read as wall clock there,
+        aware values are converted. Both ends of the interval keep a single timezone.
+
+        Args:
+            start (Optional[TAnyDateTime]): New start of the interval.
+            end (Optional[TAnyDateTime]): New end of the interval.
+
+        Raises:
+            RuntimeError: If no interval is active.
+        """
         ctx = get_interval_context()
         cur = ctx.interval if ctx else None
         if cur is None:
             raise RuntimeError("no active interval to update")
+        tz = ctx.timezone
         ctx.interval = TTimeInterval(
-            start if start is not None else cur.start,
-            end if end is not None else cur.end,
+            cur.start if start is None else _in_interval_tz(start, tz),
+            cur.end if end is None else _in_interval_tz(end, tz),
         )
+
+    @property
+    def timezone(self) -> Optional[tzinfo]:
+        """Timezone of the active interval, or `None` when no interval is active."""
+        ctx = get_interval_context()
+        return ctx.timezone if ctx else None
 
     @property
     def is_empty(self) -> bool:
