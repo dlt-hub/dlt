@@ -4,7 +4,6 @@ from typing import Any, Dict
 from datetime import date, datetime, time, timezone  # noqa: I251
 
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.time import reduce_pendulum_datetime_precision
 
 # use regex to escape characters in single pass
@@ -304,9 +303,7 @@ def format_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False
     return "'" + format_datetime_value(v, precision, no_tz) + "'"
 
 
-def format_bigquery_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
+def format_bigquery_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
     """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator.
 
     Also works for Presto-based engines.
@@ -315,9 +312,7 @@ def format_bigquery_datetime_literal(
     return "TIMESTAMP " + format_datetime_literal(v, precision, no_tz)
 
 
-def format_clickhouse_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
+def format_clickhouse_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
     """Returns clickhouse compatible function"""
     # the literal is rendered UTC-naive, so `toDateTime64` must read it in UTC
     datetime = format_datetime_literal(v, precision, True)
