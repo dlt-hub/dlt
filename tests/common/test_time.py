@@ -1,6 +1,4 @@
-import os
 import time
-from contextlib import contextmanager
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
 from unittest import mock
 from zoneinfo import ZoneInfo
@@ -34,43 +32,7 @@ from dlt.common.time import (
 )
 from dlt.common.typing import TAnyDateTime
 
-
-@contextmanager
-def local_timezone(tz_name: str):
-    """Context manager to temporarily set local timezone."""
-
-    # do not change when not set
-    if not tz_name:
-        yield
-        return
-
-    if not hasattr(time, "tzset") or os.name == "nt":
-        pytest.skip("Timezone manipulation requires tzset (not available on Windows)")
-
-    old_tz = os.environ.get("TZ")
-    os.environ["TZ"] = tz_name
-    time.tzset()
-
-    try:
-        # pendulum has test utils in core library
-        with pendulum.test_local_timezone(pendulum._safe_timezone(tz_name)):  # type: ignore[arg-type]
-            yield
-    finally:
-        if old_tz is None:
-            if "TZ" in os.environ:
-                del os.environ["TZ"]
-        else:
-            os.environ["TZ"] = old_tz
-        time.tzset()
-
-
-# Different local timezones to test against
-local_timezones = [
-    None,  # do not change anything, must run on all oses and python versions
-    "UTC",  # Keep existing (assuming tests run in UTC by default)
-    "Europe/Berlin",  # Berlin timezone
-    "Asia/Kolkata",  # India timezone
-]
+from tests.utils import LOCAL_TIMEZONES, local_timezone
 
 
 def test_timestamp_within() -> None:
@@ -229,7 +191,7 @@ def test_parse_iso_like_datetime() -> None:
     # assert parse_iso_like_datetime("2021:01:01 05:02:32+08:00") == pendulum.DateTime(2021, 1, 1, 5, 2, 32)
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "date_value, expected_utc, expected_non_utc, expected_date", datetime_test_params
 )
@@ -255,7 +217,7 @@ def test_ensure_pendulum_datetime_utc(
         assert dt.add(days=1).tz == UTC
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "date_value, expected_utc, expected_non_utc, expected_date", datetime_test_params
 )
@@ -290,7 +252,7 @@ def test_ensure_pendulum_datetime_non_utc(
         _test_tz(dt.add(days=1))
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "date_value, expected_utc, expected_non_utc, expected_date", datetime_test_params
 )
@@ -308,7 +270,7 @@ def test_ensure_pendulum_date(
         assert isinstance(dt, pendulum.Date)
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 def test_ensure_pendulum_date_utc(local_tz: str) -> None:
     """Additional specific test cases for ensure_pendulum_date"""
 
@@ -560,7 +522,7 @@ normalize_timezone_test_params = [
 ]
 
 
-@pytest.mark.parametrize("local_tz,exp_dt_tz", zip(local_timezones, (None, "UTC", "CET", "IST")))
+@pytest.mark.parametrize("local_tz,exp_dt_tz", zip(LOCAL_TIMEZONES, (None, "UTC", "CET", "IST")))
 def test_set_local_tz(local_tz: str, exp_dt_tz: str) -> None:
     dt_tz = time.tzname
     p_tz = pendulum.now().timezone_name
@@ -573,7 +535,7 @@ def test_set_local_tz(local_tz: str, exp_dt_tz: str) -> None:
             assert p_tz == pendulum.now().timezone_name
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "input_dt, timezone_param, expected, description", normalize_timezone_test_params
 )
@@ -612,7 +574,7 @@ def test_normalize_timezone(
         ), f"Failed for {description}: expected pendulum.DateTime, got {type(result)}"
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 def test_normalize_timezone_edge_cases(local_tz: str) -> None:
     """Test edge cases for normalize_timezone function."""
 
@@ -648,7 +610,7 @@ def test_normalize_timezone_edge_cases(local_tz: str) -> None:
 
 
 # tests for ensure_pendulum_time
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "value, expected",
     [
@@ -679,7 +641,7 @@ def test_ensure_pendulum_time_naive(local_tz: str, value, expected) -> None:
         assert t.tzinfo is None
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "value, expected, case_id",
     [
@@ -717,7 +679,7 @@ def test_ensure_pendulum_time_aware(local_tz: str, value, expected, case_id: str
         assert t.tzinfo is None
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "value, expected, case_id",
     [
@@ -749,7 +711,7 @@ def test_ensure_pendulum_time_from_strings(
         assert t.tzinfo is None
 
 
-@pytest.mark.parametrize("local_tz", local_timezones)
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize(
     "value, expected, case_id",
     [

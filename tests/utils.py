@@ -7,6 +7,7 @@ import os
 import platform
 import threading
 import sys
+import time
 from functools import partial
 from os import environ
 from pathlib import Path
@@ -18,7 +19,7 @@ import requests
 from requests import Response
 
 import dlt
-from dlt.common import known_env
+from dlt.common import known_env, pendulum
 from dlt.common.runtime import telemetry
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
@@ -49,6 +50,42 @@ from dlt.common.utils import set_working_dir
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
 STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
+
+LOCAL_TIMEZONES = [
+    None,  # do not change anything, must run on all oses and python versions
+    "UTC",
+    "Europe/Berlin",
+    "Asia/Kolkata",
+]
+"""Local timezones to parametrize over so that no result depends on the machine setting."""
+
+
+@contextlib.contextmanager
+def local_timezone(tz_name: Optional[str]) -> Iterator[None]:
+    """Sets the OS and pendulum local timezone for the duration of the block."""
+    # do not change when not set
+    if not tz_name:
+        yield
+        return
+
+    if not hasattr(time, "tzset") or os.name == "nt":
+        pytest.skip("Timezone manipulation requires tzset (not available on Windows)")
+
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = tz_name
+    time.tzset()
+
+    try:
+        # pendulum has test utils in core library
+        with pendulum.test_local_timezone(pendulum._safe_timezone(tz_name)):  # type: ignore[arg-type]
+            yield
+    finally:
+        if old_tz is None:
+            if "TZ" in os.environ:
+                del os.environ["TZ"]
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
 
 
 def get_test_worker_id() -> str:
