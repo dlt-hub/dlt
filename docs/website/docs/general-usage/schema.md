@@ -316,6 +316,19 @@ Ultimately, the destination will interpret the timestamp values. Some destinatio
 
 `dlt` sets sessions to UTC timezone to minimize chances of erroneous conversion.
 
+### Handling dates
+* `date` carries no timezone. `dlt` passes dates to the destination as calendar days.
+* `dlt` takes the day of a **timestamp** in UTC: a tz-aware timestamp is shifted to UTC first, a naive one is read as UTC. Two timestamps that are the same instant always give the same day.
+* `dlt` converts a `date` into a **timestamp** as midnight without a timezone. The timestamp rules above then apply, so a `date` becomes midnight UTC.
+* The same rules apply to tabular data (arrow/pandas/polars), to Python objects, and to [incremental cursors](incremental/cursor.md) on `date` columns.
+* A SQL cast from a timestamp to `date` is not portable. `duckdb` and `postgres` use the session timezone, `snowflake` the offset in the value, `bigquery` always UTC. An explicit `AT TIME ZONE` in the query removes that difference. `dlt` sets its own sessions to UTC.
+
+| input timestamp             | coerced `date` |
+| --------------------------- | -------------- |
+| `2026-07-25T00:00:00+02:00` | `2026-07-24`   |
+| `2026-07-25T00:00:00`       | `2026-07-25`   |
+|                             |                |
+
 ### Handling precision
 The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.
 
