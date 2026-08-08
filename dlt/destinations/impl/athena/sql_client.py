@@ -40,6 +40,7 @@ from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.data_writers.escape import escape_hive_identifier
+from dlt.common.time import ensure_datetime_utc
 
 from dlt.destinations.typing import DBApi, DBTransaction
 from dlt.destinations.exceptions import (
@@ -65,7 +66,8 @@ def _format_pendulum_datetime(formatter: Formatter, escaper: Callable[[str], str
     # https://docs.aws.amazon.com/athena/latest/ug/engine-versions-reference-0003.html#engine-versions-reference-0003-timestamp-changes
     # ICEBERG tables have TIMESTAMP(6), other tables have TIMESTAMP(3), we always generate TIMESTAMP(6)
     # it is up to the user to cut the microsecond part
-    val_string = val.strftime("%Y-%m-%d %H:%M:%S.%f")
+    # athena has no timezone type, so the instant must be converted before the offset is dropped
+    val_string = ensure_datetime_utc(val).strftime("%Y-%m-%d %H:%M:%S.%f")
     return f"""TIMESTAMP '{val_string}'"""
 
 
