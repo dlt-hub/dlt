@@ -110,7 +110,7 @@ def coerce_from_date_types(
     if to_type == "double":
         return ensure_datetime_utc(v).timestamp()
     if to_type == "date":
-        return ensure_pendulum_date(v)
+        return _to_date(v)
     if to_type == "time":
         return v.time()
     raise TypeError(f"Cannot convert timestamp to `{to_type}`")
@@ -181,13 +181,16 @@ def _text_fallback(value: Any) -> str:
         return str(value)
 
 
-def _text_to_date_fast(value: str) -> PendulumDate:
-    """Fast date parsing: native Python + pendulum Date."""
-    try:
-        d = datetime.date.fromisoformat(value)
-        return PendulumDate(d.year, d.month, d.day)
-    except Exception:
-        return ensure_pendulum_date(value)
+def _to_date(value: Any) -> PendulumDate:
+    """Coerces any value to a date. The single place the calendar day is derived."""
+    if isinstance(value, str):
+        # a plain ISO date needs no datetime round-trip; anything else raises and falls through
+        try:
+            d = datetime.date.fromisoformat(value)
+            return PendulumDate(d.year, d.month, d.day)
+        except ValueError:
+            pass
+    return ensure_pendulum_date(value)
 
 
 _COERCE_DISPATCH: Dict[Tuple[TDataType, TDataType], Callable[[Any], Any]] = {
@@ -238,11 +241,11 @@ _COERCE_DISPATCH: Dict[Tuple[TDataType, TDataType], Callable[[Any], Any]] = {
     ("timestamp", "bigint"): pendulum.from_timestamp,
     ("timestamp", "double"): pendulum.from_timestamp,
     ("timestamp", "date"): ensure_pendulum_datetime_non_utc,
-    # to date (fast path)
-    ("date", "text"): _text_to_date_fast,
-    ("date", "timestamp"): ensure_pendulum_date,
-    ("date", "bigint"): ensure_pendulum_date,
-    ("date", "double"): ensure_pendulum_date,
+    # to date
+    ("date", "text"): _to_date,
+    ("date", "timestamp"): _to_date,
+    ("date", "bigint"): _to_date,
+    ("date", "double"): _to_date,
     # to time
     ("time", "text"): ensure_pendulum_time,
 }
