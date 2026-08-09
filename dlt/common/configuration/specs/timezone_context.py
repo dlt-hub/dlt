@@ -1,6 +1,6 @@
 import datetime  # noqa: I251
 from typing import ClassVar, List, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs.base_configuration import (
@@ -28,6 +28,10 @@ def to_tzinfo(timezone: str) -> datetime.tzinfo:
     if timezone == UTC_NAME:
         # the stdlib singleton, so `== timezone.utc` holds and offsets need no lookup
         return datetime.timezone.utc
+    # `ZoneInfo` alone accepts `utc` where the filesystem is case-insensitive, as macOS is, while
+    # arrow keeps rejecting it. only the canonical spellings are portable
+    if timezone not in available_timezones():
+        raise InvalidTimezoneName(timezone, "no such timezone")
     try:
         return ZoneInfo(timezone)
     except (ZoneInfoNotFoundError, ValueError) as ex:
