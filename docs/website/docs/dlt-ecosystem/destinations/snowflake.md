@@ -163,6 +163,23 @@ This will set the timezone and session keep alive. Mind that if you use TOML, yo
 `"snowflake://loader/dlt_data?authenticator=oauth&timezone=UTC&client_session_keep_alive=true"`
 will pass `client_session_keep_alive` as a string to the connect method (which we didn't verify if it works).
 
+### Session timezone
+By default `dlt` does not set the session `TIMEZONE`, so your account default applies. The session
+timezone decides how Snowflake reads values without a UTC offset into `TIMESTAMP_TZ` and
+`TIMESTAMP_LTZ` columns. It also decides what `CURRENT_TIMESTAMP` returns. It does not change the
+column types that `CREATE TABLE` produces.
+```toml
+[destination.snowflake.credentials]
+session_timezone = "UTC"
+```
+The `timezone` query parameter does the same thing and takes precedence over this setting.
+
+:::caution
+Before `dlt` 1.30.0, `dlt` always set the session to `UTC`, unless you passed `timezone` in the query.
+To keep that behavior, set `session_timezone = "UTC"`. The change does not affect loads, because
+`dlt` writes an explicit UTC offset into every timestamp.
+:::
+
 ### Write disposition
 
 All write dispositions are supported.

@@ -35,6 +35,8 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     private_key_path: Optional[str] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     application: Optional[str] = SNOWFLAKE_APPLICATION_ID
+    session_timezone: Optional[str] = None
+    """Session `TIMEZONE`. `None` keeps the account default"""
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
@@ -104,6 +106,9 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
 
         if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
+
+        if self.session_timezone and "timezone" not in conn_params:
+            conn_params["timezone"] = self.session_timezone
 
         # snowflake-connector-python fails if `host` is None, so we only set it if it's not None
         if self._snowflake_host:

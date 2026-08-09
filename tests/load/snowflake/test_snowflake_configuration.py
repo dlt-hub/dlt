@@ -171,6 +171,20 @@ def test_query_additional_params() -> None:
         assert c.to_url().query["keep_alive"] == "True"
 
 
+def test_session_timezone() -> None:
+    # the account default applies unless you configure a timezone
+    c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1")
+    assert "timezone" not in c.to_connector_params()
+
+    c.session_timezone = "UTC"
+    assert c.to_connector_params()["timezone"] == "UTC"
+
+    # a timezone passed in the query takes precedence
+    c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1?timezone=Asia/Tokyo")
+    c.session_timezone = "UTC"
+    assert c.to_connector_params()["timezone"] == "Asia/Tokyo"
+
+
 def test_overwrite_query_value_from_explicit() -> None:
     # value specified in the query is preserved over the value set in config
     c = SnowflakeCredentialsWithoutDefaults("snowflake://user1@host1/db1?authenticator=uri")
