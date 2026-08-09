@@ -251,6 +251,9 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                         py_type = type_map.get(type(v))
                         if py_type == col_type:
                             # happy path: complete column, type matches, no coercion needed
+                            # NOTE: the timezone hint applies even when nothing is coerced
+                            if col_type == "timestamp":
+                                v = normalize_timezone(v, existing_column.get("timezone", True))
                             new_row[col_name] = v
                             continue
                         if py_type and can_coerce_type(col_type, py_type):
