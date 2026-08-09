@@ -1,5 +1,6 @@
 import io
 import os
+from datetime import timedelta  # noqa: I251
 from typing import Any, List, NamedTuple
 from dataclasses import dataclass
 import pytest
@@ -237,9 +238,10 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
 
     copied_values = deepcopy(loaded_values)
     assert copied_values == values == loaded_values
-    assert copied_values["utc"].tzname() == "+00:00"
-    assert copied_values["0200"].tzname() == "+02:00"
-    assert copied_values["naive"].tzname() is None
+    # assert the offset, not the tzinfo name: decoders may return stdlib or pendulum zones
+    assert copied_values["utc"].utcoffset() == timedelta(0)
+    assert copied_values["0200"].utcoffset() == timedelta(hours=2)
+    assert copied_values["naive"].utcoffset() is None
 
 
 # @pytest.mark.parametrize("json_impl", _JSON_IMPL)

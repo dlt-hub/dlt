@@ -7,7 +7,7 @@ import pyarrow as pa
 import dlt
 from dlt.common import json, Decimal
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 from dlt.common.libs.pyarrow import (
     NameNormalizationCollision,
@@ -156,9 +156,7 @@ def test_normalize_jsonl(item_type: TPythonTableFormat, is_list: bool):
         res_item["decimal"] = Decimal(res_item["decimal"])
         exp_item["decimal"] = Decimal(exp_item["decimal"])
         # we normalize timestamps to UTC
-        exp_item["datetime"] = (
-            ensure_pendulum_datetime_utc(exp_item["datetime"]).isoformat().replace("+00:00", "Z")
-        )
+        exp_item["datetime"] = ensure_pendulum_datetime(exp_item["datetime"]).isoformat()
         assert res_item == exp_item
 
 

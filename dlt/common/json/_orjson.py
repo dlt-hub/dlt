@@ -19,7 +19,7 @@ set_custom_encoder = set_custom_encoder_impl
 def _dumps(
     obj: Any, sort_keys: bool, pretty: bool, default: AnyFun = custom_encode, options: int = 0
 ) -> bytes:
-    options = options | orjson.OPT_UTC_Z | orjson.OPT_NON_STR_KEYS
+    options = options | orjson.OPT_NON_STR_KEYS
     if pretty:
         options |= orjson.OPT_INDENT_2
     if sort_keys:

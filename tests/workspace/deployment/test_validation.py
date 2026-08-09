@@ -570,12 +570,12 @@ def test_manifest_roundtrip_io() -> None:
 @pytest.mark.parametrize(
     "raw_start,raw_end,expected_start,expected_end",
     [
-        # datetime aware → ISO with Z suffix (dlt custom encoder convention)
+        # datetime aware → ISO with the offset rendered, as `isoformat()` does
         (
             datetime(2024, 1, 1, tzinfo=timezone.utc),
             datetime(2024, 12, 31, 23, 59, 59, tzinfo=timezone.utc),
-            "2024-01-01T00:00:00Z",
-            "2024-12-31T23:59:59Z",
+            "2024-01-01T00:00:00+00:00",
+            "2024-12-31T23:59:59+00:00",
         ),
         # datetime naive → ISO without offset (passes through .isoformat())
         (
