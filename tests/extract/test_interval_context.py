@@ -14,8 +14,8 @@ from dlt.common.configuration.container import Container
 from dlt.common.pendulum import pendulum
 from dlt.common.time import (
     ensure_datetime,
-    ensure_pendulum_datetime_non_utc,
-    ensure_pendulum_datetime_utc,
+    ensure_datetime,
+    ensure_pendulum_datetime,
 )
 from dlt.common.typing import TTimeInterval
 from dlt.common.utils import uniq_id
@@ -38,7 +38,7 @@ from tests.utils import (
 
 def _utc_iv(start: str, end: str) -> TTimeInterval:
     """Build a UTC interval from ISO strings."""
-    return TTimeInterval(ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+    return TTimeInterval(ensure_pendulum_datetime(start), ensure_pendulum_datetime(end))
 
 
 def test_explicit_context_with_tuple() -> None:
@@ -114,10 +114,8 @@ def test_detect_from_env_vars(env_vars: Dict[str, str], expect_interval: bool) -
         # assertion must happen inside the patch.dict scope
         if expect_interval:
             assert ctx.interval is not None
-            assert ctx.interval[0] == ensure_pendulum_datetime_non_utc(
-                env_vars["DLT_INTERVAL_START"]
-            )
-            assert ctx.interval[1] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_END"])
+            assert ctx.interval[0] == ensure_datetime(env_vars["DLT_INTERVAL_START"])
+            assert ctx.interval[1] == ensure_datetime(env_vars["DLT_INTERVAL_END"])
         else:
             assert ctx.interval is None
 
@@ -955,7 +953,7 @@ def test_accessor_is_empty() -> None:
 )
 def test_accessor_update(kwargs: Dict[str, str], expected_start: str, expected_end: str) -> None:
     iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
-    parsed = {k: ensure_pendulum_datetime_utc(v) for k, v in kwargs.items()}
+    parsed = {k: ensure_pendulum_datetime(v) for k, v in kwargs.items()}
     with Container().injectable_context(TimeIntervalContext(interval=iv)):
         _interval_accessor.update(**parsed)
         assert _interval_accessor() == _utc_iv(expected_start, expected_end)
@@ -967,7 +965,7 @@ def test_accessor_update_raises_when_no_interval() -> None:
         Container().injectable_context(TimeIntervalContext()),
     ):
         with pytest.raises(RuntimeError, match="no active interval to update"):
-            _interval_accessor.update(start=ensure_pendulum_datetime_utc("2024-01-01T00:00:00Z"))
+            _interval_accessor.update(start=ensure_pendulum_datetime("2024-01-01T00:00:00Z"))
 
 
 def test_accessor_apply_lag_and_full_days() -> None:
@@ -992,10 +990,10 @@ def test_accessor_apply_lag_and_full_days() -> None:
 
 def test_accessor_timezone() -> None:
     berlin = ZoneInfo("Europe/Berlin")
-    # no context at all, and a context without an interval
-    assert _interval_accessor.timezone is None
+    # without an interval to carry a zone, the context timezone answers
+    assert _interval_accessor.timezone == timezone.utc
     with Container().injectable_context(TimeIntervalContext()):
-        assert _interval_accessor.timezone is None
+        assert _interval_accessor.timezone == timezone.utc
         _interval_accessor.set(
             TTimeInterval(
                 datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16, tzinfo=berlin)
@@ -1010,9 +1008,9 @@ def test_accessor_timezone() -> None:
             )
         )
         assert _interval_accessor.timezone == timezone.utc
-        # a naive interval has no zone
+        # a naive interval carries no zone, so the context timezone answers instead
         _interval_accessor.set(TTimeInterval(datetime(2024, 1, 15), datetime(2024, 1, 16)))
-        assert _interval_accessor.timezone is None
+        assert _interval_accessor.timezone == timezone.utc
         # taken from the start, so a mixed interval reports the start's zone
         _interval_accessor.set(
             TTimeInterval(datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16))
@@ -1051,11 +1049,15 @@ def test_accessor_update_keeps_interval_timezone(
         assert _interval_accessor.timezone == berlin
 
 
-def test_accessor_update_on_naive_interval() -> None:
-    """A naive interval has no zone to adopt, so bounds stay naive instead of taking
-    the machine's local zone."""
+def test_naive_interval_is_read_in_context_timezone() -> None:
+    """Bounds are always tz-aware: a naive one is read in the context timezone, never the local."""
     iv = TTimeInterval(datetime(2024, 1, 15), datetime(2024, 1, 16))
     with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        assert _interval_accessor() == TTimeInterval(
+            datetime(2024, 1, 15, tzinfo=timezone.utc),
+            datetime(2024, 1, 16, tzinfo=timezone.utc),
+        )
+        assert _interval_accessor.timezone == timezone.utc
+        # an update stays in that zone
         _interval_accessor.update(start="2024-01-10T06:00:00")
-        assert _interval_accessor() == TTimeInterval(datetime(2024, 1, 10, 6, 0), iv.end)
-        assert _interval_accessor.timezone is None
+        assert _interval_accessor()[0] == datetime(2024, 1, 10, 6, tzinfo=timezone.utc)

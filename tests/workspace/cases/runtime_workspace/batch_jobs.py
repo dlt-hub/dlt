@@ -51,6 +51,21 @@ def context_optional(run_context: TJobRunContext = None):
 
 
 @job
+def timezone_aware():
+    """Job that reports the timezone `dlt` stores loaded values in, and how it stores a value."""
+    from datetime import datetime
+
+    from dlt.common.configuration.container import Container
+    from dlt.common.configuration.specs.timezone_context import TimezoneContext
+    from dlt.common.time import get_context_timezone, normalize_timezone
+
+    stored = normalize_timezone(datetime(2024, 1, 15, 23, 30), True)
+    # `in` does not create a default instance, unlike `get`
+    has_ctx = TimezoneContext in Container()
+    return f"tz={get_context_timezone()},stored={stored.isoformat()},tz_ctx={has_ctx}"
+
+
+@job
 def interval_aware(run_context: TJobRunContext):
     """Job that reads interval from run_context and dlt.current.interval()."""
     import dlt
@@ -72,8 +87,7 @@ def interval_aware(run_context: TJobRunContext):
 )
 def incremental_interval_job(run_context: TJobRunContext):
     """Job that creates an incremental resource and checks scheduler join."""
-    from datetime import datetime  # noqa: I251
-    from dlt.common.pendulum import pendulum
+    from datetime import datetime, timezone
     from dlt.extract.incremental.context import get_interval_context
 
     ctx = get_interval_context()
@@ -83,7 +97,7 @@ def incremental_interval_job(run_context: TJobRunContext):
     def my_events(
         updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental("updated_at"),
     ):
-        yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
+        yield {"updated_at": datetime(2024, 1, 15, 12, tzinfo=timezone.utc)}
 
     r = my_events()
     items = list(r)
@@ -98,17 +112,16 @@ def incremental_interval_job(run_context: TJobRunContext):
 )
 def epoch_override_job(run_context: TJobRunContext):
     """Override interval start via `dlt.current.interval.update` before incremental bind."""
-    from datetime import datetime  # noqa: I251
-    from dlt.common.pendulum import pendulum
-    from dlt.common.time import ensure_pendulum_datetime_utc
+    from datetime import datetime, timezone
+    from dlt.common.time import ensure_datetime_in_tz
 
-    dlt.current.interval.update(start=ensure_pendulum_datetime_utc("2023-06-01T00:00:00Z"))
+    dlt.current.interval.update(start=ensure_datetime_in_tz("2023-06-01T00:00:00Z"))
 
     @dlt.resource()
     def my_events(
         updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental("updated_at"),
     ):
-        yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
+        yield {"updated_at": datetime(2024, 1, 15, 12, tzinfo=timezone.utc)}
 
     r = my_events()
     list(r)

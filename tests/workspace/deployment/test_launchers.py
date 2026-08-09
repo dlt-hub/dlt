@@ -14,6 +14,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 
 import dlt
+from dlt.common import known_env
 from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
 from dlt._workspace.deployment.launchers._launcher import apply_job_configuration
 from dlt._workspace.deployment.exceptions import JobResolutionError
@@ -23,7 +24,7 @@ from dlt.common.exceptions import SignalReceivedException
 from dlt.common.runtime import signals
 from dlt.pipeline.exceptions import PipelineStepFailed
 
-from tests.utils import skipifwindows
+from tests.utils import preserve_environ, skipifwindows
 from tests.workspace.cases.runtime_workspace import batch_jobs
 from tests.workspace.utils import isolated_workspace
 
@@ -127,6 +128,40 @@ def test_job_launcher_no_interval() -> None:
         trigger="manual:",
     )
     assert result == "no_interval"
+
+
+@pytest.mark.parametrize(
+    "iv_tz,expected_stored",
+    [
+        ("Europe/Berlin", "2024-01-15T23:30:00+01:00"),
+        ("America/New_York", "2024-01-15T23:30:00-05:00"),
+        ("UTC", "2024-01-15T23:30:00+00:00"),
+    ],
+    ids=["berlin-cet", "new-york-est", "utc"],
+)
+def test_job_launcher_stores_values_in_declared_timezone(iv_tz: str, expected_stored: str) -> None:
+    """`require.timezone` decides the timezone the job stores loaded values in."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    ep["interval_timezone"] = iv_tz
+    result = job_run(ep, run_id=f"tz-job-{iv_tz}", trigger="schedule:0 0 * * *")
+    assert f"stored={expected_stored}" in result
+
+
+@pytest.mark.parametrize(
+    "trigger", ["manual:", "job:some_other_job.success"], ids=["manual", "on-success"]
+)
+def test_job_launcher_timezone_without_interval(trigger: str) -> None:
+    """A trigger that generates no interval must still carry `require.timezone` into the job."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
+    ep["interval_timezone"] = "Europe/Berlin"
+    result = job_run(ep, run_id=f"tz-no-iv-{trigger}", trigger=trigger)
+
+    assert "tz=Europe/Berlin" in result
+    assert "stored=2024-01-15T23:30:00+01:00" in result
+    assert os.environ["DLT_INTERVAL_TIMEZONE"] == "Europe/Berlin"
+    assert known_env.DLT_INTERVAL_START not in os.environ
 
 
 @pytest.mark.parametrize(
@@ -703,6 +738,77 @@ def test_module_launcher_via_cli() -> None:
     )
     assert result.returncode == 0
     assert "hello_module_ok" in result.stdout
+
+
+def _run_module_launcher(entry_point: Dict[str, Any], run_id: str, trigger: str) -> str:
+    """Runs the module launcher in a fresh interpreter and returns its stdout."""
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-m",
+            "dlt._workspace.deployment.launchers.module",
+            "--run-id",
+            run_id,
+            "--trigger",
+            trigger,
+            "--entry-point",
+            json.dumps(entry_point),
+        ],
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode == 0, result.stderr
+    return result.stdout
+
+
+def test_module_launcher_applies_interval_and_timezone() -> None:
+    """A module runs in its own interpreter, so it takes both from the environment."""
+    stdout = _run_module_launcher(
+        {
+            "module": f"{WORKSPACE}.timezone_module",
+            "function": None,
+            "job_type": "batch",
+            "interval_start": "2024-01-15T00:00:00Z",
+            "interval_end": "2024-01-16T00:00:00Z",
+            "interval_timezone": "Europe/Berlin",
+        },
+        run_id="mod-tz-iv",
+        trigger="schedule:0 0 * * *",
+    )
+    assert "tz=Europe/Berlin" in stdout
+    assert "stored=2024-01-15T23:30:00+01:00" in stdout
+    # the interval arrives in UTC and is re-applied in the declared timezone
+    assert "interval=2024-01-15T01:00:00+01:00" in stdout
+
+
+def test_module_launcher_timezone_without_interval() -> None:
+    """The timezone reaches a module with no interval, and without a `TimezoneContext`."""
+    stdout = _run_module_launcher(
+        {
+            "module": f"{WORKSPACE}.timezone_module",
+            "function": None,
+            "job_type": "batch",
+            "interval_timezone": "Europe/Berlin",
+        },
+        run_id="mod-tz-no-iv",
+        trigger="manual:",
+    )
+    assert "tz=Europe/Berlin" in stdout
+    assert "stored=2024-01-15T23:30:00+01:00" in stdout
+    assert "tz_ctx=False" in stdout
+    assert "interval=none" in stdout
+
+
+def test_module_launcher_defaults_to_utc() -> None:
+    """No declared timezone keeps dlt storing values in UTC."""
+    stdout = _run_module_launcher(
+        {"module": f"{WORKSPACE}.timezone_module", "function": None, "job_type": "batch"},
+        run_id="mod-tz-utc",
+        trigger="manual:",
+    )
+    assert "tz=UTC" in stdout
+    assert "stored=2024-01-15T23:30:00+00:00" in stdout
 
 
 def test_module_launcher_cli_error_exit_code() -> None:

@@ -2,7 +2,7 @@
 
 import os
 from typing import ClassVar, Optional, Tuple, Union
-from datetime import datetime, tzinfo  # noqa: I251
+from datetime import datetime, timezone as dt_timezone, tzinfo
 from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.specs.base_configuration import (
@@ -11,13 +11,13 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common import known_env, logger
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.timezone_context import TimezoneContext, to_iana_name
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.interval import full_days_interval, lag_interval
 from dlt.common.time import (
     ensure_datetime,
     ensure_datetime_in_tz,
-    ensure_datetime_utc,
-    get_configured_timezone,
+    get_context_timezone,
+    to_iana_name,
 )
 from dlt.common.typing import TAnyDateTime, TTimeInterval
 
@@ -25,10 +25,17 @@ TAnyTimeInterval = Union[TTimeInterval, Tuple[datetime, datetime]]
 """A `(start, end)` interval as either a `TTimeInterval` or a plain datetime tuple."""
 
 
+def _bound_in_context_tz(value: TAnyDateTime) -> datetime:
+    """Interval bounds are always tz-aware, so a naive one is read in the context timezone."""
+    dt = ensure_datetime(value)
+    return dt if dt.tzinfo else dt.replace(tzinfo=get_context_timezone())
+
+
 def _to_time_interval(interval: Optional[TAnyTimeInterval]) -> Optional[TTimeInterval]:
-    if interval is None or isinstance(interval, TTimeInterval):
-        return interval
-    return TTimeInterval(*interval)
+    if interval is None:
+        return None
+    start, end = interval
+    return TTimeInterval(_bound_in_context_tz(start), _bound_in_context_tz(end))
 
 
 def _in_interval_tz(value: TAnyDateTime, tz: Optional[tzinfo]) -> datetime:
@@ -75,10 +82,10 @@ class TimeIntervalContext(ContainerInjectableContext):
         self._install_timezone()
 
     @property
-    def timezone(self) -> Optional[tzinfo]:
-        """Timezone both bounds are in, `None` when there is no interval or it is naive."""
+    def timezone(self) -> tzinfo:
+        """Timezone both bounds are in, which is the context timezone when there is no interval."""
         interval = self.interval
-        return interval.start.tzinfo if interval else None
+        return interval.start.tzinfo if interval else get_context_timezone()
 
     def add_extras(self) -> None:
         super().add_extras()
@@ -90,14 +97,15 @@ class TimeIntervalContext(ContainerInjectableContext):
         The timezone belongs to the run rather than to this context, so it is not restored when
         this context is removed. `worker_affinity` then carries it to the normalize pool.
         """
-        tz = self.timezone
-        if tz is None:
+        # without an interval the context timezone is already in place, so nothing to install
+        if self.interval is None:
             return
+        tz = self.timezone
         tz_name = to_iana_name(tz)
         if tz_name is None:
             logger.info(
                 f"Interval timezone `{tz}` has no IANA name, so `dlt` keeps storing values in"
-                f" {get_configured_timezone()}."
+                f" {get_context_timezone()}."
             )
             return
         container = Container()
@@ -116,8 +124,8 @@ class TimeIntervalContext(ContainerInjectableContext):
         start_value = os.environ.get(known_env.DLT_INTERVAL_START)
         end_value = os.environ.get(known_env.DLT_INTERVAL_END)
         if start_value and end_value:
-            start_utc = ensure_datetime_utc(start_value)
-            end_utc = ensure_datetime_utc(end_value)
+            start_utc = ensure_datetime_in_tz(start_value, dt_timezone.utc)
+            end_utc = ensure_datetime_in_tz(end_value, dt_timezone.utc)
             tz_name = os.environ.get(known_env.DLT_INTERVAL_TIMEZONE)
             if tz_name:
                 tz = ZoneInfo(tz_name)
@@ -256,4 +264,4 @@ def timezone() -> tzinfo:
     Unlike `dlt.current.interval.timezone`, which describes the zone the interval bounds
     happen to carry, this is the zone `dlt` actually writes values in and is never `None`.
     """
-    return get_configured_timezone()
+    return get_context_timezone()

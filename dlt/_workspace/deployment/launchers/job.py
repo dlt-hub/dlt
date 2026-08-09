@@ -1,5 +1,6 @@
 """System launcher for function-based jobs."""
 
+from datetime import timezone
 import asyncio
 import inspect
 from contextlib import nullcontext
@@ -10,7 +11,7 @@ from dlt.common.configuration.container import Container
 from dlt.common.libs import is_instance_lib
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime import signals
-from dlt.common.time import ensure_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace import known_sections as ws_known_sections
@@ -172,8 +173,8 @@ def run(
         # apply it here
         target_tz = ZoneInfo(iv_tz_name)
         iv = TTimeInterval(
-            ensure_datetime_utc(iv_start_str).astimezone(target_tz),
-            ensure_datetime_utc(iv_end_str).astimezone(target_tz),
+            ensure_datetime_in_tz(iv_start_str, timezone.utc).astimezone(target_tz),
+            ensure_datetime_in_tz(iv_end_str, timezone.utc).astimezone(target_tz),
         )
 
     # inject run_context if the function signature declares it

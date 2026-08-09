@@ -8,6 +8,7 @@ from dlt.common import json
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.specs import known_sections
 from dlt.common.configuration.utils import add_config_dict_to_env
+from dlt.common.time import set_context_timezone
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt.common import known_env
@@ -122,7 +123,12 @@ def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
     if iv_start and iv_end:
         os.environ[known_env.DLT_INTERVAL_START] = iv_start
         os.environ[known_env.DLT_INTERVAL_END] = iv_end
-        os.environ[known_env.DLT_INTERVAL_TIMEZONE] = entry_point.get("interval_timezone", "UTC")
+
+    # `require.timezone` holds for the whole run, so a manually or on-success triggered job gets
+    # it without any interval
+    os.environ[known_env.DLT_INTERVAL_TIMEZONE] = entry_point.get("interval_timezone", "UTC")
+    # this interpreter read the env at import, so re-read what was just set
+    set_context_timezone(None)
 
     if entry_point.get("refresh") and entry_point.get("auto_refresh_pipeline_mode"):
         set_config_env_vars(
