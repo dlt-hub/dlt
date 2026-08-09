@@ -13,7 +13,9 @@ from dlt.common.schema.utils import (
     get_validity_column_names,
     get_active_record_timestamp,
 )
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import timezone
+
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.storages.load_package import load_package_state as current_load_package
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
@@ -375,7 +377,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             if _boundary_ts is not None
             else current_load_package()["state"]["created_at"]
         )
-        boundary_ts = ensure_pendulum_datetime_utc(boundary_ts)
+        # UTC, never the context timezone: a moved boundary stops merges retiring existing rows
+        boundary_ts = ensure_datetime_in_tz(boundary_ts, timezone.utc)
 
         boundary_literal = format_datetime_literal(boundary_ts, caps.timestamp_precision)
 
