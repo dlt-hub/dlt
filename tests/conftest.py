@@ -1,12 +1,13 @@
 import os
 import dataclasses
 import logging
-from typing import Dict, List, Any
+from typing import Dict, Iterator, List, Any
 from pathlib import Path
 
 import pytest
 
 # patch which providers to enable
+from dlt.common.time import get_context_timezone, set_context_timezone
 from dlt.common.configuration.providers import (
     ConfigProvider,
     EnvironProvider,
@@ -237,6 +238,16 @@ def pytest_sessionfinish(session: "pytest.Session", exitstatus: int) -> None:
             " __init__.py and conftest.py must be present.",
             red=True,
         )
+
+
+@pytest.fixture(autouse=True)
+def preserve_context_timezone() -> Iterator[None]:
+    """Restores the context timezone: an interval installs it run-scoped and never undoes it."""
+    previous = get_context_timezone()
+    try:
+        yield
+    finally:
+        set_context_timezone(previous)
 
 
 # atexit.register(lambda: faulthandler.dump_traceback(file=sys.stderr, all_threads=True))
