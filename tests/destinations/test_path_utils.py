@@ -698,7 +698,8 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     logger_spy.assert_called_once_with(
         "current_datetime is not set, using timestamp from load package"
     )
-    ensure_pendulum_datetime_spy.assert_called_once_with(now_timestamp)
+    # pinned to UTC, so the path never moves with the context timezone
+    ensure_pendulum_datetime_spy.assert_called_once_with(now_timestamp, timezone.utc)
 
 
 def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
