@@ -35,6 +35,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
     """Timeout for sending and receiving data. Defaults to 300 seconds."""
     s3_extra_credentials: Optional[Dict[str, str]] = None
     """Arguments to pass to the `extra_credentials` function specifically for S3 function."""
+    session_timezone: Optional[str] = None
+    """Timezone set on each connection. `None` keeps the server default"""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "host",
@@ -66,6 +68,8 @@ class ClickHouseCredentials(ConnectionStringCredentials):
                 "date_time_input_format": "best_effort",
             }
         )
+        if self.session_timezone:
+            query["session_timezone"] = self.session_timezone
         return query
 
 

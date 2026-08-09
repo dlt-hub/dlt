@@ -23,6 +23,8 @@ class PostgresCredentials(ConnectionStringCredentials):
     port: int = 5432
     connect_timeout: int = 15
     client_encoding: Optional[str] = None
+    session_timezone: Optional[str] = None
+    """Timezone set on each connection. `None` keeps the server default"""
 
     __config_gen_annotations__: ClassVar[List[str]] = ["port", "connect_timeout"]
 
@@ -36,6 +38,10 @@ class PostgresCredentials(ConnectionStringCredentials):
         query["connect_timeout"] = self.connect_timeout
         if self.client_encoding:
             query["client_encoding"] = self.client_encoding
+        options = query.get("options", "")
+        # `RESET ALL` and rollbacks revert a `SET` statement but not a startup option
+        if self.session_timezone and "timezone=" not in options:
+            query["options"] = f"{options} -ctimezone={self.session_timezone}".strip()
         return query
 
 

@@ -142,18 +142,20 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         # TODO: move that to methods that can be overridden, include local_config
         self._pragmas = ["enable_checkpoint_on_shutdown"]
         self._global_config: Dict[str, Any] = {
-            "TimeZone": "UTC",
             "checkpoint_threshold": "1gb",
         }
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
+        local_config: Dict[str, Any] = {
+            "search_path": self.fully_qualified_dataset_name(),
+        }
+        if self.credentials.session_timezone:
+            local_config["TimeZone"] = self.credentials.session_timezone
         self._conn = self.credentials.conn_pool.borrow_conn(
             pragmas=self._pragmas,
             global_config=self._global_config,
-            local_config={
-                "search_path": self.fully_qualified_dataset_name(),
-            },
+            local_config=local_config,
         )
         return self._conn
 

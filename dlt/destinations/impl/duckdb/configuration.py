@@ -70,6 +70,8 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
     `INSTALL`, `ATTACH` and `CREATE SECRET`"""
     local_config: Optional[Dict[str, Any]] = None
     """Local config applied to each borrowed connection"""
+    session_timezone: Optional[str] = "UTC"
+    """`TimeZone` set on each borrowed connection. `None` keeps the duckdb default"""
     conn_pool: Annotated[Optional["DuckDbConnectionPool"], NotResolved()] = None
 
     def copy(self: "DuckDbBaseCredentials") -> "DuckDbBaseCredentials":
@@ -207,8 +209,9 @@ class DuckDbConnectionPool:
                     self._apply_config(new_conn, "GLOBAL", global_config)
                     # before local config: a statement can create the schema that `search_path` names
                     self._execute_statements(new_conn)
-                    # apply local config to original connection
-                    self._apply_local_config(new_conn, local_config, pragmas)
+                    if self._conn_owner:
+                        # only clones get local config, so a caller's connection stays untouched
+                        self._apply_local_config(new_conn, local_config, pragmas)
                 except Exception:
                     if self._conn_owner:
                         new_conn.close()
@@ -369,6 +372,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
         pragmas: Optional[List[str]] = None,
         statements: Optional[List[str]] = None,
         local_config: Optional[Dict[str, Any]] = None,
+        session_timezone: Optional[str] = "UTC",
     ) -> None:
         """Initialize DuckDB credentials with a connection or file path and connection settings.
 
@@ -383,6 +387,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
                 `INSTALL`, `ATTACH` and `CREATE SECRET`. Session settings belong in `pragmas`
                 or `local_config`
             local_config: Dictionary of local configuration settings applied to each cursor connection
+            session_timezone: `TimeZone` set on each cursor connection. `None` keeps the duckdb default
         """
         self._apply_init_value(conn_or_path)
         self.read_only = read_only
@@ -391,6 +396,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
         self.pragmas = pragmas
         self.statements = statements
         self.local_config = local_config
+        self.session_timezone = session_timezone
 
 
 @configspec
