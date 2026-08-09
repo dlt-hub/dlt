@@ -20,7 +20,7 @@ from tests.load.sources.sql_database.utils import assert_incremental_chunks
 from tests.pipeline.utils import assert_load_info, assert_schema_on_data, load_tables_to_dicts
 
 import dlt
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import uniq_id
 
 try:
@@ -91,7 +91,7 @@ def test_sql_table_incremental_datetime_ntz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "some_timestamp_ntz",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00").naive(),
+            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00").naive(),
             row_order="asc",
             range_start="open",
         ),

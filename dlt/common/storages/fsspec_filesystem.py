@@ -39,7 +39,7 @@ from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     make_fsspec_url,
 )
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import without_none
 
@@ -60,11 +60,11 @@ class FileItem(TypedDict):
 # Map of protocol to mtime resolver
 # we only need to support a small finite set of protocols
 MTIME_DISPATCH = {
-    "s3": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
-    "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
-    "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
-    "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
-    "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"]["date"]),
+    "s3": lambda f: ensure_pendulum_datetime(f["LastModified"]),
+    "adl": lambda f: ensure_pendulum_datetime(f["LastModified"]),
+    "az": lambda f: ensure_pendulum_datetime(f["last_modified"]),
+    "gcs": lambda f: ensure_pendulum_datetime(f["updated"]),
+    "hf": lambda f: ensure_pendulum_datetime(f["last_commit"]["date"]),
     "https": lambda f: cast(
         pendulum.DateTime,
         pendulum.parse(
@@ -77,10 +77,10 @@ MTIME_DISPATCH = {
             f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
         ),
     ),
-    "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
-    "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),
-    "gdrive": lambda f: ensure_pendulum_datetime_utc(f["modifiedTime"]),
-    "sftp": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
+    "file": lambda f: ensure_pendulum_datetime(f["mtime"]),
+    "memory": lambda f: ensure_pendulum_datetime(f["created"]),
+    "gdrive": lambda f: ensure_pendulum_datetime(f["modifiedTime"]),
+    "sftp": lambda f: ensure_pendulum_datetime(f["mtime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]

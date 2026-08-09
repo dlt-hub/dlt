@@ -18,7 +18,7 @@ from dlt.common.libs.pyarrow import (
     row_tuples_to_arrow,
 )
 from dlt.common.time import (
-    ensure_pendulum_datetime_utc,
+    ensure_pendulum_datetime,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
     ensure_pendulum_date,
@@ -166,7 +166,7 @@ def test_load_arrow_item(
             if isinstance(expected_row[i], datetime):
                 # use UTC conversion here because timezone is not specified and Athena
                 # returns naive datetimes
-                row[i] = ensure_pendulum_datetime_utc(row[i])
+                row[i] = ensure_pendulum_datetime(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
             elif (
                 destination_config.destination_type == "clickhouse"
