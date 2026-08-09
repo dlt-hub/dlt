@@ -24,11 +24,10 @@ from typing import (
     cast,
 )
 
-from pendulum import DateTime  # noqa: I251
 
 from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.time import ensure_pendulum_datetime_non_utc, normalize_timezone
+from dlt.common.time import ensure_datetime, normalize_timezone
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import removeprefix
 
@@ -250,8 +249,8 @@ class ClickHouseSqlClient(
         Converts datetime values to naive UTC strings preserving microsecond precision.
         """
         for key, value in db_args.items():
-            if isinstance(value, (DateTime, datetime.datetime)):
-                value = ensure_pendulum_datetime_non_utc(value)
+            if isinstance(value, datetime.datetime):
+                value = ensure_datetime(value)
                 db_args[key] = str(normalize_timezone(value, timezone=False))
         return db_args
 

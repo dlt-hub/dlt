@@ -14,7 +14,7 @@ from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     WithAttachableEngine,
 )
-from dlt.common.pendulum import timedelta
+from datetime import timedelta
 from dlt.common.storages.configuration import FilesystemConfiguration, WithLocalFiles
 from dlt.common.typing import TSecretStrValue, Annotated
 from dlt.common.utils import digest128
