@@ -266,7 +266,7 @@ def test_all_types_tuples_to_arrow(
     result_table = rel.arrow()
 
     # here we cast result to the rel schema,
-    result_table = cast_arrow_as_columns_schema(result_table, rel_schema, caps, "utc")
+    result_table = cast_arrow_as_columns_schema(result_table, rel_schema, caps, "UTC")
 
     # compare schemas
     result_columns_schema = py_arrow_to_table_schema_columns(result_table.schema)
