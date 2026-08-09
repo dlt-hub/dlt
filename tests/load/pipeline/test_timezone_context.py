@@ -1,0 +1,242 @@
+"""Loads every input awareness x `timezone` hint pair under a `Europe/Berlin` context timezone.
+
+A naive value is read in the context timezone, so its instant moves. An aware value keeps its
+instant, so its wall clock moves. UTC is the default and must keep today's behavior.
+"""
+from datetime import datetime, timezone  # noqa: I251
+from typing import Any, Dict, List
+import pytest
+
+import dlt
+from dlt.common.configuration.container import Container
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.common.utils import uniq_id
+
+from tests.load.utils import destinations_configs, DestinationTestConfiguration
+from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
+
+pytestmark = pytest.mark.essential
+
+COLUMNS: Any = {
+    "id": {"data_type": "bigint"},
+    # the same instant is stored twice, once with an offset and once without
+    "ts_aware": {"data_type": "timestamp", "timezone": True},
+    "ts_naive": {"data_type": "timestamp", "timezone": False},
+}
+
+# january, so Berlin is +01:00 and a DST-free offset keeps the expectations readable
+NAIVE_IN = datetime(2024, 1, 15, 23, 30)
+AWARE_IN = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+
+
+def _pipeline(destination_config: DestinationTestConfiguration) -> dlt.Pipeline:
+    return destination_config.setup_pipeline("tz_ctx_" + uniq_id(), dev_mode=True)
+
+
+@dlt.resource(name="events", columns=COLUMNS)
+def _events() -> Any:
+    yield [
+        {"id": 1, "ts_aware": NAIVE_IN, "ts_naive": NAIVE_IN},
+        {"id": 2, "ts_aware": AWARE_IN, "ts_naive": AWARE_IN},
+    ]
+
+
+def _rows_by_id(pipeline: dlt.Pipeline) -> Dict[int, Dict[str, Any]]:
+    tables = load_tables_to_dicts(pipeline, "events", exclude_system_cols=True, sortkey="id")
+    return {row["id"]: row for row in tables["events"]}
+
+
+def _assert_instant(
+    value: Any, expected: datetime, caps: DestinationCapabilitiesContext, case: str
+) -> None:
+    """An aware column keeps `expected`'s instant, whatever offset the destination renders.
+
+    A destination that cannot store an offset drops the label only, leaving the UTC wall clock.
+    """
+    assert value is not None, case
+    if value.tzinfo is not None:
+        assert (
+            caps.supports_tz_aware_datetime
+        ), f"{case}: destination does not support tz-aware datetime, got {value!r}"
+        assert value.astimezone(timezone.utc) == expected, case
+    else:
+        assert (
+            not caps.supports_tz_aware_datetime
+        ), f"{case}: destination supports tz-aware datetime, got naive {value!r}"
+        assert value == expected.replace(tzinfo=None), case
+
+
+def _assert_wall_clock(
+    value: Any, expected: datetime, caps: DestinationCapabilitiesContext, case: str
+) -> None:
+    """A naive column keeps `expected`'s wall clock, which a destination may label UTC."""
+    assert value is not None, case
+    if value.tzinfo is None:
+        assert (
+            caps.supports_naive_datetime
+        ), f"{case}: destination does not support naive datetime, got {value!r}"
+        assert value == expected, case
+    else:
+        assert (
+            not caps.supports_naive_datetime
+        ), f"{case}: destination supports naive datetime, got tz-aware {value!r}"
+        assert value.replace(tzinfo=None) == expected, case
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_berlin_context_timezone_matrix(destination_config: DestinationTestConfiguration) -> None:
+    """All four pairs, loaded and read back under a Berlin context timezone."""
+    pipeline = _pipeline(destination_config)
+
+    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+        assert_load_info(pipeline.run(_events()))
+        rows = _rows_by_id(pipeline)
+    caps = pipeline._get_destination_capabilities()
+
+    # naive input, timezone=True: read as a Berlin wall clock, so the instant is 22:30 UTC
+    _assert_instant(
+        rows[1]["ts_aware"],
+        datetime(2024, 1, 15, 22, 30, tzinfo=timezone.utc),
+        caps,
+        "naive -> aware",
+    )
+    # naive input, timezone=False: nothing to convert, the wall clock is untouched
+    _assert_wall_clock(rows[1]["ts_naive"], NAIVE_IN, caps, "naive -> naive")
+    # aware input, timezone=True: the instant is kept, only the rendered offset differs
+    _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, "aware -> aware")
+    # aware input, timezone=False: converted to Berlin, then stripped, so the wall clock moves
+    _assert_wall_clock(rows[2]["ts_naive"], datetime(2024, 1, 16, 0, 30), caps, "aware -> naive")
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("via", ["unset", "utc"], ids=["context-unset", "context-utc"])
+def test_utc_context_timezone_is_a_no_op(
+    destination_config: DestinationTestConfiguration, via: str
+) -> None:
+    """A UTC context timezone, set or left alone, must store exactly what dlt stores today."""
+    pipeline = _pipeline(destination_config)
+
+    if via == "utc":
+        with Container().injectable_context(TimezoneContext("UTC")):
+            assert_load_info(pipeline.run(_events()))
+            rows = _rows_by_id(pipeline)
+    else:
+        assert_load_info(pipeline.run(_events()))
+        rows = _rows_by_id(pipeline)
+    caps = pipeline._get_destination_capabilities()
+
+    # a naive value is read as UTC, so the instant does not move and neither does the wall clock
+    _assert_instant(rows[1]["ts_aware"], AWARE_IN, caps, "naive -> aware")
+    _assert_wall_clock(rows[1]["ts_naive"], NAIVE_IN, caps, "naive -> naive")
+    _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, "aware -> aware")
+    _assert_wall_clock(rows[2]["ts_naive"], NAIVE_IN, caps, "aware -> naive")
+
+
+@pytest.mark.xfail(
+    strict=True,
+    reason=(
+        "the arrow path still localizes naive columns in UTC. it follows the context timezone once"
+        " `normalize_py_arrow_item_column` takes it, and this test then passes unchanged"
+    ),
+)
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+def test_berlin_context_timezone_agrees_across_item_formats(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """The object path and the arrow path must store the same values under a context timezone."""
+    pyarrow = pytest.importorskip("pyarrow")
+
+    object_pipeline = _pipeline(destination_config)
+    arrow_pipeline = _pipeline(destination_config)
+
+    table = pyarrow.table(
+        {
+            "id": pyarrow.array([1, 2], type=pyarrow.int64()),
+            "ts_aware": pyarrow.array(
+                [NAIVE_IN, AWARE_IN.replace(tzinfo=None)], type=pyarrow.timestamp("us")
+            ),
+            "ts_naive": pyarrow.array(
+                [NAIVE_IN, AWARE_IN.replace(tzinfo=None)], type=pyarrow.timestamp("us")
+            ),
+        }
+    )
+
+    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+        assert_load_info(object_pipeline.run(_events()))
+        assert_load_info(arrow_pipeline.run(table, table_name="events", columns=COLUMNS))
+        object_rows = _rows_by_id(object_pipeline)
+        arrow_rows = _rows_by_id(arrow_pipeline)
+
+    # the arrow table carries naive values, so only row 1 is the same input on both paths
+    columns: List[str] = ["ts_aware", "ts_naive"]
+    for column in columns:
+        object_value, arrow_value = object_rows[1][column], arrow_rows[1][column]
+        if object_value.tzinfo is None or arrow_value.tzinfo is None:
+            object_value = object_value.replace(tzinfo=None)
+            arrow_value = arrow_value.replace(tzinfo=None)
+        else:
+            object_value = object_value.astimezone(timezone.utc)
+            arrow_value = arrow_value.astimezone(timezone.utc)
+        assert object_value == arrow_value, f"paths disagree on `{column}`"
+
+
+LAG_COLUMNS: Any = {"id": {"data_type": "bigint"}, "ts": {"data_type": "timestamp"}}
+LAG_SECONDS = 3600
+# an hour apart, so one hour of lag reaches back over the two rows the first run already saw
+FIRST_ROWS = [
+    {"id": 1, "ts": datetime(2024, 1, 15, 22, 30)},
+    {"id": 2, "ts": datetime(2024, 1, 15, 23, 30)},
+]
+SECOND_ROWS = FIRST_ROWS + [{"id": 3, "ts": datetime(2024, 1, 16, 0, 30)}]
+
+
+def _lagged_rows(rows: List[Dict[str, Any]], aware: bool) -> List[Dict[str, Any]]:
+    if not aware:
+        return rows
+    return [{**row, "ts": row["ts"].replace(tzinfo=timezone.utc)} for row in rows]
+
+
+def _lagged_source(rows: List[Dict[str, Any]], timezone_hint: bool) -> Any:
+    columns = dict(LAG_COLUMNS, ts={**LAG_COLUMNS["ts"], "timezone": timezone_hint})
+
+    @dlt.resource(name="lagged", columns=columns, write_disposition="append")
+    def lagged(ts: Any = dlt.sources.incremental("ts", lag=LAG_SECONDS)) -> Any:
+        yield rows
+
+    return lagged
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("aware", [True, False], ids=["aware-cursor", "naive-cursor"])
+def test_incremental_lag_is_timezone_invariant(
+    destination_config: DestinationTestConfiguration, aware: bool
+) -> None:
+    """Lag shifts the cursor by absolute seconds, so it must select the same rows in any timezone."""
+    loaded: Dict[str, int] = {}
+    for tz_name in ("UTC", "Europe/Berlin"):
+        pipeline = _pipeline(destination_config)
+        with Container().injectable_context(TimezoneContext(tz_name)):
+            assert_load_info(pipeline.run(_lagged_source(_lagged_rows(FIRST_ROWS, aware), aware)))
+            assert load_table_counts(pipeline, "lagged")["lagged"] == 2
+            # the lag window reaches back before `last_value`, so both earlier rows come again
+            assert_load_info(pipeline.run(_lagged_source(_lagged_rows(SECOND_ROWS, aware), aware)))
+        loaded[tz_name] = load_table_counts(pipeline, "lagged")["lagged"]
+
+    assert loaded["UTC"] == loaded["Europe/Berlin"] == 5, loaded
