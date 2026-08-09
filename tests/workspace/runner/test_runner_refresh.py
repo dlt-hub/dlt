@@ -4,8 +4,9 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set
 
 import pytest
 
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import datetime
+
+from dlt.common.time import ensure_datetime_in_tz
 
 from tests.workspace.runner._runner import runner as runner_mod
 from tests.workspace.runner._runner.freshness_store import DuckDBJobFreshnessStore
@@ -21,8 +22,8 @@ from dlt._workspace.deployment.typing import (
 )
 
 
-def _dt(s: str) -> pendulum.DateTime:
-    return ensure_pendulum_datetime_utc(s)
+def _dt(s: str) -> datetime:
+    return ensure_datetime_in_tz(s)
 
 
 def _job(
@@ -53,9 +54,9 @@ def _job(
 
 def _run_record(
     job_ref: str,
-    started_at: pendulum.DateTime,
-    interval_start: Optional[pendulum.DateTime] = None,
-    interval_end: Optional[pendulum.DateTime] = None,
+    started_at: datetime,
+    interval_start: Optional[datetime] = None,
+    interval_end: Optional[datetime] = None,
 ) -> TJobRun:
     rec: TJobRun = {
         "run_id": "rid",

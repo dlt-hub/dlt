@@ -10,7 +10,6 @@ from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 from uuid import uuid4
 
 from dlt.common import json
-from dlt.common.pendulum import pendulum
 from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as job_short_name
 from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
 from dlt._workspace.deployment.freshness import (
@@ -187,7 +186,8 @@ def _eager_refresh_cascade(
 
 
 def _timestamp() -> str:
-    return pendulum.now("UTC").format("HH:mm:ss.SSS")
+    # microseconds truncated to milliseconds
+    return datetime.now(timezone.utc).strftime("%H:%M:%S.%f")[:-3]
 
 
 def _log(msg: str) -> None:
@@ -514,7 +514,7 @@ def _collect_completions(
                 if run_record and "interval_start" in run_record:
                     iv = TTimeInterval(run_record["interval_start"], run_record["interval_end"])
 
-            finished_at = pendulum.now("UTC")
+            finished_at = datetime.now(timezone.utc)
             run_status: TJobRunStatus = "completed" if exit_code == 0 else "failed"
             if run_id:
                 _runs_store.update_run(run_id, run_status, finished_at=finished_at)

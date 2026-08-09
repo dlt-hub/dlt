@@ -15,7 +15,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pytest
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._interval_store_freshness import (
@@ -44,7 +44,7 @@ from dlt._workspace.deployment.typing import (
 
 
 def _iv(start: str, end: str) -> TTimeInterval:
-    return TTimeInterval(ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
 
 
 def _job(
@@ -376,14 +376,8 @@ def test_get_refresh_cascade_targets(
 def test_sort_and_coalesce(
     intervals: List[Tuple[str, str]], expected: List[Tuple[str, str]]
 ) -> None:
-    ivs = [
-        TTimeInterval(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e))
-        for s, e in intervals
-    ]
-    exp = [
-        TTimeInterval(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e))
-        for s, e in expected
-    ]
+    ivs = [TTimeInterval(ensure_datetime_in_tz(s), ensure_datetime_in_tz(e)) for s, e in intervals]
+    exp = [TTimeInterval(ensure_datetime_in_tz(s), ensure_datetime_in_tz(e)) for s, e in expected]
     assert sort_and_coalesce(ivs) == exp
 
 
@@ -416,8 +410,8 @@ def test_iter_intervals(
     assert len(intervals) == expected_count
     if first_start is not None:
         assert intervals[0] == (
-            ensure_pendulum_datetime_utc(first_start),
-            ensure_pendulum_datetime_utc(first_end),
+            ensure_datetime_in_tz(first_start),
+            ensure_datetime_in_tz(first_end),
         )
 
 
@@ -443,13 +437,13 @@ def test_iter_intervals_is_lazy() -> None:
     gen = iter_intervals("0 0 * * *", overall)
     first = next(gen)
     assert first == (
-        ensure_pendulum_datetime_utc("2024-01-01"),
-        ensure_pendulum_datetime_utc("2024-01-02"),
+        ensure_datetime_in_tz("2024-01-01"),
+        ensure_datetime_in_tz("2024-01-02"),
     )
     second = next(gen)
     assert second == (
-        ensure_pendulum_datetime_utc("2024-01-02"),
-        ensure_pendulum_datetime_utc("2024-01-03"),
+        ensure_datetime_in_tz("2024-01-02"),
+        ensure_datetime_in_tz("2024-01-03"),
     )
 
 
@@ -457,19 +451,19 @@ def test_eligible_intervals_skips_completed() -> None:
     completed = sort_and_coalesce(
         [
             TTimeInterval(
-                ensure_pendulum_datetime_utc("2024-01-01"),
-                ensure_pendulum_datetime_utc("2024-01-02"),
+                ensure_datetime_in_tz("2024-01-01"),
+                ensure_datetime_in_tz("2024-01-02"),
             ),
             TTimeInterval(
-                ensure_pendulum_datetime_utc("2024-01-02"),
-                ensure_pendulum_datetime_utc("2024-01-03"),
+                ensure_datetime_in_tz("2024-01-02"),
+                ensure_datetime_in_tz("2024-01-03"),
             ),
         ]
     )
     overall = _iv("2024-01-01", "2024-01-05")
     eligible = get_eligible_intervals("0 0 * * *", overall, completed)
     assert len(eligible) == 2
-    assert eligible[0][0] == ensure_pendulum_datetime_utc("2024-01-03")
+    assert eligible[0][0] == ensure_datetime_in_tz("2024-01-03")
 
 
 def test_eligible_intervals_all_when_none_completed() -> None:
@@ -487,21 +481,17 @@ def test_eligible_intervals_ordered() -> None:
 
 def test_next_eligible_interval_returns_first_incomplete() -> None:
     completed = [
-        TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02")
-        )
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02"))
     ]
     overall = _iv("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv[0] == ensure_pendulum_datetime_utc("2024-01-02")
+    assert iv[0] == ensure_datetime_in_tz("2024-01-02")
 
 
 def test_next_eligible_interval_none_when_all_done() -> None:
     completed = [
-        TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-03")
-        )
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-03"))
     ]
     overall = _iv("2024-01-01", "2024-01-03")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
@@ -511,14 +501,12 @@ def test_next_eligible_interval_none_when_all_done() -> None:
 def test_next_eligible_skips_leading_completed() -> None:
     """Leading completed block is trimmed, avoiding iteration over 100 done intervals."""
     completed = [
-        TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-04-10")
-        )
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-04-10"))
     ]
     overall = _iv("2024-01-01", "2024-06-01")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
-    assert iv[0] == ensure_pendulum_datetime_utc("2024-04-10")
+    assert iv[0] == ensure_datetime_in_tz("2024-04-10")
 
 
 def test_next_eligible_with_gap_in_middle() -> None:
@@ -526,12 +514,12 @@ def test_next_eligible_with_gap_in_middle() -> None:
     completed = sort_and_coalesce(
         [
             TTimeInterval(
-                ensure_pendulum_datetime_utc("2024-01-01"),
-                ensure_pendulum_datetime_utc("2024-01-03"),
+                ensure_datetime_in_tz("2024-01-01"),
+                ensure_datetime_in_tz("2024-01-03"),
             ),
             TTimeInterval(
-                ensure_pendulum_datetime_utc("2024-01-04"),
-                ensure_pendulum_datetime_utc("2024-01-05"),
+                ensure_datetime_in_tz("2024-01-04"),
+                ensure_datetime_in_tz("2024-01-05"),
             ),
         ]
     )
@@ -539,8 +527,8 @@ def test_next_eligible_with_gap_in_middle() -> None:
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
     assert iv == (
-        ensure_pendulum_datetime_utc("2024-01-03"),
-        ensure_pendulum_datetime_utc("2024-01-04"),
+        ensure_datetime_in_tz("2024-01-03"),
+        ensure_datetime_in_tz("2024-01-04"),
     )
 
 
@@ -597,7 +585,7 @@ def test_iter_intervals_respects_tz_across_dst(
         assert iv[0].tzinfo == timezone.utc
         assert iv[1].tzinfo == timezone.utc
     starts = [iv[0] for iv in intervals]
-    assert starts == [ensure_pendulum_datetime_utc(s) for s in expected_starts]
+    assert starts == [ensure_datetime_in_tz(s) for s in expected_starts]
 
 
 @pytest.mark.parametrize(
@@ -638,6 +626,6 @@ def test_next_eligible_interval_tz_returns_utc(
     assert iv is not None
     assert iv[0].tzinfo == timezone.utc
     assert iv == (
-        ensure_pendulum_datetime_utc(expected_start),
-        ensure_pendulum_datetime_utc(expected_end),
+        ensure_datetime_in_tz(expected_start),
+        ensure_datetime_in_tz(expected_end),
     )

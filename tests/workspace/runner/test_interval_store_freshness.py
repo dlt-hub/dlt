@@ -4,7 +4,7 @@ from typing import Dict, List, Optional, Tuple
 
 import pytest
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._interval_store_freshness import (
@@ -26,7 +26,7 @@ from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore
 
 
 def _iv(start: str, end: str) -> TTimeInterval:
-    return TTimeInterval(ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
 
 
 def _job(
@@ -177,7 +177,7 @@ def test_check_upstream_freshness(
     for s, e in completed:
         store.mark_interval_completed(
             "jobs.up",
-            TTimeInterval(ensure_pendulum_datetime_utc(s), ensure_pendulum_datetime_utc(e)),
+            TTimeInterval(ensure_datetime_in_tz(s), ensure_datetime_in_tz(e)),
         )
     ds_overall = _iv("2024-01-01", "2025-06-01")
     up = _job(
@@ -196,9 +196,7 @@ def test_all_upstream_must_pass() -> None:
     store = DuckDBIntervalStore()
     store.mark_interval_completed(
         "jobs.a",
-        TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02")
-        ),
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02")),
     )
     up_a = _job(
         "jobs.a",
@@ -234,15 +232,11 @@ def test_all_upstream_fresh_when_all_covered() -> None:
     store = DuckDBIntervalStore()
     store.mark_interval_completed(
         "jobs.a",
-        TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02")
-        ),
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02")),
     )
     store.mark_interval_completed(
         "jobs.b",
-        TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01"), ensure_pendulum_datetime_utc("2024-01-02")
-        ),
+        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02")),
     )
     up_a = _job(
         "jobs.a",
@@ -295,8 +289,8 @@ def test_freshness_with_misaligned_cron_schedules() -> None:
     store.mark_interval_completed(
         "jobs.up",
         TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01T11:39:00Z"),
-            ensure_pendulum_datetime_utc("2024-01-01T11:42:00Z"),
+            ensure_datetime_in_tz("2024-01-01T11:39:00Z"),
+            ensure_datetime_in_tz("2024-01-01T11:42:00Z"),
         ),
     )
     fresh, _ = _check_interval_freshness(
@@ -318,8 +312,8 @@ def test_freshness_with_misaligned_cron_schedules() -> None:
     store.mark_interval_completed(
         "jobs.up",
         TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01T11:42:00Z"),
-            ensure_pendulum_datetime_utc("2024-01-01T11:45:00Z"),
+            ensure_datetime_in_tz("2024-01-01T11:42:00Z"),
+            ensure_datetime_in_tz("2024-01-01T11:45:00Z"),
         ),
     )
     fresh, _ = _check_interval_freshness(
@@ -358,8 +352,8 @@ def test_freshness_via_resolve_and_check_with_misaligned_cron() -> None:
     store.mark_interval_completed(
         "jobs.up",
         TTimeInterval(
-            ensure_pendulum_datetime_utc("2024-01-01T11:39:00Z"),
-            ensure_pendulum_datetime_utc("2024-01-01T11:42:00Z"),
+            ensure_datetime_in_tz("2024-01-01T11:39:00Z"),
+            ensure_datetime_in_tz("2024-01-01T11:42:00Z"),
         ),
     )
     fresh, reasons = _resolve_and_check_interval_freshness(
