@@ -32,6 +32,7 @@ class ParquetFormatConfiguration(BaseConfiguration):
     compression: Optional[ParquetCompression] = "snappy"
     data_page_size: Optional[int] = None
     timestamp_timezone: str = "UTC"
+    """Deprecated as a zone selector, use `TimezoneContext`. `""` still asks for no UTC adjustment."""
     row_group_size: Optional[int] = None
     coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None
     allow_truncated_timestamps: bool = False
