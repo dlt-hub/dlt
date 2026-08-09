@@ -38,6 +38,8 @@ class DatabricksCredentials(CredentialsConfiguration):
     http_headers: Optional[Dict[str, str]] = None
     session_configuration: Optional[Dict[str, Any]] = None
     """Dict of session parameters that will be passed to `databricks.sql.connect`"""
+    session_timezone: Optional[str] = None
+    """Session `TIMEZONE`. `None` keeps the warehouse default"""
     connection_parameters: Optional[Dict[str, Any]] = None
     """Additional keyword arguments that are passed to `databricks.sql.connect`"""
     socket_timeout: Optional[int] = 180
@@ -153,12 +155,16 @@ class DatabricksCredentials(CredentialsConfiguration):
         return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
 
     def to_connector_params(self) -> Dict[str, Any]:
+        session_configuration = dict(self.session_configuration or {})
+        if self.session_timezone and "timezone" not in session_configuration:
+            session_configuration["timezone"] = self.session_timezone
+
         conn_params = dict(
             catalog=self.catalog,
             server_hostname=self.server_hostname,
             http_path=self.http_path,
             access_token=self.access_token,
-            session_configuration=self.session_configuration or {},
+            session_configuration=session_configuration,
             _socket_timeout=self.socket_timeout,
             **(self.connection_parameters or {}),
         )

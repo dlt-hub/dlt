@@ -16,6 +16,7 @@ from dlt.common.configuration.providers.toml import CONFIG_TOML, SECRETS_TOML
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.destination import Destination
 from dlt.common.known_env import DLT_LOCAL_DIR
+from dlt.common.pendulum import pendulum
 from dlt.common.utils import set_working_dir, uniq_id
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -243,6 +244,55 @@ def test_sql_client_config() -> None:
             #     "SELECT count(1) FROM duckdb_logs where message LIKE '%spatial%';"
             # ).fetchall()
             # assert cnt[0][0] == 1
+
+
+def _timezone(conn: Any) -> str:
+    return conn.sql("SELECT current_setting('TimeZone')").fetchone()[0]
+
+
+def test_session_timezone() -> None:
+    """`dlt` applies `session_timezone` to each connection. The default is UTC."""
+    import duckdb as _duckdb
+
+    def _pipeline_with(**kwargs: Any) -> dlt.Pipeline:
+        db_path = os.path.join(get_test_storage_root(), f"tz_{uniq_id()}.duckdb")
+        return dlt.pipeline(
+            "test_session_timezone_" + uniq_id(),
+            destination=duckdb(DuckDbCredentials(db_path, **kwargs)),
+        )
+
+    with _pipeline_with().sql_client() as c:
+        assert _timezone(c.native_connection) == "UTC"
+
+    with _pipeline_with(session_timezone="Europe/Berlin").sql_client() as c:
+        assert _timezone(c.native_connection) == "Europe/Berlin"
+
+    # with no timezone configured, duckdb keeps the machine default
+    duckdb_default = _timezone(_duckdb.connect())
+    with _pipeline_with(session_timezone=None).sql_client() as c:
+        assert _timezone(c.native_connection) == duckdb_default
+
+
+def test_session_timezone_keeps_external_connection() -> None:
+    """dlt sets the timezone on connections it dispenses, never on one the caller owns."""
+    import duckdb as _duckdb
+
+    ext_conn = _duckdb.connect(os.path.join(get_test_storage_root(), f"tz_ext_{uniq_id()}.duckdb"))
+    ext_conn.execute("SET GLOBAL TimeZone='America/New_York'")
+
+    pipeline = dlt.pipeline(
+        "test_session_timezone_external_" + uniq_id(),
+        destination=duckdb(ext_conn),
+        dataset_name="tz_external",
+    )
+    pipeline.run([{"id": 1, "ts": pendulum.datetime(2024, 1, 1, tz="UTC")}], table_name="events")
+
+    try:
+        assert _timezone(ext_conn) == "America/New_York"
+        # the load still ran in UTC so the instant is intact
+        assert ext_conn.sql("SELECT epoch(ts) FROM tz_external.events").fetchone()[0] == 1704067200
+    finally:
+        ext_conn.close()
 
 
 @pytest.mark.no_load

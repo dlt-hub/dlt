@@ -119,6 +119,8 @@ To disable the time zones, change the `dlt` [Parquet writer settings](../file-fo
 ```sh
 DATA_WRITER__TIMESTAMP_TIMEZONE=""
 ```
+Timestamps written this way carry no offset, so `duckdb` reads them in the
+[session timezone](#session-timezone), which `dlt` keeps at UTC.
 :::
 
 ## Supported column hints
@@ -268,6 +270,22 @@ The config above runs these steps in order:
 * the local config: `SET SESSION errors_as_json=true`
 
 Internally, `dlt` opens a new `duckdb` connection and then dispenses separate sessions to worker threads with `cursor()`. `dlt` does this even when the calling thread is the thread that created the connection. `dlt` applies extensions and global config once, on the "original" connection, and `duckdb` propagates them to every session.
+
+#### Session timezone
+`dlt` sets `TimeZone` to `UTC` on every session it opens. This setting decides how `duckdb` reads
+values that arrive without a UTC offset, for example naive timestamps in Parquet. It also decides
+which timezone `duckdb` returns for `TIMESTAMPTZ` columns. It does not change the column types that
+`CREATE TABLE` produces.
+
+Set `session_timezone` to a different timezone. To keep the `duckdb` default, which is the machine
+timezone, set it to an empty string:
+```toml
+[destination.duckdb.credentials]
+session_timezone="Europe/Berlin"
+```
+
+This is a session setting, so it applies only to the connections `dlt` opens. If you pass your own
+`duckdb` connection, `dlt` leaves its timezone as you set it.
 
 #### SQL statements on each connection
 The `statements` option takes plain SQL for anything the options above cannot express, such as `INSTALL`, `ATTACH` and `CREATE SECRET`:

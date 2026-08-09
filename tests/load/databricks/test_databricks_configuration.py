@@ -59,6 +59,28 @@ def test_databricks_credentials_to_connector_params():
     )
 
 
+def test_databricks_session_timezone() -> None:
+    os.environ["CREDENTIALS__SERVER_HOSTNAME"] = "my-databricks.example.com"
+    os.environ["CREDENTIALS__HTTP_PATH"] = "/sql/1.0/warehouses/asdfe"
+    os.environ["CREDENTIALS__ACCESS_TOKEN"] = "my-token"
+    os.environ["CREDENTIALS__CATALOG"] = "my-catalog"
+
+    credentials = resolve_configuration(
+        DatabricksClientConfiguration()._bind_dataset_name(dataset_name="my-dataset")
+    ).credentials
+    # the warehouse default applies unless you configure a timezone
+    assert credentials.to_connector_params()["session_configuration"] == {}
+
+    credentials.session_timezone = "Europe/Berlin"
+    assert credentials.to_connector_params()["session_configuration"] == {
+        "timezone": "Europe/Berlin"
+    }
+
+    # a timezone set in `session_configuration` takes precedence
+    credentials.session_configuration = {"timezone": "Asia/Tokyo"}
+    assert credentials.to_connector_params()["session_configuration"] == {"timezone": "Asia/Tokyo"}
+
+
 def test_databricks_configuration() -> None:
     bricks = databricks()
     config = bricks.configuration(None, accept_partial=True)

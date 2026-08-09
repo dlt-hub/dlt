@@ -13,6 +13,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from tests.load.utils import yield_client_with_storage
 
 # mark all tests as essential, do not remove
@@ -124,6 +125,25 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
         assert ("enable_http_compression", "1") in res
         assert ("date_time_input_format", "best_effort") in res
         assert ("select_sequential_consistency", "1") in res
+
+
+def test_clickhouse_session_timezone(client: ClickHouseClient) -> None:
+    credentials = client.config.credentials.copy()
+    assert "session_timezone" not in credentials.get_query()
+
+    credentials.session_timezone = "Asia/Tokyo"
+    assert credentials.get_query()["session_timezone"] == "Asia/Tokyo"
+
+    sql_client = ClickHouseSqlClient(
+        client.sql_client.dataset_name,
+        client.sql_client.staging_dataset_name,
+        [],
+        credentials,
+        client.capabilities,
+        client.config,
+    )
+    with sql_client:
+        assert sql_client.execute_sql("SELECT timezone()")[0][0] == "Asia/Tokyo"
 
 
 def test_client_has_dataset(client: ClickHouseClient) -> None:
