@@ -354,6 +354,12 @@ def get_table_prefix_layout(
         raise CantExtractTablePrefix(
             layout, "Table requires it's own folder, please add a '/' after your {table_name}. "
         )
+    # engines that read a folder as a table skip files that start with '.' or '_', so a layout
+    # that leaves dlt to name the file `.{ext}` creates a table that reads as empty
+    if table_needs_own_folder and ext_layout.rsplit("/", 1)[-1].startswith((".", "_")):
+        raise CantExtractTablePrefix(
+            layout, "A file name is required after the '/', for example {file_id}. "
+        )
 
     if naming:
         warn_on_unsafe_prefix_separators(layout, prefix, naming)
