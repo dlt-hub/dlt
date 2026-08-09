@@ -35,7 +35,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     private_key_path: Optional[str] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     application: Optional[str] = SNOWFLAKE_APPLICATION_ID
-    session_timezone: Optional[str] = None
+    session_timezone: Optional[str] = "UTC"
     """Session `TIMEZONE`. `None` keeps the account default"""
 
     _snowflake_host: Optional[str] = None
