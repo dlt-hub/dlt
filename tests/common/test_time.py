@@ -7,7 +7,7 @@ import pytest
 from pendulum.tz import UTC, fixed_timezone
 
 from dlt.common import pendulum
-from dlt.common.pendulum import to_pendulum_tz
+from dlt.common.pendulum import ensure_pendulum_dt, to_pendulum_tz
 from dlt.common.storages.load_package import create_load_id
 from dlt.common.time import (
     MonotonicPreciseTime,
@@ -20,14 +20,12 @@ from dlt.common.time import (
     timestamp_within,
     ensure_datetime,
     ensure_datetime_in_tz,
-    ensure_datetime_in_tz,
     ensure_pendulum_datetime,
     ensure_pendulum_date,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
     datetime_to_timestamp_us,
     detect_datetime_format,
-    ensure_datetime,
     ensure_pendulum_time,
     normalize_timezone,
     set_context_timezone,
@@ -863,6 +861,24 @@ def test_ensure_datetime_preserves_fixed_offset(value, expected_offset_hours) ->
     result = ensure_datetime(value)
     assert result.tzinfo is not None
     assert result.tzinfo.utcoffset(result) == timedelta(hours=expected_offset_hours)
+
+
+@pytest.mark.parametrize(
+    "offset_minutes,expected_offset_hours",
+    [(-480, -8), (330, 5.5), (0, 0)],
+    ids=["minus8", "plus5:30", "utc"],
+)
+def test_ensure_pendulum_datetime_nameless_fixed_offset(
+    offset_minutes: int, expected_offset_hours: float
+) -> None:
+    """`pytz.FixedOffset`, which the snowflake connector returns, has neither a name nor a zone."""
+    import pytz
+
+    value = datetime(2021, 1, 1, 12, 0, 0, tzinfo=pytz.FixedOffset(offset_minutes))
+    # `ensure_pendulum_dt` keeps the original zone, so the offset goes through `to_pendulum_tz`
+    result = ensure_pendulum_dt(value)
+    assert result.tzinfo.utcoffset(result) == timedelta(hours=expected_offset_hours)
+    assert ensure_pendulum_datetime(value, timezone.utc) == result
 
 
 @pytest.mark.parametrize(

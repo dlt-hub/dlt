@@ -238,6 +238,9 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
     supports_naive_datetime: bool = True
     """The destination can store datetime without timezone"""
 
+    supports_session_timezone: bool = False
+    """The destination can set the timezone of the connected session"""
+
     dialect_capabilities: Optional[Any] = None
     """Capabilities of selected dialect for multi-dialect destinations ie. SQLAlchemy"""
 

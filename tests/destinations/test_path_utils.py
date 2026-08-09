@@ -476,6 +476,22 @@ def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix:
     assert get_table_prefix_layout(layout) == expected_prefix
 
 
+@pytest.mark.parametrize(
+    "layout",
+    ["{table_name}/", "{schema_name}/{table_name}/", "{table_name}/_{ext}"],
+    ids=["table_folder_only", "schema_and_table_folder", "underscore_file_name"],
+)
+def test_table_own_folder_rejects_hidden_file_name(layout: str) -> None:
+    """A destination that reads a folder as a table skips files starting with '.' or '_'."""
+    # the same layouts are valid when the destination does not read a folder as a table
+    assert get_table_prefix_layout(layout)
+
+    with pytest.raises(CantExtractTablePrefix):
+        get_table_prefix_layout(
+            layout, supported_prefix_placeholders=["schema_name"], table_needs_own_folder=True
+        )
+
+
 SNAKE_CASE = snake_case.NamingConvention()
 
 UNSAFE_SEPARATOR_CASES = [

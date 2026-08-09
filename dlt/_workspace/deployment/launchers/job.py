@@ -158,6 +158,7 @@ def run(
     # fill unset job settings from config, then set env vars - both before user module
     # import so pipelines created at import time pick them up
     apply_job_configuration(entry_point, entry_point.get("function"))
+    # TODO: only emit profile. everything else must be injected with context
     prepare_run_env(entry_point)
 
     job = _resolve_job(entry_point)
@@ -202,6 +203,11 @@ def run(
 
     # inject interval context into Container so dlt.current.interval() works.
     with signal_ctx:
+        # TODO: inject timezone context
+        # TODO: inject interval context such that timezone won't be installed (add flag)
+        # TODO: why null context can't be used to reduce code duplication
+        # TODO: job (JobFactory) should have a method that returns pipeline name on the factory
+        #       then if refresh flag is set, we refresh ONLY this pipeline
         if iv is not None:
             # pass True or None, False has no effect on incrementals
             iv_ctx = TimeIntervalContext(

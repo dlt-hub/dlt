@@ -151,6 +151,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
         caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(

@@ -33,6 +33,12 @@ def to_pendulum_tz(tz: Optional[tzinfo]) -> Optional[Union[Timezone, FixedTimezo
     # named timezone (pytz, dateutil, zoneinfo): resolve by name so DST is applied
     if zone_name := getattr(tz, "key", None) or getattr(tz, "zone", None):
         return pendulum.timezone(zone_name)  # type: ignore[no-any-return]
+    # `pytz.FixedOffset`, which snowflake returns, carries neither a name nor a zone so
+    # `_safe_timezone` cannot resolve it
+    utc_offset = tz.utcoffset(None)
+    if utc_offset is not None and tz.tzname(None) is None:
+        offset_seconds = int(utc_offset.total_seconds())
+        return UTC if offset_seconds == 0 else fixed_timezone(offset_seconds)
     return pendulum._safe_timezone(tz)
 
 
