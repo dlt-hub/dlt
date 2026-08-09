@@ -303,8 +303,10 @@ explicitly on a column or by a source/resource. Normalizers do not infer this hi
 | tz-aware        | `False`         | to UTC and then naive |
 |                 |                 |                       |
 
+The hint applies to every value of the column, including values that already arrive as `datetime` objects and need no type coercion.
+
 :::warning
-naive timestamps will **always be considered as UTC**, system timezone settings are ignored by `dlt`
+naive timestamps are **read as UTC**, system timezone settings are ignored by `dlt`
 :::
 
 Ultimately, the destination will interpret the timestamp values. Some destinations:

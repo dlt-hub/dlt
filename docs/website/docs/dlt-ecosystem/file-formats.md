@@ -39,7 +39,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `compression`: Select the internal Parquet compression codec. Choose from `"snappy"`, `"gzip"`, `"brotli"`, `"zstd"`, `"lz4"`, or `"none"`. Defaults to `"snappy"`. Make sure that your database can decompress the codec you select here.
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None, which is the **pyarrow** default.
 - `row_group_size`: Set the number of rows in a row group. [See here](#row-group-size) how this can optimize parallel processing of queries on your destination over the default setting of `pyarrow`.
-- `timestamp_timezone`: A string specifying the timezone, default is UTC. Deprecated as a way to pick a zone: set the timezone `dlt` stores loaded values in instead, which every writer follows. Only the empty string still has a use, see [below](#disable-timezones--utc-adjustment-flags).
+- `timestamp_timezone`: A string specifying the timezone, default is UTC.
 - `coerce_timestamps`: resolution to which to coerce timestamps, choose from **s**, **ms**, **us**, **ns**
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamps.
 - `write_page_index`: Boolean specifying whether a [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) is written. Defaults to `False`.
@@ -231,7 +231,7 @@ JSONL (or JSON Lines, JSON Delimited) is a file format that stores several JSON 
 
 Additional data types are stored as follows:
 
-- `datetime` and `date` are stored as ISO strings;
+- `datetime` and `date` are stored as ISO strings. A tz-aware timestamp carries a numeric offset, so UTC is written as `2024-01-15T23:30:00+00:00` and not `2024-01-15T23:30:00Z`. Both spellings are read back, so files written by older `dlt` versions still load;
 - `decimal` is stored as a text representation of a decimal number;
 - `binary` is stored as a base64 encoded string;
 - `HexBytes` is stored as a hex encoded string;
