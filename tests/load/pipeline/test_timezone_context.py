@@ -141,13 +141,6 @@ def test_utc_context_timezone_is_a_no_op(
     _assert_wall_clock(rows[2]["ts_naive"], NAIVE_IN, caps, "aware -> naive")
 
 
-@pytest.mark.xfail(
-    strict=True,
-    reason=(
-        "the arrow path still localizes naive columns in UTC. it follows the context timezone once"
-        " `normalize_py_arrow_item_column` takes it, and this test then passes unchanged"
-    ),
-)
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),

@@ -26,7 +26,7 @@ from dlt.common.json import json, custom_encode, map_nested_values_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
-from dlt.common.time import get_precision_from_datetime_unit
+from dlt.common.time import get_context_timezone_name, get_precision_from_datetime_unit
 from dlt.common.typing import AnyType, StrStr, TFileOrPath, TDataItems
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -574,7 +574,7 @@ def normalize_py_arrow_item(
     columns: TTableSchemaColumns,
     naming: NamingConvention,
     caps: DestinationCapabilitiesContext,
-    tz: str = "UTC",
+    tz: str = None,
 ) -> TAnyArrowItem:
     """Normalize arrow `item` schema according to the `columns`. Note that
     columns must be already normalized.
@@ -588,6 +588,7 @@ def normalize_py_arrow_item(
 
     NOTE: nullability is not enforced. it is up to destination to do that.
     """
+    tz = tz or get_context_timezone_name()
     item = remove_null_columns(item)
     schema = item.schema
     should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
@@ -659,18 +660,19 @@ def validate_arrow_timezone(tz: str) -> None:
 
 
 def should_normalize_py_arrow_item_column(
-    column: TColumnSchema, arrow_type: pyarrow.DataType, tz: str = "UTC"
+    column: TColumnSchema, arrow_type: pyarrow.DataType, tz: str = None
 ) -> bool:
     # Only handle timestamp columns
     if not pyarrow.types.is_timestamp(arrow_type):
         return False
+    tz = tz or get_context_timezone_name()
 
     # normalize if tz different
     return arrow_type.tz != get_column_timezone(column, tz)  # type: ignore[no-any-return]
 
 
 def normalize_py_arrow_item_column(
-    column: TColumnSchema, arrow_type: pyarrow.Field, arrow_column: pyarrow.Array, tz: str = "UTC"
+    column: TColumnSchema, arrow_type: pyarrow.Field, arrow_column: pyarrow.Array, tz: str = None
 ) -> Tuple[pyarrow.DataType, pyarrow.Array]:
     """Normalize arrow timestamp column timezone according to dlt schema column convention.
 
@@ -683,6 +685,7 @@ def normalize_py_arrow_item_column(
     Returns:
         Tuple of (modified_type, modified_column) or (arrow_field, arrow_column) if no changes needed
     """
+    tz = tz or get_context_timezone_name()
     if not should_normalize_py_arrow_item_column(column, arrow_type, tz):
         return arrow_type, arrow_column
 
@@ -694,8 +697,8 @@ def normalize_py_arrow_item_column(
         # `cast` takes any string, so the name must be checked before it reaches a schema
         validate_arrow_timezone(target_tz)
         if current_tz is None:
-            # attach UTC without shifting (values already represent UTC)
-            arrow_column = assume_arrow_timezone(arrow_column, "UTC")
+            # a naive value is read in the target zone, as it is on the object path
+            arrow_column = assume_arrow_timezone(arrow_column, target_tz)
         # metadata-only cast, the instant is preserved
         col = pyarrow.compute.cast(arrow_column, pyarrow.timestamp(unit, target_tz))
     else:
@@ -703,9 +706,9 @@ def normalize_py_arrow_item_column(
         if current_tz is None:
             col = arrow_column  # already naive
         else:
-            # Make naive wall-clock; if you want naive-in-UTC, ensure tz metadata is UTC first
-            if current_tz != "UTC":
-                arrow_column = pyarrow.compute.cast(arrow_column, pyarrow.timestamp(unit, "UTC"))
+            # the wall clock is taken in `tz`, as it is on the object path
+            if current_tz != tz:
+                arrow_column = pyarrow.compute.cast(arrow_column, pyarrow.timestamp(unit, tz))
             col = pyarrow.compute.local_timestamp(arrow_column)
 
     return pyarrow.timestamp(unit, target_tz), col
@@ -783,7 +786,7 @@ def get_normalized_arrow_fields_mapping(schema: pyarrow.Schema, naming: NamingCo
 def dlt_column_to_arrow_field(
     column: TColumnSchema,
     caps: DestinationCapabilitiesContext,
-    timestamp_timezone: str = "UTC",
+    timestamp_timezone: str,
 ) -> pyarrow.Field:
     """Convert a single dlt column schema to a PyArrow field.
 
@@ -805,7 +808,7 @@ def dlt_column_to_arrow_field(
 def columns_to_arrow(
     columns: TTableSchemaColumns,
     caps: DestinationCapabilitiesContext,
-    timestamp_timezone: str = "UTC",
+    timestamp_timezone: str,
 ) -> pyarrow.Schema:
     """Convert a table schema columns dict to a pyarrow schema.
 

@@ -53,6 +53,7 @@ from dlt.common.destination.client import (
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.time import get_context_timezone_name
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableSchemaColumns,
@@ -490,7 +491,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def make_arrow_table_schema(self, table_name: str) -> pa.Schema:
         """Creates a PyArrow schema for a table, including embedding metadata if configured."""
         columns = self.schema.get_table_columns(table_name)
-        arrow_schema = columns_to_arrow(columns, self.capabilities)
+        arrow_schema = columns_to_arrow(columns, self.capabilities, get_context_timezone_name())
 
         embedding_fields = None
         vector_column = None
@@ -531,7 +532,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     @raise_destination_error
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
-        new_fields = [dlt_column_to_arrow_field(col, self.capabilities) for col in new_columns]
+        new_fields = [
+            dlt_column_to_arrow_field(col, self.capabilities, get_context_timezone_name())
+            for col in new_columns
+        ]
         self.open_lance_dataset(table_name, branch_name=self.config.branch_name).add_columns(
             new_fields
         )

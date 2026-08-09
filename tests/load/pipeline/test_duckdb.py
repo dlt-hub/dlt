@@ -115,7 +115,7 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
         columns_schema = add_timezone_false_on_precision(
             TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS
         )
-        arrow_schema = columns_to_arrow({c["name"]: c for c in columns_schema}, caps)
+        arrow_schema = columns_to_arrow({c["name"]: c for c in columns_schema}, caps, "UTC")
 
     def _verify_schema(arrow_schema_: pa.Schema, bit128type: pa.DataType) -> None:
         # also assert the intermediate arrow_schema produced from columns
