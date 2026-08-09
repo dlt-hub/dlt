@@ -571,6 +571,7 @@ const sidebars = {
             "walkthroughs/share-a-dataset",
             "walkthroughs/create-new-destination",
             "walkthroughs/zendesk-weaviate",
+            "walkthroughs/how-to-load-data-with-dlt",
           ],
         },
         {
