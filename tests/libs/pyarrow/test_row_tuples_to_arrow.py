@@ -553,13 +553,6 @@ def test_row_tuples_to_arrow_various_timestamps(
     assert col_type.tz == expected_tz
 
 
-@pytest.mark.xfail(
-    strict=False,
-    reason=(
-        "`convert_array_to_arrow` still reads a naive value as UTC. it follows the requested zone"
-        " once the arrow creation path takes it, and this test then passes unchanged"
-    ),
-)
 @pytest.mark.parametrize("tz", ["UTC", "Europe/Berlin", "Asia/Kolkata"])
 def test_row_tuples_to_arrow_timestamp_tz_argument(tz: str) -> None:
     """An aware input keeps its instant, a naive one is read in `tz`."""
@@ -584,7 +577,14 @@ def test_row_tuples_to_arrow_timestamp_tz_argument(tz: str) -> None:
     for value in naive_values:
         tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
         assert tbl["ts"].type == pa.timestamp("us")
-        assert tbl["ts"][0].as_py() == datetime(2024, 1, 15, 23, 30)
+        assert tbl["ts"][0].as_py() == datetime(2024, 1, 15, 23, 30), value
+
+    # an aware value is converted to `tz` before the zone is dropped
+    local_wall_clock = instant.astimezone(ZoneInfo(tz)).replace(tzinfo=None)
+    for value in aware_values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us")
+        assert tbl["ts"][0].as_py() == local_wall_clock, value
 
 
 def test_row_tuples_to_arrow_pandas_ns_downcasts_to_us() -> None:

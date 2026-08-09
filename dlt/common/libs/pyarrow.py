@@ -26,7 +26,7 @@ from dlt.common.json import json, custom_encode, map_nested_values_in_place
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import is_nullable_column, dlt_load_id_column
-from dlt.common.time import get_context_timezone_name, get_precision_from_datetime_unit
+from dlt.common.time import UTC_NAME, get_context_timezone_name, get_precision_from_datetime_unit
 from dlt.common.typing import AnyType, StrStr, TFileOrPath, TDataItems
 from dlt.common.normalizers.naming import NamingConvention
 
@@ -1126,6 +1126,26 @@ def uuid_to_string(arr: Any) -> Any:  # pyarrow.Array -> pyarrow.Array
     return fsb36.cast(pa.string())
 
 
+def _first_non_none_value(column_data: Any) -> Any:
+    for value in column_data:
+        if value is not None:
+            return value
+    return None
+
+
+def _datetimes_to_arrow(
+    column_data: Any, column_schema: TColumnSchema, arrow_type: Any, tz: str
+) -> Any:  # pyarrow.Array
+    """Converts datetimes to a timestamp array, reading naive values in `tz`, not in UTC."""
+    # pyarrow reads a naive datetime as if it were UTC, so the array is built in the zone the
+    # values carry and the timezone hint is applied after, exactly as on the object path
+    aware = getattr(_first_non_none_value(column_data), "tzinfo", None) is not None
+    source_type = pyarrow.timestamp(arrow_type.unit, UTC_NAME if aware else None)
+    return normalize_py_arrow_item_column(
+        column_schema, source_type, pyarrow.array(column_data, type=source_type), tz
+    )[1]
+
+
 def convert_array_to_arrow(
     column_data: Any,  # 1-dimensional sequence of column values
     caps: DestinationCapabilitiesContext,
@@ -1160,8 +1180,17 @@ def convert_array_to_arrow(
 
     # base case (0): allow pyarrow to infer type, or create array of dlt specified type
     try:
-        # type=None lets pyarrow infer the type from the data
-        inferred_array = pa.array(column_data, type=inferred_arrow_type)
+        if (
+            tz != UTC_NAME
+            and inferred_arrow_type is not None
+            and pa.types.is_timestamp(inferred_arrow_type)
+        ):
+            inferred_array = _datetimes_to_arrow(
+                column_data, column_schema, inferred_arrow_type, tz
+            )
+        else:
+            # type=None lets pyarrow infer the type from the data
+            inferred_array = pa.array(column_data, type=inferred_arrow_type)
         # pyarrow >=24 infers UUIDs as the `arrow.uuid` extension; coerce to string
         # so destinations see canonical hyphenated text, matching pyarrow <24 behavior
         if inferred_array is not None and _is_arrow_uuid_extension(inferred_array.type):
@@ -1174,13 +1203,8 @@ def convert_array_to_arrow(
         )
 
     def _first_non_none(types_: Sequence[AnyType]) -> bool:
-        # determine the first non-null value to guide fallbacks
-        first_non_none = None
-        for _v in column_data:
-            if _v is not None:
-                first_non_none = _v
-                break
-        return isinstance(first_non_none, types_)  # type: ignore[arg-type]
+        # the first non-null value guides the fallbacks
+        return isinstance(_first_non_none_value(column_data), types_)  # type: ignore[arg-type]
 
     # case 1 & 2: pyarrow infers the type (e.g., float, string) THEN cast it to the dlt specified type; less constraints than the base case
     # for example, this handles when backends return decimals as floats or strings
@@ -1298,7 +1322,23 @@ def cast_arrow_array_as_column_schema(
     )
     inferred_array = None
     try:
-        inferred_array = raw_array.cast(inferred_arrow_type, safe=safe_arrow_conversion)
+        if (
+            tz != UTC_NAME
+            and inferred_arrow_type is not None
+            and pa.types.is_timestamp(inferred_arrow_type)
+            and pa.types.is_timestamp(raw_array.type)
+        ):
+            # casting straight to the target reads a naive value as UTC, so only the unit is cast
+            # here and the timezone hint is applied after
+            unit_type = pyarrow.timestamp(inferred_arrow_type.unit, raw_array.type.tz)
+            _, inferred_array = normalize_py_arrow_item_column(
+                column_schema,
+                unit_type,
+                raw_array.cast(unit_type, safe=safe_arrow_conversion),
+                tz,
+            )
+        else:
+            inferred_array = raw_array.cast(inferred_arrow_type, safe=safe_arrow_conversion)
     except (pa.ArrowInvalid, pyarrow.ArrowTypeError, pyarrow.ArrowNotImplementedError) as e:
         # TODO add specific error handling as we encounter them
         error_msg = e.args[0]
@@ -1493,10 +1533,31 @@ def cast_arrow_as_columns_schema(
     return item.__class__.from_arrays(arrays_out, schema=new_schema)
 
 
+def _struct_timestamp_types(
+    rows: TDataItems, arrow_types: Dict[str, Optional[Any]]
+) -> Dict[str, Optional[Any]]:
+    """Struct field types holding the zone the values carry, which pyarrow reads as UTC otherwise."""
+    by_name = isinstance(rows[0], dict)
+    struct_types = dict(arrow_types)
+    for index, (name, arrow_type) in enumerate(arrow_types.items()):
+        if not pyarrow.types.is_timestamp(arrow_type):
+            continue
+        # a dict row may omit the key and a tuple row may be short, both meaning no value
+        values = (
+            (row.get(name) for row in rows)
+            if by_name
+            else (row[index] if index < len(row) else None for row in rows)
+        )
+        aware = getattr(_first_non_none_value(values), "tzinfo", None) is not None
+        struct_types[name] = pyarrow.timestamp(arrow_type.unit, UTC_NAME if aware else None)
+    return struct_types
+
+
 def _row_tuples_to_arrow_struct(
     rows: TDataItems,
     columns: TTableSchemaColumns,
     arrow_types: Dict[str, Optional[Any]],
+    tz: str,
 ) -> Optional[Any]:  # Optional[pyarrow.Table]
     """Converts row tuples to an arrow table in a single pass via a `StructArray`."""
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -1507,8 +1568,15 @@ def _row_tuples_to_arrow_struct(
         for name, column in columns.items()
     ):
         return None
+
+    # the struct labels timestamps with the target zone, which shifts a naive value. they are
+    # built in the zone the values carry and the timezone hint is applied after the flatten
+    normalize_timestamps = tz != UTC_NAME and bool(rows)
     try:
-        struct_fields = [pa.field(name, arrow_types[name]) for name in columns]
+        struct_types = (
+            _struct_timestamp_types(rows, arrow_types) if normalize_timestamps else arrow_types
+        )
+        struct_fields = [pa.field(name, struct_types[name]) for name in columns]
         arrays = pa.array(rows, type=pa.struct(struct_fields)).flatten()
     except Exception as e:
         logger.debug(
@@ -1516,9 +1584,18 @@ def _row_tuples_to_arrow_struct(
             f" {type(e).__name__}: {e}"
         )
         return None
+    if normalize_timestamps:
+        arrays = [
+            (
+                normalize_py_arrow_item_column(columns[field.name], field.type, array, tz)[1]
+                if pa.types.is_timestamp(field.type)
+                else array
+            )
+            for field, array in zip(struct_fields, arrays)
+        ]
     schema = pa.schema(
-        pa.field(field.name, field.type, nullable=columns[field.name].get("nullable", True))
-        for field in struct_fields
+        pa.field(name, arrow_types[name], nullable=columns[name].get("nullable", True))
+        for name in columns
     )
     return pa.Table.from_arrays(arrays, schema=schema)
 
@@ -1560,7 +1637,7 @@ def row_tuples_to_arrow(
         for name, column in columns.items()
     }
 
-    if (arrow_table := _row_tuples_to_arrow_struct(rows, columns, arrow_types)) is not None:
+    if (arrow_table := _row_tuples_to_arrow_struct(rows, columns, arrow_types, tz)) is not None:
         return arrow_table
 
     transposed_rows = transpose_rows_to_columns(rows, column_names=columns.keys())
