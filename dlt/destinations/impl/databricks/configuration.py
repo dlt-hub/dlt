@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from zerobus import ArrowStreamConfigurationOptions, IPCCompression
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
+SPARK_SESSION_TIMEZONE = "spark.sql.session.timeZone"
 DEFAULT_DATABRICKS_INSERT_API: TDatabricksInsertApi = "copy_into"
 # ZSTD was fastest in my benchmarks out of the three `ipc_compression` options
 # currently available (NONE, LZ4_FRAME, ZSTD) — NONE (no compression) was slowest
@@ -156,8 +157,9 @@ class DatabricksCredentials(CredentialsConfiguration):
 
     def to_connector_params(self) -> Dict[str, Any]:
         session_configuration = dict(self.session_configuration or {})
-        if self.session_timezone and "timezone" not in session_configuration:
-            session_configuration["timezone"] = self.session_timezone
+        # the connector ignores the `TIMEZONE` SQL parameter here, only the Spark conf takes effect
+        if self.session_timezone and SPARK_SESSION_TIMEZONE not in session_configuration:
+            session_configuration[SPARK_SESSION_TIMEZONE] = self.session_timezone
 
         conn_params = dict(
             catalog=self.catalog,

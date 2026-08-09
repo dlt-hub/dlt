@@ -268,14 +268,19 @@ When `server_hostname` or `http_path` are not provided, `dlt` attempts to derive
 ansi_mode = "true"
 ```
 
-The session timezone has its own setting, which sets the
-[`TIMEZONE`](https://docs.databricks.com/aws/en/sql/language-manual/parameters/timezone) parameter:
+The session timezone has its own setting, which sets `spark.sql.session.timeZone`:
 ```toml
 [destination.databricks.credentials]
 session_timezone = "Europe/Berlin"
 ```
-`None` is the default value. It keeps the timezone of the warehouse. A `timezone` key set directly in
-`session_configuration` takes precedence.
+`None` is the default value. It keeps the timezone of the warehouse. A `spark.sql.session.timeZone`
+key set directly in `session_configuration` takes precedence.
+
+:::note
+The connector applies `session_configuration` as Spark conf, so the
+[`TIMEZONE`](https://docs.databricks.com/aws/en/sql/language-manual/parameters/timezone) SQL parameter
+has no effect there. Only `spark.sql.session.timeZone` changes the session timezone.
+:::
 
 ## Write disposition
 All write dispositions are supported.

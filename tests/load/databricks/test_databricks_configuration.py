@@ -19,6 +19,7 @@ from dlt.destinations import databricks
 from dlt.destinations.impl.databricks.configuration import (
     DatabricksClientConfiguration,
     DATABRICKS_APPLICATION_ID,
+    SPARK_SESSION_TIMEZONE,
     DatabricksCredentials,
     DatabricksZerobusConfiguration,
     DatabricksZerobusCredentials,
@@ -71,14 +72,17 @@ def test_databricks_session_timezone() -> None:
     # the warehouse default applies unless you configure a timezone
     assert credentials.to_connector_params()["session_configuration"] == {}
 
+    # only the Spark conf takes effect, the `TIMEZONE` SQL parameter is ignored by the connector
     credentials.session_timezone = "Europe/Berlin"
     assert credentials.to_connector_params()["session_configuration"] == {
-        "timezone": "Europe/Berlin"
+        SPARK_SESSION_TIMEZONE: "Europe/Berlin"
     }
 
     # a timezone set in `session_configuration` takes precedence
-    credentials.session_configuration = {"timezone": "Asia/Tokyo"}
-    assert credentials.to_connector_params()["session_configuration"] == {"timezone": "Asia/Tokyo"}
+    credentials.session_configuration = {SPARK_SESSION_TIMEZONE: "Asia/Tokyo"}
+    assert credentials.to_connector_params()["session_configuration"] == {
+        SPARK_SESSION_TIMEZONE: "Asia/Tokyo"
+    }
 
 
 def test_databricks_configuration() -> None:
