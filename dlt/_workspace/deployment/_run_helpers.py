@@ -3,13 +3,13 @@
 import copy
 import os
 import os.path
-from datetime import datetime, timezone  # noqa: I251
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, cast
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from dlt.common.time import ensure_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.deployment._job_ref import format_job_label, resolve_job_ref, short_name
@@ -274,8 +274,8 @@ def resolve_interval(
 
     if user_start:
         target_tz = ZoneInfo(tz)
-        start = ensure_datetime_utc(user_start, default_tz=target_tz)
-        end = ensure_datetime_utc(user_end, default_tz=target_tz) if user_end else now_utc
+        start = ensure_datetime_in_tz(user_start, target_tz)
+        end = ensure_datetime_in_tz(user_end, target_tz) if user_end else now_utc
         return start, end, tz
 
     declared = job_def.get("interval")
@@ -290,9 +290,9 @@ def resolve_interval(
             if declared.get("end"):
                 declared_end_dt = spec_end
         else:
-            declared_start_dt = ensure_datetime_utc(declared["start"])
+            declared_start_dt = ensure_datetime_in_tz(declared["start"], timezone.utc)
             if declared.get("end"):
-                declared_end_dt = ensure_datetime_utc(declared["end"])
+                declared_end_dt = ensure_datetime_in_tz(declared["end"], timezone.utc)
 
     natural_start, natural_end = compute_run_interval(
         trigger, now_utc, prev_interval_end=None, tz=tz
@@ -353,9 +353,11 @@ def build_runtime_entry_point(
     if tz is None:
         tz = job_def.get("require", {}).get("timezone", "UTC")
     if interval_start is not None:
-        entry_point["interval_start"] = ensure_datetime_utc(interval_start).isoformat()
+        entry_point["interval_start"] = ensure_datetime_in_tz(
+            interval_start, timezone.utc
+        ).isoformat()
     if interval_end is not None:
-        entry_point["interval_end"] = ensure_datetime_utc(interval_end).isoformat()
+        entry_point["interval_end"] = ensure_datetime_in_tz(interval_end, timezone.utc).isoformat()
     if interval_start is not None or interval_end is not None:
         entry_point["interval_timezone"] = tz
     # pass mode explicitly when set, keep deprecated flag for old launchers and backends.

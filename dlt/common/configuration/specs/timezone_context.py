@@ -7,9 +7,7 @@ from dlt.common.configuration.specs.base_configuration import (
     ContainerInjectableContext,
     configspec,
 )
-from dlt.common.time import set_configured_timezone
-
-UTC_NAME = "UTC"
+from dlt.common.time import UTC_NAME, get_context_timezone_name, set_context_timezone
 
 
 class InvalidTimezoneName(ConfigurationValueError):
@@ -19,21 +17,6 @@ class InvalidTimezoneName(ConfigurationValueError):
             f"dlt cannot use timezone `{timezone}`: {reason}. Pass a canonical IANA name, for"
             " example `Europe/Berlin` or `UTC`."
         )
-
-
-def to_iana_name(tz: Optional[datetime.tzinfo]) -> Optional[str]:
-    """IANA name of `tz`, or `None` when it carries none, as a fixed offset does."""
-    if tz is None:
-        return None
-    if isinstance(tz, datetime.timezone):
-        # a stdlib fixed offset carries no name, and only zero offset has a portable one
-        return UTC_NAME if not tz.utcoffset(None) else None
-    # `key` is zoneinfo, `zone` is pytz, `name` is pendulum. a fixed offset either has none of
-    # them or reports its offset (`+02:00`), which is not a name arrow or zoneinfo can resolve
-    for attr in ("key", "zone", "name"):
-        if name := getattr(tz, attr, None):
-            return None if name[0] in "+-" else str(name)
-    return None
 
 
 def to_tzinfo(timezone: str) -> datetime.tzinfo:
@@ -68,7 +51,8 @@ class TimezoneContext(ContainerInjectableContext):
 
     def __init__(self, timezone: str = None) -> None:
         super().__init__()
-        self.timezone = timezone or UTC_NAME
+        # a default instance must not undo the timezone a launcher already put in the environment
+        self.timezone = timezone or get_context_timezone_name()
         self._tzinfo: Optional[datetime.tzinfo] = None
         self._restore: List[datetime.tzinfo] = []
 
@@ -86,9 +70,9 @@ class TimezoneContext(ContainerInjectableContext):
 
     def after_add(self) -> None:
         super().after_add()
-        self._restore.append(set_configured_timezone(self.tzinfo))
+        self._restore.append(set_context_timezone(self.tzinfo))
 
     def before_remove(self) -> None:
         super().before_remove()
         if self._restore:
-            set_configured_timezone(self._restore.pop())
+            set_context_timezone(self._restore.pop())

@@ -21,7 +21,7 @@ from sqlglot.optimizer.scope import build_scope
 from dlt.common.time import (
     DEFAULT_TIMESTAMP_PRECISION,
     ensure_date,
-    ensure_datetime_utc,
+    ensure_datetime_in_tz,
 )
 from dlt.common.utils import without_none
 from dlt.common.exceptions import TerminalValueError
@@ -689,11 +689,11 @@ def resolve_timestamp_cast(
     # `dlt.common.destination`, which imports this module at load time
     from dlt.common.data_writers.escape import format_datetime_value
 
-    # coerce date / ISO-string bounds to a UTC datetime; leave real datetimes (naive or aware) as-is
+    # coerce date / ISO-string bounds in the context timezone; real datetimes carry their own
     if lower is not None and not isinstance(lower, datetime):
-        lower = ensure_datetime_utc(lower)
+        lower = ensure_datetime_in_tz(lower)
     if upper is not None and not isinstance(upper, datetime):
-        upper = ensure_datetime_utc(upper)
+        upper = ensure_datetime_in_tz(upper)
 
     dialect = caps.sqlglot_dialect if caps is not None else None
     precision = caps.timestamp_precision if caps is not None else DEFAULT_TIMESTAMP_PRECISION

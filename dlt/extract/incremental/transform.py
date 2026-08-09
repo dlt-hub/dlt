@@ -1,6 +1,5 @@
 from datetime import datetime  # noqa: I251
 from typing import Any, Optional, Set, Tuple, List, Type, TYPE_CHECKING
-from pendulum.tz import UTC
 
 from dlt.common import logger
 from dlt.common.libs import (
@@ -8,7 +7,7 @@ from dlt.common.libs import (
     is_pandas_frame,
     is_polars_frame,
 )
-from dlt.common.pendulum import create_dt
+from dlt.common.time import ensure_datetime_in_tz, normalize_timezone
 from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.jsonpath import find_values, compile_path, extract_simple_field_name
 from dlt.extract.incremental.exceptions import (
@@ -129,44 +128,17 @@ class IncrementalTransform:
                 )
             message = (
                 f"In resource {resource_name}: {cursor_value_name} '{cursor_value}' and row value"
-                f" {row_value} have different timezone awareness. {last_value_source_message}Row"
-                f" value is the actual data. {cursor_value_name} will be corrected to match the row"
-                " value timezone. The reason for that may be: (1) you set wrong tz-awareness on"
-                f" the {config_value_name} (note that pendulum is tz-aware by default) (2) the data"
-                " has changed its tz-awareness across runs. (3) your pipeline state got upgraded"
-                " to always store last value with tz-awareness following your data."
+                f" {row_value} differ in timezone awareness. {last_value_source_message}The row"
+                f" value comes from the data, so {cursor_value_name} follows it. A naive value is"
+                " read in the context timezone, UTC by default. Check the tz-awareness of"
+                f" {config_value_name}, or whether the data changed it between runs."
             )
             logger.warning(message)
             if row_value.tzinfo is None:
-                cursor_value = (
-                    create_dt(
-                        cursor_value.year,
-                        cursor_value.month,
-                        cursor_value.day,
-                        cursor_value.hour,
-                        cursor_value.minute,
-                        cursor_value.second,
-                        cursor_value.microsecond,
-                        tz=cursor_value.tzinfo,
-                        fold=cursor_value.fold,
-                    )
-                    .in_tz(tz=UTC)
-                    .naive()
-                )
+                cursor_value = normalize_timezone(cursor_value, False)
             else:
-                cursor_value = create_dt(
-                    cursor_value.year,
-                    cursor_value.month,
-                    cursor_value.day,
-                    cursor_value.hour,
-                    cursor_value.minute,
-                    cursor_value.second,
-                    cursor_value.microsecond,
-                    tz=cursor_value.tzinfo,
-                    fold=cursor_value.fold,
-                ).in_tz(
-                    row_value.tzinfo  # type: ignore[arg-type]
-                )
+                # a naive cursor value is read in the context timezone, then moved to the row's zone
+                cursor_value = ensure_datetime_in_tz(cursor_value).astimezone(row_value.tzinfo)
         return cursor_value
 
     def compute_deduplication_disabled(self) -> bool:

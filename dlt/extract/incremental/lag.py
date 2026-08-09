@@ -2,10 +2,11 @@ from datetime import datetime, timedelta, date  # noqa: I251
 from typing import Any, Optional, Union
 
 from dlt.common import logger, pendulum
+from dlt.common.pendulum import ensure_pendulum_dt
 from dlt.common.time import (
     detect_datetime_format,
     ensure_pendulum_date,
-    ensure_pendulum_datetime_non_utc,
+    ensure_datetime,
     datetime_obj_to_str,
 )
 
@@ -24,7 +25,9 @@ def _apply_lag_to_value(
         value_format = detect_datetime_format(value)
         is_str_date = value_format in ("%Y%m%d", "%Y-%m-%d")
         value = (
-            ensure_pendulum_date(value) if is_str_date else ensure_pendulum_datetime_non_utc(value)
+            ensure_pendulum_date(value)
+            if is_str_date
+            else ensure_pendulum_dt(ensure_datetime(value))
         )
 
     # we must have pendulum instance.
@@ -32,7 +35,7 @@ def _apply_lag_to_value(
         # we didn't convert to pendulum yet
         if not value_format:
             value = (
-                ensure_pendulum_datetime_non_utc(value)
+                ensure_pendulum_dt(ensure_datetime(value))
                 if isinstance(value, datetime)
                 else ensure_pendulum_date(value)
             )

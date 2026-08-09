@@ -1,18 +1,21 @@
 import contextlib
 import datetime  # noqa: I251
-import os
 from typing import Dict, Iterator, Optional, cast
 from zoneinfo import ZoneInfo
 
 import pytest
-from pendulum.tz import UTC as PENDULUM_UTC, fixed_timezone
+from pendulum.tz import UTC as PENDULUM_UTC, fixed_timezone, local_timezone
 
 import dlt
 from dlt.common import known_env, pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import InvalidTimezoneName, TimezoneContext
-from dlt.common.configuration.specs.timezone_context import to_iana_name
-from dlt.common.time import get_configured_timezone, set_configured_timezone
+from dlt.common.time import to_iana_name
+from dlt.common.time import (
+    get_context_timezone,
+    normalize_timezone,
+    set_context_timezone,
+)
 from dlt.common.typing import TTimeInterval
 from dlt.extract.incremental.context import TimeIntervalContext
 
@@ -24,16 +27,16 @@ def restore_timezone() -> Iterator[None]:
     """`preserve_run_context` is autouse only under `tests/workspace`, so undo the context here."""
     container = Container()
     had_context = TimezoneContext in container
-    previous = get_configured_timezone()
+    previous = get_context_timezone()
     yield
     if not had_context:
         with contextlib.suppress(KeyError):
             del container[TimezoneContext]
-    set_configured_timezone(previous)
+    set_context_timezone(previous)
 
 
 def test_default_is_utc() -> None:
-    assert get_configured_timezone() == datetime.timezone.utc
+    assert get_context_timezone() == datetime.timezone.utc
     assert Container()[TimezoneContext].timezone == "UTC"
 
 
@@ -67,11 +70,11 @@ def test_to_iana_name(tz: Optional[datetime.tzinfo], expected: Optional[str]) ->
 def test_installs_and_unwinds() -> None:
     container = Container()
     with container.injectable_context(TimezoneContext("Europe/Berlin")):
-        assert get_configured_timezone() == ZoneInfo("Europe/Berlin")
+        assert get_context_timezone() == ZoneInfo("Europe/Berlin")
         with container.injectable_context(TimezoneContext("Asia/Kolkata")):
-            assert get_configured_timezone() == ZoneInfo("Asia/Kolkata")
-        assert get_configured_timezone() == ZoneInfo("Europe/Berlin")
-    assert get_configured_timezone() == datetime.timezone.utc
+            assert get_context_timezone() == ZoneInfo("Asia/Kolkata")
+        assert get_context_timezone() == ZoneInfo("Europe/Berlin")
+    assert get_context_timezone() == datetime.timezone.utc
 
 
 def test_detects_from_interval_env(environment: Dict[str, str]) -> None:
@@ -121,19 +124,61 @@ def test_interval_without_a_name_keeps_utc(tz: Optional[datetime.tzinfo]) -> Non
 
 def test_set_configured_timezone_returns_previous() -> None:
     berlin = ZoneInfo("Europe/Berlin")
-    previous = set_configured_timezone(berlin)
+    previous = set_context_timezone(berlin)
     try:
         assert previous == datetime.timezone.utc
-        assert get_configured_timezone() == berlin
+        assert get_context_timezone() == berlin
         # `None` resets to UTC
-        assert set_configured_timezone(None) == berlin
-        assert get_configured_timezone() == datetime.timezone.utc
+        assert set_context_timezone(None) == berlin
+        assert get_context_timezone() == datetime.timezone.utc
     finally:
-        set_configured_timezone(previous)
+        set_context_timezone(previous)
 
 
-def test_pendulum_now_stays_utc() -> None:
-    """The timezone must never be implemented by moving pendulum's local zone."""
+def test_does_not_move_pendulum_local_timezone() -> None:
+    """The timezone must never be implemented by moving pendulum's local zone.
+
+    Asserts the value is unchanged rather than UTC: other tests set the local zone on purpose.
+    """
+    before = local_timezone()
     with Container().injectable_context(TimezoneContext("Europe/Berlin")):
-        assert pendulum.now().tzinfo == PENDULUM_UTC
-        assert os.environ.get("TZ") in (None, "", "UTC")
+        assert local_timezone() == before
+        assert pendulum.now().tzinfo == before
+    assert local_timezone() == before
+
+
+@pytest.mark.parametrize("hint", [True, False], ids=["tz_aware", "tz_naive"])
+def test_pendulum_utc_value_is_recognized(hint: bool) -> None:
+    """A value carrying pendulum's own UTC must be treated as UTC, not as an unknown zone."""
+    value = pendulum.DateTime(2024, 1, 15, 23, 30, tzinfo=PENDULUM_UTC)
+    assert to_iana_name(value.tzinfo) == "UTC"
+
+    # with a UTC context the instant is untouched, and `timezone=False` only strips the zone
+    normalized = normalize_timezone(value, hint)
+    if hint:
+        assert normalized == value
+        assert normalized.utcoffset() == datetime.timedelta(0)
+    else:
+        assert normalized == value.replace(tzinfo=None)
+        assert normalized.tzinfo is None
+
+    # with a Berlin context the instant survives and the offset moves
+    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+        shifted = normalize_timezone(value, hint)
+    assert shifted.replace(tzinfo=None) == datetime.datetime(2024, 1, 16, 0, 30)
+    if hint:
+        assert shifted == value
+        assert shifted.utcoffset() == datetime.timedelta(hours=1)
+    else:
+        assert shifted.tzinfo is None
+
+
+def test_pendulum_utc_interval_installs_utc() -> None:
+    """An interval whose bounds carry pendulum UTC resolves to UTC, not to "no IANA name"."""
+    interval = TTimeInterval(
+        pendulum.DateTime(2024, 1, 15, tzinfo=PENDULUM_UTC),
+        pendulum.DateTime(2024, 1, 16, tzinfo=PENDULUM_UTC),
+    )
+    with Container().injectable_context(TimeIntervalContext(interval=interval)):
+        assert Container()[TimezoneContext].timezone == "UTC"
+        assert dlt.current.timezone() == datetime.timezone.utc

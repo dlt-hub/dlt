@@ -2066,7 +2066,7 @@ def test_timezone_naive_datetime(item_type: TestDataItemFormat) -> None:
         == 2
     )
     last_value = resource.state["incremental"]["updated_at"]["last_value"]
-    assert isinstance(last_value, pendulum.DateTime)
+    assert isinstance(last_value, datetime)
     # last value must be naive
     assert last_value.tzinfo is None
     assert last_value == pendulum_start_dt.add(hours=2).naive()

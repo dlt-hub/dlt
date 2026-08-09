@@ -6,7 +6,7 @@ from dlt.common.configuration.specs.pluggable_run_context import (
     PluggableRunContext,
     RunContextBase,
 )
-from dlt.common.time import set_configured_timezone
+from dlt.common.time import set_context_timezone
 
 
 def initialize_runtime(logger_name: str, runtime_config: RuntimeConfiguration) -> None:
@@ -60,7 +60,7 @@ def restore_run_context(
 
     # start from a clean injection container. the reset drops the contexts without firing
     # `before_remove`, so the timezone global would otherwise outlive its context
-    set_configured_timezone(None)
+    set_context_timezone(None)
     container = Container.reset_main_thread()
     container[PluggableRunContext] = PluggableRunContext(run_context)
 

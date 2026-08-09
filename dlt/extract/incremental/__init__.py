@@ -46,7 +46,7 @@ from dlt.common.data_types.type_helpers import (
     py_type_to_sc_type,
 )
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import simple_repr, without_none
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
@@ -386,7 +386,7 @@ class Incremental(
         or awareness."""
         # normalize to a UTC instant so representation differences do not change the hash
         if isinstance(value, datetime):
-            value = ensure_pendulum_datetime_utc(value).isoformat()
+            value = ensure_pendulum_datetime(value).isoformat()
         return digest_dedup_value(value)
 
     def unique_boundary_consumed(self) -> bool:

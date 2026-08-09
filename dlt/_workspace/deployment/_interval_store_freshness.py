@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from dlt.common.time import ensure_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._trigger_helpers import maybe_parse_schedule
@@ -51,8 +51,8 @@ def iter_intervals(
         return
 
     target_tz = ZoneInfo(tz)
-    start_tz = ensure_datetime_utc(start).astimezone(target_tz)
-    end_tz = ensure_datetime_utc(end).astimezone(target_tz)
+    start_tz = ensure_datetime_in_tz(start, timezone.utc).astimezone(target_tz)
+    end_tz = ensure_datetime_in_tz(end, timezone.utc).astimezone(target_tz)
 
     # iterate cron in naive local time to get clean wall-clock semantics across
     # DST transitions (see next_scheduled_run for rationale)

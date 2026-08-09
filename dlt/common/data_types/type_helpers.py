@@ -15,8 +15,8 @@ from dlt.common.arithmetics import InvalidOperation, Decimal
 from dlt.common.data_types.typing import TDataType
 from dlt.common.time import (
     datetime_to_timestamp,
-    ensure_datetime_utc,
-    ensure_pendulum_datetime_non_utc,
+    ensure_datetime_in_tz,
+    ensure_datetime,
     ensure_pendulum_date,
     ensure_pendulum_time,
 )
@@ -99,16 +99,17 @@ def json_to_str(value: Any) -> str:
 def coerce_from_date_types(
     to_type: TDataType, value: datetime.datetime
 ) -> Union[datetime.datetime, datetime.date, datetime.time, int, float, str]:
-    v = ensure_pendulum_datetime_non_utc(value)
+    v = ensure_datetime(value)
     if to_type == "timestamp":
         return v
     if to_type == "text":
         return v.isoformat()
     if to_type == "bigint":
-        # a naive value is UTC by dlt convention, `timestamp()` would read it in the machine zone
-        return datetime_to_timestamp(v)
+        # localize first: `timestamp()` would read a naive value in the machine timezone, and
+        # `datetime_to_timestamp` takes naive as UTC rather than as the configured timezone
+        return datetime_to_timestamp(ensure_datetime_in_tz(v))
     if to_type == "double":
-        return ensure_datetime_utc(v).timestamp()
+        return ensure_datetime_in_tz(v).timestamp()
     if to_type == "date":
         return ensure_pendulum_date(v)
     if to_type == "time":
@@ -234,10 +235,10 @@ _COERCE_DISPATCH: Dict[Tuple[TDataType, TDataType], Callable[[Any], Any]] = {
     # to json
     ("json", "text"): json.loads,
     # to timestamp
-    ("timestamp", "text"): ensure_pendulum_datetime_non_utc,
+    ("timestamp", "text"): ensure_datetime,
     ("timestamp", "bigint"): pendulum.from_timestamp,
     ("timestamp", "double"): pendulum.from_timestamp,
-    ("timestamp", "date"): ensure_pendulum_datetime_non_utc,
+    ("timestamp", "date"): ensure_datetime,
     # to date. `ensure_pendulum_date` is the one place the calendar day is derived
     ("date", "text"): _text_to_date_fast,
     ("date", "timestamp"): ensure_pendulum_date,

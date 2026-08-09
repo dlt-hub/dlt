@@ -1,8 +1,11 @@
-import datetime  # noqa: I251
+import datetime
 import math
+import os
 import re
 import sys
+import warnings
 from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
+from zoneinfo import ZoneInfo
 
 from pendulum.parsing import (
     parse_iso8601,
@@ -12,6 +15,7 @@ from pendulum.parsing import (
 from pendulum.tz import UTC
 from pendulum import DateTime, Date, Time  # noqa: I251
 
+from dlt.common import known_env
 from dlt.common.pendulum import create_dt, ensure_pendulum_dt, pendulum, timedelta
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
 from dlt.common.warnings import deprecated
@@ -22,34 +26,71 @@ DAY_DURATION_SEC: float = 24 * 60 * 60.0
 UNIX_EPOCH_DATE = datetime.date(1970, 1, 1)
 UNIX_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 
+UTC_NAME = "UTC"
+
 DEFAULT_TIMESTAMP_PRECISION = 6
 
-_CONFIGURED_TZ: datetime.tzinfo = datetime.timezone.utc
-"""Timezone `dlt` stores loaded values in. Read it through `get_configured_timezone`, or as this
-global from within this module where the read is on a per-value path."""
+
+def _env_context_timezone() -> datetime.tzinfo:
+    """Timezone a launcher put in the environment, UTC when there is none or it is unusable."""
+    # read on import and on every reset, so a job takes the timezone it declared without a context
+    name = os.environ.get(known_env.DLT_INTERVAL_TIMEZONE)
+    if not name or name == UTC_NAME:
+        return datetime.timezone.utc
+    try:
+        return ZoneInfo(name)
+    except Exception:
+        warnings.warn(
+            f"`{known_env.DLT_INTERVAL_TIMEZONE}` is `{name}`, which is not an IANA timezone name."
+            " dlt keeps storing values in UTC.",
+            stacklevel=2,
+        )
+        return datetime.timezone.utc
 
 
-def get_configured_timezone() -> datetime.tzinfo:
-    """Timezone `dlt` stores loaded values in, UTC unless a `TimezoneContext` is active."""
-    return _CONFIGURED_TZ
+_CONTEXT_TZ: datetime.tzinfo = _env_context_timezone()
 
 
-def set_configured_timezone(tz: Optional[datetime.tzinfo]) -> datetime.tzinfo:
+def get_context_timezone() -> datetime.tzinfo:
+    """Timezone `dlt` stores loaded values in, UTC unless a launcher or `TimezoneContext` set one."""
+    return _CONTEXT_TZ
+
+
+def to_iana_name(tz: Optional[datetime.tzinfo]) -> Optional[str]:
+    """IANA name of `tz`, or `None` when it carries none, as a fixed offset does."""
+    if tz is None:
+        return None
+    if isinstance(tz, datetime.timezone):
+        # a stdlib fixed offset carries no name, and only zero offset has a portable one
+        return UTC_NAME if not tz.utcoffset(None) else None
+    # `key` is zoneinfo, `zone` is pytz, `name` is pendulum. a fixed offset reports its own
+    # offset (`+02:00`), which neither arrow nor zoneinfo resolves
+    for attr in ("key", "zone", "name"):
+        if name := getattr(tz, attr, None):
+            return None if name[0] in "+-" else str(name)
+    return None
+
+
+def get_context_timezone_name() -> str:
+    """IANA name of the context timezone, `UTC` when it carries no name."""
+    return to_iana_name(_CONTEXT_TZ) or UTC_NAME
+
+
+def set_context_timezone(tz: Optional[datetime.tzinfo]) -> datetime.tzinfo:
     """Installs the timezone `dlt` stores loaded values in and returns the previous one.
 
-    Internal: only `TimezoneContext` calls this, from its container lifecycle hooks. `None`
-    resets to UTC.
+    Internal: called by `TimezoneContext` lifecycle hooks and by a launcher preparing a run.
 
     Args:
-        tz: Timezone to install, `None` to reset to UTC.
+        tz: Timezone to install, `None` to fall back on the environment, itself UTC by default.
 
     Returns:
         The timezone that was installed before this call.
     """
-    global _CONFIGURED_TZ
+    global _CONTEXT_TZ
 
-    previous = _CONFIGURED_TZ
-    _CONFIGURED_TZ = tz or datetime.timezone.utc
+    previous = _CONTEXT_TZ
+    _CONTEXT_TZ = tz or _env_context_timezone()
     return previous
 
 
@@ -161,57 +202,41 @@ def parse_iso_like_datetime(value: str) -> Union[DateTime, Date, Time]:
     raise ValueError(f"Interval ISO 8601 not supported: `{value}`")
 
 
-def ensure_pendulum_date(value: TAnyDateTime) -> pendulum.Date:
-    """Coerce a date/time value to a `pendulum.Date` object.
+def ensure_pendulum_date(
+    value: TAnyDateTime, tz: Optional[datetime.tzinfo] = None
+) -> pendulum.Date:
+    """Coerce a date/time value to the `pendulum.Date` it falls on in `tz`.
 
-    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
-
-    Args:
-        value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
-
-    Returns:
-        A timezone aware pendulum.Date object.
-    """
-    return ensure_pendulum_datetime_non_utc(value).in_tz(UTC).date()
-
-
-def ensure_pendulum_datetime_utc(value: TAnyDateTime) -> pendulum.DateTime:
-    """Coerce a date/time value to a `pendulum.DateTime` object.
-
-    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
+    A naive value is taken to already be in `tz`, an aware value is converted to `tz` first.
 
     Args:
         value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+        tz: Timezone the day is taken in. Defaults to the context timezone, itself UTC unless
+            a `TimezoneContext` is active.
 
     Returns:
-        A timezone aware pendulum.DateTime object in UTC timezone.
+        A pendulum.Date object.
     """
-    return ensure_pendulum_datetime_non_utc(value).in_tz(UTC)
+    d = ensure_date(value, tz)
+    return pendulum.Date(d.year, d.month, d.day)
 
 
-ensure_pendulum_datetime = deprecated("Use ensure_pendulum_datetime_utc instead")(
-    ensure_pendulum_datetime_utc
-)
+def ensure_pendulum_datetime(
+    value: TAnyDateTime, tz: Optional[datetime.tzinfo] = None
+) -> pendulum.DateTime:
+    """Coerce a date/time value to a tz-aware `pendulum.DateTime` in `tz`.
 
-
-def ensure_datetime_utc(
-    value: TAnyDateTime, default_tz: datetime.tzinfo = datetime.timezone.utc
-) -> datetime.datetime:
-    """Coerce a date/time value to a stdlib `datetime.datetime` in UTC.
-
-    Naive inputs are interpreted in `default_tz` (UTC by default). Tz-aware inputs are converted to UTC.
+    The `pendulum` counterpart of `ensure_datetime_in_tz`.
 
     Args:
         value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
-        default_tz: Timezone used to interpret naive inputs before converting to UTC. Defaults to UTC.
+        tz: Timezone to put the value in. Defaults to the context timezone, itself UTC unless a
+            `TimezoneContext` is active.
 
     Returns:
-        A stdlib `datetime.datetime` in UTC timezone.
+        A timezone aware pendulum.DateTime object.
     """
-    dt = ensure_datetime(value)
-    if dt.tzinfo is None:
-        dt = dt.replace(tzinfo=default_tz)
-    return dt.astimezone(datetime.timezone.utc)
+    return ensure_pendulum_dt(ensure_datetime_in_tz(value, tz))
 
 
 def ensure_datetime(value: TAnyDateTime) -> datetime.datetime:
@@ -226,46 +251,48 @@ def ensure_datetime(value: TAnyDateTime) -> datetime.datetime:
         A stdlib `datetime.datetime` that preserves original timezone.
     """
     if isinstance(value, datetime.datetime):
-        # return stdlib datetimes directly, preserving tzinfo. avoids the pendulum
-        # round-trip that drops a named ZoneInfo offset on old pendulum versions
+        # no pendulum round-trip: the tzinfo the caller passed is kept as-is
         return to_py_datetime(value)
-    return to_py_datetime(ensure_pendulum_datetime_non_utc(value))
+    return to_py_datetime(_parse_pendulum_datetime(value))
 
 
-def ensure_datetime_in_tz(value: TAnyDateTime, tz: datetime.tzinfo) -> datetime.datetime:
-    """Coerce a date/time value to a stdlib `datetime.datetime` in `tz`.
+def ensure_datetime_in_tz(
+    value: TAnyDateTime, tz: Optional[datetime.tzinfo] = None
+) -> datetime.datetime:
+    """Coerce a date/time value to a tz-aware stdlib `datetime.datetime` in `tz`.
 
-    Naive inputs are interpreted as wall-clock in `tz`. Tz-aware inputs are converted to `tz`.
+    A naive input is taken to already be in `tz`, so the system timezone never takes part. An
+    aware input is converted to `tz`, keeping its instant.
 
     Args:
         value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
-        tz: Target timezone (e.g. `ZoneInfo("Europe/Berlin")`, `timezone.utc`).
+        tz: Target timezone. Defaults to the context timezone, itself UTC unless a
+            `TimezoneContext` is active.
 
     Returns:
         A stdlib `datetime.datetime` with `tzinfo == tz`.
     """
-    dt = ensure_datetime(value)
-    if dt.tzinfo is None:
-        return dt.replace(tzinfo=tz)
-    return dt.astimezone(tz)
+    return normalize_timezone(ensure_datetime(value), True, tz)
 
 
-def ensure_date(value: TAnyDateTime) -> datetime.date:
-    """Coerce a date/time value to a stdlib `datetime.date`.
+def ensure_date(value: TAnyDateTime, tz: Optional[datetime.tzinfo] = None) -> datetime.date:
+    """Coerce a date/time value to the calendar day it falls on in `tz`.
 
-    UTC is assumed if the value is not timezone aware. Other timezones are shifted to UTC
-    before the calendar date is taken.
+    A naive value is taken to already be in `tz`, an aware value is converted to `tz` first, so
+    the same instant can be a different day in a different timezone.
 
     Args:
         value: The value to coerce. Can be a pendulum.DateTime, pendulum.Date, datetime, date or iso date/time str.
+        tz: Timezone the day is taken in. Defaults to the configured timezone, itself UTC unless
+            a `TimezoneContext` is active.
 
     Returns:
         A stdlib `datetime.date`.
     """
-    return ensure_datetime_utc(value).date()
+    return ensure_datetime_in_tz(value, tz).date()
 
 
-def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
+def _parse_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
     """Coerce a date/time value to a `pendulum.DateTime` object.
 
     Tz-awareness is preserved. Naive datetimes remain naive. Tz-aware datetimes keep their original timezone.
@@ -301,23 +328,38 @@ def ensure_pendulum_datetime_non_utc(value: TAnyDateTime) -> pendulum.DateTime:
     raise TypeError(f"Cannot coerce `{value}` to `pendulum.DateTime` object.")
 
 
-def normalize_timezone(dt: pendulum.DateTime, timezone: bool) -> pendulum.DateTime:
-    """Normalizes timezone in a pendulum instance according to dlt convention:
-    * naive datetimes represent UTC (system timezone is ignored) time zone
-    * tz-aware datetimes are always UTC
+def normalize_timezone(
+    value: datetime.datetime, timezone: bool, tz: Optional[datetime.tzinfo] = None
+) -> datetime.datetime:
+    """Puts a datetime in the timezone `dlt` stores loaded values in, per the `timezone` column hint.
 
-    Following conversions will be made:
-    * when `timezone` is false: tz-aware tz is converted into UTC tz and then naive
-    * when `timezone` is true: naive and aware datetimes are converted to UTC
+    A naive input is taken to already be in `tz`, so the system timezone never takes part.
 
+    Args:
+        value: An already parsed datetime. This runs per value while normalizing, so it does not
+            coerce - call `ensure_datetime_in_tz` for anything else.
+        timezone: The column's `timezone` hint. `False` returns a naive value.
+        tz: Timezone to put the value in. Defaults to the context timezone, itself UTC unless a
+            `TimezoneContext` is active.
+
+    Returns:
+        A tz-aware datetime in `tz`, naive when `timezone` is `False`.
     """
-    if timezone:
-        # adds UTC to naive timezones (disregard system timezone), shifts tz aware timezones
-        return dt.in_tz(UTC)
-    elif dt.tzinfo is not None:
-        # if tz-aware then shift to UTC first, naive() just strips tz
-        return dt.in_tz(tz=UTC).naive()
-    return dt
+    value_tz = value.tzinfo
+    if value_tz is None and not timezone:
+        # nothing to convert and no zone to strip
+        return value
+    if tz is None:
+        tz = _CONTEXT_TZ
+    if value_tz is None:
+        # a naive value already counts as being in `tz`
+        return value.replace(tzinfo=tz)
+    if value_tz is not tz:
+        # pendulum converts several times slower than the stdlib
+        if isinstance(value, DateTime):
+            value = to_py_datetime(value)
+        value = value.astimezone(tz)
+    return value if timezone else value.replace(tzinfo=None)
 
 
 def datetime_obj_to_str(
@@ -362,8 +404,8 @@ def parse_period_seconds(value: str) -> float:
 def ensure_pendulum_time(value: Union[str, int, float, datetime.time, timedelta]) -> pendulum.Time:
     """Coerce a time-like value to a `pendulum.Time` object using timezone=False semantics.
 
-    this follows normalize_timezone(..., timezone=False): tz-aware inputs are converted to UTC
-    and then made naive; naive values are treated as UTC and kept naive.
+    Follows `normalize_timezone(..., timezone=False)`: an aware input is converted to the
+    configured timezone and then made naive, a naive value is kept as it is.
 
     Args:
         value: Time value to coerce. Supported types:
@@ -372,7 +414,7 @@ def ensure_pendulum_time(value: Union[str, int, float, datetime.time, timedelta]
             - timedelta representing seconds since midnight
 
     Returns:
-        A naive pendulum.Time object that represents UTC time-of-day.
+        A naive pendulum.Time object, its time-of-day in the configured timezone.
     """
 
     def _normalize_aware_time(t: datetime.time) -> pendulum.Time:
