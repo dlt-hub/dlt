@@ -233,6 +233,14 @@ See [triggers and scheduling](../pipeline-operations/triggers.md) for cron, inte
 
 You can also manage the job directly from the UI. Open the Actions menu next to the job to start a run, update its schedule, or remove the schedule.
 
+### Add alerting
+
+Get notified when a job run fails via email. Go to **Workspace Settings > Alerts**, toggle on job run failure alerts, and choose who gets notified: all workspace members or specific roles (Owners, Developers, Viewers).
+
+![Alerts settings showing the job run failures toggle and role selection](https://storage.googleapis.com/dlt-blog-images/onboarding_alerting.png)
+
+
+
 
 ### Build your own pipeline with your coding agent
 
