@@ -34,7 +34,7 @@ Note that a table does not need to receive any data to get truncated.
 
 dlt implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.
 
-You can select a strategy with a setting in your `config.toml` file. If you do not select a strategy, dlt will default to `truncate-and-insert`.
+You can select a strategy with a setting in your `config.toml` file. If you do not select a strategy, dlt uses the first strategy that the destination supports for the table being loaded. For all built-in destinations, that is `truncate-and-insert`, except for tables in the `delta` or `iceberg` table format - see [Check which strategies your destination supports](#check-which-strategies-your-destination-supports).
 
 ```toml
 [destination]
@@ -61,4 +61,18 @@ The `staging-optimized` strategy has all the upsides of the `insert-from-staging
 * BigQuery: After loading the new data into the staging tables, the destination tables will be dropped and recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables. This is a low-cost and fast way to create a second independent table from the data of another. Learn more about [table cloning on BigQuery](https://cloud.google.com/bigquery/docs/table-clones-intro).
 * Snowflake: After loading the new data into the staging tables, the destination tables will be dropped and recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables. This is a low-cost and fast way to create a second independent table from the data of another. Learn more about [table cloning on Snowflake](https://docs.snowflake.com/en/user-guide/object-clone).
 
-For all other destinations, please look at their respective documentation pages to see if and how the `staging-optimized` strategy is implemented. If it is not implemented, `dlt` will fall back to the `insert-from-staging` strategy.
+For all other destinations, look at their respective documentation pages to see if and how the `staging-optimized` strategy is implemented. A destination that accepts `staging-optimized` but has no optimization for a given table loads that table like `insert-from-staging`. A destination that does not accept the strategy at all fails the load instead of falling back, as described below.
+
+### Check which strategies your destination supports
+
+Each destination declares the replace strategies it accepts in its [capabilities](destination.md#inspect-destination-capabilities):
+
+<!--@@@DLT_SNIPPET ./full-loading-snippets.py::supported_replace_strategies-->
+
+dlt uses the first strategy on that list when you do not configure `replace_strategy`.
+
+The list is not always fixed per destination: `filesystem` and `athena` narrow it per table, based on the table format. Tables in the `delta` or `iceberg` table format accept only `insert-from-staging`, while regular tables accept only `truncate-and-insert`. Apply the destination's `replace_strategies_selector` to a table schema to see what remains for that table:
+
+<!--@@@DLT_SNIPPET ./full-loading-snippets.py::replace_strategies_selector-->
+
+If the strategy you configured is not among the strategies left for a table that is loaded with the `replace` write disposition, dlt does not pick another one. The `load` step raises an error that names the table, and the load package stays pending.
