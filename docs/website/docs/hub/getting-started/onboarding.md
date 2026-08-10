@@ -1,5 +1,5 @@
 ---
-title: Deploy your first pipeline with dltHub
+title: Deploy your first pipeline 
 description: Create a dltHub workspace, deploy a sample pipeline, and view the loaded data in a few minutes
 keywords: [dlthub, deploy, first pipeline, getting started, workspace, dlthub-start, onboarding]
 ---
@@ -37,7 +37,7 @@ No arguments are needed. The CLI guides you through the following steps:
 1. **Creates a workspace** in the current directory.
 2. **Installs dependencies** with `uv sync` into `.venv`.
 3. **Signs you in and connects the project to dltHub.** An OAuth 2.0 flow opens in your browser and creates your account on first login. The project is then connected to your Playground workspace.
-4. **Configure your coding Agent** Select Claude Code, Cursor, or Codex, and `dlthub-start` adds the corresponding dltHub toolkits.
+4. **Configures your coding Agent** Select Claude Code, Cursor, or Codex, and `dlthub-start` adds the corresponding dltHub toolkits.
 5. **Offers to launch the agent** with a handoff prompt that continues the onboarding workflow using the `deploy-run-sample-pipeline` skill.
 
 
@@ -154,7 +154,7 @@ The Playground destination is great for testing but isn't meant for production. 
 
 You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../getting-started/playground-workspace.md) and [Profiles](../pipeline-operations/profiles) for the complete configuration.
 
-Set the destination on the `dlt.pipeline` inside your decorated job. Use a named destination such as `warehouse` so that the same pipeline code can run against different destinations in `dev` and `prod` profile:
+Set the destination on the `dlt.pipeline` inside your decorated job. Use a [named destination](../../general-usage/destination.md#use-named-destinations) such as `warehouse` so that the same pipeline code can run against different destinations in `dev` and `prod` profile:
 
 ```python
 import dlt
@@ -257,13 +257,6 @@ The sample pipeline uses the Playground destination. For your own pipeline, you 
 For the production-grade path (auth, incremental loading, more endpoints) see the
 [dltHub AI Harness](../ingestion/rest-api-source.md).
 
-## Next steps
-
-- [Convert an existing dlt pipeline](../pipeline-operations/workspace-setup.md) into a workspace and bring it onto the platform.
-- Ask your coding agent to [build a pipeline](../ingestion/rest-api-source.md) for your source.
-- Reshape your data with [Transformations](../transformations/index.md).
-- Add [data quality checks](../data-quality/index.md) to catch issues early.
-
 
 ## Troubleshooting
 
@@ -284,9 +277,16 @@ That's expected when the target wasn't empty: rather than refuse, the CLI scaffo
 
 Rerun with `--verbose` to see subprocess output:
 
-```sh
-uvx dlthub-start@latest my-workspace --verbose
-```
+
+`uvx dlthub-start@latest my-workspace --verbose`
+
 
 If the scaffold was created successfully, you can also enter the workspace and run `uv sync` directly after fixing the underlying dependency or network issue.
+
+## Next steps
+
+- [Convert an existing dlt pipeline](../pipeline-operations/workspace-setup.md) into a workspace and bring it onto the platform.
+- Ask your coding agent to [build a pipeline](../ingestion/rest-api-source.md) for your source.
+- Reshape your data with [Transformations](../transformations/index.md).
+- Add [data quality checks](../data-quality/index.md) to catch issues early.
 
