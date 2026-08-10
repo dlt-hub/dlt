@@ -46,7 +46,7 @@ dltHub is a managed cloud platform for running your dlt pipelines, transformatio
   ```sh
   uvx dlthub-start@latest
   ```
-  This creates a runnable workspace with the AI Workbench, example pipelines, and the [`dlt[hub]`](installation.md) extra installed, then hands off to your coding agent to deploy and run the sample — see [Deploy your first pipeline](onboarding.md). To add dltHub to an existing project instead, run:
+  This creates a runnable workspace with the AI Harness, example pipelines, and the [`dlt[hub]`](installation.md) extra installed. To add dltHub to an existing project instead, run:
   ```sh
   uvx dlthub-init@latest
   ```
