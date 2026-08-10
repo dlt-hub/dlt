@@ -37,7 +37,7 @@ No arguments are needed. The CLI guides you through the following steps:
 1. **Creates a workspace** in the current directory.
 2. **Installs dependencies** with `uv sync` into `.venv`.
 3. **Signs you in and connects the project to dltHub.** An OAuth 2.0 flow opens in your browser and creates your account on first login. The project is then connected to your Playground workspace.
-4. **Configures your coding Agent** Select Claude Code, Cursor, or Codex, and `dlthub-start` adds the corresponding dltHub toolkits.
+4. **Configures your coding Agent.** Select Claude Code, Cursor, or Codex, and `dlthub-start` adds the corresponding dltHub toolkits.
 5. **Offers to launch the agent** with a handoff prompt that continues the onboarding workflow using the `deploy-run-sample-pipeline` skill.
 
 
@@ -268,26 +268,26 @@ For the production-grade path (auth, incremental loading, more endpoints) see th
 
 ## Troubleshooting
 
-```text
-uvx: command not found
-```
+### `uvx: command not found`
 
-Install the CLI with pip install dlthub-start (into your current Python environment) and run dlthub-start instead. The CLI still offers to install uv before syncing the generated workspace dependencies.
+Install the CLI with `pip install dlthub-start` (into your current Python environment) and run `dlthub-start` instead. The CLI still offers to install uv before syncing the generated workspace dependencies.
 
+### My workspace landed in a `playground/-1` subdirectory
 
-```text
-My workspace landed in a playground/-1 subdirectory
-```
+That's expected when the target directory wasn't empty. Rather than refuse, the CLI scaffolds into a free directory and prints where it went.
 
-That's expected when the target wasn't empty: rather than refuse, the CLI scaffolds into a free directory and prints where it went. To control the location, pass an explicit empty target — uvx dlthub-start@latest my-workspace — or run from an empty directory. The CLI never writes into a non-empty directory. It picks a fresh one alongside it.
+- To control the location, pass an explicit empty target: `uvx dlthub-start@latest my-workspace`
+- Or run from an empty directory.
 
-`uv sync` fails
+The CLI never writes into a non-empty directory. It picks a fresh one alongside it.
+
+### `uv sync` fails
 
 Rerun with `--verbose` to see subprocess output:
 
-
-`uvx dlthub-start@latest my-workspace --verbose`
-
+```sh
+uvx dlthub-start@latest my-workspace --verbose
+```
 
 If the scaffold was created successfully, you can also enter the workspace and run `uv sync` directly after fixing the underlying dependency or network issue.
 
