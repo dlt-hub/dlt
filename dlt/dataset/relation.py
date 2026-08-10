@@ -4,11 +4,17 @@ from typing import (
     overload,
     Union,
     Any,
+    Dict,
+    FrozenSet,
     Generator,
+    List,
+    NamedTuple,
     Optional,
+    Set,
     Type,
     TYPE_CHECKING,
     Literal,
+    cast,
     get_args,
 )
 from textwrap import indent
@@ -23,11 +29,19 @@ from sqlglot.schema import Schema as SQLGlotSchema
 import sqlglot.expressions as sge
 
 import dlt
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    SqlModel,
+    WithAttachableEngine,
+)
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import (
     to_sqlglot_type,
     build_typed_literal,
     migrate_order_and_limit,
+    bind_query,
+    IdentifiersBinding,
+    TPhysicalDatasetRef,
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
     has_pure_column_projection,
@@ -42,8 +56,15 @@ from dlt.common.schema import utils as schema_utils
 from dlt.common.typing import Self, TSortOrder, TypedDict
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.dataset import lineage
-from dlt.destinations.sql_client import SqlClientBase, WithSchemas, WithSqlClient
-from dlt.destinations.queries import bind_query, build_select_expr, make_expand_table_name
+from dlt.destinations.sql_client import (
+    SqlClientBase,
+    TAttachInfo,
+    TAttachType,
+    WithAttach,
+    WithSqlClient,
+    merge_attach,
+)
+from dlt.destinations.queries import build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
 from dlt.dataset._incremental import (
     _build_incremental_aggregate,
@@ -85,6 +106,32 @@ _FILTER_OP_MAP = {
 
 
 TJoinType = Literal["left", "right", "inner", "full"]
+
+
+def _location_display(config: DestinationClientConfiguration) -> str:
+    """Identifies the data location of `config`. Uses the display text of `config` instead, when
+    the location is empty or cannot be computed."""
+    try:
+        return config.data_location() or str(config)
+    except ValueError:
+        return str(config)
+
+
+class _ForeignDataset(NamedTuple):
+    """A dataset outside the dataset of a relation. This tuple also tells how the relation
+    accesses the data of that dataset."""
+
+    dataset: "dlt.Dataset"
+    alias: Optional[str]
+    """`ATTACH` catalog alias. It is `None` when the query engine accesses the data with no
+    `ATTACH` statement."""
+    attach_type: Optional[TAttachType] = None
+    """Engine type that can run the attach info later. It is `None` when `alias` is `None`."""
+    attach_tables: Optional[FrozenSet[str]] = None
+    """The tables that `attach_info` covers."""
+    attach_info: Optional[TAttachInfo] = None
+    """The attach info, which this relation builds on first use. It is always `None` when
+    `alias` is `None`."""
 
 
 class Relation(WithSqlClient):
@@ -132,8 +179,8 @@ class Relation(WithSqlClient):
         self._sqlglot_expression: sge.Query = None
         self._schema: Optional[TTableSchemaColumns] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
-        self._foreign_schemas: dict[str, list[dlt.Schema]] = {}
-        self._foreign_physical_names: dict[str, str] = {}
+        self._foreign_datasets: Dict[str, _ForeignDataset] = {}
+        """Datasets outside the dataset of this relation, keyed by the logical dataset name."""
 
     def df(self, *args: Any, **kwargs: Any) -> pd.DataFrame | None:
         with self._cursor() as cursor:
@@ -250,7 +297,7 @@ class Relation(WithSqlClient):
     def _cursor(self) -> Generator[SupportsDataAccess, Any, Any]:
         """Gets a DBApiCursor for the current relation"""
         try:
-            self._opened_sql_client = self.sql_client
+            client = self._opened_sql_client = self.sql_client
 
             # we only compute the columns schema if we are not executing the raw query
             if self._execute_raw_query:
@@ -258,16 +305,24 @@ class Relation(WithSqlClient):
             else:
                 columns_schema = self.columns_schema
 
+            # the columns schema and the SQL need no open connection, so both run before this
+            # relation borrows a connection
+            query = self.to_sql()
+
             # case 1: client is already opened and managed from outside
-            if self.sql_client.native_connection:
-                with self.sql_client.execute_query(self.to_sql()) as cursor:
+            if client.native_connection:
+                self._attach_foreign_datasets(client)
+                with client.execute_query(query) as cursor:
                     if columns_schema:
                         cursor.columns_schema = columns_schema
                     yield cursor
             # case 2: client is not opened, we need to manage it
             else:
-                with self.sql_client as client:
-                    with client.execute_query(self.to_sql()) as cursor:
+                with client:
+                    # this relation attaches on the open connection, so the statements run here
+                    # and any error appears here
+                    self._attach_foreign_datasets(client)
+                    with client.execute_query(query) as cursor:
                         if columns_schema:
                             cursor.columns_schema = columns_schema
                         yield cursor
@@ -284,13 +339,12 @@ class Relation(WithSqlClient):
             if pretty:
                 # optimize only for readable output; executed SQL stays as constructed
                 _qualified_query = _optimize_query(_qualified_query)
+            bindings, default_binding = self._compute_identifier_bindings()
             query = bind_query(
                 qualified_query=_qualified_query,
                 sqlglot_schema=self._relation_sqlglot_schema(),
-                expand_table_name=make_expand_table_name(
-                    self.sql_client, self._logical_to_physical_dataset_map()
-                ),
-                casefold_identifier=self.sql_client.capabilities.casefold_identifier,
+                bindings=bindings,
+                default_binding=default_binding,
             )
 
         if not isinstance(query, sge.Query):
@@ -501,23 +555,97 @@ class Relation(WithSqlClient):
 
         _qualify_unscoped_tables_with_dataset(query, self._dataset.dataset_name)
 
+        # this join resolves each foreign dataset against this primary, so it never reuses a
+        # carried foreign dataset without change. it resolves before the copy, so a rejected
+        # join leaves no half-built relation
+        foreign_datasets = dict(self._foreign_datasets)
+        if isinstance(other, dlt.Relation):
+            for ds_name, fds in other._foreign_datasets.items():
+                if ds_name != self._dataset.dataset_name:
+                    foreign_datasets = self._register_foreign_dataset(foreign_datasets, fds.dataset)
+            if target_is_foreign:
+                foreign_datasets = self._register_foreign_dataset(foreign_datasets, other._dataset)
+
         rel = self.__copy__()
         rel._sqlglot_expression = query
-
-        # carry the RHS relation's foreign schemas
-        if isinstance(other, dlt.Relation):
-            for ds_name, schemas in other._foreign_schemas.items():
-                if ds_name == self._dataset.dataset_name:
-                    continue
-                rel._foreign_schemas[ds_name] = list(schemas)
-                if ds_name in other._foreign_physical_names:
-                    rel._foreign_physical_names[ds_name] = other._foreign_physical_names[ds_name]
-        if target_is_foreign:
-            rel._foreign_schemas[target.dataset_name] = list(target.schemas)
-            if target.physical_dataset_name is not None:
-                rel._foreign_physical_names[target.dataset_name] = target.physical_dataset_name
+        rel._foreign_datasets = foreign_datasets
 
         return rel
+
+    def _register_foreign_dataset(
+        self, foreign_datasets: Dict[str, _ForeignDataset], foreign_dataset: "dlt.Dataset"
+    ) -> Dict[str, _ForeignDataset]:
+        """Resolves `foreign_dataset` into `foreign_datasets`, under the key of its dataset name.
+
+        Raises:
+            ValueError: When another dataset with different data already holds the name.
+        """
+        ds_name = foreign_dataset.dataset_name
+        registered = foreign_datasets.get(ds_name)
+        if registered is not None and not registered.dataset.is_same_dataset(foreign_dataset):
+            raise ValueError(
+                f"dlt cannot join dataset '{ds_name}' at data location"
+                f" '{_location_display(foreign_dataset.destination_client.config)}'."
+                f" This relation already contains a different dataset '{ds_name}' at data"
+                f" location '{_location_display(registered.dataset.destination_client.config)}'."
+                " dlt qualifies tables by dataset name, so dlt cannot separate the two datasets."
+                " Materialize one of the datasets into a dataset with another name. As an"
+                " alternative, join the two datasets in separate relations."
+            )
+        foreign_datasets[ds_name] = self._resolve_foreign_dataset(foreign_dataset)
+        return foreign_datasets
+
+    def _resolve_foreign_dataset(self, foreign_dataset: "dlt.Dataset") -> _ForeignDataset:
+        """Tells how this relation accesses the data of `foreign_dataset`. It attaches that
+        dataset when the query engine cannot access the data directly.
+
+        Raises:
+            ValueError: When the query engine cannot access the data and cannot attach it.
+        """
+        primary_config = self._dataset.destination_client.config
+        foreign_config = foreign_dataset.destination_client.config
+        if not primary_config.can_read_from(foreign_config):
+            primary_name = self._dataset._destination.destination_name
+            foreign_name = foreign_dataset._destination.destination_name
+            if foreign_config.can_read_from(primary_config):
+                # the other engine accesses this one, so the same two datasets join when the
+                # query runs there. this is the only remedy other than to materialize the data
+                remedy = (
+                    f" Destination `{foreign_name}` can join `{primary_name}`. Run the query on"
+                    f" dataset '{foreign_dataset.dataset_name}'. Then join this dataset into that"
+                    " query."
+                )
+            else:
+                remedy = (
+                    " Materialize the dataset eagerly that you want to join into an accessible data"
+                    " location."
+                )
+            raise ValueError(
+                f"dlt cannot join dataset '{self._dataset.dataset_name}' with dataset"
+                f" '{foreign_dataset.dataset_name}'. The query engine of destination"
+                f" `{primary_name}` accesses data location"
+                f" '{_location_display(primary_config)}'. This engine cannot access the data of"
+                f" destination `{foreign_name}` at data location"
+                f" '{_location_display(foreign_config)}'.{remedy}"
+            )
+
+        # data that the query engine already accesses needs no statements. dlt attaches a
+        # configuration that gives no answer, because that always works. a destination that
+        # predates the mixin therefore stays attached, and no query runs through a catalog
+        # that nobody attached
+        needs_attach = (
+            primary_config.needs_attach(foreign_config)
+            if isinstance(primary_config, WithAttachableEngine)
+            else True
+        )
+        # both sides must support attach statements. `can_read_from` already tested this support
+        primary = self.sql_client
+        foreign = foreign_dataset.sql_client
+        if needs_attach and isinstance(primary, WithAttach) and isinstance(foreign, WithAttach):
+            return _ForeignDataset(
+                foreign_dataset, self._attach_alias(foreign.dataset_name), foreign.attach_type
+            )
+        return _ForeignDataset(foreign_dataset, None)
 
     def _resolve_join_target(
         self,
@@ -527,48 +655,26 @@ class Relation(WithSqlClient):
     ) -> _JoinTarget:
         """Resolve the right-hand side of a join into a `_JoinTarget`."""
         if isinstance(other, dlt.Relation):
-            this_dataset = self._dataset
-            target_dataset = other._dataset
-            if not (
-                this_dataset.destination_client.config.can_read_from(
-                    target_dataset.destination_client.config
-                )
-            ):
-                raise ValueError(
-                    "Cannot join relations from different physical destinations: dataset"
-                    f" '{this_dataset.dataset_name}' on"
-                    f" '{this_dataset.destination_client.config}' vs dataset"
-                    f" '{target_dataset.dataset_name}' on"
-                    f" '{target_dataset.destination_client.config}'"
-                )
+            primary_dataset = self._dataset
+            foreign_dataset = other._dataset
+            this_config = primary_dataset.destination_client.config
+            target_config = foreign_dataset.destination_client.config
 
-            # unreachable until `can_read_from` is relaxed for attached locations: same-named
-            # datasets on two locations cannot be disambiguated by the dataset name alone
-            if (
-                this_dataset.dataset_name == target_dataset.dataset_name
-                and this_dataset.destination_client.config.physical_location()
-                != target_dataset.destination_client.config.physical_location()
+            # `_resolve_foreign_dataset` decides how this relation accesses the data, and this
+            # guard runs before it. that method keys a foreign dataset on the dataset name, so
+            # two datasets with the same name never reach it
+            if primary_dataset.dataset_name == foreign_dataset.dataset_name and not (
+                this_config.is_same_location(target_config)
             ):
                 raise ValueError(
                     "Cannot join datasets with the same name located on two different destinations"
-                )
-
-            is_foreign = not self._dataset._is_same_dataset(target_dataset)
-            if is_foreign and (
-                isinstance(self.sql_client, WithSchemas)
-                # TODO: drop the sqlite check once we ATTACH foreign datasets
-                or getattr(self.sql_client, "dialect_name", None) == "sqlite"
-            ):
-                raise ValueError(
-                    "Cross-dataset joins are not supported on the"
-                    f" `{self._dataset._destination.destination_name}` destination."
                 )
 
             target_table = other._table_name
             is_transformed = other._query is not None
             if target_table and not is_transformed:
                 # pristine base-table Relation: look up columns from schema
-                target_columns = _find_table_columns(target_dataset.schemas, target_table)
+                target_columns = _find_table_columns(foreign_dataset.schemas, target_table)
             elif target_table and is_transformed:
                 # transformed Relation that still tracks its origin table
                 # (e.g., .where(), .select()); use its actual output columns
@@ -580,14 +686,10 @@ class Relation(WithSqlClient):
                 target_table = _left_source_qualifier(other.sqlglot_expression) or "subquery"
                 target_columns = other.columns_schema
             return _JoinTarget(
-                dataset_name=target_dataset.dataset_name,
+                dataset_name=foreign_dataset.dataset_name,
                 table_name=target_table,
                 columns=target_columns,
-                schemas=target_dataset.schemas,
                 subquery=other.sqlglot_expression if is_transformed else None,
-                physical_dataset_name=(
-                    target_dataset.sql_client.dataset_name if is_foreign else None
-                ),
             )
 
         if isinstance(other, str):
@@ -601,16 +703,14 @@ class Relation(WithSqlClient):
                     dataset_name=ds_name,
                     table_name=tbl_name,
                     columns=_find_table_columns(self._dataset.schemas, tbl_name),
-                    schemas=self._dataset.schemas,
                 )
-            if ds_name in self._foreign_schemas:
-                foreign_schemas = self._foreign_schemas[ds_name]
+            if ds_name in self._foreign_datasets:
                 return _JoinTarget(
                     dataset_name=ds_name,
                     table_name=tbl_name,
-                    columns=_find_table_columns(foreign_schemas, tbl_name),
-                    schemas=foreign_schemas,
-                    physical_dataset_name=self._foreign_physical_names.get(ds_name),
+                    columns=_find_table_columns(
+                        self._foreign_datasets[ds_name].dataset.schemas, tbl_name
+                    ),
                 )
             raise ValueError(
                 f"Dataset `{ds_name}` is not registered. Pass a Relation from the "
@@ -1044,8 +1144,7 @@ class Relation(WithSqlClient):
         rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
-        rel._foreign_schemas = {k: list(v) for k, v in self._foreign_schemas.items()}
-        rel._foreign_physical_names = dict(self._foreign_physical_names)
+        rel._foreign_datasets = dict(self._foreign_datasets)
         return rel
 
     def _all_schemas(self) -> dict[str, list[dlt.Schema]]:
@@ -1055,18 +1154,98 @@ class Relation(WithSqlClient):
         """
         return {
             self._dataset.dataset_name: list(self._dataset.schemas),
-            **self._foreign_schemas,
+            **{
+                ds_name: list(fds.dataset.schemas)
+                for ds_name, fds in self._foreign_datasets.items()
+            },
         }
 
     def _relation_sqlglot_schema(self) -> SQLGlotSchema:
         return lineage.create_sqlglot_schema(self._all_schemas(), dialect=self.destination_dialect)
 
-    def _logical_to_physical_dataset_map(self) -> dict[str, str]:
-        """Map each logical dataset qualifier used in the query to its physical name."""
-        return {
-            self._dataset.dataset_name: self.sql_client.dataset_name,
-            **self._foreign_physical_names,
-        }
+    def _compute_identifier_bindings(
+        self,
+    ) -> tuple[dict[str, IdentifiersBinding], IdentifiersBinding]:
+        """Computes the identifier resolution rules of every dataset in the query.
+
+        Returns:
+            One binding for each logical dataset name, and the binding of the primary dataset.
+            `bind_query` applies the primary binding to identifiers that no known dataset owns.
+        """
+
+        def _binding(
+            client: SqlClientBase[Any], physical: TPhysicalDatasetRef
+        ) -> IdentifiersBinding:
+            return IdentifiersBinding(
+                physical,
+                client.make_qualified_table_name_path,
+                client.capabilities.casefold_identifier,
+            )
+
+        default_binding = _binding(self.sql_client, (None, self.sql_client.dataset_name))
+        bindings: Dict[str, IdentifiersBinding] = {self._dataset.dataset_name: default_binding}
+        for ds_name, fds in self._foreign_datasets.items():
+            # this binding uses the foreign client, so the paths and the casefolding match that
+            # destination. the query engine accesses an attached dataset under its catalog
+            # alias, not by schema alone
+            client = fds.dataset.sql_client
+            bindings[ds_name] = _binding(client, (fds.alias, client.dataset_name))
+        return bindings, default_binding
+
+    @staticmethod
+    def _attach_alias(physical_dataset_name: str) -> str:
+        return f"attach_{physical_dataset_name}"
+
+    def _attach_foreign_datasets(self, client: SqlClientBase[Any]) -> None:
+        """Attaches the foreign datasets of this relation into `client`."""
+        if not self._foreign_datasets or not isinstance(client, WithAttach):
+            return
+        for info in self._attach_infos():
+            client.attach(info["alias"], info["statements"])
+
+    def _foreign_query_tables(self) -> Dict[str, FrozenSet[str]]:
+        """The dlt table names that the query reads, keyed by the foreign dataset name."""
+
+        tables: Dict[str, Set[str]] = {}
+        # the query before the bind step gives the table names
+        for table in self.sqlglot_expression.find_all(sge.Table):
+            if table.db in self._foreign_datasets:
+                tables.setdefault(table.db, set()).add(table.name)
+        return {ds_name: frozenset(names) for ds_name, names in tables.items()}
+
+    def _attach_infos(self) -> List[TAttachInfo]:
+        """Attach info for every foreign dataset in the query that requires an `ATTACH`
+        statement."""
+        infos: List[TAttachInfo] = []
+        query_tables = self._foreign_query_tables()
+        for ds_name, fds in self._foreign_datasets.items():
+            if not fds.alias:
+                continue
+            needed = query_tables.get(ds_name, frozenset())
+            info, covered = fds.attach_info, fds.attach_tables
+            if info is None or not needed <= covered:
+                foreign = cast(WithAttach, fds.dataset.sql_client)
+                # dlt must list the data location to describe a table. this method therefore asks
+                # only for the missing tables, and keeps the attach info cumulative. a persisted
+                # model has no prior state
+                missing = needed if covered is None else needed - covered
+                delta = TAttachInfo(
+                    attach_type=fds.attach_type,
+                    alias=fds.alias,
+                    statements=foreign.attach_statements(alias=fds.alias, tables=missing),
+                )
+                info = delta if info is None else merge_attach(info, delta)
+                covered = needed if covered is None else covered | needed
+                self._foreign_datasets[ds_name] = fds._replace(
+                    attach_tables=covered, attach_info=info
+                )
+            infos.append(info)
+        return infos
+
+    def to_model(self) -> SqlModel:
+        """Serializes this relation to a `SqlModel`. The model holds the query and the context
+        that the destination needs to run it"""
+        return SqlModel(self.to_sql(), self.query_dialect, self._attach_infos())
 
 
 def _get_relation_output_columns_schema(

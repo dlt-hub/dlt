@@ -7,9 +7,12 @@ from dlt.common import logger, pendulum
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
+from dlt.common.normalizers.naming import NamingConvention, direct, duck_case, snake_case, sql_cs_v1
+
 from dlt.destinations.path_utils import (
     create_path,
     get_table_prefix_layout,
+    get_unsafe_prefix_separators,
     get_file_format_and_compression,
 )
 
@@ -250,6 +253,9 @@ ALL_LAYOUTS = (  # type: ignore
         True,
         [],
     ),
+    # {table_name} terminates the layout, so the appended {ext} provides the prefix separator
+    ("{table_name}", "mocked-table.jsonl", True, []),
+    ("{schema_name}/{table_name}", "schema-name/mocked-table.jsonl", True, []),
     ("{timestamp}{table_name}", f"{int(frozen_datetime.timestamp())}mocked-table.jsonl", True, []),
     ("{ddd}/{MMM}/{table_name}", "sun/apr/mocked-table.jsonl", True, []),
     (
@@ -288,6 +294,12 @@ ALL_LAYOUTS = (  # type: ignore
         ["abc", "random"],
     ),
 )
+
+
+@pytest.fixture(autouse=True)
+def clear_unsafe_separator_warnings() -> None:
+    # the warning is emitted once per layout and naming convention, process-wide
+    dlt.destinations.path_utils._log_unsafe_prefix_separators.cache_clear()
 
 
 @pytest.fixture
@@ -335,6 +347,18 @@ def test_layout_validity(
         )
         assert path == expected_path
         assert len(path.split("/")) == len(layout.split("/"))
+        # a replace or a drop selects by prefix, which must not match a longer table name
+        try:
+            prefix_layout = get_table_prefix_layout(layout)
+        except CantExtractTablePrefix:
+            pass
+        else:
+            assert path.startswith(
+                prefix_layout.format(schema_name="schema-name", table_name=job_info.table_name)
+            )
+            assert not path.startswith(
+                prefix_layout.format(schema_name="schema-name", table_name="mocked")
+            )
     else:
         with pytest.raises(InvalidFilesystemLayout) as exc:
             create_path(
@@ -417,6 +441,118 @@ def test_get_table_prefix_layout() -> None:
     # disallow table_name without following separator
     with pytest.raises(CantExtractTablePrefix):
         get_table_prefix_layout("{schema_name}/{table_name}{load_id}.{file_id}.{ext}")
+
+
+@pytest.mark.parametrize(
+    "layout,expected_prefix",
+    [
+        # {table_name} at end → dot appended for the implicit extension
+        ("{table_name}", "{table_name}."),
+        # full path prefix at end → dot appended
+        ("{schema_name}/{table_name}", "{schema_name}/{table_name}."),
+        # dot from {ext} suffices
+        ("{table_name}.{ext}", "{table_name}."),
+        # dot before another placeholder also separates
+        ("{table_name}.{load_id}", "{table_name}."),
+        # slash separator suffices
+        ("{table_name}/", "{table_name}/"),
+        # slash before the next placeholder suffices
+        ("{schema_name}/{table_name}/{load_id}.{ext}", "{schema_name}/{table_name}/"),
+    ],
+)
+def test_get_table_prefix_layout_table_name_at_end(layout: str, expected_prefix: str) -> None:
+    """The prefix keeps the separator when {table_name} terminates the layout.
+
+    The prefix of `event` then does not match the files of the sibling table `events`.
+    """
+    assert get_table_prefix_layout(layout) == expected_prefix
+
+
+@pytest.mark.parametrize(
+    "layout",
+    ["{table_name}/", "{schema_name}/{table_name}/", "{table_name}/_{ext}"],
+    ids=["table_folder_only", "schema_and_table_folder", "underscore_file_name"],
+)
+def test_table_own_folder_rejects_hidden_file_name(layout: str) -> None:
+    """A destination that reads a folder as a table skips files starting with '.' or '_'."""
+    # the same layouts are valid when the destination does not read a folder as a table
+    assert get_table_prefix_layout(layout)
+
+    with pytest.raises(CantExtractTablePrefix):
+        get_table_prefix_layout(
+            layout, supported_prefix_placeholders=["schema_name"], table_needs_own_folder=True
+        )
+
+
+SNAKE_CASE = snake_case.NamingConvention()
+
+UNSAFE_SEPARATOR_CASES = [
+    (SNAKE_CASE, "{table_name}", []),
+    (SNAKE_CASE, "{table_name}/{load_id}.{file_id}.{ext}", []),
+    (SNAKE_CASE, "{schema_name}.{table_name}.{load_id}.{ext}", []),
+    # `_` and digits can occur in a snake_case table name so `event` also matches `event__child`
+    (SNAKE_CASE, "{table_name}_{load_id}.{file_id}.{ext}", ["_"]),
+    (SNAKE_CASE, "{table_name}88{load_id}-u-{file_id}.{ext}", ["8"]),
+    # only the character right after {table_name} is kept, a longer literal cannot separate
+    (SNAKE_CASE, "{table_name}.literal.{load_id}.{ext}", []),
+    (SNAKE_CASE, "{table_name}x.{load_id}.{ext}", ["x"]),
+    # the whole literal before {table_name} is kept, so one unusable character is enough
+    (SNAKE_CASE, "{schema_name}.literal.{table_name}/{load_id}.{ext}", []),
+    (SNAKE_CASE, "{schema_name}_literal_{table_name}/{load_id}.{ext}", ["_literal_"]),
+    # both boundaries unsafe, reported once
+    (SNAKE_CASE, "{schema_name}_{table_name}_{load_id}.{ext}", ["_"]),
+    # duck_case and direct keep `/` in identifiers so even the default layout is ambiguous
+    (duck_case.NamingConvention(), "{table_name}/{load_id}.{file_id}.{ext}", ["/"]),
+    (direct.NamingConvention(), "{table_name}/{load_id}.{file_id}.{ext}", ["/"]),
+    (sql_cs_v1.NamingConvention(), "{table_name}/{load_id}.{file_id}.{ext}", []),
+    # direct strips its PATH_SEPARATOR from identifiers but still joins nested tables with it
+    (direct.NamingConvention(), "{table_name}▶{load_id}.{ext}", ["▶"]),
+]
+
+
+@pytest.mark.parametrize(
+    "naming,layout,expected",
+    UNSAFE_SEPARATOR_CASES,
+    ids=lambda val: val.name() if isinstance(val, NamingConvention) else str(val),
+)
+def test_get_unsafe_prefix_separators(
+    naming: NamingConvention, layout: str, expected: List[str]
+) -> None:
+    prefix = get_table_prefix_layout(layout)
+    assert get_unsafe_prefix_separators(prefix, naming) == expected
+    # the check only warns, it never changes the prefix
+    assert get_table_prefix_layout(layout, naming=naming) == prefix
+
+
+def test_unsafe_prefix_separators_warn_once(mocker) -> None:
+    logger_mock = mocker.patch("dlt.destinations.path_utils.logger")
+    layout = "{schema_name}_{table_name}_{load_id}.{ext}"
+    get_table_prefix_layout(layout, naming=SNAKE_CASE)
+
+    logger_mock.warning.assert_called_once()
+    message = logger_mock.warning.call_args[0][0]
+    assert layout in message
+    assert "'_'" in message
+    assert "snake_case" in message
+    assert "warn_unsafe_layout_separators=False" in message
+
+
+def test_unsafe_prefix_separators_warning_quotes_original_layout(mocker) -> None:
+    logger_mock = mocker.patch("dlt.destinations.path_utils.logger")
+    # {ext} is appended internally, the user must not see a layout they did not write
+    get_table_prefix_layout("{table_name}_{load_id}", naming=SNAKE_CASE)
+
+    message = logger_mock.warning.call_args[0][0]
+    assert "{table_name}_{load_id}`" in message
+    assert "{ext}" not in message
+
+
+def test_no_unsafe_separator_warning_without_naming(mocker) -> None:
+    logger_mock = mocker.patch("dlt.destinations.path_utils.logger")
+    get_table_prefix_layout("{table_name}_{load_id}.{ext}")
+    get_table_prefix_layout("{table_name}/{load_id}.{ext}", naming=SNAKE_CASE)
+
+    logger_mock.warning.assert_not_called()
 
 
 def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -> None:

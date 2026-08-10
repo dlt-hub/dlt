@@ -260,6 +260,28 @@ When `server_hostname` or `http_path` are not provided, `dlt` attempts to derive
 1. **Notebook cluster context** (tried first): when running inside a Databricks Notebook, `dlt` reads `server_hostname` from the workspace URL and constructs `http_path` from the workspace ID and cluster ID of the compute attached to the notebook. This allows dlt to use the notebook's own cluster without requiring a SQL warehouse.
 2. **SQL warehouse discovery** (fallback): if the cluster context is not available (e.g., running outside a notebook, or on a Shared Access Mode cluster), `dlt` looks for an available SQL warehouse. We use default warehouse id (**DATABRICKS_WAREHOUSE_ID**) if set (via env variable), or the first one on the warehouse's list.
 
+### Session configuration
+`session_configuration` holds SQL configuration parameters that `dlt` passes to
+`databricks.sql.connect`. `dlt` applies them to every session it opens:
+```toml
+[destination.databricks.credentials.session_configuration]
+ansi_mode = "true"
+```
+
+The session timezone has its own setting, which sets `spark.sql.session.timeZone`:
+```toml
+[destination.databricks.credentials]
+session_timezone = "Europe/Berlin"
+```
+`None` is the default value. It keeps the timezone of the warehouse. A `spark.sql.session.timeZone`
+key set directly in `session_configuration` takes precedence.
+
+:::note
+The connector applies `session_configuration` as Spark conf, so the
+[`TIMEZONE`](https://docs.databricks.com/aws/en/sql/language-manual/parameters/timezone) SQL parameter
+has no effect there. Only `spark.sql.session.timeZone` changes the session timezone.
+:::
+
 ## Write disposition
 All write dispositions are supported.
 

@@ -56,17 +56,17 @@ class SchemaStorage(Mapping[str, Schema]):
             raise SchemaNotFoundError(name, self.config.schema_volume_path)
         return Schema.from_dict(storage_schema, validate_schema=False)
 
-    def save_schema(self, schema: Schema) -> str:
+    def save_schema(self, schema: Schema, link_import_schema: bool = True) -> str:
         """Saves schema to the storage and returns the path relative to storage.
 
-        If import schema path is configured and import schema with schema.name exits, it
-        will be linked to `schema` via `_imported_version_hash`. Such hash is used in `load_schema` to
-        detect if import schema changed and thus to overwrite the storage schema.
+        If import schema path is configured and `link_import_schema` is True, it will be linked to
+        `schema` via `_imported_version_hash`. Such hash is used in `load_schema` to detect if
+        import schema changed and thus to overwrite the storage schema.
 
         If export schema path is configured, `schema` will be exported to it.
         """
         # check if there's schema to import
-        if self.config.import_schema_path:
+        if link_import_schema and self.config.import_schema_path:
             try:
                 imported_schema = Schema.from_dict(self._load_import_schema(schema.name))
                 # link schema being saved to current imported schema so it will not overwrite this save when loaded

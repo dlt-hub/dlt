@@ -59,7 +59,7 @@ password = "<password>" # replace with your password
 host = "localhost" # or the IP address location of your database
 port = 5432
 connect_timeout = 15
-query.options = "-ctimezone=Europe/Paris"
+session_timezone = "Europe/Paris"
 ```
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
@@ -203,6 +203,19 @@ The Postgres destination creates UNIQUE indexes by default on columns with the `
 [destination.postgres]
 create_indexes=false
 ```
+
+### Session timezone
+Postgres uses the server timezone unless you set one. `session_timezone` sets it per connection. The
+setting decides how Postgres reads values without a UTC offset into `timestamp with time zone`
+columns. It also decides which timezone Postgres returns for those columns. It does not change the
+column types that `CREATE TABLE` produces.
+```toml
+[destination.postgres.credentials]
+session_timezone = "Europe/Paris"
+```
+`dlt` passes it as a libpq startup option, so it also survives the connection reset that `dlt` performs
+after a failed statement. Setting `query.options = "-ctimezone=Europe/Paris"` yourself still works and
+takes precedence.
 
 ### Setting up CSV format
 You can provide [non-default](../file-formats.md#settings) CSV settings via a configuration file or explicitly.
