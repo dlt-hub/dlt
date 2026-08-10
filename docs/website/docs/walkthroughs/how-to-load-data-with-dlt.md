@@ -4,7 +4,7 @@ description: Load the Rick and Morty API into DuckDB and work with the loaded da
 keywords: [how to, rick and morty, rest api, duckdb, incremental loading]
 ---
 
-# How to load data with dlt
+# How to load data with dlt and DuckDB
 
 The [Rick and Morty API](https://rickandmortyapi.com/) is a public REST API that needs no credentials, paginates its endpoints, and returns records with nested objects and lists. That makes it a good subject for a tour of `dlt`: in this guide you paginate one endpoint, see how `dlt` unpacks the nested JSON into tables in [DuckDB](../dlt-ecosystem/destinations/duckdb.md), query the result from Python, and then extend the pipeline to three endpoints that load only new records on every further run.
 
