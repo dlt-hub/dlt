@@ -263,7 +263,6 @@ For the production-grade path (auth, incremental loading, more endpoints) see th
 - Ask your coding agent to [build a pipeline](../ingestion/rest-api-source.md) for your source.
 - Reshape your data with [Transformations](../transformations/index.md).
 - Add [data quality checks](../data-quality/index.md) to catch issues early.
-- Work through the [advanced example](platform-tutorial.md): a full starter pack with pipelines, transformations, and a dashboard.
 
 
 ## Troubleshooting
