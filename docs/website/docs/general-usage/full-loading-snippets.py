@@ -24,3 +24,19 @@ def check_replace_strategies_snippet() -> None:
     assert resolve_replace_strategy(regular_table, None, caps) == "truncate-and-insert"
     assert resolve_replace_strategy(delta_table, None, caps) == "insert-from-staging"
     assert resolve_replace_strategy(regular_table, "insert-from-staging", caps) is None
+
+
+def set_replace_strategy_snippet() -> None:
+    # @@@DLT_SNIPPET_START set_replace_strategy
+    import dlt
+
+    # configure the strategy on the destination of a single pipeline
+    pipeline = dlt.pipeline(
+        "github_issues",
+        destination=dlt.destinations.duckdb(replace_strategy="insert-from-staging"),
+        dataset_name="github",
+    )
+    # @@@DLT_SNIPPET_END set_replace_strategy
+
+    config = pipeline.destination_client().config
+    assert config.replace_strategy == "insert-from-staging"  # type: ignore[attr-defined]

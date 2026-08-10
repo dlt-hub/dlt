@@ -42,6 +42,24 @@ You can select a strategy with a setting in your `config.toml` file. If you do n
 replace_strategy = "staging-optimized"
 ```
 
+`replace_strategy` belongs to the destination configuration, so you can also scope it to one destination type or to one pipeline:
+
+```toml
+# only for the duckdb destination
+[destination.duckdb]
+replace_strategy = "insert-from-staging"
+
+# only for the pipeline named "github_issues"
+[github_issues.destination]
+replace_strategy = "staging-optimized"
+```
+
+Or pass it to the destination factory, which takes precedence over `config.toml`:
+
+<!--@@@DLT_SNIPPET ./full-loading-snippets.py::set_replace_strategy-->
+
+There is no per-resource setting: every table loaded through one destination uses the configured strategy, and the only per-table variation is the narrowing described in [Which strategies your destination supports](#which-strategies-your-destination-supports).
+
 ### The `truncate-and-insert` strategy
 
 The `truncate-and-insert` replace strategy is the fastest of all three strategies and the default wherever the destination supports it. If you load data with this setting, then the destination tables will be truncated at the beginning of the load, and the new data will be inserted consecutively but not within the same transaction.
