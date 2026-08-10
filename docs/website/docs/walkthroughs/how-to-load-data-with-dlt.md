@@ -1,5 +1,5 @@
 ---
-title: 'How to load data with dlt'
+title: 'How to load data with dlt and DuckDB'
 description: Load the Rick and Morty API into DuckDB and work with the loaded data
 keywords: [how to, rick and morty, rest api, duckdb, incremental loading]
 ---
