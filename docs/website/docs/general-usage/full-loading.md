@@ -34,7 +34,7 @@ Note that a table does not need to receive any data to get truncated.
 
 dlt implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.
 
-You can select a strategy with a setting in your `config.toml` file. If you do not select a strategy, dlt will default to `truncate-and-insert`.
+You can select a strategy with a setting in your `config.toml` file. If you do not select a strategy, dlt uses the first strategy that the destination supports for the table being loaded, which is `truncate-and-insert` wherever it is available.
 
 ```toml
 [destination]
@@ -44,7 +44,7 @@ replace_strategy = "staging-optimized"
 
 ### The `truncate-and-insert` strategy
 
-The `truncate-and-insert` replace strategy is the default and the fastest of all three strategies. If you load data with this setting, then the destination tables will be truncated at the beginning of the load, and the new data will be inserted consecutively but not within the same transaction.
+The `truncate-and-insert` replace strategy is the fastest of all three strategies and the default wherever the destination supports it. If you load data with this setting, then the destination tables will be truncated at the beginning of the load, and the new data will be inserted consecutively but not within the same transaction.
 The downside of this strategy is that your tables will have no data for a while until the load is completed. You may end up with new data in some tables and no data in other tables if the load fails during the run. Such an incomplete load may be detected by checking if the [_dlt_loads table contains a load id](destination-tables.md#load-packages-and-load-ids) from _dlt_load_id of the replaced tables. If you prefer to have no data downtime, please use one of the other strategies.
 
 ### The `insert-from-staging` strategy
@@ -61,4 +61,14 @@ The `staging-optimized` strategy has all the upsides of the `insert-from-staging
 * BigQuery: After loading the new data into the staging tables, the destination tables will be dropped and recreated with a [clone command](https://cloud.google.com/bigquery/docs/table-clones-create) from the staging tables. This is a low-cost and fast way to create a second independent table from the data of another. Learn more about [table cloning on BigQuery](https://cloud.google.com/bigquery/docs/table-clones-intro).
 * Snowflake: After loading the new data into the staging tables, the destination tables will be dropped and recreated with a [clone command](https://docs.snowflake.com/en/sql-reference/sql/create-clone) from the staging tables. This is a low-cost and fast way to create a second independent table from the data of another. Learn more about [table cloning on Snowflake](https://docs.snowflake.com/en/user-guide/object-clone).
 
-For all other destinations, please look at their respective documentation pages to see if and how the `staging-optimized` strategy is implemented. If it is not implemented, `dlt` will fall back to the `insert-from-staging` strategy.
+For all other destinations, please look at their respective documentation pages to see if and how the `staging-optimized` strategy is implemented. Destinations that do not implement it will not fall back to another strategy, as explained below.
+
+### Which strategies your destination supports
+
+Each destination declares the replace strategies it can use in its [capabilities](destination.md#inspect-destination-capabilities), and some destinations narrow that list per table. Inspect both for your own destination and table:
+
+<!--@@@DLT_SNIPPET ./full-loading-snippets.py::check_replace_strategies-->
+
+`supported_replace_strategies` lists everything the destination may use. `resolve_replace_strategy` applies the per-table narrowing and returns the strategy that will actually be used for that table, or `None` if the strategy you passed is not available for it. The table format is what narrows the list today: on the `filesystem` and `athena` destinations, tables with the `delta` or `iceberg` table format are always replaced with `insert-from-staging`, and all other tables only with `truncate-and-insert`.
+
+If you request a strategy that is not available, dlt does not fall back to another one: the load step fails with an error naming the table, and no data is loaded. Pick a strategy from the supported list, or change the table format if that is what restricts the choice. A destination may also reject a strategy for reasons it can only check against the live database. ClickHouse `staging-optimized`, for example, requires the Atomic or Shared database engine.
