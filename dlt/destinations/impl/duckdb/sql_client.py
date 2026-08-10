@@ -144,18 +144,16 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         self._global_config: Dict[str, Any] = {
             "checkpoint_threshold": "1gb",
         }
+        if credentials.session_timezone:
+            # the database default, which each cloned session inherits and may override
+            self._global_config["TimeZone"] = credentials.session_timezone
 
     @raise_open_connection_error
     def open_connection(self) -> duckdb.DuckDBPyConnection:
-        local_config: Dict[str, Any] = {
-            "search_path": self.fully_qualified_dataset_name(),
-        }
-        if self.credentials.session_timezone:
-            local_config["TimeZone"] = self.credentials.session_timezone
         self._conn = self.credentials.conn_pool.borrow_conn(
             pragmas=self._pragmas,
             global_config=self._global_config,
-            local_config=local_config,
+            local_config={"search_path": self.fully_qualified_dataset_name()},
         )
         return self._conn
 

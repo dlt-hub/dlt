@@ -156,12 +156,13 @@ def test_duckdb_connection_config() -> None:
     conn = credentials.conn_pool.borrow_conn()
     assert credentials.conn_pool._conn_owner is False
     try:
-        # all settings disabled
+        # all settings enabled, on the clone and on the caller's connection
         assert _read_config(conn) == [
             ("azure_transport_option_type", "true"),
             ("enable_progress_bar", "true"),
             ("errors_as_json", "true"),
         ]
+        assert _read_config(ext_conn) == _read_config(conn)
     finally:
         credentials.conn_pool.return_conn(conn)
         ext_conn.close()
@@ -273,8 +274,10 @@ def test_session_timezone() -> None:
         assert _timezone(c.native_connection) == duckdb_default
 
 
-def test_session_timezone_keeps_external_connection() -> None:
-    """dlt sets the timezone on connections it dispenses, never on one the caller owns."""
+@pytest.mark.parametrize("session_timezone", ("UTC", "Europe/Berlin", None))
+def test_session_config_on_external_connection(session_timezone: str) -> None:
+    """dlt configures a caller's connection like the ones it opens: `search_path` names the dataset
+    and `TimeZone` is set unless it is disabled."""
     import duckdb as _duckdb
 
     ext_conn = _duckdb.connect(os.path.join(get_test_storage_root(), f"tz_ext_{uniq_id()}.duckdb"))
@@ -282,15 +285,16 @@ def test_session_timezone_keeps_external_connection() -> None:
 
     pipeline = dlt.pipeline(
         "test_session_timezone_external_" + uniq_id(),
-        destination=duckdb(ext_conn),
+        destination=duckdb(DuckDbCredentials(ext_conn, session_timezone=session_timezone)),
         dataset_name="tz_external",
     )
     pipeline.run([{"id": 1, "ts": pendulum.datetime(2024, 1, 1, tz="UTC")}], table_name="events")
 
     try:
-        assert _timezone(ext_conn) == "America/New_York"
-        # the load still ran in UTC so the instant is intact
-        assert ext_conn.sql("SELECT epoch(ts) FROM tz_external.events").fetchone()[0] == 1704067200
+        assert _timezone(ext_conn) == (session_timezone or "America/New_York")
+        assert ext_conn.sql("SELECT current_setting('search_path')").fetchone()[0] == "tz_external"
+        # the load ran in UTC so the instant is intact
+        assert ext_conn.sql("SELECT epoch(ts) FROM events").fetchone()[0] == 1704067200
     finally:
         ext_conn.close()
 
