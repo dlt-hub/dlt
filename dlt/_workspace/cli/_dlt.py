@@ -20,16 +20,6 @@ from dlt._workspace.cli.echo import maybe_no_stdin
 ACTION_EXECUTED = False
 DEFAULT_DOCS_URL = "https://dlthub.com/docs/intro"
 
-_DLT_TO_DLTHUB_COMMANDS: Dict[str, str] = {
-    "init": "pipeline init",
-    "pipeline": "local pipeline",
-    "schema": "local schema",
-    "telemetry": "local telemetry",
-    "dashboard": "local show",
-    "ai": "ai",
-}
-"""Maps `dlt` commands to their `dlthub` replacements suggested in an active workspace."""
-
 
 class _LazyMarkdown:
     """Renderable wrapper that defers `rich.markdown.Markdown` instantiation"""
@@ -382,7 +372,7 @@ def main(host: str = "dlt") -> int:
 
 def _print_use_dlthub_note(command: Optional[str]) -> None:
     """Print a note pointing the user to the `dlthub` replacement of the attempted `dlt` command."""
-    if replacement := _DLT_TO_DLTHUB_COMMANDS.get(command or ""):
+    if replacement := fmt.DLT_TO_DLTHUB_COMMANDS.get(command or ""):
         fmt.echo(
             "`dlt %s` is not available in an active dltHub Workspace. Use %s instead."
             % (command, fmt.bold("dlthub " + replacement)),

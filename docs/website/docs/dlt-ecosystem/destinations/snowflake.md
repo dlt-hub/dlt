@@ -163,6 +163,18 @@ This will set the timezone and session keep alive. Mind that if you use TOML, yo
 `"snowflake://loader/dlt_data?authenticator=oauth&timezone=UTC&client_session_keep_alive=true"`
 will pass `client_session_keep_alive` as a string to the connect method (which we didn't verify if it works).
 
+### Session timezone
+`dlt` sets the session `TIMEZONE` to `UTC`, so a load does not take the timezone of the account. It
+does not change the column types that `CREATE TABLE` produces.
+
+```toml
+[destination.snowflake.credentials]
+session_timezone = "Europe/Berlin"
+```
+
+Set it to an empty value to keep the account default. The `timezone` query parameter does the same
+thing and takes precedence.
+
 ### Write disposition
 
 All write dispositions are supported.
@@ -278,6 +290,91 @@ Without this, values with more than 28 significant digits are silently rounded a
 - **No Arrow/DataFrame support**: The Snowflake connector does not recognize DECFLOAT when fetching via Arrow (`pipeline.dataset().table.df()` or `.arrow()`). The DECFLOAT column is returned as a raw dict `{'exponent': ..., 'significand': ...}` instead of a proper value. Use `fetchall()` or `fetchone()` instead.
 - **Python decimal context**: Always set `decimal.getcontext().prec` (or use `decimal.localcontext()`) to at least 38 before fetching DECFLOAT data with more than 28 significant digits.
 
+### Nested types (ARRAY and OBJECT)
+
+:::caution
+This is experimental feature. We plan to promote "json" with struct
+definition to full fledged "nested" type.
+:::
+
+By default a nested (`json`) column is stored as a single `VARIANT`. Enable `use_nested_types` to create native Snowflake structured `ARRAY`/`OBJECT`/`MAP` columns instead:
+
+```toml
+[destination.snowflake]
+use_nested_types=true
+```
+
+The structured type is derived from the **Arrow type** of the nested column. You provide that type either by loading Arrow data or by declaring the column with a `pyarrow` schema. For example, an Arrow `struct<tags: list<int>, address: struct<city: string, zip: int>>` becomes `OBJECT(tags ARRAY(NUMBER(19,0)), address OBJECT(city VARCHAR, zip NUMBER(19,0)))`.
+
+#### Parquet: load Arrow data
+
+Arrow data carries the nested type natively; load it with the `parquet` format:
+
+```py
+import dlt
+import pyarrow as pa
+
+payload_type = pa.struct(
+    [
+        ("tags", pa.list_(pa.int64())),
+        ("address", pa.struct([("city", pa.string()), ("zip", pa.int64())])),
+    ]
+)
+items = pa.table(
+    {
+        "id": [1],
+        "payload": pa.array([{"tags": [1, 2], "address": {"city": "Berlin", "zip": 10115}}], payload_type),
+    }
+)
+
+pipeline = dlt.pipeline("my_pipeline", destination=dlt.destinations.snowflake(use_nested_types=True))
+pipeline.run(items, table_name="items", loader_file_format="parquet")
+```
+
+#### JSON: declare the Arrow schema upfront
+
+For plain (non-Arrow) data, declare the nested column with a `pyarrow` schema via `columns` (other columns are inferred from the data) and load with `jsonl`:
+
+```py
+import dlt
+import pyarrow as pa
+
+@dlt.resource(
+    columns=pa.schema(
+        [
+            pa.field(
+                "payload",
+                pa.struct(
+                    [
+                        ("tags", pa.list_(pa.int64())),
+                        ("address", pa.struct([("city", pa.string()), ("zip", pa.int64())])),
+                    ]
+                ),
+            )
+        ]
+    )
+)
+def items():
+    yield {"id": 1, "payload": {"tags": [1, 2], "address": {"city": "Berlin", "zip": 10115}}}
+
+pipeline = dlt.pipeline("my_pipeline", destination=dlt.destinations.snowflake(use_nested_types=True))
+pipeline.run(items(), loader_file_format="jsonl")
+```
+
+#### Schema and type evolution
+
+Nested columns evolve like regular columns:
+- **New nested columns** are added on later loads via `ALTER TABLE ... ADD COLUMN`; rows loaded earlier get `NULL`.
+- **New fields inside an existing struct** migrate in place: `dlt` re-issues `ALTER COLUMN ... SET DATA TYPE OBJECT(...)`, which Snowflake applies as a metadata-only change (no table rewrite), and earlier rows get `NULL` for the new field.
+
+You can add fields (top-level or nested), but — as with regular columns — you cannot change an existing field's type or an `ARRAY` element type, nor convert a structured column back to `VARIANT`.
+
+Notes:
+- Opt-in and backward compatible: without the flag, nested columns remain `VARIANT`.
+- Works with both `parquet` and `jsonl`. For `jsonl`, every field declared in a struct must be present in each record (use `null` for missing values) — an absent key fails the load.
+- For `parquet`, `dlt` automatically enables Snowflake's **vectorized scanner**, because null fields inside structured columns only load with it.
+- **Warning:** struct field names — like keys inside a `VARIANT` — are **not** normalized. They are stored exactly as they appear in the Arrow type (case-sensitive, no snake_case conversion) and must match the keys in your data verbatim.
+
 ## Supported file formats
 * [insert-values](../file-formats.md#sql-insert) is used by default.
 * [Parquet](../file-formats.md#parquet) is supported.
@@ -290,7 +387,7 @@ When staging is enabled:
 * [CSV](../file-formats.md#csv) is supported.
 
 :::warning
-When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead or use `PARSE_JSON` to update the `VARIANT` field after loading.
+When loading from Parquet, Snowflake will store `json` types (JSON) in `VARIANT` as a string. Use the JSONL format instead, use `PARSE_JSON` to update the `VARIANT` field after loading, or enable [`use_nested_types`](#nested-types-array-and-object) to load Arrow-nested data into native `ARRAY`/`OBJECT` columns.
 :::
 
 When using the Parquet format, you can enable the **vectorized scanner** to improve performance. By default, this feature uses the `ON_ERROR=ABORT_STATEMENT` setting in `dlt`, which stops execution if an error occurs.

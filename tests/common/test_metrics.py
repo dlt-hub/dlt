@@ -1,4 +1,11 @@
-from dlt.common.metrics import DataWriterMetrics, aggregate_job_metrics
+from typing import List
+
+from dlt.common.metrics import (
+    DataWriterMetrics,
+    TSchemaReference,
+    aggregate_job_metrics,
+    data_location_version,
+)
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 
 
@@ -59,3 +66,16 @@ def test_aggregate_job_metrics_sums_interleaved_resources() -> None:
     )
     assert resource_metrics["res_a"].items_count == 8
     assert resource_metrics["res_b"].items_count == 4
+
+
+def test_data_location_version_is_order_independent() -> None:
+    schemas: List[TSchemaReference] = [
+        {"name": "a", "version_hash": "hash_a"},
+        {"name": "b", "version_hash": "hash_b"},
+    ]
+    assert data_location_version(schemas) == data_location_version(list(reversed(schemas)))
+    # a changed constituent hash changes the version
+    assert data_location_version(schemas) != data_location_version(
+        [schemas[0], {"name": "b", "version_hash": "hash_b2"}]
+    )
+    assert data_location_version([]) == data_location_version([])

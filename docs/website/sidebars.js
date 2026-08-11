@@ -481,8 +481,12 @@ const sidebars = {
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
         "hub/getting-started/playground-workspace",
-        "hub/getting-started/platform-tutorial",
       ],
+    },
+    {
+      type: "category",
+      label: "AI Harness",
+      items: ["hub/ai-harness/introduction", "hub/ai-harness/installation", "hub/ai-harness/toolkits"],
     },
     {
       type: "category",

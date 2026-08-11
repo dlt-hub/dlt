@@ -172,8 +172,20 @@ def test_instantiation() -> None:
     # test decorator
     calls = []
     p = dlt.pipeline("sink_test", destination=dlt.destination()(local_sink_func), dev_mode=True)
-    p.run([1, 2, 3], table_name="items")
+    info = p.run([1, 2, 3], table_name="items")
     assert len(calls) == 1
+    # a sink writes tables but has no dataset, so the trace records neither dataset name
+    location = next(
+        location
+        for metrics in info.metrics.values()
+        for location in metrics[0]["outputs"]
+        if location["resource_name"] == "items"
+    )
+    assert location["tables"] == ["items"]
+    assert "dataset_name" not in location and "physical_dataset_name" not in location
+    # nor a public location, it stays addressable by destination name
+    assert "location" not in location
+    assert location["destination_name"] == "local_sink_func"
     # local func does not create entry in destinations
     with pytest.raises(KeyError):
         DestinationReference.find("local_sink_func")

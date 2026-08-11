@@ -138,7 +138,9 @@ def escape_mssql_literal(v: Any) -> Any:
 
 
 def escape_redshift_identifier(v: str) -> str:
-    return '"' + v.replace('"', '""').replace("\\", "\\\\") + '"'
+    # in double-quoted identifiers only the double-quote is special (escaped by doubling);
+    # backslash is literal for postgres, redshift, snowflake, athena and dremio alike
+    return '"' + v.replace('"', '""') + '"'
 
 
 escape_postgres_identifier = escape_redshift_identifier
@@ -152,41 +154,52 @@ def escape_hive_identifier(v: str) -> str:
 
 
 def escape_snowflake_identifier(v: str) -> str:
-    # Snowcase uppercase all identifiers unless quoted. Match this here so queries on information schema work without issue
-    # See also https://docs.snowflake.com/en/sql-reference/identifiers-syntax#double-quoted-identifiers
+    # snowflake uppercases unquoted identifiers; quoting preserves case
     return escape_postgres_identifier(v)
 
 
 def escape_snowflake_literal(v: Any) -> Any:
-    """Escape string literals for Snowflake using standard SQL escaping.
+    """Escape string literals for Snowflake.
 
-    Snowflake uses '' to escape single quotes (not backslash escaping).
+    Snowflake treats backslash as an escape character inside single-quoted literals,
+    so both backslash and single quote are escaped (a lone backslash before a doubled
+    quote would otherwise consume it and break out of the string).
     """
     if isinstance(v, str):
-        # Snowflake uses standard SQL escaping: ' -> ''
-        return "'" + v.replace("'", "''") + "'"
+        return "'" + v.replace("\\", "\\\\").replace("'", "''") + "'"
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return "'" + json.dumps(v).replace("'", "''") + "'"
+        return "'" + json.dumps(v).replace("\\", "\\\\").replace("'", "''") + "'"
     if isinstance(v, bytes):
         return f"X'{v.hex()}'"
     return "NULL" if v is None else str(v)
 
 
-escape_databricks_identifier = escape_hive_identifier
+def escape_databricks_identifier(v: str) -> str:
+    # databricks escapes an embedded backtick by doubling it; backslash is literal
+    return "`" + v.replace("`", "``") + "`"
 
 
-DATABRICKS_ESCAPE_DICT = {"'": "\\'", "\\": "\\\\", "\n": "\\n", "\r": "\\r"}
+# NUL stripped to match the base SQL escaping: it would terminate the inlined query string
+DATABRICKS_ESCAPE_DICT = {"'": "\\'", "\\": "\\\\", "\n": "\\n", "\r": "\\r", "\x00": ""}
+DATABRICKS_ESCAPE_RE = _make_sql_escape_re(DATABRICKS_ESCAPE_DICT)
 
 
 def escape_databricks_literal(v: Any) -> Any:
     if isinstance(v, str):
-        return _escape_extended(v, prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
+        return _escape_extended(
+            v, prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT, escape_re=DATABRICKS_ESCAPE_RE
+        )
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return _escape_extended(json.dumps(v), prefix="'", escape_dict=DATABRICKS_ESCAPE_DICT)
+        return _escape_extended(
+            json.dumps(v),
+            prefix="'",
+            escape_dict=DATABRICKS_ESCAPE_DICT,
+            escape_re=DATABRICKS_ESCAPE_RE,
+        )
     if isinstance(v, bytes):
         return f"X'{v.hex()}'"
     return "NULL" if v is None else str(v)
@@ -305,6 +318,6 @@ def format_bigquery_datetime_literal(
 def format_clickhouse_datetime_literal(
     v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
 ) -> str:
-    """Returns clickhouse compatibel function"""
+    """Returns clickhouse compatible function"""
     datetime = format_datetime_literal(v, precision, True)
     return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"

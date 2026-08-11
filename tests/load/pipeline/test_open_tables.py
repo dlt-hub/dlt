@@ -71,6 +71,8 @@ def test_get_open_table_location(destination_config: DestinationTestConfiguratio
         "{table_name}.{load_id}.{file_id}.{ext}",
         "{table_name}/{load_id}/{file_id}.{ext}",
         "{table_name}.{load_id}/{file_id}.{ext}",
+        # dlt appends `.{ext}` so the table is not in its own folder
+        "{table_name}",
     ),
 )
 def test_open_table_location_native(

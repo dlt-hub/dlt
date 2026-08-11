@@ -526,7 +526,10 @@ class FilesystemClient(
         self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
-        self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
+        self.table_prefix_layout = path_utils.get_table_prefix_layout(
+            config.layout,
+            naming=self.schema.naming if config.warn_unsafe_layout_separators else None,
+        )
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
         self._sql_client: SqlClientBase[Any] = None
         # iceberg catalog
@@ -990,8 +993,20 @@ class FilesystemClient(
             # it is crucial to append and keep "/" at the end
             table_prefix = self.pathlib.join(table_name, "")
         else:
+            prefix_placeholders = set(path_utils.get_placeholders(self.table_prefix_layout))
+            prefix_extra_placeholders = {
+                key: value
+                for key, value in (self.config.extra_placeholders or {}).items()
+                if key in prefix_placeholders
+            }
+            params = path_utils.prepare_params(
+                extra_placeholders=prefix_extra_placeholders,
+                schema_name=schema_name or self.schema.name,
+                table_name=table_name,
+            )
             table_prefix = self.table_prefix_layout.format(
-                schema_name=schema_name or self.schema.name, table_name=table_name
+                schema_name=params.get("schema_name", schema_name or self.schema.name),
+                table_name=params.get("table_name", table_name),
             )
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)

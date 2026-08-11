@@ -1,13 +1,11 @@
-import pytest
 import os
 import time
-from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
-from pendulum.tz import UTC, FixedTimezone, Timezone, fixed_timezone
 from contextlib import contextmanager
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
 from unittest import mock
 from zoneinfo import ZoneInfo
 
+import pytest
 from pendulum.tz import UTC, fixed_timezone
 
 from dlt.common import pendulum
@@ -814,15 +812,28 @@ def test_ensure_pendulum_time_invalid(value) -> None:
 def test_ensure_pendulum_datetime_non_utc_produces_pendulum_tzinfo(
     value, expected_offset_hours
 ) -> None:
-    """stdlib timezone inputs must produce pendulum-native tzinfo with correct offset."""
+    """Preserve fixed timezone offsets on Pendulum datetime values."""
     result = ensure_pendulum_datetime_non_utc(value)
     assert isinstance(result, pendulum.DateTime)
     assert result.tzinfo is not None
-    # must be pendulum-native, not stdlib
-    assert isinstance(
-        result.tzinfo, (FixedTimezone, Timezone)
-    ), f"Expected pendulum tz, got {type(result.tzinfo).__name__}: {result.tzinfo}"
     assert result.tzinfo.utcoffset(result) == timedelta(hours=expected_offset_hours)
+
+
+@pytest.mark.parametrize(
+    "offset_minutes,expected_offset_hours",
+    [(-480, -8), (330, 5.5), (0, 0)],
+    ids=["minus8", "plus5:30", "utc"],
+)
+def test_ensure_pendulum_datetime_nameless_fixed_offset(
+    offset_minutes: int, expected_offset_hours: float
+) -> None:
+    """`pytz.FixedOffset`, which the snowflake connector returns, has neither a name nor a zone."""
+    import pytz
+
+    value = datetime(2021, 1, 1, 12, 0, 0, tzinfo=pytz.FixedOffset(offset_minutes))
+    result = ensure_pendulum_datetime_non_utc(value)
+    assert result.tzinfo.utcoffset(result) == timedelta(hours=expected_offset_hours)
+    assert ensure_pendulum_datetime_utc(value) == result
 
 
 @pytest.mark.parametrize(

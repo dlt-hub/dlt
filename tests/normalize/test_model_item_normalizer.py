@@ -16,12 +16,11 @@ from dlt.common.storages import (
 from dlt.common.schema.exceptions import CannotCoerceNullException
 from dlt.common.schema.schema import Schema
 from dlt.common.schema import utils
-from dlt.common.utils import read_dialect_and_sql
+from dlt.common.destination.client import SqlModel
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 from dlt.normalize import Normalize
 from dlt.normalize.exceptions import NormalizeJobFailed
-from dlt.common.libs.sqlglot import SqlModel
 from dlt.extract.extract import ExtractStorage
 
 from tests.utils import clean_test_storage, TEST_DICT_CONFIG_PROVIDER
@@ -119,12 +118,9 @@ def extract_normalize_retrieve(
         model_files[0]
     )
     with FileStorage.open_zipsafe_ro(model_full_path, "r", encoding="utf-8") as f:
-        select_dialect, normalized_select_query = read_dialect_and_sql(
-            file_obj=f,
-            fallback_dialect=fallback_dialect,
-        )
+        parsed_model = SqlModel.from_file(file_obj=f, fallback_dialect=fallback_dialect)
 
-    return select_dialect, normalized_select_query, load_id
+    return parsed_model.query_dialect, parsed_model.to_sql(), load_id
 
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
@@ -216,12 +212,14 @@ def test_simple_model_normalizing(
             == normalized_select_query
         )
     elif dialect in ("tsql", "fabric"):  # mssql, synapse, fabric
-        assert (
+        # newer sqlglot lower-cases the generated inner derived-table alias for case-insensitive
+        # T-SQL (`[A_a] AS [A_a]` -> `[A_a] AS [a_a]`); both resolve identically, so accept either
+        assert normalized_select_query in [
             "SELECT _dlt_subquery.[A_a] AS [a_a], _dlt_subquery.[b] AS [b], NULL AS [d],"
             f" '{load_id}' AS [_dlt_load_id], NEWID() AS [_dlt_id] FROM (SELECT [b] AS [b], [A_a]"
-            " AS [A_a], [c] AS [c] FROM [my_table]) AS _dlt_subquery\n"
-            == normalized_select_query
-        )
+            f" AS [{inner}], [c] AS [c] FROM [my_table]) AS _dlt_subquery\n"
+            for inner in ("A_a", "a_a")
+        ]
     elif dialect == "postgres":
         assert (
             'SELECT _dlt_subquery."A_a" AS "a_a", _dlt_subquery."b" AS "b", NULL AS "d",'

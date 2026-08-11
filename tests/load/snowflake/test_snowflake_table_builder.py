@@ -11,6 +11,10 @@ import sqlfluff
 from dlt.common.utils import uniq_id
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
+from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns
+from dlt.common.libs.pyarrow import pyarrow, py_arrow_to_table_schema_columns
+
 from dlt.destinations import snowflake
 from dlt.destinations.impl.snowflake.snowflake import (
     SnowflakeClient,
@@ -21,10 +25,8 @@ from dlt.destinations.impl.snowflake.configuration import (
     SnowflakeClientConfiguration,
     SnowflakeCredentials,
 )
-
-from dlt.common.destination.typing import PreparedTableSchema
-from dlt.common.schema.typing import TColumnSchema
 from dlt.destinations.impl.snowflake.factory import SnowflakeTypeMapper
+from dlt.destinations.impl.snowflake.snowflake import X_SEEN_DATA_HINT
 
 from tests.load.utils import TABLE_UPDATE, empty_schema
 
@@ -46,13 +48,15 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
     return create_client(empty_schema)
 
 
-def create_client(schema: Schema, use_decfloat: bool = False) -> SnowflakeClient:
+def create_client(
+    schema: Schema, use_decfloat: bool = False, use_nested_types: bool = False
+) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
-    return snowflake(use_decfloat=use_decfloat).client(
+    return snowflake(use_decfloat=use_decfloat, use_nested_types=use_nested_types).client(
         schema,
         SnowflakeClientConfiguration(
-            credentials=creds, use_decfloat=use_decfloat
+            credentials=creds, use_decfloat=use_decfloat, use_nested_types=use_nested_types
         )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
 
@@ -91,6 +95,76 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL8" NUMBER(38,0)' in sql
     assert '"COL9" VARIANT  NOT NULL' in sql
     assert '"COL10" DATE  NOT NULL' in sql
+
+
+def test_create_table_nested_types(empty_schema: Schema) -> None:
+    # array, nested struct, list of struct and map derived from an arrow schema
+    arrow_schema = pyarrow.schema(
+        [
+            pyarrow.field("id", pyarrow.int64(), nullable=False),
+            pyarrow.field("arr", pyarrow.list_(pyarrow.int64())),
+            pyarrow.field(
+                "obj",
+                pyarrow.struct(
+                    [
+                        ("a", pyarrow.int64()),
+                        (
+                            "nested",
+                            pyarrow.struct([("x", pyarrow.string()), ("y", pyarrow.bool_())]),
+                        ),
+                    ]
+                ),
+            ),
+            pyarrow.field(
+                "list_obj",
+                pyarrow.list_(
+                    pyarrow.struct([("name", pyarrow.string()), ("value", pyarrow.float64())])
+                ),
+            ),
+            pyarrow.field("mp", pyarrow.map_(pyarrow.string(), pyarrow.float64())),
+        ]
+    )
+    columns = list(py_arrow_to_table_schema_columns(arrow_schema).values())
+    empty_schema.update_table(new_table("nested_table", columns=columns))
+
+    # with use_nested_types every nested column becomes a native structured type
+    client = create_client(empty_schema, use_nested_types=True)
+    sql = client._get_table_update_sql("nested_table", columns, False)[0]
+    assert '"ARR" ARRAY(NUMBER(19,0))' in sql
+    assert '"OBJ" OBJECT("a" NUMBER(19,0), "nested" OBJECT("x" VARCHAR, "y" BOOLEAN))' in sql
+    assert '"LIST_OBJ" ARRAY(OBJECT("name" VARCHAR, "value" FLOAT))' in sql
+    assert '"MP" MAP(VARCHAR, FLOAT)' in sql
+
+    # without the flag the same columns stay VARIANT (unchanged behaviour)
+    client_off = create_client(empty_schema, use_nested_types=False)
+    sql_off = client_off._get_table_update_sql("nested_table", columns, False)[0]
+    assert '"ARR" VARIANT' in sql_off
+    assert '"OBJ" VARIANT' in sql_off
+    assert '"MP" VARIANT' in sql_off
+
+
+def test_migrate_existing_nested_column(empty_schema: Schema) -> None:
+    arrow_schema = pyarrow.schema(
+        [pyarrow.field("obj", pyarrow.struct([("a", pyarrow.int64()), ("b", pyarrow.string())]))]
+    )
+    columns = list(py_arrow_to_table_schema_columns(arrow_schema).values())
+    empty_schema.update_table(new_table("nested_mig", columns=columns))
+    client = create_client(empty_schema, use_nested_types=True)
+
+    # obj already exists in the destination -> re-emitted for in-place structured type migration
+    storage = cast(TTableSchemaColumns, {"obj": {"name": "obj", "data_type": "json"}})
+    updates = client._create_table_update("nested_mig", storage)
+    assert [c["name"] for c in updates] == ["obj"]
+    assert updates[0].get(X_SEEN_DATA_HINT) is True
+
+    stmts = client._get_table_update_sql("nested_mig", updates, True)
+    alter = [s for s in stmts if "SET DATA TYPE" in s]
+    assert alter
+    assert 'ALTER COLUMN "OBJ" SET DATA TYPE OBJECT("a" NUMBER(19,0), "b" VARCHAR)' in alter[0]
+
+    # with the flag off existing columns are never touched
+    client_off = create_client(empty_schema, use_nested_types=False)
+    assert client_off._create_table_update("nested_mig", storage) == []
 
 
 def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:

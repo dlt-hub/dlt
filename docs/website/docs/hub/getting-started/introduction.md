@@ -20,7 +20,7 @@ Use of the dltHub platform and toolkits is subject to a commercial [dltHub Licen
 uvx dlthub-start@latest
 ```
 
-Runs a guided first experience: it scaffolds a local workspace (dltHub AI Workbench + `dlt[hub]`), installs dependencies, logs you in to the dltHub platform, runs a sample pipeline in your personal [Playground workspace](playground-workspace.md), and launches your coding agent ready to build your own source. See [installation](installation.md) for prerequisites and alternative install paths.
+Runs a guided first experience: it scaffolds a local workspace (dltHub AI Harness + `dlt[hub]`), installs dependencies, logs you in to the dltHub platform, runs a sample pipeline in your personal [Playground workspace](playground-workspace.md), and launches your coding agent ready to build your own source. See [installation](installation.md) for prerequisites and alternative install paths.
 
 On the [dltHub platform](../pipeline-operations/overview.md), set `destination="playground"` for a [zero-config destination](../ingestion/playground.md) that is ideal for testing and a quick first run.
 
@@ -77,7 +77,7 @@ dltHub covers the end-to-end data workflow. Features marked _in public preview_ 
 Build extract-and-load pipelines from REST APIs, SQL databases, cloud storage, and Python data structures, with schema inference, normalization, and incremental loading provided by the underlying `dlt` library.
 
 * [Workspace scaffolding](../ingestion/init.md) — initialize a project structure that fits how `dlt` pipelines are developed and deployed
-* [AI workbench (agent-native workflow)](../ingestion/rest-api-source.md) — generate REST API, SQL database, and filesystem pipelines from prompts using ingestion development toolkits
+* [AI Harness (agent-native workflow)](../ingestion/rest-api-source.md) — generate REST API, SQL database, and filesystem pipelines from prompts using ingestion development toolkits
 * [Premium destinations](../ingestion/iceberg.md) — load to Iceberg lakehouses, [Delta Lake](../ingestion/delta.md), [Snowflake Plus](../ingestion/snowflake-plus.md), or [MS SQL with change tracking](../ingestion/ms-sql.md)
 
 ### [Transformation pipeline development](../transformations/index.md)
@@ -85,7 +85,7 @@ Build extract-and-load pipelines from REST APIs, SQL databases, cloud storage, a
 Write transformations alongside your ingestion pipelines so they share datasets, schemas, and deployment. Source context — annotations, types, and lineage — carries into transformations and on to the serving layer.
 
 * [`@dlt.hub.transformation`](../transformations/index.md) (in public preview) — Python-decorated transformations that run as part of your pipeline graph
-* [AI workbench transformation toolkit](../transformations/explore-and-transform.md) (in public preview) — generate and refactor Python and SQL transformations from prompts driven by business ontologies
+* [AI Harness transformation toolkit](../transformations/explore-and-transform.md) (in public preview) — generate and refactor Python and SQL transformations from prompts driven by business ontologies
 * [dbt integration](../transformations/dbt-transformations.md) — run dbt projects with a local cache, schema enforcement, and integrated debugging
 
 ### [Pipeline operations](../pipeline-operations/overview.md)

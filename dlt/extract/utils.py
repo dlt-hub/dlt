@@ -23,6 +23,7 @@ from dlt.common.libs import (
     get_pyarrow_module,
     get_pydantic_module,
     is_arrow_object,
+    is_arrow_schema,
     is_pandas_frame,
     is_polars_frame,
 )
@@ -94,8 +95,12 @@ def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColum
     can be used in resource schema.
 
     Args:
-        columns: A dict of column schemas, a list of column schemas, or a pydantic model
+        columns: A dict of column schemas, a list of column schemas, a pydantic model, or a pyarrow schema
     """
+    if is_arrow_schema(columns):
+        from dlt.common.libs.pyarrow import pyarrow, py_arrow_to_table_schema_columns
+
+        return py_arrow_to_table_schema_columns(cast(pyarrow.Schema, columns))
     if isinstance(columns, C_Mapping):
         # fill missing names in short form was used
         for col_name in columns:
@@ -211,7 +216,7 @@ def wrap_async_iterator(
                 yield None
             busy = True
             yield run()
-    # this gets called from the main thread when the wrapping generater is closed
+    # this gets called from the main thread when the wrapping generator is closed
     except GeneratorExit:
         # mark as exhausted
         exhausted = True

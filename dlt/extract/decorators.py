@@ -119,6 +119,38 @@ class DltSourceFactoryWrapper(SourceFactory[TSourceFunParams, TDltSourceImpl]):
         """Adds a callback that receives and returns a DltSource after it is created."""
         self._postprocessors.append(func)
 
+    def add_limit(
+        self,
+        max_items: int | None = None,
+        max_time: float | None = None,
+        count_rows: bool | None = False,
+    ) -> None:
+        """Add a post-processor to the source factory that add limits to the source instance.
+
+        This mutates the source factory globally. Sources instantiated after adding the post-processor
+        will all receive the limit.
+
+        Returns nothing to match `.add_postprocessor()` instead of `resource.add_limit()` which returns the
+        mutated resource
+        """
+
+        def _limit_postprocessor(
+            src: Union[TDltSourceImpl, Awaitable[TDltSourceImpl]],
+        ) -> Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]:
+            if inspect.isawaitable(src):
+
+                async def _limit_async() -> TDltSourceImpl:
+                    source = await src
+                    source.add_limit(max_items, max_time=max_time, count_rows=count_rows)
+                    return source
+
+                return _limit_async()
+            else:
+                src.add_limit(max_items, max_time=max_time, count_rows=count_rows)
+                return src
+
+        self.add_postprocessor(_limit_postprocessor)
+
     def _apply_postprocessors(self, source: TDltSourceImpl) -> TDltSourceImpl:
         for func in self._postprocessors:
             source = func(source)  # type: ignore[assignment]
@@ -602,7 +634,7 @@ def resource(
             Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas.
             Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
             When the argument is a pydantic model, the model will be used to validate the data yielded by the resource as well.
@@ -907,7 +939,7 @@ def transformer(
         write_disposition (TTableHintTemplate[TWriteDisposition], optional): Controls how to write data to a table. `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
-        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict or pydantic model of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
+        columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas. Typed dictionary describing column names, data types, write disposition and performance hints that gives you full control over the created table schema.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         primary_key (TTableHintTemplate[TColumnNames], optional): A column name or a list of column names that comprise a private key. Typically used with "merge" write disposition to deduplicate loaded data.

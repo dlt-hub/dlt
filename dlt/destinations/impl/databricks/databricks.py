@@ -507,10 +507,17 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         self.type_mapper = self.capabilities.get_type_mapper()
         # PK and FK are created in SQL fragments, not inline
 
+    def _should_add_comments(self, table_name: Optional[str]) -> bool:
+        # never annotate dlt system tables; `create_comments` disables comments/descriptions entirely
+        return self.config.create_comments and table_name not in self.schema.dlt_table_names()
+
     def _get_column_def_sql(self, column: TColumnSchema, table: PreparedTableSchema = None) -> str:
         column_def_sql = super()._get_column_def_sql(column, table)
 
-        if column.get(COLUMN_COMMENT_HINT) or column.get("description"):
+        table_name = table["name"] if table else None
+        if self._should_add_comments(table_name) and (
+            column.get(COLUMN_COMMENT_HINT) or column.get("description")
+        ):
             comment = column.get(COLUMN_COMMENT_HINT) or column.get("description")
             escaped_comment = escape_databricks_literal(comment)
             column_def_sql = f"{column_def_sql} COMMENT {escaped_comment}"
@@ -794,7 +801,9 @@ class DatabricksClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         qualified_name = self.sql_client.make_qualified_table_name(table_name)
 
-        if table.get(TABLE_COMMENT_HINT) or table.get("description"):
+        if self._should_add_comments(table_name) and (
+            table.get(TABLE_COMMENT_HINT) or table.get("description")
+        ):
             comment = table.get(TABLE_COMMENT_HINT) or table.get("description")
             escaped_comment = escape_databricks_literal(comment)
             sql_result.append(f"COMMENT ON TABLE {qualified_name} IS {escaped_comment}")

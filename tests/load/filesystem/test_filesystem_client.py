@@ -25,6 +25,7 @@ from dlt.common.utils import custom_environ, digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
+import dlt.destinations.path_utils
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
     HfFilesystemDestinationClientConfiguration,
@@ -40,7 +41,11 @@ from dlt.destinations.impl.filesystem.filesystem import (
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load, setup_loader
 from tests.utils import get_test_storage_root, clean_test_storage, init_test_logging
-from tests.load.utils import TEST_FILE_LAYOUTS
+from tests.load.utils import (
+    TEST_FILE_LAYOUTS,
+    FILE_LAYOUT_TABLE_FOLDER_ONLY,
+    FILE_LAYOUT_TABLE_NAME_ONLY,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -159,6 +164,61 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
         assert client.get_table_prefix("letters").endswith("_data/letters.")
 
 
+def test_table_prefix_resolves_standard_extra_placeholders() -> None:
+    def unused_load_id(*args: str) -> str:
+        raise AssertionError("placeholder outside table prefix must not be resolved")
+
+    client = _client_factory(
+        filesystem(
+            bucket_url=get_test_storage_root(),
+            layout="{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+            extra_placeholders={
+                "schema_name": "custom",
+                "table_name": "custom_table",
+                "load_id": unused_load_id,
+            },
+        )
+    )
+
+    assert client.get_table_prefix("letters").endswith("/custom/custom_table/")
+
+    def custom_schema_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_callable"
+
+    def custom_table_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_table_callable"
+
+    client.config.extra_placeholders["schema_name"] = custom_schema_name
+    client.config.extra_placeholders["table_name"] = custom_table_name
+    assert client.get_table_prefix("letters").endswith("/custom_callable/custom_table_callable/")
+
+
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
@@ -188,7 +248,10 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         ) as load_info,
     ):
         client, jobs, _, load_id = load_info
+        # dlt appends `.{ext}` to a layout that does not declare it
         layout = client.config.layout
+        if "{ext}" not in layout:
+            layout += ".{ext}"
         dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
 
         # Assert dataset dir exists
@@ -297,11 +360,49 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
+def test_replace_does_not_truncate_sibling_tables() -> None:
+    """Regression for #4265: with layout `{table_name}`, truncating `event` must not
+    delete files of the sibling table `events`."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}"
+    client = _client_factory(filesystem("random_location"))
+    client.initialize_storage()
+    event_file = client.pathlib.join(client.dataset_path, "event.jsonl")
+    events_file = client.pathlib.join(client.dataset_path, "events.jsonl")
+    client.fs_client.touch(event_file)
+    client.fs_client.touch(events_file)
+
+    client.truncate_tables(["event"])
+
+    assert not client.fs_client.isfile(event_file)
+    assert client.fs_client.isfile(events_file)
+
+
+def test_unsafe_layout_separator_warning(mocker) -> None:
+    """`_` can occur in a table name so the `event` prefix also selects `event__child` files."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}_{load_id}.{file_id}.{ext}"
+    logger_mock = mocker.patch("dlt.destinations.path_utils.logger")
+    # the warning is emitted once per layout and naming convention, process-wide
+    dlt.destinations.path_utils._log_unsafe_prefix_separators.cache_clear()
+
+    # dlt creates a job client many times per run but warns the user once
+    _client_factory(filesystem("random_location"))
+    _client_factory(filesystem("random_location"))
+    logger_mock.warning.assert_called_once()
+    assert "'_'" in logger_mock.warning.call_args[0][0]
+
+    logger_mock.reset_mock()
+    _client_factory(filesystem("random_location", warn_unsafe_layout_separators=False))
+    logger_mock.warning.assert_not_called()
+
+
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
     if default_buckets_env.startswith("hf://"):
         pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+    if layout in (FILE_LAYOUT_TABLE_NAME_ONLY, FILE_LAYOUT_TABLE_FOLDER_ONLY):
+        # without {load_id} and {file_id} every load writes the same path so it cannot keep two copies
+        pytest.skip(f"layout {layout} cannot append, each load overwrites the previous one")
 
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout

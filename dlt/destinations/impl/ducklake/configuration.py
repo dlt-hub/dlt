@@ -7,7 +7,12 @@ from dlt.common.configuration import configspec
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
+from dlt.common.utils import digest128
+from dlt.common.destination.client import (
+    DestinationClientConfiguration,
+    DestinationClientDwhWithStagingConfiguration,
+    WithAttachableEngine,
+)
 from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     FilesystemConfigurationWithLocalFiles,
@@ -110,10 +115,8 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
             self.resolve()
 
     def on_resolved(self) -> None:
-        if self.extensions:
-            self.extensions = list(set([*self.extensions, "ducklake"]))
-        else:
-            self.extensions = ["ducklake"]
+        # the attach statement that names `ducklake` autoloads the extension. this pool opens a
+        # connection per borrow, so an explicit `INSTALL` pays a repository check every time
         # set connection pool so it always opens a new connection on borrow.
         # connection duplication for parallelism does not work for ducklake.
         self.conn_pool = DuckDbConnectionPool(self, always_open_connection=True)
@@ -126,10 +129,46 @@ class DuckLakeCredentials(DuckDbBaseCredentials):
         else:
             return self.storage.bucket_url
 
+    def catalog_location(self) -> str:
+        """Returns a non-secret catalog identity which locates the ducklake. When the catalog has
+        no credential-free identity, this method digests the catalog. Two lakes then never get
+        the same identity."""
+        if not self.catalog:
+            return ""
+
+        drivername = self.catalog.drivername or ""
+        # attach statement converts `postgresql` to duckdb-known `postgres`
+        if drivername == "postgresql":
+            drivername = "postgres"
+
+        metadata_schema = self.metadata_schema or self.ducklake_name or DEFAULT_DUCKLAKE_NAME
+
+        # file catalogs: the database file is the lake, attach name is just an alias
+        if drivername in ("duckdb", "sqlite"):
+            if self.catalog.database:
+                return f"{drivername}://{self.catalog.database}"
+            return ""
+
+        # sql catalogs host one lake per metadata schema which defaults to ducklake name
+        if self.catalog.host and self.catalog.database:
+            # NOTE: ports must be specified (or not) consistently across configs to match
+            port_str = f":{self.catalog.port}" if self.catalog.port else ""
+            return (
+                f"{drivername}://{self.catalog.host}{port_str}/{self.catalog.database}"
+                f"#{metadata_schema}"
+            )
+
+        # a MotherDuck-hosted catalog carries its account in the token, so this method digests
+        # the whole native representation and keeps the identity non-secret
+        native = str(self.catalog.to_native_representation())
+        return f"{drivername}://{digest128(f'{native}#{metadata_schema}')}"
+
 
 # TODO add connection to a specific snapshot
 @configspec
-class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagingConfiguration):
+class DuckLakeClientConfiguration(
+    WithAttachableEngine, WithLocalFiles, DestinationClientDwhWithStagingConfiguration
+):
     destination_type: str = dataclasses.field(
         default="ducklake",
         init=False,
@@ -148,38 +187,16 @@ class DuckLakeClientConfiguration(WithLocalFiles, DestinationClientDwhWithStagin
             return ""
         return self.credentials.storage.fingerprint()
 
-    def physical_location(self) -> str:
-        """Returns credential-free catalog identity which locates the ducklake."""
-        if not self.credentials or not self.credentials.catalog:
-            return ""
+    def data_location(self) -> str:
+        """Returns the catalog identity which locates the ducklake."""
+        if not self.credentials or not (location := self.credentials.catalog_location()):
+            self._no_data_location("the configuration has no ducklake catalog")
+        return location
 
-        catalog = self.credentials.catalog
-        drivername = catalog.drivername or ""
-        # attach statement converts `postgresql` to duckdb-known `postgres`
-        if drivername == "postgresql":
-            drivername = "postgres"
-
-        # TODO: motherduck catalog has no non-secret account identity
-        if drivername == "md":
-            return ""
-
-        # file catalogs: the database file is the lake, attach name is just an alias
-        if drivername in ("duckdb", "sqlite"):
-            if catalog.database:
-                return f"{drivername}://{catalog.database}"
-            return ""
-
-        # sql catalogs host one lake per metadata schema which defaults to ducklake name
-        if catalog.host and catalog.database:
-            metadata_schema = (
-                self.credentials.metadata_schema
-                or self.credentials.ducklake_name
-                or DEFAULT_DUCKLAKE_NAME
-            )
-            # NOTE: ports must be specified (or not) consistently across configs to match
-            port_str = f":{catalog.port}" if catalog.port else ""
-            return f"{drivername}://{catalog.host}{port_str}/{catalog.database}#{metadata_schema}"
-        return ""
+    def needs_attach(self, other: DestinationClientConfiguration) -> bool:
+        """Returns False within one lake. The query engine already accesses every schema of that
+        lake."""
+        return not self.is_same_location(other)
 
     def on_resolved(self) -> None:
         # redirect local catalog database file to `local_dir`
