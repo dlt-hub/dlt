@@ -84,17 +84,29 @@ def escape_duckdb_literal(v: Any) -> Any:
     return str(v)
 
 
-def escape_lancedb_literal(v: Any) -> Any:
+# datafusion strings are standard SQL: a backslash stands for itself, escaping it changes the value
+DATAFUSION_ESCAPE_DICT = {"'": "''", "\x00": ""}
+DATAFUSION_ESCAPE_RE = _make_sql_escape_re(DATAFUSION_ESCAPE_DICT)
+
+
+def escape_datafusion_literal(v: Any) -> Any:
+    """Escapes a literal for the datafusion SQL parser, which LanceDB uses for filters and SQL."""
     if isinstance(v, str):
-        # we escape extended string which behave like the redshift string
-        return _escape_extended(v, prefix="'")
+        return _escape_extended(
+            v, prefix="'", escape_dict=DATAFUSION_ESCAPE_DICT, escape_re=DATAFUSION_ESCAPE_RE
+        )
     if isinstance(v, (datetime, date, time)):
         return f"'{v.isoformat()}'"
     if isinstance(v, (list, dict)):
-        return _escape_extended(json.dumps(v), prefix="'")
-    # TODO: check how binaries are represented in fusion
+        return _escape_extended(
+            json.dumps(v),
+            prefix="'",
+            escape_dict=DATAFUSION_ESCAPE_DICT,
+            escape_re=DATAFUSION_ESCAPE_RE,
+        )
     if isinstance(v, bytes):
-        return f"from_base64('{base64.b64encode(v).decode('ascii')}')"
+        # datafusion has no `from_base64`, a hex string literal is how it spells a binary
+        return f"X'{v.hex()}'"
     if v is None:
         return "NULL"
 

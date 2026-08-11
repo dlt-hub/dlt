@@ -1,12 +1,19 @@
 import os
 import pytest
 import pyarrow as pa
-from typing import TYPE_CHECKING, Any, Generator, cast
+from typing import TYPE_CHECKING, Any, Generator, List, cast
 from decimal import Decimal
 
 import dlt
+from dlt.common.storages.file_storage import FileStorage
+from dlt.common.typing import DictStrAny
 from dlt.pipeline.exceptions import PipelineStepFailed
-from tests.load.lancedb.utils import LANCE_DEST_CONFS, open_lance_table
+from tests.load.lancedb.utils import (
+    LANCE_DEST_CONFS,
+    get_adapter,
+    open_lance_table,
+    read_arrow_table,
+)
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
 from tests.pipeline.utils import assert_load_info
 from tests.cases import arrow_table_all_data_types, remove_column_from_data
@@ -280,6 +287,8 @@ def test_missing_column_in_second_load(
     def identity_resource_without_orphan_removal(data: pa.Table) -> Generator[pa.Table, None, None]:
         yield data
 
+    get_adapter(destination_config)(identity_resource_with_orphan_removal, remove_orphans=True)
+
     resource = (
         identity_resource_with_orphan_removal
         if remove_orphans
@@ -381,3 +390,76 @@ def test_json_nesting_evolution(destination_config: DestinationTestConfiguration
         assert "json__b__c__c1" in tbl.schema.names
         assert "json__b__d" in tbl.schema.names
         assert "json__b__c" in tbl.schema.names
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_column_added_between_job_files(
+    destination_config: DestinationTestConfiguration, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A column that first appears part way through a load survives the merge.
+
+    The writer rotates the job file when the column count grows, so the load writes one file
+    without the column and one with it, and the merge must read them as one payload.
+    """
+    # the writer only rotates once the buffer has flushed, so a small buffer splits the table
+    monkeypatch.setenv("DATA_WRITER__BUFFER_MAX_ITEMS", "2")
+
+    # `os.scandir` does not order its results: pin write order so the file lacking the column
+    # is read first, which is the order that used to drop it
+    original_list = FileStorage.list_folder_files
+
+    def oldest_first(self: FileStorage, relative_path: str, to_root: bool = True) -> List[str]:
+        def modified_at(file_path: str) -> float:
+            # `to_root=False` returns bare names, which do not resolve on their own
+            if not to_root:
+                file_path = os.path.join(relative_path, file_path)
+            return os.path.getmtime(self.make_full_path(file_path))
+
+        return sorted(original_list(self, relative_path, to_root), key=modified_at)
+
+    monkeypatch.setattr(FileStorage, "list_folder_files", oldest_first)
+
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_column_added_between_job_files", dev_mode=True
+    )
+
+    @dlt.resource(
+        table_name="doc",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="id",
+    )
+    def growing_resource() -> Generator[DictStrAny, None, None]:
+        for i in range(4):
+            yield {"id": i, "a": f"a{i}"}
+        for i in range(4, 8):
+            yield {"id": i, "a": f"a{i}", "b": f"b{i}"}
+
+    info = pipeline.run(growing_resource())
+    assert_load_info(info)
+
+    # the premise of the test: the load wrote the table as more than one job file
+    parquet_jobs = [
+        job
+        for job in info.load_packages[0].jobs["completed_jobs"]
+        if job.job_file_info.table_name == "doc" and job.job_file_info.file_format == "parquet"
+    ]
+    assert len(parquet_jobs) > 1
+
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        rows = read_arrow_table(open_lance_table(client, "doc")).to_pylist()
+
+    assert {row["id"]: row["b"] for row in rows} == {
+        0: None,
+        1: None,
+        2: None,
+        3: None,
+        4: "b4",
+        5: "b5",
+        6: "b6",
+        7: "b7",
+    }

@@ -1,27 +1,48 @@
 from functools import wraps
 import re
-from typing import (
-    Any,
-)
+from typing import Any
 
 from lancedb.exceptions import MissingValueError, MissingColumnError
 
 from dlt.common.destination.exceptions import (
     DestinationException,
+    DestinationTerminalException,
     DestinationUndefinedEntity,
     DestinationTransientException,
 )
 from dlt.common.destination.client import JobClientBase
 from dlt.common.typing import TFun
+from dlt.destinations.impl.lance.exceptions import LANCE_DOES_NOT_EXIST, LANCE_NOT_FOUND
 
-lancedb_not_found_pattern = re.compile(
-    r"(?i)(not\s+found|unknown\s+table|missing\s+value|missing\s+column)"
+LANCEDB_UNDEFINED_ENTITY_PATTERN = re.compile(
+    rf"(?i){LANCE_NOT_FOUND}|{LANCE_DOES_NOT_EXIST}|unknown\s+table|missing\s+value|missing\s+column"
 )
 
 
 def is_lancedb_not_found_error(error_message: str) -> bool:
-    """Check if the error message indicates a LanceDB not found error."""
-    return bool(lancedb_not_found_pattern.search(error_message))
+    """Returns True if the error message indicates a missing namespace, table or column."""
+    return bool(LANCEDB_UNDEFINED_ENTITY_PATTERN.search(error_message))
+
+
+class LanceDBCommitTagNotApplied(DestinationTerminalException):
+    def __init__(
+        self, tag: str, table_name: str, version: int, database: str, load_id: str
+    ) -> None:
+        # raised after the load is committed, so `dlt` will not retry it and the user must finish
+        remediation = "\n".join(
+            [
+                "    import lancedb",
+                f'    db = lancedb.connect("db://{database}", api_key=..., host_override=...)',
+                f'    db.open_table("{table_name}").tags.create("{tag}", {version})',
+            ]
+        )
+        super().__init__(
+            f"Load {load_id} is committed but the commit tag `{tag}` was not applied to"
+            f" `{table_name}` at version {version}. The data is complete and only the tag is"
+            f" missing. The dataset cannot be rolled back to `{tag}`, and the cluster does not"
+            " retain that version against its background cleanup. `dlt` does not retry a committed"
+            f" load, so create the tag yourself:\n\n{remediation}\n"
+        )
 
 
 def lancedb_error(f: TFun) -> TFun:
@@ -32,16 +53,12 @@ def lancedb_error(f: TFun) -> TFun:
         except DestinationException:
             # already converted (eg. raised by a nested decorated call)
             raise
-        except ValueError as e:
-            if is_lancedb_not_found_error(str(e)):
-                raise DestinationUndefinedEntity(e) from e
-            raise
-        except (
-            MissingValueError,
-            MissingColumnError,
-        ) as status_ex:
+        except (MissingValueError, MissingColumnError) as status_ex:
             raise DestinationUndefinedEntity(status_ex) from status_ex
         except Exception as e:
+            # the managed client reports missing entities as untyped errors from the server
+            if is_lancedb_not_found_error(str(e)):
+                raise DestinationUndefinedEntity(e) from e
             raise DestinationTransientException(e) from e
 
     return _wrap  # type: ignore[return-value]

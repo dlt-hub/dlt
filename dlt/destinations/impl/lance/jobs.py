@@ -4,19 +4,12 @@ from dlt.common import json
 from dlt.common.destination.client import HasFollowupJobs, RunnableLoadJob
 from dlt.common.libs.pyarrow import pyarrow as pa, get_local_dataset_reader
 from dlt.common.schema.typing import TTableSchema
-from dlt.common.schema.utils import is_nested_table
 from dlt.common.storages.load_package import (
     ParsedLoadJobFileName,
     commit_load_package_state,
     destination_state,
 )
-from dlt.destinations.impl.lance.lance_adapter import REMOVE_ORPHANS_HINT
-from dlt.destinations.impl.lance.utils import (
-    get_canonical_vector_database_doc_id_merge_key,
-    create_in_filter,
-)
-from dlt.destinations.job_impl import ReferenceFollowupJobRequest
-from dlt.destinations.sql_jobs import SqlMergeFollowupJob
+from dlt.destinations.impl.lance.jobs_base import LanceReferenceJob
 
 if TYPE_CHECKING:
     from lance import LanceDataset, LanceOperation
@@ -62,16 +55,14 @@ class LanceLoadJob(RunnableLoadJob, HasFollowupJobs):
         commit_load_package_state()
 
 
-class LanceCommitLoadJob(RunnableLoadJob):
+class LanceCommitLoadJob(LanceReferenceJob):
     """Completes a table in a single lance commit: appends or overwrites the fragments
     written by `LanceLoadJob`, or merges all job files at once."""
 
     def __init__(self, file_path: str, table_schema: TTableSchema, restore: bool = False) -> None:
-        super().__init__(file_path)
+        super().__init__(file_path, table_schema)
         self._job_client: LanceClient = None
-        self._table_schema: TTableSchema = table_schema
         self._restore = restore
-        self.file_paths: List[str] = ReferenceFollowupJobRequest.resolve_references(file_path)
 
     def run(self) -> None:
         from lance import LanceDataset, LanceOperation
@@ -123,47 +114,11 @@ class LanceCommitLoadJob(RunnableLoadJob):
         ]
 
     def _merge(self, ds: "LanceDataset") -> None:
-        # use deterministic and unique id as a merge column (to perform classical upsert)
-        # NOTE: upsert strategy generates deterministic row_key both for root and nested tables
-        merge_key = SqlMergeFollowupJob.get_row_key_col(
-            [self._load_table],
-            self._load_table,
-            self._job_client.dataset_name,
-            self._job_client.dataset_name,
-        )
-        when_not_matched_by_source_delete_expr: str = None
-        if self._load_table[REMOVE_ORPHANS_HINT]:  # type: ignore[literal-required]
-            when_not_matched_by_source_delete_expr = self._build_remove_orphans_scope_expr()
-
         records = self._job_client.prepare_records(_get_file_reader(self.file_paths), ds.schema)
         self._job_client._write_records(
             ds,
             records,
             write_disposition="merge",
-            merge_key=merge_key,
-            when_not_matched_by_source_delete_expr=when_not_matched_by_source_delete_expr,
+            merge_key=self.merge_key,
+            when_not_matched_by_source_delete_expr=self.orphan_scope_filter(),
         )
-
-    def _build_remove_orphans_scope_expr(self) -> str:
-        """Builds SQL filter for `when_not_matched_by_source_delete` clause that scopes orphan deletion to current load.
-
-        This filter is relevant for incremental loads. It ensures only target rows whose key appears
-        in this load are considered for deletion, leaving rows from prior loads untouched.
-        """
-
-        key_col = (
-            SqlMergeFollowupJob.get_root_key_col(
-                [self._load_table],
-                self._load_table,
-                self._job_client.dataset_name,
-                self._job_client.dataset_name,
-            )
-            if is_nested_table(self._load_table)
-            else get_canonical_vector_database_doc_id_merge_key(self._load_table)
-        )
-        # unfortunately we need to load data into memory here before the write, but at least we can
-        # scope it to just the key column
-        keys = pa.concat_tables(
-            pa.parquet.read_table(path, columns=[key_col]) for path in self.file_paths
-        )[key_col]
-        return create_in_filter(key_col, keys)

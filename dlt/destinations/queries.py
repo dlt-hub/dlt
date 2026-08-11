@@ -16,6 +16,10 @@ def build_row_counts_expr(
 
     table_expr = sge.Table(this=sge.to_identifier(table_name, quoted=quoted_identifiers))
 
+    # the filter excludes nulls, so counting its column equals counting rows and keeps the scan
+    # projecting one column, which LanceDB needs
+    counted = sge.column(dlt_load_id_col, quoted=quoted_identifiers) if load_id else sge.Star()
+
     select_expr = sge.Select(
         expressions=[
             sge.Alias(
@@ -23,7 +27,7 @@ def build_row_counts_expr(
                 alias=sge.to_identifier("table_name"),
             ),
             sge.Alias(
-                this=sge.Count(this=sge.Star()),
+                this=sge.Count(this=counted),
                 alias=sge.to_identifier("row_count"),
             ),
         ]

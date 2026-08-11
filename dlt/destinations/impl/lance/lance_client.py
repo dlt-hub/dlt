@@ -35,10 +35,7 @@ from dlt.common import json, pendulum, logger
 from dlt.common.libs.numpy import numpy
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.destination import DestinationCapabilitiesContext
-from dlt.common.destination.exceptions import (
-    DestinationUndefinedEntity,
-    DestinationTerminalException,
-)
+from dlt.common.destination.exceptions import DestinationUndefinedEntity
 from dlt.common.destination.client import (
     FollowupJobRequest,
     JobClientBase,
@@ -57,11 +54,7 @@ from dlt.common.schema.typing import (
     TColumnSchema,
     TWriteDisposition,
 )
-from dlt.common.schema.utils import (
-    get_columns_names_with_prop,
-    get_inherited_table_hint,
-    is_nested_table,
-)
+from dlt.common.schema.utils import get_columns_names_with_prop, get_inherited_table_hint
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
@@ -69,7 +62,6 @@ from dlt.destinations.impl.lance.configuration import (
     LanceNamespacePool,
 )
 from dlt.destinations.impl.lance.exceptions import (
-    LanceEmbeddingsConfigurationMissing,
     is_lance_undefined_entity_exception,
     raise_destination_error,
 )
@@ -79,12 +71,15 @@ from dlt.destinations.job_impl import (
     ReferenceFollowupJobRequest,
 )
 from dlt.destinations.impl.lance.lance_adapter import (
-    DEFAULT_REMOVE_ORPHANS,
     VECTORIZE_HINT,
     REMOVE_ORPHANS_HINT,
 )
 from dlt.common.libs.pyarrow import columns_to_arrow, dlt_column_to_arrow_field
-from dlt.destinations.impl.lance.utils import _cast_to_target_types
+from dlt.destinations.impl.lance.utils import (
+    _cast_to_target_types,
+    set_remove_orphans_hint,
+    verify_lance_tables,
+)
 from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
 
 if TYPE_CHECKING:
@@ -389,28 +384,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         # tables receiving data files are not truncated in `initialize_storage`
         self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
-
-        for load_table in loaded_tables:
-            # Skip nested tables as they inherit behavior from parent tables
-            if is_nested_table(load_table):
-                continue
-
-            # Check if this table has orphan removal enabled (either explicitly or via merge strategy)
-            remove_orphans = load_table[REMOVE_ORPHANS_HINT]  # type: ignore[literal-required]
-            merge_keys = get_columns_names_with_prop(load_table, "merge_key")
-
-            # Validate merge key constraints when orphan removal is enabled
-            if remove_orphans and len(merge_keys) > 1:
-                raise DestinationTerminalException(
-                    "Multiple merge keys are not supported when LanceDB orphan removal is"
-                    f" enabled: {merge_keys}"
-                )
-
-            # embeddings configuration must be provided if embed columns exist
-            if not self.config.embeddings:
-                if embed_columns := get_columns_names_with_prop(load_table, VECTORIZE_HINT):
-                    raise LanceEmbeddingsConfigurationMissing(load_table["name"], embed_columns)
-
+        verify_lance_tables(loaded_tables, bool(self.config.embeddings), "lance")
         return loaded_tables
 
     def update_stored_schema(
@@ -443,18 +417,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         return applied_update
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
-        table = super().prepare_load_table(table_name)
-
-        # inherit missing hint from parent table, or use default
-        if REMOVE_ORPHANS_HINT not in table:
-            inherited_hint = get_inherited_table_hint(
-                self.schema.tables, table_name, REMOVE_ORPHANS_HINT, allow_none=True
-            )
-            table[REMOVE_ORPHANS_HINT] = (  # type: ignore[literal-required]
-                inherited_hint if inherited_hint is not None else DEFAULT_REMOVE_ORPHANS
-            )
-
-        return table
+        return set_remove_orphans_hint(super().prepare_load_table(table_name), self.schema.tables)
 
     def get_storage_table(self, table_name: str) -> Tuple[bool, TTableSchemaColumns]:
         table_schema: TTableSchemaColumns = {}
@@ -500,7 +463,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
         if embedding_fields:
             if vector_column not in columns:
-                vec_size = self.embedding_function.ndims()
+                vec_size = self.config.embeddings.dimensions or self.embedding_function.ndims()
                 arrow_schema = arrow_schema.append(
                     pa.field(vector_column, pa.list_(pa.float32(), vec_size))
                 )

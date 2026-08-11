@@ -40,7 +40,7 @@ from dlt.sources.helpers.rest_client import AuthConfigBase, RESTClient
 
 # access secrets to get openai key
 openai_api_key: str = dlt.secrets.get(
-    "destination.lancedb.credentials.embedding_model_provider_api_key"
+    "destination.lancedb.embeddings.credentials.api_key"
 )
 # usually the api-key would be provided to the embedding function via the registry, but there
 # currently is a bug: https://github.com/lancedb/lancedb/issues/2387

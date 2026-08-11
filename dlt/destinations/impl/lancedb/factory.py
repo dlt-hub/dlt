@@ -1,13 +1,14 @@
 from typing import Any, Dict, Optional, Sequence, Type, Union, TYPE_CHECKING
 
+from dlt.common.data_writers.escape import escape_datafusion_literal, escape_postgres_identifier
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.exceptions import MissingDependencyException
+from dlt.destinations.impl.lance.configuration import LanceEmbeddingsConfiguration
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBCredentials,
     LanceDBClientConfiguration,
-    TEmbeddingProvider,
 )
 
 
@@ -27,7 +28,7 @@ if TYPE_CHECKING:
     from dlt.common.libs.ibis import BaseBackend
     from dlt.common.schema import Schema
     from dlt.destinations.impl.lancedb.lancedb_client import LanceDBClient
-    from lancedb import DBConnection
+    from lancedb.remote.db import RemoteDBConnection
 
 
 class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
@@ -45,7 +46,16 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         caps.is_max_query_length_in_bytes = False
         caps.max_text_data_type_length = 8 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = False
+
+        # the SQL endpoint reads only, one statement per request
+        caps.supports_transactions = False
         caps.supports_ddl_transactions = False
+        caps.supports_multiple_statements = False
+        caps.sqlglot_dialect = "postgres"
+        caps.escape_identifier = escape_postgres_identifier
+        caps.escape_literal = escape_datafusion_literal
+        # arrow field names are stored and matched verbatim
+        caps.has_case_sensitive_identifiers = True
 
         caps.decimal_precision = (38, 18)
         caps.wei_precision = (38, 0)
@@ -71,64 +81,51 @@ class lancedb(Destination[LanceDBClientConfiguration, "LanceDBClient"]):
         return LanceDBClient
 
     def create_ibis_backend(
-        self, client: "LanceDBClient", read_only: bool = False, schemas: "Sequence[Schema]" = ()
+        self, client: "LanceDBClient", read_only: bool = False, schemas: Sequence["Schema"] = ()
     ) -> "BaseBackend":
-        """Create an ibis duckdb backend that maps the lancedb tables as in-memory views."""
-        from dlt.helpers.ibis import ibis
-        from dlt.destinations.impl.lancedb.sql_client import LanceDBSQLClient
+        """Creates the dlt ibis backend, which runs expressions over the Arrow Flight SQL endpoint."""
+        from dlt.common.libs.ibis import _DltBackend
+        from dlt.dataset import dataset
 
-        sql_client = client.sql_client
-        assert isinstance(sql_client, LanceDBSQLClient)
-        if schemas:
-            sql_client.set_schemas(schemas)
-        duckdb_conn = sql_client.open_connection()
-        sql_client.create_views_for_all_tables()
-        con = ibis.duckdb.from_connection(duckdb_conn)
-        # disable the destructor so the connection survives handover to ibis
-        client.sql_client = None
-        sql_client.memory_db = None
-        return con
+        # ibis has no LanceDB backend, so the dlt backend compiles expressions and lets the dlt sql
+        # client execute them
+        return _DltBackend.from_dataset(
+            dataset(self, client.dataset_name, schema=list(schemas) or client.schema)
+        )
 
     def __init__(
         self,
-        credentials: Union["DBConnection", LanceDBCredentials, Dict[str, Any]] = None,
-        lance_uri: Optional[str] = None,
-        embedding_model_provider: TEmbeddingProvider = None,
-        embedding_model: str = None,
-        vector_field_name: str = None,
+        credentials: Union["RemoteDBConnection", LanceDBCredentials, Dict[str, Any]] = None,
+        commit_tag: Optional[str] = None,
+        embeddings: Union[LanceEmbeddingsConfiguration, Dict[str, Any]] = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
     ) -> None:
         """Configure the LanceDB destination to use in a pipeline.
 
+        Connects to a managed LanceDB Enterprise or Cloud cluster. Each dataset is a database of the
+        cluster and reads go through its Arrow Flight SQL endpoint.
+
         All arguments provided here supersede other configuration sources such as environment variables and dlt config files.
 
         Args:
-            credentials (Union["DBConnection", LanceDBCredentials, Dict[str, Any]]): Credentials to connect to the LanceDB database. Can be
-                an instance of `LanceDBCredentials` or
-                an instance of native LanceDB client or
+            credentials (Union["RemoteDBConnection", LanceDBCredentials, Dict[str, Any]]): Credentials to connect to the
+                managed cluster. Can be an instance of `LanceDBCredentials` or
+                an already connected managed LanceDB client or
                 a dictionary with the credentials parameters.
-            lance_uri (Optional[str]): LanceDB database URI. Defaults to local, on-disk instance.
-                The available schemas are:
-                - `/path/to/database` - local database.
-                - `db://host:port` - remote database (LanceDB cloud).
-            embedding_model_provider (TEmbeddingProvider, optional): Embedding provider used for generating embeddings.
-                Default is "cohere". See LanceDB documentation for the full list of available providers.
-            embedding_model (str, optional): The model used by the embedding provider for generating embeddings.
-                Default is "embed-english-v3.0". Check with the embedding provider which options are available.
-            vector_field_name (str, optional): Name of the special field to store the vector embeddings.
-                Default is "vector".
+            commit_tag (Optional[str]): Tag applied to every table of the dataset after a successful
+                load, so the dataset can be read back as one tagged version.
+            embeddings (Union[LanceEmbeddingsConfiguration, Dict[str, Any]], optional): Embedding provider,
+                model, and credentials. If not provided, no vector column is added.
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any, optional): Additional arguments forwarded to the destination config
         """
         super().__init__(
             credentials=credentials,
-            lance_uri=lance_uri,
-            embedding_model_provider=embedding_model_provider,
-            embedding_model=embedding_model,
-            vector_field_name=vector_field_name,
+            commit_tag=commit_tag,
+            embeddings=embeddings,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

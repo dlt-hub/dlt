@@ -23,12 +23,15 @@ LANCE_MANIFEST_MODE_PATTERN = re.compile(rf"(?i){LANCE_MANIFEST_MODE}")
 
 
 class LanceEmbeddingsConfigurationMissing(DestinationTerminalException):
-    def __init__(self, table_name: str, columns: List[str]) -> None:
+    def __init__(
+        self, table_name: str, columns: List[str], destination_name: str = "lance"
+    ) -> None:
         columns_str = ", ".join(f"'{col}'" for col in columns)
         super().__init__(
             f"Table `{table_name}` has columns marked for embedding ({columns_str}) but is"
-            " missing embeddings configuration. Either configure `embeddings` on the lance"
-            " destination or remove the `embed` argument from `lance_adapter()`."
+            " missing embeddings config. Either configure `embeddings` on the"
+            f" {destination_name} destination or remove the `embed` argument from"
+            f" `{destination_name}_adapter()`."
         )
 
 

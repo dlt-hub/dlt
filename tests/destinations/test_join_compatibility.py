@@ -191,15 +191,17 @@ def _sqla_config(conn_str: str) -> SqlalchemyClientConfiguration:
 
 
 def _lancedb_config(
-    lance_uri: str,
+    database: Optional[str],
     dataset_name: str = "dataset",
-    dataset_separator: str = "___",
+    host_override: Optional[str] = "https://cluster",
+    api_key: Optional[str] = "key",
+    region: Optional[str] = "us-east-1",
 ) -> LanceDBClientConfiguration:
-    """Build resolved LanceDB config."""
+    """Build resolved LanceDB config. Defaults to one Enterprise cluster."""
     c = LanceDBClientConfiguration(
-        lance_uri=lance_uri,
-        credentials=LanceDBCredentials(uri=lance_uri),
-        dataset_separator=dataset_separator,
+        credentials=LanceDBCredentials(
+            database=database, host_override=host_override, api_key=api_key, region=region
+        ),
     )
     c._bind_dataset_name(dataset_name)
     return c
@@ -1123,36 +1125,48 @@ def test_sqlalchemy_can_read_from(conn1: str, conn2: str, expected: bool) -> Non
     "f1,f2,expected",
     [
         pytest.param(
-            lambda: _lancedb_config("/tmp/db.lancedb"),
-            lambda: _lancedb_config("/tmp/db.lancedb"),
+            lambda: _lancedb_config("db1"),
+            lambda: _lancedb_config("db1"),
             True,
-            id="same_uri",
+            id="same_database",
+        ),
+        # a dataset is a database and one endpoint accesses every database of the cluster
+        pytest.param(
+            lambda: _lancedb_config("db1"),
+            lambda: _lancedb_config("db2"),
+            True,
+            id="different_database_same_cluster",
         ),
         pytest.param(
-            lambda: _lancedb_config("/tmp/db1.lancedb"),
-            lambda: _lancedb_config("/tmp/db2.lancedb"),
+            lambda: _lancedb_config("db1", dataset_name="dataset1"),
+            lambda: _lancedb_config("db1", dataset_name="dataset2"),
             True,
-            id="different_uri",
+            id="different_dataset_same_database",
         ),
         pytest.param(
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_name="dataset1"),
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_name="dataset2"),
-            True,
-            id="different_dataset_same_uri",
+            lambda: _lancedb_config("db1", host_override="https://cluster1"),
+            lambda: _lancedb_config("db1", host_override="https://cluster2"),
+            False,
+            id="different_cluster",
         ),
-        # any table at the same location is readable via the same ATTACH,
-        # separator only affects table naming
+        # Cloud has no dedicated endpoint, so the api key is what tells two accounts apart
         pytest.param(
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_separator="___"),
-            lambda: _lancedb_config("/tmp/db.lancedb", dataset_separator="__"),
+            lambda: _lancedb_config("db1", host_override=None, api_key="tenant_a"),
+            lambda: _lancedb_config("db2", host_override=None, api_key="tenant_a"),
             True,
-            id="different_separator_same_uri",
+            id="cloud_same_account",
         ),
         pytest.param(
-            lambda: _lancedb_config(":external:"),
-            lambda: _lancedb_config(":external:"),
-            True,
-            id="external_native_client",
+            lambda: _lancedb_config("db1", host_override=None, api_key="tenant_a"),
+            lambda: _lancedb_config("db1", host_override=None, api_key="tenant_b"),
+            False,
+            id="cloud_different_account",
+        ),
+        pytest.param(
+            lambda: _lancedb_config("db1", host_override=None, region="us-east-1"),
+            lambda: _lancedb_config("db1", host_override=None, region="eu-west-1"),
+            False,
+            id="cloud_different_region",
         ),
     ],
 )
@@ -1160,10 +1174,40 @@ def test_lancedb_can_read_from(f1: ConfigFactory, f2: ConfigFactory, expected: b
     assert_join_result(f1(), f2(), expected)
 
 
+def test_lancedb_without_a_cluster_has_no_location() -> None:
+    """Neither an Enterprise endpoint nor a Cloud api key means no cluster to compare or connect to,
+    so dlt raises a configuration error instead of reporting a failed join."""
+    unidentified = _lancedb_config("db1", host_override=None, api_key=None, region=None)
+    identified = _lancedb_config("db1")
+
+    with pytest.raises(ConfigurationValueError, match="neither `host_override` nor `api_key`"):
+        unidentified.data_location()
+    with pytest.raises(ConfigurationValueError):
+        identified.can_read_from(unidentified)
+    # a fingerprint is used for telemetry, so it stays blank rather than raising
+    assert unidentified.fingerprint() == ""
+
+
+def test_lancedb_external_client_is_its_own_location() -> None:
+    """An external client hides its endpoint, so only the client object identifies the cluster."""
+    client = object()
+    on_client = _lancedb_config("db1", host_override=None, api_key=None, region=None)
+    on_client.credentials._conn = client
+    same_client = _lancedb_config("db2", host_override=None, api_key=None, region=None)
+    same_client.credentials._conn = client
+    other_client = _lancedb_config("db1", host_override=None, api_key=None, region=None)
+    other_client.credentials._conn = object()
+
+    assert_joinable(on_client, same_client)
+    assert_not_joinable(on_client, other_client)
+    # the client wins over an endpoint, which it need not be using
+    assert on_client.data_location() != _lancedb_config("db1").data_location()
+
+
 def test_lancedb_can_never_write() -> None:
     """dlt is the only engine that writes to LanceDB, so SQL write is never possible."""
-    c1 = _lancedb_config("/tmp/db.lancedb")
-    c2 = _lancedb_config("/tmp/db.lancedb")
+    c1 = _lancedb_config("db1")
+    c2 = _lancedb_config("db1")
     # same location is readable but not writable
     assert c1.can_read_from(c2)
     assert not c1.can_write_from(c2)
@@ -1270,11 +1314,11 @@ def test_lance_can_never_write() -> None:
     assert not c1.can_write_from(c1)
 
 
-def test_lance_and_lancedb_can_join_with_each_other() -> None:
-    """Both read `.lance` data through the same duckdb extension, so either attaches the other."""
+def test_lance_and_lancedb_cannot_join_with_each_other() -> None:
+    """`lancedb` data sits on a managed cluster that no duckdb extension attaches, unlike `lance`."""
     lance = _lance_config("file:///tmp/lance")
-    lancedb = _lancedb_config("file:///tmp/lance")
-    assert_joinable(lance, lancedb)
+    lancedb = _lancedb_config("db1")
+    assert_not_joinable(lance, lancedb)
 
 
 def test_weaviate_data_location_but_not_joinable() -> None:

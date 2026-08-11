@@ -1,12 +1,10 @@
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
 from dlt.extract.items import TTableHintTemplate
-
-DEFAULT_REMOVE_ORPHANS = True
 
 VECTORIZE_HINT = "x-lance-embed"
 REMOVE_ORPHANS_HINT = "x-lance-remove-orphans"
@@ -16,7 +14,7 @@ def lance_adapter(
     data: Any,
     embed: TColumnNames = None,
     merge_key: TColumnNames = None,
-    remove_orphans: bool = DEFAULT_REMOVE_ORPHANS,
+    remove_orphans: Optional[bool] = None,
 ) -> DltResource:
     """Prepares data for the Lance destination by specifying which columns should be embedded.
 
@@ -28,8 +26,8 @@ def lance_adapter(
             It can be a single column name as a string, or a list of column names.
         merge_key (TColumnNames): Specify columns to merge on.
             It can be a single column name as a string, or a list of column names.
-        remove_orphans (bool): Whether to remove orphaned records in child
-            tables with no parent records after merges to maintain referential integrity.
+        remove_orphans (Optional[bool]): Whether a merge deletes the chunks a reloaded document no
+            longer produces. Defaults to `None`, which turns it on for a single merge key.
 
     Returns:
         DltResource: A resource with applied Lance-specific hints.
@@ -63,7 +61,9 @@ def lance_adapter(
                 "nullable": True,
             }
 
-    additional_table_hints[REMOVE_ORPHANS_HINT] = remove_orphans
+    # an absent hint is resolved per table by `set_remove_orphans_hint`
+    if remove_orphans is not None:
+        additional_table_hints[REMOVE_ORPHANS_HINT] = remove_orphans
 
     if column_hints or additional_table_hints or merge_key:
         resource.apply_hints(

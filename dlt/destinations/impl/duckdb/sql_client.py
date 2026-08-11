@@ -58,6 +58,7 @@ from dlt.destinations.sql_client import (
     TAttachStatement,
     TAttachType,
     WithAttach,
+    WithReadonlyClient,
     WithSchemas,
     attach_statement,
     raise_database_error,
@@ -600,7 +601,7 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
         return isinstance(ex, duckdb.Error)
 
 
-class WithTableScanners(DuckDbSqlClient, WithSchemas):
+class WithTableScanners(DuckDbSqlClient, WithSchemas, WithReadonlyClient):
     memory_db: duckdb.DuckDBPyConnection = None
     """Internally created in-mem database in case external is not provided"""
 

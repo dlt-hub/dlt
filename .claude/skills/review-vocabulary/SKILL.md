@@ -44,7 +44,7 @@ In scope, when the branch **added or changed** the line:
 | Snippet files a page pulls from | `*snippets.py` — comments as docs, code as a test (see below) |
 
 When the maintainer asks for a **whole-file** docs review, pre-existing prose in those files is in
-scope too. Say which mode you are in; the default is added-or-changed lines only.
+scope too. Say which mode you are in. The default is added-or-changed lines only.
 
 Out of scope:
 
@@ -59,7 +59,7 @@ Out of scope:
 
 ## Classification
 
-Get this right first; every other rule depends on it.
+Get this right first. Every other rule depends on it.
 
 | Text | Mode | Limit | Shape |
 |---|---|---|---|
@@ -100,7 +100,7 @@ them**. They therefore get two reviews at once, against two different rule sets:
 Consequences worth knowing:
 
 - **Comments inside a snippet render to the reader**, so a stale or wrong one is a doc bug, not a
-  code-hygiene nit. Judge them as prose. A comment that labels a step is INSTRUCTION; a comment
+  code-hygiene nit. Judge them as prose. A comment that labels a step is INSTRUCTION. A comment
   that explains behavior is REFERENCE.
 - **The repo comment rule still applies to the code.** Default to no comment. But a snippet is
   teaching material, so a comment that would be redundant in library code can earn its place here.
@@ -117,7 +117,7 @@ One word, one meaning, one part of speech (Rules 1.11, 9.4). Apply the tables be
 rewriting.
 
 The vocabulary is organised in **groups**, one per area of dlt. A group is self-contained: its
-included terms, its excluded terms, and the rulings that are easy to get wrong in that area. Groups
+included terms, its excluded terms, and the exceptions that are easy to get wrong in that area. Groups
 grow independently — a review only needs the groups its diff touches, and adding an area means
 adding a group, not editing the others.
 
@@ -125,18 +125,23 @@ Groups defined so far:
 
 | Group | Covers |
 |---|---|
-| [G1 — Data access and locations](#g1--data-access-and-locations) | destinations, datasets, physical locations, join compatibility |
+| [G1 — Data access and locations](#g1--data-access-and-locations) | destinations, datasets, data locations, join compatibility |
 | [G2 — Attach and foreign datasets](#g2--attach-and-foreign-datasets) | cross-destination joins, attach info, catalog aliases |
 | [G3 — Transformations and materialization](#g3--transformations-and-materialization) | relations, transformations, model jobs, eager and lazy paths |
 | [G4 — Identifiers and SQL generation](#g4--identifiers-and-sql-generation) | naming conventions, case-folding, query binding |
 | [G5 — Configuration and credentials](#g5--configuration-and-credentials) | configs, credentials, secrets |
+| [G6 — dlt entities](#g6--dlt-entities) | destinations, datasets, schemas, tables, load packages — the official entity model |
 
-Two rules apply across every group:
+Four rules apply across every group:
 
 - **`dlt` is the sentence subject in messages.** That is how an error gets active voice with a
   named agent (Rule 3.6): "dlt cannot join…", "dlt cannot determine…". House style.
 - **A banned word is banned for one meaning, not always.** Every group below names its legal
   exceptions. Check them before "fixing" a hit.
+- **Every included term is a noun** unless its row says otherwise. Do not verb it (Rule 1.7).
+- **An exception records a legal use, in one sentence of 25 words, and there is at most one per
+  banned term.** A term that needs two exceptions has a ban that is too wide. Narrow the ban
+  instead of adding prose. Anything derivable from the two tables belongs in a table cell.
 
 ---
 
@@ -156,16 +161,15 @@ Two rules apply across every group:
 | Never | Because |
 |---|---|
 | reach, reaches, reachable, in reach of, out of reach, get to | one word for one concept — `access` |
-| physical location, physical destination, physical dataset (in prose) | say **data location**; the method `data_location()` keeps its name |
+| physical location, physical destination, physical dataset (in prose) | say **data location**. The method `data_location()` keeps its name |
 
-**Rulings**
+**Exceptions**
 
-- **`access` is a VERB.** Do not introduce noun uses — no "data access", no "access is one-way".
-  Write "the engine accesses the data", "only one direction accesses the data". Pre-existing noun
-  uses stay.
-- **`reach` is not always `access`.** "`SET SESSION` would not reach the cloned sessions" means
-  *propagate to*, not *read data from*. A literal swap changes the meaning — restructure
-  (Rule 9.1).
+- `reach` also means *propagate to*, *arrive at*, *connect via* and *is passed to*. Restructure those
+  (Rule 9.1) rather than swapping in `access`.
+- Pre-existing noun uses of `access` stay.
+- The entity model says *"physical location"*, but the method is `data_location()`, so `data
+  location` wins.
 
 ---
 
@@ -180,6 +184,8 @@ Two rules apply across every group:
 | the SQL keyword | `` `ATTACH` `` in backticks |
 | the action in prose | **attach** (lowercase, a verb) |
 | the catalog a foreign dataset lands under | **attach alias** |
+| a dataset this destination does not manage | **foreign dataset** |
+| a destination table inside one | **a table in a foreign dataset** |
 
 **Excluded**
 
@@ -188,13 +194,13 @@ Two rules apply across every group:
 | descriptor (for `TAttachInfo`) | `attach info` matches the type and the method `_attach_infos()` |
 | bare `ATTACH` as a prose noun, `ATTACHed`, "attaches" as a plural noun | backtick the keyword, or use the verb |
 | attach instructions | one name — **attach statements** |
+| foreign table | `foreign` attaches to `dataset`, not to `table` |
 
-**Rulings**
+**Exceptions**
 
-- **`descriptor` is legal for the Python descriptor protocol.** `dlt/common/utils.py` describes a
-  real Python descriptor. The ban covers naming the `TAttachInfo` object only.
-- **`attach info` and `attach statement` are different things.** One is the whole descriptor for a
-  foreign dataset; the other is a single SQL statement inside it. Do not collapse them.
+- `descriptor` is legal for the Python descriptor protocol, as in `dlt/common/utils.py`.
+- A foreign dataset needs no second destination. One database can hold two datasets, and `dlt`
+  manages one of them.
 
 ---
 
@@ -215,11 +221,10 @@ Two rules apply across every group:
 | model extraction | not a thing — it is a **model job** |
 | executed here | say **eager materialization** |
 
-**Rulings**
+**Exceptions**
 
-- **`lazy` and `eager` are legal only for materialization.** dlt has both. Using `lazily` to mean
-  *on first use* (memoization) is a second meaning for one word — write "on the first read".
-- **A model job is the artifact; lazy materialization is the path.** Use the one you mean.
+- `lazily` meaning *on first use* is banned, because dlt has real lazy materialization. Write "on the
+  first read".
 
 ---
 
@@ -235,12 +240,11 @@ Two rules apply across every group:
 
 | Never | Because |
 |---|---|
-| casefold, post-fold (in prose) | one spelling — **case-fold**; the identifier `casefold_identifier` keeps its name |
+| casefold, post-fold (in prose) | one spelling — **case-fold**. The identifier `casefold_identifier` keeps its name |
 
-**Rulings**
+**Exceptions**
 
-- **Hyphenated compounds on the `fold` root are legal** — "foreign-folded output column" reads
-  correctly and is in use. The ban is on the bare spelling `casefold` in prose.
+- Hyphenated compounds on the `fold` root are legal, as in "foreign-folded output column".
 
 ---
 
@@ -256,14 +260,79 @@ Two rules apply across every group:
 
 | Never | Because |
 |---|---|
-| configuration (for the object) | `config`; keep "configuration error" when it names `ConfigurationValueError` |
+| configuration (for the object) | `config`. Keep "configuration error" when it names `ConfigurationValueError` |
+| pin, pinned, pinning | one word for three mechanisms — binding a config value, exempting a version from cleanup, fixing a dependency. Name the mechanism: **configure**, **set**. The noun becomes **the configured database** |
+
+**Exceptions**
+
+- `dlt profile pin` keeps the word until that command is removed. Do not extend it, and do not cite
+  it as a precedent.
+
+---
+
+### G6 — dlt entities
+
+Derived from [dlt Entities, their Lifecycles and Relations](https://app.notion.com/p/2679fb8e23cf80169921c4ea069bfff8),
+which is the authority for this group. When that page and this table disagree, say so in the proposal
+rather than picking one silently.
+
+**Included**
+
+| Concept | Write |
+|---|---|
+| the data store, a root entity | **destination** |
+| its identifying name | **destination name** |
+| the module implementing it | **destination type** |
+| what it can do | **destination capabilities** |
+| the physical object where the schema tables of a schema version are materialized | **dataset** |
+| the temporary one before it | **staging dataset** |
+| a physical table in a dataset | **destination table** |
+| the pipeline schema | **schema** |
+| one immutable revision of it | **schema version**, identified by **version hash** |
+| the revision now in force | **active schema version** |
+| a table as the schema defines it | **schema table** |
+| one table's column layout | **table schema** |
+| the `pa.Schema` object specifically | **arrow schema** |
+| a unit of data to load, a root entity | **load package**, identified by **load id** |
+| the four steps of a run | **extract step**, **normalize step**, **load step**, **sync** |
+| one unit of work in a package | **job** |
+| putting a dataset onto a destination | **materialize** |
+
+**Excluded**
+
+| Never | Because |
+|---|---|
+| database schema | `destination-tables.md` defines it as the loaded set of tables, which is roughly a dataset. On a destination where a dataset *is* a database it becomes a third meaning |
+| physical schema, destination schema | **schema** for the definition, **table schema** for the layout |
+| target, sink, data store (for a destination) | one name — **destination** |
+| schema meaning a dataset | `pipeline.md` glosses a dataset as *"`schema` in relational databases"*. Legal in general usage, fatal on a destination that has a real SQL schema |
+| source meaning the incoming rows of a merge | `source` is a root entity — a Python module that extracts |
+| bare table where both table kinds appear in one sentence | say which |
+
+**Defaults**
+
+- Bare `schema` is the pipeline schema. Qualify as `dlt schema` only where a table schema, an arrow
+  schema or a SQL schema shares the file.
+- Bare `table` follows its scope: **destination table** in `dlt/destinations/impl/**` and destination
+  doc pages, **schema table** in core, normalize and extract. Qualify only where both meet.
+
+**Exceptions**
+
+- `load` as a loose noun is legal. A claim about commit, atomicity, retry or ordering must name the
+  entity instead.
+- `` `dlt` tables `` is established for `_dlt_loads`, `_dlt_version` and `_dlt_pipeline_state`.
+- `job` is the load-package job. G3's model job is one kind, and dlt's job client is unrelated.
+- `table schema` and `schema table` are near-anagrams for different things. Never put both in one
+  sentence.
 
 ---
 
 ### Legal technical nouns — never replace, any group (Rules 1.5, 1.8)
 
 attach, attach alias, attach info, attach statement, catalog, config, data location, dataset,
-destination, duckdb, iceberg, materialization, model job, pipeline, relation, scanner, vended.
+destination, destination table, duckdb, foreign dataset, iceberg, job, load id, load package,
+materialization, model job, pipeline, relation, scanner, schema table, schema version, table schema,
+vended.
 
 ## Rules this codebase breaks most
 
@@ -375,7 +444,7 @@ data location".
 Never just record a term. Take these eight steps.
 
 1. **Pick the group.** No group fits? Add one. Give it the next `G<n>`, an index entry, and the
-   three parts: included, excluded, rulings. A group without excluded terms is not finished.
+   three parts: included, excluded, exceptions. A group without excluded terms is not finished.
 2. **Research the usage.** Grep `dlt/`, `tests/` and `docs/` for the word and every synonym. Count
    the hits. Read enough to find the meanings in play. One word often covers two concepts.
 3. **Derive the banned set.** A term is useless without one. For each synonym and inflection,
@@ -384,14 +453,14 @@ Never just record a term. Take these eight steps.
    type name. `access` won because `needs_attach` already said "accesses its data". `attach info`
    won because the type is `TAttachInfo`.
 5. **Name the false positives.** `descriptor` is banned for `TAttachInfo` and correct for the
-   Python descriptor protocol. Put the exception in the rulings, or the next run "fixes" it.
+   Python descriptor protocol. Record it under exceptions, or the next run "fixes" it.
 6. **Fix the part of speech.** Say noun or verb, and ban the other use. `access` is a verb, so
    "data access" is a violation.
 7. **Test the ban before you write it.** Grep for the word you intend to exclude. Compliant prose
    already uses it? Then the ban is too wide. Narrow it to the meaning you mean. `inaccessible`
    and `foreign-folded` passed this check and stay legal. `casefold` and `attach instructions`
    failed it and are banned.
-8. **Update this file.** Add rows to both tables. Add a ruling when the term has a legal exception.
+8. **Update this file.** Add rows to both tables. Add an exception only for a legal use.
    State what becomes newly compliant and what becomes newly non-compliant. A term that flips
    direction turns compliant prose into findings.
 

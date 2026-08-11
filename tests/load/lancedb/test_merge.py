@@ -10,7 +10,13 @@ import dlt
 from dlt.common import pendulum
 from dlt.common.typing import DictStrAny, DictStrStr
 
-from tests.load.lancedb.utils import LANCE_DEST_CONFS, chunk_document, get_adapter, open_lance_table
+from tests.load.lancedb.utils import (
+    LANCE_DEST_CONFS,
+    chunk_document,
+    get_adapter,
+    open_lance_table,
+    read_arrow_table,
+)
 from tests.load.utils import (
     DestinationTestConfiguration,
     destinations_configs,
@@ -53,6 +59,8 @@ def test_lancedb_remove_nested_orphaned_records(
         data: List[DictStrAny],
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
+
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
 
     run_1 = [
         {
@@ -121,13 +129,16 @@ def test_lancedb_remove_nested_orphaned_records(
         grandchild_tbl = open_lance_table(client, "parent__child__grandchild")
 
         actual_parent_df = (
-            parent_tbl.to_arrow().to_pandas().sort_values(by="id").reset_index(drop=True)
+            read_arrow_table(parent_tbl).to_pandas().sort_values(by="id").reset_index(drop=True)
         )
         actual_child_df = (
-            child_tbl.to_arrow().to_pandas().sort_values(by="bar").reset_index(drop=True)
+            read_arrow_table(child_tbl).to_pandas().sort_values(by="bar").reset_index(drop=True)
         )
         actual_grandchild_df = (
-            grandchild_tbl.to_arrow().to_pandas().sort_values(by="baz").reset_index(drop=True)
+            read_arrow_table(grandchild_tbl)
+            .to_pandas()
+            .sort_values(by="baz")
+            .reset_index(drop=True)
         )
 
         expected_parent_data = expected_parent_data.sort_values(by="id").reset_index(drop=True)
@@ -139,6 +150,69 @@ def test_lancedb_remove_nested_orphaned_records(
         assert_frame_equal(actual_parent_df[["id"]], expected_parent_data)
         assert_frame_equal(actual_child_df[["bar"]], expected_child_data)
         assert_frame_equal(actual_grandchild_df[["baz"]], expected_grandchild_data)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    LANCE_DEST_CONFS,
+    ids=lambda x: x.name,
+)
+def test_remove_orphans_across_multiple_job_files(
+    destination_config: DestinationTestConfiguration,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Rows of one document that span several job files survive orphan removal."""
+    # rotate job files so a single document's children land in more than one parquet file
+    monkeypatch.setenv("NORMALIZE__DATA_WRITER__FILE_MAX_ITEMS", "2")
+
+    pipeline = destination_config.setup_pipeline(
+        pipeline_name="test_remove_orphans_across_multiple_job_files",
+        dev_mode=True,
+    )
+
+    @dlt.resource(
+        table_name="parent",
+        write_disposition={"disposition": "merge", "strategy": "upsert"},
+        primary_key="id",
+        merge_key="id",
+    )
+    def identity_resource(
+        data: List[DictStrAny],
+    ) -> Generator[List[DictStrAny], None, None]:
+        yield data
+
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
+
+    run_1 = [
+        {"id": 1, "child": [{"bar": bar} for bar in range(5)]},
+        {"id": 2, "child": [{"bar": 100}]},
+    ]
+    info = pipeline.run(identity_resource(run_1))
+    assert_load_info(info)
+
+    # the premise of the test: `parent__child` really was written as several job files
+    child_jobs = [
+        job
+        for job in info.load_packages[0].jobs["completed_jobs"]
+        if job.job_file_info.table_name == "parent__child"
+        and job.job_file_info.file_format == "parquet"
+    ]
+    assert len(child_jobs) > 1
+
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        children = read_arrow_table(open_lance_table(client, "parent__child")).to_pydict()
+        assert set(children["bar"]) == {0, 1, 2, 3, 4, 100}
+
+    # shrinking a document removes exactly its dropped children, leaving the other document alone
+    run_2 = [{"id": 1, "child": [{"bar": 0}, {"bar": 1}]}]
+    info = pipeline.run(identity_resource(run_2))
+    assert_load_info(info)
+
+    with pipeline.destination_client() as client:
+        client = cast(TLanceDestinationClient, client)
+        children = read_arrow_table(open_lance_table(client, "parent__child")).to_pydict()
+        assert set(children["bar"]) == {0, 1, 100}
 
 
 @pytest.mark.parametrize(
@@ -165,7 +239,7 @@ def test_lancedb_remove_orphaned_records_root_table(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    get_adapter(destination_config)(identity_resource)
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "1a"},
@@ -204,7 +278,7 @@ def test_lancedb_remove_orphaned_records_root_table(
         tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
-            tbl.to_arrow()
+            read_arrow_table(tbl)
             .to_pandas()
             .sort_values(by=["doc_id", "chunk_hash"])
             .reset_index(drop=True)
@@ -237,7 +311,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    get_adapter(destination_config)(identity_resource)
+    get_adapter(destination_config)(identity_resource, remove_orphans=True)
 
     run_1 = [
         {"doc_id": "A", "chunk_hash": "1a"},
@@ -276,7 +350,7 @@ def test_lancedb_remove_orphaned_records_root_table_string_doc_id(
         tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
-            tbl.to_arrow()
+            read_arrow_table(tbl)
             .to_pandas()
             .sort_values(by=["doc_id", "chunk_hash"])
             .reset_index(drop=True)
@@ -318,6 +392,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
     get_adapter(destination_config)(
         documents,
         embed=["chunk"],
+        remove_orphans=True,
     )
 
     pipeline = destination_config.setup_pipeline(
@@ -361,7 +436,7 @@ def test_lancedb_root_table_remove_orphaned_records_with_real_embeddings(
     with pipeline.destination_client() as client:
         client = cast(TLanceDestinationClient, client)
         tbl = open_lance_table(client, "document")
-        df = tbl.to_arrow().to_pandas()
+        df = read_arrow_table(tbl).to_pandas()
 
         # Check (non-empty) embeddings as present, and that orphaned embeddings have been discarded.
         assert len(df) == 21
@@ -395,7 +470,7 @@ def test_lancedb_compound_merge_key_root_table(
     ) -> Generator[List[DictStrAny], None, None]:
         yield data
 
-    get_adapter(destination_config)(identity_resource, no_remove_orphans=True)
+    get_adapter(destination_config)(identity_resource, remove_orphans=False)
 
     run_1 = [
         {"doc_id": 1, "chunk_hash": "a", "foo": "bar", "child": [{"val": 1}, {"val": 2}]},
@@ -428,7 +503,7 @@ def test_lancedb_compound_merge_key_root_table(
         tbl = open_lance_table(client, "root")
 
         actual_root_df: DataFrame = (
-            tbl.to_arrow()
+            read_arrow_table(tbl)
             .to_pandas()
             .sort_values(by=["doc_id", "chunk_hash", "foo"])
             .reset_index(drop=True)
@@ -444,7 +519,7 @@ def test_lancedb_compound_merge_key_root_table(
 
         child_tbl = open_lance_table(client, "root__child")
         actual_child_df = (
-            child_tbl.to_arrow().to_pandas().sort_values(by="val").reset_index(drop=True)
+            read_arrow_table(child_tbl).to_pandas().sort_values(by="val").reset_index(drop=True)
         )[["val"]]
 
         assert_frame_equal(actual_child_df, expected_child_df)
@@ -466,6 +541,8 @@ def test_must_provide_at_least_primary_key_on_merge_disposition(
     @dlt.resource(write_disposition={"disposition": "merge", "strategy": "upsert"})
     def some_data() -> Generator[DictStrStr, Any, None]:
         yield from next(generator_instance1)
+
+    get_adapter(destination_config)(some_data, remove_orphans=True)
 
     pipeline = destination_config.setup_pipeline(
         pipeline_name="test_must_provide_both_primary_and_merge_key_on_merge_disposition",

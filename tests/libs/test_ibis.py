@@ -51,17 +51,22 @@ def test_connect_to_backend(populated_pipeline: dlt.Pipeline):
 
 def test_list_tables(populated_pipeline: dlt.Pipeline):
     backend = _DltBackend.from_dataset(populated_pipeline.dataset())
+    # the backend unifies every schema of the dataset, so `digits` of the second schema is listed
     expected_table_names = [
-        "_dlt_version",
-        "_dlt_loads",
         "items",
         "double_items",
         "orderable_in_chain",
-        "_dlt_pipeline_state",
         "items__children",
+        "digits",
+        "_dlt_version",
+        "_dlt_loads",
+        "_dlt_pipeline_state",
     ]
 
     assert backend.list_tables() == expected_table_names
+    # a listed table must be describable, including `digits` which the default schema does not hold
+    for table_name in expected_table_names:
+        assert backend.get_schema(table_name)
 
 
 def test_get_schema(populated_pipeline: dlt.Pipeline):
