@@ -170,7 +170,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
             msg += "\n" + "\n\n".join([s.asstr(verbosity) for s in self.steps])
         return msg
 
-    def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
+    def last_pipeline_step_trace(self, step_name: TPipelineStep) -> Optional[PipelineStepTrace]:
         matching_steps = [step for step in self.steps if step.step == step_name]
         if not matching_steps:
             return None
@@ -188,21 +188,21 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return d
 
     @property
-    def last_extract_info(self) -> ExtractInfo:
+    def last_extract_info(self) -> Optional[ExtractInfo]:
         step_trace = self.last_pipeline_step_trace("extract")
         if step_trace and isinstance(step_trace.step_info, ExtractInfo):
             return step_trace.step_info
         return None
 
     @property
-    def last_normalize_info(self) -> NormalizeInfo:
+    def last_normalize_info(self) -> Optional[NormalizeInfo]:
         step_trace = self.last_pipeline_step_trace("normalize")
         if step_trace and isinstance(step_trace.step_info, NormalizeInfo):
             return step_trace.step_info
         return None
 
     @property
-    def last_load_info(self) -> LoadInfo:
+    def last_load_info(self) -> Optional[LoadInfo]:
         step_trace = self.last_pipeline_step_trace("load")
         if step_trace and isinstance(step_trace.step_info, LoadInfo):
             return step_trace.step_info
