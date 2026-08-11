@@ -70,14 +70,25 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
     `INSTALL`, `ATTACH` and `CREATE SECRET`"""
     local_config: Optional[Dict[str, Any]] = None
     """Local config applied to each borrowed connection"""
+    session_timezone: Optional[str] = "UTC"
+    """`TimeZone` set on each newly opened connection, which its sessions inherit. `None` keeps
+    the duckdb default"""
     conn_pool: Annotated[Optional["DuckDbConnectionPool"], NotResolved()] = None
+
+    def external_conn(self) -> Optional[DuckDBPyConnection]:
+        """Returns the connection that the caller passed, `None` when dlt opens its own."""
+        if conn := getattr(self, "_external_conn", None):
+            return conn  # type: ignore[no-any-return]
+        if self.conn_pool is not None and not self.conn_pool._conn_owner:
+            return self.conn_pool._conn
+        return None
 
     def copy(self: "DuckDbBaseCredentials") -> "DuckDbBaseCredentials":
         new_obj = super().copy()
         # conn_pool holds threading state that must not be shared across copies
-        if self.conn_pool is not None and not self.conn_pool._conn_owner:
+        if conn := self.external_conn():
             # external connection: set _external_conn so pool constructor picks it up
-            new_obj._external_conn = self.conn_pool._conn
+            new_obj._external_conn = conn
             new_obj.conn_pool = DuckDbConnectionPool(new_obj)
         else:
             # owned connection: let on_resolved() create a fresh pool
@@ -85,6 +96,13 @@ class DuckDbBaseCredentials(CredentialsConfiguration):
         return new_obj
 
     def parse_native_representation(self, native_value: Any) -> None:
+        if isinstance(native_value, DuckDbBaseCredentials):
+            # the resolver copies only the fields of a credentials instance passed to a factory,
+            # so the caller's connection would be lost
+            if conn := native_value.external_conn():
+                self._external_conn = conn
+                self.database = self._external_conn_database(conn)
+            return
         try:
             # check if database was passed as explicit connection
             import duckdb
@@ -207,7 +225,6 @@ class DuckDbConnectionPool:
                     self._apply_config(new_conn, "GLOBAL", global_config)
                     # before local config: a statement can create the schema that `search_path` names
                     self._execute_statements(new_conn)
-                    # apply local config to original connection
                     self._apply_local_config(new_conn, local_config, pragmas)
                 except Exception:
                     if self._conn_owner:
@@ -369,6 +386,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
         pragmas: Optional[List[str]] = None,
         statements: Optional[List[str]] = None,
         local_config: Optional[Dict[str, Any]] = None,
+        session_timezone: Optional[str] = "UTC",
     ) -> None:
         """Initialize DuckDB credentials with a connection or file path and connection settings.
 
@@ -383,6 +401,8 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
                 `INSTALL`, `ATTACH` and `CREATE SECRET`. Session settings belong in `pragmas`
                 or `local_config`
             local_config: Dictionary of local configuration settings applied to each cursor connection
+            session_timezone: `TimeZone` set on each newly opened connection, which its cursor
+                connections inherit. `None` keeps the duckdb default
         """
         self._apply_init_value(conn_or_path)
         self.read_only = read_only
@@ -391,6 +411,7 @@ class DuckDbCredentials(DuckDbBaseCredentials, ConnectionStringCredentials):
         self.pragmas = pragmas
         self.statements = statements
         self.local_config = local_config
+        self.session_timezone = session_timezone
 
 
 @configspec

@@ -9,7 +9,7 @@ from dlt.common.utils import uniq_id
 
 from dlt.destinations.impl.postgres.configuration import PostgresCredentials
 from dlt.destinations.impl.postgres.postgres import PostgresClient
-from dlt.destinations.impl.postgres.sql_client import psycopg2
+from dlt.destinations.impl.postgres.sql_client import Psycopg2SqlClient, psycopg2
 
 from tests.utils import get_test_storage_root, delete_test_storage, skipifpypy
 from tests.load.utils import expect_load_file, prepare_table, yield_client_with_storage
@@ -80,6 +80,44 @@ def test_postgres_query_params() -> None:
     assert csc.client_encoding == "utf-8"
     assert csc.get_query().get("options") == "-ctimezone=Europe/Paris"
     assert csc.to_native_representation() == dsn
+
+
+def test_postgres_session_timezone_query_params() -> None:
+    csc = PostgresCredentials("postgres://loader:pass@localhost:5432/dlt_data")
+    assert "options" not in csc.get_query()
+
+    csc.session_timezone = "Europe/Paris"
+    assert csc.get_query()["options"] == "-ctimezone=Europe/Paris"
+
+    # dlt appends it to the options you already set
+    csc = PostgresCredentials(
+        "postgres://loader:pass@localhost:5432/dlt_data?options=-cstatement_timeout%3D5000"
+    )
+    csc.session_timezone = "UTC"
+    assert csc.get_query()["options"] == "-cstatement_timeout=5000 -ctimezone=UTC"
+
+    # a timezone already in the options takes precedence
+    csc = PostgresCredentials(
+        "postgres://loader:pass@localhost:5432/dlt_data?options=-ctimezone%3DAsia%2FTokyo"
+    )
+    csc.session_timezone = "UTC"
+    assert csc.get_query()["options"] == "-ctimezone=Asia/Tokyo"
+
+
+def test_postgres_session_timezone(client: PostgresClient) -> None:
+    """The timezone is a startup option. It survives the reset that `dlt` runs after an error."""
+    credentials = client.config.credentials.copy()
+    credentials.session_timezone = "Europe/Paris"
+    sql_client = Psycopg2SqlClient(
+        client.sql_client.dataset_name,
+        client.sql_client.staging_dataset_name,
+        credentials,
+        client.capabilities,
+    )
+    with sql_client:
+        assert sql_client.execute_sql("SHOW timezone")[0][0] == "Europe/Paris"
+        sql_client._reset_connection()
+        assert sql_client.execute_sql("SHOW timezone")[0][0] == "Europe/Paris"
 
 
 def test_wei_value(client: PostgresClient, file_storage: FileStorage) -> None:

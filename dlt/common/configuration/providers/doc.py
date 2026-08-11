@@ -20,12 +20,18 @@ class BaseDocProvider(ConfigProvider):
     def get_key_name(key: str, *sections: str) -> str:
         return get_key_name(key, ".", *sections)
 
-    def get_value(
-        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
-    ) -> Tuple[Optional[Any], str]:
+    @staticmethod
+    def get_key_path(key: str, pipeline_name: Optional[str], *sections: str) -> Tuple[str, ...]:
+        """Returns a path to `key` in the config document"""
         full_path = sections + (key,)
         if pipeline_name:
             full_path = (pipeline_name,) + full_path
+        return full_path
+
+    def get_value(
+        self, key: str, hint: Type[Any], pipeline_name: str, *sections: str
+    ) -> Tuple[Optional[Any], str]:
+        full_path = self.get_key_path(key, pipeline_name, *sections)
         full_key = self.get_key_name(key, pipeline_name, *sections)
         node = self._config_doc
         try:

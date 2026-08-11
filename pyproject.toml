@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.30.0a0"
+version = "1.30.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.10, <3.15"
@@ -63,7 +63,7 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.29.0, <0.31",
+    "dlthub>=0.30.0a1, <0.31",
     "dlthub-client>=0.28.1",
 ]
 gcp = [

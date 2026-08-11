@@ -45,6 +45,11 @@ def test_default_secret_name_prefix() -> None:
     )
     assert AwsSecretsManagerProvider(credentials).secret_name_prefix == "dlt/"
     assert AwsSecretsProviderConfiguration().secret_name_prefix == "dlt/"
+    # value location identifies the account and the prefix
+    assert (
+        AwsSecretsManagerProvider(credentials).get_value_location("secret_value", None)
+        == "fake_key:dlt/"
+    )
 
 
 @pytest.mark.parametrize(
@@ -104,6 +109,8 @@ def test_look_vault_with_prefix() -> None:
     )
     assert provider._look_vault("sources/my_source", TSecretValue) == "SRC_KEY"
     stubber.assert_no_pending_responses()
+    # region and prefix are part of the location
+    assert provider.get_value_location("my_source", None, "sources") == "fake_key@eu-central-1:dlt/"
 
 
 def test_list_vault_paginates() -> None:

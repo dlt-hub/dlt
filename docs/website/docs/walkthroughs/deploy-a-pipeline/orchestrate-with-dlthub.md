@@ -103,6 +103,5 @@ You can also change the cron from the dltHub platform's **Manage Schedule** dial
 ## See also
 
 - [Introduction to dltHub](../../hub/getting-started/introduction.md)
-- [dltHub platform tutorial](../../hub/getting-started/platform-tutorial.md)
 - [Triggers and scheduling](../../hub/pipeline-operations/triggers.md)
 - [Deployments](../../hub/pipeline-operations/deployments.md)

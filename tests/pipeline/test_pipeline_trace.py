@@ -18,6 +18,7 @@ from dlt.common.configuration.utils import get_resolved_traces
 from dlt.common.metrics import TDataLocation, TDatasetDataLocation
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
+from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, DictStrStr, TRefreshMode, TSecretValue
 from dlt.common.utils import digest128, uniq_id
@@ -892,6 +893,23 @@ def test_last_pipeline_step_trace_returns_latest() -> None:
     assert p.last_trace.last_extract_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_normalize_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_load_info.loads_ids == third_load_info.loads_ids
+
+
+def test_trace_accessors_return_none_for_missing_steps() -> None:
+    """Last step accessors return None (not raise) when a step never ran, per their Optional type hints."""
+    trace = PipelineTrace(
+        uniq_id(),
+        "test",
+        get_execution_context(),
+        pendulum.now(),
+        steps=[],
+        resolved_config_values=[],
+    )
+
+    assert trace.last_pipeline_step_trace("extract") is None
+    assert trace.last_extract_info is None
+    assert trace.last_normalize_info is None
+    assert trace.last_load_info is None
 
 
 def test_trace_custom_metrics_schema() -> None:

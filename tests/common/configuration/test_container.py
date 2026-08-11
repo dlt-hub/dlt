@@ -289,6 +289,8 @@ def test_container_provider(container: Container, spec: Type[InjectableTestConte
     assert isinstance(v, spec)
     assert k == spec.__name__
     assert spec in container
+    # contexts do not come from any location
+    assert provider.get_value_location("n/a", None) == ""
 
     # provider does not create default value in Container
     v, k = provider.get_value("n/a", NoDefaultInjectableContext, None)

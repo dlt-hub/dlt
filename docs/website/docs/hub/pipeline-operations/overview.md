@@ -21,8 +21,6 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 | Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitoring and debugging](monitoring.md) |
 | Pick a deployment region | [Regions](../platform-capabilities/regions.md) |
 
-If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../getting-started/platform-tutorial.md).
-
 ## Key concepts
 
 ### Jobs vs runs

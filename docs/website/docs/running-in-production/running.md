@@ -639,14 +639,17 @@ if __name__ == "__main__":
 
 #### Retrying only the schema update (evolution)
 
-When several pipelines run **in parallel against the same dataset** — parallel Airflow tasks, partitioned
-backfills, or several processes sharing one schema — they can race on DDL. Each run independently reads the
-destination, sees that a table does not exist yet (or that a new column has not been added), and emits its own
-`CREATE TABLE` / `ALTER TABLE ... ADD COLUMN`. The first run wins; the others fail because the table or column
-now already exists. The same happens during schema evolution when two runs add the same new column at once.
+When several pipelines run **in parallel against the same dataset**, they can collide on DDL. This collision
+happens with parallel Airflow tasks, partitioned backfills, or several processes that share one schema.
 
-`dlt` wraps such a failure in a `SchemaUpdateError`. It is safe to retry: on the next attempt `dlt` re-reads the destination and applies
-only what is still missing, so parallel runs converge. Use `retry_schema_update` to retry just this part:
+Each run reads the destination and sees that the dataset, a table, or a column does not exist yet. Each run then
+emits its own `CREATE SCHEMA`, `CREATE TABLE`, or `ALTER TABLE ... ADD COLUMN`. The first run succeeds. The others
+fail, because the dataset, table, or column already exists. The same happens during schema evolution, when two
+runs add the same new column at once.
+
+`dlt` wraps such a failure in a `SchemaUpdateError`. A retry is safe. On the next attempt, `dlt` reads the
+destination again and applies only what is still missing. Parallel runs converge. Use `retry_schema_update` to
+retry this part:
 
 ```py
 from tenacity import retry, stop_after_attempt, retry_if_exception, wait_random_exponential
@@ -669,13 +672,14 @@ if __name__ == "__main__":
     load_info = load()
 ```
 
-Why the **random jitter** matters: when many parallel runs collide on the same DDL and all back off by the same
-fixed amount, they wake up together and collide again — a "thundering herd". `wait_random_exponential` adds
-randomness to each wait, so the runs spread out over time and converge instead of fighting.
+The **random jitter** matters. When many parallel runs collide on the same DDL and all wait the same fixed time,
+they retry together and collide again. This effect is a "thundering herd". `wait_random_exponential` adds
+randomness to each wait. The runs then spread over time and converge.
 
-`retry_schema_update` retries a schema-update failure regardless of whether its cause is transient or terminal
-(it assumes that other updates run in parallel and next run will reconcile invalid migration).
-It composes with `retry_load` — retry the schema evolution here and defer every other load failure to `retry_load`:
+`retry_schema_update` retries a schema-update failure, whether its cause is transient or terminal.
+`retry_schema_update` assumes that other updates run in parallel, and that the next run reconciles the invalid
+migration. `retry_schema_update` composes with `retry_load`. Retry the schema evolution here. Defer every other
+load failure to `retry_load`:
 
 ```py
 from tenacity import retry, stop_after_attempt, retry_if_exception, wait_random_exponential

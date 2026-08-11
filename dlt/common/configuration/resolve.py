@@ -647,7 +647,10 @@ def resolve_single_provider_value(
 
         # create trace, ignore providers that cant_hold_it
         if not cant_hold_it:
-            traces.append(LookupTrace(provider.name, list(path), ns_key, value))
+            location = (
+                provider.get_value_location(key, pipeline_name, *path) if value is not None else ""
+            )
+            traces.append(LookupTrace(provider.name, list(path), ns_key, value, location))
 
         if value is not None:
             break

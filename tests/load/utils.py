@@ -175,6 +175,9 @@ FILE_LAYOUT_CLASSIC = "{schema_name}.{table_name}.{load_id}.{file_id}.{ext}"
 FILE_LAYOUT_MANY_TABLES_ONE_FOLDER = "{table_name}88{load_id}-u-{file_id}.{ext}"
 FILE_LAYOUT_TABLE_IN_MANY_FOLDERS = "{table_name}/{load_id}/{file_id}.{ext}"
 FILE_LAYOUT_TABLE_NOT_FIRST = "{schema_name}/{table_name}/{load_id}/{file_id}.{ext}"
+# {table_name} terminates the layout so dlt appends `.{ext}` and tables share a folder
+FILE_LAYOUT_TABLE_NAME_ONLY = "{table_name}"
+FILE_LAYOUT_TABLE_FOLDER_ONLY = "{table_name}/"
 
 TEST_FILE_LAYOUTS = [
     DEFAULT_FILE_LAYOUT,
@@ -182,6 +185,8 @@ TEST_FILE_LAYOUTS = [
     FILE_LAYOUT_MANY_TABLES_ONE_FOLDER,
     FILE_LAYOUT_TABLE_IN_MANY_FOLDERS,
     FILE_LAYOUT_TABLE_NOT_FIRST,
+    FILE_LAYOUT_TABLE_NAME_ONLY,
+    FILE_LAYOUT_TABLE_FOLDER_ONLY,
 ]
 
 EXTRA_BUCKETS: List[Dict[str, Any]] = []

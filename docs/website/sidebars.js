@@ -481,7 +481,6 @@ const sidebars = {
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
         "hub/getting-started/playground-workspace",
-        "hub/getting-started/platform-tutorial",
       ],
     },
     {
