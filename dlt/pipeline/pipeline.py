@@ -2249,19 +2249,17 @@ class Pipeline(SupportsPipeline):
                 on_first_dataset_access(pipeline=self, schema_name=schema_name, success=success)
                 self._dataset_access_tracked = True
 
-
     def local_dataset(
-        self,
-        schema: Schema | None = None,
-        load_id: str | None = None
+        self, schema: Schema | None = None, load_id: str | None = None
     ) -> dlt.Dataset:
         """Returns a dataset over a normalized load package that is waiting to be loaded.
 
         Args:
-            load_id (Optional[str]): Package to read. Defaults to the most recent normalized
+            schema (Schema | None): Overrides the schema stored in the package.
+            load_id (str | None): Package to read. Defaults to the most recent normalized
                 package, which is what `normalize()` just produced. Pass a load id from
                 `NormalizeInfo.loads_ids` when earlier packages are still pending.
-            schema (Optional[Schema]): Overrides the schema stored in the package.
+
 
         Returns:
             dlt.Dataset: A dataset over the package job files.
@@ -2273,7 +2271,9 @@ class Pipeline(SupportsPipeline):
             if not load_ids:
                 raise LoadPackageNotFound("<most recent normalized>")
             load_id = load_ids[-1]
-        return _package_dataset(self._get_load_storage().normalized_packages, load_id, schema=schema)
+        return _package_dataset(
+            self._get_load_storage().normalized_packages, load_id, schema=schema
+        )
 
 
 def _package_dataset(
@@ -2285,7 +2285,7 @@ def _package_dataset(
         storage (PackageStorage): Storage rooted at the folder holding the packages.
         load_id (str): Load id of the package to read. Its jobs must still be in `new_jobs`,
             so the package must have normalized successfully and not started loading.
-        schema (Optional[Schema]): Overrides the schema stored in the package.
+        schema (Schema | None): Overrides the schema stored in the package.
 
     Returns:
         dlt.Dataset: A regular dataset over the package job files. dlt tables are not
