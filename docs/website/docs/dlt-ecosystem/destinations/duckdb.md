@@ -214,6 +214,11 @@ print(db.sql("DESCRIBE;"))
 When your Python script exits, `duckdb` destroys the in-memory database and all its data.
 :::
 
+:::note
+`dlt` configures the connection you pass like the ones it opens itself: it sets `search_path` to the
+dataset and applies the settings from [Additional config](#additional-config) below.
+:::
+
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials), for example in a `secrets.toml` file:
@@ -272,10 +277,10 @@ The config above runs these steps in order:
 Internally, `dlt` opens a new `duckdb` connection and then dispenses separate sessions to worker threads with `cursor()`. `dlt` does this even when the calling thread is the thread that created the connection. `dlt` applies extensions and global config once, on the "original" connection, and `duckdb` propagates them to every session.
 
 #### Session timezone
-`dlt` sets `TimeZone` to `UTC` on every session it opens. This setting decides how `duckdb` reads
-values that arrive without a UTC offset, for example naive timestamps in Parquet. It also decides
-which timezone `duckdb` returns for `TIMESTAMPTZ` columns. It does not change the column types that
-`CREATE TABLE` produces.
+`dlt` sets `TimeZone` to `UTC` on every connection it opens, and each session it dispenses inherits
+it. This setting decides how `duckdb` reads values that arrive without a UTC offset, for example
+naive timestamps in Parquet. It also decides which timezone `duckdb` returns for `TIMESTAMPTZ`
+columns. It does not change the column types that `CREATE TABLE` produces.
 
 Set `session_timezone` to a different timezone. To keep the `duckdb` default, which is the machine
 timezone, set it to an empty string:
@@ -284,8 +289,8 @@ timezone, set it to an empty string:
 session_timezone="Europe/Berlin"
 ```
 
-This is a session setting, so it applies only to the connections `dlt` opens. If you pass your own
-`duckdb` connection, `dlt` leaves its timezone as you set it.
+`TimeZone` is a database-wide setting, so on a connection that you passed yourself it becomes the
+default for the sessions you open from it as well. A session that set its own `TimeZone` keeps it.
 
 #### SQL statements on each connection
 The `statements` option takes plain SQL for anything the options above cannot express, such as `INSTALL`, `ATTACH` and `CREATE SECRET`:
