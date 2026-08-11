@@ -147,6 +147,10 @@ def sqla_col_to_column_schema(
                     col["scale"] = sql_t.scale
                 elif sql_t.decimal_return_scale is not None:
                     col["scale"] = sql_t.decimal_return_scale
+    elif isinstance(sql_t, sqltypes.Float):
+        # SQLAlchemy 2.1 makes Float (and REAL/DOUBLE) no longer a subclass of Numeric,
+        # so the Numeric branch above no longer matches; float types always assume "double"
+        col["data_type"] = "double"
     elif isinstance(sql_t, sqltypes.SmallInteger):
         col["data_type"] = "bigint"
         if add_precision:
