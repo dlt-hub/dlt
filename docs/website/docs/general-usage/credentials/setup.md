@@ -24,7 +24,7 @@ files or secure vaults. It understands both simple and verbose layouts of [confi
 
 1. [Environment Variables](#environment-variables): If a value is found in an environment variable, `dlt` uses it and doesn't check lower-priority providers.
 
-2. [secrets.toml and config.toml files](#secretstoml-and-configtoml): These files store configuration values and secrets. `secrets.toml` contains sensitive information, while `config.toml` holds non-sensitive configuration.
+2. [secrets.toml and config.toml files](#secretstoml-and-configtoml) / [secrets.yaml and config.yaml files](#secretsyaml-and-configyaml): These files store configuration values and secrets. `secrets.toml`/`secrets.yaml` contains sensitive information, while `config.toml`/`config.yaml` holds non-sensitive configuration.
 
 3. [Vaults](#vaults): Credentials stored in secure vaults like Google Secrets Manager, Azure Key Vault, or AWS Secrets Manager. Airflow Variables are also included here.
 
@@ -338,6 +338,31 @@ The TOML provider also reads configuration from special locations depending on y
 2. **Google Colab**: When running in Colab, you can use Colab Secrets named `secrets.toml` and `config.toml`. The provider reads these as if they were TOML files. This functionality is disabled if files exist in the `.dlt` folder.
 
 3. **Streamlit**: When running in Streamlit without local `.dlt/secrets.toml`, the provider uses Streamlit secrets. You can add `dlt` secrets directly to your Streamlit secrets.
+
+## secrets.yaml and config.yaml
+
+As an alternative to TOML, `dlt` also reads `config.yaml` and `secrets.yaml` from the same `.dlt` folder(s), with the same `~/.dlt` home directory merge described above. They accept the same section layout as TOML but as YAML, which can be clearer for deeply nested configuration:
+
+```yaml
+sources:
+  notion:
+    api_key: "your-notion-api-key"
+
+destination:
+  filesystem:
+    bucket_url: "s3://[your_bucket_name]"
+    credentials:
+      aws_access_key_id: "ABCDEFGHIJKLMNOPQRST"
+      aws_secret_access_key: "1234567890_access_key"
+```
+
+The full provider precedence, highest to lowest, is:
+
+```text
+env vars > secrets.toml > secrets.yaml > config.toml > config.yaml
+```
+
+Secrets (`toml` or `yaml`) always take precedence over config files, and within each pair `toml` takes precedence over `yaml` (`secrets.toml` over `secrets.yaml`, `config.toml` over `config.yaml`). If `dlt` finds both a `toml` and a `yaml` file of the same kind (e.g. both `config.toml` and `config.yaml`), it logs a warning because values in the `toml` file will shadow the `yaml` ones.
 
 ## Custom providers
 

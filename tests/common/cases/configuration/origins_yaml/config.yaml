@@ -1,0 +1,9 @@
+base_only: base
+shared: from_base
+create_indexes: false
+
+tbl:
+  from_base: 1
+  shared_key: from_base
+  sub:
+    deep: base
