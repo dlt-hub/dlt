@@ -721,6 +721,9 @@ class DltResourceHints:
         if deduplicated := md_dict.get("deduplicated"):
             dict_["x-stage-data-deduplicated"] = deduplicated
 
+        if merge_filter := md_dict.get("merge_filter"):
+            dict_["x-merge-filter"] = merge_filter
+
         if merge_strategy == "scd2":
             md_dict = cast(TScd2StrategyDict, md_dict)
             if "boundary_timestamp" in md_dict:

@@ -249,7 +249,7 @@ TTableProcessingHints = TypedDict(
 
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only", "cdc"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
@@ -265,8 +265,11 @@ class TWriteDispositionDict(TypedDict):
     disposition: TWriteDisposition
 
 
-class TMergeDispositionDict(TWriteDispositionDict):
+class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
+    merge_filter: Optional[str]
+    """SQL condition narrowing the destination rows a merge may delete or retire. Applies to
+    strategies that honor `merge_key`."""
 
 
 class TDeleteInsertStrategyDict(TMergeDispositionDict):

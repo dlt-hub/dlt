@@ -824,6 +824,19 @@ def has_column_with_prop(
     return len(get_columns_names_with_prop(table, column_prop, include_incomplete)) > 0
 
 
+def get_merge_compare_columns(table: TTableSchema) -> List[str]:
+    """Returns names of columns whose values decide whether a merged row changed.
+
+    Excludes keys and the dlt columns that change on every load.
+    """
+    key_props = ("primary_key", "row_key", "parent_key", "root_key", "hard_delete")
+    return [
+        name
+        for name, column in table["columns"].items()
+        if name != C_DLT_LOAD_ID and not any(column.get(prop) for prop in key_props)
+    ]
+
+
 def get_dedup_sort_tuple(
     table: TTableSchema, include_incomplete: bool = False
 ) -> Optional[Tuple[str, TSortOrder]]:

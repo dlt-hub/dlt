@@ -180,7 +180,7 @@ def verify_schema_merge_disposition(
                         " and `merge_strategy` set to `delete-insert`, but no primary or"
                         " merge keys defined."
                     )
-            elif merge_strategy in ("upsert", "insert-only"):
+            elif merge_strategy in ("upsert", "insert-only", "cdc"):
                 if not has_column_with_prop(table, "primary_key"):
                     exception_log.append(
                         SchemaCorruptedException(
@@ -190,11 +190,30 @@ def verify_schema_merge_disposition(
                             " merge strategy.",
                         )
                     )
-                if has_column_with_prop(table, "merge_key"):
+                if merge_strategy != "cdc" and has_column_with_prop(table, "merge_key"):
                     log(
                         f"Found `merge_key` for table `{table['name']}` with"
                         f" `{merge_strategy}` merge strategy. Merge key is not supported"
                         " for this strategy and will be ignored."
+                    )
+            if "x-merge-filter" in table and merge_strategy not in ("cdc", "scd2"):
+                if merge_strategy == "delete-insert":
+                    # narrowing the delete would leave the out-of-scope rows behind while the
+                    # insert still adds the staging rows, duplicating the key
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            schema.name,
+                            f"`merge_filter` is set for table `{table['name']}` with the"
+                            " `delete-insert` merge strategy, which would duplicate records"
+                            " outside the filter. Use `merge_key` to limit the scope, or switch"
+                            " to the `cdc` or `scd2` merge strategy.",
+                        )
+                    )
+                else:
+                    log(
+                        f"Found `merge_filter` for table `{table['name']}` with"
+                        f" `{merge_strategy}` merge strategy. Merge filter is only supported"
+                        " for `cdc` and `scd2` strategies and will be ignored."
                     )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:

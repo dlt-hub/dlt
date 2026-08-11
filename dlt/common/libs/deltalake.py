@@ -9,7 +9,11 @@ from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import TWriteDisposition, TTableSchema
-from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
+from dlt.common.schema.utils import (
+    get_first_column_name_with_prop,
+    get_columns_names_with_prop,
+    get_merge_compare_columns,
+)
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import assert_min_pkg_version
@@ -124,7 +128,14 @@ def merge_delta_table(
     """Merges in-memory Arrow data into on-disk Delta table."""
 
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
-    if strategy in ("upsert", "insert-only"):
+    if strategy in ("upsert", "insert-only", "cdc"):
+        if strategy == "cdc":
+            # delta merge predicates are row-wise and cannot hold the subquery a scope needs
+            if get_columns_names_with_prop(schema, "merge_key") or "x-merge-filter" in schema:
+                raise ValueError(
+                    "`merge_key` and `merge_filter` are not supported by the `cdc` merge strategy"
+                    f' on Delta tables. Table: "{load_table_name}".'
+                )
         evolve_delta_table_schema(table, data.schema)
 
         if "parent" in schema:
@@ -144,7 +155,17 @@ def merge_delta_table(
         )
         if strategy == "upsert":
             qry = qry.when_matched_update_all()
+        elif strategy == "cdc":
+            compare_columns = get_merge_compare_columns(schema)
+            changed_cond = " OR ".join(
+                [f"(source.{c} IS DISTINCT FROM target.{c})" for c in compare_columns]
+            )
+            if changed_cond:
+                qry = qry.when_matched_update_all(predicate=changed_cond)
         qry = qry.when_not_matched_insert_all()
+        if strategy == "cdc":
+            # the loaded data is a full snapshot, so whatever it lacks is gone from the source
+            qry = qry.when_not_matched_by_source_delete()
         qry.execute()
     else:
         raise ValueError(

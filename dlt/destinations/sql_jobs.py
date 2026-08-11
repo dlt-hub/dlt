@@ -7,6 +7,7 @@ from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TAnyDateTime, TypedDict
 
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TSortOrder,
     TColumnProp,
 )
@@ -14,6 +15,7 @@ from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
+    get_merge_compare_columns,
     get_validity_column_names,
     get_active_record_timestamp,
     is_nested_table,
@@ -183,6 +185,10 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             merge_sql = cls.gen_upsert_sql(table_chain, sql_client)
         elif merge_strategy == "insert-only":
             merge_sql = cls.gen_upsert_sql(table_chain, sql_client, insert_only=True)
+        elif merge_strategy == "cdc":
+            merge_sql = cls.gen_upsert_sql(
+                table_chain, sql_client, delete_absent=True, skip_unchanged=True
+            )
         elif merge_strategy == "scd2":
             merge_sql = cls.gen_scd2_sql(table_chain, sql_client)
 
@@ -378,6 +384,37 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return f"CONCAT({', '.join(columns)})"
 
     @classmethod
+    def gen_merge_key_scope_clause(
+        cls, merge_keys: Sequence[str], staging_root_table_name: str
+    ) -> Optional[str]:
+        """Generate condition limiting destination rows to `merge_key` values present in staging.
+
+        Returns `None` when no merge keys are defined, meaning unlimited scope.
+        """
+        if not merge_keys:
+            return None
+        key = merge_keys[0] if len(merge_keys) == 1 else cls.gen_concat_sql(merge_keys)
+        return f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
+
+    @classmethod
+    def gen_absent_rows_cond(
+        cls,
+        table_name: str,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        scope_clauses: Sequence[str],
+    ) -> str:
+        """Generate condition selecting `table_name` rows that are absent from the staging snapshot.
+
+        `scope_clauses` narrow the rows considered. Override for destinations without
+        correlated subqueries.
+        """
+        on_str = " AND ".join([f"s.{c} = {table_name}.{c}" for c in primary_keys])
+        conds = [f"NOT EXISTS (SELECT 1 FROM {staging_root_table_name} s WHERE {on_str})"]
+        conds.extend(scope_clauses)
+        return " AND ".join(conds)
+
+    @classmethod
     def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
         """Trims identifier to max length supported by sql_client. Used for dynamically constructed table names"""
         from dlt.common.normalizers.naming import NamingConvention
@@ -434,26 +471,43 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         escape_id: Callable[[str], str],
         escape_lit: Callable[[Any], Any],
         invert: bool = False,
+        alias: str = "",
     ) -> Tuple[Optional[str], Optional[str]]:
         """Returns tuple of hard delete column name and SQL condition statement.
 
         Returns tuple of `None` values if no column has `hard_delete` hint.
         Condition statement can be used to filter deleted records.
         Set `invert=True` to filter non-deleted records instead.
+        Set `alias` to qualify the column, needed where the condition references it twice.
         """
 
         col = get_first_column_name_with_prop(table, "hard_delete")
         if col is None:
             return (None, None)
-        cond = f"{escape_id(col)} IS NOT NULL"
+        col_ref = f"{alias}{escape_id(col)}"
+        cond = f"{col_ref} IS NOT NULL"
         if invert:
-            cond = f"{escape_id(col)} IS NULL"
+            cond = f"{col_ref} IS NULL"
         if table["columns"][col]["data_type"] == "bool":
             if invert:
-                cond += f" OR {escape_id(col)} = {escape_lit(False)}"
+                cond += f" OR {col_ref} = {escape_lit(False)}"
             else:
-                cond = f"{escape_id(col)} = {escape_lit(True)}"
+                cond = f"{col_ref} = {escape_lit(True)}"
         return (col, cond)
+
+    @classmethod
+    def gen_changed_cond(
+        cls, table: PreparedTableSchema, escape_id: Callable[[str], str]
+    ) -> Optional[str]:
+        """Generate condition that holds when staging row `s` differs from destination row `d`.
+
+        Returns `None` when the table has no comparable columns, meaning rows never need
+        an update. Override for destinations without `IS DISTINCT FROM`.
+        """
+        compare_columns = cls._escape_list(get_merge_compare_columns(table), escape_id)
+        if not compare_columns:
+            return None
+        return " OR ".join([f"(s.{c} IS DISTINCT FROM d.{c})" for c in compare_columns])
 
     @classmethod
     def get_row_key_col(
@@ -758,11 +812,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         deleted_cond: Optional[str],
         insert_only: bool = False,
         not_deleted_cond: Optional[str] = None,
+        changed_cond: Optional[str] = None,
+        insert_cond: Optional[str] = None,
     ) -> List[str]:
         """Generate MERGE statement for upsert/insert-only on root table.
 
         Override for backends that don't support DELETE in MERGE (e.g., DuckLake).
         When `insert_only`, uses `not_deleted_cond` to pre-filter staging.
+        `changed_cond` restricts updates to rows that actually changed, `insert_cond`
+        restricts which unmatched staging rows are inserted.
         """
         sql: List[str] = []
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
@@ -785,15 +843,73 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             delete_str = (
                 "" if hard_delete_col is None else f"WHEN MATCHED AND s.{deleted_cond} THEN DELETE"
             )
+            update_when = (
+                "WHEN MATCHED" if changed_cond is None else f"WHEN MATCHED AND ({changed_cond})"
+            )
+            insert_when = (
+                "WHEN NOT MATCHED"
+                if insert_cond is None
+                else f"WHEN NOT MATCHED AND ({insert_cond})"
+            )
             sql.append(f"""
                 MERGE INTO {root_table_name} d USING {staging_root_table_name} s
                 ON {on_str}
                 {delete_str}
-                WHEN MATCHED
+                {update_when}
                     THEN UPDATE SET {update_str}
-                WHEN NOT MATCHED
+                {insert_when}
                     THEN INSERT ({col_str.format(alias="")}) VALUES ({col_str.format(alias="s.")});
             """)
+        return sql
+
+    @classmethod
+    def _gen_delete_absent_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+        primary_keys: Sequence[str],
+        root_row_key_column: Optional[str],
+    ) -> List[str]:
+        """Generate statements deleting destination rows that the staging snapshot no longer has.
+
+        Nested rows are deleted first, while their parents can still resolve the root keys.
+        """
+        sql: List[str] = []
+        root_table = table_chain[0]
+        escape_column_id = sql_client.escape_column_name
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+
+        scope_clauses: List[str] = []
+        merge_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "merge_key"), escape_column_id
+        )
+        if scope := cls.gen_merge_key_scope_clause(merge_keys, staging_root_table_name):
+            scope_clauses.append(scope)
+        if merge_filter := cast(Optional[str], root_table.get("x-merge-filter")):
+            scope_clauses.append(merge_filter)
+
+        absent_cond = cls.gen_absent_rows_cond(
+            root_table_name, staging_root_table_name, primary_keys, scope_clauses
+        )
+        for table in table_chain[1:]:
+            table_name, _ = sql_client.get_qualified_table_names(table["name"])
+            root_key_column = escape_column_id(
+                cls.get_root_key_col(
+                    table_chain,
+                    table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
+            )
+            sql.append(f"""
+                DELETE FROM {table_name}
+                WHERE {root_key_column} IN (
+                    SELECT {root_row_key_column} FROM {root_table_name} WHERE {absent_cond}
+                );
+            """)
+        sql.append(f"DELETE FROM {root_table_name} WHERE {absent_cond};")
         return sql
 
     @classmethod
@@ -802,7 +918,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         table_chain: Sequence[PreparedTableSchema],
         sql_client: SqlClientBase[Any],
         insert_only: bool = False,
+        delete_absent: bool = False,
+        skip_unchanged: bool = False,
     ) -> List[str]:
+        """Generate statements merging a staging snapshot into the destination root table.
+
+        With `delete_absent`, destination rows missing from the snapshot are deleted first,
+        limited to the scope given by `merge_key` and the `x-merge-filter` hint. With
+        `skip_unchanged`, rows whose compared columns did not change are left untouched.
+        """
         sql: List[str] = []
         root_table = table_chain[0]
         root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
@@ -824,14 +948,43 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             escape_lit,
         )
 
+        nested_tables = table_chain[1:]
+        root_row_key_column = None
+        if nested_tables:
+            root_row_key_column = escape_column_id(
+                cls.get_row_key_col(
+                    table_chain,
+                    root_table,
+                    sql_client.fully_qualified_dataset_name(),
+                    sql_client.fully_qualified_dataset_name(staging=True),
+                )
+            )
+
+        if delete_absent:
+            sql.extend(
+                cls._gen_delete_absent_sql(
+                    table_chain, sql_client, primary_keys, root_row_key_column
+                )
+            )
+
         # generate merge statement for root table
         root_table_column_names = list(map(escape_column_id, root_table["columns"]))
         # we need not_deleted_cond to filter out hard deleted rows before insert
         not_deleted_cond = None
-        if insert_only and hard_delete_col is not None:
-            _, not_deleted_cond = cls._get_hard_delete_col_and_cond(
-                root_table, escape_column_id, escape_lit, invert=True
-            )
+        insert_cond = None
+        if hard_delete_col is not None:
+            if insert_only:
+                _, not_deleted_cond = cls._get_hard_delete_col_and_cond(
+                    root_table, escape_column_id, escape_lit, invert=True
+                )
+            elif delete_absent:
+                # a snapshot must not resurrect rows the source already marked deleted
+                _, insert_cond = cls._get_hard_delete_col_and_cond(
+                    root_table, escape_column_id, escape_lit, invert=True, alias="s."
+                )
+        changed_cond = (
+            cls.gen_changed_cond(root_table, escape_column_id) if skip_unchanged else None
+        )
         sql.extend(
             cls.gen_upsert_merge_sql(
                 root_table_name,
@@ -842,20 +995,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 deleted_cond,
                 insert_only=insert_only,
                 not_deleted_cond=not_deleted_cond,
+                changed_cond=changed_cond,
+                insert_cond=insert_cond,
             )
         )
 
         # generate statements for nested tables if they exist
-        nested_tables = table_chain[1:]
         if nested_tables:
-            root_row_key_column = escape_column_id(
-                cls.get_row_key_col(
-                    table_chain,
-                    root_table,
-                    sql_client.fully_qualified_dataset_name(),
-                    sql_client.fully_qualified_dataset_name(staging=True),
-                )
-            )
             for table in nested_tables:
                 nested_row_key_column = escape_column_id(
                     cls.get_row_key_col(
@@ -870,8 +1016,16 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 if insert_only:
                     update_str = ""
                 else:
+                    nested_changed_cond = (
+                        cls.gen_changed_cond(table, escape_column_id) if skip_unchanged else None
+                    )
+                    update_when = (
+                        "WHEN MATCHED"
+                        if nested_changed_cond is None
+                        else f"WHEN MATCHED AND ({nested_changed_cond})"
+                    )
                     update_str = ", ".join([c + " = " + "s." + c for c in table_column_names])
-                    update_str = f"WHEN MATCHED THEN UPDATE SET {update_str}"
+                    update_str = f"{update_when} THEN UPDATE SET {update_str}"
                 col_str = ", ".join(["{alias}" + c for c in table_column_names])
 
                 sql.append(f"""
@@ -979,14 +1133,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             get_columns_names_with_prop(root_table, "merge_key"),
             escape_column_id,
         )
-        if len(merge_keys) > 0:
-            if len(merge_keys) == 1:
-                key = merge_keys[0]
-            else:
-                key = cls.gen_concat_sql(merge_keys)  # compound key
-            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
+        scope_clauses: List[str] = []
+        if key_present := cls.gen_merge_key_scope_clause(merge_keys, staging_root_table_name):
+            scope_clauses.append(key_present)
+        if merge_filter := cast(Optional[str], root_table.get("x-merge-filter")):
+            scope_clauses.append(merge_filter)
+        if scope_clauses:
             retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
-            retire_sql += f" AND {key_present}"
+            retire_sql += " AND " + " AND ".join(scope_clauses)
         sql.append(retire_sql)
 
         # insert new active records in root table

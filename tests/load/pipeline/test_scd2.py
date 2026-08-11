@@ -1215,3 +1215,47 @@ def test_scd2_validity_column_position(
     # nk=3: new active only
     assert len(rows_for(3)) == 1
     assert len(active(rows_for(3))) == 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_merge_filter(destination_config: DestinationTestConfiguration) -> None:
+    """`merge_filter` narrows which absent records get retired, leaving records outside the
+    condition active even though the snapshot no longer carries them."""
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    @dlt.resource(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "scd2",
+            "merge_filter": "bucket = 'new'",
+        },
+    )
+    def dim_test(data):
+        yield data
+
+    info = p.run(
+        dim_test([{"bucket": "old", "foo": "foo"}, {"bucket": "new", "foo": "foo"}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    assert [row[TO] for row in get_table(p, "dim_test")] == [None, None]
+
+    # both records vanish from the snapshot, only the one inside the condition is retired
+    info = p.run(dim_test([{"bucket": "new", "foo": "bar"}]), **destination_config.run_kwargs)
+    assert_load_info(info)
+    ts2 = get_load_package_created_at(p, info)
+
+    actual = [
+        {k: v for k, v in row.items() if k in ("bucket", "foo", TO)}
+        for row in get_table(p, "dim_test", ts_columns=[FROM, TO])
+    ]
+    expected = [
+        {"bucket": "old", "foo": "foo", TO: None},
+        {"bucket": "new", "foo": "foo", TO: ts2},
+        {"bucket": "new", "foo": "bar", TO: None},
+    ]
+    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
