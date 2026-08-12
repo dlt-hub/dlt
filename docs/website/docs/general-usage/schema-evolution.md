@@ -131,7 +131,7 @@ This script sends Slack notifications for schema updates using the `send_slack_m
 
 ## How to control evolution
 
-`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](./schema-contracts)** for details.
+`dlt` allows schema evolution control via its schema and data contracts. Refer to our **[documentation](./schema-contracts)** for details.
 
 ### How to test for removed columns - applying "not null" constraint
 
@@ -203,4 +203,4 @@ This is a simple example of how schema evolution works.
 
 Demonstrating schema evolution without talking about schema and data contracts is only one side of the coin. Schema and data contracts dictate the terms of how the schema being written to the destination should evolve.
 
-Schema and data contracts can be applied to entities such as ‘tables’, ‘columns’, and ‘data_types’ using contract modes such as ‘evolve’, ‘freeze’, ‘discard_rows’, and ‘discard_columns’ to tell dlt how to apply contracts for a particular entity. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
+Schema and data contracts can be applied to the schema entities `tables`, `columns`, and `data_type` using the contract modes `evolve`, `freeze`, `discard_row`, and `discard_value` to tell dlt how to apply contracts for a particular entity. The `data_type` contract covers variant columns as well as changes to the type of a column that already exists in the schema, including its `nullable`, `precision`, `scale`, and `timezone` properties. To read more about **schema and data contracts**, read our [documentation](./schema-contracts).
