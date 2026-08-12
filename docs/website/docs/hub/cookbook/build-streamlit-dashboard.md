@@ -18,7 +18,7 @@ Add Streamlit to your workspace dependencies:
 uv add streamlit
 ```
 
-The example below reads from the `sample_shop_pipeline` that `uvx dlthub-start@latest` scaffolds. The dashboard needs that data already loaded against the same destination it'll read from:
+The example below reads from the `sample_shop_pipeline` that `uvx dlthub-start@latest` scaffolds (see [Deploy your first pipeline](../getting-started/onboarding.md)). The dashboard needs that data already loaded against the same destination it'll read from:
 
 ```sh
 # Load locally (dev profile, DuckDB) so the dashboard works under `dlthub local serve`

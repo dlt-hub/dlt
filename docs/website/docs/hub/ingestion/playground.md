@@ -33,7 +33,7 @@ Do not load sensitive or confidential data into the Playground.
 
 ## Prerequisites
 
-* A dltHub [workspace](../getting-started/installation.md). If you don't have one yet, scaffold it with `uvx dlthub-start@latest` (see the [installation guide](../getting-started/installation.md)).
+* A dltHub [workspace](../getting-started/installation.md). If you don't have one yet, scaffold it with `uvx dlthub-start@latest` (see [Deploy your first pipeline](../getting-started/onboarding.md)).
 * You must be logged in and connected to a workspace:
 
   ```sh

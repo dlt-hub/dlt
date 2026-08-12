@@ -480,6 +480,7 @@ const sidebars = {
         "hub/getting-started/introduction",
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
+        "hub/getting-started/onboarding",
         "hub/getting-started/playground-workspace",
       ],
     },
