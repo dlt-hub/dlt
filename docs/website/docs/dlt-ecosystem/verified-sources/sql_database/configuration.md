@@ -192,6 +192,10 @@ to split long incremental loading into many chunks by time and row count. [Look 
 If your cursor column name contains special characters (e.g., `$`) you need to escape it when passing it to the `incremental` function. For example, if your cursor column is `example_$column`, you should pass it as `"'example_$column'"` or `'"example_$column"'` to the `incremental` function: `incremental("'example_$column'", initial_value=...)`.
 :::
 
+:::info Cursor column not found?
+If you hit ``KeyError: 'Cursor column `...` does not exist in table `...`'``, your cursor name doesn't match the schema SQLAlchemy reflected. See [I get a KeyError saying the cursor column doesn't exist](troubleshooting.md#i-get-a-keyerror-saying-the-cursor-column-doesnt-exist) for how to inspect the reflected columns.
+:::
+
 ### Configure timezone-aware and naive timestamp cursors
 If your cursor is on a timestamp/datetime column, make sure you set up your initial and end values correctly. This will help you avoid implicit type conversions, invalid datetime literals, or column comparisons in database queries. Note that implicit conversions may result in data loss, for example if a naive datetime has a different local timezone on the machine where Python is executing versus your DBMS.
 
