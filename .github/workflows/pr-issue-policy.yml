@@ -1,0 +1,64 @@
+name: PR issue policy
+
+on:
+  pull_request_target:
+    types: [opened, edited, reopened, ready_for_review]
+  schedule:
+    # recheck periodically (random minute to avoid congestion)
+    - cron: "39 */6 * * *"
+  workflow_dispatch:
+    inputs:
+      dry-run:
+        description: Log actions without changing or closing PRs
+        type: boolean
+        default: true
+      max-close:
+        description: Maximum PRs to close during this run
+        type: number
+        default: 25
+      pr-number:
+        description: Reclassify only this PR (useful after manually linking an issue)
+        type: number
+        required: false
+
+concurrency:
+  group: pr-issue-policy
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  issues: read
+  pull-requests: write
+
+jobs:
+  enforce:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      AUTHORIZING_ISSUE_LABEL: 'help wanted'
+      PENDING_PR_LABEL: 'unverified'
+      VERIFIED_PR_LABEL: 'issue-approved'
+      GRACE_HOURS: ${{ vars.PR_GRACE_HOURS || '168' }}
+      DEFAULT_MAX_CLOSE: ${{ vars.PR_MAX_CLOSE || '25' }}
+      DISPATCH_MAX_CLOSE: ${{ inputs['max-close'] }}
+      DRY_RUN: ${{ inputs['dry-run'] || false }}
+      DISPATCH_PR_NUMBER: ${{ inputs['pr-number'] }}
+      PERMISSION_BYPASS: ${{ vars.PR_PERMISSION_BYPASS || 'true' }}
+      EXEMPT_SAME_REPOSITORY: 'true'
+      EXEMPT_ASSOCIATIONS: 'OWNER,MEMBER,COLLABORATOR,CONTRIBUTOR'
+      EXEMPT_LOGINS: ${{ vars.PR_EXEMPT_LOGINS || '' }}
+    steps:
+      - name: Check out trusted policy code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ github.event.repository.default_branch }}
+          persist-credentials: false
+          sparse-checkout: .github/scripts
+
+      - name: Enforce issue approval policy
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
+        with:
+          script: |
+            const policyPath = `${process.env.GITHUB_WORKSPACE}/.github/scripts/pr-issue-policy.js`
+            const { run } = require(policyPath)
+            await run({ github, context, core, env: process.env })
