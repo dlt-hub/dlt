@@ -8,12 +8,7 @@ keywords: [environment variables, workspace variables, secrets, profiles, CLI, h
 
 Workspace **owners** define environment variables on a dltHub workspace. A shared workspace set applies to every run; optional per-[profile](profiles.md) values apply when that profile is in use (for example `prod` or `access`). When a job starts, the platform merges those variables into the run’s process environment (`os.environ`).
 
-Variables are managed on the platform — in the **web app** or with the **CLI** — separately from the deployable `.dlt` config tree. [Workspace owners](../platform-capabilities/users-and-roles.md#workspace-roles) can list and change them.
-
-Related configuration on dlt and dltHub:
-
-- How dlt resolves config and secrets from providers (including environment variables and TOML): [Credentials setup](../../general-usage/credentials/setup.md)
-- How Hub stores and serves workspace secrets and vaults for cloud runs: [Secrets management](secrets-management.md)
+Variables are managed on the platform — in the **web app** or with the **CLI** — rather than in the deployable `.dlt` config tree. They are not isolated from it, though: at run time they take priority over it, as described in [What runs receive](#what-runs-receive). [Workspace owners](../platform-capabilities/users-and-roles.md#workspace-roles) can list and change them.
 
 ## Scopes and precedence
 
@@ -72,9 +67,9 @@ Full command reference: [CLI reference](../command-line-interface.md).
 
 ## What runs receive
 
-At run start, the platform injects the workspace-wide variables and the variables for that run’s profile into the process environment. Profile values override workspace-wide values for the same name.
+At run start, the platform injects the workspace-wide variables and the variables for that run’s profile into the process environment, with profile values overriding workspace-wide values for the same name.
 
-The runtime keeps control of reserved and runtime-owned names. A run starts only after variable resolution succeeds with a complete environment.
+Because they land in the process environment, `dlt` reads them through its [environment variables provider](../../general-usage/credentials/setup.md#environment-variables), which has the highest priority of all config providers. A variable named in the `SECTION__KEY` form therefore overrides the same key in the deployed `secrets.toml` or `config.toml` — a workspace variable `DESTINATION__POSTGRES__CREDENTIALS` wins over the value committed in `prod.secrets.toml`. See [Credentials setup](../../general-usage/credentials/setup.md) for the full provider order.
 
 ## See also
 
@@ -82,6 +77,3 @@ The runtime keeps control of reserved and runtime-owned names. A run starts only
 - [Secrets management](secrets-management.md) — Hub-managed secrets and external vaults for cloud runs
 - [Profiles](profiles.md) — `dev`, `prod`, `access`, and custom profiles
 - [Settings](../platform-capabilities/settings.md) — workspace settings entry point
-- [Users and roles](../platform-capabilities/users-and-roles.md) — owner-only management
-- [Job configuration](job-configuration.md) — per-job runner options
-- [CLI reference](../command-line-interface.md) — generated `dlthub` command reference
