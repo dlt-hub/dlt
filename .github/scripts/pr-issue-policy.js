@@ -29,6 +29,10 @@ function requirePositiveInteger(env, name) {
   return value
 }
 
+function optionalPositiveInteger(env, name) {
+  return env[name]?.trim() ? requirePositiveInteger(env, name) : null
+}
+
 function requireBoolean(env, name) {
   const value = env[name]?.trim().toLowerCase()
   if (value === 'true') return true
@@ -46,9 +50,7 @@ function csvSet(value, lowercase = false) {
   )
 }
 
-function loadConfig(env, eventName) {
-  const dispatchMaxClose = env.DISPATCH_MAX_CLOSE?.trim()
-  const dispatchPrNumber = env.DISPATCH_PR_NUMBER?.trim()
+function loadConfig(env) {
   const pendingLabel = requireText(env, 'PENDING_PR_LABEL')
   const verifiedLabel = requireText(env, 'VERIFIED_PR_LABEL')
 
@@ -61,13 +63,6 @@ function loadConfig(env, eventName) {
     pendingLabel,
     verifiedLabel,
     graceHours: requirePositiveNumber(env, 'GRACE_HOURS'),
-    maxClose: dispatchMaxClose
-      ? requirePositiveNumber(env, 'DISPATCH_MAX_CLOSE')
-      : requirePositiveNumber(env, 'DEFAULT_MAX_CLOSE'),
-    dryRun: eventName === 'workflow_dispatch' && requireBoolean(env, 'DRY_RUN'),
-    dispatchPrNumber: dispatchPrNumber
-      ? requirePositiveInteger(env, 'DISPATCH_PR_NUMBER')
-      : null,
     permissionBypass: requireBoolean(env, 'PERMISSION_BYPASS'),
     exemptSameRepository: requireBoolean(env, 'EXEMPT_SAME_REPOSITORY'),
     exemptAssociations: csvSet(env.EXEMPT_ASSOCIATIONS),
@@ -259,16 +254,16 @@ function isExpired(pendingSince, graceHours, now) {
   return now() >= expirationTime(pendingSince, graceHours)
 }
 
-async function sweep(dependencies) {
+async function sweep(dependencies, { dryRun, maxClose }) {
   const { api, config, core, now } = dependencies
   const candidates = await api.listPullRequestsWithLabel(config.pendingLabel)
   core.info(
-    `Starting ${config.dryRun ? 'dry-run ' : ''}sweep: found ${candidates.length} open PRs labeled '${config.pendingLabel}'`,
+    `Starting ${dryRun ? 'dry-run ' : ''}sweep: found ${candidates.length} open PRs labeled '${config.pendingLabel}'`,
   )
 
   let selected = 0
   for (const candidate of candidates) {
-    const result = await reconcilePullRequest(dependencies, candidate.number, !config.dryRun)
+    const result = await reconcilePullRequest(dependencies, candidate.number, !dryRun)
     if (result.status !== 'unverified') continue
     if (!isExpired(result.pendingSince, config.graceHours, now)) {
       const closesAfter = new Date(
@@ -277,8 +272,8 @@ async function sweep(dependencies) {
       core.info(`PR #${candidate.number} remains in its grace period until ${closesAfter}`)
       continue
     }
-    if (selected >= config.maxClose) {
-      core.warning(`Reached max-close limit of ${config.maxClose}`)
+    if (selected >= maxClose) {
+      core.warning(`Reached max-close limit of ${maxClose}`)
       break
     }
 
@@ -295,7 +290,7 @@ async function sweep(dependencies) {
     }
 
     selected++
-    if (config.dryRun) {
+    if (dryRun) {
       core.warning(`[dry-run] Would close PR #${candidate.number}`)
       continue
     }
@@ -305,11 +300,11 @@ async function sweep(dependencies) {
     core.info(`Closed PR #${candidate.number}`)
   }
 
-  core.info(`${config.dryRun ? 'Selected' : 'Closed'} ${selected} PRs`)
+  core.info(`${dryRun ? 'Selected' : 'Closed'} ${selected} PRs`)
 }
 
 async function run({ github, context, core, env = process.env, now = Date.now }) {
-  const config = loadConfig(env, context.eventName)
+  const config = loadConfig(env)
   const repositoryName = `${context.repo.owner}/${context.repo.repo}`.toLowerCase()
   const api = createGitHubApi(github, context.repo)
   const dependencies = Object.freeze({ api, config, core, now, repositoryName })
@@ -335,25 +330,34 @@ async function run({ github, context, core, env = process.env, now = Date.now })
     config.verifiedLabel,
   ])
 
-  // pull request target
-  if (context.eventName === 'pull_request_target') {
-    const number = context.payload.pull_request.number
-    core.info(`Handling pull_request_target '${context.payload.action}' for PR #${number}`)
-    await reconcilePullRequest(dependencies, number, true)
-    return
+  switch (context.eventName) {
+    case 'pull_request_target': {
+      const number = context.payload.pull_request.number
+      core.info(`Handling pull_request_target '${context.payload.action}' for PR #${number}`)
+      return reconcilePullRequest(dependencies, number, true)
+    }
+    case 'workflow_dispatch': {
+      const dryRun = requireBoolean(env, 'DRY_RUN')
+      const prNumber = optionalPositiveInteger(env, 'DISPATCH_PR_NUMBER')
+      if (prNumber !== null) {
+        core.info(
+          `Handling ${dryRun ? 'dry-run ' : ''}manual reclassification for PR #${prNumber}`,
+        )
+        return reconcilePullRequest(dependencies, prNumber, !dryRun)
+      }
+      return sweep(dependencies, {
+        dryRun,
+        maxClose: requirePositiveInteger(env, 'DISPATCH_MAX_CLOSE'),
+      })
+    }
+    case 'schedule':
+      return sweep(dependencies, {
+        dryRun: false,
+        maxClose: requirePositiveInteger(env, 'DEFAULT_MAX_CLOSE'),
+      })
+    default:
+      throw new Error(`Unsupported workflow event: ${context.eventName}`)
   }
-
-  // manual dispatch with PR number
-  if (config.dispatchPrNumber !== null) {
-    core.info(
-      `Handling ${config.dryRun ? 'dry-run ' : ''}manual reclassification for PR #${config.dispatchPrNumber}`,
-    )
-    await reconcilePullRequest(dependencies, config.dispatchPrNumber, !config.dryRun)
-    return
-  }
-
-  // periodic sweep
-  await sweep(dependencies)
 }
 
 module.exports = {
