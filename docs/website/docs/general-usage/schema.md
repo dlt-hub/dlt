@@ -134,6 +134,10 @@ Data type information:
 5. `nullable` tells if the column is nullable or not.
 6. `is_variant` indicates that the column was generated as a variant of another column.
 
+:::note
+`data_type`, `nullable`, `precision`, `scale`, and `timezone` together make up the type of a column. The `data_type` [schema contract](schema-contracts.md#setting-up-the-contract) governs changes to them: with `data_type` set to `freeze`, `dlt` raises when a [variant column](#variant-columns) is created and also when any of those properties changes on a column that already has a `data_type`.
+:::
+
 A column schema contains the following basic hints:
 
 1. `primary_key` marks a column as part of the primary key.

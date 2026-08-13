@@ -51,6 +51,7 @@ These checks ensure incoming data conforms to the expected shape and technical t
 |----------------|--------------|------------|--------------|
 | Prevent unexpected columns | **Schema Contracts (Frozen Mode):** Set your schema to `frozen` to raise an immediate error if the source API adds an undocumented field. | [Schema Contracts](schema-contracts.md) | dlt |
 | Enforce data types | **Type Coercion:** `dlt` automatically coerces compatible types (for example, string `"100"` to int `100`) and rejects non-coercible values to ensure column consistency. | [Schema](schema.md) | dlt |
+| Freeze column types | **`data_type` Contract:** Set `schema_contract={"data_type": "freeze"}` to raise an error when a variant column is created or when `data_type`, `nullable`, `precision`, `scale`, or `timezone` changes on an existing column. | [Schema Contracts](schema-contracts.md#setting-up-the-contract) | dlt |
 | Fix naming errors | **Normalization:** `dlt` automatically cleans table and column names (converting to `snake_case`) to prevent SQL syntax errors in the destination. | [Naming Convention](naming-convention.md) | dlt |
 | Enforce required fields | **Nullability Constraints:** Mark fields as `nullable=False` in your resource hints to drop or error on records missing critical keys. | [Resource](resource.md) | dlt |
 
