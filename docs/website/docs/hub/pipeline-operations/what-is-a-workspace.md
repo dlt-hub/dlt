@@ -35,6 +35,12 @@ uv run dlthub login
 uv run dlthub workspace connect "<name>" --create
 ```
 
+When you [deploy](deployments.md), all files from your local project directory are mirrored to the remote workspace on the dltHub platform. To exclude files you don't want deployed (temp directories, data/state directories, local IDE files), list them in `.gitignore`. Files not excluded can cause deployments to fail with:
+
+```text
+Upload failed (HTTP 413): {"status_code":413,"detail":"Request Entity Too Large"}
+```
+
 ## Next steps
 
 * [Workspace setup](workspace-setup.md): convert a Python project into a workspace and configure credentials.
