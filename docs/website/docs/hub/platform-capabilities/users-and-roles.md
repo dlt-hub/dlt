@@ -85,6 +85,7 @@ Role-based restrictions apply to both the dashboard and the API, so a viewer can
 | Cancel runs | Yes | Yes | No |
 | Publish or revoke public links for interactive applications | Yes | Yes | No |
 | Change workspace settings | Yes | No | No |
+| Manage environment variables | Yes | No | No |
 | Manage members and invites | Yes | No | No |
 | Manage workspace API keys | Yes | No | No |
 
