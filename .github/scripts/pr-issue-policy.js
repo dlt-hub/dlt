@@ -63,7 +63,6 @@ function loadConfig(env) {
     pendingLabel,
     verifiedLabel,
     graceHours: requirePositiveNumber(env, 'GRACE_HOURS'),
-    permissionBypass: requireBoolean(env, 'PERMISSION_BYPASS'),
     exemptSameRepository: requireBoolean(env, 'EXEMPT_SAME_REPOSITORY'),
     exemptAssociations: csvSet(env.EXEMPT_ASSOCIATIONS),
     exemptLogins: csvSet(env.EXEMPT_LOGINS, true),
@@ -97,10 +96,7 @@ function classifyPullRequest(pr, config, repositoryName) {
     })
   }
 
-  if (
-    config.permissionBypass &&
-    config.exemptAssociations.has(pr.authorAssociation)
-  ) {
+  if (config.exemptAssociations.has(pr.authorAssociation)) {
     return Object.freeze({
       status: 'exempt',
       pr,
@@ -313,12 +309,8 @@ async function run({ github, context, core, env = process.env, now = Date.now })
     `Same-repository bypass ${config.exemptSameRepository ? 'enabled' : 'disabled'}`,
   )
 
-  if (config.permissionBypass) {
-    const associations = [...config.exemptAssociations].join(', ') || '(none)'
-    core.info(`Permission bypass enabled for author associations: ${associations}`)
-  } else {
-    core.info('Permission bypass disabled; author associations are evaluated normally')
-  }
+  const associations = [...config.exemptAssociations].join(', ') || '(none)'
+  core.info(`Author association exemptions: ${associations}`)
 
   if (config.exemptLogins.size > 0) {
     core.info(`Explicit login exemptions: ${[...config.exemptLogins].map((login) => `@${login}`).join(', ')}`)

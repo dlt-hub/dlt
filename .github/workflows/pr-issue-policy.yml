@@ -43,7 +43,6 @@ jobs:
       DISPATCH_MAX_CLOSE: ${{ inputs['max-close'] }}
       DRY_RUN: ${{ inputs['dry-run'] || false }}
       DISPATCH_PR_NUMBER: ${{ inputs['pr-number'] }}
-      PERMISSION_BYPASS: ${{ vars.PR_PERMISSION_BYPASS || 'true' }}
       EXEMPT_SAME_REPOSITORY: 'true'
       EXEMPT_ASSOCIATIONS: 'OWNER,MEMBER,COLLABORATOR,CONTRIBUTOR'
       EXEMPT_LOGINS: ${{ vars.PR_EXEMPT_LOGINS || '' }}
