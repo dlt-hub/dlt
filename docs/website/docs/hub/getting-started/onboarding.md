@@ -20,7 +20,7 @@ project into a dltHub workspace.
 - **Python 3.10–3.14** and [uv](https://docs.astral.sh/uv/) (recommended). See [Installation](installation.md) for
   alternatives.                               
 - **A coding agent**: Claude Code, Cursor, or Codex.                                                 
-- **A GitHub, Google, or email login.** `dlthub-start` uses OAuth 2.0 (GitHub, Google, or email) to sign you in and creates your dltHub account on first login. You automatically get a [Playground workspace](playground-workspace.md), so you don't need to configure cloud credentials to complete this guide.
+- **A GitHub, Google, or email login.** `dlthub-start` uses OAuth 2.0 (GitHub, Google, or email) to sign you in and creates your dltHub account on first login. You automatically get a [Playground workspace](../pipeline-operations/playground-workspace.md), so you don't need to configure cloud credentials to complete this guide.
 
 dltHub is commercial. Use is governed by the [license](../license.md). 
 
@@ -79,7 +79,7 @@ starter-test/
 └── .claude/            # agent toolkits: skills + MCP server (or .cursor/ / .codex/)
 ```
 
-`pipeline.py` loads the Sample Shop dataset from a public sample REST API into the platform-managed [Playground destination](../getting-started/playground-workspace.md). No warehouse, bucket, or credentials are required.
+`pipeline.py` loads the Sample Shop dataset from a public sample REST API into the platform-managed [Playground destination](../ingestion/playground.md). No warehouse, bucket, or credentials are required.
 
 The pipeline is decorated with `@run.pipeline` and registered as a deployable job in `__deployment__.py`. See [Deployments](../pipeline-operations/deployments.md) for how the manifest works.
 
@@ -152,7 +152,7 @@ To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [P
 
 The Playground destination is great for testing but isn't meant for production. For real data, you'll want to load into a destination you own.
 
-You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../getting-started/playground-workspace.md) and [Profiles](../pipeline-operations/profiles) for the complete configuration.
+You can use profiles to run the same pipeline with different destinations and credentials in development and production. See [Workspace setup](../pipeline-operations/workspace-setup.md) and [Profiles](../pipeline-operations/profiles) for the complete configuration.
 
 Set the destination on the `dlt.pipeline` inside your decorated job. Use a [named destination](../../general-usage/destination.md#use-named-destinations) such as `warehouse` so that the same pipeline code can run against different destinations in `dev` and `prod` profile:
 
