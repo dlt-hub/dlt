@@ -10,6 +10,7 @@ pytest.importorskip("pyarrow")
 import pyarrow as pa
 from unittest.mock import MagicMock, patch
 
+from dlt.common.exceptions import TerminalValueError
 from dlt.sources.sql_database.helpers import TABLE_LOADER_REGISTRY, BaseTableLoader
 from dlt.sources.sql_database.mssql_arrow import MssqlArrowTableLoader
 
@@ -61,9 +62,15 @@ def _sample_batch() -> pa.RecordBatch:
     return pa.record_batch({"id": [1, 2], "val": ["a", "b"]}, schema=schema)
 
 
-def _make_loader(reader: Any, events: List[str]) -> Tuple[MssqlArrowTableLoader, MagicMock]:
-    mock_cursor = MagicMock()
-    mock_cursor.arrow_reader.return_value = reader
+def _make_loader(
+    reader: Any,
+    events: List[str],
+    cursor: Any = None,
+    drivername: str = "mssql+mssqlpython",
+) -> Tuple[MssqlArrowTableLoader, MagicMock]:
+    mock_cursor = MagicMock() if cursor is None else cursor
+    if cursor is None:
+        mock_cursor.arrow_reader.return_value = reader
 
     mock_result = MagicMock()
     mock_result.cursor = mock_cursor
@@ -76,6 +83,7 @@ def _make_loader(reader: Any, events: List[str]) -> Tuple[MssqlArrowTableLoader,
 
     mock_engine = MagicMock()
     mock_engine.connect.return_value = mock_conn
+    mock_engine.url.drivername = drivername
 
     mock_table = MagicMock()
     mock_table.name = "test_table"
@@ -83,7 +91,7 @@ def _make_loader(reader: Any, events: List[str]) -> Tuple[MssqlArrowTableLoader,
 
     loader = MssqlArrowTableLoader(
         engine=mock_engine,
-        backend="mssql_arrow",  # type: ignore[arg-type]
+        backend="mssql_arrow",
         table=mock_table,
         columns={},
         chunk_size=100,
@@ -106,6 +114,24 @@ def test_mssql_arrow_uses_arrow_reader() -> None:
     assert reader.close_count == 1
     # reader is owned by the driver, result by SQLAlchemy: reader must go first
     assert events == ["reader.close", "result.close"]
+
+
+def test_mssql_arrow_rejects_a_cursor_without_arrow_reader() -> None:
+    events: List[str] = []
+    # a pyODBC cursor is a plain object as far as the loader is concerned: no `arrow_reader`
+    loader, _ = _make_loader(None, events, cursor=object(), drivername="mssql+pyodbc")
+
+    with (
+        patch.object(loader, "make_query", return_value=MagicMock()),
+        pytest.raises(TerminalValueError) as exc_info,
+    ):
+        list(loader.load_rows())
+
+    message = str(exc_info.value)
+    assert "mssql+mssqlpython" in message
+    assert "2.1.0b2" in message
+    assert "mssql+pyodbc" in message
+    assert events == ["result.close"]
 
 
 def test_mssql_arrow_closes_reader_on_early_generator_close() -> None:
