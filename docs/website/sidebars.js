@@ -481,7 +481,6 @@ const sidebars = {
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
         "hub/getting-started/onboarding",
-        "hub/getting-started/playground-workspace",
       ],
     },
     {
@@ -517,7 +516,15 @@ const sidebars = {
       label: "Pipeline operations",
       items: [
         "hub/pipeline-operations/overview",
-        "hub/pipeline-operations/workspace-setup",
+        {
+          type: "category",
+          label: "Workspaces",
+          items: [
+            "hub/pipeline-operations/what-is-a-workspace",
+            "hub/pipeline-operations/workspace-setup",
+            "hub/pipeline-operations/playground-workspace",
+          ],
+        },
         "hub/pipeline-operations/profiles",
         "hub/pipeline-operations/secrets-management",
         "hub/pipeline-operations/deployments",
