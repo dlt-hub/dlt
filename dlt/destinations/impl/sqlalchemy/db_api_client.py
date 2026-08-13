@@ -209,7 +209,7 @@ class SqlalchemyClient(SqlClientBase[Connection]):
                 # has_schema resolves the dataset within the current catalog
                 return self.dialect.has_schema(self._current_connection, self.dataset_name)  # type: ignore[attr-defined,no-any-return]
             schema_names = self.engine.dialect.get_schema_names(self._current_connection)  # type: ignore[attr-defined]
-        return self._dialect_caps.dataset_exists(schema_names, self.dataset_name)
+        return self.dataset_name in schema_names
 
     def _sqlite_dataset_filename(self, dataset_name: str) -> str:
         current_file_path = Path(self.database_name)

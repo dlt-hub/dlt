@@ -341,7 +341,8 @@ Please report issues with particular dialects. We'll try to make them work.
   GRANT CREATE SESSION, CREATE TABLE TO my_dataset;
   ```
 * Regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation and usually cannot create other schemas. For features requiring staging datasets you should either grant schema creation rights to the DB user or point the staging dataset (named `<dataset_name>_staging`) at an existing schema. The staging schema must be pre-created the same way as above. See [staging dataset documentation](../staging.md#staging-dataset) for more details.
-* `dev_mode` and dropping a dataset do not drop the Oracle schema (that would require `DROP USER`, a DBA privilege). dlt drops the tables inside the schema instead and leaves the schema (user) in place.
+* Dropping a dataset does not drop the Oracle schema (that would require `DROP USER`, a DBA privilege). dlt drops the tables inside the schema instead and leaves the schema (user) in place.
+* `dev_mode=True` appends a timestamp to `dataset_name` on every run, so each run targets a schema that does not exist yet. Since dlt cannot create Oracle schemas, `dev_mode` is not usable on Oracle unless you pre-create a schema per run.
 
 
 ### Adapting destination for a dialect
@@ -499,8 +500,7 @@ The `DialectCapabilities` class supports these extension points:
 | `type_mapper_class` | Return a custom `DataTypeMapper` subclass for the dialect |
 | `adapt_table` | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
 | `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect |
-| `dataset_exists` | Decide whether a dataset (schema) exists from the schema names reported by the database (e.g. case-insensitive match on Oracle) |
-| `create_dataset` | Create the dataset (schema), or skip/raise for dialects without a bare `CREATE SCHEMA` (e.g. Oracle) |
+| `create_dataset` | Create the dataset (schema), or raise for dialects without a bare `CREATE SCHEMA` (e.g. Oracle) |
 | `drop_dataset` | Drop the dataset (schema), or drop the tables within it for dialects that cannot drop schemas (e.g. Oracle) |
 
 :::tip

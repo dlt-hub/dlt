@@ -211,24 +211,6 @@ def test_oracle_dialect_caps() -> None:
     assert dc.is_undefined_relation(Exception("syntax error")) is None
 
 
-def test_base_dataset_exists_is_case_sensitive() -> None:
-    """The generic dataset_exists matches schema names exactly."""
-    dc = DialectCapabilities()
-    assert dc.dataset_exists(["my_schema", "other"], "my_schema") is True
-    # case must match for the generic implementation
-    assert dc.dataset_exists(["MY_SCHEMA"], "my_schema") is False
-    assert dc.dataset_exists(["my_schema"], "missing") is False
-
-
-def test_oracle_dataset_exists_is_case_insensitive() -> None:
-    """Oracle folds unquoted identifiers to upper case, so existence is matched case-insensitively."""
-    dc = OracleDialectCapabilities("oracle")
-    # Oracle reports schema/user names upper-cased; a lower-case dataset_name still matches
-    assert dc.dataset_exists(["MY_SCHEMA", "OTHER"], "my_schema") is True
-    assert dc.dataset_exists(["MY_SCHEMA"], "MY_SCHEMA") is True
-    assert dc.dataset_exists(["MY_SCHEMA"], "missing") is False
-
-
 def test_base_create_dataset_emits_create_schema() -> None:
     """The generic create_dataset issues a CREATE SCHEMA statement."""
     dc = DialectCapabilities("postgresql")
@@ -255,28 +237,15 @@ def test_base_drop_dataset_emits_drop_schema() -> None:
     assert isinstance(stmt, sa.schema.DropSchema)
 
 
-def test_oracle_create_dataset_raises_when_schema_missing() -> None:
-    """Oracle cannot CREATE SCHEMA; a missing schema raises a clear terminal error and emits no DDL."""
+def test_oracle_create_dataset_raises_instead_of_create_schema() -> None:
+    """Oracle cannot CREATE SCHEMA; dlt raises a clear terminal error and emits no DDL."""
     dc = OracleDialectCapabilities("oracle")
     client = MagicMock()
     client.dataset_name = "MY_SCHEMA"
-    client.has_dataset.return_value = False
 
     with pytest.raises(DatabaseTerminalException, match="does not exist and cannot be"):
         dc.create_dataset(client)
     # no CREATE SCHEMA must be emitted
-    client.execute_sql.assert_not_called()
-
-
-def test_oracle_create_dataset_noop_when_schema_exists() -> None:
-    """When the Oracle schema (user) already exists, create_dataset is a no-op."""
-    dc = OracleDialectCapabilities("oracle")
-    client = MagicMock()
-    client.dataset_name = "MY_SCHEMA"
-    client.has_dataset.return_value = True
-
-    dc.create_dataset(client)
-
     client.execute_sql.assert_not_called()
 
 
@@ -295,22 +264,6 @@ def test_oracle_drop_dataset_drops_tables_not_schema() -> None:
     inspector.get_table_names.assert_called_once_with(schema="MY_SCHEMA")
     client.drop_tables.assert_called_once_with("t1", "t2")
     # no DROP SCHEMA must be emitted
-    client.execute_sql.assert_not_called()
-
-
-def test_oracle_drop_dataset_noop_when_empty() -> None:
-    """drop_dataset does nothing when the Oracle schema has no tables."""
-    dc = OracleDialectCapabilities("oracle")
-    client = MagicMock()
-    client.dataset_name = "MY_SCHEMA"
-
-    inspector = MagicMock()
-    inspector.get_table_names.return_value = []
-
-    with patch.object(sa, "inspect", return_value=inspector):
-        dc.drop_dataset(client)
-
-    client.drop_tables.assert_not_called()
     client.execute_sql.assert_not_called()
 
 

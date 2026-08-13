@@ -4,7 +4,7 @@ Users can register custom DialectCapabilities subclasses to adapt the destinatio
 for dialects that are not built-in. See register_dialect_capabilities.
 """
 
-from typing import Any, Dict, List, Optional, Type, TYPE_CHECKING
+from typing import Any, Dict, Optional, Type, TYPE_CHECKING
 
 import sqlalchemy as sa  # noqa
 
@@ -62,8 +62,8 @@ class DialectCapabilities:
     * adapt_table -- modify an sa.Table object before it is materialized
       (e.g. reorder columns for StarRocks)
     * is_undefined_relation -- detect "table/schema not found" errors for the dialect
-    * dataset_exists / create_dataset / drop_dataset -- adapt schema (dataset) lifecycle
-      for dialects that do not support bare CREATE SCHEMA (e.g. Oracle)
+    * create_dataset / drop_dataset -- adapt schema (dataset) lifecycle for dialects that
+      do not support bare CREATE SCHEMA (e.g. Oracle)
 
     The sqlglot_dialect property maps backend names to sqlglot dialect names. Override
     it in subclasses or add entries to SQLGLOT_DIALECTS for non-obvious mappings.
@@ -132,15 +132,6 @@ class DialectCapabilities:
             if pat in msg:
                 return True
         return None
-
-    def dataset_exists(self, schema_names: List[str], dataset_name: str) -> bool:
-        """Return True if the dataset (schema) exists among the schemas reported by the database.
-
-        Args:
-            schema_names: Schema names as returned by the dialect's get_schema_names.
-            dataset_name: Name of the dataset (schema) dlt is looking for.
-        """
-        return dataset_name in schema_names
 
     def create_dataset(self, client: "SqlalchemyClient") -> None:
         """Create the dataset (schema) identified by client.dataset_name."""
@@ -255,15 +246,8 @@ class OracleDialectCapabilities(DialectCapabilities):
             return True
         return super().is_undefined_relation(e)
 
-    def dataset_exists(self, schema_names: List[str], dataset_name: str) -> bool:
-        # Oracle folds unquoted identifiers to upper case, so match case-insensitively
-        folded = dataset_name.casefold()
-        return any(name.casefold() == folded for name in schema_names)
-
     def create_dataset(self, client: "SqlalchemyClient") -> None:
-        # Oracle has no bare CREATE SCHEMA (schemas are users); the schema must already exist
-        if client.has_dataset():
-            return
+        # Oracle has no bare CREATE SCHEMA (schemas are users), so the schema must already exist
         raise DatabaseTerminalException(
             Exception(
                 f"Oracle schema (user) '{client.dataset_name}' does not exist and cannot be"
@@ -278,11 +262,8 @@ class OracleDialectCapabilities(DialectCapabilities):
         )
 
     def drop_dataset(self, client: "SqlalchemyClient") -> None:
-        # Oracle cannot DROP SCHEMA (that would require DROP USER, a DBA privilege the loader
-        # rarely has and which dlt does not own); drop the tables within the schema instead
-        table_names = sa.inspect(client.engine).get_table_names(schema=client.dataset_name)
-        if table_names:
-            client.drop_tables(*table_names)
+        # dropping an Oracle schema means DROP USER, a DBA privilege dlt does not assume
+        client.drop_tables(*sa.inspect(client.engine).get_table_names(schema=client.dataset_name))
 
 
 class DuckdbDialectCapabilities(DialectCapabilities):
