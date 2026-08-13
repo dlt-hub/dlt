@@ -135,7 +135,7 @@ Data type information:
 6. `is_variant` indicates that the column was generated as a variant of another column.
 
 :::note
-`data_type`, `nullable`, `precision`, `scale`, and `timezone` together make up the type of a column. The `data_type` [schema contract](schema-contracts.md#setting-up-the-contract) governs changes to them: with `data_type` set to `freeze`, `dlt` raises when a [variant column](#variant-columns) is created and also when any of those properties changes on a column that already exists in the table and is not a variant.
+`data_type`, `nullable`, `precision`, `scale`, and `timezone` together make up the type of a column. The `data_type` [schema contract](schema-contracts.md#setting-up-the-contract) governs changes to them: with `data_type` set to `freeze`, `dlt` raises when a [variant column](#variant-columns) is created and also when any of those properties changes on a non-variant column that already has a `data_type` in the table. A column that is present in the schema but does not have a `data_type` yet counts as a new column, so it falls under the `columns` contract instead.
 :::
 
 A column schema contains the following basic hints:
