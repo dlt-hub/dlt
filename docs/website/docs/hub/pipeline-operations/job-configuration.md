@@ -8,7 +8,7 @@ keywords: [dlthub platform, job configuration, timeout, dependency groups, insta
 
 This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.
 
-All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators.
+All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators. A module deployed without a decorator takes `expose` and `require` through the `__expose__` and `__require__` dunders instead. See [Module-level jobs](module-level-jobs.md).
 
 ## Execution constraints
 
@@ -69,6 +69,8 @@ def heavy_sync():
 | `xlarge` | 16 | 32 GiB | 500 GB | 8× |
 
 If you omit `instance`, jobs default to `small`. Larger sizes use a higher `multiplier` against your organization's run time budget. For example, a one-hour `large` run consumes four hours of budget.
+
+A notebook, dashboard, or plain module deployed without a decorator takes the same spec through `__require__`. See [Setting the instance size](module-level-jobs.md#setting-the-instance-size).
 
 Pipeline-level tuning (chunking, parallelism, memory settings) often lowers the size you need, see [Optimizing dlt](../../reference/performance.md).
 
@@ -140,3 +142,4 @@ See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tag
 
 - [Triggers and scheduling](triggers.md) — schedule and chain jobs
 - [Deployments](deployments.md) — push these decorators to the dltHub platform
+- [Module-level jobs](module-level-jobs.md): the same options for notebooks, dashboards, and modules that have no decorator
