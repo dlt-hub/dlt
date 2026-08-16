@@ -31,6 +31,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     role: Optional[str] = None
     authenticator: Optional[str] = None
     token: Optional[str] = None
+    workload_identity_provider: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_path: Optional[str] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
@@ -52,6 +53,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         "role",
         "authenticator",
         "token",
+        "workload_identity_provider",
         "private_key",
         "private_key_path",
         "private_key_passphrase",
