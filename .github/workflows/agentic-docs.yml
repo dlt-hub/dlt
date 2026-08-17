@@ -58,8 +58,8 @@ jobs:
   trigger:
     runs-on: ubuntu-latest
     # Label events must carry both labels. Comment events must look like a
-    # command, and may be on either an issue (`/position`, before any PR exists)
-    # or a pull request (`/revise`, which is where maintainers review).
+    # command, and must be on a pull request — `/revise`, which is where
+    # maintainers review. Nothing a comment says starts a run on an issue.
     #
     # GitHub models PR comments as issue comments, so for a comment on a PR
     # `github.event.issue.number` is the PR number, not the issue's. The step
@@ -103,7 +103,8 @@ jobs:
     #
     # `/position` is deliberately absent. It sets the location and nothing else;
     # arming is the label's job, so a `/position` comment on an unlabelled issue no
-    # longer starts a job.
+    # longer starts a job. The generation run reads it out of the issue's comments
+    # instead — which is why it must be posted before the label goes on.
     if: |
       (github.event_name == 'issues' &&
        github.event.label.name == 'agent' &&
@@ -166,14 +167,13 @@ jobs:
       # Exactly one of ISSUE_NUMBER / PR_NUMBER is set, and both are numbers:
       #
       #   labelled issue        ISSUE_NUMBER, no COMMENT_ID  -> generation
-      #   comment on an issue   ISSUE_NUMBER + COMMENT_ID    -> /position
       #   comment on a PR       PR_NUMBER + COMMENT_ID       -> /revise
       #   review on a PR        PR_NUMBER + REVIEW_ID        -> /revise
       #
       # `github.event.issue.pull_request` is present only for a comment on a PR,
-      # which is how the two comment cases are told apart. A review event has no
-      # `issue` at all — its number is on `pull_request` — so it is handled
-      # separately rather than folded into the same expression.
+      # which is how a comment that reaches here is known to be one. A review
+      # event has no `issue` at all — its number is on `pull_request` — so it is
+      # handled separately rather than folded into the same expression.
       #
       # Only numeric IDs cross this boundary. The job fetches the comment or
       # review text itself, so nothing a stranger wrote passes through this shell.
@@ -197,6 +197,10 @@ jobs:
           # this file could send any name. Authorisation is settled by asking
           # GitHub who wrote the artifact the run is reacting to.
           ACTOR: ${{ github.actor }}
+          # Linked from the "process triggered" comment the job posts on the issue,
+          # so whoever labelled it can watch. Safe in the comma-separated list
+          # below: an Actions run URL contains no comma.
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
           set -euo pipefail
           if [[ "$IS_REVIEW" == "true" ]]; then
@@ -206,6 +210,7 @@ jobs:
           else
             target="ISSUE_NUMBER=${ISSUE_NUMBER},COMMENT_ID=${COMMENT_ID},ACTOR=${ACTOR}"
           fi
+          target="${target},RUN_URL=${RUN_URL}"
           gcloud run jobs execute agentic-docs \
             --region=europe-west3 \
             --update-env-vars="${target}" \
