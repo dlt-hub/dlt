@@ -31,7 +31,7 @@ Creates, adds, inspects and deploys dlt pipelines. Further help is available at 
 ```sh
 dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
     [--disable-telemetry] [--enable-telemetry] [--no-pwd]
-    {dbt,workspace,show,serve,run,logout,login,job,deploy,profile,pipeline,local,init,ai}
+    {dbt,workspace,variable,show,serve,run,logout,login,job,deploy,dashboard,profile,pipeline,local,init,ai}
     ...
 ```
 
@@ -53,13 +53,15 @@ dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 **Available subcommands**
 * [`dbt`](#dlthub-dbt) - Dlthub dbt transformation generator
 * [`workspace`](#dlthub-workspace) - Workspace operations: connect, list, info, show, deploy, deployment, configuration
-* [`show`](#dlthub-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
+* [`variable`](#dlthub-variable) - Workspace variable operations: list, set, delete
+* [`show`](#dlthub-show) - Open the current workspace in the dlthub web app (alias for `dlthub workspace show`)
 * [`serve`](#dlthub-serve) - Deploy and serve an interactive notebook/app (alias for `dlthub job serve`)
 * [`run`](#dlthub-run) - Deploy code/config and run a script (alias for `dlthub job run`)
 * [`logout`](#dlthub-logout) - Log out from dlthub
 * [`login`](#dlthub-login) - Log in to dlthub (identity only)
-* [`job`](#dlthub-job) - Job operations: list, info, run, serve, trigger, publish, unpublish, logs, cancel, runs
+* [`job`](#dlthub-job) - Job operations: list, info, run, serve, trigger, publish, unpublish, pause, resume, logs, cancel, runs
 * [`deploy`](#dlthub-deploy) - Sync code/config and deploy jobs
+* [`dashboard`](#dlthub-dashboard) - Open the workspace dashboard in the dlthub web app (deploys a default one if missing)
 * [`profile`](#dlthub-profile) - Manage workspace built-in profiles
 * [`pipeline`](#dlthub-pipeline) - Interact with pipelines running in dlthub
 * [`local`](#dlthub-local) - Operations on the local workspace (run, serve, info, show, clean, schema, telemetry, pipeline)
@@ -134,7 +136,7 @@ Workspace operations: connect, list, info, show, deploy, deployment, configurati
 **Usage**
 ```sh
 dlthub workspace [-h] [--timestamps]
-    {list,connect,info,show,deploy,deployment,configuration} ...
+    {list,connect,info,show,dashboard,deploy,deployment,configuration} ...
 ```
 
 **Description**
@@ -155,7 +157,8 @@ Inherits arguments from [`dlthub`](#dlthub).
 * [`list`](#dlthub-workspace-list) - List all workspaces you have access to
 * [`connect`](#dlthub-workspace-connect) - Connects local to a remote workspace by name or id
 * [`info`](#dlthub-workspace-info) - Show overview of current dlthub workspace (workspace, job count, latest run, latest deployment, latest configuration)
-* [`show`](#dlthub-workspace-show) - Open the dlthub dashboard (alias for `dlthub workspace show`)
+* [`show`](#dlthub-workspace-show) - Open the current workspace in the dlthub web app (alias for `dlthub workspace show`)
+* [`dashboard`](#dlthub-workspace-dashboard) - Open the workspace dashboard in the dlthub web app (deploys a default one if missing)
 * [`deploy`](#dlthub-workspace-deploy) - Sync code/config and deploy jobs
 * [`deployment`](#dlthub-workspace-deployment) - Manipulate deployments in the workspace
 * [`configuration`](#dlthub-workspace-configuration) - Manipulate configurations in the workspace
@@ -206,7 +209,7 @@ Connects local and remote workspaces. Jobs, pipelines and code available locally
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Positional arguments**
-* `workspace` - Workspace name or id to connect to. when omitted interactive picker will allow to select existing or create a new one
+* `workspace` - Workspace name or id to connect to. when omitted interactive picker will allow to select existing or create a new one. required when using an api key.
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -241,7 +244,7 @@ Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 ### `dlthub workspace show`
 
-Open the dltHub dashboard (alias for `dlthub workspace show`).
+Open the current workspace in the dltHub web app (alias for `dlthub workspace show`).
 
 **Usage**
 ```sh
@@ -250,7 +253,31 @@ dlthub workspace show [-h]
 
 **Description**
 
-Open link to the dltHub dashboard for current remote workspace.
+Open the workspace overview for the current remote workspace in the browser.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub workspace dashboard`
+
+Open the workspace dashboard in the dltHub web app (deploys a default one if missing).
+
+**Usage**
+```sh
+dlthub workspace dashboard [-h]
+```
+
+**Description**
+
+Open the dltHub dashboard for the current remote workspace, deploying a default dashboard if none exists.
 
 <details>
 
@@ -275,7 +302,7 @@ dlthub workspace deploy [-h] [--deployment DEPLOYMENT] [--dry-run]
 
 **Description**
 
-Sync workspace files, generate job manifest from \_\_deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
+Sync workspace files, generate job manifest from \_\_deployment\_\_.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
 
 <details>
 
@@ -285,7 +312,7 @@ Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--dry-run` - Preview changes without applying them
 * `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
 
@@ -329,7 +356,8 @@ List all deployments in workspace.
 
 **Usage**
 ```sh
-dlthub workspace deployment [deployment_version_no] list [-h]
+dlthub workspace deployment                             [deployment_version_no]
+    list [-h]
 ```
 
 **Description**
@@ -353,7 +381,8 @@ Get detailed information about a deployment.
 
 **Usage**
 ```sh
-dlthub workspace deployment [deployment_version_no] info [-h]
+dlthub workspace deployment                             [deployment_version_no]
+    info [-h]
 ```
 
 **Description**
@@ -377,7 +406,8 @@ Create new deployment if local workspace content changed.
 
 **Usage**
 ```sh
-dlthub workspace deployment [deployment_version_no] sync [-h] [--dry-run] [-v]
+dlthub workspace deployment                             [deployment_version_no]
+    sync [-h] [--dry-run] [-v]
 ```
 
 **Description**
@@ -436,7 +466,8 @@ List all configuration versions.
 
 **Usage**
 ```sh
-dlthub workspace configuration [configuration_version_no] list [-h]
+dlthub workspace configuration
+    [configuration_version_no] list [-h]
 ```
 
 **Description**
@@ -460,7 +491,8 @@ Get detailed information about a configuration.
 
 **Usage**
 ```sh
-dlthub workspace configuration [configuration_version_no] info [-h]
+dlthub workspace configuration
+    [configuration_version_no] info [-h]
 ```
 
 **Description**
@@ -484,8 +516,8 @@ Create new configuration if local config content changed.
 
 **Usage**
 ```sh
-dlthub workspace configuration [configuration_version_no] sync [-h] [--dry-run]
-    [-v]
+dlthub workspace configuration
+    [configuration_version_no] sync [-h] [--dry-run] [-v]
 ```
 
 **Description**
@@ -505,9 +537,129 @@ Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-con
 
 </details>
 
+## `dlthub variable`
+
+Workspace variable operations: list, set, delete.
+
+**Usage**
+```sh
+dlthub variable [-h] [--timestamps] {list,set,delete} ...
+```
+
+**Description**
+
+Manage workspace variables — plain or secret values injected into every run's environment. Scope them workspace-wide or to a single profile.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
+
+**Available subcommands**
+* [`list`](#dlthub-variable-list) - List variables in every scope, or in one scope
+* [`set`](#dlthub-variable-set) - Create or update one variable
+* [`delete`](#dlthub-variable-delete) - Remove one variable
+
+</details>
+
+### `dlthub variable list`
+
+List variables in every scope, or in one scope.
+
+**Usage**
+```sh
+dlthub variable list [-h] [--profile PROFILE | --workspace]
+```
+
+**Description**
+
+List workspace variables. Without a scope selector every scope is listed, with the profile shown per row. Secret values are masked.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub variable`](#dlthub-variable).
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--profile PROFILE` - Target the scope of this profile
+* `--workspace` - Target the workspace-wide scope
+
+</details>
+
+### `dlthub variable set`
+
+Create or update one variable.
+
+**Usage**
+```sh
+dlthub variable set [-h] [--value VALUE] (--plain | --secret) (--profile PROFILE
+    | --workspace) name
+```
+
+**Description**
+
+Create or update a variable. The value is read from stdin unless --value is given, so secrets need not appear in argv or shell history.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub variable`](#dlthub-variable).
+
+**Positional arguments**
+* `name` - Variable name
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--value VALUE` - Value to store. omit to read it from stdin
+* `--plain` - Store a readable value
+* `--secret` - Store a write-only value, never shown again
+* `--profile PROFILE` - Target the scope of this profile
+* `--workspace` - Target the workspace-wide scope
+
+</details>
+
+### `dlthub variable delete`
+
+Remove one variable.
+
+**Usage**
+```sh
+dlthub variable delete [-h] [--allow-missing] (--profile PROFILE | --workspace)
+    name
+```
+
+**Description**
+
+Remove a variable from the workspace or a profile scope.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub variable`](#dlthub-variable).
+
+**Positional arguments**
+* `name` - Variable name
+
+**Options**
+* `-h, --help` - Show this help message and exit
+* `--allow-missing` - Treat an absent variable as success instead of an error
+* `--profile PROFILE` - Target the scope of this profile
+* `--workspace` - Target the workspace-wide scope
+
+</details>
+
 ## `dlthub show`
 
-Open the dltHub dashboard (alias for `dlthub workspace show`).
+Open the current workspace in the dltHub web app (alias for `dlthub workspace show`).
 
 **Usage**
 ```sh
@@ -516,7 +668,7 @@ dlthub show [-h]
 
 **Description**
 
-Open link to the dltHub dashboard for current remote workspace.
+Open the workspace overview for the current remote workspace in the browser.
 
 <details>
 
@@ -554,7 +706,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Stream logs until the app stops
 * `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
@@ -586,7 +738,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
 * `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
@@ -624,12 +776,12 @@ Log in to dltHub (identity only).
 
 **Usage**
 ```sh
-dlthub login [-h] [--resume DEVICE_CODE]
+dlthub login [-h] [--resume DEVICE_CODE] [--device]
 ```
 
 **Description**
 
-Log in to dltHub. Authenticates the current user; does not connect a workspace. Run `dlthub workspace connect` to bind this project to a remote workspace.
+Log in to dltHub. Authenticates the current user; does not connect a workspace. Run `dlthub workspace connect` to bind this project to a remote workspace. Opens your browser to authenticate by default; use `--device` to force the device-code flow (e.g. on a remote session).
 
 <details>
 
@@ -640,17 +792,19 @@ Inherits arguments from [`dlthub`](#dlthub).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--resume DEVICE_CODE` - Resume a previously started device flow login. the device_code is printed by `dlthub login` when no tty is attached.
+* `--device` - Force the device authorization flow instead of the default browser loopback login.
 
 </details>
 
 ## `dlthub job`
 
-Job operations: list, info, run, serve, trigger, publish, unpublish, logs, cancel, runs.
+Job operations: list, info, run, serve, trigger, publish, unpublish, pause, resume, logs, cancel, runs.
 
 **Usage**
 ```sh
 dlthub job [-h] [--timestamps]
-    {list,info,show,trigger,publish,unpublish,logs,cancel,runs,serve,run} ...
+    {list,info,show,trigger,publish,unpublish,pause,resume,logs,cancel,runs,serve,run}
+    ...
 ```
 
 **Description**
@@ -674,6 +828,8 @@ Inherits arguments from [`dlthub`](#dlthub).
 * [`trigger`](#dlthub-job-trigger) - Trigger jobs matching selectors (does not sync or deploy)
 * [`publish`](#dlthub-job-publish) - Generate or revoke a public link for an interactive notebook/app
 * [`unpublish`](#dlthub-job-unpublish) - Revoke the public link for an interactive notebook/app
+* [`pause`](#dlthub-job-pause) - Pause the schedule of one or more jobs
+* [`resume`](#dlthub-job-resume) - Resume the schedule of one or more jobs
 * [`logs`](#dlthub-job-logs) - Show logs for latest or selected job run
 * [`cancel`](#dlthub-job-cancel) - Cancel active runs for matching jobs
 * [`runs`](#dlthub-job-runs) - Manage job runs: list, info, logs, cancel
@@ -844,6 +1000,60 @@ Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
 * `script_path` - Local path to the notebook/app
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job pause`
+
+Pause the schedule of one or more jobs.
+
+**Usage**
+```sh
+dlthub job pause [-h] selector_or_job_name [selector_or_job_name ...]
+```
+
+**Description**
+
+Pause the schedule of every job matching the given names, refs or selectors (batch, schedule:*, tag:ops, ...). Only jobs with a schedule can be paused.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Job names, script paths, job refs, or selectors.
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub job resume`
+
+Resume the schedule of one or more jobs.
+
+**Usage**
+```sh
+dlthub job resume [-h] selector_or_job_name [selector_or_job_name ...]
+```
+
+**Description**
+
+Resume the schedule of every job matching the given names, refs or selectors (batch, schedule:*, tag:ops, ...). The first run covers the whole period the job was paused for.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub job`](#dlthub-job).
+
+**Positional arguments**
+* `selector_or_job_name` - Job names, script paths, job refs, or selectors.
 
 **Options**
 * `-h, --help` - Show this help message and exit
@@ -1105,7 +1315,7 @@ Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Stream logs until the app stops
 * `--job-ref REF` - Pick this job from the matched candidate set when the selector matches multiple jobs. errors if ref is not in the matched set.
@@ -1137,7 +1347,7 @@ Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
 * `--refresh` - Re-run from scratch (full reload). cascades to freshness-graph downstream jobs.
@@ -1157,7 +1367,7 @@ dlthub deploy [-h] [--timestamps] [--deployment DEPLOYMENT] [--dry-run]
 
 **Description**
 
-Sync workspace files, generate job manifest from \_\_deployment__.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
+Sync workspace files, generate job manifest from \_\_deployment\_\_.py, and reconcile jobs with the runtime. Use --dry-run to preview changes.
 
 <details>
 
@@ -1168,9 +1378,33 @@ Inherits arguments from [`dlthub`](#dlthub).
 **Options**
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
-* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment__)
+* `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--dry-run` - Preview changes without applying them
 * `--show-manifest` - Dump the expanded deployment manifest as yaml and exit
+
+</details>
+
+## `dlthub dashboard`
+
+Open the workspace dashboard in the dltHub web app (deploys a default one if missing).
+
+**Usage**
+```sh
+dlthub dashboard [-h]
+```
+
+**Description**
+
+Open the dltHub dashboard for the current remote workspace, deploying a default dashboard if none exists.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub`](#dlthub).
+
+**Options**
+* `-h, --help` - Show this help message and exit
 
 </details>
 
@@ -1493,7 +1727,7 @@ Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment__.py.
+* `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment\_\_.py.
 * `--job-ref REF` - Pick this job when the selector matches multiple jobs.
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
 * `--dry-run` - Resolve the job and print the entry point without launching
@@ -1529,7 +1763,7 @@ Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
 * `-h, --help` - Show this help message and exit
-* `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment__.py.
+* `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment\_\_.py.
 * `--job-ref REF` - Pick this job when the selector matches multiple jobs.
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
 * `--dry-run` - Resolve the job and print the entry point without launching
@@ -1677,7 +1911,7 @@ Local pipeline operations (info, drop, sync, load-package, etc.).
 **Usage**
 ```sh
 dlthub local pipeline [-h] [--pipelines-dir PIPELINES_DIR]
-    {list,run,info,show,failed-jobs,drop-pending-packages,sync,trace,schema,drop,load-package}
+    {list,run,info,show,failed-jobs,drop-pending-packages,abort-packages,sync,trace,schema,drop,load-package}
     ...
 ```
 
@@ -1701,12 +1935,13 @@ Inherits arguments from [`dlthub local`](#dlthub-local).
 * [`info`](#dlthub-local-pipeline-info) - Displays state of the pipeline, use -v or -vv for more info
 * [`show`](#dlthub-local-pipeline-show) - Generates and launches workspace dashboard with the loading status and dataset explorer
 * [`failed-jobs`](#dlthub-local-pipeline-failed-jobs) - Displays information on all the failed loads in all completed packages, failed jobs and associated error messages
-* [`drop-pending-packages`](#dlthub-local-pipeline-drop-pending-packages) - Deletes all extracted and normalized packages including those that are partially loaded.
+* [`drop-pending-packages`](#dlthub-local-pipeline-drop-pending-packages) - [deprecated: use abort-packages] deletes all extracted and normalized packages including those that are partially loaded.
+* [`abort-packages`](#dlthub-local-pipeline-abort-packages) - Safely cancels pending loads: marks packages as aborted, records failed jobs, then resyncs pipeline state from the destination.
 * [`sync`](#dlthub-local-pipeline-sync) - Drops the local state of the pipeline and resets all the schemas and restores it from destination. the destination state, data and schemas are left intact.
 * [`trace`](#dlthub-local-pipeline-trace) - Displays last run trace, use -v or -vv for more info
 * [`schema`](#dlthub-local-pipeline-schema) - Displays default schema
 * [`drop`](#dlthub-local-pipeline-drop) - Selectively drop tables and reset state
-* [`load-package`](#dlthub-local-pipeline-load-package) - Displays information on load package, use -v or -vv for more info
+* [`load-package`](#dlthub-local-pipeline-load-package) - Displays information on a load package or acts on it (abort, fail-job, ...).
 
 </details>
 
@@ -1859,7 +2094,7 @@ Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 ### `dlthub local pipeline drop-pending-packages`
 
-Deletes all extracted and normalized packages including those that are partially loaded.
+[Deprecated: use abort-packages] Deletes all extracted and normalized packages including those that are partially loaded.
 
 **Usage**
 ```sh
@@ -1868,10 +2103,45 @@ dlthub local pipeline drop-pending-packages [-h] [pipeline_name]
 
 **Description**
 
+DEPRECATED: use `abort-packages` instead. That command properly records failed jobs
+and resyncs pipeline state from the destination.
+
 Removes all extracted and normalized packages in the pipeline's working dir.
 `dlt` keeps extracted and normalized load packages in the pipeline working directory. When the `run` method is called, it will attempt to normalize and load
 pending packages first. This command removes such packages. Note that **pipeline state** is not reverted to the state at which the deleted packages
 were created. Using the `sync` sub-command is recommended if your destination supports state sync.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
+
+**Positional arguments**
+* `pipeline_name` - Pipeline name
+
+**Options**
+* `-h, --help` - Show this help message and exit
+
+</details>
+
+### `dlthub local pipeline abort-packages`
+
+Safely cancels pending loads: marks packages as aborted, records failed jobs, then resyncs pipeline state from the destination.
+
+**Usage**
+```sh
+dlthub local pipeline abort-packages [-h] [pipeline_name]
+```
+
+**Description**
+
+Use this when a load is stuck or you want to discard pending work without losing track of what
+happened. The oldest normalized package (the one being loaded) is aborted: its retry/pending
+jobs move to failed_jobs so they stay visible in `failed-jobs` output and the package completes
+as aborted. All other pending packages, extracted ones included, are deleted. It then
+restores local pipeline state and schemas from the snapshot
+taken when the oldest pending package started and you can safely re-extract and re-run.
 
 <details>
 
@@ -2093,20 +2363,22 @@ Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 ### `dlthub local pipeline load-package`
 
-Displays information on load package, use -v or -vv for more info.
+Displays information on a load package or acts on it (abort, fail-job, ...).
 
 **Usage**
 ```sh
 dlthub local pipeline load-package [-h] [pipeline_name] [load-id]
+    [{info,row-counts,abort,job,fail-job}] [job]
 ```
 
 **Description**
 
-Shows information on a load package with a given `load_id`. The `load_id` parameter defaults to the
-most recent package. Package information includes its state (`COMPLETED/PROCESSED`) and list of all
-jobs in a package with their statuses, file sizes, types, and in case of failed jobs—the error
-messages from the destination. With the verbose flag set (`-v`), you can also see the
-list of all tables and columns created at the destination during the loading of that package.
+Shows information on a load package with a given `load_id`, or runs an action on it. The `load_id`
+parameter defaults to the most recent package. Package information includes its state
+(`COMPLETED/PROCESSED`) and list of all jobs in a package with their statuses, file sizes, types,
+and in case of failed jobs—the error messages from the destination. With the verbose flag set
+(`-v`), you can also see the list of all tables and columns created at the destination during the
+loading of that package.
 
 <details>
 
@@ -2117,6 +2389,7 @@ Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 **Positional arguments**
 * `pipeline_name` - Pipeline name
 * `load-id` - Load id of completed or normalized package. defaults to the most recent package.
+* `job` - Pattern for the `job` action, or job id / file name for `fail-job`.
 
 **Options**
 * `-h, --help` - Show this help message and exit
