@@ -686,7 +686,7 @@ class Incremental(
 
         cached_state = self._cached_state
         # ensure last_value maintains forward-only progression when lag is applied
-        if self.lag and (cached_last_value := cached_state.get("last_value")):
+        if self.lag and (cached_last_value := cached_state.get("last_value")) is not None:
             transformer.last_value = self.last_value_func(
                 (transformer.last_value, cached_last_value)
             )
