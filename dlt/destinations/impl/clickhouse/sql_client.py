@@ -144,7 +144,7 @@ class ClickHouseSqlClient(
         )
         sentinel_table_type = self.config.table_engine_type
         self.execute_sql(f"""
-            CREATE TABLE {sentinel_table_name}
+            CREATE TABLE IF NOT EXISTS {sentinel_table_name}
             (_dlt_id String NOT NULL)
             ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
             PRIMARY KEY _dlt_id

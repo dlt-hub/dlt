@@ -559,6 +559,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         return ", ".join(clauses)
 
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        return f"CREATE TABLE IF NOT EXISTS {qualified_name}"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
