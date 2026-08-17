@@ -445,6 +445,11 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         elif table["name"] == self.schema.loads_table_name:
             table[SORT_HINT] = [C_DLT_LOADS_TABLE_LOAD_ID]  # type: ignore[typeddict-unknown-key]
 
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        if self.config.merge_scope_by_load_id and self.in_staging_dataset_mode:
+            truncate_tables = None
+        super().initialize_storage(truncate_tables=truncate_tables)
+
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
