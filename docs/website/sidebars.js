@@ -527,6 +527,7 @@ const sidebars = {
         },
         "hub/pipeline-operations/profiles",
         "hub/pipeline-operations/secrets-management",
+        "hub/pipeline-operations/environment-variables",
         "hub/pipeline-operations/deployments",
         "hub/pipeline-operations/triggers",
         "hub/pipeline-operations/job-configuration",

@@ -245,6 +245,7 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 * Keep secrets in separate `<profile>.secrets.toml` files—never in code.
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.
+* For process environment that should not live in the repo, set [workspace environment variables](environment-variables.md); profile-scoped values override the shared workspace set for that profile’s runs.
 
 
 ## Next steps
@@ -252,3 +253,4 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 * [Configure the workspace](../getting-started/installation.md#what-is-a-dlthub-workspace)
 * [Deploy your pipeline](deployments.md)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)
+* [Environment variables](environment-variables.md)

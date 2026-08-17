@@ -98,4 +98,5 @@ A built-in dltHub vault is on the roadmap, so you'll be able to manage secrets n
 - [Adding credentials](../../walkthroughs/add_credentials.md): general guide to dlt credentials.
 - [Vaults](../../general-usage/credentials/vaults.md): OSS reference for vault providers.
 - [Profiles](profiles.md): how `dev`, `prod`, and `access` profiles separate environments.
+- [Environment variables](environment-variables.md): workspace- and profile-scoped process environment for platform runs.
 - [Static egress IPs](job-configuration.md#static-egress-ips): pin job outbound traffic to known IPs for vault and destination allowlisting.
