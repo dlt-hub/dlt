@@ -13,7 +13,6 @@ dependencies = [
     "modal>=1.2.1",
     "mypy>=1.11.0,<1.13.0",
     "nbqa>=1.9.1",
-    "openai>=2.6.1",
     "prek>=0.4.14,<0.5",
     "pydoc-markdown>=4.8.2,<5",
     "pytest>=8.4.2",
@@ -70,7 +69,6 @@ build-backend = "hatchling.build"
 
 [project.scripts]
 lint-embedded-snippets = "docs_tools.snippets.lint_embedded_snippets:main"
-fix-grammar = "docs_tools.grammar.fix_grammar_gpt:main"
 preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
 clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
 prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
