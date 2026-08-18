@@ -54,11 +54,7 @@ class FabricTypeMapper(SynapseTypeMapper):
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         """Override to use varchar instead of nvarchar and datetime2 instead of datetimeoffset"""
         sc_t = column["data_type"]
-        if sc_t == "json":
-            # Fabric doesn't have native JSON type, use varchar instead of nvarchar
-            return "varchar(%s)" % column.get("precision", "max")
-
-        if sc_t == "text":
+        if sc_t in ("json", "text"):
             precision = column.get("precision")
             if precision is None:
                 return "varchar(max)"

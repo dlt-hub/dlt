@@ -9,7 +9,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema import Schema
-from dlt.common.schema.typing import TColumnSchema
+from dlt.common.schema.typing import TColumnSchema, TDataType
 from dlt.common.utils import digest128
 from dlt.destinations.impl.fabric.factory import fabric, FabricTypeMapper
 from dlt.destinations.impl.fabric.configuration import (
@@ -220,31 +220,36 @@ def test_fabric_credentials_authentication_method() -> None:
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
 
 
-def test_fabric_type_mapper_scales_text_precision() -> None:
-    """Fabric varchar uses UTF-8 byte semantics; nvarchar precision (characters) must be scaled"""
+@pytest.mark.parametrize("data_type", ["text", "json"])
+def test_fabric_type_mapper_scales_varchar_precision(data_type: TDataType) -> None:
+    """Fabric varchar uses UTF-8 byte semantics; character precision must be scaled."""
     table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
     caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
     mapper = FabricTypeMapper(caps)
 
     col = cast(
-        TColumnSchema, {"name": "c", "data_type": "text", "precision": 100, "nullable": True}
+        TColumnSchema, {"name": "c", "data_type": data_type, "precision": 100, "nullable": True}
     )
     assert mapper.to_destination_type(col, table) == "varchar(400)"
 
     # 2000*4=8000 is the longest length Fabric accepts
     col = cast(
-        TColumnSchema, {"name": "c", "data_type": "text", "precision": 2000, "nullable": True}
+        TColumnSchema,
+        {"name": "c", "data_type": data_type, "precision": 2000, "nullable": True},
     )
     assert mapper.to_destination_type(col, table) == "varchar(8000)"
 
     # 2001*4=8004 > 8000 → varchar(max)
     col = cast(
-        TColumnSchema, {"name": "c", "data_type": "text", "precision": 2001, "nullable": True}
+        TColumnSchema,
+        {"name": "c", "data_type": data_type, "precision": 2001, "nullable": True},
     )
     assert mapper.to_destination_type(col, table) == "varchar(max)"
 
-    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "nullable": True})
+    col = cast(TColumnSchema, {"name": "c", "data_type": data_type, "nullable": True})
     assert mapper.to_destination_type(col, table) == "varchar(max)"
 
-    col = cast(TColumnSchema, {"name": "c", "data_type": "text", "precision": 10, "nullable": True})
+    col = cast(
+        TColumnSchema, {"name": "c", "data_type": data_type, "precision": 10, "nullable": True}
+    )
     assert mapper.to_destination_type(col, table) == "varchar(40)"
