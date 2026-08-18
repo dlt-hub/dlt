@@ -541,8 +541,12 @@ const sidebars = {
     },
     {
       type: "category",
-      label: "Data discovery & serving",
-      items: ["hub/data-discovery/datasets", { type: "doc", id: "general-usage/dataset-access/marimo" }],
+      label: "Data Apps",
+      items: [
+        "hub/data-discovery/datasets",
+        { type: "doc", id: "general-usage/dataset-access/marimo" },
+        "hub/cookbook/build-streamlit-dashboard",
+      ],
     },
     {
       type: "category",
@@ -581,13 +585,6 @@ const sidebars = {
             "walkthroughs/create-new-destination",
             "walkthroughs/zendesk-weaviate",
           ],
-        },
-        {
-          type: "category",
-          label: "dltHub",
-          collapsible: true,
-          collapsed: true,
-          items: ["hub/cookbook/build-streamlit-dashboard"],
         },
       ],
     },
