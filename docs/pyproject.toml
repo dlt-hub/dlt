@@ -14,6 +14,7 @@ dependencies = [
     "mypy>=1.11.0,<1.13.0",
     "nbqa>=1.9.1",
     "openai>=2.6.1",
+    "prek>=0.4.14,<0.5",
     "pydoc-markdown>=4.8.2,<5",
     "pytest>=8.4.2",
     "python-dotenv>=1.2.1",
