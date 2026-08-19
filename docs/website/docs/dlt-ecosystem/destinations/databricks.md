@@ -883,7 +883,8 @@ sys.meta_path = metas[1:]
 # import os
 # del os.environ["RUNTIME"]
 
-import dlt
+import dlt  # noqa: E402
+
 sys.meta_path = metas  # restore post import hooks
 
 # use dlt

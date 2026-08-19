@@ -18,9 +18,6 @@ MOVE_FILES_EXTENSION = [".md", ".mdx", ".py", ".png", ".jpg", ".jpeg"]
 DOCS_EXTENSIONS = [".md", ".mdx"]
 WATCH_EXTENSIONS = [".md", ".py", ".toml"]
 
-# Snippets
-SNIPPETS_FILE_SUFFIX = "-snippets.py"
-
 # Tuba links
 NUM_TUBA_LINKS = 10
 
@@ -67,9 +64,6 @@ CAPABILITIES_DATA_TYPES_DOC_LINK = "[Data types](../../general-usage/schema#data
 # Markers
 DLT_MARKER = "@@@DLT"
 TUBA_MARKER = f"{DLT_MARKER}_TUBA"
-SNIPPET_MARKER = f"{DLT_MARKER}_SNIPPET"
-SNIPPET_START_MARKER = f"{DLT_MARKER}_SNIPPET_START"
-SNIPPET_END_MARKER = f"{DLT_MARKER}_SNIPPET_END"
 CAPABILITIES_MARKER = f"{DLT_MARKER}_DESTINATION_CAPABILITIES"
 
 # Strings to search for in check_docs

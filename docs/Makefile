@@ -9,7 +9,7 @@ dev: ## Prepares development environment for docs tooling
 	uv sync
 	uv run prek install
 
-lint: lint-core lint-embedded-snippets lint-notebooks lint-website check-orphan-docs ## Runs all linters
+lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
 lint-website: ## Lints the docusaurus website JS/TS sources with Biome
 	cd website && npm run lint
@@ -36,9 +36,6 @@ lint-notebooks: ## Lints the notebooks in the education folder
 test-examples: ## Tests the examples in the examples folder
 	uv run prepare-examples-tests
 	cd examples && uv run pytest
-
-test-snippets: ## Tests the snippets in the snippets folder
-	cd website/docs && uv run pytest --ignore=node_modules
 
 format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black docs_tools website examples

@@ -33,7 +33,6 @@ from docs_tools.markdown.constants import (
     WATCH_EXTENSIONS,
 )
 from docs_tools.markdown.utils import walk_sync, remove_remaining_markers
-from docs_tools.markdown.preprocess_snippets import insert_snippets
 from docs_tools.markdown.preprocess_tuba import insert_tuba_links, fetch_tuba_config
 from docs_tools.markdown.preprocess_destination_capabilities import (
     insert_destination_capabilities,
@@ -115,11 +114,11 @@ def watch() -> None:
 
 def process_doc_file(
     file_name: str, verbose: bool = False
-) -> Tuple[int, int, int, bool]:
+) -> Tuple[int, int, bool]:
     """Process a single documentation file."""
     ext = os.path.splitext(file_name)[1]
     if ext not in MOVE_FILES_EXTENSION:
-        return 0, 0, 0, False
+        return 0, 0, False
 
     if os.path.isabs(file_name):
         file_name = os.path.relpath(file_name)
@@ -129,16 +128,15 @@ def process_doc_file(
 
     if ext not in DOCS_EXTENSIONS:
         shutil.copyfile(file_name, target_file_name)
-        return 0, 0, 0, True
+        return 0, 0, True
 
     try:
         with open(file_name, "r", encoding="utf-8") as f:
             content = f.read()
             lines = content.split("\n")
     except FileNotFoundError:
-        return 0, 0, 0, False
+        return 0, 0, False
 
-    snippet_count, lines = insert_snippets(file_name, lines)
     tuba_count, lines = insert_tuba_links(fetch_tuba_config(), lines)
     capabilities_count, lines = insert_destination_capabilities(lines)
     lines = remove_remaining_markers(lines)
@@ -156,14 +154,13 @@ def process_doc_file(
         with open(target_file_name, "w", encoding="utf-8") as f:
             f.write("\n".join(lines))
 
-    return snippet_count, tuba_count, capabilities_count, True
+    return tuba_count, capabilities_count, True
 
 
-def preprocess_docs(verbose: bool = False) -> Tuple[int, int, int, int]:
+def preprocess_docs(verbose: bool = False) -> Tuple[int, int, int]:
     """Preprocess all docs in the docs folder."""
     print("Processing docs...")
     processed_files = 0
-    inserted_snippets = 0
     processed_tuba_blocks = 0
     processed_capabilities_blocks = 0
 
@@ -174,24 +171,21 @@ def preprocess_docs(verbose: bool = False) -> Tuple[int, int, int, int]:
             continue
         if file_name.endswith(".py"):
             continue
-        snippet_count, tuba_count, capabilities_count, processed = process_doc_file(
+        tuba_count, capabilities_count, processed = process_doc_file(
             file_name, verbose=verbose
         )
         if not processed:
             continue
         processed_files += 1
-        inserted_snippets += snippet_count
         processed_tuba_blocks += tuba_count
         processed_capabilities_blocks += capabilities_count
 
     print(f"Processed {processed_files} files.")
-    print(f"Inserted {inserted_snippets} snippets.")
     print(f"Processed {processed_tuba_blocks} tuba blocks.")
     print(f"Processed {processed_capabilities_blocks} capabilities blocks.")
 
     return (
         processed_files,
-        inserted_snippets,
         processed_tuba_blocks,
         processed_capabilities_blocks,
     )

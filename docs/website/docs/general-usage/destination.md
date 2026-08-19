@@ -14,22 +14,42 @@ We maintain a set of [built-in destinations](../dlt-ecosystem/destinations/) tha
 We recommend that you declare the destination type when creating a pipeline instance with `dlt.pipeline`. This allows the `run` method to synchronize your local pipeline state with the destination and `extract` and `normalize` to create compatible load packages and schemas. You can also pass the destination to the `run` and `load` methods.
 
 * Use destination **shorthand type**
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::shorthand-->
+```py
+import dlt
+
+pipeline = dlt.pipeline("pipeline", destination="filesystem")
+```
 
 Above, we want to use the **filesystem** built-in destination. You can use shorthand types only for built-ins.
 
 * Use a [**named destination**](#use-named-destinations) with a configured type
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::custom_destination_name-->
+```py
+import os
+import dlt
+
+os.environ["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = "filesystem"
+
+pipeline = dlt.pipeline("pipeline", destination="my_destination")
+```
 
 Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable. This approach is especially useful when switching between destinations without modifying the actual pipeline code. See details in the [section on using named destinations](#use-named-destinations-to-switch-destinations-without-changing-code).
 
 * Use full **destination factory type**
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class_type-->
+```py
+import dlt
+
+pipeline = dlt.pipeline("pipeline", destination="dlt.destinations.filesystem")
+```
 
 Above, we use the built-in **filesystem** destination by providing a factory type `filesystem` from the module `dlt.destinations`. You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass this external module as well.
 
 * Import **destination factory**
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::class-->
+```py
+import dlt
+from dlt.destinations import filesystem
+
+pipeline = dlt.pipeline("pipeline", destination=filesystem)
+```
 
 Above, we import the destination factory for **filesystem** and pass it to the pipeline.
 
@@ -37,7 +57,15 @@ All examples above will create the same destination class with default parameter
 
 ### Pass explicit parameters and a name to a destination factory
 You can instantiate the **destination factory** yourself to configure it explicitly. When doing this, you work with destinations the same way you work with [sources](source.md)
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::instance-->
+```py
+import dlt
+from dlt.destinations import filesystem
+
+azure_bucket = filesystem(
+    "az://dlt-azure-bucket", destination_name="production_az_bucket"
+)
+pipeline = dlt.pipeline("pipeline", destination=azure_bucket)
+```
 
 Above, we import and instantiate the `filesystem` destination factory. We pass the explicit URL of the bucket and name the destination `production_az_bucket`.
 
@@ -48,7 +76,13 @@ If a destination is not named, its shorthand type (the Python factory name) serv
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
 Use the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as shown below:
-<!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::default_layout-->
+```toml
+[destination.filesystem]
+bucket_url="az://dlt-azure-bucket"
+[destination.filesystem.credentials]
+azure_storage_account_name="dltdata"
+azure_storage_account_key="storage key"
+```
 
 Alternatively, you can use environment variables:
 ```sh
@@ -58,10 +92,23 @@ DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"
 ```
 
 When using destination factories, use the destination name in the config section:
-<!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::name_layout-->
+```toml
+[destination.production_az_bucket]
+bucket_url="az://dlt-azure-bucket"
+[destination.production_az_bucket.credentials]
+azure_storage_account_name="dltdata"
+azure_storage_account_key="storage key"
+```
 
 For custom destination names passed to your pipeline (e.g., `destination="my_destination"`), dlt resolves the destination type from configuration. Add `destination_type` to specify which destination type to use:
-<!--@@@DLT_SNIPPET ./snippets/destination-toml.toml::custom_name_layout-->
+```toml
+[destination.my_destination]
+destination_type="filesystem"
+bucket_url="az://dlt-azure-bucket"
+[destination.my_destination.credentials]
+azure_storage_account_name="dltdata"
+azure_storage_account_key="storage key"
+```
 
 
 Note that when you use the `dlt init` command to create or add a data source, `dlt` creates a sample configuration for the selected destination.
@@ -70,15 +117,46 @@ Note that when you use the `dlt init` command to create or add a data source, `d
 
 ### Pass explicit credentials
 You can pass credentials explicitly when creating a destination factory instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods, which is now deprecated. You can pass the required credentials object, its dictionary representation, or the supported native form like below:
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_explicit-->
+```py
+import dlt
+from dlt.destinations import postgres
+
+# pass full credentials - together with the password (not recommended)
+pipeline = dlt.pipeline(
+    "pipeline",
+    destination=postgres(
+        credentials="postgresql://loader:loader@localhost:5432/dlt_data"
+    ),
+)
+```
 
 
 :::tip
 You can create and pass partial credentials, and `dlt` will fill in the missing data. Below, we pass a PostgreSQL connection string but without a password and expect that it will be present in environment variables (or any other [config provider](credentials/setup))
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_partial-->
+```py
+import dlt
+from dlt.destinations import postgres
+
+# pass credentials without password
+# dlt will retrieve the password from ie. DESTINATION__POSTGRES__CREDENTIALS__PASSWORD
+prod_postgres = postgres(credentials="postgresql://loader@localhost:5432/dlt_data")
+pipeline = dlt.pipeline("pipeline", destination=prod_postgres)
+```
 
 
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::config_partial_spec-->
+```py
+import dlt
+from dlt.destinations import filesystem
+from dlt.sources.credentials import AzureCredentials
+
+credentials = AzureCredentials()
+# fill only the account name, leave key to be taken from secrets
+credentials.azure_storage_account_name = "production_storage"
+pipeline = dlt.pipeline(
+    "pipeline",
+    destination=filesystem("az://dlt-azure-bucket", credentials=credentials),
+)
+```
 
 
 Please read how to use [various built-in credentials types](credentials/complex_types).
@@ -86,18 +164,25 @@ Please read how to use [various built-in credentials types](credentials/complex_
 
 ### Inspect destination capabilities
 [Destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) tell `dlt` what a given destination can and cannot do. For example, it tells which file formats it can load, what the maximum query or identifier length is. Inspect destination capabilities as follows:
-```py
+```py execute
 import dlt
 pipeline = dlt.pipeline("snowflake_test", destination="snowflake")
-print(dict(pipeline.destination.capabilities()))
+capabilities = dict(pipeline.destination.capabilities())
+print(capabilities["supported_loader_file_formats"])
+#> ['jsonl', 'parquet', 'csv', 'model']
+print(capabilities["preferred_loader_file_format"])
+#> jsonl
 ```
 
 ### Pass additional parameters and change destination capabilities
 The destination factory accepts additional parameters that will be used to pre-configure it and change destination capabilities.
-```py
+```py execute
 import dlt
-duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
-print(dict(duck_.capabilities()))
+destination = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
+capabilities = dict(destination.capabilities())
+
+assert capabilities["naming_convention"] == "duck_case"
+assert capabilities["recommended_file_size"] == 120000
 ```
 The example above is overriding the `naming_convention` and `recommended_file_size` in the destination capabilities.
 
@@ -108,15 +193,36 @@ Named destinations are destinations with a custom name, the type of which can be
 
 - Use a named destination string reference with type configured via an environment variable
 
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::custom_destination_name-->
+```py
+import os
+import dlt
+
+os.environ["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = "filesystem"
+
+pipeline = dlt.pipeline("pipeline", destination="my_destination")
+```
 
 - Use `dlt.destination()` with the type configured via an environment variable
 
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::named_destination_dlt_destination-->
+```py
+import os
+import dlt
+
+os.environ["DESTINATION__MY_DESTINATION__DESTINATION_TYPE"] = "filesystem"
+
+pipeline = dlt.pipeline("pipeline", destination=dlt.destination("my_destination"))
+```
 
 - Use `dlt.destination()` with the type explicitly configured
 
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::named_destination_dlt_destination_explicit_type-->
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    "pipeline",
+    destination=dlt.destination("my_destination", destination_type="filesystem"),
+)
+```
 
 For all of the above, the destination type can alternatively be configured in the `secrets.toml` file as follows:
 
@@ -131,7 +237,14 @@ When resolving non-module destination string references (e.g., `"bigquery"` or `
 This means that, in the examples above, if the destination type was not properly configured or was not a valid destination type, dlt would have attempted to resolve `"my_destination"` as a shorthand for a built-in type and would have eventually failed.
 
 As another example, the following:
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::avoid_example-->
+```py
+import os
+import dlt
+
+os.environ["DESTINATION__BIGQUERY__DESTINATION_TYPE"] = "duckdb"
+
+pipeline = dlt.pipeline("pipeline", destination="bigquery")
+```
 will be resolved as a DuckDB destination that is named `"bigquery"`, because a valid destination type `"duckdb"` is configured and dlt does not attempt to resolve the name `"bigquery"` as a shorthand for a built-in type!
 
 **Exception:** If `dlt.destination()` is used and the `destination_type` is explicitly provided as an argument, dlt will skip the shorthand fallback and only attempt named destination resolution.
@@ -223,7 +336,23 @@ When loading data, `dlt` will access the destination in two cases:
 :::note
 `dlt` will not import the destination dependencies or access destination configuration if access is not needed. You can build multi-stage pipelines where steps are executed in separate processes or containers - the `extract` and `normalize` step do not need destination dependencies, configuration, and actual connection.
 
-<!--@@@DLT_SNIPPET ./snippets/destination-snippets.py::late_destination_access-->
+```py execute
+import tempfile
+
+import dlt
+from dlt.destinations import filesystem
+
+# just declare the destination.
+pipeline = dlt.pipeline("pipeline", destination="filesystem")
+# no destination credentials not config needed to extract
+pipeline.extract(["a", "b", "c"], table_name="letters")
+# same to normalize
+pipeline.normalize()
+# here dependencies dependencies will be imported, secrets pulled and destination accessed
+# we pass bucket_url explicitly and expect credentials passed by config provider
+bucket_url = f"file://{tempfile.mkdtemp()}"
+pipeline.load(destination=filesystem(bucket_url=bucket_url))
+```
 
 :::
 
