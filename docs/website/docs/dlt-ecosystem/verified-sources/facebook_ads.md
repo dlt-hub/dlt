@@ -39,7 +39,7 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Ensure that you have Ads Manager active for your Facebook account.
 1. Find your account ID, which is a long number. You can locate it by clicking on the Account
    Overview dropdown in Ads Manager or by checking the link address. For example,
-   https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324.
+   [https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324](https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324).
 1. Note this account ID as it will further be used in configuring dlt.
 
 #### Grab `Access_Token`
@@ -52,7 +52,7 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Go to the "Basic" settings in the left-hand side menu.
 1. Copy the "App ID" and "App secret" and paste them as "client_id" and "client_secret" in the
    secrets.toml file in the .dlt folder.
-1. Next, obtain a short-lived access token at https://developers.facebook.com/tools/explorer/.
+1. Next, obtain a short-lived access token at [https://developers.facebook.com/tools/explorer/](https://developers.facebook.com/tools/explorer/).
 1. Select the created app, add "ads_read" and "lead_retrieval" permissions, and generate a
    short-lived access token.
 1. Copy the access token and update it in the `.dlt/secrets.toml` file.

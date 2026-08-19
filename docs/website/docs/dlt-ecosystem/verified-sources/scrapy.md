@@ -56,7 +56,7 @@ For more information, read [Secrets and Configs.](../../general-usage/credential
 ## Run the pipeline
 
 In this section, we demonstrate how to use the `MySpider` class defined in "scraping_pipeline.py" to
-scrape data from "https://quotes.toscrape.com/page/1/".
+scrape data from "[https://quotes.toscrape.com/page/1/](https://quotes.toscrape.com/page/1/)".
 
 1. Start by configuring the `config.toml` as follows:
 
@@ -90,7 +90,7 @@ If you wish to create your data pipeline, follow these steps:
 
 1. The first step requires creating a spider class that scrapes data
    from the website. For example, the class `Myspider` below scrapes data from
-   URL: "https://quotes.toscrape.com/page/1/".
+   URL: "[https://quotes.toscrape.com/page/1/](https://quotes.toscrape.com/page/1/)".
 
    ```py
    class MySpider(Spider):

@@ -45,7 +45,7 @@ You can host your own Weaviate instance using Docker Compose, Kubernetes, or emb
 [destination.weaviate.credentials.additional_headers]
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
-The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for the Weaviate container.
+The `url` will default to **[http://localhost:8080](http://localhost:8080)** and `api_key` is not defined - which are the defaults for the Weaviate container.
 
 ### Connection types
 

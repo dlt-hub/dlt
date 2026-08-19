@@ -25,7 +25,7 @@ Adding the flag after the pipeline keyword will not work.
 
 ## `dlt`
 
-Creates, adds, inspects and deploys dlt pipelines. Further help is available at https://dlthub.com/docs/reference/command-line-interface.
+Creates, adds, inspects and deploys dlt pipelines. Further help is available at [https://dlthub.com/docs/reference/command-line-interface](https://dlthub.com/docs/reference/command-line-interface).
 
 **Usage**
 ```sh
@@ -645,7 +645,7 @@ dlt deploy pipeline-script-path github-action [-h] [--location LOCATION]
 
 Deploys the pipeline to GitHub Actions.
 
-GitHub Actions (https://github.com/features/actions) is a CI/CD runner with a large free tier which you can use to run your pipelines.
+GitHub Actions ([https://github.com/features/actions](https://github.com/features/actions)) is a CI/CD runner with a large free tier which you can use to run your pipelines.
 
 You must specify when the GitHub Action should run using a cron schedule expression. The command also takes additional flags:
 `--run-on-push` (default is False) and `--run-manually` (default is True). Remember to put the cron
@@ -683,11 +683,11 @@ dlt deploy pipeline-script-path airflow-composer [-h] [--location LOCATION]
 
 **Description**
 
-Google Composer (https://cloud.google.com/composer?hl=en) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
+Google Composer ([https://cloud.google.com/composer?hl=en](https://cloud.google.com/composer?hl=en)) is a managed Airflow environment provided by Google. Follow the guide in our docs on how to deploy a pipeline with Airflow to learn more. This command will:
 
 
 * create an Airflow DAG for your pipeline script that you can customize. The DAG uses
-the `dlt` Airflow wrapper (https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37) to make this process trivial.
+the `dlt` Airflow wrapper ([https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py#L37)) to make this process trivial.
 
 * provide you with the environment variables and secrets that you must add to Airflow.
 

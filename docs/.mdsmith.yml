@@ -1,0 +1,157 @@
+rules:
+#     ambiguous-emphasis: false
+#     atx-heading-whitespace: true
+#     blank-line-around-fenced-code: true
+#     blank-line-around-headings: true
+#     blank-line-around-lists: true
+#     blockquote-whitespace: true
+#     build: true
+#     callout-type: false
+#     catalog:
+#         pad: 1
+#         separator-style: spaced
+#     code-block-style:
+#         style: fenced
+#     commands-show-output: true
+#     conciseness-scoring: false
+#     cross-file-reference-integrity:
+#         exclude: []
+#         include: []
+#         links:
+#             site-root: ""
+#             validate-images: true
+#             validate-reference-style: true
+#         placeholders: []
+#         strict: false
+#         wikilink-style: obsidian
+#         wikilinks: false
+#     descriptive-link-text: false
+#     directory-structure: false
+#     duplicated-content: false
+#     emphasis-style: false
+#     empty-section-body:
+#         allow-marker: allow-empty-section
+#         max-level: 6
+#         min-level: 2
+#     external-link-check: false
+#     fenced-code-language: true
+#     fenced-code-style:
+#         style: backtick
+#     first-line-heading:
+#         level: 1
+#         placeholders: []
+#     forbidden-paragraph-starts: false
+#     forbidden-text: false
+#     git-hook-sync: false
+#     heading-increment:
+#         placeholders: []
+#     heading-style:
+#         style: atx
+#     horizontal-rule-style: false
+#     include: true
+#     line-length:
+#         abbreviations: []
+#         exclude:
+#             - code-blocks
+#             - tables
+#             - urls
+#         max: 80
+#         reflow: false
+#         stern: false
+#     link-style: false
+    link-validity: true
+#     list-indent:
+#         spaces: 2
+#     list-marker-space:
+#         ol-multi: 1
+#         ol-single: 1
+#         ul-multi: 1
+#         ul-single: 1
+#     list-marker-style: false
+#     markdown-flavor: false
+#     max-file-length:
+#         max: 300
+#     max-section-length: false
+#     no-bare-urls: true
+#     no-duplicate-headings: true
+#     no-emphasis-as-heading:
+#         placeholders: []
+#     no-empty-alt-text: true
+#     no-hard-tabs: true
+#     no-inline-html: false
+#     no-multiple-blanks:
+#         max: 1
+#     no-reference-style: false
+#     no-space-in-code-spans: false
+#     no-space-in-link-text: false
+#     no-trailing-punctuation-in-heading: true
+#     no-trailing-spaces: true
+#     no-undefined-reference-labels:
+#         placeholders: []
+#         shortcut: heuristic
+#     no-unused-link-definitions:
+#         ignored-labels: []
+#     occurrence: false
+#     ordered-list-numbering: false
+#     paragraph-readability:
+#         max-index: 14
+#         min-words: 20
+#         placeholders: []
+#     paragraph-structure: false
+#     proper-names: false
+#     recipe-safety: true
+#     required-frontmatter: false
+#     required-mentions: false
+#     required-structure:
+#         placeholders: []
+#         schema: ""
+#     required-text-patterns: false
+# `same-file-anchor` is disabled because it diverges from Docusaurus
+# slug resolution (github-slugger). mdsmith will fail to resolve slugs
+# with snake case such as `#using-the-iceberg_adapter` while Docusaurus can.
+    same-file-anchor: false
+#     single-h1: false
+#     single-trailing-newline: true
+#     slide-structure: false
+#     table-format:
+#         pad: 1
+#         separator-style: spaced
+#         style: consistent
+#     table-readability:
+#         max-column-width-ratio: 60
+#         max-columns: 8
+#         max-rows: 30
+#         max-words-per-cell: 30
+#     toc: true
+#     toc-directive: false
+#     token-budget:
+#         encoding: cl100k_base
+#         max: 8000
+#         mode: heuristic
+#         tokenizer: builtin
+#         tokens-per-word: 1.33
+#     unclosed-code-block: true
+#     unique-frontmatter:
+#         exclude: []
+#         field: ""
+#         include: []
+ignore: []
+overrides: []
+# front-matter: true
+categories:
+    accessibility: false
+    code: false
+    directive: false
+    heading: false
+    line: false
+    link: true
+    list: false
+    prose: false
+    structural: false
+    table: false
+    whitespace: false
+files:
+    - '**/website/docs*.md'
+    - '**/website/docs*.markdown'
+# follow-symlinks: false
+# max-input-size: ""

@@ -108,7 +108,7 @@ To get started with your data pipeline, follow these steps:
    ```
 
 1. Replace the subdomain with the value from the address bar. For example, if your URL is
-   "https://my-company.workable.com/", use "my-company".
+   "[https://my-company.workable.com/](https://my-company.workable.com/)", use "my-company".
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
 

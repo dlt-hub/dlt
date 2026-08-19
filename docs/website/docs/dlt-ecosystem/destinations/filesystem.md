@@ -372,7 +372,7 @@ The `*` credentials indicate parameters that cannot be set through `.dlt/secrets
 :::
 
 :::info
-For more information about credentials parameters: https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect
+For more information about credentials parameters: [https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect](https://docs.paramiko.org/en/3.3/api/client.html#paramiko.client.SSHClient.connect)
 :::
 
 ### Authentication methods
