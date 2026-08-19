@@ -35,7 +35,7 @@ The endpoints that this verified source supports are:
 1. Click "Create New Token."
 1. Your token is displayed.
 1. Copy the access token and update it in the `.dlt/secrets.toml` file.
-1. Your Matomo URL is the web address in your browser when logged into Matomo, typically "https://mycompany.matomo.cloud/". Update it in the `.dlt/config.toml`.
+1. Your Matomo URL is the web address in your browser when logged into Matomo, typically "[https://mycompany.matomo.cloud/](https://mycompany.matomo.cloud/)". Update it in the `.dlt/config.toml`.
 1. The site_id is a unique ID for each monitored site in Matomo, found in the URL or via Administration > Measurables > Manage under ID.
 
 > Note: The Matomo UI, which is described here, might change.

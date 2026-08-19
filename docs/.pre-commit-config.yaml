@@ -20,6 +20,15 @@ repos:
         language: python
         pass_filenames: false
 
+  - repo: local
+    hooks:
+      - id: check-md
+        name: check-md
+        entry: uv run mdsmith check website/docs --no-color
+        language: system
+        types: [markdown]
+        pass_filenames: false
+
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.25
     hooks:

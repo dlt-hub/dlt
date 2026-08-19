@@ -83,7 +83,7 @@ To get started with your data pipeline, follow these steps:
    api_token = "set me up!" # please set me up!
    ```
 
-1. A subdomain in a URL identifies your Jira account. For example, in "https://example.atlassian.net", "example" is the subdomain.
+1. A subdomain in a URL identifies your Jira account. For example, in "[https://example.atlassian.net](https://example.atlassian.net)", "example" is the subdomain.
 
 1. Use the email address associated with your Jira account.
 

@@ -108,9 +108,9 @@ To get started with your data pipeline, follow these steps:
    organization_id = "Please set me up!"
    ```
 
-1. Update `shop_url` with the URL of your Shopify store. For example, "https://shop-123.myshopify.com/".
+1. Update `shop_url` with the URL of your Shopify store. For example, "[https://shop-123.myshopify.com/](https://shop-123.myshopify.com/)".
 
-1. Update `organization_id` with a code from your Shopify partner URL. For example, in "https://partners.shopify.com/1234567", the code '1234567' is the organization ID.
+1. Update `organization_id` with a code from your Shopify partner URL. For example, in "[https://partners.shopify.com/1234567](https://partners.shopify.com/1234567)", the code '1234567' is the organization ID.
 
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
@@ -161,7 +161,7 @@ def shopify_source(
 
 `api_version`: API version (e.g., 2023-01).
 
-`shop_url`: Your shop's URL (e.g., https://my-shop.myshopify.com).
+`shop_url`: Your shop's URL (e.g., [https://my-shop.myshopify.com](https://my-shop.myshopify.com)).
 
 `items_per_page`: Max items fetched per page (Default: 250).
 

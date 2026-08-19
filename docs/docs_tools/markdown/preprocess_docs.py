@@ -3,7 +3,6 @@
 Documentation preprocessor for dlt docs.
 
 This script processes markdown files by:
-- Inserting code snippets from Python files
 - Inserting tuba links from remote config
 - Syncing examples from tools.examples/ directory
 - Checking for absolute/http links in docs

@@ -29,7 +29,7 @@ send the email from the job itself. The pattern below uses Python's standard `sm
 Generate a Gmail **App Password**, a 16-character credential that lets SMTP authenticate without your real password:
 
 1. Make sure **2-Step Verification** is enabled on the Google Account.
-2. Open https://myaccount.google.com/apppasswords.
+2. Open [https://myaccount.google.com/apppasswords](https://myaccount.google.com/apppasswords).
 3. Create a new password and name it, e.g. "dltHub pipeline".
 4. Copy the 16 characters. Google displays them with spaces (`abcd efgh ijkl mnop`); the spaces are decorative, so strip them.
 

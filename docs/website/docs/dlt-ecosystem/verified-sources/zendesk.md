@@ -54,7 +54,7 @@ tokens or OAuth tokens.
 
 #### Grab subdomain
 
-1. Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+1. Log into Zendesk to find your subdomain in the URL. E.g., for [https://www.dlthub.zendesk.com](https://www.dlthub.zendesk.com), the
    subdomain is "dlthub".
 
 #### Grab Zendesk support API token
@@ -111,7 +111,7 @@ Zendesk chat can be authenticated using this method:
 
 #### Subdomain
 
-Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+Log into Zendesk to find your subdomain in the URL. E.g., for [https://www.dlthub.zendesk.com](https://www.dlthub.zendesk.com), the
 subdomain is "dlthub".
 
 #### Grab Zendesk chat OAuth token
@@ -122,7 +122,7 @@ To generate a Zendesk chat OAuth token, please refer to this
 
 1. Access Zendesk Chat directly or through the top right "Chat" option in Zendesk product.
 1. Navigate to "Settings" > "Account" > "API" > "Add API client".
-1. Fill in the client name, company, and redirect URLs (default: http://localhost:8080).
+1. Fill in the client name, company, and redirect URLs (default: [http://localhost:8080](http://localhost:8080)).
 1. Record the "CLIENT_ID" and "SUBDOMAIN".
 1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
    press Enter.
