@@ -18,7 +18,7 @@ dependencies = [
     "pytest>=8.4.2",
     "python-dotenv>=1.2.1",
     "requests>=2.30.5",
-    "ruff>=0.3.2,<0.4",
+    "ruff>=0.16.0,<0.17.0",
     "types-pyyaml>=6.0.12.20250915",
     "types-regex>=2025.10.23.20251023",
     "types-requests>=2.32.4.20250913",
@@ -45,6 +45,9 @@ dependencies = [
     "databind>=4.5.2",
     "marimo>=0.17.4",
     "logfire>=4.32.1",
+    "pytest-examples>=0.0.11",
+    "pytest-xdist>=3.8.0",
+    "ty>=0.0.72",
 ]
 
 [dependency-groups]
@@ -68,10 +71,33 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-lint-embedded-snippets = "docs_tools.snippets.lint_embedded_snippets:main"
 preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
 clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
 prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+
+# TODO ideally, this should match the ruff configuration from the root
+# `pyproject.toml`. There could be docs-specific checks in the extend-select
+# clause though.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["F811", "F821", "F401", "F841", "E402", "F704"]
+
+# ty is used for linting docs snippets because it's faster, lighter, and
+# incremental, which allows to run it in parallel over individual snippets.
+# This would hang forever with `mypy`.
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.rules]
+redundant-cast = "warn"
+unused-type-ignore-comment = "ignore"
+unresolved-import = "ignore"
+empty-body = "ignore"
+invalid-parameter-default = "ignore"
 
 [tool.uv.sources]
 dlt = { path = "..", editable = true }
