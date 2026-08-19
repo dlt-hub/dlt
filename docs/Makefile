@@ -52,12 +52,12 @@ preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed 
 preprocess-docs-watch: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links and watches for changes
 	uv run preprocess-docs --watch
 
-test-preprocess-molabs: ## Tests functions used to build Molabs
-	uv run pytest docs_tools/education/tests
+test-tools: ## Tests docs tools
+	uv run pytest tools/
 
 build-molabs: ## Format the notebooks files first and build Molabs
 	uv run black education/*/*.ipynb --ipynb
-	uv run python docs_tools/education/preprocess_to_molab.py
+	uv run tools/preprocess_to_molab.py
 	uv run black education/*/*.py
 	uv run marimo check education/*/*.py --fix --quiet
 
