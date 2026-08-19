@@ -122,7 +122,7 @@ This tutorial uses the GitHub REST API for demonstration purposes only. If you n
 
 First, we need to create a [pipeline](../general-usage/pipeline). Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
-```py execute
+```py
 import dlt
 from dlt.sources.helpers import requests
 
@@ -217,7 +217,7 @@ You can pass a generator to the `run` method directly or use the `@dlt.resource`
 Let's improve our GitHub API example and get only issues that were created since the last load.
 Instead of using the `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
-```py execute
+```py
 from typing import Any, Dict, Iterator
 
 import dlt
@@ -310,7 +310,7 @@ It will ignore any updates to **existing** issue text, emoji reactions, etc.
 To always get fresh content of all the issues, combine incremental load with the `merge` write disposition,
 like in the script below.
 
-```py execute
+```py
 from typing import Any, Dict, Iterator
 
 import dlt
