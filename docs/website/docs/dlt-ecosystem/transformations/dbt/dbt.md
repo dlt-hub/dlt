@@ -80,7 +80,7 @@ for m in models:
 ## How to run dbt runner without pipeline
 You can use the dbt runner without a dlt pipeline. The example below will clone and run **jaffle shop** using a dbt profile that you supply.
 It assumes that dbt is installed in the current Python environment and the `profile.yml` is in the same folder as the Python script.
-```py execute
+```py
 import os
 
 from dlt.helpers.dbt import create_runner
