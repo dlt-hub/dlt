@@ -308,6 +308,7 @@ def _resolve_config_fields(
             if not current_value:
                 if len(specs_in_union) > 1:
                     is_optional = is_optional_type(hint)
+                    invalid_native_value_exceptions: List[Tuple[Type[Any], InvalidNativeValue]] = []
                     for idx, alt_spec in enumerate(specs_in_union):
                         # return first resolved config from an union
                         try:
@@ -334,9 +335,26 @@ def _resolve_config_fields(
                                     cfm_ex.traces,
                                 )
                             )
-                        except InvalidNativeValue:
-                            # if none of specs in union parsed
+                        except InvalidNativeValue as inv_ex:
+                            # none of the specs tried so far could parse the value: keep track of why,
+                            # so if the whole union fails we can explain what happened with each type
+                            # instead of just reporting the error from the last (often least relevant) spec
+                            invalid_native_value_exceptions.append((alt_spec, inv_ex))
                             if idx == len(specs_in_union) - 1:
+                                if len(invalid_native_value_exceptions) > 1:
+                                    attempts = "; ".join(
+                                        f"`{spec.__name__}`: {ex.inner_exception}"
+                                        for spec, ex in invalid_native_value_exceptions
+                                    )
+                                    raise InvalidNativeValue(
+                                        specs_in_union[0],
+                                        type(explicit_value),
+                                        embedded_sections,
+                                        Exception(
+                                            "None of the credential/configuration types in this"
+                                            f" union could parse the provided value. Attempts: {attempts}"
+                                        ),
+                                    ) from inv_ex
                                 raise
                 else:
                     try:

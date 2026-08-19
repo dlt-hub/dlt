@@ -59,11 +59,14 @@ OAUTH_USER_INFO = """
     }
 """
 
-OAUTH_APP_USER_INFO = """
+OAUTH_APP_USER_INFO = (
+    """
 {
     "installed": %s
 }
-""" % OAUTH_USER_INFO
+"""
+    % OAUTH_USER_INFO
+)
 
 
 def test_credentials_resolve_from_init_value() -> None:
@@ -265,6 +268,29 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     assert gcpc_2.default_credentials() is None
 
 
+def test_gcp_service_credentials_native_representation_from_file_path(
+    environment, tmp_path
+) -> None:
+    # a path to a service account JSON file (the common GOOGLE_APPLICATION_CREDENTIALS
+    # convention) must resolve the same way as passing the JSON content directly
+    service_json_path = tmp_path / "service_account.json"
+    service_json_path.write_text(
+        SERVICE_JSON
+        % '"private_key": "-----BEGIN PRIVATE KEY-----\\n\\n-----END PRIVATE KEY-----\\n",'
+    )
+
+    gcpc = GcpServiceAccountCredentials()
+    gcpc.parse_native_representation(str(service_json_path))
+    assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
+    assert gcpc.project_id == "chat-analytics"
+    assert gcpc.client_email == "loader@iam.gserviceaccount.com"
+
+    # a plain string that happens to not exist as a file is still handled as JSON content,
+    # and still raises the usual error if it isn't valid JSON
+    with pytest.raises(InvalidGoogleServicesJson):
+        GcpServiceAccountCredentials().parse_native_representation("notjson")
+
+
 def test_gcp_service_credentials_resolved_from_native_representation(environment: Any) -> None:
     gcpc = GcpServiceAccountCredentialsWithoutDefaults()
 
@@ -320,6 +346,17 @@ def test_gcp_oauth_credentials_native_representation(environment) -> None:
     gcpc_3 = GcpOAuthCredentials()
     gcpc_3.parse_native_representation(OAUTH_USER_INFO % '"refresh_token": "refresh_token",')
     assert dict(gcpc_3) == dict(gcpc_2)
+
+
+def test_gcp_oauth_credentials_native_representation_from_file_path(environment, tmp_path) -> None:
+    # a path to an OAuth client JSON file must resolve the same way as passing its content directly
+    oauth_json_path = tmp_path / "oauth_client.json"
+    oauth_json_path.write_text(OAUTH_APP_USER_INFO % '"refresh_token": "refresh_token",')
+
+    gcoauth = GcpOAuthCredentials()
+    gcoauth.parse_native_representation(str(oauth_json_path))
+    assert gcoauth.project_id == "level-dragon-333983"
+    assert gcoauth.refresh_token == "refresh_token"
 
 
 def test_needs_scopes_for_refresh_token() -> None:
