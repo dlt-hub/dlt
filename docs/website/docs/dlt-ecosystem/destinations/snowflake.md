@@ -145,6 +145,19 @@ or
 destination.snowflake.credentials="snowflake:///dlt_data?authenticator=oauth"  # host and token not specified
 ```
 
+In **Workload Identity Federation (WIF)** authentication, set `authenticator` to
+`WORKLOAD_IDENTITY` and pass `workload_identity_provider` as `AWS`, `AZURE`, `GCP`,
+or `OIDC`. For `OIDC`, also set `token`. Requires `snowflake-connector-python>=3.17.0`.
+See [Snowflake WIF](https://docs.snowflake.com/en/user-guide/workload-identity-federation).
+
+```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+host = "kgiotue-wn98412"
+authenticator = "WORKLOAD_IDENTITY"
+workload_identity_provider = "AWS"
+```
+
 ### Additional connection options
 
 We pass all query parameters to the `connect` function of the Snowflake Python Connector. For example:
