@@ -584,38 +584,30 @@ const sidebars = {
         id: "examples/index",
       },
       items: [
-        {
-          type: "category",
-          label: "dlt",
-          collapsible: true,
-          collapsed: true,
-          items: [
-            "examples/arize_phoenix_export",
-            "examples/backfill_in_chunks",
-            "examples/chess_production",
-            "examples/connector_x_arrow",
-            "examples/custom_config_provider",
-            "examples/custom_destination_bigquery",
-            "examples/custom_destination_lancedb",
-            "examples/custom_naming",
-            "examples/data_masking",
-            "examples/google_sheets",
-            "examples/incremental_loading",
-            "examples/langfuse_export",
-            "examples/logfire_telemetry_export",
-            "examples/nested_data",
-            "examples/partial_loading",
-            "examples/pdf_to_weaviate",
-            "examples/postgres_to_postgres",
-            "examples/propagate_hints",
-            "examples/qdrant_zendesk",
-            "examples/transformers",
-            "walkthroughs/dispatch-to-multiple-tables",
-            "walkthroughs/share-a-dataset",
-            "walkthroughs/create-new-destination",
-            "walkthroughs/zendesk-weaviate",
-          ],
-        },
+        "examples/arize_phoenix_export",
+        "examples/backfill_in_chunks",
+        "examples/chess_production",
+        "examples/connector_x_arrow",
+        "examples/custom_config_provider",
+        "examples/custom_destination_bigquery",
+        "examples/custom_destination_lancedb",
+        "examples/custom_naming",
+        "examples/data_masking",
+        "examples/google_sheets",
+        "examples/incremental_loading",
+        "examples/langfuse_export",
+        "examples/logfire_telemetry_export",
+        "examples/nested_data",
+        "examples/partial_loading",
+        "examples/pdf_to_weaviate",
+        "examples/postgres_to_postgres",
+        "examples/propagate_hints",
+        "examples/qdrant_zendesk",
+        "examples/transformers",
+        "walkthroughs/dispatch-to-multiple-tables",
+        "walkthroughs/share-a-dataset",
+        "walkthroughs/create-new-destination",
+        "walkthroughs/zendesk-weaviate",
       ],
     },
   ],
@@ -631,22 +623,6 @@ const sidebars = {
     },
   ],
 };
-
-// insert examples under the `dlt` subcategory of the Cookbook
-// `examples/index` is the link target of the parent Cookbook category, so skip it here —
-// otherwise navigating to the Cookbook landing page auto-expands `dlt` to highlight it.
-for (const item of sidebars.cookbookSidebar) {
-  const dltSubcategory = item.items.find((entry) => typeof entry === "object" && entry.label === "dlt");
-  if (!dltSubcategory) continue;
-  for (let examplePath of walkSync("./docs_processed/examples")) {
-    examplePath = examplePath.replace(/\\/g, "/");
-    examplePath = examplePath.replace("docs_processed/", "");
-    examplePath = examplePath.replace(".mdx", "");
-    examplePath = examplePath.replace(".md", "");
-    if (examplePath === "examples/index") continue;
-    dltSubcategory.items.push(examplePath);
-  }
-}
 
 // inject api reference if it exists
 if (fs.existsSync("./docs_processed/api_reference/sidebar.json")) {
