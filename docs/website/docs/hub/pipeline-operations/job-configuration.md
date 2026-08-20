@@ -1,7 +1,7 @@
 ---
 title: Job configuration
-description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
+description: Per-job options on the dltHub platform, including execution timeouts, dependency groups, instance size, profile, provider, region, and TOML configuration sections
+keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, require.profile, require.provider, require.region, machine, static egress, execute, require, expose, section]
 ---
 
 # Job configuration
@@ -24,6 +24,27 @@ def long_load():
 ```
 
 Accepted timeout formats: a duration string (`"6h"`, `"30m"`) or an integer number of seconds.
+
+## Runner requirements
+
+`require={...}` declares what a job needs from its runner: the Python environment, the profile it runs under, the hardware it lands on, and how it reaches the outside world. Every key is optional, and the same set is accepted by all three decorators.
+
+| Key | Type | Default | Documented in |
+|-----|------|---------|---------------|
+| `dependency_groups` | list of strings | the workspace's base dependencies only | [Dependency groups](#dependency-groups) |
+| `instance` | dict, `size` only | `{"size": "small"}` | [Instance size](#instance-size) |
+| `machine` | string | not read | [Deprecated: machine](#deprecated-machine) |
+| `profile` | string | `prod` for batch jobs, `access` for interactive ones | [Profile](#profile) |
+| `provider` | string | `modal` | [Provider](#provider) |
+| `region` | string | your organization's data plane region | [Region](#region) |
+| `static_egress_ips` | boolean | `False` | [Static egress IPs](#static-egress-ips) |
+| `timezone` | IANA timezone name | `UTC` | [Timezone](triggers.md#timezone) |
+
+A key that is not in this table is rejected when you deploy, so a typo never reaches the platform unnoticed:
+
+```text
+Path `./jobs[0]/require`: received unexpected fields `{'machin'}`
+```
 
 ## Dependency groups
 
@@ -70,7 +91,65 @@ def heavy_sync():
 
 If you omit `instance`, jobs default to `small`. Larger sizes use a higher `multiplier` against your organization's run time budget. For example, a one-hour `large` run consumes four hours of budget.
 
+`size` is the only key the platform reads out of the `instance` dict, and it must be one of the four names above. Anything else fails the deploy, and so does asking for a size on a [provider](#provider) that does not support sizing.
+
 Pipeline-level tuning (chunking, parallelism, memory settings) often lowers the size you need, see [Optimizing dlt](../../reference/performance.md).
+
+### Deprecated: machine
+
+`require={"machine": "2xlarge"}` is the older way of asking for hardware. It is deprecated in favour of `require.instance` and it does nothing: the platform sizes runners from `instance` and never reads `machine`.
+
+Importing a job that declares it prints a deprecation warning once:
+
+```text
+DltDeprecationWarning: `require.machine` is deprecated, use `require.instance` instead
+(e.g. `{'instance': {'size': 'medium'}}`). Deprecated in dlt 1.29.0 to be removed in 2.0.0.
+```
+
+Replace it with a size from the table above. The old machine identifiers have no one-to-one mapping onto instance sizes, so pick the size your job actually needs:
+
+```py
+# deprecated, and ignored by the platform
+@run.pipeline(my_pipeline, require={"machine": "2xlarge"})
+def legacy_sync():
+    ...
+
+# current
+@run.pipeline(my_pipeline, require={"instance": {"size": "xlarge"}})
+def heavy_sync():
+    ...
+```
+
+## Profile
+
+`require={"profile": "analytics"}` runs the job under that workspace [profile](profiles.md). The launcher activates it before your function runs, so the pipeline and every config lookup resolve from `analytics.config.toml` and `analytics.secrets.toml`:
+
+```py
+@run.pipeline(my_pipeline, require={"profile": "analytics"})
+def load_analytics():
+    ...
+```
+
+Without the key, batch jobs (`@run.pipeline`, `@run.job`) run under `prod` and interactive jobs (`@run.interactive`) under `access`. A workspace that has never synced an `access` configuration falls back to `prod` for interactive jobs.
+
+Things to know before you set it:
+
+- **`dev` and `tests` are rejected.** They are local-only profiles and are never uploaded, so a deployed job cannot assume them. Declaring one fails the deploy with `require.profile 'dev' is a local-only profile and cannot be assumed by deployed jobs`.
+- **Custom profiles need their own TOML files.** Every `<profile>.config.toml` and `<profile>.secrets.toml` in `.dlt/` that is not a local-only profile is uploaded on deploy. See [Setting up configuration files](workspace-setup.md#setting-up-configuration-files).
+- **The profile sets the job's data access level.** `access` is read-only, while `prod` and any custom name count as read/write. A [follow-up trigger](triggers.md#follow-up-triggers) is skipped when the downstream job's profile has a higher access level than the run that fired it, so a job on `access` cannot chain into a job on `prod`.
+- **Local runs don't switch profiles.** `dlthub local run` uses the pinned or active profile and warns when the job declares a different one (`Job declares profile 'analytics' but running on current profile 'dev'`). Pass `--profile NAME` to override both.
+
+## Provider
+
+`require={"provider": "modal"}` names the infrastructure backend that executes the job. `modal` is the default and the only provider that supports [instance sizing](#instance-size). Combining `instance` with any other provider fails the deploy, as does a provider name the platform does not recognize.
+
+Leave the key unset unless dltHub tells you which provider to name.
+
+## Region
+
+`require={"region": ...}` does not choose where a job runs, and the platform does not read it. Placement follows your organization's data plane: each plane pins the region its runners execute in, and an organization is bound to exactly one plane, chosen at creation and permanent afterwards.
+
+So setting `require.region` changes neither placement nor data residency. To run workloads in another region, create an organization there and redeploy. See [Regions and data residency](../platform-capabilities/regions.md).
 
 ## Static egress IPs
 
