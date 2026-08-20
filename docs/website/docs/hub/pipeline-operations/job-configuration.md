@@ -82,12 +82,14 @@ def heavy_sync():
     ...
 ```
 
-| `size` | vCPU | Memory | Disk | Multiplier |
-|--------|------|--------|------|------------|
-| `small` | 2 | 4 GiB | 500 GB | 1× |
-| `medium` | 4 | 8 GiB | 500 GB | 2× |
-| `large` | 8 | 16 GiB | 500 GB | 4× |
-| `xlarge` | 16 | 32 GiB | 500 GB | 8× |
+| `size` | vCPU | Memory | Multiplier |
+|--------|------|--------|------------|
+| `small` | 2 | 4 GiB | 1× |
+| `medium` | 4 | 8 GiB | 2× |
+| `large` | 8 | 16 GiB | 4× |
+| `xlarge` | 16 | 32 GiB | 8× |
+
+vCPU and memory are the whole of what a size promises. The platform's instance catalog is a provider-agnostic contract over those two values, and nothing else about the runner, disk included, is part of it. Whatever storage a runner has is the provider's own default rather than something the size guarantees.
 
 If you omit `instance`, jobs default to `small`. Larger sizes use a higher `multiplier` against your organization's run time budget. For example, a one-hour `large` run consumes four hours of budget.
 
