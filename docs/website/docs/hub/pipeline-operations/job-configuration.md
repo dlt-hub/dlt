@@ -136,7 +136,6 @@ Things to know before you set it:
 
 - **`dev` and `tests` are rejected.** They are local-only profiles and are never uploaded, so a deployed job cannot assume them. Declaring one fails the deploy with `require.profile 'dev' is a local-only profile and cannot be assumed by deployed jobs`.
 - **Custom profiles need their own TOML files.** Every `<profile>.config.toml` and `<profile>.secrets.toml` in `.dlt/` that is not a local-only profile is uploaded on deploy. See [Setting up configuration files](workspace-setup.md#setting-up-configuration-files).
-- **The profile sets the job's data access level.** `access` is read-only, while `prod` and any custom name count as read/write. A [follow-up trigger](triggers.md#follow-up-triggers) is skipped when the downstream job's profile has a higher access level than the run that fired it, so a job on `access` cannot chain into a job on `prod`.
 - **Local runs don't switch profiles.** `dlthub local run` uses the pinned or active profile and warns when the job declares a different one (`Job declares profile 'analytics' but running on current profile 'dev'`). Pass `--profile NAME` to override both.
 
 ## Provider
