@@ -73,7 +73,6 @@ build-backend = "hatchling.build"
 [project.scripts]
 preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
 clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
-prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
 
 [tool.ruff]
 line-length = 100
@@ -113,6 +112,8 @@ python_files = ["test_*.py", "*_test.py", "*snippets.py", "*snippet.pytest"]
 python_functions = ["*_test", "test_*", "*_snippet"]
 filterwarnings = ["ignore::DeprecationWarning"]
 markers = [
-    "no_load: marks tests that do not load anything",
-    "rfam: marks tests that use rfam db"
+    "lint_snippets: parametrizes a test with all lintable docs snippets/examples (see pytest_generate_tests)",
+    "typecheck_snippets: parametrizes a test with all type-checkable docs snippets/examples (see pytest_generate_tests)",
+    "run_snippets: parametrizes a test with all runnable docs pages/examples (see pytest_generate_tests)",
+    "example: expensive snippet to run",
 ]

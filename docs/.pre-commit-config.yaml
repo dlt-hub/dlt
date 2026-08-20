@@ -16,9 +16,22 @@ repos:
     hooks:
       - id: check-snippets
         name: check-snippets
-        entry: uv run pytest -p xdist -n auto -rn --tb=line -p no:warnings test_snippets.py
-        language: python
+        entry: uv run pytest -m "not example" -p xdist -n auto -rn --tb=no -p no:warnings test_snippets.py
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
         pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: check-examples
+        name: check-examples
+        # remove the `xdist` parallelization; this calls the entrypoint for each example.
+        entry: uv run pytest -rn --tb=no -p no:warnings test_snippets.py --page
+        language: system
+        files: ^website/docs/examples.*\.md$
+        types: [markdown]
+        pass_filenames: true
 
   - repo: local
     hooks:
@@ -27,6 +40,37 @@ repos:
         entry: uv run mdsmith check website/docs --no-color
         language: system
         types: [markdown]
+        pass_filenames: false
+
+  # make commands
+  - repo: local
+    hooks:
+      - id: lint-website
+        name: lint-website
+        entry: make lint-website
+        language: system
+        pass_filenames: false
+
+      - id: check-orphan-docs
+        name: check-orphan-docs
+        entry: make check-orphan-docs
+        language: system
+        pass_filenames: false
+
+      - id: lint-notebooks
+        name: lint-notebooks
+        entry: make lint-notebooks
+        files: ^education/.*\.ipynb$
+        types: [jupyter]
+        language: system
+        pass_filenames: false
+
+      - id: validate-molabs
+        name: validate-molabs
+        entry: make validate-molabs
+        files: ^education/.*\.py$
+        types: [python]
+        language: system
         pass_filenames: false
 
   - repo: https://github.com/abravalheri/validate-pyproject
