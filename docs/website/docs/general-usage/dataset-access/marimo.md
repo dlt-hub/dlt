@@ -7,7 +7,7 @@ keywords: [data, dataset, sql, ibis, marimo]
 # Explore your data with marimo
 
 :::tip
-For an agent-driven workflow, see the [dltHub AI workbench data exploration toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master/workbench/data-exploration) — a set of context files and prompts for generating marimo notebooks from your dlt datasets with a coding agent.
+For an agent-driven workflow, see the [dltHub AI Harness data exploration toolkit](../../hub/ai-harness/toolkits.md#data-exploration): a set of context files and prompts for generating marimo notebooks from your dlt datasets with a coding agent.
 :::
 
 [marimo](https://github.com/marimo-team/marimo) is a reactive Python notebook. It completely revamps the Jupyter notebook experience. Whenever code is executed or you interact with a UI element, dependent cells are re-executed ensuring consistency between code and displayed outputs.
@@ -100,6 +100,8 @@ The **Datasources** displays a limited range of data types.
 ### Create a dashboard and data apps
 
 Marimo notebooks can also be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
+
+To run such a notebook on the dltHub platform, where it is served as an interactive job behind your workspace's auth, see [Build and deploy a marimo notebook](../../hub/cookbook/build-marimo-notebook.md).
 
 
 ## Further reading

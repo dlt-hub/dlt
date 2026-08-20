@@ -546,6 +546,7 @@ const sidebars = {
         "hub/data-discovery/datasets",
         { type: "doc", id: "general-usage/dataset-access/marimo" },
         "hub/cookbook/build-streamlit-dashboard",
+        "hub/cookbook/build-marimo-notebook",
       ],
     },
     {
