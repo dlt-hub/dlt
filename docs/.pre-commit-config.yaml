@@ -16,18 +16,18 @@ repos:
     hooks:
       - id: check-snippets
         name: check-snippets
-        entry: uv run pytest -m "not example" -p xdist -n auto -rn --tb=no -p no:warnings test_snippets.py
+        entry: uv run pytest -m "not example" -rn --tb=no -p no:warnings test_snippets.py --pages
         language: system
         files: ^website/docs/.*\.md$
         types: [markdown]
-        pass_filenames: false
+        pass_filenames: true
 
   - repo: local
     hooks:
       - id: check-examples
         name: check-examples
         # remove the `xdist` parallelization; this calls the entrypoint for each example.
-        entry: uv run pytest -rn --tb=no -p no:warnings test_snippets.py --page
+        entry: uv run pytest -rn --tb=no -p no:warnings test_snippets.py --pages
         language: system
         files: ^website/docs/examples.*\.md$
         types: [markdown]

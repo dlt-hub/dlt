@@ -1,4 +1,3 @@
-import os
 import re
 import subprocess
 import sys
@@ -31,42 +30,6 @@ WEBSITE_DOCS_DIR = Path("website/docs")
 
 TYPECHECK_PREAMBLE = Path("docs_snippets_stub.py").read_text(encoding="utf-8")
 TYPECHECK_PREAMBLE_LINE_COUNT = TYPECHECK_PREAMBLE.count("\n") + 1
-
-# `IS_FORK` is set in CI for pull requests opened from forks, where repository secrets
-# (cloud credentials, API keys, ...) are not available.
-IS_FORK = os.environ.get("IS_FORK") == "true"
-
-# Examples that talk to a live external service/API (chess.com, zendesk, pokeapi, the
-# rfam MySQL database, observability backends, ...). They can't run reliably in CI so we
-# keep them collected (visible) but always skipped.
-EXAMPLES_SKIP_RUN = {
-    "arize_phoenix_export",
-    "backfill_in_chunks",
-    "connector_x_arrow",
-    "incremental_loading",
-    "langfuse_export",
-    "logfire_telemetry_export",
-    "partial_loading",
-    "qdrant_zendesk",
-    "transformers",
-}
-
-# Examples that require secrets (cloud credentials, API keys, ...). They run on the main
-# repository but are skipped on fork PRs where secrets are not available.
-EXAMPLES_REQUIRING_SECRETS = {
-    "chess_production",
-    "custom_destination_bigquery",
-    "custom_destination_lancedb",
-    "custom_naming",
-    "google_sheets",
-    "nested_data",
-    "pdf_to_weaviate",
-    "postgres_to_postgres",
-}
-
-# Examples that must NOT run in a forked subprocess (e.g. native libraries that don't
-# survive a fork). Everything else runs forked to isolate global state between examples.
-EXAMPLES_NO_FORK = {"custom_destination_lancedb"}
 
 
 def _patch_ty_diagnostic_location(output: str, snippet_file: Path, example: CodeExample) -> str:
@@ -120,6 +83,8 @@ def _providers_for_page(page_dir: Path):
 @pytest.mark.lint_snippets
 def test_lint_snippets(example: CodeExample, eval_example: EvalExample):
     """Lint snippets"""
+    # pytest-examples overrides the value set in `pyproject.toml`
+    eval_example.set_config(target_version="py310")
     if eval_example.update_examples:
         eval_example.format_ruff(example)
     else:

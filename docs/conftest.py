@@ -79,18 +79,21 @@ REQUIRES_SHARED_STATE = {
 
 def pytest_addoption(parser: pytest.Parser) -> None:
     parser.addoption(
-        "--page",
-        action="append",
+        "--pages",
+        nargs="*",
         default=None,
         type=pathlib.Path,
-        help="Select a specific docs page to check",
+        help=(
+            "Select specific docs pages to check. Accepts multiple values, which allows"
+            " pre-commit hooks to append all the changed files after `--page`."
+        ),
     )
 
 
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    page_path = metafunc.config.getoption("page")
-    if page_path:
-        examples = list(find_examples(page_path[0]))
+    page_paths = metafunc.config.getoption("pages")
+    if page_paths:
+        examples = [example for page_path in page_paths for example in find_examples(page_path)]
     else:
         examples = list(find_examples(WEBSITE_DOCS_DIR))
 
@@ -102,11 +105,16 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             continue
 
         marks = [pytest.mark.example] if example.path.is_relative_to(EXAMPLES_DIR) else []
-        param = pytest.param(example, marks=marks)
-        lint_params.append(param)
+        lint_params.append(pytest.param(example, marks=marks))
         # TODO explicitly set `nolint` on individual snippets
-        if not any(ignored in str(example.path) for ignored in TYPECHECK_IGNORE):
-            typecheck_params.append(param)
+        if any(ignored in str(example.path) for ignored in TYPECHECK_IGNORE):
+            typecheck_marks = marks + [pytest.mark.skip("File is ignored.")]
+        elif "notype" in example.prefix_tags():
+            typecheck_marks = marks + [pytest.mark.skip("Found `notype` directive.")]
+        else:
+            typecheck_marks = marks
+
+        typecheck_params.append(pytest.param(example, marks=typecheck_marks))
 
     # execution needs to be grouped per page
     run_examples: dict[pathlib.Path, list[CodeExample]] = {}
@@ -114,14 +122,22 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         if not example.prefix.split()[:1] == ["py"]:
             continue
 
-        if "execute" not in example.prefix_tags():
-            continue
-
-        run_examples.setdefault(example.path, []).append(example)
+        # later we check that a page containing at least one `noexecute` directive gets skipped
+        if (
+            "execute" in example.prefix_tags()
+            or "noexecute" in example.prefix_tags()
+        ):
+            run_examples.setdefault(example.path, []).append(example)
 
     run_params = []
     for path, examples in run_examples.items():
-        marks = [pytest.mark.example] if path.is_relative_to(EXAMPLES_DIR) else []
+        marks = []
+        if path.is_relative_to(EXAMPLES_DIR):
+            marks.append(pytest.mark.example)
+
+        if any("noexecute" in example.prefix_tags() for example in examples):
+            marks.append(pytest.mark.skip("Found a `noexecute` directive in one of the snippet of this page."))
+
         param = pytest.param(
             path, examples, str(path) in REQUIRES_SHARED_STATE,
             marks=marks,
