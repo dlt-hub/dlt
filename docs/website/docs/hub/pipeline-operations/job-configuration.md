@@ -17,7 +17,7 @@ All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.in
 ```py
 @run.pipeline(
     my_pipeline,
-    execute={"timeout": 7200, "grace_period": 60},
+    execute={"timeout": {"timeout": 7200, "grace_period": 60}},
 )
 def long_load():
     ...
