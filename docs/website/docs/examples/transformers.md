@@ -1,22 +1,28 @@
-"""
 ---
 title: Pokemon details in parallel using transformers
 description: Learn how to use dlt transformers and how to speed up your loads with parallelism
 keywords: [transformers, parallelism, example]
 ---
+:::info
+The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/transformers](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/transformers)
+:::
+
+## About this Example
 
 For this example, we will be loading Pokemon data from the [PokeAPI](https://pokeapi.co/) with the help of transformers to load
 Pokemon details in parallel.
 
 We'll learn how to:
+
 - create 2 [transformers](../general-usage/resource.md#process-resources-with-dlttransformer) and connect them to a resource with the pipe operator `|`;
 - [load these transformers in parallel](../reference/performance.md#parallelism-within-a-pipeline) using the `@dlt.defer` decorator;
 - [configure parallelism](../reference/performance.md#parallel-pipeline-config-example) in the `config.toml` file;
 - deselect the main resource, so it will not be loaded into the database;
 - importing and using a pre-configured `requests` library with automatic retries (`from dlt.sources.helpers import requests`).
 
-"""
+### Full source code
 
+```py execute
 import dlt
 from dlt.sources.helpers import requests
 
@@ -70,11 +76,13 @@ if __name__ == "__main__":
     )
 
     # the pokemon_list resource does not need to be loaded
-    load_info = pipeline.run(source("https://pokeapi.co/api/v2/pokemon"))
-    print(load_info)
+    pipeline.run(source("https://pokeapi.co/api/v2/pokemon"))
 
-    # verify that all went well
-    row_counts = pipeline.last_trace.last_normalize_info.row_counts
+    normalize_info = pipeline.last_trace.last_normalize_info
+    assert normalize_info is not None
+
+    row_counts = dict(normalize_info.row_counts)
     assert row_counts["pokemon"] == 20
     assert row_counts["species"] == 20
     assert "pokemon_list" not in row_counts
+```
