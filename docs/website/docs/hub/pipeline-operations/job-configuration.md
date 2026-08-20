@@ -140,7 +140,9 @@ Things to know before you set it:
 
 ## Provider
 
-`require={"provider": "modal"}` names the infrastructure backend that executes the job. `modal` is the default and the only provider that supports [instance sizing](#instance-size). Combining `instance` with any other provider fails the deploy, as does a provider name the platform does not recognize.
+`require={"provider": "modal"}` names the infrastructure backend that executes the job. The platform accepts exactly three names (`modal`, `tower`, and `local`) and rejects any other value at deploy time, including a valid name in the wrong case. `modal` is what a job gets when you leave the key unset.
+
+Of the three, only `modal` supports [instance sizing](#instance-size). Declaring `instance` together with `tower` or `local` fails the deploy with a 400: the platform validates the pair when it stamps the job version, rather than dropping the requested size and running the job on unsized hardware.
 
 Leave the key unset unless dltHub tells you which provider to name.
 
