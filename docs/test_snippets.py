@@ -1,3 +1,4 @@
+import os
 import re
 import subprocess
 import sys
@@ -7,7 +8,7 @@ from typing import Any
 from unittest.mock import patch
 
 import pytest
-from pytest_examples import CodeExample, EvalExample, find_examples
+from pytest_examples import CodeExample, EvalExample
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
@@ -28,112 +29,44 @@ from tests.utils import (  # noqa: F401
 
 WEBSITE_DOCS_DIR = Path("website/docs")
 
-# TODO: fix the docs and shrink this list. Some failures are genuine docs issues that
-# weren't caught by previous checks.
-TYPECHECK_IGNORE = {
-    # verified-sources docs consistently follow this "numbered steps" pattern
-    "dlt-ecosystem/verified-sources/",
-    # individual pages elsewhere with the same issue (or other, un-triaged failures)
-    "dlt-ecosystem/destinations/clickhouse.md",
-    "dlt-ecosystem/destinations/databricks.md",
-    "dlt-ecosystem/destinations/destination.md",
-    "dlt-ecosystem/destinations/ducklake.md",
-    "dlt-ecosystem/destinations/fabric.md",
-    "dlt-ecosystem/destinations/iceberg.md",
-    "dlt-ecosystem/destinations/lance.md",
-    "dlt-ecosystem/destinations/lancedb.md",
-    "dlt-ecosystem/destinations/mssql.md",
-    "dlt-ecosystem/destinations/qdrant.md",
-    "dlt-ecosystem/destinations/sqlalchemy.md",
-    "dlt-ecosystem/destinations/synapse.md",
-    "dlt-ecosystem/destinations/weaviate.md",
-    "dlt-ecosystem/transformations/add-map.md",
-    "dlt-ecosystem/transformations/dbt/dbt.md",
-    "dlt-ecosystem/transformations/python.md",
-    "dlt-ecosystem/transformations/sql.md",
-    "general-usage/credentials/advanced.md",
-    "general-usage/credentials/complex_types.md",
-    "general-usage/credentials/setup.md",
-    "general-usage/customising-pipelines/removing_columns.md",
-    "general-usage/data-enrichments/currency_conversion_data_enrichment.md",
-    "general-usage/data-enrichments/url-parser-data-enrichment.md",
-    "general-usage/data-enrichments/user_agent_device_data_enrichment.md",
-    "general-usage/dataset-access/dataset.md",
-    "general-usage/destination.md",
-    "general-usage/incremental/advanced-state.md",
-    "general-usage/incremental/cursor.md",
-    "general-usage/merge-loading.md",
-    "general-usage/resource.md",
-    "general-usage/schema-contracts.md",
-    "general-usage/schema.md",
-    "general-usage/source.md",
-    "general-usage/state.md",
-    "hub/data-quality/index.md",
-    "hub/ingestion/dashboard.md",
-    "hub/ingestion/ms-sql.md",
-    "hub/pipeline-operations/deployments.md",
-    "hub/pipeline-operations/job-configuration.md",
-    "hub/pipeline-operations/secrets-management.md",
-    "hub/pipeline-operations/triggers.md",
-    "hub/transformations/explore-and-transform.md",
-    "hub/transformations/index.md",
-    "reference/performance.md",
-    "release-notes/1.12.1.md",
-    "release-notes/1.17.md",
-    "release-notes/1.18.md",
-    "release-notes/1.19.md",
-    "running-in-production/running.md",
-    "tutorial/filesystem.md",
-    "tutorial/load-data-from-an-api.md",
-    "tutorial/rest-api.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-modal.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-dagster.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-prefect.md",
-    "walkthroughs/deploy-a-pipeline/orchestrate-with-dlthub.md",
-}
-
 TYPECHECK_PREAMBLE = Path("docs_snippets_stub.py").read_text(encoding="utf-8")
 TYPECHECK_PREAMBLE_LINE_COUNT = TYPECHECK_PREAMBLE.count("\n") + 1
 
-# (page path relative to `website/docs`, snippets share state across the page)
-#
-# "shared state" pages are meant to be read (and run) top to bottom - later snippets
-# reuse variables an earlier snippet on the same page defines - so they run in program
-# order, threading `module_globals` through. Other pages have independent snippets, each
-# running with a fresh set of globals.
-EXECUTE_PAGES: list[tuple[str, bool]] = [
-    ("general-usage/destination.md", False),
-    ("general-usage/schema.md", False),
-    ("general-usage/dataset-access/dataset.md", True),
-    ("reference/performance.md", False),
-    ("running-in-production/running.md", False),
-    ("tutorial/load-data-from-an-api.md", False),
-    ("dlt-ecosystem/transformations/dbt/dbt.md", True),
-    ("hub/transformations/index.md", True),
-    ("walkthroughs/deploy-a-pipeline/deploy-with-modal.md", True),
-]
+# `IS_FORK` is set in CI for pull requests opened from forks, where repository secrets
+# (cloud credentials, API keys, ...) are not available.
+IS_FORK = os.environ.get("IS_FORK") == "true"
 
+# Examples that talk to a live external service/API (chess.com, zendesk, pokeapi, the
+# rfam MySQL database, observability backends, ...). They can't run reliably in CI so we
+# keep them collected (visible) but always skipped.
+EXAMPLES_SKIP_RUN = {
+    "arize_phoenix_export",
+    "backfill_in_chunks",
+    "connector_x_arrow",
+    "incremental_loading",
+    "langfuse_export",
+    "logfire_telemetry_export",
+    "partial_loading",
+    "qdrant_zendesk",
+    "transformers",
+}
 
-# implicit convention: `py` fences are real, checked snippets. `python` fences are illustrative/pseudo-code
-# TODO parse a `nolint` directive in the code fence (e.g., ```py nolint)
-examples = [
-    example for example in find_examples("website/docs") if example.prefix.split()[:1] == ["py"]
-]
+# Examples that require secrets (cloud credentials, API keys, ...). They run on the main
+# repository but are skipped on fork PRs where secrets are not available.
+EXAMPLES_REQUIRING_SECRETS = {
+    "chess_production",
+    "custom_destination_bigquery",
+    "custom_destination_lancedb",
+    "custom_naming",
+    "google_sheets",
+    "nested_data",
+    "pdf_to_weaviate",
+    "postgres_to_postgres",
+}
 
-typecheck_examples = [
-    example
-    for example in examples
-    if not any(ignored in str(example.path) for ignored in TYPECHECK_IGNORE)
-]
-
-
-def _executable_examples(page: Path) -> list[CodeExample]:
-    return [
-        example for example in find_examples(str(page))
-        if example.prefix.split()[:1] == ["py"]
-        and "execute" in example.prefix_tags()
-    ]
+# Examples that must NOT run in a forked subprocess (e.g. native libraries that don't
+# survive a fork). Everything else runs forked to isolate global state between examples.
+EXAMPLES_NO_FORK = {"custom_destination_lancedb"}
 
 
 def _patch_ty_diagnostic_location(output: str, snippet_file: Path, example: CodeExample) -> str:
@@ -184,7 +117,7 @@ def _providers_for_page(page_dir: Path):
             sys.path.remove(str(page_dir))
 
 
-@pytest.mark.parametrize("example", examples, ids=str)
+@pytest.mark.lint_snippets
 def test_lint_snippets(example: CodeExample, eval_example: EvalExample):
     """Lint snippets"""
     if eval_example.update_examples:
@@ -193,7 +126,7 @@ def test_lint_snippets(example: CodeExample, eval_example: EvalExample):
         eval_example.lint_ruff(example)
 
 
-@pytest.mark.parametrize("example", typecheck_examples, ids=str)
+@pytest.mark.typecheck_snippets
 def test_typecheck_snippets(example: CodeExample, tmp_path: Path):
     """Type check snippets"""
     snippet_file = tmp_path / f"{example.module_name}.py"
@@ -212,27 +145,26 @@ def test_typecheck_snippets(example: CodeExample, tmp_path: Path):
         pytest.fail(output, pytrace=False)
 
 
-@pytest.mark.parametrize(
-    "page,shared_state",
-    EXECUTE_PAGES,
-    ids=[page for page, _ in EXECUTE_PAGES]
-)
+@pytest.mark.run_snippets
 def test_run_snippets(
-    page: str,
+    page_relative_path: str,
+    page_examples: list[CodeExample],
     shared_state: bool,
     eval_example: EvalExample,
 ) -> None:
-    """Run snippets
+    """Run docs snippets and standalone examples.
+
+    Snippets (`snippets` marker) and examples (`examples` marker) share the same
+    execution logic and can be selected independently, e.g. `pytest -m examples`.
 
     If shared_state is True, share the state between individual snippets
     of the same docs page.
     """
-    page_path = WEBSITE_DOCS_DIR / page
-    examples = _executable_examples(page_path)
+    page_path = WEBSITE_DOCS_DIR / page_relative_path
 
+    module_globals: dict[str, Any] = {}
     with _providers_for_page(page_path.parent):
-        module_globals: dict[str, Any] = {}
-        for example in examples:
+        for example in page_examples:
             if shared_state:
                 if eval_example.update_examples:
                     module_globals = eval_example.run_print_update(

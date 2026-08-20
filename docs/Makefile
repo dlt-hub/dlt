@@ -33,10 +33,6 @@ lint-notebooks: ## Lints the notebooks in the education folder
 	--disable-error-code=no-redef \
 	--disable-error-code=top-level-await
 
-test-examples: ## Tests the examples in the examples folder
-	uv run prepare-examples-tests
-	cd examples && uv run pytest
-
 format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black docs_tools website examples
 	uv run black education/*/*.ipynb --ipynb

@@ -13,22 +13,17 @@ This script processes markdown files by:
 import os
 import shutil
 import threading
-from typing import List, Tuple
+from typing import Tuple
 import argparse
 
 from watchdog.events import FileSystemEvent, FileSystemEventHandler
 from watchdog.observers import Observer
 
 from docs_tools.markdown.constants import (
-    EXAMPLES_SOURCE_DIR,
     MD_SOURCE_DIR,
     MD_TARGET_DIR,
     MOVE_FILES_EXTENSION,
     DOCS_EXTENSIONS,
-    EXAMPLES_DESTINATION_DIR,
-    HTTP_LINK,
-    ABS_LINK,
-    ABS_IMG_LINK,
     WATCH_EXTENSIONS,
 )
 from docs_tools.markdown.utils import walk_sync, remove_remaining_markers
@@ -36,7 +31,6 @@ from docs_tools.markdown.preprocess_tuba import insert_tuba_links, fetch_tuba_co
 from docs_tools.markdown.preprocess_destination_capabilities import (
     insert_destination_capabilities,
 )
-from docs_tools.markdown.preprocess_examples import build_example_doc, sync_examples
 
 _processing_lock: threading.Lock = threading.Lock()
 _pending_changes: bool = False
@@ -63,9 +57,7 @@ def handle_change(file_path: str) -> None:
     rel_path = os.path.relpath(file_path)
     ext = os.path.splitext(rel_path)[1]
 
-    should_process = (
-        rel_path.startswith(MD_SOURCE_DIR) or rel_path.startswith(EXAMPLES_SOURCE_DIR)
-    ) and ext in WATCH_EXTENSIONS
+    should_process = rel_path.startswith(MD_SOURCE_DIR) and ext in WATCH_EXTENSIONS
 
     if not should_process:
         print(f"Skipping change in: {rel_path}")
@@ -94,8 +86,7 @@ def watch() -> None:
     event_handler = SimpleEventHandler()
     observer = Observer()
 
-    watch_dirs = [MD_SOURCE_DIR, EXAMPLES_SOURCE_DIR]
-    for watch_dir in watch_dirs:
+    for watch_dir in MD_SOURCE_DIR:
         if os.path.exists(watch_dir):
             observer.schedule(event_handler, watch_dir, recursive=True)
             print(f"Watching directory: {watch_dir}")
@@ -190,68 +181,12 @@ def preprocess_docs(verbose: bool = False) -> Tuple[int, int, int]:
     )
 
 
-def check_file_links(file_name: str, lines: List[str]) -> bool:
-    """Check a single file for problematic links."""
-    found_error = False
-
-    for index, line in enumerate(lines):
-        line_no = index + 1
-        line_lower = line.lower()
-
-        if ABS_LINK in line_lower and ABS_IMG_LINK not in line_lower:
-            found_error = True
-            print(f"Found absolute md link in file {file_name}, line {line_no}")
-
-        if HTTP_LINK in line_lower:
-            found_error = True
-            print(
-                f"Found http md link referencing these docs in file {file_name}, line {line_no}"
-            )
-
-    return found_error
-
-
-def check_docs() -> None:
-    """Inspect all md files and run some checks."""
-    found_error = False
-
-    count = 0
-    for file_name in walk_sync(MD_TARGET_DIR):
-        ext = os.path.splitext(file_name)[1]
-        if ext not in DOCS_EXTENSIONS:
-            continue
-
-        try:
-            with open(file_name, "r", encoding="utf-8") as f:
-                lines = f.read().split("\n")
-        except Exception:
-            continue
-
-        if check_file_links(file_name, lines):
-            found_error = True
-        count += 1
-
-    if found_error:
-        raise ValueError("Found one or more errors while checking docs.")
-    print(f"Found no errors in {count} md files")
-
-
-def process_example_change(file_path: str) -> None:
-    """Process an example file change."""
-    example_name = os.path.splitext(os.path.basename(file_path))[0]
-    if build_example_doc(example_name):
-        target_file_name = f"{EXAMPLES_DESTINATION_DIR}/{example_name}.md"
-        process_doc_file(target_file_name)
-
-
 def process_docs(incremental_run: bool = False, verbose: bool = False) -> None:
     """Main processing function."""
     if not incremental_run and os.path.exists(MD_TARGET_DIR):
         shutil.rmtree(MD_TARGET_DIR)
 
-    sync_examples()
     preprocess_docs(verbose=verbose)
-    check_docs()
 
 
 def main() -> None:
