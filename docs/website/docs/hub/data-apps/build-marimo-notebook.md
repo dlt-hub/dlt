@@ -167,22 +167,3 @@ uv run dlthub job unpublish sample_shop_notebook        # revoke
 :::note
 `job publish` and `job unpublish` take the job name, not the file path. Passing `sample_shop_notebook.py` is read as a `section.name` job reference and fails to resolve.
 :::
-
-## Notebook settings
-
-The marimo launcher reads its settings from a `[jobs.<module_name>.marimo]` config section, so you can change how the notebook is served per profile without editing it:
-
-```toml
-# .dlt/access.config.toml
-[jobs.sample_shop_notebook.marimo]
-include_code = true
-session_ttl = 600
-```
-
-| Setting | Default | What it does |
-| --- | --- | --- |
-| `include_code` | `false` | Show the notebook source alongside its output in the served app. |
-| `session_ttl` | `120` | Seconds an idle session is kept alive before it's closed. |
-| `command` | `run` | `run` serves the read-only app. `edit` serves the marimo editor, which lets anyone who can open the link run code in the job's environment. |
-
-These resolve like any other dlt config value, so the equivalent environment variable is `JOBS__SAMPLE_SHOP_NOTEBOOK__MARIMO__INCLUDE_CODE`.
