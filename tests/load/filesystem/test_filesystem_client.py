@@ -536,15 +536,15 @@ def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, 
 
     # If random text
     if invalid_version_info == "random":
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid content"):
             client.get_storage_versions()
     # If unexpected key
     elif invalid_version_info == {"unexpected": 2, "current_version": 2}:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid content"):
             client.get_storage_versions()
     # If one key is missing
     elif invalid_version_info in [{"initial_version": 1}, {"current_version": 2}]:
-        with pytest.raises(ValueError):
+        with pytest.raises(ValueError, match="Invalid content"):
             client.get_storage_versions()
     else:
         with pytest.raises(UnsupportedStorageVersionException):

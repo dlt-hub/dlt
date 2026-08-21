@@ -1,7 +1,6 @@
 import posixpath
 import os
 import time as _time
-import orjson
 import base64
 from contextlib import contextmanager
 from types import TracebackType
@@ -681,7 +680,7 @@ class FilesystemClient(
             version_dict: Dict[str, int] = json.loads(version_info_str)
             initial_version: int = version_dict["initial_version"]
             current_version: int = version_dict["current_version"]
-        except (KeyError, orjson.JSONDecodeError) as exc:
+        except (KeyError, ValueError) as exc:
             raise ValueError(
                 f"Invalid content in {self.init_file_path}: {version_info_str!r}"
             ) from exc
