@@ -1,4 +1,4 @@
-from typing import Any, Iterator, List, Optional, cast
+from typing import Any, Callable, Iterator, List, Optional, cast
 
 import duckdb
 import pytest
@@ -193,6 +193,39 @@ def test_bind_query_per_dataset_casefold() -> None:
         ' "attach_sales"."SALES_DS"."ORDERS" AS "o" ON "u"."id" = "o"."USER_ID" WHERE'
         ' "o"."TOTAL" > 100'
     )
+
+
+@pytest.mark.parametrize("casefold", (str.upper, str.lower), ids=("upper", "lower"))
+def test_bind_query_keeps_declared_output_names(
+    duckdb_sql_client: SqlClientBase[Any], casefold: Callable[[str], str]
+) -> None:
+    """A case-folding binding restores the output names that the query declares. A projection
+    over a literal keeps its alias and does not take the text of the literal."""
+    binding = IdentifiersBinding(
+        (None, duckdb_sql_client.dataset_name),
+        duckdb_sql_client.make_qualified_table_name_path,
+        casefold,
+    )
+    sqlglot_schema = SQLGlotSchema({"my_table": {"id": str}})
+
+    bound = bind_query(
+        qualified_query=build_row_counts_expr("my_table"),
+        sqlglot_schema=sqlglot_schema,
+        bindings={},
+        default_binding=binding,
+    )
+    assert [proj.output_name for proj in bound.selects] == ["table_name", "row_count"]
+
+    # a literal or NULL projection in a user query keeps its alias as well
+    bound = bind_query(
+        qualified_query=cast(
+            sge.Query, sqlglot.parse_one("SELECT 'items' AS kind, NULL AS missing FROM my_table")
+        ),
+        sqlglot_schema=sqlglot_schema,
+        bindings={},
+        default_binding=binding,
+    )
+    assert [proj.output_name for proj in bound.selects] == ["kind", "missing"]
 
 
 def test_bind_query_with_legacy_path_signature(

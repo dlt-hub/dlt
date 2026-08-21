@@ -385,6 +385,8 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     dataset = populated_pipeline.dataset()
+    # the output columns are named in the dlt schema namespace, also on case-folding destinations
+    assert list(dataset.row_counts().df().columns) == ["table_name", "row_count"]
     # default is all data tables
     assert set(dataset.row_counts().df().itertuples(index=False, name=None)) == {
         (
