@@ -38,8 +38,7 @@ format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black education/*/*.ipynb --ipynb
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
-	cd docs_tools/api_docs && uv run pydoc-markdown
-	uv run clean-pydoc-sidebar
+	uv run --script tools/generate_api_reference.py
 
 preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links
 	uv run preprocess-docs

@@ -169,3 +169,4 @@ tests/.docker/
 
 # npm packages pulled in by lint-emscripten
 node_modules/
+.kata.local.toml
