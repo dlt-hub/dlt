@@ -18,12 +18,14 @@ check-orphan-docs: ## Checks that all docs pages are reachable from website side
 	cd website && npm run check-orphan-docs
 
 # Generated example test files (docs/examples/**/test_*.py) are gitignored and
-# created by prepare-examples-tests, so exclude them from mypy
+# created by prepare-examples-tests, so exclude them from mypy.
+# generate_api_reference.py declares its deps inline (PEP 723) and runs in its
+# own env, so they are not resolvable here
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy --config-file ../pyproject.toml docs_tools website examples --exclude docs_tools/snippets/lint_setup --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
-	uv run flake8 --max-line-length=200 docs_tools examples website/docs --exclude docs_tools/snippets/lint_setup
-	uv run black docs_tools website examples --check --diff --color
+	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
+	uv run flake8 --max-line-length=200 tools website/docs
+	uv run black tools website --check --diff --color
 
 lint-notebooks: ## Lints the notebooks in the education folder
 	uv run nbqa flake8 education --extend-ignore=D,F704 --max-line-length=200
@@ -34,18 +36,15 @@ lint-notebooks: ## Lints the notebooks in the education folder
 	--disable-error-code=top-level-await
 
 format: ## Formats the docs tooling, website, examples, and notebooks
-	uv run black docs_tools website examples
+	uv run black tools website
 	uv run black education/*/*.ipynb --ipynb
 
 generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
 	uv run --script tools/generate_api_reference.py
 
 preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links
-	uv run preprocess-docs
+	uv run --script tools/preprocess_docs.py
 	$(MAKE) generate-api-ref
-
-preprocess-docs-watch: ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links and watches for changes
-	uv run preprocess-docs --watch
 
 test-tools: ## Tests docs tools
 	uv run pytest tools/

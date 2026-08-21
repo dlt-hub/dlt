@@ -54,6 +54,8 @@ $ npm run start
 ```
 
 That command starts a local development web server and opens a browser window. It then takes a few seconds for Docusaurus to generate pages before the website displays.
+
+You edit the sources in `docs/`, but Docusaurus renders `docs_processed/`, which the Python preprocessor generates from them. The `preprocess-docs` Docusaurus plugin (`plugins/preprocess-docs.js`) watches `docs/` and re-runs the preprocessor on change, so there is a single file watcher and saving a source file refreshes the browser as usual.
 You may get a "Page Not Found" error when browsing at `/docs/`. This does not happen on the production website, whose default page is the "Ïntroduction" page at `/docs/intro`.
 
 For most authoring purposes, once you are happy with your changes running locally, you can create a Github PR, without needing to do the following build and deployment steps.
@@ -71,7 +73,7 @@ That command generates static content into the `build` directory, which can be s
 The full build runs these steps in order:
 
 1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
-2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor: expands `<!--@@@DLT_SNIPPET-->` markers, generates the API reference, etc.
+2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor (`docs/tools/preprocess_docs.py`): copies `docs/` to `docs_processed/`, expands `@@@DLT_*` markers, generates the API reference, etc.
 3. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
 4. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
 

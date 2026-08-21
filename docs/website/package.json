@@ -3,7 +3,7 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "cd .. && make preprocess-docs && concurrently --kill-others \"make preprocess-docs-watch \" \"cd website && docusaurus start\"",
+    "start": "cd .. && make preprocess-docs && cd website && docusaurus start",
     "build": "uv run npm run update-versions && npm run compile-redirects && npm run check-orphan-docs && cd .. && make preprocess-docs && cd website && docusaurus build --out-dir build/docs && node scripts/verify-llms-txt.js",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve --dir build/docs",
@@ -32,7 +32,6 @@
     "clsx": "^1.2.1",
     "dedent": "^1.5.1",
     "dotenv": "^16.3.1",
-    "node-watch": "^0.7.4",
     "prism-react-renderer": "^1.3.5",
     "raw-loader": "^4.0.2",
     "react": "^18.0.0",
@@ -46,7 +45,6 @@
   "devDependencies": {
     "@biomejs/biome": "2.4.16",
     "@docusaurus/module-type-aliases": "~3.9.2",
-    "concurrently": "^8.2.2",
     "wrangler": "^4.38.0"
   },
   "browserslist": {
