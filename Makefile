@@ -1,7 +1,10 @@
 .DEFAULT_GOAL := help
-.PHONY: install-uv has-uv dev lint test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
+.PHONY: install-uv has-uv dev lint lint-emscripten test test-common test-common-p reset-test-storage recreate-compiled-deps build-library-prerelease build-library publish-library test-load-local test-load-local-p test-load-local-postgres test-load-local-postgres-p install-snowflake-extras test-remote-snowflake test-remote-snowflake-p install-common-core test-common-core install-common-core-source test-common-core-source install-common-source install-pipeline-min test-pipeline-min install-pipeline-arrow test-pipeline-arrow install-pipeline-min-arrow test-pipeline-min-arrow install-workspace test-workspace test-workspace-dashboard install-hub-minimal test-hub-minimal test-hub install-pipeline-full test-pipeline-full install-pipeline-full-sql test-pipeline-full-sql install-sqlalchemy2 test-with-sqlalchemy-2 test-dest-load test-dest-remote-essential test-dest-remote-nonessential test-dbt-no-venv test-dbt-runner-venv test-sources-load test-sources-sql-database
 
 PYV=$(shell python3 -c "import sys;t='{v[0]}.{v[1]}'.format(v=list(sys.version_info[:2]));sys.stdout.write(t)")
+
+# pyodide release used by lint-emscripten
+PYODIDE_VERSION ?= 0.28.3
 .SILENT:has-uv
 
 # read version from package
@@ -41,6 +44,12 @@ lint: lint-core lint-security lint-docstrings lint-lock lint-deps ## Runs all li
 
 lint-lock: ## Checks uv lockfile is in sync
 	uv lock --check
+
+lint-emscripten: ## Checks dlt imports in a pyodide (emscripten) VM (needs node, hits PyPI)
+	-@rm -rf dist
+	uv build --wheel --out-dir dist
+	npm install --no-save --no-audit --no-fund pyodide@$(PYODIDE_VERSION)
+	node tools/check_pyodide_import.mjs dist
 
 lint-deps: ## Checks dependencies, hub extras, and API breaking changes (informational)
 	-uv run python tools/check_hub_extras.py

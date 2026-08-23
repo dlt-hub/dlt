@@ -166,3 +166,6 @@ compiled_requirements.txt
 
 # docker folder for running tests as other OS
 tests/.docker/
+
+# npm packages pulled in by lint-emscripten
+node_modules/
