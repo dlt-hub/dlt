@@ -40,6 +40,16 @@ jobs:
       - name: Run make lint
         run: make lint
 
+      # emscripten drops the marker-excluded deps (orjson), so this catches a hard
+      # import of one of them that plain CPython lint cannot see
+      - name: Setup Node
+        uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - name: Check dlt imports under emscripten
+        run: make lint-emscripten
+
       - name: Check filesizes
         uses: ppremk/lfs-warning@v3.2
         with:

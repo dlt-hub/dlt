@@ -1,5 +1,5 @@
 from typing import IO, Any, Union
-import orjson
+import orjson  # noqa: I251
 
 from dlt.common.json import (
     custom_pua_encode,
