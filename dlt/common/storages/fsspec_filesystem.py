@@ -4,6 +4,8 @@ import gzip
 import mimetypes
 import pathlib
 import posixpath
+from datetime import datetime, timezone  # noqa: I251
+from email.utils import parsedate_to_datetime
 from io import BytesIO
 from typing import (
     Literal,
@@ -25,7 +27,6 @@ from fsspec.core import url_to_fs
 
 from dlt import version
 from dlt.common.typing import TypedDict, NotRequired
-from dlt.common.pendulum import pendulum
 from dlt.common.configuration.specs import (
     GcpCredentials,
     AwsCredentials,
@@ -39,7 +40,7 @@ from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     make_fsspec_url,
 )
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_utc
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import without_none
 
@@ -52,35 +53,34 @@ class FileItem(TypedDict):
     relative_path: str
     mime_type: str
     encoding: NotRequired[str]
-    modification_date: pendulum.DateTime
-    size_in_bytes: int
+    modification_date: datetime
+    size_in_bytes: Optional[int]
     file_content: NotRequired[bytes]
 
 
-# Map of protocol to mtime resolver
+def _http_mtime(f: DictStrAny) -> Optional[datetime]:
+    """Reads `Last-Modified` which only `info()` responses carry, http listings have no mtime."""
+    last_modified = f.get("Last-Modified")
+    if last_modified is None:
+        return None
+    # an http date is not iso, only the email parser reads it
+    return ensure_datetime_utc(parsedate_to_datetime(last_modified))
+
+
+# Map of protocol to mtime resolver, returns None when the listing has no modification date
 # we only need to support a small finite set of protocols
-MTIME_DISPATCH = {
-    "s3": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
-    "adl": lambda f: ensure_pendulum_datetime_utc(f["LastModified"]),
-    "az": lambda f: ensure_pendulum_datetime_utc(f["last_modified"]),
-    "gcs": lambda f: ensure_pendulum_datetime_utc(f["updated"]),
-    "hf": lambda f: ensure_pendulum_datetime_utc(f["last_commit"]["date"]),
-    "https": lambda f: cast(
-        pendulum.DateTime,
-        pendulum.parse(
-            f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
-        ),
-    ),
-    "http": lambda f: cast(
-        pendulum.DateTime,
-        pendulum.parse(
-            f.get("Last-Modified", pendulum.now().isoformat()), exact=True, strict=False
-        ),
-    ),
-    "file": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
-    "memory": lambda f: ensure_pendulum_datetime_utc(f["created"]),
-    "gdrive": lambda f: ensure_pendulum_datetime_utc(f["modifiedTime"]),
-    "sftp": lambda f: ensure_pendulum_datetime_utc(f["mtime"]),
+MTIME_DISPATCH: Dict[str, Callable[[DictStrAny], Optional[datetime]]] = {
+    "s3": lambda f: ensure_datetime_utc(f["LastModified"]),
+    "adl": lambda f: ensure_datetime_utc(f["LastModified"]),
+    "az": lambda f: ensure_datetime_utc(f["last_modified"]),
+    "gcs": lambda f: ensure_datetime_utc(f["updated"]),
+    "hf": lambda f: ensure_datetime_utc(f["last_commit"]["date"]),
+    "https": _http_mtime,
+    "http": _http_mtime,
+    "file": lambda f: ensure_datetime_utc(f["mtime"]),
+    "memory": lambda f: ensure_datetime_utc(f["created"]),
+    "gdrive": lambda f: ensure_datetime_utc(f["modifiedTime"]),
+    "sftp": lambda f: ensure_datetime_utc(f["mtime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]
@@ -350,7 +350,10 @@ def guess_mime_type(file_name: str) -> Sequence[str]:
 
 
 def glob_files(
-    fs_client: AbstractFileSystem, bucket_url: str, file_glob: str = "**"
+    fs_client: AbstractFileSystem,
+    bucket_url: str,
+    file_glob: str = "**",
+    fetch_file_info: bool = False,
 ) -> Iterator[FileItem]:
     """Get the files from the filesystem client.
 
@@ -358,6 +361,8 @@ def glob_files(
         fs_client (AbstractFileSystem): The filesystem client.
         bucket_url (str): The url to the bucket.
         file_glob (str): A glob for the filename filter.
+        fetch_file_info (bool): Calls `info` on each listed file that the listing reports no size
+            or modification date for, at the cost of one request per file. Defaults to False.
 
     Returns:
         Iterable[FileItem]: The list of files.
@@ -387,10 +392,18 @@ def glob_files(
                 " version 2023.9.0 or later"
             )
 
+    scheme = bucket_url_parsed.scheme
+
     for file, md in glob_result.items():
         if md["type"] != "file":
             continue
-        scheme = bucket_url_parsed.scheme
+        size, modification_date = md.get("size"), MTIME_DISPATCH[scheme](md)
+        # http listings are scraped from an html index and carry neither size nor mtime
+        if fetch_file_info and (size is None or modification_date is None):
+            md = fs_client.info(file)
+            size, modification_date = md.get("size"), MTIME_DISPATCH[scheme](md)
+        if modification_date is None:
+            modification_date = datetime.now(timezone.utc)
 
         # relative paths are always POSIX
         if is_local_fs:
@@ -410,8 +423,8 @@ def glob_files(
             relative_path=rel_path,
             file_url=file_url,
             mime_type=mime_type,
-            modification_date=MTIME_DISPATCH[scheme](md),
-            size_in_bytes=int(md["size"]),
+            modification_date=modification_date,
+            size_in_bytes=None if size is None else int(size),
         )
         if encoding is not None:
             file_item["encoding"] = encoding

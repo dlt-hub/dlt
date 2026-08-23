@@ -100,6 +100,7 @@ def filesystem(  # noqa DOC
     file_glob: str = "*",
     files_per_page: int = DEFAULT_CHUNK_SIZE,
     extract_content: bool = False,
+    fetch_file_info: bool = False,
     kwargs: Optional[Dict[str, Any]] = None,
     client_kwargs: Optional[Dict[str, Any]] = None,
     incremental: Optional[dlt.sources.incremental[Any]] = None,
@@ -114,6 +115,9 @@ def filesystem(  # noqa DOC
         files_per_page (int, optional): The number of files to process at once, defaults to 100.
         extract_content (bool, optional): If true, the content of the file will be extracted if
             false it will return a fsspec file, defaults to False.
+        fetch_file_info (bool, optional): If true, `size_in_bytes` and `modification_date` are read
+            per file for filesystems whose listing omits them (http), at the cost of one request per
+            file. Without it such files report `size_in_bytes` as None, defaults to False.
         kwargs (Optional[Dict[str, Any]]): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
         client_kwargs (Optional[Dict[str, Any]]): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
         incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`
@@ -133,7 +137,7 @@ def filesystem(  # noqa DOC
 
     files_chunk: List[FileItem] = []
 
-    iter_ = glob_files(fs_client, bucket_url, file_glob)
+    iter_ = glob_files(fs_client, bucket_url, file_glob, fetch_file_info)
 
     # if incremental is set with row order, use it to order the results
     # NOTE: fsspec glob for buckets reads all files before running iterator
@@ -144,7 +148,7 @@ def filesystem(  # noqa DOC
         )
         iter_ = iter(
             sorted(
-                list(glob_files(fs_client, bucket_url, file_glob)),
+                list(glob_files(fs_client, bucket_url, file_glob, fetch_file_info)),
                 key=lambda f_: f_[incremental.cursor_path],  # type: ignore[literal-required]
                 reverse=reverse,
             )

@@ -201,6 +201,17 @@ class PublicCDNHandler(http.server.SimpleHTTPRequestHandler):
         return None
 
 
+class AutoindexHandler(http.server.SimpleHTTPRequestHandler):
+    """Serves files and renders an html index for directories, like nginx/apache autoindex."""
+
+    @classmethod
+    def factory(cls, *args, directory: Path) -> "AutoindexHandler":
+        return cls(*args, directory=directory)
+
+    def __init__(self, *args, directory: Optional[Path] = None):
+        super().__init__(*args, directory=str(directory) if directory else None)
+
+
 class MockHttpResponse(Response):
     def __init__(self, status_code: int) -> None:
         self.status_code = status_code
@@ -266,17 +277,10 @@ def auto_module_test_run_context(auto_module_test_storage) -> Iterator[None]:
     yield from create_test_run_context()
 
 
-@pytest.fixture
-def public_http_server():
-    """
-    A simple HTTP server serving files from the current directory.
-    Used to simulate public CDN. It allows only file access, directory listing is forbidden.
-    """
+def _serve_sample_files(handler: Any, port: int) -> Iterator[http.server.ThreadingHTTPServer]:
     httpd = http.server.ThreadingHTTPServer(
-        ("localhost", 8189),
-        partial(
-            PublicCDNHandler.factory, directory=Path.cwd().joinpath("tests/common/storages/samples")
-        ),
+        ("localhost", port),
+        partial(handler.factory, directory=Path.cwd().joinpath("tests/common/storages/samples")),
     )
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
@@ -287,6 +291,24 @@ def public_http_server():
         httpd.shutdown()
         server_thread.join()
         httpd.server_close()
+
+
+@pytest.fixture
+def public_http_server() -> Iterator[http.server.ThreadingHTTPServer]:
+    """
+    A simple HTTP server serving files from the current directory.
+    Used to simulate public CDN. It allows only file access, directory listing is forbidden.
+    """
+    yield from _serve_sample_files(PublicCDNHandler, 8189)
+
+
+@pytest.fixture
+def autoindex_http_server() -> Iterator[http.server.ThreadingHTTPServer]:
+    """
+    Serves the same files as `public_http_server` but renders an html directory index.
+    fsspec has no listing protocol over http, it scrapes that index to list files.
+    """
+    yield from _serve_sample_files(AutoindexHandler, 8190)
 
 
 def create_test_run_context() -> Iterator[None]:
