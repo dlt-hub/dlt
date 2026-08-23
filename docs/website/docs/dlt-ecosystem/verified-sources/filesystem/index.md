@@ -366,14 +366,14 @@ Full list of `filesystem` resource parameters:
 
 * `files_per_page` - number of files processed at once. The default value is `100`.
 * `extract_content` - if true, the content of the file will be read and returned in the resource. The default value is `False`.
-* `fetch_file_info` - if true, `size_in_bytes` and `modification_date` are read for each listed file that the
-  listing itself does not report them for. The default value is `False`.
+* `fetch_file_info` - if true, dlt reads `size_in_bytes` and `modification_date` that the listing does not
+  report. The default value is `False`.
 
   :::note
-  Only `http` and `https` need this. There is no listing protocol over HTTP, so fsspec builds the file list by
-  scraping the HTML index page, which carries neither a size nor a modification date. Without `fetch_file_info`,
-  such files have `size_in_bytes` set to `None` and `modification_date` set to the time of listing. With it, dlt
-  makes one extra request per file to read them.
+  Only the `http` and `https` filesystems need this parameter. HTTP has no listing protocol. fsspec builds
+  the file list from the HTML index page, which reports neither size nor modification date. Without
+  `fetch_file_info`, these files have no `size_in_bytes`. Their `modification_date` is the time of the
+  listing. With `fetch_file_info`, dlt makes one extra request per file to read both values.
   :::
 
 ### 2. Choose the right reader
@@ -617,8 +617,8 @@ filtered_files = filesystem(bucket_url="s3://bucket_name", file_glob="**/*.json"
 If for some reason you only want to load small files, you can also do that:
 
 :::note
-Over `http`/`https`, pass `fetch_file_info=True` to the resource. Without it `size_in_bytes` is `None` and the
-comparison below fails.
+Over `http` and `https`, the resource needs `fetch_file_info=True`. Without `fetch_file_info`,
+`size_in_bytes` is missing and the filter below raises `KeyError`.
 :::
 
 ```py
@@ -668,7 +668,7 @@ The filesystem ensures consistent file representation across bucket types and of
 - `relative_path` - set when doing `glob`, is a relative path to a `bucket_url` argument.
 - `mime_type` - file's MIME type. It is sourced from the bucket provider or inferred from its extension.
 - `modification_date` - file's last modification time (format: `datetime.datetime`, always UTC).
-- `size_in_bytes` - file size. `None` when the filesystem does not report one, see `fetch_file_info`.
+- `size_in_bytes` - file size. Not present when the filesystem does not report it (see `fetch_file_info`).
 - `file_content` - content, provided upon request.
 
 :::info
