@@ -115,9 +115,8 @@ def filesystem(  # noqa DOC
         files_per_page (int, optional): The number of files to process at once, defaults to 100.
         extract_content (bool, optional): If true, the content of the file will be extracted if
             false it will return a fsspec file, defaults to False.
-        fetch_file_info (bool, optional): If true, `size_in_bytes` and `modification_date` are read
-            per file for filesystems whose listing omits them (http), at the cost of one request per
-            file. Without it such files report `size_in_bytes` as None, defaults to False.
+        fetch_file_info (bool, optional): If true, `dlt` gets missing `size_in_bytes` and `modification_date` from file details. This
+            requires a server call per file. Currently needed by `http` filesystem only. Defaults to False.
         kwargs (Optional[Dict[str, Any]]): Additional arguments passed to fsspec constructor ie. dict(use_ssl=True) for s3fs
         client_kwargs (Optional[Dict[str, Any]]): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
         incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`

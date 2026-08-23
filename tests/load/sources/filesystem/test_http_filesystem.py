@@ -39,7 +39,7 @@ def test_glob_http_without_file_info(autoindex_http_server, http_fs: AbstractFil
 
     assert set(items) == set(CSV_SAMPLE_SIZES)
     for item in items.values():
-        assert item["size_in_bytes"] is None
+        assert "size_in_bytes" not in item
         # no Last-Modified in a listing, mtime falls back to now
         assert item["modification_date"].tzinfo is not None
         assert (datetime.now(timezone.utc) - item["modification_date"]).total_seconds() < 60

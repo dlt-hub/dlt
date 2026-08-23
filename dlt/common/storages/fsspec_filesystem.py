@@ -54,7 +54,7 @@ class FileItem(TypedDict):
     mime_type: str
     encoding: NotRequired[str]
     modification_date: datetime
-    size_in_bytes: Optional[int]
+    size_in_bytes: NotRequired[int]
     file_content: NotRequired[bytes]
 
 
@@ -398,7 +398,7 @@ def glob_files(
         if md["type"] != "file":
             continue
         size, modification_date = md.get("size"), MTIME_DISPATCH[scheme](md)
-        # http listings are scraped from an html index and carry neither size nor mtime
+        # if mtime or size are not available, get info for particular file
         if fetch_file_info and (size is None or modification_date is None):
             md = fs_client.info(file)
             size, modification_date = md.get("size"), MTIME_DISPATCH[scheme](md)
@@ -424,8 +424,9 @@ def glob_files(
             file_url=file_url,
             mime_type=mime_type,
             modification_date=modification_date,
-            size_in_bytes=None if size is None else int(size),
         )
+        if size is not None:
+            file_item["size_in_bytes"] = int(size)
         if encoding is not None:
             file_item["encoding"] = encoding
         yield file_item

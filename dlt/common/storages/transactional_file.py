@@ -102,12 +102,17 @@ class TransactionalFile:
             name = lock["name"]
             if not name.startswith(self.lock_prefix):
                 continue
-            # Purge stale locks
+            # purge stale locks
             mtime = self.extract_mtime(lock)
-            # a filesystem that reports no mtime cannot expire locks, keep them
-            if mtime is not None and now - mtime > timedelta(
-                seconds=TransactionalFile.LOCK_TTL_SECONDS
-            ):
+            if mtime is None:
+                # without an mtime a lock left behind by a crashed holder never expires and
+                # everybody else waits on it forever
+                raise RuntimeError(
+                    f"Filesystem `{self._fs.protocol}` reports no modification time for lock file"
+                    f" `{name}` so stale locks cannot be detected. `TransactionalFile` cannot lock"
+                    " on this filesystem."
+                )
+            if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
                 try:  # Janitors can race, so we ignore errors
                     self._fs.rm(name)
                 except OSError:
