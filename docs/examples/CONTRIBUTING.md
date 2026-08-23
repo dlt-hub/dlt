@@ -20,7 +20,7 @@ Note: All paths in this guide are relative to the `dlt` repository directory.
 The command `npm start`  starts a local development server and opens up a browser window.
 
 - To install npm read [README](../website/README.md).
-- You should your example be automatically added to the examples section in the local version of the docs. Check the rendered output and see wether it looks the way you intended.
+- Your example should be automatically added to the examples section in the local version of the docs. Check the rendered output and see whether it looks the way you intended.
 
 ## Add ENV variables
 
