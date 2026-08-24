@@ -92,6 +92,10 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
             """)
             self._sql_client.execute_sql(sql)
 
+    # Timeout for the Fabric token-initialization request. Without one, a
+    # stalled connection would hang pipeline startup indefinitely.
+    FABRIC_TOKEN_INIT_TIMEOUT = 30
+
     def _ensure_fabric_token_initialized(
         self, credentials: AzureServicePrincipalCredentialsWithoutDefaults
     ) -> None:
@@ -127,7 +131,11 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
 
         # Call Fabric API to initialize token (list workspaces as a simple test)
         headers = {"Authorization": f"Bearer {token}", "Content-Type": "application/json"}
-        resp = requests.get("https://api.fabric.microsoft.com/v1/workspaces", headers=headers)
+        resp = requests.get(
+            "https://api.fabric.microsoft.com/v1/workspaces",
+            headers=headers,
+            timeout=FABRIC_TOKEN_INIT_TIMEOUT,
+        )
 
         if resp.status_code != 200:
             raise ConfigurationException(
