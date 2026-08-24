@@ -10,7 +10,7 @@ import sys
 from functools import partial
 from os import environ
 from pathlib import Path
-from typing import Any, Dict, Iterable, Iterator, Literal, Optional, Union, get_args, List
+from typing import Any, Dict, Iterable, Iterator, Literal, Optional, Type, Union, get_args, List
 from unittest.mock import patch
 
 import pytest
@@ -189,27 +189,9 @@ def TEST_DICT_CONFIG_PROVIDER():
 
 
 class PublicCDNHandler(http.server.SimpleHTTPRequestHandler):
-    @classmethod
-    def factory(cls, *args, directory: Path) -> "PublicCDNHandler":
-        return cls(*args, directory=directory)
-
-    def __init__(self, *args, directory: Optional[Path] = None):
-        super().__init__(*args, directory=str(directory) if directory else None)
-
     def list_directory(self, path: Union[str, PathLike]) -> None:
         self.send_error(HTTPStatus.FORBIDDEN, "Directory listing is forbidden")
         return None
-
-
-class AutoindexHandler(http.server.SimpleHTTPRequestHandler):
-    """Serves files and renders an html index for directories, like nginx/apache autoindex."""
-
-    @classmethod
-    def factory(cls, *args, directory: Path) -> "AutoindexHandler":
-        return cls(*args, directory=directory)
-
-    def __init__(self, *args, directory: Optional[Path] = None):
-        super().__init__(*args, directory=str(directory) if directory else None)
 
 
 class MockHttpResponse(Response):
@@ -277,10 +259,12 @@ def auto_module_test_run_context(auto_module_test_storage) -> Iterator[None]:
     yield from create_test_run_context()
 
 
-def _serve_sample_files(handler: Any, port: int) -> Iterator[http.server.ThreadingHTTPServer]:
+def _serve_sample_files(
+    handler: Type[http.server.SimpleHTTPRequestHandler], port: int
+) -> Iterator[http.server.ThreadingHTTPServer]:
     httpd = http.server.ThreadingHTTPServer(
         ("localhost", port),
-        partial(handler.factory, directory=Path.cwd().joinpath("tests/common/storages/samples")),
+        partial(handler, directory=Path.cwd().joinpath("tests/common/storages/samples")),
     )
     server_thread = threading.Thread(target=httpd.serve_forever, daemon=True)
     server_thread.start()
@@ -308,7 +292,7 @@ def autoindex_http_server() -> Iterator[http.server.ThreadingHTTPServer]:
     Serves the same files as `public_http_server` but renders an html directory index.
     fsspec has no listing protocol over http, it scrapes that index to list files.
     """
-    yield from _serve_sample_files(AutoindexHandler, 8190)
+    yield from _serve_sample_files(http.server.SimpleHTTPRequestHandler, 8190)
 
 
 def create_test_run_context() -> Iterator[None]:

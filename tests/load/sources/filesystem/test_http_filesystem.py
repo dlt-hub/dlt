@@ -1,3 +1,4 @@
+import os
 from datetime import datetime, timezone  # noqa: I251
 from typing import Dict, List
 
@@ -8,6 +9,7 @@ from fsspec import AbstractFileSystem
 from dlt.common import pendulum
 from dlt.common.storages.fsspec_filesystem import FileItem, glob_files
 
+from tests.common.storages.utils import TEST_SAMPLE_FILES
 from tests.utils import autoindex_http_server
 
 AUTOINDEX_BUCKET_URL = "http://localhost:8190"
@@ -55,8 +57,12 @@ def test_glob_http_with_file_info(autoindex_http_server, http_fs: AbstractFileSy
     assert set(items) == set(CSV_SAMPLE_SIZES)
     for rel_path, item in items.items():
         assert item["size_in_bytes"] == CSV_SAMPLE_SIZES[rel_path]
-        # a real Last-Modified is the file's mtime on disk, never a fresh `now`
-        assert (datetime.now(timezone.utc) - item["modification_date"]).total_seconds() > 60
+        # the server sends `Last-Modified` off the sample file mtime, truncated to whole seconds,
+        # so we get that back and not a fresh `now`
+        on_disk = datetime.fromtimestamp(
+            os.path.getmtime(os.path.join(TEST_SAMPLE_FILES, rel_path)), timezone.utc
+        )
+        assert 0 <= (on_disk - item["modification_date"]).total_seconds() < 1
         assert isinstance(item["modification_date"], datetime)
         assert not isinstance(item["modification_date"], pendulum.DateTime)
 
