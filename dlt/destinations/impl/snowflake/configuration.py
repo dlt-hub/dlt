@@ -189,6 +189,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_nested_types: bool = False
     """When true, arrow-nested `json` columns are created as native ARRAY/OBJECT (structured) types instead of VARIANT."""
 
+    use_timestamp_tz: bool = False
+    """When true, timezone-aware timestamps are created as `TIMESTAMP_TZ`, which stores the offset written with each value, instead of `TIMESTAMP_LTZ`"""
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of the account host."""
         if self.credentials and self.credentials.host:

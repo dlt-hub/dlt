@@ -197,7 +197,7 @@ def test_query_additional_params() -> None:
 
 
 def test_session_timezone() -> None:
-    # UTC is pinned so the offset stored in `TIMESTAMP_TZ` does not follow the account
+    # UTC is pinned so the offset `TIMESTAMP_LTZ` renders does not follow the account
     c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1")
     assert c.to_connector_params()["timezone"] == "UTC"
 
