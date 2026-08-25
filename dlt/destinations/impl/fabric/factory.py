@@ -23,6 +23,11 @@ if TYPE_CHECKING:
     from .fabric import FabricClient
 
 
+UTF8_MAX_BYTES_PER_CODE_POINT = 4
+FABRIC_VARCHAR_MAX_N = 8000
+"""Largest explicit length for `varchar(n)`, anything longer must be `varchar(max)`"""
+
+
 class FabricTypeMapper(SynapseTypeMapper):
     """Custom type mapper for Fabric Warehouse - replaces nvarchar with varchar and datetimeoffset with datetime2"""
 
@@ -60,9 +65,15 @@ class FabricTypeMapper(SynapseTypeMapper):
     def to_destination_type(self, column: TColumnSchema, table: PreparedTableSchema) -> str:
         """Override to use varchar instead of nvarchar and datetime2 instead of datetimeoffset"""
         sc_t = column["data_type"]
-        if sc_t == "json":
-            # Fabric doesn't have native JSON type, use varchar instead of nvarchar
-            return "varchar(%s)" % column.get("precision", "max")
+        if sc_t in ("json", "text"):
+            precision = column.get("precision")
+            if precision is None:
+                return "varchar(max)"
+            # precision counts characters, varchar counts bytes
+            length = precision * UTF8_MAX_BYTES_PER_CODE_POINT
+            if length > FABRIC_VARCHAR_MAX_N:
+                return "varchar(max)"
+            return "varchar(%i)" % length
 
         if sc_t == "time":
             # Fabric requires explicit precision for TIME (0-6)
@@ -71,10 +82,6 @@ class FabricTypeMapper(SynapseTypeMapper):
 
         # Get base type from parent
         db_type = super().to_destination_type(column, table)
-
-        # Replace any nvarchar with varchar (Fabric doesn't support nvarchar)
-        if "nvarchar" in db_type.lower():
-            db_type = db_type.replace("nvarchar", "varchar").replace("NVARCHAR", "varchar")
 
         # Replace any datetimeoffset with datetime2 (Fabric doesn't support datetimeoffset)
         # This should be handled by to_db_datetime_type but just in case
