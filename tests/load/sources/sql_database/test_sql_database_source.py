@@ -1563,21 +1563,27 @@ def test_infer_unsupported_types(
         )
         source.max_table_nesting = 0
 
+    if reflection_level != "minimal":
+        reflected = source.resources["has_unsupported_types"].compute_table_schema()["columns"]
+        assert list(reflected.values()) == UNSUPPORTED_TYPES_COLUMNS
+
     pipeline = make_pipeline("duckdb")
     pipeline.extract(source)
     pipeline.normalize()
-    pipeline.load()
+    info = pipeline.load()
+    assert_load_info(info)
 
     assert_row_counts(pipeline, postgres_db_unsupported_types, ["has_unsupported_types"])
 
     schema = pipeline.default_schema
-    assert "has_unsupported_types" in schema.tables
-
+    table = schema.tables["has_unsupported_types"]
     rows = load_tables_to_dicts(pipeline, "has_unsupported_types")["has_unsupported_types"]
 
     if backend == "pyarrow":
         assert isinstance(rows[0]["supported_text"], str)
         assert isinstance(rows[0]["supported_int"], int)
+
+    assert_schema_on_data(table, rows, False, backend in ["sqlalchemy", "pyarrow"])
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -2130,6 +2136,13 @@ NO_PRECISION_COLUMNS: List[TColumnSchema] = [
         else dict(column)
     )
     for column in PRECISION_COLUMNS
+]
+
+UNSUPPORTED_TYPES_COLUMNS: List[TColumnSchema] = [
+    {"name": "supported_text", "data_type": "text", "nullable": False},
+    {"name": "supported_int", "data_type": "bigint", "nullable": False},
+    # reflected without data_type: driver returns money as locale formatted string
+    {"name": "unsupported_money", "nullable": False},
 ]
 
 NOT_NULL_NO_PRECISION_COLUMNS: List[TColumnSchema] = [
