@@ -89,5 +89,7 @@ from dlt._workspace.deployment.typing import (
     TDeploymentFileItem,
     TFilesManifest,
     TJobsDeploymentManifest,
+    TPackageSource,
+    TPackageSourceKind,
     TWorkspaceRequirementsManifest,
 )

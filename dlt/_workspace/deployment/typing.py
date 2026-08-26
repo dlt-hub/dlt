@@ -5,7 +5,7 @@ from dlt.common.typing import NotRequired, TypedDict
 
 
 MANIFEST_ENGINE_VERSION = 1
-REQUIREMENTS_ENGINE_VERSION = 1
+REQUIREMENTS_ENGINE_VERSION = 2
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
@@ -291,6 +291,18 @@ class TJobsDeploymentManifest(TypedDict):
     jobs: List[TJobDefinition]
 
 
+TPackageSourceKind = Literal["registry", "git", "url", "directory", "editable", "virtual"]
+"""Where a locked package resolves from."""
+
+
+class TPackageSource(TypedDict):
+    """Resolution source of a single locked package."""
+
+    kind: TPackageSourceKind
+    location: NotRequired[str]
+    """Index URL, git URL, or path. Omitted for `virtual`."""
+
+
 class TWorkspaceRequirementsManifest(TypedDict):
     """Workspace Python dependencies exported per dependency group."""
 
@@ -303,3 +315,5 @@ class TWorkspaceRequirementsManifest(TypedDict):
     """Group name to sorted PEP 508 specs. Always contains `"main"`."""
     launcher_requirements: Dict[str, List[str]]
     """Launcher module path to mandatory specs installed for jobs of that launcher."""
+    package_sources: Dict[str, TPackageSource]
+    """PEP 503 normalized package name to where it resolves from. Empty when no lock exists."""

@@ -19,6 +19,7 @@ from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
 from dlt.reflection.script_inspector import no_pipeline_execution
 
+from dlt._workspace.deployment._engine import accept_newer_engine, known_fields_filter
 from dlt._workspace.deployment.decorators import JobFactory
 from dlt._workspace.deployment.detectors import (
     detect_local_module,
@@ -115,6 +116,8 @@ def migrate_manifest(
     """Migrate a manifest dict between engine versions."""
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
+    if accept_newer_engine("deployment manifest", from_engine, to_engine):
+        return manifest_dict  # type: ignore[return-value]
     raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
 
 
@@ -137,7 +140,9 @@ def load_manifest(f: BinaryIO) -> TJobsDeploymentManifest:
     engine_version = manifest_dict.get("engine_version", 1)
     manifest = migrate_manifest(manifest_dict, engine_version, MANIFEST_ENGINE_VERSION)
 
-    result = validate_manifest(manifest)
+    result = validate_manifest(
+        manifest, ignore_unknown_fields=engine_version > MANIFEST_ENGINE_VERSION
+    )
     if not result.is_valid:
         raise InvalidManifest(result)
 
@@ -335,14 +340,29 @@ def validate_job_definition(
     return result
 
 
-def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationResult:
-    """Validate a deployment manifest structurally and for consistency."""
+def validate_manifest(
+    manifest: TJobsDeploymentManifest, ignore_unknown_fields: bool = False
+) -> ManifestValidationResult:
+    """Validate a deployment manifest structurally and for consistency.
+
+    Args:
+        manifest (TJobsDeploymentManifest): Manifest to validate.
+        ignore_unknown_fields (bool): Accept fields this version does not declare. Set when
+            reading a manifest written by a newer engine.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     unresolved: Dict[str, List[str]] = {}
 
+    filter_f = known_fields_filter(TJobsDeploymentManifest) if ignore_unknown_fields else None
     try:
-        validate_dict(TJobsDeploymentManifest, manifest, ".", validator_f=_newtype_validator)
+        validate_dict(
+            TJobsDeploymentManifest,
+            manifest,
+            ".",
+            filter_f=filter_f,
+            validator_f=_newtype_validator,
+        )
     except DictValidationException as e:
         errors.append(str(e))
         return ManifestValidationResult(

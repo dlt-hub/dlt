@@ -36,6 +36,7 @@ from dlt._workspace.deployment.requirements import (
     python_version,
     save_requirements,
     _collect_package_names,
+    _parse_uv_lock_sources,
 )
 from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF
 
@@ -248,14 +249,25 @@ def test_migrate_requirements_same_version_is_noop() -> None:
 
 
 def test_migrate_requirements_unknown_path_raises() -> None:
+    # only a backwards path is unreachable; a newer engine is passed through
     with pytest.raises(ValueError, match="no requirements migration path"):
-        migrate_requirements({}, 99, REQUIREMENTS_ENGINE_VERSION)
+        migrate_requirements({}, 0, REQUIREMENTS_ENGINE_VERSION)
+
+
+def test_migrate_requirements_newer_engine_passes_through() -> None:
+    manifest = {"engine_version": REQUIREMENTS_ENGINE_VERSION + 1, "groups": {MAIN_GROUP: []}}
+    assert (
+        migrate_requirements(manifest, REQUIREMENTS_ENGINE_VERSION + 1, REQUIREMENTS_ENGINE_VERSION)
+        == manifest
+    )
 
 
 def test_load_unknown_engine_version_raises() -> None:
+    # engine 0 is behind engine 1 and has no migration path — unlike a newer engine,
+    # which is readable as-is
     data = json.dumps(
         {
-            "engine_version": 99,
+            "engine_version": 0,
             "default_groups": [MAIN_GROUP],
             "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
         }
@@ -849,3 +861,208 @@ def test_get_workspace_install_specs_skips_uninstalled_packages(
     specs = req_mod.get_workspace_install_specs()
     names = {s["name"] for s in specs}
     assert names == {"dlt"}
+
+
+_SYNTHETIC_UV_LOCK = """
+version = 1
+requires-python = ">=3.9"
+
+[[package]]
+name = "public-pkg"
+version = "1.0.0"
+source = { registry = "https://pypi.org/simple" }
+
+[[package]]
+name = "Private_Pkg"
+version = "2.0.0"
+source = { registry = "https://acme.example.com/simple" }
+
+[[package]]
+name = "git-pkg"
+version = "3.0.0"
+source = { git = "https://github.com/acme/git-pkg.git?rev=main#abc123" }
+
+[[package]]
+name = "url-pkg"
+version = "4.0.0"
+source = { url = "https://example.com/url_pkg-4.0.0-py3-none-any.whl" }
+
+[[package]]
+name = "dir-pkg"
+version = "5.0.0"
+source = { directory = "vendor/dir-pkg" }
+
+[[package]]
+name = "editable-pkg"
+version = "6.0.0"
+source = { editable = "." }
+
+[[package]]
+name = "the-workspace"
+version = "0.1.0"
+source = { virtual = "." }
+
+[[package]]
+name = "no-source-pkg"
+version = "7.0.0"
+"""
+
+
+def test_parse_uv_lock_sources_all_kinds(tmp_path: Path) -> None:
+    lock_path = tmp_path / "uv.lock"
+    lock_path.write_text(_SYNTHETIC_UV_LOCK)
+    sources = _parse_uv_lock_sources(lock_path)
+
+    # a private index is reported as a registry with its own URL — that is the only
+    # signal distinguishing it from PyPI, the specs are byte-identical
+    assert sources["public-pkg"] == {"kind": "registry", "location": "https://pypi.org/simple"}
+    assert sources["private-pkg"] == {
+        "kind": "registry",
+        "location": "https://acme.example.com/simple",
+    }
+    assert sources["git-pkg"] == {
+        "kind": "git",
+        "location": "https://github.com/acme/git-pkg.git?rev=main#abc123",
+    }
+    assert sources["url-pkg"] == {
+        "kind": "url",
+        "location": "https://example.com/url_pkg-4.0.0-py3-none-any.whl",
+    }
+    assert sources["dir-pkg"] == {"kind": "directory", "location": "vendor/dir-pkg"}
+    assert sources["editable-pkg"] == {"kind": "editable", "location": "."}
+    # virtual carries no location
+    assert sources["the-workspace"] == {"kind": "virtual"}
+    # a package without a source block is not reported at all
+    assert "no-source-pkg" not in sources
+    assert list(sources.keys()) == sorted(sources.keys())
+
+
+def test_parse_uv_lock_sources_unparsable_raises(tmp_path: Path) -> None:
+    lock_path = tmp_path / "uv.lock"
+    lock_path.write_text("[[package]\nname = ")
+    with pytest.raises(WorkspaceRequirementsError, match="Failed to parse"):
+        _parse_uv_lock_sources(lock_path)
+
+
+def test_pyproject_with_lock_exports_package_sources() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        _uv_lock(ctx.run_dir)
+        result = export_workspace_requirements(Path(ctx.run_dir))
+
+    sources = result["package_sources"]
+    # every spec exported from the lock has a source; names join on PEP 503 normalization
+    for group, specs in result["groups"].items():
+        if group == DASHBOARD_JOB_REF:
+            continue
+        for spec in specs:
+            name = Requirement(spec).name.lower().replace("_", "-").replace(".", "-")
+            assert name in sources, f"{name} from {group!r} missing a source"
+    assert sources["tomlkit"] == {"kind": "registry", "location": "https://pypi.org/simple"}
+    # the workspace project itself is not published anywhere
+    assert sources["test-workspace-deps"]["kind"] in ("virtual", "editable")
+
+
+def test_pyproject_without_lock_exports_no_package_sources() -> None:
+    with isolated_workspace("deps_pyproject") as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    assert result["package_sources"] == {}
+
+
+@pytest.mark.parametrize("fixture_name", ["deps_requirements_txt", "deps_requirements_in"])
+def test_requirements_file_exports_no_package_sources(fixture_name: str) -> None:
+    # requirements files have no lock — permanently no sources, engine version unchanged
+    with isolated_workspace(fixture_name) as ctx:
+        result = export_workspace_requirements(Path(ctx.run_dir))
+    assert result["package_sources"] == {}
+    assert result["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+
+
+def test_migrate_requirements_engine_1_to_2() -> None:
+    manifest = {
+        "engine_version": 1,
+        "python_version": python_version(),
+        "default_groups": [MAIN_GROUP],
+        "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+        "launcher_requirements": {LAUNCHER_JOB: ["dlt==1.0.0"]},
+    }
+    result = migrate_requirements(manifest, 1, 2)
+    assert result["engine_version"] == 2
+    assert result["package_sources"] == {}
+    assert result["groups"] == {MAIN_GROUP: ["dlt==1.0.0"]}
+
+
+def test_load_engine_1_manifest_migrates() -> None:
+    data = json.dumps(
+        {
+            "engine_version": 1,
+            "python_version": python_version(),
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+            "launcher_requirements": {LAUNCHER_JOB: ["dlt==1.0.0"]},
+        }
+    ).encode("utf-8")
+    manifest = load_requirements(io.BytesIO(data))
+    assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert manifest["package_sources"] == {}
+
+
+def _newer_engine_requirements() -> bytes:
+    """A manifest from a hypothetical future engine, additive over the current one."""
+    return json.dumps(
+        {
+            "engine_version": REQUIREMENTS_ENGINE_VERSION + 1,
+            "python_version": python_version(),
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+            "launcher_requirements": {LAUNCHER_JOB: ["dlt==1.0.0"]},
+            "package_sources": {
+                "dlt": {"kind": "registry", "location": "https://pypi.org/simple", "hash": "abc"}
+            },
+            "build_tier": ["dlt==1.0.0"],
+        }
+    ).encode("utf-8")
+
+
+def test_load_newer_engine_manifest_is_read_as_is() -> None:
+    manifest = load_requirements(io.BytesIO(_newer_engine_requirements()))
+    # readable, and the fields this version knows are intact
+    assert manifest["groups"] == {MAIN_GROUP: ["dlt==1.0.0"]}
+    assert manifest["package_sources"]["dlt"]["kind"] == "registry"
+    # the engine version is not rewritten — it says what wrote it
+    assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION + 1
+    # unknown fields survive the read at both top and nested level
+    assert manifest["build_tier"] == ["dlt==1.0.0"]  # type: ignore[typeddict-item]
+    assert manifest["package_sources"]["dlt"]["hash"] == "abc"  # type: ignore[typeddict-item]
+
+
+def test_load_unknown_field_at_current_engine_still_raises() -> None:
+    # tolerance is scoped to newer engines — at our own engine an unknown field is corruption
+    data = json.dumps(
+        {
+            "engine_version": REQUIREMENTS_ENGINE_VERSION,
+            "python_version": python_version(),
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+            "launcher_requirements": {LAUNCHER_JOB: ["dlt==1.0.0"]},
+            "package_sources": {},
+            "build_tier": ["dlt==1.0.0"],
+        }
+    ).encode("utf-8")
+    with pytest.raises(WorkspaceRequirementsError, match="unexpected fields"):
+        load_requirements(io.BytesIO(data))
+
+
+def test_newer_engine_still_validates_known_fields() -> None:
+    # tolerating unknown fields does not mean tolerating wrong ones
+    data = json.dumps(
+        {
+            "engine_version": REQUIREMENTS_ENGINE_VERSION + 1,
+            "python_version": python_version(),
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: "dlt==1.0.0"},
+            "launcher_requirements": {LAUNCHER_JOB: ["dlt==1.0.0"]},
+            "package_sources": {},
+        }
+    ).encode("utf-8")
+    with pytest.raises(WorkspaceRequirementsError, match="invalid requirements manifest"):
+        load_requirements(io.BytesIO(data))

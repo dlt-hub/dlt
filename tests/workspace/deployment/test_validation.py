@@ -594,8 +594,38 @@ def test_migrate_manifest_same_version_is_noop() -> None:
 
 
 def test_migrate_invalid_path() -> None:
+    # only a backwards path is unreachable; a newer engine is passed through
     with pytest.raises(ValueError, match="no manifest migration path"):
-        migrate_manifest({"engine_version": 99}, 99, 1)
+        migrate_manifest({"engine_version": 0}, 0, 1)
+
+
+def test_load_manifest_from_newer_engine_is_read_as_is() -> None:
+    manifest: Dict[str, Any] = dict(_make_manifest([_make_job("jobs.mod.a")]))
+    buf = BytesIO()
+    save_manifest(manifest, buf)  # type: ignore[arg-type]
+    # a future engine adds fields at the top level and inside a job
+    doc = stdlib_json.loads(buf.getvalue())
+    doc["engine_version"] = MANIFEST_ENGINE_VERSION + 1
+    doc["build_tier"] = ["dlt==1.0.0"]
+    doc["jobs"][0]["sandbox"] = {"kind": "runtime"}
+
+    loaded = load_manifest(BytesIO(stdlib_json.dumps(doc).encode("utf-8")))
+    assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION + 1
+    assert loaded["jobs"][0]["job_ref"] == "jobs.mod.a"
+    assert loaded["build_tier"] == ["dlt==1.0.0"]  # type: ignore[typeddict-item]
+
+
+def test_load_manifest_unknown_field_at_current_engine_raises() -> None:
+    # tolerance is scoped to newer engines — at our own engine an unknown field is corruption
+    manifest: Dict[str, Any] = dict(_make_manifest([_make_job("jobs.mod.a")]))
+    buf = BytesIO()
+    save_manifest(manifest, buf)  # type: ignore[arg-type]
+    doc = stdlib_json.loads(buf.getvalue())
+    doc["build_tier"] = ["dlt==1.0.0"]
+
+    with pytest.raises(InvalidManifest) as exc_info:
+        load_manifest(BytesIO(stdlib_json.dumps(doc).encode("utf-8")))
+    assert any("unexpected fields" in e for e in exc_info.value.validation.errors)
 
 
 def test_load_manifest_raises_invalid_manifest() -> None:

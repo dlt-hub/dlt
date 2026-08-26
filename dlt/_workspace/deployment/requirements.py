@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence, Set, Tuple
 
 import tomlkit
 from packaging.requirements import Requirement
@@ -23,6 +23,7 @@ from dlt.version import DLT_PKG_NAME
 DLTHUB_PKG_NAME = "dlthub"
 DLTHUB_CLIENT_PKG_NAME = "dlthub-client"
 
+from dlt._workspace.deployment._engine import accept_newer_engine, known_fields_filter
 from dlt._workspace.deployment.launchers import (
     LAUNCHER_DASHBOARD,
     LAUNCHER_JOB,
@@ -35,6 +36,8 @@ from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
     MAIN_GROUP,
     REQUIREMENTS_ENGINE_VERSION,
+    TPackageSource,
+    TPackageSourceKind,
     TWorkspaceRequirementsManifest,
 )
 
@@ -51,6 +54,7 @@ __all__ = [
     "REQUIREMENTS_ENGINE_VERSION",
     "TInstallSpec",
     "TInstallMode",
+    "TPackageSource",
     "TWorkspaceRequirementsManifest",
     "WorkspaceRequirementsError",
     "build_dashboard_group",
@@ -292,6 +296,7 @@ def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
         "default_groups": [MAIN_GROUP],
         "groups": {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()},
         "launcher_requirements": launcher_requirements,
+        "package_sources": {},
     }
 
 
@@ -321,8 +326,12 @@ def export_workspace_requirements(
     requirements_in_path = workspace_root / REQUIREMENTS_IN
 
     # detection order: pyproject -> requirements.txt -> requirements.in -> empty main
+    # only a lock file records where a package resolves from, so the other paths export no sources
+    package_sources: Dict[str, TPackageSource] = {}
     if pyproject_path.exists():
-        groups = _export_from_pyproject(workspace_root, pyproject_path, uv_lock_path)
+        groups, package_sources = _export_from_pyproject(
+            workspace_root, pyproject_path, uv_lock_path
+        )
     elif requirements_txt_path.exists():
         groups = {MAIN_GROUP: _compile_requirements_file(workspace_root, requirements_txt_path)}
     elif requirements_in_path.exists():
@@ -352,6 +361,7 @@ def export_workspace_requirements(
         "default_groups": resolved_default_groups,
         "groups": dict(sorted(groups.items())),
         "launcher_requirements": launcher_requirements,
+        "package_sources": package_sources,
     }
 
 
@@ -360,6 +370,14 @@ def migrate_requirements(
 ) -> TWorkspaceRequirementsManifest:
     """Migrate a requirements manifest dict between engine versions."""
     if from_engine == to_engine:
+        return manifest_dict  # type: ignore[return-value]
+    if from_engine == 1:
+        # engine 1 had no lock-derived sources; consumers fall back to the spec strings
+        manifest_dict["package_sources"] = {}
+        from_engine = manifest_dict["engine_version"] = 2
+    if from_engine == to_engine:
+        return manifest_dict  # type: ignore[return-value]
+    if accept_newer_engine("requirements manifest", from_engine, to_engine):
         return manifest_dict  # type: ignore[return-value]
     raise ValueError(f"no requirements migration path from engine {from_engine} to {to_engine}")
 
@@ -378,8 +396,14 @@ def load_requirements(f: BinaryIO) -> TWorkspaceRequirementsManifest:
         manifest = migrate_requirements(manifest_dict, engine_version, REQUIREMENTS_ENGINE_VERSION)
     except ValueError as ex:
         raise WorkspaceRequirementsError(str(ex)) from ex
+    # a manifest from a newer engine keeps the fields this version does not know about
+    filter_f = (
+        known_fields_filter(TWorkspaceRequirementsManifest)
+        if engine_version > REQUIREMENTS_ENGINE_VERSION
+        else None
+    )
     try:
-        validate_dict(TWorkspaceRequirementsManifest, manifest, ".")
+        validate_dict(TWorkspaceRequirementsManifest, manifest, ".", filter_f=filter_f)
     except DictValidationException as ex:
         raise WorkspaceRequirementsError(f"invalid requirements manifest: {ex}") from ex
     return manifest
@@ -387,7 +411,7 @@ def load_requirements(f: BinaryIO) -> TWorkspaceRequirementsManifest:
 
 def _export_from_pyproject(
     workspace_root: Path, pyproject_path: Path, uv_lock_path: Path
-) -> Dict[str, List[str]]:
+) -> Tuple[Dict[str, List[str]], Dict[str, TPackageSource]]:
     try:
         doc = tomlkit.parse(pyproject_path.read_text(encoding="utf-8"))
     except Exception as ex:
@@ -431,7 +455,7 @@ def _export_from_pyproject(
                     cwd=workspace_root,
                 )
             )
-        return dict(sorted(result.items()))
+        return dict(sorted(result.items())), _parse_uv_lock_sources(uv_lock_path)
 
     # no lock — parse declarations directly
     project = doc.get("project", {}) or {}
@@ -441,7 +465,46 @@ def _export_from_pyproject(
     groups = doc.get("dependency-groups", {}) or {}
     for name in group_names:
         result[name] = _parse_dep_list(list(groups.get(name, []) or []))
-    return dict(sorted(result.items()))
+    return dict(sorted(result.items())), {}
+
+
+_PACKAGE_SOURCE_KINDS: Tuple[TPackageSourceKind, ...] = (
+    "registry",
+    "git",
+    "url",
+    "directory",
+    "editable",
+    "virtual",
+)
+"""`[[package]].source` keys uv writes, in the order they are probed."""
+
+
+def _parse_uv_lock_sources(uv_lock_path: Path) -> Dict[str, TPackageSource]:
+    """Map PEP 503 normalized package name to the `[[package]].source` recorded in `uv.lock`.
+
+    Packages whose source uv wrote in a shape not in `_PACKAGE_SOURCE_KINDS` are omitted -
+    those are all direct references, already visible in the exported PEP 508 spec.
+    """
+    try:
+        doc = tomlkit.parse(uv_lock_path.read_text(encoding="utf-8"))
+    except Exception as ex:
+        raise WorkspaceRequirementsError(f"Failed to parse {uv_lock_path}: {ex}") from ex
+
+    sources: Dict[str, TPackageSource] = {}
+    for package in doc.get("package", []) or []:
+        name = package.get("name")
+        source = package.get("source") or {}
+        if not name or not source:
+            continue
+        for kind in _PACKAGE_SOURCE_KINDS:
+            if kind not in source:
+                continue
+            entry: TPackageSource = {"kind": kind}
+            if kind != "virtual":
+                entry["location"] = str(source[kind])
+            sources[_normalize_name(str(name))] = entry
+            break
+    return dict(sorted(sources.items()))
 
 
 def _compile_requirements_file(workspace_root: Path, file_path: Path) -> List[str]:
