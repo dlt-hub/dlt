@@ -44,6 +44,7 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
+    MANIFEST_MIN_READER_ENGINE,
     TEntryPoint,
     TExecuteSpec,
     TJobDefinition,
@@ -624,16 +625,31 @@ def test_migrate_same_version_returns_input(migrate: Any, make_doc: Any) -> None
 
 
 @pytest.mark.parametrize(
-    "migrate,make_doc",
+    "migrate,make_doc,from_engine",
     [
-        (migrate_manifest, lambda: {"engine_version": 99}),
-        (migrate_job_definition, lambda: dict(_make_job("jobs.mod.a"))),
+        (migrate_manifest, lambda: {"engine_version": 0}, 0),
+        (migrate_job_definition, lambda: dict(_make_job("jobs.mod.a")), 99),
     ],
     ids=["manifest", "job-definition"],
 )
-def test_migrate_unsupported_path_raises(migrate: Any, make_doc: Any) -> None:
-    with pytest.raises(ManifestEngineNoUpgradePath, match="migration path from engine 99 to 1"):
-        migrate(make_doc(), 99, 1)
+def test_migrate_unsupported_path_raises(migrate: Any, make_doc: Any, from_engine: int) -> None:
+    with pytest.raises(
+        ManifestEngineNoUpgradePath, match=f"migration path from engine {from_engine} to 1"
+    ):
+        migrate(make_doc(), from_engine, 1)
+
+
+def test_migrate_newer_engine_without_reader_floor_raises() -> None:
+    # a newer manifest that does not say which readers it tolerates is not tolerated
+    with pytest.raises(ManifestEngineNoUpgradePath, match="migration path from engine 99"):
+        migrate_manifest({"engine_version": 99}, 99, MANIFEST_ENGINE_VERSION)
+
+
+def test_migrate_newer_engine_above_reader_floor_raises() -> None:
+    # the writer declared a non-additive change since our engine
+    doc = {"engine_version": 99, "min_reader_engine": MANIFEST_ENGINE_VERSION + 1}
+    with pytest.raises(ManifestEngineNoUpgradePath, match="migration path from engine 99"):
+        migrate_manifest(doc, 99, MANIFEST_ENGINE_VERSION)
 
 
 def test_load_manifest_migrates_stored_v1() -> None:
@@ -642,6 +658,7 @@ def test_load_manifest_migrates_stored_v1() -> None:
     with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
         loaded = load_manifest(f)
     assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
+    assert loaded["min_reader_engine"] == MANIFEST_MIN_READER_ENGINE
     jobs: Dict[str, Any] = {j["job_ref"]: j for j in loaded["jobs"]}
     assert {j["engine_version"] for j in jobs.values()} == {MANIFEST_ENGINE_VERSION}
     assert jobs["jobs.events.hourly_events"]["incremental_mode"] == "interval"
@@ -654,6 +671,38 @@ def test_load_manifest_migrates_stored_v1() -> None:
     with open(_manifest_case_path("ev1/no_interval_flag"), "rb") as f:
         loaded = load_manifest(f)
     assert loaded["jobs"][0]["incremental_mode"] == "interval"
+
+
+def test_load_manifest_from_newer_engine_is_read_as_is() -> None:
+    manifest: Dict[str, Any] = dict(_make_manifest([_make_job("jobs.mod.a")]))
+    buf = BytesIO()
+    save_manifest(manifest, buf)  # type: ignore[arg-type]
+    # a future additive engine adds fields at the top level and inside a job
+    doc = stdlib_json.loads(buf.getvalue())
+    doc["engine_version"] = MANIFEST_ENGINE_VERSION + 1
+    doc["min_reader_engine"] = MANIFEST_ENGINE_VERSION
+    doc["build_tier"] = ["dlt==1.0.0"]
+    doc["jobs"][0]["engine_version"] = MANIFEST_ENGINE_VERSION + 1
+    doc["jobs"][0]["sandbox"] = {"kind": "runtime"}
+
+    loaded = load_manifest(BytesIO(stdlib_json.dumps(doc).encode("utf-8")))
+    # the engine version is not rewritten: it says what wrote it
+    assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION + 1
+    assert loaded["jobs"][0]["job_ref"] == "jobs.mod.a"
+    assert loaded["build_tier"] == ["dlt==1.0.0"]  # type: ignore[typeddict-item]
+
+
+def test_load_manifest_unknown_field_at_current_engine_raises() -> None:
+    # tolerance is scoped to newer engines: at our own engine an unknown field is corruption
+    manifest: Dict[str, Any] = dict(_make_manifest([_make_job("jobs.mod.a")]))
+    buf = BytesIO()
+    save_manifest(manifest, buf)  # type: ignore[arg-type]
+    doc = stdlib_json.loads(buf.getvalue())
+    doc["build_tier"] = ["dlt==1.0.0"]
+
+    with pytest.raises(InvalidManifest) as exc_info:
+        load_manifest(BytesIO(stdlib_json.dumps(doc).encode("utf-8")))
+    assert any("unexpected fields" in e for e in exc_info.value.validation.errors)
 
 
 def test_load_manifest_raises_invalid_manifest() -> None:

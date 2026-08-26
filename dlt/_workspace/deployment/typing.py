@@ -9,9 +9,15 @@ from dlt._workspace.typing import TWorkspaceAccess
 
 
 MANIFEST_ENGINE_VERSION = 2
+MANIFEST_MIN_READER_ENGINE = 2
+"""Oldest engine that may read a current manifest as-is. Engine 2 renamed job fields, so
+engine-1 readers must not tolerate it."""
 WORKSPACE_DEPRECATED_SINCE = "1.29.0"
 """dlt version the job-definition field renames were introduced in."""
-REQUIREMENTS_ENGINE_VERSION = 2
+REQUIREMENTS_ENGINE_VERSION = 3
+REQUIREMENTS_MIN_READER_ENGINE = 1
+"""Oldest engine that may read a current requirements manifest as-is. Engines 2 and 3 only
+added fields."""
 AGENT_DEFINITION_ENGINE_VERSION = 1
 JOB_RESULT_ENGINE_VERSION = 1
 JOB_RESULT_PAYLOAD_TYPE = "job_result"
@@ -449,6 +455,9 @@ class TJobsDeploymentManifest(TypedDict):
     """Full deployment manifest with job definitions."""
 
     engine_version: int
+    min_reader_engine: NotRequired[int]
+    """Oldest engine that may read this manifest as-is. Absent in manifests written before
+    it was introduced; those are readable only by their own engine."""
     version: NotRequired[int]
     """Auto-incremented on content change."""
     version_hash: NotRequired[str]
@@ -466,10 +475,25 @@ class TJobsDeploymentManifest(TypedDict):
     jobs: List[TJobDefinition]
 
 
+TPackageSourceKind = Literal["registry", "git", "url", "directory", "editable", "virtual"]
+"""Where a locked package resolves from."""
+
+
+class TPackageSource(TypedDict):
+    """Resolution source of a single locked package."""
+
+    kind: TPackageSourceKind
+    location: NotRequired[str]
+    """Index URL, git URL, or path. Omitted for `virtual`."""
+
+
 class TWorkspaceRequirementsManifest(TypedDict):
     """Workspace Python dependencies exported per dependency group."""
 
     engine_version: int
+    min_reader_engine: NotRequired[int]
+    """Oldest engine that may read this manifest as-is. Absent in manifests written before
+    it was introduced; those are readable only by their own engine."""
     python_version: str
     """Client-side `major.minor` Python version captured at export time."""
     dlt_version: TInstallSpec
@@ -481,3 +505,5 @@ class TWorkspaceRequirementsManifest(TypedDict):
     """Group name to sorted PEP 508 specs. Always contains `"main"`."""
     launcher_requirements: Dict[str, List[str]]
     """Launcher module path to mandatory specs installed for jobs of that launcher."""
+    package_sources: Dict[str, TPackageSource]
+    """PEP 503 normalized package name to where it resolves from. Empty when no lock exists."""

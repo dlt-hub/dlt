@@ -20,6 +20,7 @@ from dlt.common import validation
 from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
+from dlt._workspace.deployment._engine import accept_newer_engine, known_fields_filter
 from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
 from dlt._workspace.deployment.detectors import (
     detect_local_module,
@@ -52,6 +53,7 @@ from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
     DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,
+    MANIFEST_MIN_READER_ENGINE,
     TEntryPoint,
     TExecuteSpec,
     TExposeSpec,
@@ -154,6 +156,10 @@ def migrate_manifest(
     """
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
+    if accept_newer_engine(
+        "deployment manifest", from_engine, to_engine, manifest_dict.get("min_reader_engine")
+    ):
+        return manifest_dict  # type: ignore[return-value]
     # checked before the job loop so an unreachable path is reported against the manifest
     # rather than against whichever job happened to be migrated first
     if not 1 <= from_engine < to_engine:
@@ -168,6 +174,7 @@ def migrate_manifest(
     if from_engine != to_engine:
         raise ManifestEngineNoUpgradePath("manifest", from_engine, to_engine)
     manifest_dict["engine_version"] = to_engine
+    manifest_dict["min_reader_engine"] = MANIFEST_MIN_READER_ENGINE
     return manifest_dict  # type: ignore[return-value]
 
 
@@ -189,7 +196,11 @@ def load_manifest(f: BinaryIO) -> TJobsDeploymentManifest:
     manifest_dict: DictStrAny = json.loadb(data)
     engine_version = manifest_dict.get("engine_version", 1)
     manifest = migrate_manifest(manifest_dict, engine_version, MANIFEST_ENGINE_VERSION)
-    validate_manifest(manifest, raise_on_error=True)
+    validate_manifest(
+        manifest,
+        raise_on_error=True,
+        ignore_unknown_fields=engine_version > MANIFEST_ENGINE_VERSION,
+    )
     return manifest
 
 
@@ -462,13 +473,17 @@ def validate_job_definition(
 
 
 def validate_manifest(
-    manifest: TJobsDeploymentManifest, raise_on_error: bool = False
+    manifest: TJobsDeploymentManifest,
+    raise_on_error: bool = False,
+    ignore_unknown_fields: bool = False,
 ) -> ManifestValidationResult:
     """Validate a deployment manifest structurally and for consistency.
 
     Args:
         manifest: The manifest to validate.
         raise_on_error: If True, raise InvalidManifest when errors found.
+        ignore_unknown_fields: Accept fields this version does not declare. Set when
+            reading a manifest written by a newer engine.
 
     Raises:
         InvalidManifest: When raise_on_error is True and validation fails.
@@ -477,9 +492,14 @@ def validate_manifest(
     warnings: List[str] = []
     unresolved: Dict[str, List[str]] = {}
 
+    filter_f = known_fields_filter(TJobsDeploymentManifest) if ignore_unknown_fields else None
     try:
         validation.validate_dict(
-            TJobsDeploymentManifest, manifest, ".", validator_f=_newtype_validator
+            TJobsDeploymentManifest,
+            manifest,
+            ".",
+            filter_f=filter_f,
+            validator_f=_newtype_validator,
         )
     except DictValidationException as e:
         errors.append(str(e))
@@ -726,6 +746,7 @@ def generate_manifest(
 
     manifest: TJobsDeploymentManifest = {
         "engine_version": MANIFEST_ENGINE_VERSION,
+        "min_reader_engine": MANIFEST_MIN_READER_ENGINE,
         "created_at": datetime.now(timezone.utc).isoformat(),
         "deployment_module": deployment_module.__name__,
         "jobs": jobs,
