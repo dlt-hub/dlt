@@ -26,6 +26,7 @@ from dlt.common.incremental.typing import (
     OnCursorValueMissing,
     TIncrementalRange,
 )
+from dlt.extract.incremental.lag import string_lag_unit
 from dlt.extract.utils import resolve_column_value
 from dlt.extract.items import TTableHintTemplate
 
@@ -172,6 +173,26 @@ class IncrementalTransform:
                 )
         return cursor_value
 
+    def _warn_string_lag_unit(self, row_value: Any) -> None:
+        """Warn when the lag unit is inferred from the cursor value's string format.
+
+        A date-shaped string means `lag` is days, a datetime-shaped one means seconds, so the
+        same `lag` can mean days or seconds depending on how the source writes timestamps.
+        """
+        if not self.lag or self.last_value_func not in (min, max) or self.end_value is not None:
+            return
+        unit = string_lag_unit(row_value)
+        if unit is None:
+            return
+        kind = "date" if unit == "days" else "datetime"
+        logger.warning(
+            f"Lag {self.lag} on {self.resource_name} is applied in {unit} because the cursor value"
+            f" {row_value!r} is a string parsed as a {kind}. The unit is inferred from the value's"
+            " format, not from configuration, so the same lag can mean days or seconds depending on"
+            " how the source writes timestamps. Pass a typed initial_value or use"
+            " Incremental[date] / Incremental[datetime] to pin it."
+        )
+
     def compute_deduplication_disabled(self) -> bool:
         """Skip deduplication when length of the key is 0 or if lag is applied."""
         # disable deduplication if end value is set - state is not saved
@@ -254,6 +275,8 @@ class JsonIncremental(IncrementalTransform):
                 return row, False, False
         last_value = self.last_value
         last_value_func = self.last_value_func
+        if not self.seen_data:
+            self._warn_string_lag_unit(row_value)
         # correct tz-awareness if last_value/start_value not matching
         if not self.seen_data and self.start_value_is_datetime and isinstance(row_value, datetime):
             # NOTE: we are making sure that last_value == start_value here (self.seen_data)
@@ -469,6 +492,8 @@ class ArrowIncremental(IncrementalTransform):
         # The new max/min value
         row_value_scalar = self.compute(tbl[cursor_path])
         row_value = from_arrow_scalar(row_value_scalar)
+        if not self.seen_data:
+            self._warn_string_lag_unit(row_value)
         # correct tz-awareness
         if not self.seen_data and self.start_value_is_datetime and isinstance(row_value, datetime):
             # NOTE: we are making sure that last_value == start_value here (self.seen_data)
