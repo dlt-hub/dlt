@@ -14,7 +14,15 @@ The `lag` parameter is a float that supports several types of incremental cursor
 - **Date cursors**: `lag` represents days.
 - **Numeric cursors (integer or float)**: `lag` respects the given unit of the cursor.
 
-This flexibility allows `lag` to adapt to different data contexts.
+The unit comes from the cursor type you **declare**, not from the format of the values in your data:
+
+1. the `Incremental` type argument: `dlt.sources.incremental[datetime]("created_at", lag=3600)`
+2. the type of `initial_value`: `"2024-01-01"` declares a date cursor, `"2024-01-01T00:00:00Z"` a datetime one
+3. only when neither is present, the cursor values in the data decide
+
+Cursor values are coerced to the declared type before the lag is applied: a date cursor turns
+`"2024-05-07T10:00:00Z"` into `2024-05-07` (in UTC) and a datetime cursor turns `"2024-05-07"` into
+midnight of that day. A value that does not parse to the declared type raises an error.
 
 
 ### Example using `datetime` incremental cursor with `merge` as `write_disposition`

@@ -1,11 +1,15 @@
 import pytest
 from datetime import datetime, date, timedelta, timezone
-from typing import Any, Callable, Union
+from typing import Any, Callable, Optional, Type, Union
 
 from dlt.common.incremental.typing import LastValueFunc
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime_non_utc
-from dlt.extract.incremental.lag import _apply_lag_to_value
+from dlt.extract.incremental.lag import (
+    _apply_lag_to_value,
+    _cursor_date_type,
+    apply_lag,
+)
 
 
 @pytest.mark.parametrize(
@@ -357,3 +361,134 @@ def test_apply_lag_to_value_edge_cases():
     result = _apply_lag_to_value(3600, year_boundary, max)  # Go back 1 hour
     expected = datetime(2022, 12, 31, 23, 0, 0)
     assert result == expected
+
+
+@pytest.mark.parametrize(
+    "lag,value,last_value_func,date_type,expected",
+    [
+        # a datetime cursor lags in seconds, date strings are coerced to midnight
+        (28, "2026-08-27", max, datetime, "2026-08-26"),
+        (28, "2026-08-27", min, datetime, "2026-08-27"),
+        (172800, "2026-08-27", max, datetime, "2026-08-25"),
+        (28, date(2026, 8, 27), max, datetime, datetime(2026, 8, 26, 23, 59, 32)),
+        # a date cursor lags in days, datetime strings are coerced to a date
+        (28, "2026-08-27T10:15:30Z", max, date, "2026-07-30"),
+        (28, "2026-08-27T10:15:30Z", min, date, "2026-09-24"),
+        (28, "2026-08-27T10:15:30+05:00", max, date, "2026-07-30"),
+        (28, datetime(2026, 8, 27, 10, 15, 30), max, date, date(2026, 7, 30)),
+        # cursor type unknown: the value decides
+        (28, "2026-08-27", max, None, "2026-07-30"),
+        (28, "2026-08-27T10:15:30Z", max, None, "2026-08-27T10:15:02Z"),
+    ],
+    ids=[
+        "datetime_cursor_date_str_max",
+        "datetime_cursor_date_str_min",
+        "datetime_cursor_date_str_two_days",
+        "datetime_cursor_date_obj",
+        "date_cursor_datetime_str_max",
+        "date_cursor_datetime_str_min",
+        "date_cursor_datetime_str_with_offset",
+        "date_cursor_datetime_obj",
+        "unknown_cursor_date_str",
+        "unknown_cursor_datetime_str",
+    ],
+)
+def test_apply_lag_to_value_date_type(
+    lag: Union[int, float],
+    value: Any,
+    last_value_func: LastValueFunc[Any],
+    date_type: Optional[Type[Any]],
+    expected: Any,
+) -> None:
+    result = _apply_lag_to_value(lag, value, last_value_func, date_type)
+    assert result == expected
+    assert isinstance(result, type(expected))
+    # a date cursor must not produce a datetime
+    assert isinstance(result, datetime) == isinstance(expected, datetime)
+
+
+@pytest.mark.parametrize("date_type", [date, datetime])
+def test_apply_lag_to_value_does_not_parse(date_type: Type[Any]) -> None:
+    """a value that does not parse to the declared cursor type fails"""
+    with pytest.raises(ValueError):
+        _apply_lag_to_value(1, "not a date", max, date_type)
+
+
+@pytest.mark.parametrize(
+    "cursor_type,initial_value,last_value,expected",
+    [
+        # a datetime cursor lags in seconds, also when the data carries date strings
+        (datetime, None, "2026-08-27", "2026-08-26"),
+        (pendulum.DateTime, None, "2026-08-27", "2026-08-26"),
+        (str, "2026-01-01T00:00:00Z", "2026-08-27", "2026-08-26"),
+        # a date cursor lags in days, also when the data carries datetime strings
+        (date, None, "2026-08-27T00:00:00Z", "2026-07-30"),
+        (str, "2026-01-01", "2026-08-27T00:00:00Z", "2026-07-30"),
+        # the type argument wins over initial_value
+        (date, "2026-01-01T00:00:00Z", "2026-08-27T00:00:00Z", "2026-07-30"),
+        # nothing tells a date from a datetime: the value decides
+        (Any, None, "2026-08-27", "2026-07-30"),
+        (Any, None, "2026-08-27T00:00:00Z", "2026-08-26T23:59:32Z"),
+        (str, "01-01-2026", "2026-08-27", "2026-07-30"),
+    ],
+    ids=[
+        "datetime_type_date_value",
+        "pendulum_datetime_type_date_value",
+        "datetime_initial_value_date_value",
+        "date_type_datetime_value",
+        "date_initial_value_datetime_value",
+        "type_wins_over_initial_value",
+        "unknown_type_date_value",
+        "unknown_type_datetime_value",
+        "initial_value_not_a_date",
+    ],
+)
+def test_apply_lag_cursor_type(
+    cursor_type: Type[Any], initial_value: Any, last_value: Any, expected: Any
+) -> None:
+    assert apply_lag(28, initial_value, last_value, max, cursor_type) == expected
+
+
+@pytest.mark.parametrize(
+    "cursor_type,initial_value,expected",
+    [
+        (datetime, None, datetime),
+        (pendulum.DateTime, None, datetime),
+        (date, None, date),
+        (pendulum.Date, None, date),
+        # the type argument wins over initial_value
+        (date, "2026-01-01T00:00:00Z", date),
+        # a string cursor is told apart by the format of initial_value
+        (str, "2026-01-01", date),
+        (str, "20260101", date),
+        (str, "2026-01-01T00:00:00Z", datetime),
+        # formats with a precision other than a day are datetimes
+        (str, "2026-01", datetime),
+        (str, "2026-W01", datetime),
+        # nothing to derive the type from
+        (str, "01-01-2026", None),
+        (str, None, None),
+        (Any, None, None),
+        (int, 1, None),
+    ],
+    ids=[
+        "datetime_type",
+        "pendulum_datetime_type",
+        "date_type",
+        "pendulum_date_type",
+        "type_wins_over_initial_value",
+        "date_str_initial_value",
+        "compact_date_str_initial_value",
+        "datetime_str_initial_value",
+        "month_str_initial_value",
+        "week_str_initial_value",
+        "initial_value_not_a_date",
+        "no_initial_value",
+        "unknown_type",
+        "int_type",
+    ],
+)
+def test_cursor_date_type(
+    cursor_type: Type[Any], initial_value: Any, expected: Optional[Type[Any]]
+) -> None:
+    assert _cursor_date_type(cursor_type, initial_value) is expected

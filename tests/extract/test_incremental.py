@@ -5,7 +5,7 @@ import random
 from datetime import datetime, date  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional, Literal, Sequence, Dict, Iterable
+from typing import Any, List, Optional, Literal, Sequence, Dict, Iterable
 from unittest import mock
 import itertools
 
@@ -3592,6 +3592,66 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
             for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
         ]
         assert result == expected_results[lag]
+
+
+@pytest.mark.parametrize(
+    "initial_value,cursor_values,expected_start_value",
+    [
+        # a datetime initial_value keeps the lag in seconds, also for date cursor values
+        ("2026-01-01T00:00:00Z", ["2026-08-26", "2026-08-27"], "2026-08-26"),
+        (
+            "2026-01-01T00:00:00Z",
+            ["2026-08-26T00:00:00Z", "2026-08-27T00:00:00Z"],
+            "2026-08-26T23:59:32Z",
+        ),
+        # a date initial_value keeps the lag in days, also for datetime cursor values
+        ("2026-01-01", ["2026-08-26T00:00:00Z", "2026-08-27T00:00:00Z"], "2026-07-30"),
+        ("2026-01-01", ["2026-08-26", "2026-08-27"], "2026-07-30"),
+    ],
+    ids=[
+        "datetime_cursor_with_date_values",
+        "datetime_cursor_with_datetime_values",
+        "date_cursor_with_datetime_values",
+        "date_cursor_with_date_values",
+    ],
+)
+def test_incremental_lag_unit_follows_cursor_type(
+    initial_value: str, cursor_values: List[str], expected_start_value: str
+) -> None:
+    """lag unit comes from the type of initial_value, not from the format of the cursor values"""
+    start_values: List[Any] = []
+
+    @dlt.resource(name="events")
+    def events(day=dlt.sources.incremental("day", initial_value=initial_value, lag=28)):
+        start_values.append(day.start_value)
+        yield from [{"day": value} for value in cursor_values]
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(events())
+    p.extract(events())
+
+    assert start_values == [initial_value, expected_start_value]
+
+
+def test_incremental_lag_unit_from_type_argument() -> None:
+    """type argument of Incremental sets the lag unit when there is no initial_value"""
+
+    def _last_start_value(incremental: Incremental[Any]) -> Any:
+        start_values: List[Any] = []
+
+        @dlt.resource(name="events")
+        def events(day=incremental):
+            start_values.append(day.start_value)
+            yield from [{"day": "2026-08-26"}, {"day": "2026-08-27"}]
+
+        p = dlt.pipeline(pipeline_name="p" + uniq_id())
+        p.extract(events())
+        p.extract(events())
+        return start_values[-1]
+
+    # cursor values are dates: 28 seconds of lag still move the window a full day back
+    assert _last_start_value(dlt.sources.incremental[datetime]("day", lag=28)) == "2026-08-26"
+    assert _last_start_value(dlt.sources.incremental[date]("day", lag=28)) == "2026-07-30"
 
 
 @pytest.mark.parametrize("lag", [200, 1000])
