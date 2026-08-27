@@ -917,7 +917,7 @@ def test_snowflake_staging_with_default_chain_credentials(
 
 
 ALL_TYPES_STRUCT_DDL = (
-    "OBJECT(s VARCHAR(16777216), i NUMBER(19,0), f FLOAT, b BOOLEAN, ts TIMESTAMP_TZ(6), d DATE,"
+    "OBJECT(s VARCHAR(16777216), i NUMBER(19,0), f FLOAT, b BOOLEAN, ts TIMESTAMP_LTZ(6), d DATE,"
     " t TIME(6), dec NUMBER(38,9), bin BINARY(8388608), arr ARRAY(NUMBER(19,0)),"
     " nested OBJECT(x VARCHAR(16777216), y NUMBER(19,0)), mp MAP(VARCHAR(16777216), NUMBER(19,0)),"
     " with space VARCHAR(16777216), 日本語 NUMBER(19,0))"
@@ -1286,3 +1286,43 @@ def test_snowflake_json_columns_stay_variant(
         types = col_types(client)
         assert types["PAYLOAD"] == "VARIANT"
         assert types["EXTRA"] == "VARIANT"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["snowflake"]),
+    ids=lambda x: x.name,
+)
+def test_snowflake_timestamp_tz_keeps_written_offset(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """`use_timestamp_tz` freezes the offset stored with each value, so every session returns the
+    same offset. `TIMESTAMP_LTZ` renders the instant in the session timezone instead."""
+    instant = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+
+    pipeline = destination_config.setup_pipeline(
+        "test_snowflake_timestamp_tz_" + uniq_id(),
+        dev_mode=True,
+        destination=destination_config.destination_factory(use_timestamp_tz=True),
+    )
+    assert_load_info(
+        pipeline.run(
+            [{"id": 1, "ts": instant}], table_name="events", **destination_config.run_kwargs
+        )
+    )
+
+    with pipeline.sql_client() as client:
+        column_type = client.execute_sql(
+            "SELECT data_type FROM information_schema.columns WHERE table_schema = %s AND"
+            " table_name = 'EVENTS' AND column_name = 'TS'",
+            client.fully_qualified_dataset_name(quote=False),
+        )[0][0]
+        assert column_type == "TIMESTAMP_TZ"
+
+        qualified_name = client.make_qualified_table_name("events")
+        for session_timezone in ("America/New_York", "Asia/Tokyo"):
+            client.execute_sql(f"ALTER SESSION SET TIMEZONE = '{session_timezone}'")
+            value = client.execute_sql(f"SELECT ts FROM {qualified_name}")[0][0]
+            # dlt normalizes to UTC before writing, so UTC is the stored offset
+            assert value.utcoffset() == datetime.timedelta(0)
+            assert value == instant

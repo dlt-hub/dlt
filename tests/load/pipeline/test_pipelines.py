@@ -1096,11 +1096,11 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
                     "timestamp_values": output_values,
                 },
                 "EVENTS_TIMEZONE_ON": {
-                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_type": "TIMESTAMP_LTZ",
                     "timestamp_values": output_values,
                 },
                 "EVENTS_TIMEZONE_UNSET": {
-                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_type": "TIMESTAMP_LTZ",
                     "timestamp_values": output_values,
                 },
             },
