@@ -74,6 +74,7 @@ const sidebars = {
             keywords: ["release notes", "release highlights"],
           },
           items: [
+            { type: "doc", id: "release-notes/1.26", label: "1.26" },
             { type: "doc", id: "release-notes/1.25", label: "1.25" },
             { type: "doc", id: "release-notes/1.24", label: "1.24" },
             { type: "doc", id: "release-notes/1.23", label: "1.23" },
