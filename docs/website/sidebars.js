@@ -531,7 +531,6 @@ const sidebars = {
         "hub/pipeline-operations/triggers",
         "hub/pipeline-operations/job-configuration",
         "hub/pipeline-operations/monitoring",
-        "hub/pipeline-operations/module-level-jobs",
       ],
     },
     {
