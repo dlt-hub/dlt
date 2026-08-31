@@ -5,6 +5,7 @@ from copy import deepcopy
 from dlt.common.utils import custom_environ, uniq_id
 from dlt.common.schema import Schema, utils
 from dlt.common.configuration import resolve_configuration
+from dlt.common.data_writers.escape import escape_redshift_literal
 
 from dlt.destinations import redshift
 from dlt.destinations.impl.redshift.redshift import RedshiftClient
@@ -149,3 +150,52 @@ def test_create_table_with_hints(client: RedshiftClient) -> None:
     # no hints
     assert '"col3" boolean  NOT NULL' in sql
     assert '"col4" timestamp with time zone  NOT NULL' in sql
+
+
+def test_create_table_with_column_descriptions(client: RedshiftClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE[:3])
+    mod_update[0]["description"] = "This is the first column"
+    mod_update[1]["description"] = "This is the second column"
+
+    statements = client._get_table_update_sql("event_test_table", mod_update, False)
+    assert len(statements) == 3
+    sqlfluff.parse(statements[0], dialect="redshift")
+
+    qualified = client.sql_client.make_qualified_table_name("event_test_table")
+    comments = [stmt for stmt in statements if stmt.startswith("COMMENT ON COLUMN")]
+    assert len(comments) == 2
+    assert f"COMMENT ON COLUMN {qualified}.\"col1\" IS 'This is the first column'" in comments
+    assert f"COMMENT ON COLUMN {qualified}.\"col2\" IS 'This is the second column'" in comments
+    assert all('"col3"' not in stmt for stmt in comments)
+
+
+def test_column_description_escaping(client: RedshiftClient) -> None:
+    mod_update = deepcopy(TABLE_UPDATE[:1])
+    mod_update[0]["description"] = "User's \"data\" with 'quotes'"
+
+    statements = client._get_table_update_sql("event_test_table", mod_update, False)
+    assert len(statements) == 2
+
+    qualified = client.sql_client.make_qualified_table_name("event_test_table")
+    escaped = escape_redshift_literal(mod_update[0]["description"])
+    assert f"COMMENT ON COLUMN {qualified}.\"col1\" IS {escaped}" == statements[1]
+    assert "'User''s \"data\" with ''quotes''" in statements[1]
+
+
+def test_alter_table_with_column_descriptions(client: RedshiftClient) -> None:
+    new_columns = deepcopy(TABLE_UPDATE[1:3])
+    new_columns[0]["description"] = "Added column with comment"
+
+    statements = client._get_table_update_sql("event_test_table", new_columns, True)
+    # two ADD COLUMN statements + one COMMENT
+    assert len(statements) == 3
+
+    qualified = client.sql_client.make_qualified_table_name("event_test_table")
+    assert statements[0].startswith(f"ALTER TABLE {qualified}")
+    assert "ADD COLUMN" in statements[0]
+    assert statements[1].startswith(f"ALTER TABLE {qualified}")
+    assert "ADD COLUMN" in statements[1]
+    assert (
+        f"COMMENT ON COLUMN {qualified}.\"col2\" IS 'Added column with comment'" == statements[2]
+    )
+    assert sum(1 for stmt in statements if stmt.startswith("COMMENT ON COLUMN")) == 1
