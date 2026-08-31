@@ -13,10 +13,10 @@ The Settings page is where you configure your workspace, manage your organizatio
 Workspace settings are scoped to a single workspace. Workspace [Owners](users-and-roles.md#workspace-roles) can edit them; other roles see the same fields as read-only.
 
 - **Name and description.** Edit the workspace name and description, then save with **Update Workspace**.
-- **Connect codebase.** A configuration snippet that links your local dlt project to this workspace for deployments.
+- **Connection info.** Connection details that external tools and integrations use to talk to the workspace.
 - **Environment variables.** Define plain and secret process environment variables for the whole workspace or for a specific profile. See [Environment variables](../pipeline-operations/environment-variables.md).
 - **Alerts.** Subscribe to workspace alerts and get an email when a job run fails. See [dltHub Platform alerts](../notifications/email.md#dlthub-platform-alerts).
-- **Usage chart.** A monthly bar chart showing workspace usage for the last six months, including the current month.
+- **Usage chart.** A monthly bar chart showing workspace consumption for the previous six months.
 
 ### Members
 
@@ -52,7 +52,7 @@ See [Users and roles](users-and-roles.md) for the full permission model.
 This feature is in public preview
 :::
 
-Workspace API keys are long-lived tokens that authenticate non-interactive clients on behalf of a workspace rather than a personal user account. Use them for automation that should keep working independently of any individual user's account or workspace membership. They're managed on the **API Keys** tab of the workspace settings.
+Workspace API keys are long-lived tokens that authenticate non-interactive clients on behalf of a workspace rather than a personal user account. Use them for automation that should keep working independently of any individual user's account or workspace membership.
 
 Key properties:
 
@@ -68,7 +68,7 @@ The plaintext value is displayed only once, at creation. It can't be retrieved l
 
 #### Use a workspace key
 
-Clients authenticate with a workspace key the same way as with a [user API key](#api-keys). Because the key is valid for a single workspace, the workspace id must be pinned as well. Set `api_key` in `.dlt/secrets.toml` and `workspace_id` in `.dlt/config.toml`, both under `[runtime]`:
+Clients authenticate with a workspace key the same way as with a [user API key](#api-keys). Because the key is valid for a single workspace, the workspace id should be pinned as well. Set `api_key` in `.dlt/secrets.toml` and `workspace_id` in `.dlt/config.toml`, both under `[runtime]`:
 
 ```toml
 # .dlt/secrets.toml
@@ -83,6 +83,10 @@ workspace_id = "your-workspace-id"
 ```
 
 Both values can also be set as environment variables: `RUNTIME__API_KEY` and `RUNTIME__WORKSPACE_ID`. See [Workspace setup](../pipeline-operations/workspace-setup.md) for the full runtime configuration.
+
+:::note
+API key mode is non-interactive, the same as with a [user key](#use-a-user-key): `dlthub login` refuses to run while a key is configured, and the CLI never opens the workspace picker. Setting `workspace_id` explicitly is optional; running `dlthub workspace connect` once pins the key's workspace. Because the key is bound to a single workspace, `dlthub workspace connect` can't target any other workspace, and `dlthub workspace connect --create` isn't available.
+:::
 
 ## Organization settings
 
