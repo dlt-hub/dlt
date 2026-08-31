@@ -52,6 +52,7 @@ from tests.pipeline.utils import assert_query_column
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
     TestDataItemFormat,
+    capture_dlt_logger,
     data_item_length,
     data_to_item_format,
 )
@@ -3592,6 +3593,42 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
             for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
         ]
         assert result == expected_results[lag]
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_incremental_lag_string_unit_warning(
+    item_type: TestDataItemFormat, caplog: pytest.LogCaptureFixture
+) -> None:
+    """Lag warns once per run when the day/second unit is inferred from a string cursor value."""
+
+    def extract(data: Any) -> Any:
+        @dlt.resource(name="events", write_disposition="append")
+        def events(_=dlt.sources.incremental("created_at", lag=1)):
+            yield from data_to_item_format(item_type, data)
+
+        pipeline = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb", dev_mode=True)
+        caplog.clear()
+        with capture_dlt_logger(caplog) as cap:
+            pipeline.extract(events())
+        return cap.text
+
+    # datetime-shaped strings -> lag is seconds, warned once and points at the type-based fix
+    dt_rows = [{"id": i, "created_at": f"2023-03-0{i}T00:00:00Z"} for i in (1, 2, 3)]
+    text = extract(dt_rows)
+    assert text.count("is applied in seconds") == 1
+    assert "is applied in days" not in text
+    assert "Incremental[datetime]" in text
+
+    # date-shaped strings -> lag is days
+    date_rows = [{"id": i, "created_at": f"2023-03-0{i}"} for i in (1, 2, 3)]
+    text = extract(date_rows)
+    assert text.count("is applied in days") == 1
+    assert "is applied in seconds" not in text
+
+    # typed datetime cursor is unambiguous -> no warning
+    typed_rows = [{"id": i, "created_at": pendulum.datetime(2023, 3, i)} for i in (1, 2, 3)]
+    text = extract(typed_rows)
+    assert "is applied in" not in text
 
 
 @pytest.mark.parametrize("lag", [200, 1000])

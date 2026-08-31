@@ -16,6 +16,8 @@ The `lag` parameter is a float that supports several types of incremental cursor
 
 This flexibility allows `lag` to adapt to different data contexts.
 
+When the cursor value is a string, dlt infers whether it is a date or a datetime from the string's format, so `2024-01-01` is treated as a date (`lag` in days) while `2024-01-01T00:00:00Z` is treated as a datetime (`lag` in seconds). dlt logs a warning when the unit is inferred this way. To pin the unit regardless of how the source formats its values, pass a typed `initial_value` or type the cursor as `Incremental[pendulum.Date]` / `Incremental[pendulum.DateTime]`.
+
 
 ### Example using `datetime` incremental cursor with `merge` as `write_disposition`
 

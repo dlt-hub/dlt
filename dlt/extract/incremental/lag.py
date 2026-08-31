@@ -12,6 +12,20 @@ from dlt.common.time import (
 from . import TCursorValue, LastValueFunc
 
 
+def string_lag_unit(value: Any) -> Optional[str]:
+    """Returns the time unit lag uses for a date/datetime cursor value given as a string.
+
+    Returns `days` for date-shaped strings, `seconds` for datetime-shaped ones, or `None`
+    when the value is not a datetime string and the unit is not inferred from its format.
+    """
+    if not isinstance(value, str):
+        return None
+    value_format = detect_datetime_format(value)
+    if not value_format:
+        return None
+    return "days" if value_format in ("%Y%m%d", "%Y-%m-%d") else "seconds"
+
+
 def _apply_lag_to_value(
     lag: float, value: Any, last_value_func: LastValueFunc[TCursorValue]
 ) -> Any:
