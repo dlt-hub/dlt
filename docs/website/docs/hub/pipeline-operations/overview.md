@@ -18,10 +18,9 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 | Push code to the cloud — ad-hoc runs or full manifest deploys | [Deployments](deployments.md) |
 | Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md) |
 | Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
+| Set workspace or profile environment variables for cloud runs | [Environment variables](environment-variables.md) |
 | Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitoring and debugging](monitoring.md) |
 | Pick a deployment region | [Regions](../platform-capabilities/regions.md) |
-
-If you prefer a guided walkthrough, follow the [dltHub platform tutorial](../getting-started/platform-tutorial.md).
 
 ## Key concepts
 

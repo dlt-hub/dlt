@@ -24,8 +24,13 @@ from dlt.common.typing import TDataItem, TFun, TTableNames
 
 from dlt._workspace.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
-from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper, defer
+from dlt.extract.decorators import (
+    _DltSingleSource,
+    DltSourceFactoryWrapper,
+    defer,
+)
 from dlt.extract.hints import TResourceNestedHints
+from dlt.extract.items_transform import LimitItem
 from dlt.extract.reference import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
@@ -1837,3 +1842,148 @@ async def test_async_source_postprocessor() -> None:
     assert "alpha" in source.selected_resources
     assert "beta" not in source.selected_resources
     assert list(source) == [1, 2, 3]
+
+
+def test_add_limit_on_source_instance():
+    # NOTE the source needs to be defined within the test to avoid mutations.
+    USERS = [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+    CITIES = [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+    @dlt.source
+    def mock_source():
+        """Source used"""
+
+        @dlt.resource
+        def users():
+            return USERS
+
+        @dlt.resource
+        def cities():
+            return CITIES
+
+        return [users(), cities()]
+
+    instance = mock_source()
+
+    # check before setting the limit
+    for resource in instance.resources.values():
+        assert len(resource._pipe) == 1
+
+    output_instance = instance.add_limit(1)
+
+    # instance is mutated
+    assert output_instance is instance
+
+    # all resources now have a LimitItem step
+    for resource in instance.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+    # we retrieve the first record of each resource
+    # the resource order matches the order the source returns them
+    data = list(instance)
+    assert data[0] == USERS[0]
+    assert data[1] == CITIES[0]
+
+
+def test_add_limit_on_source_factory() -> None:
+    # NOTE the source needs to be defined within the test to avoid mutations.
+    USERS = [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+    CITIES = [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+    @dlt.source
+    def mock_source():
+        @dlt.resource
+        def users():
+            return USERS
+
+        @dlt.resource
+        def cities():
+            return CITIES
+
+        return [users(), cities()]
+
+    before_instance = mock_source()
+
+    # check before setting the limit
+    for resource in before_instance.resources.values():
+        assert len(resource._pipe) == 1
+
+    output_factory = mock_source.add_limit(1)
+
+    # .add_limit() on factory doesn't return
+    assert output_factory is None
+
+    after_instance = mock_source()
+
+    # the existing instance is not mutated
+    assert before_instance is not after_instance
+    for resource in before_instance.resources.values():
+        assert len(resource._pipe) == 1
+
+    # all resources now have a LimitItem step
+    for resource in after_instance.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+    # we retrieve the first record of each resource
+    # the resource order matches the order the source returns them
+    data = list(after_instance)
+    assert data[0] == USERS[0]
+    assert data[1] == CITIES[0]
+
+
+def test_source_factory_add_limit_preserved_on_clone() -> None:
+    @dlt.source
+    def mock_source():
+        @dlt.resource
+        def users():
+            return [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+
+        @dlt.resource
+        def cities():
+            return [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+        return [users(), cities()]
+
+    cloned = mock_source().add_limit(1).clone()
+
+    # all resources now have a LimitItem step
+    for resource in cloned.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+
+@pytest.mark.asyncio
+async def test_async_source_factory_add_limit() -> None:
+    # NOTE the source needs to be defined within the test to avoid mutations.
+    USERS = [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+    CITIES = [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+    @dlt.source
+    async def async_mock_source():
+        @dlt.resource
+        def users():
+            return USERS
+
+        @dlt.resource
+        def cities():
+            return CITIES
+
+        return [users(), cities()]
+
+    async_mock_source.add_limit(1)
+
+    # TODO there's a real typing error somewhere in the dlt source / source wrapper code
+    instance = await async_mock_source()  # type: ignore[misc]
+
+    # all resources now have a LimitItem step
+    for resource in instance.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+    # we retrieve the first record of each resource
+    # the resource order matches the order the source returns them
+    data = list(instance)
+    assert data[0] == USERS[0]
+    assert data[1] == CITIES[0]

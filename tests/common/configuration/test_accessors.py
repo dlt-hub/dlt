@@ -55,28 +55,36 @@ def test_getter_accessor(toml_providers: ConfigProvidersContainer, environment: 
     environment["VALUE"] = "{SET"
     assert dlt.config["value"] == "{SET"
 
+    # env provider does not know exact locations of values
     assert _resolved_traces()[".value"] == ResolvedValueTrace(
-        "value", "{SET", None, AnyType, [], EnvironProvider().name, None
+        "value", "{SET", None, AnyType, [], EnvironProvider().name, None, ""
     )
     assert dlt.secrets["value"] == "{SET"
     assert _resolved_traces()[".value"] == ResolvedValueTrace(
-        "value", "{SET", None, TSecretValue, [], EnvironProvider().name, None
+        "value", "{SET", None, TSecretValue, [], EnvironProvider().name, None, ""
     )
 
     # get sectioned values
     assert dlt.config["typecheck.str_val"] == "test string"
     assert _resolved_traces()["typecheck.str_val"] == ResolvedValueTrace(
-        "str_val", "test string", None, AnyType, ["typecheck"], CONFIG_TOML, None
+        "str_val",
+        "test string",
+        None,
+        AnyType,
+        ["typecheck"],
+        CONFIG_TOML,
+        None,
+        CONFIG_TOML,
     )
 
     environment["DLT__THIS__VALUE"] = "embedded"
     assert dlt.config["dlt.this.value"] == "embedded"
     assert _resolved_traces()["dlt.this.value"] == ResolvedValueTrace(
-        "value", "embedded", None, AnyType, ["dlt", "this"], EnvironProvider().name, None
+        "value", "embedded", None, AnyType, ["dlt", "this"], EnvironProvider().name, None, ""
     )
     assert dlt.secrets["dlt.this.value"] == "embedded"
     assert _resolved_traces()["dlt.this.value"] == ResolvedValueTrace(
-        "value", "embedded", None, TSecretValue, ["dlt", "this"], EnvironProvider().name, None
+        "value", "embedded", None, TSecretValue, ["dlt", "this"], EnvironProvider().name, None, ""
     )
 
 
@@ -134,6 +142,7 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContainer, environment:
         ["destination"],
         SECRETS_TOML,
         None,
+        SECRETS_TOML,
     )
     # equivalent
     assert (
@@ -147,6 +156,7 @@ def test_getter_auto_cast(toml_providers: ConfigProvidersContainer, environment:
         ["destination", "bigquery"],
         SECRETS_TOML,
         None,
+        SECRETS_TOML,
     )
 
 
@@ -162,7 +172,14 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContainer, environ
     assert dlt.secrets.get("credentials", str) == credentials_str
     # note that trace keeps original value of "credentials" which was of dictionary type
     assert _resolved_traces()[".credentials"] == ResolvedValueTrace(
-        "credentials", json.loads(credentials_str), None, str, [], SECRETS_TOML, None
+        "credentials",
+        json.loads(credentials_str),
+        None,
+        str,
+        [],
+        SECRETS_TOML,
+        None,
+        SECRETS_TOML,
     )
     # unchanged type
     assert isinstance(dlt.secrets.get("credentials"), dict)
@@ -177,7 +194,14 @@ def test_getter_accessor_typed(toml_providers: ConfigProvidersContainer, environ
     c = dlt.secrets.get("databricks.credentials", ConnectionStringCredentials)
     # as before: the value in trace is the value coming from the provider (as is)
     assert _resolved_traces()["databricks.credentials"] == ResolvedValueTrace(
-        "credentials", credentials_str, None, ConnectionStringCredentials, ["databricks"], SECRETS_TOML, ConnectionStringCredentials  # type: ignore[arg-type]
+        "credentials",
+        credentials_str,
+        None,
+        ConnectionStringCredentials,
+        ["databricks"],
+        SECRETS_TOML,
+        ConnectionStringCredentials,  # type: ignore[arg-type]
+        SECRETS_TOML,
     )
     assert c.drivername == "databricks+connector"
     c2 = dlt.secrets.get("destination.credentials", GcpServiceAccountCredentialsWithoutDefaults)
@@ -243,6 +267,13 @@ def test_values_context_manager(writable_kind: str, environment: Any) -> None:
             # the dict and the tomlkit document that set_value keeps in sync are both restored
             assert "scoped" not in writable.to_toml()
             assert writable._config_doc == writable._config_toml.unwrap()
+
+        # values written at runtime are in no file so neither provider knows a location
+        dlt.config["written"] = "x"
+        assert writable.get_value_location("written", None) == ""
+        if isinstance(writable, SettingsTomlProvider):
+            # preserve restored the origins along with the document
+            assert writable.get_value_location("api_type", None) == CONFIG_TOML
 
         # a preset key is restored to its previous value on exit
         dlt.config["existing"] = "before"

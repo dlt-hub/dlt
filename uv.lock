@@ -2501,7 +2501,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.30.0a0"
+version = "1.30.0"
 source = { editable = "." }
 dependencies = [
     { name = "click", version = "8.1.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
@@ -2511,7 +2511,7 @@ dependencies = [
     { name = "giturlparse" },
     { name = "humanize" },
     { name = "jsonpath-ng" },
-    { name = "orjson", marker = "(python_full_version >= '3.14' and platform_python_implementation == 'PyPy') or (python_full_version >= '3.14' and sys_platform == 'emscripten') or (platform_python_implementation != 'PyPy' and sys_platform != 'emscripten')" },
+    { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'" },
     { name = "packaging" },
     { name = "pathvalidate" },
     { name = "pendulum" },
@@ -2842,7 +2842,7 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.29.0,<0.31" },
+    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.30.0a1,<0.31" },
     { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.1" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
@@ -2868,9 +2868,9 @@ requires-dist = [
     { name = "lancedb", marker = "extra == 'lance'", specifier = ">=0.33.0" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "oracledb", marker = "extra == 'oracle'", specifier = ">=3.4.1" },
-    { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.10.1" },
+    { name = "orjson", marker = "python_full_version >= '3.14' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.11.0" },
     { name = "packaging", specifier = ">=21.1" },
     { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0,<5" },
     { name = "pathvalidate", specifier = ">=2.5.2" },
@@ -3049,11 +3049,11 @@ workspace-deps = [
 
 [[package]]
 name = "dlthub"
-version = "0.29.0"
+version = "0.30.0a1"
 source = { registry = "https://pypi.org/simple" }
-sdist = { url = "https://files.pythonhosted.org/packages/7c/58/155eeebd831c402127289ff6d97dcb0e7cf0072c753470098e71b46952e8/dlthub-0.29.0.tar.gz", hash = "sha256:60e514446747d6e7a9005e74a71b2ccfa3759ba822af7515a40ac34b0afd47f2", size = 170583, upload-time = "2026-07-10T13:21:28.316Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/dd/c9/e965cd3663aed0d28f88d5c487a9df0307907dd9b6a57868c890d312cd5f/dlthub-0.30.0a1.tar.gz", hash = "sha256:e41b8aa05a3f7d074332bc57d670890baa386c0983428b960a1dd73fc7d2fffe", size = 173010, upload-time = "2026-08-07T09:13:56.023Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/45/89/6daedf3a2d78324ae153d4b23307663d01e06439679dd6e2015bf15af799/dlthub-0.29.0-py3-none-any.whl", hash = "sha256:1f96df548d290bd62712eeaa35e8d89bff05ef027b19e31ebb86cab74d21ceb5", size = 227905, upload-time = "2026-07-10T13:21:29.786Z" },
+    { url = "https://files.pythonhosted.org/packages/87/4e/db4bb584ea43e1ea7a93fa9aea8a514f41eada563af3e5d2b97961cc13e4/dlthub-0.30.0a1-py3-none-any.whl", hash = "sha256:e8a9e17b8c2ee4eea089642f5f17c9f28455880e55ae3227e78eb6ad75850d39", size = 230514, upload-time = "2026-08-07T09:13:57.812Z" },
 ]
 
 [[package]]

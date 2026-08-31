@@ -3,7 +3,7 @@ import io
 import os
 import asyncio
 import datetime  # noqa: 251
-from typing import Any, List, Set
+from typing import Any, List, Set, cast
 from unittest.mock import patch
 import pytest
 import requests_mock
@@ -15,8 +15,10 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.specs import CredentialsConfiguration, RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.utils import get_resolved_traces
+from dlt.common.metrics import TDataLocation, TDatasetDataLocation
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
+from dlt.common.runtime.exec_info import get_execution_context
 from dlt.common.runtime.telemetry import stop_telemetry
 from dlt.common.typing import DictStrAny, DictStrStr, TRefreshMode, TSecretValue
 from dlt.common.utils import digest128, uniq_id
@@ -69,7 +71,7 @@ def test_create_trace(toml_providers: ConfigProvidersContainer, environment: Any
     extract_info = pipeline.extract(inject_tomls())
     trace = pipeline.last_trace
     assert trace is not None
-    assert trace.engine_version == TRACE_ENGINE_VERSION == 1
+    assert trace.engine_version == TRACE_ENGINE_VERSION == 2
     # assert p._trace is None
     assert len(trace.steps) == 1
     step = trace.steps[0]
@@ -298,6 +300,25 @@ def test_trace_schema() -> None:
             ],
         )
         def data(id_=dlt.sources.incremental("id")):
+            # a dataset read location, so the contract covers every field of the location type
+            # and its nested schemas / tables tables
+            dlt.current.resource().add_input(
+                TDatasetDataLocation(
+                    kind="dataset",
+                    resource_name="data",
+                    location="duckdb:///upstream.duckdb",
+                    version="Nz1p6EJnRUFLKgVMPBTDgw",
+                    schemas=[{"name": "upstream", "version_hash": "e8Yg4KzYbG1eYQzT5xkFAA"}],
+                    tables=["orders", "customers"],
+                    dataset_name="Upstream_DataSet",
+                    physical_dataset_name="upstream_data_set",
+                    destination_type="dlt.destinations.duckdb",
+                    destination_name="duckdb",
+                    destination_fingerprint="0Xtq0OYSuqDcRTxWTLZY",
+                    casefold="lower",
+                    case_sensitive=False,
+                )
+            )
             yield [{"id": 1, "multi": "1.2"}, {"id": 2}, {"id": 3}]
 
         # dict-shaped write_disposition (merge) and schema_contract, so the trace contract
@@ -329,6 +350,18 @@ def test_trace_schema() -> None:
             # Add a custom metric
             custom_metrics = dlt.current.resource_metrics()
             custom_metrics["good_old_github"] = True
+            # record a read location so the contract covers inputs and their nested tables
+            dlt.current.resource().add_input(
+                cast(
+                    TDataLocation,
+                    {
+                        "kind": "rest_api",
+                        "location": "https://api.github.com",
+                        "version": "2022-11-28",
+                        "endpoints": ["/events"],
+                    },
+                )
+            )
             for _ in range(1):
                 with open(
                     "tests/normalize/cases/github.events.load_page_1_duck.json",
@@ -482,6 +515,16 @@ def test_trace_refresh_and_table_drops(
     assert extract_package.refresh == refresh
     assert set(extract_package.dropped_tables or []) == expected_dropped
     assert set(extract_package.truncated_tables or []) == expected_truncated
+
+    # a table dropped or truncated by refresh is written again, so it is still an output
+    outputs = {
+        location["resource_name"]: location
+        for metrics in info.metrics.values()
+        for location in metrics[0]["outputs"]
+    }
+    assert outputs["items"]["tables"] == ["items"]
+    assert outputs["other"]["tables"] == ["other"]
+    assert outputs["items"]["physical_dataset_name"] == info.dataset_name
 
     assert_trace_serializable(pipeline.last_trace)
 
@@ -850,6 +893,23 @@ def test_last_pipeline_step_trace_returns_latest() -> None:
     assert p.last_trace.last_extract_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_normalize_info.loads_ids == third_load_info.loads_ids
     assert p.last_trace.last_load_info.loads_ids == third_load_info.loads_ids
+
+
+def test_trace_accessors_return_none_for_missing_steps() -> None:
+    """Last step accessors return None (not raise) when a step never ran, per their Optional type hints."""
+    trace = PipelineTrace(
+        uniq_id(),
+        "test",
+        get_execution_context(),
+        pendulum.now(),
+        steps=[],
+        resolved_config_values=[],
+    )
+
+    assert trace.last_pipeline_step_trace("extract") is None
+    assert trace.last_extract_info is None
+    assert trace.last_normalize_info is None
+    assert trace.last_load_info is None
 
 
 def test_trace_custom_metrics_schema() -> None:

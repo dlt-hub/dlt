@@ -325,7 +325,8 @@ def _to_ibis_schema(table_schema: TTableSchema) -> sch.Schema:
 def get_native_ibis_backend(dataset: dlt.Dataset, *, read_only: bool = False) -> BaseBackend:
     return create_ibis_backend(
         destination=dataset._destination,
-        client=dataset.destination_client,
+        # the backend owns the client, see `Dataset.ibis`
+        client=dataset._create_destination_client(),
         read_only=read_only,
         schemas=dataset.schemas,
     )

@@ -47,6 +47,7 @@ git worktree list
   - If no conflict, create the worktree:
     - If `--branch` was given: `git worktree add .worktrees/<name> <ref>`
     - Otherwise: `git worktree add .worktrees/<name> --detach`
+    - Callers needing a new branch check it out afterwards: `git checkout --no-track -b <new-branch>`
     - If `--pr` was given, then also: `cd <worktree-path> && gh pr checkout <number>`
 - `gh pr checkout` handles fetching, fork tracking, and branch setup automatically.
 

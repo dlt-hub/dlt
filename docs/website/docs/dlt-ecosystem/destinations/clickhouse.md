@@ -108,11 +108,20 @@ staging_use_https = true                                # Whether to connect to 
 select_sequential_consistency = 1                       # Ensures read-after-write consistency on ClickHouse Cloud (defaults to 1)
 ```
 
+### Session timezone
+ClickHouse uses the server timezone unless you set one. `session_timezone` sets it per connection. It
+does not change the column types that `CREATE TABLE` produces: `dlt` writes the zone into the type
+itself, as `DateTime64(6, 'UTC')`.
+```toml
+[destination.clickhouse.credentials]
+session_timezone = "Europe/Berlin"
+```
+
 ## Write disposition
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
-If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be atomically swapped with the staging tables via [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange) (requires `Atomic` or `Shared` database engine).
+If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be atomically swapped with the staging tables via [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange) (requires `Atomic`, `Replicated` or `Shared` database engine).
 
 ## Data loading
 

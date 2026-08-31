@@ -161,6 +161,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
         extra_placeholders: Optional[TExtraPlaceholders] = None,
         current_datetime: Optional[TCurrentDateTime] = None,
         always_refresh_views: bool = None,
+        warn_unsafe_layout_separators: bool = None,
         destination_name: str = None,
         environment: str = None,
         **kwargs: Any,
@@ -190,6 +191,8 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             current_datetime (Optional[TCurrentDateTime]): Current datetime used by date/time related placeholders. If not provided, load package creation timestamp
                 will be used.
             always_refresh_views (bool, optional): Always refresh sql_client views by setting the newest table metadata or globbing table files
+            warn_unsafe_layout_separators (bool, optional): Warns when a `layout` separator around `{table_name}` can also occur
+                inside a table name, which lets one table select the files of another table. Defaults to True.
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
             **kwargs (Any): Additional arguments passed to the destination config
@@ -207,6 +210,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             extra_placeholders=extra_placeholders,
             current_datetime=current_datetime,
             always_refresh_views=always_refresh_views,
+            warn_unsafe_layout_separators=warn_unsafe_layout_separators,
             destination_name=destination_name,
             environment=environment,
             **kwargs,

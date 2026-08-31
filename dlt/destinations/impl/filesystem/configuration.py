@@ -1,7 +1,7 @@
 import dataclasses
 
 import os
-from typing import Dict, Final, Optional, Type
+from typing import ClassVar, Dict, Final, Optional, Tuple, Type
 from urllib.parse import urlparse
 
 from dlt.common.typing import DictStrAny, DictStrOptionalStr
@@ -9,10 +9,13 @@ from dlt.common.typing import DictStrAny, DictStrOptionalStr
 from dlt.common import logger
 from dlt.common.configuration import configspec, resolve_type
 from dlt.common.configuration.specs.hf_credentials import HfCredentials
+from dlt.common.destination.attach import TAttachType
 from dlt.common.destination.client import (
     CredentialsConfiguration,
     DestinationClientConfiguration,
+    DestinationClientDwhConfiguration,
     DestinationClientStagingConfiguration,
+    WithAttachableEngine,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
 
@@ -22,7 +25,9 @@ from dlt.destinations.path_utils import check_layout, get_unused_placeholders
 
 @configspec
 class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
-    FilesystemConfigurationWithLocalFiles, DestinationClientStagingConfiguration
+    WithAttachableEngine,
+    FilesystemConfigurationWithLocalFiles,
+    DestinationClientStagingConfiguration,
 ):
     destination_type: Final[str] = dataclasses.field(default="filesystem", init=False, repr=False, compare=False)  # type: ignore[misc]
     current_datetime: Optional[TCurrentDateTime] = None
@@ -46,14 +51,26 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
     files in place (e.g. rejected purge, deferred GC). When false, the table is dropped from
     the catalog and dlt deletes the table files itself."""
 
+    ATTACHABLE_PROTOCOLS: ClassVar[Tuple[str, ...]] = ("file", "s3", "az", "abfss", "hf")
+    """Protocols a foreign DuckDB engine reads with SQL alone. These protocols mirror the
+    `CREATE SECRET` statements that `DuckDbSqlClient` builds. The other protocols (`gs`, `sftp`,
+    `gdrive`) access their data through an fsspec filesystem that only the process which
+    registered it holds."""
+
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:
         return super().resolve_credentials_type()
 
-    def physical_location(self) -> str:
+    def attach_type(self) -> Optional[TAttachType]:
+        """Returns None for a protocol a foreign DuckDB engine cannot access with SQL."""
+        if self.protocol not in self.ATTACHABLE_PROTOCOLS:
+            return None
+        return super().attach_type()
+
+    def data_location(self) -> str:
         """Returns scheme://netloc for remote filesystems, or the absolute local path."""
         if not self.bucket_url:
-            return ""
+            self._no_data_location("the configuration has no `bucket_url`")
 
         if self.is_local_path(self.bucket_url):
             return self.make_local_path(self.make_file_url(self.bucket_url))
@@ -68,14 +85,6 @@ class FilesystemDestinationClientConfiguration(  # type: ignore[misc]
         and setting False here we enforce it's usage
         """
         return False
-
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        # filesystem tables are queried through a local engine (e.g. DuckDB) that
-        # can access multiple storage backends in a single query, so join
-        # compatibility is determined by the engine, not by the storage location.
-
-        # until auto ATTACH is implemented, storage location must be used
-        return super().can_read_from(other)
 
     def on_resolved(self) -> None:
         # Validate layout and show unused placeholders

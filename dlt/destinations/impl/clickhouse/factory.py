@@ -183,6 +183,7 @@ class clickhouse(Destination[ClickHouseClientConfiguration, "ClickHouseClient"])
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "jsonl"
         caps.supported_loader_file_formats = ["parquet", "jsonl", "model"]
         caps.preferred_staging_file_format = "jsonl"

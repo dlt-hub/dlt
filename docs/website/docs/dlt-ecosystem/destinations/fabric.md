@@ -153,9 +153,11 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 Fabric Warehouse differs from standard SQL Server in several important ways:
 
 ### VARCHAR vs NVARCHAR
-Fabric Warehouse uses `varchar` for text columns instead of `nvarchar`. This destination automatically maps:
+Fabric Warehouse uses `varchar` for text columns instead of `nvarchar`. Because `varchar` lengths are counted in
+bytes while `precision` counts characters, the precision is multiplied by 4 (the worst case for UTF-8):
 - `text` → `varchar(max)`
-- `text` (with unique hint) → `varchar(900)` (limited for index support)
+- `text` with `precision` → `varchar(precision * 4)`, for example `precision=25` → `varchar(100)`
+- `text` with `precision` above 2000 → `varchar(max)`, since 8000 is the longest length Fabric accepts
 
 ### DATETIME2 vs DATETIMEOFFSET
 Fabric uses `datetime2` for timestamps instead of `datetimeoffset`:

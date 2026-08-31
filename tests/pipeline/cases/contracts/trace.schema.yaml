@@ -1,5 +1,5 @@
-version: 19
-version_hash: cmZ/fKGtDKNuPqgqgbNV5tl5FQg8vlj2+d5RyrgB22I=
+version: 29
+version_hash: Zm55WoM0094+vOhqUdgyrUwwStk8qpxGTUCu/eT9rwY=
 engine_version: 11
 name: trace
 tables:
@@ -89,8 +89,12 @@ tables:
         description: dlthub library version (if installed)
         data_type: text
         nullable: true
-      execution_context__run_context:
-        description: Run context class name (e.g. PluggableRunContext)
+      execution_context__run_context__name:
+        description: Run context name (e.g. dlt)
+        data_type: text
+        nullable: true
+      execution_context__run_context__profile:
+        description: Active profile name (if run context supports profiles)
         data_type: text
         nullable: true
       started_at:
@@ -529,7 +533,8 @@ tables:
         data_type: text
         nullable: true
       has_pending_transitions:
-        description: True when jobs committed to the destination but were not yet moved
+        description: True when jobs committed to the destination but were not yet
+          moved
         data_type: bool
         nullable: true
     parent: trace__steps
@@ -895,6 +900,9 @@ tables:
       incremental:
         data_type: bool
         nullable: true
+      x_row_version:
+        data_type: bool
+        nullable: true
     parent: trace__steps__step_info__load_packages__tables
   trace__resolved_config_values:
     description: Config and secret values resolved during the pipeline run (key, provider,
@@ -913,6 +921,11 @@ tables:
         nullable: true
       config_type_name:
         description: Configuration spec class name that requested the value
+        data_type: text
+        nullable: true
+      provider_location:
+        description: Human readable location within the provider (e.g. the toml file) holding the
+          value
         data_type: text
         nullable: true
       _dlt_parent_id:
@@ -1076,6 +1089,207 @@ tables:
         unique: true
         row_key: true
     parent: trace__steps__step_info__load_packages
+  trace__steps__extract_info__inputs:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      extract_idx:
+        data_type: bigint
+        nullable: true
+      kind:
+        data_type: text
+        nullable: true
+      location:
+        data_type: text
+        nullable: true
+      version:
+        data_type: text
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      dataset_name:
+        data_type: text
+        nullable: true
+      physical_dataset_name:
+        data_type: text
+        nullable: true
+      destination_type:
+        data_type: text
+        nullable: true
+      destination_name:
+        data_type: text
+        nullable: true
+      destination_fingerprint:
+        data_type: text
+        nullable: true
+      casefold:
+        data_type: text
+        nullable: true
+      case_sensitive:
+        data_type: bool
+        nullable: true
+    parent: trace__steps
+  trace__steps__extract_info__inputs__endpoints:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__inputs
+  trace__steps__extract_info__inputs__schemas:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      version_hash:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__inputs
+  trace__steps__extract_info__inputs__tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__extract_info__inputs
+  trace__steps__load_info__outputs:
+    columns:
+      load_id:
+        data_type: text
+        nullable: true
+      kind:
+        data_type: text
+        nullable: true
+      version:
+        data_type: text
+        nullable: true
+      destination_type:
+        data_type: text
+        nullable: true
+      destination_name:
+        data_type: text
+        nullable: true
+      case_sensitive:
+        data_type: bool
+        nullable: true
+      resource_name:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+      destination_fingerprint:
+        data_type: text
+        nullable: true
+      casefold:
+        data_type: text
+        nullable: true
+      location:
+        data_type: text
+        nullable: true
+      dataset_name:
+        data_type: text
+        nullable: true
+      physical_dataset_name:
+        data_type: text
+        nullable: true
+    parent: trace__steps
+  trace__steps__load_info__outputs__schemas:
+    columns:
+      name:
+        data_type: text
+        nullable: true
+      version_hash:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__load_info__outputs
+  trace__steps__load_info__outputs__tables:
+    columns:
+      value:
+        data_type: text
+        nullable: true
+      _dlt_parent_id:
+        data_type: text
+        nullable: false
+        parent_key: true
+      _dlt_list_idx:
+        data_type: bigint
+        nullable: false
+      _dlt_id:
+        data_type: text
+        nullable: false
+        unique: true
+        row_key: true
+    parent: trace__steps__load_info__outputs
 settings:
   detections:
   - iso_timestamp
@@ -1100,13 +1314,13 @@ normalizers:
     module: dlt.common.normalizers.json.relational
   use_break_path_on_normalize: false
 previous_hashes:
-- ZBDNfQ43NvZDWWRpeQA8vPNqNNbfVOdYjsGvLCgb0DY=
-- znMcyqfPi4E8ciWxLoi31Hx25ymRtH5D2duFbHKwov8=
-- qROrh2phDRgzwXnNcnkhZZx1pVWYJhrONl37h7deVyk=
-- 1nBoY4D8QT4BCa++yYhyysyCXAanAGBr+W1j1xPq9mM=
-- eDaULREi928XF66TW4zt8u6f76m+JVyhny6cYIqATTc=
-- JPyWY81x+lB6dVBEvUD5A67wl16qwvd2QQIoDhevaBw=
-- QRhfna2wTZv+INSEUUmkKiH+Upb6yGg1cDBBbR8kEMo=
-- txv310BO0KgmKJ/8I/spuLPaMMOt+TarI8ytKq19cjo=
-- 7I1eufBNCdmIem6hEiD0CjKgFQNlg0MCHkJgCTtghxk=
-- P8E7cjYovKZVIFpXOcuizgzCVXmUriPYEZ1FxBt63Tc=
+- IjmTlJET8k8+C6tXvNj8AbbnJuozgus7IpMHyHajFUw=
+- ZLr3XFtMA/YYbGutCI92/cwwh5xbxwZfh7QEzT541RQ=
+- q4KacWuGaYN74mKfU4XUk7+12XdnuWtTdWtbfUArYHU=
+- XmCnGxqMtPEuQgzNNVVqhf0aUzcwzPi0Gk71p9CBP8w=
+- 9/I5yQZMOhWEdPc+Cal0MeULamc3DykS4vZqkRcsrAM=
+- XRwlTg3masjK7YvoEOt11D/ILQe6cB4FSZ5+cH3xfdc=
+- 5snV4y/ucV79nzDg/Kz96XQU99Tr/rJh7ZcnjfIHwqs=
+- PH8+XylY1qJ+IGXbQbRgJorv/xJwYuirdJW3zJMfhZM=
+- 1kxexbqKswtAzBSget26Tu/XrLSA4Limk+sRJeql5aY=
+- cmZ/fKGtDKNuPqgqgbNV5tl5FQg8vlj2+d5RyrgB22I=

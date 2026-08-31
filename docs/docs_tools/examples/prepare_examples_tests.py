@@ -17,6 +17,7 @@ SKIP_EXAMPLES: List[str] = [
     "backfill_in_chunks",
     "connector_x_arrow",
     "transformers",
+    "custom_destination_lancedb",
     "qdrant_zendesk",
     "incremental_loading",
     "logfire_telemetry_export",

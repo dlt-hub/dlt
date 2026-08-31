@@ -3705,6 +3705,39 @@ def test_incremental_lag_int_with_initial_values(lag: float, last_value_func) ->
         assert result == expected_results[int(lag)]
 
 
+@pytest.mark.parametrize("first_cursor", [10, 0])
+def test_incremental_lag_forward_only_with_zero_last_value(first_cursor: int) -> None:
+    """
+    The forward-only guard for `lag` must not use a truthiness test on the
+    persisted `last_value`: when the cursor is exactly `0` (falsy), the guard
+    was skipped and `lag` rewound the cursor by one window on the next run.
+
+    Regression for #4363.
+    """
+
+    pipeline = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+    is_second_run = False
+
+    @dlt.resource(name="events", primary_key="id", write_disposition="append")
+    def events_resource(_=dlt.sources.incremental("counter", lag=5, last_value_func=max)):
+        if is_second_run:
+            yield {"id": 2, "counter": first_cursor - 10}
+        else:
+            yield {"id": 1, "counter": first_cursor}
+
+    pipeline.run(events_resource)
+    is_second_run = True
+    pipeline.run(events_resource)
+
+    last_value = pipeline.state["sources"][pipeline.default_schema_name]["resources"]["events"][
+        "incremental"
+    ]["counter"]["last_value"]
+    assert last_value == first_cursor
+
+
 @pytest.mark.parametrize("lag", [0, 1.0, 1.5, 2.0])
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_incremental_lag_float(lag: float, last_value_func) -> None:

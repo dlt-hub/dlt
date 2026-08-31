@@ -143,6 +143,19 @@ pipeline.run(
 
 Here, `engine_kwargs` configures only the engine used by SQLAlchemy as a **destination**. It does not affect resource extraction (use `engine_kwargs` for sql sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
 
+### Session timezone
+`sqlalchemy` has no `session_timezone` setting, unlike the other SQL destinations. The way to set one
+is dialect-specific, and SQLite has no timezone concept. On MySQL, set the timezone on each new
+connection with `connect_args`:
+
+```toml
+[destination.sqlalchemy.engine_kwargs.connect_args]
+init_command = "SET time_zone = '+00:00'"
+```
+
+Named zones such as `Europe/Berlin` work only on a MySQL server with populated timezone tables. A UTC
+offset always works.
+
 ## Notes on SQLite
 
 ### Dataset files

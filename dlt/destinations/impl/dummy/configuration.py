@@ -19,6 +19,7 @@ class DummyClientCredentials(CredentialsConfiguration):
 @configspec
 class DummyClientConfiguration(DestinationClientConfiguration):
     destination_type: Final[str] = dataclasses.field(default="dummy", init=False, repr=False, compare=False)  # type: ignore
+
     loader_file_format: TLoaderFileFormat = "jsonl"
     fail_schema_update: bool = False
     """raise terminal exception in schema update"""

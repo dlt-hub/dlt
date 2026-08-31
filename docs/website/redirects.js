@@ -220,7 +220,11 @@ const REDIRECTS = [
   },
   {
     from: "/docs/hub/getting-started/runtime-tutorial",
-    to: "/docs/hub/getting-started/platform-tutorial",
+    to: "/docs/hub/pipeline-operations/deployments",
+  },
+  {
+    from: "/docs/hub/getting-started/platform-tutorial",
+    to: "/docs/hub/pipeline-operations/deployments",
   },
   {
     from: "/docs/hub/workspace/overview",

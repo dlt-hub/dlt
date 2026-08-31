@@ -31,10 +31,13 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     role: Optional[str] = None
     authenticator: Optional[str] = None
     token: Optional[str] = None
+    workload_identity_provider: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_path: Optional[str] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
     application: Optional[str] = SNOWFLAKE_APPLICATION_ID
+    session_timezone: Optional[str] = "UTC"
+    """Session `TIMEZONE`. `None` keeps the account default"""
 
     _snowflake_host: Optional[str] = None
     """Snowflake account URL, e.g. https://kgiotue-wn98412.snowflakecomputing.com"""
@@ -50,6 +53,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         "role",
         "authenticator",
         "token",
+        "workload_identity_provider",
         "private_key",
         "private_key_path",
         "private_key_passphrase",
@@ -104,6 +108,9 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
 
         if self.application != "" and "application" not in conn_params:
             conn_params["application"] = self.application
+
+        if self.session_timezone and "timezone" not in conn_params:
+            conn_params["timezone"] = self.session_timezone
 
         # snowflake-connector-python fails if `host` is None, so we only set it if it's not None
         if self._snowflake_host:
@@ -182,14 +189,17 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
     use_nested_types: bool = False
     """When true, arrow-nested `json` columns are created as native ARRAY/OBJECT (structured) types instead of VARIANT."""
 
+    use_timestamp_tz: bool = False
+    """When true, timezone-aware timestamps are created as `TIMESTAMP_TZ`, which stores the offset written with each value, instead of `TIMESTAMP_LTZ`"""
+
     def fingerprint(self) -> str:
         """Returns a fingerprint of the account host."""
         if self.credentials and self.credentials.host:
             return digest128(self.credentials.host)
         return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the account host."""
-        if self.credentials and self.credentials.host:
-            return self.credentials.host
-        return ""
+        if not self.credentials or not self.credentials.host:
+            self._no_data_location("the configuration has no account host")
+        return self.credentials.host

@@ -17,7 +17,7 @@ All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.in
 ```py
 @run.pipeline(
     my_pipeline,
-    execute={"timeout": 7200, "grace_period": 60},
+    execute={"timeout": {"timeout": 7200, "grace_period": 60}},
 )
 def long_load():
     ...
@@ -45,6 +45,10 @@ def transform(run_context: TJobRunContext):
 The dltHub platform composes the execution environment from the workspace's base dependencies plus the job's declared groups.
 
 ## Instance size
+
+:::warning
+This feature is in public preview
+:::
 
 Pick how much CPU and memory the job’s runner gets. Pass it under `require.instance`:
 

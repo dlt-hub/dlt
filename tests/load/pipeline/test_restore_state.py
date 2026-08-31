@@ -584,7 +584,7 @@ def test_abort_unchanged_state_not_recommitted(
 def test_restore_schemas_while_import_schemas_exist(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    # restored schema should attach itself to imported schema and it should not get overwritten
+    # restored schemas should preserve the import link that matches their imported version
     import_schema_path = os.path.join(get_test_storage_root(), "schemas", "import")
     export_schema_path = os.path.join(get_test_storage_root(), "schemas", "export")
     pipeline_name = "pipe_" + uniq_id()
@@ -624,6 +624,28 @@ def test_restore_schemas_while_import_schemas_exist(
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
 
+    # restore while the import schema is unchanged: the original link must survive the sync
+    p._wipe_working_folder()
+    p = dlt.pipeline(
+        pipeline_name=pipeline_name,
+        import_schema_path=import_schema_path,
+        export_schema_path=export_schema_path,
+    )
+    p.sync_destination(
+        destination=destination_config.destination_factory(),
+        staging=destination_config.staging,
+        dataset_name=dataset_name,
+    )
+    schema = p.schemas["ethereum"]
+    assert normalized_labels in schema.tables
+    assert normalized_annotations in schema.tables
+    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
+
+    # publish a newer import schema after the destination schema was saved
+    imported_after_restore = schema.naming.normalize_table_identifier("imported_after_restore")
+    schema.update_table(utils.new_table(imported_after_restore))
+    imported_version_hash = p._schema_storage._export_schema(schema, import_schema_path)
+
     # wipe the working dir and restore
 
     print("----> wipe")
@@ -633,24 +655,25 @@ def test_restore_schemas_while_import_schemas_exist(
         import_schema_path=import_schema_path,
         export_schema_path=export_schema_path,
     )
-    # use run to get changes
-    p.run(
+    p.sync_destination(
         destination=destination_config.destination_factory(),
         staging=destination_config.staging,
         dataset_name=dataset_name,
-        **destination_config.run_kwargs,
     )
+    # sync leaves the restored schema unlinked, so the modified import is applied before extract
     schema = p.schemas["ethereum"]
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
+    assert imported_after_restore in schema.tables
+    assert schema._imported_version_hash == imported_version_hash
 
-    # check if attached to import schema
-    assert schema._imported_version_hash == IMPORTED_VERSION_HASH_ETH_V10()
     # extract some data with restored pipeline
     p.run(["C", "D", "E"], table_name="blacklist", **destination_config.run_kwargs)
     assert normalized_labels in schema.tables
     assert normalized_annotations in schema.tables
     assert normalized_blacklist in schema.tables
+    assert imported_after_restore in schema.tables
+    assert schema._imported_version_hash == imported_version_hash
 
 
 @pytest.mark.skip("Not implemented")

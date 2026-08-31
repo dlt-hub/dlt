@@ -22,9 +22,10 @@ from requests import Response
 from dlt.common import logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.exceptions import TypeErrorWithKnownTypes, ValueErrorWithKnownValues
+from dlt.common.metrics import TDataLocation
 from dlt.common.schema.utils import merge_columns
 from dlt.common.utils import update_dict_nested, exclude_keys
-from dlt.common.typing import add_value_to_literal
+from dlt.common.typing import NotRequired, add_value_to_literal
 from dlt.common import jsonpath
 
 from dlt.extract.incremental import Incremental
@@ -51,6 +52,7 @@ from dlt.sources.helpers.rest_client.auth import (
     OAuth2ClientCredentials,
 )
 from dlt.sources.helpers.rest_client.client import RESTClient, raise_for_status
+from dlt.sources.helpers.rest_client.redaction import sanitize_url
 
 from dlt.extract.resource import DltResource
 from dlt.sources.helpers.rest_client.typing import HTTPMethodBasic
@@ -1018,6 +1020,29 @@ def _set_incremental_params(
     if incremental_param.end:
         params[incremental_param.end] = transform(incremental_object.end_value)
     return params
+
+
+class TRestApiDataLocation(TDataLocation):
+    """A REST API base url holding endpoints."""
+
+    endpoints: NotRequired[List[str]]
+
+
+def record_endpoint_input(resource: DltResource, client: RESTClient, path: str) -> None:
+    """Records the API endpoint the currently running resource reads from."""
+    try:
+        resource.add_input(
+            TRestApiDataLocation(
+                kind="rest_api",
+                resource_name=resource.name,
+                location=sanitize_url(client.base_url),
+                # `path` is the endpoint template, not a resolved request url
+                endpoints=[path],
+            ),
+            replace=True,
+        )
+    except Exception as ex:
+        logger.debug(f"Could not record input location for endpoint `{path}`: {ex}")
 
 
 def paginate_dependent_resource(

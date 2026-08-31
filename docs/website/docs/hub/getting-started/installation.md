@@ -42,10 +42,10 @@ If you don't have `uv` yet, either [install it first](#setting-up-your-environme
 pipx run dlthub-start
 ```
 
-Either way, it prompts you to pick a coding agent (Claude / Cursor / Codex), then runs a guided first experience — it scaffolds the workspace, installs `dlt[hub]` and dependencies with `uv sync`, logs you in to the dltHub platform, runs a sample pipeline in your personal [Playground workspace](playground-workspace.md), and launches your agent ready to build your own source.
+Either way, it runs a guided first experience — it scaffolds the workspace, installs `dlt[hub]` and dependencies with `uv sync`, logs you in to the dltHub platform, connects your personal [Playground workspace](../pipeline-operations/playground-workspace.md), then prompts you to pick a coding agent (Claude / Cursor / Codex) and launches it. Your agent deploys and runs the sample pipeline, then is ready to build your own source.
 
 :::tip
-Run `dlthub-start` yourself with no arguments — it's interactive and guides you through each step. It scaffolds into your current folder, so the AI skills land right where your coding agent is open.
+Run `dlthub-start` yourself with no arguments — it's interactive and guides you through each step. It scaffolds into your current folder, so the AI skills land right where your coding agent is open. For a walkthrough of the whole flow, see [Deploy your first pipeline](onboarding.md).
 :::
 
 ## Setting up your environment

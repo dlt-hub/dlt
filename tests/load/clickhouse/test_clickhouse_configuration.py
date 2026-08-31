@@ -13,6 +13,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseCredentials,
     ClickHouseClientConfiguration,
 )
+from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from tests.load.utils import yield_client_with_storage
 
 # mark all tests as essential, do not remove
@@ -126,6 +127,25 @@ def test_clickhouse_connection_settings(client: ClickHouseClient) -> None:
         assert ("select_sequential_consistency", "1") in res
 
 
+def test_clickhouse_session_timezone(client: ClickHouseClient) -> None:
+    credentials = client.config.credentials.copy()
+    assert "session_timezone" not in credentials.get_query()
+
+    credentials.session_timezone = "Asia/Tokyo"
+    assert credentials.get_query()["session_timezone"] == "Asia/Tokyo"
+
+    sql_client = ClickHouseSqlClient(
+        client.sql_client.dataset_name,
+        client.sql_client.staging_dataset_name,
+        [],
+        credentials,
+        client.capabilities,
+        client.config,
+    )
+    with sql_client:
+        assert sql_client.execute_sql("SELECT timezone()")[0][0] == "Asia/Tokyo"
+
+
 def test_client_has_dataset(client: ClickHouseClient) -> None:
     # with client.sql_client as sql_client:
     assert client.sql_client.has_dataset()
@@ -168,7 +188,7 @@ def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
     assert parts[1] == f"{dataset_name}###test_table"
 
 
-@pytest.mark.parametrize("engine", ["Atomic", "Shared"])
+@pytest.mark.parametrize("engine", ["Atomic", "Replicated", "Shared"])
 def test_staging_optimized_accepts_supported_engines(
     client: ClickHouseClient, mocker: MockerFixture, engine: str
 ) -> None:
@@ -176,12 +196,12 @@ def test_staging_optimized_accepts_supported_engines(
     client._verify_database_supports_exchange()
 
 
-@pytest.mark.parametrize("engine", ["Ordinary", "Replicated", "Lazy"])
+@pytest.mark.parametrize("engine", ["Ordinary", "Lazy", "Memory"])
 def test_staging_optimized_rejects_unsupported_engines(
     client: ClickHouseClient, mocker: MockerFixture, engine: str
 ) -> None:
     mocker.patch.object(client.sql_client, "execute_sql", return_value=[(engine,)])
-    with pytest.raises(DestinationTerminalException, match="Atomic or Shared"):
+    with pytest.raises(DestinationTerminalException, match="Atomic or Replicated or Shared"):
         client._verify_database_supports_exchange()
 
 

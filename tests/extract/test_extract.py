@@ -1,10 +1,12 @@
-from typing import Dict, List, NamedTuple, Optional, Any
+from typing import Dict, List, NamedTuple, Optional, Any, cast
 import pytest
 import os
 
 import dlt
 from dlt.common import json
 from dlt.common.data_types.typing import TDataType
+from dlt.common.exceptions import TypeErrorWithKnownTypes
+from dlt.common.metrics import TDataLocation
 from dlt.common.schema.utils import is_nested_table, may_be_nested
 from dlt.common.storages import (
     SchemaStorage,
@@ -17,7 +19,11 @@ from dlt.common.typing import TTableNames, TDataItems
 from dlt.common.utils import uniq_id
 
 from dlt.extract import DltResource, DltSource
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, ResourceExtractionError
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    DataLocationKindRequired,
+    ResourceExtractionError,
+)
 from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
@@ -1868,3 +1874,231 @@ def test_handle_empty_tables_pseudo_root_refreshed_then_truncated(extract_step: 
     metrics = _extract_resource(extract_step, schema, make_resource("replace", []))
     assert schema.tables[pseudo]["write_disposition"] == "replace"
     assert metrics[pseudo].items_count == 0
+
+
+def test_resource_inputs_not_recorded(extract_step: Extract) -> None:
+    @dlt.resource
+    def no_inputs():
+        yield [{"id": 1}]
+
+    resource = no_inputs()
+    assert resource.inputs == []
+
+    source = DltSource(dlt.Schema("no_inputs"), "module", [resource])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["inputs"] == []
+    assert step_info.asdict()["inputs"] == []
+
+
+def test_resource_inputs_recorded(extract_step: Extract) -> None:
+    # a resource may join several locations, each is recorded separately
+    @dlt.resource
+    def with_input():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {
+                "kind": "rest_api",
+                "resource_name": resource.name,
+                "location": "https://api.example.com",
+                "version": "v1",
+            }
+        )
+        resource.add_input(
+            {
+                "kind": "dataset",
+                "resource_name": resource.name,
+                "location": "duckdb:///ref.duckdb",
+            }
+        )
+        yield [{"id": 1}]
+
+    # every item filtered out, locations must still be reported
+    @dlt.resource
+    def all_filtered():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"kind": "files", "resource_name": resource.name, "location": "s3://bucket"}
+        )
+        yield [{"id": 1}]
+
+    source = DltSource(
+        dlt.Schema("inputs"),
+        "module",
+        [with_input(), all_filtered().add_filter(lambda _: False)],
+    )
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+
+    inputs = step_info.metrics[load_id][0]["inputs"]
+    assert inputs == [
+        {
+            "kind": "rest_api",
+            "location": "https://api.example.com",
+            "version": "v1",
+            "resource_name": "with_input",
+        },
+        {
+            "kind": "dataset",
+            "location": "duckdb:///ref.duckdb",
+            "resource_name": "with_input",
+        },
+        {"kind": "files", "location": "s3://bucket", "resource_name": "all_filtered"},
+    ]
+    # flattened rows carry the load id and the extract index
+    assert step_info.asdict()["inputs"] == [
+        {"load_id": load_id, "extract_idx": 0, **location} for location in inputs
+    ]
+
+
+def test_resource_inputs_kind_defaults_to_source_name(extract_step: Extract) -> None:
+    @dlt.resource
+    def no_kind():
+        # kind is required by the type, the runtime fallback serves dynamic callers
+        resource = dlt.current.resource()
+        resource.add_input(
+            {"resource_name": resource.name, "location": "sftp://host/path"}  # type: ignore[typeddict-item]
+        )
+        yield [{"id": 1}]
+
+    source = DltSource(dlt.Schema("my_sftp"), "module", [no_kind()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert step_info.metrics[load_id][0]["inputs"] == [
+        {"location": "sftp://host/path", "kind": "my_sftp", "resource_name": "no_kind"}
+    ]
+
+    # a resource that belongs to no source has no `kind` to default to
+    standalone = dlt.resource([{"id": 1}], name="orders")
+    with pytest.raises(DataLocationKindRequired) as kind_ex:
+        standalone.add_input({"resource_name": "orders", "location": "sftp://host/path"})  # type: ignore[typeddict-item]
+    assert kind_ex.value.resource_name == "orders"
+    assert standalone.inputs == []
+
+
+def test_resource_inputs_of_pipe_root(extract_step: Extract) -> None:
+    """A pipe root feeding a transformer is extracted but not selected, its inputs still count"""
+
+    @dlt.resource
+    def files():
+        resource = dlt.current.resource()
+        resource.add_input(
+            {  # type: ignore[typeddict-unknown-key]
+                "kind": "filesystem",
+                "resource_name": resource.name,
+                "location": "file:///bucket",
+                "glob": "*.csv",
+            },
+            # this instance is piped into a second transformer below, like the filesystem
+            # source it only reports the location of the run in progress
+            replace=True,
+        )
+        yield [{"id": 1}]
+
+    @dlt.transformer
+    def read(item):
+        # a transformer records no inputs of its own, its upstream is an edge in the dag
+        yield item
+
+    source = DltSource(dlt.Schema("piped"), "module", [files | read])
+    assert list(source.selected_resources.keys()) == ["read"]
+
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    metrics = step_info.metrics[load_id][0]
+    assert metrics["inputs"] == [
+        {
+            "kind": "filesystem",
+            "location": "file:///bucket",
+            "glob": "*.csv",
+            "resource_name": "files",
+        }
+    ]
+    assert ("files", "read") in metrics["dag"]
+
+    # a transformer that does read a location of its own is recorded, like a dependent rest_api
+    # endpoint. being fed by `files` is still not an input, only the dag edge says so
+    @dlt.transformer
+    def fetch_detail(item):
+        resource = dlt.current.resource()
+        resource.add_input(
+            {
+                "kind": "rest_api",
+                "resource_name": resource.name,
+                "location": "https://api.example.com",
+            }
+        )
+        yield item
+
+    source = DltSource(dlt.Schema("piped_reader"), "module", [files | fetch_detail])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    metrics = step_info.metrics[load_id][0]
+    assert metrics["inputs"] == [
+        {
+            "kind": "rest_api",
+            "location": "https://api.example.com",
+            "resource_name": "fetch_detail",
+        },
+        {
+            "kind": "filesystem",
+            "location": "file:///bucket",
+            "glob": "*.csv",
+            "resource_name": "files",
+        },
+    ]
+    assert ("files", "fetch_detail") in metrics["dag"]
+
+
+def test_resource_inputs_are_recorded_as_added(extract_step: Extract) -> None:
+    """Recording is additive, a resource reading the same location on every page says so"""
+
+    @dlt.resource
+    def repeats():
+        for page in range(3):
+            resource = dlt.current.resource()
+            resource.add_input(
+                {"kind": "api", "resource_name": resource.name, "location": "https://example.com"}
+            )
+            yield [{"id": page}]
+
+    source = DltSource(dlt.Schema("repeats"), "module", [repeats()])
+    load_id = extract_step.extract(source, 20, 1)
+    step_info = extract_step.get_step_info(MockPipeline("buba", first_run=False))  # type: ignore[abstract]
+    assert (
+        step_info.metrics[load_id][0]["inputs"]
+        == [{"kind": "api", "location": "https://example.com", "resource_name": "repeats"}] * 3
+    )
+
+
+def test_resource_inputs_replace_drops_all_previous() -> None:
+    resource = dlt.resource([{"id": 1}], name="data")
+    resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})
+    resource.add_input({"kind": "files", "resource_name": "data", "location": "s3://bucket"})
+    assert len(resource.inputs) == 2
+
+    # locations of other kinds go too, replace is not a per kind update
+    resource.add_input(
+        {"kind": "api", "resource_name": "data", "location": "https://b.example"}, replace=True
+    )
+    assert resource.inputs == [
+        {"kind": "api", "resource_name": "data", "location": "https://b.example"}
+    ]
+
+
+def test_resource_inputs_reject_invalid_location() -> None:
+    """A location is recorded when the resource is built, so a bad one fails right there"""
+
+    @dlt.resource
+    def data():
+        yield [{"id": 1}]
+
+    with pytest.raises(TypeErrorWithKnownTypes):
+        data().add_input("not a location")  # type: ignore[arg-type]
+
+    # a bad location does not disturb what was recorded, even when it asks to replace
+    resource = dlt.resource([{"id": 1}], name="data")
+    resource.add_input({"kind": "api", "resource_name": "data", "location": "https://a.example"})
+    with pytest.raises(TypeErrorWithKnownTypes):
+        resource.add_input("not a location", replace=True)  # type: ignore[arg-type]
+    assert len(resource.inputs) == 1

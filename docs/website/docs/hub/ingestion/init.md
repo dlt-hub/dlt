@@ -85,4 +85,4 @@ Start with the [`/find-source` skill](./rest-api-source.md#find-source--discover
 Once your pipeline runs locally:
 * [Monitor via the workspace dashboard](../../general-usage/dataset-access/data-quality-dashboard)
 * Set up [Profiles](../pipeline-operations/profiles.md) to manage separate dev, prod, and test environments
-* [Deploy to runtime](../getting-started/platform-tutorial.md#5-run-your-first-pipeline)
+* [Deploy to runtime](../pipeline-operations/deployments.md)

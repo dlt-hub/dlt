@@ -1,6 +1,7 @@
 # flake8: noqa
 import dlt
 import pytest
+from dlt.common.storages.configuration import FilesystemConfiguration
 from pathlib import Path
 from typing import Any, Generator
 
@@ -35,43 +36,43 @@ def default_dataset(pipeline: dlt.Pipeline) -> dlt.Dataset:
 
 def quick_start_example_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START quick_start_example
-    # Assuming you have a Pipeline object named 'pipeline'. You can create one with the dlt cli: dlt init fruitshop duckdb
-    # and you have loaded the data of the fruitshop example source into the destination
+    # This example needs a Pipeline object named 'pipeline' with the fruitshop data loaded.
+    # Create one with: dlt init fruitshop duckdb
     # the tables available in the destination are:
     # - customers
     # - inventory
     # - purchases
 
-    # Step 1: Get the readable dataset from the pipeline
+    # Step 1: Get the dataset from the pipeline
     dataset = pipeline.dataset()
 
-    # Step 2: Access a table as a ReadableRelation
+    # Step 2: Access a table as a Relation
     customers_relation = dataset.table("customers")
 
-    # Step 3: Fetch the entire table as a Pandas DataFrame
+    # Step 3: Read the entire table as a Pandas DataFrame
     df = customers_relation.df()  # or customers_relation.df(chunk_size=50)
 
-    # Alternatively, fetch as a PyArrow Table
+    # Alternatively, read as a PyArrow Table
     arrow_table = customers_relation.arrow()
     # @@@DLT_SNIPPET_END quick_start_example
 
 
 def getting_started_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START getting_started
-    # Get the readable dataset from the pipeline
+    # Get the dataset from the pipeline
     dataset = pipeline.dataset()
 
-    # print the row counts of all tables in the destination as dataframe
+    # print the row counts of all tables in the destination as a DataFrame
     print(dataset.row_counts().df())
     # @@@DLT_SNIPPET_END getting_started
 
 
 def accessing_tables_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START accessing_tables
-    # Using `table` method`
+    # Using the `table` method
     customers_relation = dataset.table("customers")
 
-    # Using item access
+    # Using bracket notation
     customers_relation = dataset["customers"]
     # @@@DLT_SNIPPET_END accessing_tables
 
@@ -115,7 +116,7 @@ def iterating_chunks_snippet(dataset: dlt.Dataset) -> None:
 
 def row_counts_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START row_counts
-    # print the row counts of all tables in the destination as dataframe
+    # print the row counts of all tables in the destination as a DataFrame
     print(dataset.row_counts().df())
 
     # or as tuples
@@ -126,8 +127,8 @@ def row_counts_snippet(dataset: dlt.Dataset) -> None:
 def context_manager_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START context_manager
 
-    # the dataset context manager will keep the connection open
-    # and close it after the with block is exited
+    # the dataset context manager keeps the connection open
+    # and closes it when the with block ends
     with dataset:
         print(dataset.table("customers").limit(50).arrow())
         print(dataset.table("purchases").arrow())
@@ -175,10 +176,10 @@ def filter_snippet(default_dataset: dlt.Dataset) -> None:
     # Filter by 'id'
     filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
 
-    # Filter with raw SQL string
+    # Filter with a raw SQL string
     filtered = customers_relation.where("id = 1").fetchall()
 
-    # Filter with sqlglot expression
+    # Filter with a sqlglot expression
     import sqlglot.expressions as sge
 
     expr = sge.EQ(
@@ -246,8 +247,8 @@ def join_explicit_on_snippet(dataset: dlt.Dataset) -> None:
         kind="left",
     )
 
-    # the right-hand side can also be a transformed relation; its filters
-    # are preserved when it is embedded as a subquery.
+    # the right-hand side can also be a transformed relation. dlt keeps its
+    # filters when it embeds the relation as a subquery.
     big_purchases = dataset["purchases"].where("quantity", "gt", 3)
     customers_with_big_purchases = dataset["customers"].join(
         big_purchases,
@@ -262,7 +263,7 @@ def join_explicit_on_snippet(dataset: dlt.Dataset) -> None:
 def join_cross_dataset_snippet(tmp_path: Path) -> None:
     # @@@DLT_SNIPPET_START join_cross_dataset
     # two pipelines that write to the same DuckDB file under different
-    # dataset names — both datasets share one physical destination.
+    # dataset names — both datasets share one data location.
     db_path = str(tmp_path / "shop.duckdb")
 
     crm_pipeline = dlt.pipeline(
@@ -292,14 +293,52 @@ def join_cross_dataset_snippet(tmp_path: Path) -> None:
     crm = crm_pipeline.dataset()
     sales = sales_pipeline.dataset()
 
-    # pass the right-hand side as a Relation from the other dataset;
-    # `on` is required for cross-dataset joins.
+    # pass the right-hand side as a Relation from the other dataset.
+    # cross-dataset joins require `on`.
     users_with_purchases = crm["users"].join(
         sales["purchases"],
         on="users.id = purchases.user_id",
     )
     df = users_with_purchases.df()
     # @@@DLT_SNIPPET_END join_cross_dataset
+
+
+def join_cross_destination_eager_snippet(tmp_path: Path) -> None:
+    # @@@DLT_SNIPPET_START join_cross_destination_eager
+    # the duckdb pipeline whose engine runs the join
+    crm = dlt.pipeline(
+        pipeline_name="crm",
+        destination=dlt.destinations.duckdb(str(tmp_path / "crm.duckdb")),
+        dataset_name="crm_data",
+    )
+    crm.run([{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users")
+
+    # a filesystem pipeline in a different data location: the foreign dataset
+    events = dlt.pipeline(
+        pipeline_name="events",
+        destination=dlt.destinations.filesystem(
+            FilesystemConfiguration.make_file_url(str(tmp_path / "events"))
+        ),
+        dataset_name="events_data",
+    )
+    events.run(
+        [
+            {"id": 10, "user_id": 1, "kind": "click"},
+            {"id": 11, "user_id": 2, "kind": "view"},
+        ],
+        table_name="events",
+        loader_file_format="parquet",
+    )
+
+    # join across the two destinations, then read the result. dlt attaches the
+    # filesystem dataset into the DuckDB engine and runs the join there.
+    joined = crm.dataset()["users"].join(
+        events.dataset()["events"],
+        on="users.id = events.user_id",
+    )
+    df = joined.df()
+    # @@@DLT_SNIPPET_END join_cross_destination_eager
+    assert sorted(df["name"]) == ["Alice", "Bob"]
 
 
 def chain_operations_snippet(dataset: dlt.Dataset) -> None:
@@ -313,7 +352,7 @@ def chain_operations_snippet(dataset: dlt.Dataset) -> None:
 
 def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START ibis_expressions
-    # now that ibis is installed, we can get ibis unbound tables from the dataset
+    # now that ibis is installed, we can get ibis table expressions from the dataset
     dataset = pipeline.dataset()
 
     # get two table expressions
@@ -329,27 +368,27 @@ def ibis_expressions_snippet(pipeline: dlt.Pipeline) -> None:
     # now we can use the ibis expression to filter the data
     filtered_expression = join_expression.filter(purchases_expression.quantity > 1)
 
-    # we can pass the expression back to the dataset to get a relation that can be executed
+    # we can pass the expression back to the dataset to get an executable relation
     relation = dataset(filtered_expression)
-    # and we can inspect the query that will be used to read the data
+    # and we can inspect the query that reads the data
     print(relation)
 
-    # and finally fetch the data as a pandas dataframe, the same way we would do with a normal relation
+    # and finally read the data as a Pandas DataFrame, the same way as a normal relation
     print(relation.df())
 
     # a few more examples
 
-    # get all customers from berlin and london and load them as a dataframe
+    # get all customers from berlin and london, then read them as a DataFrame
     expr = customers_expression.filter(
         customers_expression.city.isin(["berlin", "london"])
     )
     print(dataset(expr).df())
 
-    # limit and offset, then load as an arrow table
+    # limit and offset, then read as a PyArrow Table
     expr = customers_expression.limit(10, offset=5)
     print(dataset(expr).arrow())
 
-    # mutate columns by adding a new colums that always is 10 times the value of the id column
+    # mutate: add a column that is always 10 times the value of the id column
     expr = customers_expression.mutate(new_id=customers_expression.id * 10)
     print(dataset(expr).df())
 
@@ -392,7 +431,7 @@ def fetch_many_snippet(dataset: dlt.Dataset) -> None:
 def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
     customers_relation = dataset.table("customers")
     # @@@DLT_SNIPPET_START iterating_with_limit_and_select
-    # Dataframes
+    # DataFrames
     for df_chunk in (
         customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20)
     ):
@@ -408,7 +447,7 @@ def iterating_with_limit_and_select_snippet(dataset: dlt.Dataset) -> None:
     for records in (
         customers_relation.select("id", "name").limit(100).iter_fetch(chunk_size=20)
     ):
-        # Process each modified DataFrame chunk
+        # Process each chunk of tuples
         ...
     # @@@DLT_SNIPPET_END iterating_with_limit_and_select
 
@@ -429,13 +468,13 @@ def custom_sql_snippet(dataset: dlt.Dataset) -> None:
 
 def loading_to_pipeline_snippet(dataset: dlt.Dataset) -> None:
     # @@@DLT_SNIPPET_START loading_to_pipeline
-    # Create a readable relation with a limit of 1m rows
+    # Create a relation with a limit of 1 million rows
     limited_customers_relation = dataset.customers.limit(1_000_000)
 
     # Create a new pipeline
     other_pipeline = dlt.pipeline(pipeline_name="other_pipeline", destination="duckdb")
 
-    # We can now load these 1m rows into this pipeline in 10k chunks
+    # We can now load these rows into this pipeline in chunks of 10 thousand
     other_pipeline.run(
         limited_customers_relation.iter_arrow(chunk_size=10_000),
         table_name="limited_customers",

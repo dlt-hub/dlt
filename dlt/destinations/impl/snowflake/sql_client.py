@@ -74,10 +74,6 @@ class SnowflakeSqlClient(SqlClientBase[snowflake_lib.SnowflakeConnection], DBTra
 
     def open_connection(self) -> snowflake_lib.SnowflakeConnection:
         conn_params = self.credentials.to_connector_params()
-        # set the timezone to UTC so when loading from file formats that do not have timezones
-        # we get dlt expected UTC
-        if "timezone" not in conn_params:
-            conn_params["timezone"] = "UTC"
         if "arrow_number_to_decimal" not in conn_params:
             conn_params["arrow_number_to_decimal"] = True
         # set autocommit when opening connection to override account and user level setting

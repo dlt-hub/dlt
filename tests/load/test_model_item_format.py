@@ -5,6 +5,7 @@ import pytest
 import dlt
 
 from dlt.common.pendulum import pendulum
+from dlt.destinations.exceptions import DatabaseUndefinedRelation
 from dlt.extract.hints import make_hints
 
 from dlt.common.schema.typing import TWriteDisposition
@@ -1132,3 +1133,61 @@ def test_relation_lifecycle() -> None:
     ]
     my_resource_insert = [stmt for stmt in all_insert_stmts if '"my_resource"' in stmt][0]
     assert loaded_query == my_resource_insert
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_model_query_written_in_another_dialect(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """dlt parses a raw query in the dialect of the author and emits it in the dialect that
+    executes it. `TO_VARCHAR` is snowflake syntax. duckdb has no such function, so sqlglot
+    renders it as a cast.
+    """
+    pipeline = destination_config.setup_pipeline("model_dialect", dev_mode=True)
+    pipeline.run(
+        [{"a": i} for i in range(10)],
+        table_name="example_table",
+        **destination_config.run_kwargs,
+    )
+    dataset = pipeline.dataset()
+    foreign_sql = "SELECT TO_VARCHAR(a) AS a, _dlt_load_id, _dlt_id FROM example_table"
+
+    # when dlt reads the query as duckdb, the text stays `TO_VARCHAR` and the destination cannot
+    # resolve it
+    with pytest.raises(DatabaseUndefinedRelation):
+        dataset.query(foreign_sql, query_dialect="duckdb").fetchall()
+
+    @dlt.resource()
+    def transpiled_table() -> Any:
+        relation = dataset.query(foreign_sql, query_dialect="snowflake")
+        assert "TO_VARCHAR" not in relation.to_sql()
+        # the model carries the dialect that executes it, not the dialect of the author
+        model = relation.to_model()
+        assert model.query_dialect == dataset.destination_dialect
+        assert model.query_dialect != "snowflake"
+        assert "TO_VARCHAR" not in model.to_sql()
+        yield dlt.mark.with_hints(
+            relation,
+            # a model cannot create hints by itself
+            hints=make_hints(
+                columns={
+                    "a": {"data_type": "text"},
+                    "_dlt_load_id": {"data_type": "text"},
+                    "_dlt_id": {"data_type": "text"},
+                }
+            ),
+        )
+
+    pipeline.run(
+        [transpiled_table()],
+        loader_file_format="model",
+        table_format=destination_config.run_kwargs["table_format"],
+    )
+
+    assert load_table_counts(pipeline, "transpiled_table") == {"transpiled_table": 10}
+    result = dataset["transpiled_table"].df()
+    assert sorted(result["a"]) == sorted(str(i) for i in range(10))

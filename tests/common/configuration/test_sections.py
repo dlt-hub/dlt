@@ -71,7 +71,7 @@ def test_sectioned_configuration(environment: Any, env_provider: ConfigProvider)
     # only one provider and section was tried
     assert len(traces) == 1
     assert traces[0] == LookupTrace(
-        "Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None
+        "Environment Variables", ["DLT_TEST"], "DLT_TEST__PASSWORD", None, ""
     )
     # assert traces[1] == LookupTrace("secrets.toml", ["DLT_TEST"], "DLT_TEST.password", None)
     # assert traces[2] == LookupTrace("config.toml", ["DLT_TEST"], "DLT_TEST.password", None)

@@ -3,10 +3,12 @@ import importlib
 import pytest
 import sqlglot
 import sqlglot.expressions as sge
+from sqlglot.optimizer.annotate_types import annotate_types
 
 from dlt.common.libs.sqlglot import (
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
+    build_typed_literal,
     filter_select_column_names,
     from_sqlglot_type,
     get_select_column_names,
@@ -764,3 +766,29 @@ def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
     sort_key = order.expressions[0].this
     assert isinstance(sort_key, sge.Column)
     assert sort_key.name == "c" and sort_key.table == DLT_SUBQUERY_NAME
+
+
+def test_build_typed_literal_bool_produces_boolean_expression() -> None:
+    """A bool value must become sge.Boolean, not a numeric literal -- bool is an int
+    subclass, so an isinstance(v, (int, float)) check ahead of the bool check would
+    silently misclassify it and break sqlglot's type annotation pass downstream.
+    """
+    lit = build_typed_literal(True)
+    assert isinstance(lit, sge.Boolean)
+    assert lit.this is True
+
+    lit = build_typed_literal(False)
+    assert isinstance(lit, sge.Boolean)
+    assert lit.this is False
+
+
+def test_build_typed_literal_bool_survives_type_annotation() -> None:
+    """A WHERE clause built from a bool literal (as Relation.where()/.filter() do)
+    must survive sqlglot's annotate_types pass instead of raising decimal.InvalidOperation.
+    """
+    condition = sge.EQ(this=sge.column("is_active"), expression=build_typed_literal(True))
+    select = sqlglot.select("*").from_("my_table").where(condition)
+
+    annotated = annotate_types(select)
+
+    assert "TRUE" in annotated.sql()

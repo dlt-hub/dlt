@@ -29,7 +29,6 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "double": "FLOAT",
         "bool": "BOOLEAN",
         "date": "DATE",
-        "timestamp": "TIMESTAMP_TZ",
         "bigint": f"NUMBER({BIGINT_PRECISION},0)",  # Snowflake has no integer types
         "binary": "BINARY",
         "time": "TIME",
@@ -38,7 +37,6 @@ class SnowflakeTypeMapper(TypeMapperImpl):
 
     sct_to_dbt = {
         "text": "VARCHAR(%i)",
-        "timestamp": "TIMESTAMP_TZ(%i)",
         "decimal": "NUMBER(%i,%i)",
         "time": "TIME(%i)",
         "wei": "NUMBER(%i,%i)",
@@ -49,6 +47,7 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         "FLOAT": "double",
         "BOOLEAN": "bool",
         "DATE": "date",
+        "TIMESTAMP_LTZ": "timestamp",
         "TIMESTAMP_TZ": "timestamp",
         "BINARY": "binary",
         "VARIANT": "json",
@@ -65,9 +64,11 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         self,
         capabilities: DestinationCapabilitiesContext,
         use_decfloat: bool = False,
+        use_timestamp_tz: bool = False,
     ) -> None:
         super().__init__(capabilities)
         self.use_decfloat = use_decfloat
+        self.use_timestamp_tz = use_timestamp_tz
 
     def from_destination_type(
         self, db_type: str, precision: Optional[int] = None, scale: Optional[int] = None
@@ -90,11 +91,12 @@ class SnowflakeTypeMapper(TypeMapperImpl):
         timezone = column.get("timezone", True)
         precision = column.get("precision")
 
-        if timezone and precision is None:
-            # use lookup table for non-precision types
-            return None
-
-        timestamp = "TIMESTAMP_TZ" if timezone else "TIMESTAMP_NTZ"
+        if not timezone:
+            timestamp = "TIMESTAMP_NTZ"
+        elif self.use_timestamp_tz:
+            timestamp = "TIMESTAMP_TZ"
+        else:
+            timestamp = "TIMESTAMP_LTZ"
 
         # append precision if specified and valid
         if precision is not None:
@@ -168,6 +170,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "jsonl"
         caps.supported_loader_file_formats = ["jsonl", "parquet", "csv", "model"]
         caps.preferred_staging_file_format = "jsonl"
@@ -241,6 +244,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         create_indexes: bool = False,
         use_decfloat: bool = False,
         use_nested_types: bool = False,
+        use_timestamp_tz: bool = False,
         enable_atomic_swap: bool = False,
         destination_name: str = None,
         environment: str = None,
@@ -263,6 +267,9 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
                 Only works with text-based staging formats (jsonl, csv) - not parquet.
             use_nested_types (bool, optional): Whether to create arrow-nested `json` columns as native
                 ARRAY/OBJECT (structured) types instead of VARIANT. Requires loading via parquet.
+            use_timestamp_tz (bool, optional): Whether to create timezone-aware timestamps as TIMESTAMP_TZ,
+                which stores the offset written with each value, instead of TIMESTAMP_LTZ. Columns of
+                tables that already exist keep the type they were created with.
             enable_atomic_swap (bool, optional): Whether to use atomic swap when replacing with replace strategy `staging-optimized`.
             destination_name (str, optional): Name of the destination. Defaults to None.
             environment (str, optional): Environment name. Defaults to None.
@@ -277,6 +284,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
             create_indexes=create_indexes,
             use_decfloat=use_decfloat,
             use_nested_types=use_nested_types,
+            use_timestamp_tz=use_timestamp_tz,
             enable_atomic_swap=enable_atomic_swap,
             destination_name=destination_name,
             environment=environment,

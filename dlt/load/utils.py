@@ -1,4 +1,5 @@
-from typing import List, Set, Iterable, Callable, Optional, Tuple, Sequence
+from contextlib import contextmanager
+from typing import List, Set, Iterable, Iterator, Callable, Optional, Tuple, Sequence
 
 from dlt.common import logger
 from dlt.common.storages.load_package import PackageStorage, TPackageJobState
@@ -182,6 +183,29 @@ def init_client(
     return applied_update, applied_dropped, applied_truncated
 
 
+@contextmanager
+def _raise_as_schema_update_error(
+    job_client: JobClientBase, table_names: Iterable[str], staging_dataset: bool
+) -> Iterator[None]:
+    """Converts a destination error from applied DDL into `SchemaUpdateError`.
+
+    `retry_schema_update` retries this error.
+    `table_names` is empty when the DDL creates the dataset itself.
+    """
+    try:
+        yield
+    except (DestinationSchemaTampered, DestinationUndefinedEntity):
+        # a tampered schema or a genuinely missing entity are terminal and must surface as-is
+        raise
+    except DestinationException as schema_ex:
+        raise SchemaUpdateError.from_cause(
+            job_client.schema.name,
+            table_names,
+            schema_ex,
+            staging_dataset=staging_dataset,
+        ) from schema_ex
+
+
 def _init_dataset_and_update_schema(
     job_client: JobClientBase,
     expected_update: TSchemaTables,
@@ -218,29 +242,20 @@ def _init_dataset_and_update_schema(
                 f" Following tables {drop_tables} will not be dropped {staging_text}"
             )
 
-    job_client.initialize_storage()
+    with _raise_as_schema_update_error(job_client, (), staging_info):
+        job_client.initialize_storage()
 
     logger.info(
         f"Client for {job_client.config.destination_type} will update schema to package schema"
         f" {staging_text}"
     )
-    try:
+    with _raise_as_schema_update_error(job_client, update_tables, staging_info):
         applied_update = job_client.update_stored_schema(
             only_tables=update_tables,
             expected_update=expected_update,
             # force schema update if tables dropped or truncated via refresh
             force=bool(drop_tables or initial_truncate_tables),
         )
-    except (DestinationSchemaTampered, DestinationUndefinedEntity):
-        # a tampered schema or a genuinely missing entity are terminal and must surface as-is
-        raise
-    except DestinationException as schema_ex:
-        raise SchemaUpdateError.from_cause(
-            job_client.schema.name,
-            update_tables,
-            schema_ex,
-            staging_dataset=staging_info,
-        ) from schema_ex
     if truncate_tables or initial_truncate_tables:
         if initial_truncate_tables:
             truncate_tables = initial_truncate_tables | (truncate_tables or set())

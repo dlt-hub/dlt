@@ -23,6 +23,24 @@ must match timezone-awareness of the cursor column](setup.md) because they will 
 In rare cases where the last value is already stored in the pipeline state and has incorrect timezone-awareness, you may not be able to recover your pipeline automatically. You can
 modify the local pipeline state (after syncing with destination) to add/remove timezone information.
 
+## Troubleshooting incremental loading
+
+### I get a KeyError saying the cursor column doesn't exist
+If `dlt` raises ``KeyError: 'Cursor column `...` does not exist in table `...`'``, the name you passed to `dlt.sources.incremental(...)` isn't present in the schema that SQLAlchemy reflected. Reflection returns whatever the database itself stores, and dialects normalize identifiers differently: PostgreSQL lowercases unquoted identifiers, Oracle uppercases them, MySQL, MSSQL, and SQLite preserve the case you declared.
+
+Inspect the reflected column names first:
+
+```py
+import sqlalchemy as sa
+
+engine = sa.create_engine("postgresql://user:pass@host/db")
+meta = sa.MetaData()
+meta.reflect(bind=engine, only=["your_table"])
+print(list(meta.tables["your_table"].c.keys()))
+```
+
+Copy the column name from that output, case included, and pass it to `dlt.sources.incremental(...)`.
+
 ## Troubleshooting connection
 
 ### Pipeline state grows extremely large or I get deduplication state warnings when using incremental

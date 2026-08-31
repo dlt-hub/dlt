@@ -353,6 +353,48 @@ def test_dlt_ai_moved_to_dlthub_stub(
     assert rc != 0
 
 
+def test_command_error_omits_generic_docs_note(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A failing command with no specific docs link shows the real error but no docs footer (#4126)."""
+    # the moved `ai` stub has `docs_url = None` and raises a docs-url-less CliCommandException,
+    # so the command-error path has no command/exception-specific link to fall back to
+    monkeypatch.setattr("sys.argv", ["dlt", "ai", "init"])
+    rc = main("dlt")
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    # the actual error context is still reported
+    assert "`ai` command moved to dlthub" in combined
+    assert rc != 0
+    # but the generic "go to the intro page" footer is gone
+    assert "Please refer to our docs" not in combined
+    assert "docs/intro" not in combined
+
+
+def test_command_error_keeps_specific_docs_note(
+    monkeypatch: pytest.MonkeyPatch,
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    """A command/exception that defines its own docs_url still surfaces that contextual link (#4126)."""
+    from dlt._workspace.cli import commands
+    from dlt._workspace.cli._urls import DLT_TELEMETRY_DOCS_URL
+
+    # `telemetry` carries a command-specific docs_url; force it to fail to hit the error path
+    def _raise(self: Any, args: Any) -> None:
+        raise CliCommandException()
+
+    monkeypatch.setattr(commands.TelemetryCommand, "execute", _raise)
+    monkeypatch.setattr("sys.argv", ["dlt", "telemetry"])
+    rc = main("dlt")
+    captured = capsys.readouterr()
+    combined = captured.out + captured.err
+    assert rc != 0
+    # the command's own contextual docs link is still shown, but not the generic intro page
+    assert DLT_TELEMETRY_DOCS_URL in combined
+    assert "docs/intro" not in combined
+
+
 @pytest.mark.parametrize(
     "argv,case_id",
     [

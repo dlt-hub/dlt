@@ -14,6 +14,8 @@ Workspace settings are scoped to a single workspace. Workspace [Owners](users-an
 
 - **Name and description.** Edit the workspace name and description, then save with **Update Workspace**.
 - **Connect codebase.** A configuration snippet that links your local dlt project to this workspace for deployments.
+- **Environment variables.** Define plain and secret process environment variables for the whole workspace or for a specific profile. See [Environment variables](../pipeline-operations/environment-variables.md).
+- **Alerts.** Subscribe to workspace alerts and get an email when a job run fails. See [dltHub Platform alerts](../notifications/email.md#dlthub-platform-alerts).
 - **Usage chart.** A monthly bar chart showing workspace usage for the last six months, including the current month.
 
 ### Members
@@ -139,5 +141,7 @@ Because API key mode is non-interactive, the CLI never opens the workspace picke
 ## See also
 
 - [Users and roles](users-and-roles.md)
+- [Environment variables](../pipeline-operations/environment-variables.md)
 - [Regions and data residency](regions.md)
+- [Send email notifications](../notifications/email.md)
 - [dltHub platform overview](../pipeline-operations/overview.md)

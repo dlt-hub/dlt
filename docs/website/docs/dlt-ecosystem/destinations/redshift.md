@@ -159,6 +159,16 @@ pipeline = dlt.pipeline(
 ```
 
 ## Additional destination options
+### Session timezone
+Redshift uses UTC unless you set a timezone. `session_timezone` sets it per connection. The setting
+decides how Redshift reads values without a UTC offset into `timestamptz` columns. It also decides
+which timezone Redshift returns for those columns. It does not change the column types that
+`CREATE TABLE` produces.
+```toml
+[destination.redshift.credentials]
+session_timezone = "Europe/Paris"
+```
+
 ### dbt support
 
 - This destination [integrates with dbt](../transformations/dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift). Credentials and timeout settings are shared automatically with `dbt`.

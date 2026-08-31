@@ -120,7 +120,7 @@ aws_secret_access_key = "<configure me>" # fill this in!
 ```
 
 ### Configure additional connection options, pragmas and extensions
-You can set additional connection options, pragmas and extensions - `ducklake` configuration reuses [duckdb configuration](duckdb.md#additional-configuration)
+You can set additional connection options, pragmas, extensions and the session timezone - `ducklake` config reuses [duckdb config](duckdb.md#additional-config)
 ```toml
 [destination.ducklake.credentials.global_config]
 ducklake_max_retry_count=100

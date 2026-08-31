@@ -1,6 +1,8 @@
 from abc import ABC, abstractmethod
 import dataclasses
 import contextlib
+import sqlglot
+import sqlglot.expressions as sge
 import traceback
 from threading import BoundedSemaphore
 from types import TracebackType
@@ -19,18 +21,25 @@ from typing import (
     Any,
     TypeVar,
     Tuple,
+    IO,
+    NoReturn,
+    TYPE_CHECKING,
+    cast,
 )
 from typing_extensions import Annotated
 import datetime  # noqa: 251
 
 from dlt.common import logger, pendulum
+from dlt.common.json import json
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     CredentialsConfiguration,
     known_sections,
 )
+from dlt.common.destination.attach import TAttachInfo, TAttachType
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.destination.utils import (
     resolve_replace_strategy,
@@ -59,6 +68,9 @@ from dlt.common.storages import FileStorage
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import LoadJobInfo, TPipelineStateDoc
 from dlt.common.typing import is_optional_type
+
+if TYPE_CHECKING:
+    from dlt.common.libs.sqlglot import TSqlGlotDialect
 
 TDestinationDwhClient = TypeVar("TDestinationDwhClient", bound="DestinationClientDwhConfiguration")
 
@@ -163,37 +175,74 @@ class DestinationClientConfiguration(BaseConfiguration):
 
     __recommended_sections__: ClassVar[Sequence[str]] = (known_sections.DESTINATION, "")
 
-    def physical_location(self) -> str:
-        """Returns a non-secret physical location identity, or "" when unavailable."""
-        return ""
+    def data_location(self) -> Optional[str]:
+        """Returns the data location that the query engine of this destination can access
+        with the supplied credentials.
+
+        The location is limited to data that the engine accesses without an additional
+        attach to another location and without federation.
+
+        Returns:
+            Optional[str]: `None` when the destination has no data location, for example a
+                reverse ETL sink. Such a destination has no query engine, so it accesses no data.
+
+        Raises:
+            ConfigurationValueError: When the location cannot be computed from this configuration.
+        """
+        return None
+
+    def _no_data_location(self, reason: str) -> NoReturn:
+        """Raises when a data location cannot be computed. This method does not return a blank
+        location, because two blank locations compare equal."""
+        raise ConfigurationValueError(
+            "dlt cannot determine the data location of destination"
+            f" `{self.destination_type}`: {reason}. A resolved configuration always identifies the"
+            " data location it accesses."
+        )
 
     # TODO: If we ever clean up fingerprinting across all destinations, consider making
-    # the default `digest128(self.physical_location())`. This will break telemetry
+    # the default `digest128(self.data_location())`. This will break telemetry
     # semantics, so it must be a deliberate cutover.
     def fingerprint(self) -> str:
         """Returns a destination fingerprint derived from selected configuration fields."""
         return ""
 
+    def is_same_location(self, other: "DestinationClientConfiguration") -> bool:
+        """Checks if `self` and `other` have the same destination type. Also checks if they
+        store data in the same location.
+
+        Raises:
+            ConfigurationValueError: When either location cannot be computed.
+        """
+        if self.destination_type != other.destination_type:
+            return False
+        # a destination without a data location matches no destination, not even another
+        # destination without one
+        location = self.data_location()
+        return location is not None and location == other.data_location()
+
     def can_read_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns True if `self` can read data from `other`.
         In case of SQL engines it is an ability to SELECT / JOIN
+
+        This check must be as wide as possible. On many destinations it describes all data
+        that the query engine joins together. A destination that federates or attaches data
+        locations also includes that data, when it implements the attach interface.
+        Only duckdb implements the interface now.
         """
         if not isinstance(other, DestinationClientConfiguration):
             return False
-        if self.destination_type != other.destination_type:
-            return False
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if self_loc and other_loc and self_loc == other_loc:
-            return True
-        return False
+        return self.is_same_location(other)
 
     def can_write_from(self, other: "DestinationClientConfiguration") -> bool:
         """Returns true if `self` can write data from `other`
         In case of SQL engines it is an ability to INSERT FROM
         """
-        # in most destinations, ability to read is also the same as ability to write
-        return self.can_read_from(other)
+        # a model job attaches only the foreign datasets it joins, never the one it selects from.
+        # that dataset must already be at this data location
+        if not isinstance(other, DestinationClientConfiguration):
+            return False
+        return self.is_same_location(other)
 
     def __str__(self) -> str:
         """Return displayable destination location"""
@@ -217,6 +266,36 @@ class DestinationClientConfiguration(BaseConfiguration):
                 # we suppress failed hint resolutions
                 pass
         return extract_inner_hint(type_)
+
+
+class WithAttachableEngine:
+    """Marks a destination with a query engine that attaches foreign datasets. A foreign engine
+    can attach the datasets of this destination in turn.
+
+    This class must come first in the list of mixins, so that `can_read_from` here overrides
+    the base class.
+    """
+
+    def attach_type(self) -> Optional["TAttachType"]:
+        """Returns the engine type that can run the attach statements of this destination."""
+        return "duckdb"
+
+    def can_attach(self, attach_type: "TAttachType") -> bool:
+        """Checks if the engine of this destination can run `attach_type` statements."""
+        # a duckdb query engine runs the plain duckdb statements and the motherduck statements
+        return attach_type in ("duckdb", "motherduck")
+
+    def needs_attach(self, other: DestinationClientConfiguration) -> bool:
+        """Checks if this query engine must attach `other`, or if it already accesses the data
+        of `other`."""
+        return True
+
+    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
+        """Returns True when this query engine already accesses `other`, or can attach it."""
+        if super().can_read_from(other):  # type: ignore[misc]
+            return True
+        attach_type = other.attach_type() if isinstance(other, WithAttachableEngine) else None
+        return attach_type is not None and self.can_attach(attach_type)
 
 
 @configspec
@@ -322,6 +401,8 @@ class DestinationClientStagingConfiguration(DestinationClientDwhConfiguration):
     bucket_url: str = None
     # layout of the destination files
     layout: str = DEFAULT_FILE_LAYOUT
+    warn_unsafe_layout_separators: bool = True
+    """Warns when a `layout` separator around `{table_name}` can also occur inside a table name."""
 
 
 @configspec
@@ -838,3 +919,200 @@ class SupportsOpenTables(ABC):
         """Checks if `table_name` is stored with open table format `table_format`. Does not load table. Does not check if
         table exists
         """
+
+
+class SqlModel:
+    """A SQL query with the dialect that parses it. A model also carries optional attach info
+    for the foreign datasets that the query engine attaches before the query runs.
+
+    Serializes to the `.model` file format and parses it back: a `dialect:` line, an optional
+    `attach:` JSON line, then the SQL body. dlt encrypts the `secret`-flagged statements in
+    that JSON line.
+
+    The generated file has no anti-tamper protection. dlt encrypts the text so that a backup
+    of the pipeline working directory does not leak sensitive information.
+    """
+
+    __slots__ = ("_query", "_dialect", "_attach", "_attach_text")
+
+    def __init__(
+        self,
+        query: str,
+        dialect: Optional[str] = None,
+        attach: Optional[List[TAttachInfo]] = None,
+    ) -> None:
+        self._query = query
+        self._dialect = dialect
+        self._attach = attach
+        self._attach_text: Optional[str] = None
+
+    def to_sql(self) -> str:
+        return self._query
+
+    def to_model(self) -> "SqlModel":
+        return self
+
+    @property
+    def query_dialect(self) -> "TSqlGlotDialect":
+        return cast("TSqlGlotDialect", self._dialect)
+
+    @property
+    def attach(self) -> Optional[List[TAttachInfo]]:
+        """Serializable attach info that attaches the foreign datasets again before the query runs.
+
+        Decrypts the `secret`-flagged statements of a model that comes from a file. Only a step
+        that runs these statements needs the encryption key.
+        """
+        if self._attach is None and self._attach_text is not None:
+            attach: List[TAttachInfo] = json.loads(self._attach_text)
+            self._decrypt_attach_statements(attach)
+            self._attach = attach
+        return self._attach
+
+    def with_query(self, query: str, dialect: Optional[str] = None) -> "SqlModel":
+        """Returns a copy of this model. The copy carries the new `query` and `dialect`.
+
+        The new model keeps the attach info in its stored form. This method therefore rewrites
+        a model that comes from a file, and does not decrypt the secrets it carries.
+
+        Args:
+            query (str): The SQL query that replaces the query of this model.
+            dialect (Optional[str]): The dialect of `query`.
+
+        Returns:
+            SqlModel: A new model with the same attach info.
+
+        Raises:
+            ValueError: If the parsed query is not a `sqlglot.exp.Select`.
+        """
+        model = self.from_query_string(query, dialect, attach=self._attach)
+        model._attach_text = self._attach_text
+        return model
+
+    def __str__(self) -> str:
+        """Serializes to `.model` text: a dialect line, an optional attach line, then the SQL body.
+
+        This method encrypts the `secret`-flagged attach statements with the active pipeline
+        encryption.
+        """
+        header = "dialect: " + (self._dialect or "") + "\n"
+        if self._attach_text is not None:
+            # this step copies the stored text without change, so it never needs an encryption
+            # key that it does not have
+            header += "attach: " + self._attach_text + "\n"
+        elif self._attach:
+            header += self._serialize_attach(self._attach)
+        return header + self._query + "\n"
+
+    @classmethod
+    def from_query_string(
+        cls,
+        query: str,
+        dialect: Optional[str] = None,
+        attach: Optional[List[TAttachInfo]] = None,
+    ) -> "SqlModel":
+        """Creates a `SqlModel` from a raw SQL query string. The method raises when the query
+        is not a SELECT.
+
+        Args:
+            query: The raw SQL query string.
+            dialect: The SQL dialect to use for parsing.
+            attach: Serializable attach info that dlt carries to the load step.
+
+        Returns:
+            An instance of `SqlModel` with the normalized query and dialect.
+
+        Raises:
+            ValueError: If the parsed query is not a `sqlglot.exp.Select`.
+        """
+        parsed_query = sqlglot.parse_one(query, read=dialect)
+        if not isinstance(parsed_query, sge.Select):
+            raise ValueError(
+                "The query is not a SELECT statement. `SqlModel` accepts only SELECT statements."
+            )
+        normalized_query = parsed_query.sql(dialect=dialect)
+        return cls(query=normalized_query, dialect=dialect, attach=attach)
+
+    @classmethod
+    def from_file(
+        cls,
+        file_obj: IO[str],
+        fallback_dialect: Optional["TSqlGlotDialect"] = None,
+    ) -> "SqlModel":
+        """Creates a `SqlModel` from the `.model` text that `str(model)` writes.
+
+        Reads the `dialect:` line, and uses `fallback_dialect` when that line has no dialect.
+        Then reads an optional `attach:` line and keeps it in its stored form. The rest of the
+        file is the SQL body. This method parses neither the SQL nor the `attach:` line. It
+        decrypts the secrets of the `attach:` line only when a caller reads `attach`.
+
+        Args:
+            file_obj (IO[str]): A file-like object opened in text mode.
+            fallback_dialect (Optional[str]): The dialect to use when the first line has no
+                dialect.
+
+        Returns:
+            An instance of `SqlModel` with the stored query, dialect and attach info.
+        """
+        first_line = file_obj.readline()
+        # e.g. something like: "dialect: clickhouse\n"
+        parts = first_line.split(":", 1)
+        parsed_dialect = cast("TSqlGlotDialect", parts[1].strip() if len(parts) > 1 else "")
+        dialect = parsed_dialect if parsed_dialect else fallback_dialect
+
+        # an optional "attach: <json>\n" line precedes the SQL. a line that is not an attach
+        # line belongs to the SQL body
+        attach_text: Optional[str] = None
+        next_line = file_obj.readline()
+        if next_line.startswith("attach:"):
+            attach_text = next_line.split(":", 1)[1].strip()
+            sql_statement = file_obj.read()
+        else:
+            sql_statement = next_line + file_obj.read()
+
+        model = cls(query=sql_statement, dialect=dialect)
+        model._attach_text = attach_text
+        return model
+
+    @staticmethod
+    def _serialize_attach(attach: Sequence[TAttachInfo]) -> str:
+        """Serializes the attach info. Encrypts in place only the statements with the `secret`
+        flag."""
+        if any(s["secret"] for info in attach for s in info["statements"]):
+            from dlt.common.encryption import pipeline_encryption
+
+            encryption = pipeline_encryption()
+            attach = [
+                {
+                    **info,
+                    "statements": [
+                        ({**s, "sql": encryption.encrypt_text(s["sql"])} if s["secret"] else s)
+                        for s in info["statements"]
+                    ],
+                }
+                for info in attach
+            ]
+        return "attach: " + json.dumps(attach) + "\n"
+
+    @staticmethod
+    def _decrypt_attach_statements(attach: List[TAttachInfo]) -> None:
+        """Decrypts in place the `secret`-flagged attach statements."""
+        if not any(s["secret"] for info in attach for s in info["statements"]):
+            return
+        from dlt.common.encryption import pipeline_encryption
+
+        encryption = pipeline_encryption()
+        hint = (
+            "This SQL model carries foreign-dataset credentials. dlt encrypted them with a key"
+            " that is not available here. Set a permanent `pipeline_salt`, for example"
+            " `pipelines.<pipeline_name>.pipeline_salt` in secrets.toml. Then run the pipeline"
+            " again to reproduce the key across pipeline instances. As an alternative, materialize"
+            " your data eagerly so that dlt creates no model job."
+        )
+        for info in attach:
+            for statement in info["statements"]:
+                if statement["secret"]:
+                    try:
+                        statement["sql"] = encryption.decrypt_text(statement["sql"])
+                    except ValueError as e:
+                        raise ValueError(f"{e} {hint}") from e

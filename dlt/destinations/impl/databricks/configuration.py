@@ -21,6 +21,7 @@ if TYPE_CHECKING:
     from zerobus import ArrowStreamConfigurationOptions, IPCCompression
 
 DATABRICKS_APPLICATION_ID = "dltHub_dlt"
+SPARK_SESSION_TIMEZONE = "spark.sql.session.timeZone"
 DEFAULT_DATABRICKS_INSERT_API: TDatabricksInsertApi = "copy_into"
 # ZSTD was fastest in my benchmarks out of the three `ipc_compression` options
 # currently available (NONE, LZ4_FRAME, ZSTD) — NONE (no compression) was slowest
@@ -38,6 +39,8 @@ class DatabricksCredentials(CredentialsConfiguration):
     http_headers: Optional[Dict[str, str]] = None
     session_configuration: Optional[Dict[str, Any]] = None
     """Dict of session parameters that will be passed to `databricks.sql.connect`"""
+    session_timezone: Optional[str] = None
+    """Session `TIMEZONE`. `None` keeps the warehouse default"""
     connection_parameters: Optional[Dict[str, Any]] = None
     """Additional keyword arguments that are passed to `databricks.sql.connect`"""
     socket_timeout: Optional[int] = 180
@@ -153,12 +156,17 @@ class DatabricksCredentials(CredentialsConfiguration):
         return cast(Callable[[], Dict[str, str]], oauth_service_principal(config))
 
     def to_connector_params(self) -> Dict[str, Any]:
+        session_configuration = dict(self.session_configuration or {})
+        # the connector ignores the `TIMEZONE` SQL parameter here, only the Spark conf takes effect
+        if self.session_timezone and SPARK_SESSION_TIMEZONE not in session_configuration:
+            session_configuration[SPARK_SESSION_TIMEZONE] = self.session_timezone
+
         conn_params = dict(
             catalog=self.catalog,
             server_hostname=self.server_hostname,
             http_path=self.http_path,
             access_token=self.access_token,
-            session_configuration=self.session_configuration or {},
+            session_configuration=session_configuration,
             _socket_timeout=self.socket_timeout,
             **(self.connection_parameters or {}),
         )
@@ -289,13 +297,14 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical Databricks location."""
-        physical_location = self.physical_location()
-        if physical_location:
-            return digest128(physical_location)
-        return ""
+        # a fingerprint can say "cannot compute", where a location raises instead
+        try:
+            return digest128(self.data_location())
+        except ConfigurationValueError:
+            return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns the server hostname."""
-        if self.credentials and self.credentials.server_hostname:
-            return self.credentials.server_hostname
-        return ""
+        if not self.credentials or not self.credentials.server_hostname:
+            self._no_data_location("the configuration has no server hostname")
+        return self.credentials.server_hostname

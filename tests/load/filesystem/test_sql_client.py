@@ -148,7 +148,8 @@ def _run_dataset_checks(
         external_db.sql("SET azure_transport_option_type = 'curl';")
         external_db.sql(f"SET secret_directory = '{secret_directory}';")
         if table_format == "iceberg":
-            FilesystemSqlClient._setup_iceberg(external_db)
+            for statement in FilesystemSqlClient._iceberg_setup_statements():
+                external_db.execute(statement)
         return external_db
 
     def _fs_sql_client_for_external_db(

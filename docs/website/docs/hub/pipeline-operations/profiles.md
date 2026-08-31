@@ -215,7 +215,7 @@ You'll see your pipeline connected to the remote MotherDuck dataset and ready fo
 
 #### Schedule the pipeline to run on the dltHub platform
 
-Now you're ready to deploy your Workspace to the dltHub platform and [schedule your pipeline to run](../getting-started/platform-tutorial.md#7-schedule-a-pipeline).
+Now you're ready to deploy your Workspace to the dltHub platform and [schedule your pipeline to run](deployments.md).
 Note that the dltHub platform will automatically use the `prod` profile you just created.
 
 ## Inspecting and managing profiles
@@ -245,10 +245,12 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 * Keep secrets in separate `<profile>.secrets.toml` files—never in code.
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.
+* For process environment that should not live in the repo, set [workspace environment variables](environment-variables.md); profile-scoped values override the shared workspace set for that profile’s runs.
 
 
 ## Next steps
 
 * [Configure the workspace](../getting-started/installation.md#what-is-a-dlthub-workspace)
-* [Deploy your pipeline](../getting-started/platform-tutorial.md#5-run-your-first-pipeline)
+* [Deploy your pipeline](deployments.md)
 * [Monitor and debug pipelines](../../general-usage/pipeline#monitor-the-loading-progress)
+* [Environment variables](environment-variables.md)

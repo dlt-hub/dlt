@@ -40,6 +40,8 @@ class ResolvedValueTrace(NamedTuple):
     sections: Sequence[str]
     provider_name: str
     config: BaseConfiguration
+    provider_location: str = ""
+    """Exact location (ie. a file path) of the value within the provider"""
 
     def is_resolved(self) -> bool:
         # explicit values if present are always resolved
@@ -218,6 +220,7 @@ def log_traces(
                 trace.sections,
                 trace.provider,
                 config,
+                trace.provider_location,
             )
         )
 

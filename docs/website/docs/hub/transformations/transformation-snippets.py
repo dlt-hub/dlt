@@ -1,7 +1,9 @@
 import pytest
+from pathlib import Path
 from typing import Any, Iterator
 
 import dlt
+from dlt.common.storages.configuration import FilesystemConfiguration
 from tests.pipeline.utils import load_table_counts
 
 pytest.importorskip("dlthub")
@@ -88,7 +90,7 @@ def loading_to_other_datasets_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_END loading_to_other_datasets
 
     # @@@DLT_SNIPPET_START loading_to_other_datasets_other_engine
-    # Different engine (Postgres → DuckDB)
+    # different engine (DuckDB → Postgres)
     duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
     duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
     # @@@DLT_SNIPPET_END loading_to_other_datasets_other_engine
@@ -129,7 +131,7 @@ def multiple_transformation_instructions_snippet(
     # @@@DLT_SNIPPET_START multiple_transformation_instructions
     import dlt
 
-    # this (probably nonsensical) transformation will create a union of the customers and purchases tables
+    # this transformation creates a union of the customers and purchases tables
     @dlt.hub.transformation(write_disposition="append")
     def union_of_tables(dataset: dlt.Dataset) -> Any:
         yield dataset.table("purchases")
@@ -190,8 +192,8 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
         )
         yield enriched_purchases
 
-    # You can even use a different dialect than the one used by the destination by supplying the dialect parameter
-    # dlt will compile the query to the right destination dialect
+    # you can use a different dialect than the destination with the query_dialect parameter.
+    # dlt compiles the query to the right destination dialect
     @dlt.hub.transformation
     def enriched_purchases_postgres(dataset: dlt.Dataset) -> Any:
         enriched_purchases = dataset(
@@ -221,6 +223,134 @@ def sql_queries_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     }
 
 
+def transformations_join_same_destination_snippet(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "shop.duckdb")
+    crm_pipeline = dlt.pipeline(
+        "crm", destination=dlt.destinations.duckdb(db_path), dataset_name="crm_data"
+    )
+    crm_pipeline.run(
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+    )
+    sales_pipeline = dlt.pipeline(
+        "sales", destination=dlt.destinations.duckdb(db_path), dataset_name="sales_data"
+    )
+    sales_pipeline.run(
+        [
+            {"id": 10, "user_id": 1, "sku": "W-001"},
+            {"id": 11, "user_id": 2, "sku": "G-001"},
+        ],
+        table_name="orders",
+    )
+    marts_pipeline = dlt.pipeline(
+        "marts", destination=dlt.destinations.duckdb(db_path), dataset_name="marts_data"
+    )
+
+    # @@@DLT_SNIPPET_START transformations_join_same_destination
+    # pass two input datasets. the transformation joins across them
+    @dlt.hub.transformation(table_name="user_orders")
+    def user_orders(crm: dlt.Dataset, sales: dlt.Dataset) -> Any:
+        yield crm["users"].join(sales["orders"], on="users.id = orders.user_id")
+
+    # crm, sales and the marts output all live in the same duckdb, so the join
+    # runs in-warehouse as a model job — no data leaves the destination
+    marts_pipeline.run(user_orders(crm_pipeline.dataset(), sales_pipeline.dataset()))
+    # @@@DLT_SNIPPET_END transformations_join_same_destination
+    assert load_table_counts(marts_pipeline, "user_orders") == {"user_orders": 2}
+
+
+def transformations_incremental_output_join_snippet(tmp_path: Path) -> None:
+    db_path = str(tmp_path / "shop.duckdb")
+    crm_pipeline = dlt.pipeline(
+        "crm", destination=dlt.destinations.duckdb(db_path), dataset_name="crm_data"
+    )
+    crm_pipeline.run(
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+    )
+    # a dedicated output pipeline/dataset for this transformation
+    known_pipeline = dlt.pipeline(
+        "known", destination=dlt.destinations.duckdb(db_path), dataset_name="known_data"
+    )
+
+    # @@@DLT_SNIPPET_START transformations_incremental_output_join
+    @dlt.hub.transformation(table_name="known_users", write_disposition="append")
+    def known_users(crm: dlt.Dataset, out: dlt.Dataset) -> Any:
+        users = crm["users"].to_ibis()
+        if out.schema.is_new:
+            # first run: the output has no tables yet, so build it from the source
+            yield users
+        else:
+            # later runs: append only users not already present in the output
+            existing = out["known_users"].to_ibis()
+            yield users.anti_join(existing, users.id == existing.id)
+
+    # pass the output dataset as an argument so the transformation can read it
+    known_pipeline.run(known_users(crm_pipeline.dataset(), known_pipeline.dataset()))
+    # @@@DLT_SNIPPET_END transformations_incremental_output_join
+    assert load_table_counts(known_pipeline, "known_users") == {"known_users": 2}
+
+    # a later run appends only the users added to the source since the last run
+    crm_pipeline.run([{"id": 3, "name": "Cara"}], table_name="users")
+    known_pipeline.run(known_users(crm_pipeline.dataset(), known_pipeline.dataset()))
+    assert load_table_counts(known_pipeline, "known_users") == {"known_users": 3}
+
+
+def transformations_cross_destination_snippet(tmp_path: Path) -> None:
+    orders_pipeline = dlt.pipeline(
+        "orders",
+        destination=dlt.destinations.filesystem(
+            FilesystemConfiguration.make_file_url(str(tmp_path / "orders"))
+        ),
+        dataset_name="orders_data",
+    )
+    orders_pipeline.run(
+        [
+            {"id": 10, "user_id": 1, "sku": "W-001"},
+            {"id": 11, "user_id": 2, "sku": "G-001"},
+        ],
+        table_name="orders",
+        loader_file_format="parquet",
+    )
+    warehouse_pipeline = dlt.pipeline(
+        "warehouse",
+        destination=dlt.destinations.duckdb(str(tmp_path / "warehouse.duckdb")),
+        dataset_name="warehouse_data",
+    )
+    warehouse_pipeline.run(
+        [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+    )
+
+    # @@@DLT_SNIPPET_START transformations_cross_destination_lazy
+    # join a filesystem dataset (orders) into a duckdb output. duckdb can write, so dlt
+    # attaches the filesystem dataset and runs the join in-warehouse as a model job.
+    @dlt.hub.transformation(table_name="user_orders")
+    def user_orders(warehouse: dlt.Dataset, orders: dlt.Dataset) -> Any:
+        yield warehouse["users"].join(orders["orders"], on="users.id = orders.user_id")
+
+    warehouse_pipeline.run(
+        user_orders(warehouse_pipeline.dataset(), orders_pipeline.dataset())
+    )
+    # @@@DLT_SNIPPET_END transformations_cross_destination_lazy
+    assert load_table_counts(warehouse_pipeline, "user_orders") == {"user_orders": 2}
+
+    # @@@DLT_SNIPPET_START transformations_cross_destination_eager
+    # to run the join locally and load plain data instead, yield the materialized
+    # result (an Arrow table or DataFrame) rather than the relation
+    @dlt.hub.transformation(table_name="user_orders_eager")
+    def user_orders_eager(warehouse: dlt.Dataset, orders: dlt.Dataset) -> Any:
+        joined = warehouse["users"].join(
+            orders["orders"], on="users.id = orders.user_id"
+        )
+        yield joined.arrow()
+
+    warehouse_pipeline.run(
+        user_orders_eager(warehouse_pipeline.dataset(), orders_pipeline.dataset())
+    )
+    # @@@DLT_SNIPPET_END transformations_cross_destination_eager
+    assert load_table_counts(warehouse_pipeline, "user_orders_eager") == {
+        "user_orders_eager": 2
+    }
+
+
 def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
     # @@@DLT_SNIPPET_START arrow_dataframe_operations
 
@@ -235,10 +365,10 @@ def arrow_dataframe_operations_snippet(fruitshop_pipeline: dlt.Pipeline) -> None
         # Take first 5 rows
         yield sorted_customers.slice(0, 5)
 
-    # Example tables (replace with your actual data)
+    # the same join with dataframes
     @dlt.hub.transformation
     def enriched_purchases(dataset: dlt.Dataset) -> Any:
-        # get both fully tables as dataframes
+        # get both full tables as dataframes
         purchases = dataset.table("purchases").df()
         customers = dataset.table("customers").df()
 
@@ -292,7 +422,7 @@ def column_level_lineage_snippet(fruitshop_pipeline: dlt.Pipeline) -> None:
         )
         yield enriched_purchases
 
-    # Let's run the transformation and see that the name column in the NEW table is also marked as PII
+    # run the transformation. the name column in the new table is also marked as PII
     fruitshop_pipeline.run(enriched_purchases(fruitshop_pipeline.dataset()))
     assert (
         fruitshop_pipeline.dataset().schema.tables["enriched_purchases"]["columns"][
@@ -339,7 +469,7 @@ def in_transit_transformations_snippet() -> None:
     )
     transit_pipeline.run(source)
 
-    # load aggregated data to a warehouse destination
+    # define the aggregation transformation
     @dlt.hub.transformation
     def orders_per_store(dataset: dlt.Dataset) -> Any:
         orders = dataset.table("orders").to_ibis()
@@ -552,3 +682,48 @@ def incremental_scheduler_window_snippet() -> None:
 
     ids = sorted(row[0] for row in pipeline.dataset().table("orders_window").fetchall())
     assert ids == [2, 3, 4]
+
+
+def sql_dialect_transpilation_snippet() -> None:
+    from dlt.common.schema import Schema
+
+    schema = Schema("shop")
+    schema.update_table(
+        {
+            "name": "purchases",
+            "columns": {
+                "customer": {"name": "customer", "data_type": "text"},
+                "city": {"name": "city", "data_type": "text"},
+                "amount": {"name": "amount", "data_type": "double"},
+            },
+        }
+    )
+
+    # @@@DLT_SNIPPET_START sql_dialect_transpilation
+    # the query is duckdb SQL, but the dataset writes to mssql
+    mssql_dataset = dlt.dataset(
+        dlt.destinations.mssql(credentials="mssql://user:pw@host:1433/warehouse"),
+        "analytics",
+        schema=schema,
+    )
+
+    top_customers = mssql_dataset.query(
+        """
+        SELECT customer || ' (' || city || ')' AS label, amount
+        FROM purchases
+        ORDER BY amount DESC
+        LIMIT 10
+        """,
+        query_dialect="duckdb",
+    )
+
+    # dlt emits the query in the dialect of the destination. `||` becomes `+`,
+    # `LIMIT` becomes `TOP`, and the identifiers take mssql quoting
+    print(top_customers.to_sql())
+    # @@@DLT_SNIPPET_END sql_dialect_transpilation
+
+    emitted = top_customers.to_sql()
+    assert "TOP 10" in emitted
+    assert "LIMIT" not in emitted
+    assert "+ ' (' +" in emitted
+    assert "||" not in emitted

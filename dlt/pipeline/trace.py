@@ -35,7 +35,7 @@ from dlt.pipeline.typing import TPipelineStep
 from dlt.pipeline.exceptions import PipelineStepFailed
 
 
-TRACE_ENGINE_VERSION = 1
+TRACE_ENGINE_VERSION = 2
 TRACE_FILE_NAME = "trace.pickle"
 
 
@@ -50,13 +50,23 @@ class SerializableResolvedValueTrace(NamedTuple):
     sections: Sequence[str]
     provider_name: str
     config_type_name: str
+    provider_location: str = ""
+    """Exact location (ie. a file path) of the value within the provider"""
 
     def asdict(self) -> StrAny:
         """A dictionary representation that is safe to load."""
         return {k: v for k, v in self._asdict().items() if k not in ("value", "default_value")}
 
     def asstr(self, verbosity: int = 0) -> str:
-        return f"{self.key}->{self.value} in {'.'.join(self.sections)} by {self.provider_name}"
+        full_key = ".".join((*self.sections, self.key))
+        value = "<secret>" if self.is_secret_hint else self.value
+        msg = f"`{full_key}` = {value} from `{self.provider_name}`"
+        # provider name of toml providers is already the file name
+        if self.provider_location and self.provider_location != self.provider_name:
+            msg += f" in `{self.provider_location}`"
+        if verbosity > 1:
+            msg += f" for `{self.config_type_name}`"
+        return msg
 
     def __str__(self) -> str:
         return self.asstr(verbosity=0)
@@ -160,7 +170,7 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
             msg += "\n" + "\n\n".join([s.asstr(verbosity) for s in self.steps])
         return msg
 
-    def last_pipeline_step_trace(self, step_name: TPipelineStep) -> PipelineStepTrace:
+    def last_pipeline_step_trace(self, step_name: TPipelineStep) -> Optional[PipelineStepTrace]:
         matching_steps = [step for step in self.steps if step.step == step_name]
         if not matching_steps:
             return None
@@ -178,21 +188,21 @@ class PipelineTrace(SupportsHumanize, _PipelineTrace):
         return d
 
     @property
-    def last_extract_info(self) -> ExtractInfo:
+    def last_extract_info(self) -> Optional[ExtractInfo]:
         step_trace = self.last_pipeline_step_trace("extract")
         if step_trace and isinstance(step_trace.step_info, ExtractInfo):
             return step_trace.step_info
         return None
 
     @property
-    def last_normalize_info(self) -> NormalizeInfo:
+    def last_normalize_info(self) -> Optional[NormalizeInfo]:
         step_trace = self.last_pipeline_step_trace("normalize")
         if step_trace and isinstance(step_trace.step_info, NormalizeInfo):
             return step_trace.step_info
         return None
 
     @property
-    def last_load_info(self) -> LoadInfo:
+    def last_load_info(self) -> Optional[LoadInfo]:
         step_trace = self.last_pipeline_step_trace("load")
         if step_trace and isinstance(step_trace.step_info, LoadInfo):
             return step_trace.step_info
@@ -282,6 +292,7 @@ def end_trace_step(
             v.sections,
             v.provider_name,
             str(type(v.config).__qualname__),
+            v.provider_location,
         ),
         get_resolved_traces().resolved_traces,
     )

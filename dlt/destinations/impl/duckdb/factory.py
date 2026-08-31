@@ -154,6 +154,7 @@ def duckdb_merge_strategies_selector(
 def _set_duckdb_raw_capabilities(
     caps: DestinationCapabilitiesContext,
 ) -> DestinationCapabilitiesContext:
+    caps.supports_session_timezone = True
     caps.preferred_loader_file_format = "insert_values"
     caps.supported_loader_file_formats = ["insert_values", "parquet", "jsonl", "model"]
     caps.preferred_staging_file_format = None  # TODO remove because is default value

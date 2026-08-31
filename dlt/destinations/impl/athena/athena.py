@@ -237,6 +237,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 config.staging_config.layout,
                 supported_prefix_placeholders=[],
                 table_needs_own_folder=True,
+                naming=(
+                    schema.naming if config.staging_config.warn_unsafe_layout_separators else None
+                ),
             )
 
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(

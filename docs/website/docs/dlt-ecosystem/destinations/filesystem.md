@@ -562,11 +562,14 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 A few things to know when specifying your filename layout:
 - If you want a different base path that is common to all filenames, you can suffix your `bucket_url` rather than prefix your `layout` setting.
 - If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as a separator.
-- It is best practice to have a separator between each placeholder. Separators can be any character allowed as a filename character, but dots, dashes, and forward slashes are most common.
+- It is best practice to have a separator between each placeholder. Dots, dashes, and forward slashes are the most common separators.
 - When you are using the `replace` disposition, `dlt` will have to be able to figure out the correct files to delete before loading the new data. For this to work, you have to:
   - include the `{table_name}` placeholder in your layout
   - not have any other placeholders except for the `{schema_name}` placeholder before the table_name placeholder and
   - have a separator after the table_name placeholder
+- The separator after `{table_name}` must be a character that your [naming convention](../../general-usage/naming-convention.md) removes from table names. `dlt` selects the files of a table by this prefix. With `_` under `snake_case`, the prefix of `event` also matches the nested table `event__child`, so a `replace` of `event` deletes the child files. `/` and `.` are safe under `snake_case`.
+- `duck_case` and `direct` keep `/` and `.` inside table names, so under those conventions no separator is safe. Make sure your table names do not contain the separator you pick.
+- `dlt` warns when a layout has such a separator. To silence the warning, set `warn_unsafe_layout_separators=False` on the destination.
 
 Please note:
 - `dlt` will mark complete loads by creating a json file in the `./_dlt_loads` folders that corresponds to the `_dlt_loads` table. For example, if the `chess__1685299832.jsonl` file is present in the loads folder, you can be sure that all files for the load package `1685299832` are completely loaded.

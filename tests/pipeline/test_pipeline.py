@@ -37,6 +37,7 @@ from dlt.common.destination.exceptions import (
     DestinationLoadingViaStagingNotSupported,
     DestinationNoStagingMode,
     DestinationTerminalException,
+    DestinationTransientException,
     SchemaUpdateError,
     SchemaUpdateTerminalError,
     SchemaUpdateTransientError,
@@ -2628,21 +2629,56 @@ def test_schema_update_error(
     assert retry_schema_update()(step_failed) is True
 
 
-def test_retry_schema_update() -> None:
-    # retry_schema_update drives recovery: fail the first schema update, then succeed
+@pytest.mark.parametrize(
+    "cause,expected_error,retried_by_retry_load",
+    [
+        (DestinationTerminalException, SchemaUpdateTerminalError, False),
+        (DestinationTransientException, SchemaUpdateTransientError, True),
+    ],
+    ids=["terminal", "transient"],
+)
+def test_dataset_creation_error(
+    cause: Type[Exception], expected_error: Type[SchemaUpdateError], retried_by_retry_load: bool
+) -> None:
+    """dlt wraps a failed dataset creation like a schema update and keeps the terminality of the cause"""
     p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=dummy(completed_prob=1.0))
-    orig = DummyClient.update_stored_schema
-    calls = 0
 
-    def flaky_update(self: Any, *args: Any, **kwargs: Any) -> Any:
-        nonlocal calls
-        calls += 1
-        if calls == 1:
-            raise DestinationTerminalException("schema update failed once")
+    def failing_init(self: Any, truncate_tables: Any = None) -> None:
+        raise cause("dataset already exists")
+
+    with patch.object(DummyClient, "initialize_storage", failing_init):
+        with pytest.raises(PipelineStepFailed) as py_ex:
+            p.run([1, 2, 3], table_name="digits")
+
+    step_failed = py_ex.value
+    assert step_failed.step == "load"
+    schema_ex = step_failed.__cause__
+    assert isinstance(schema_ex, expected_error)
+    assert schema_ex.staging_dataset is False
+    # no table is at fault when dlt cannot create the dataset
+    assert schema_ex.table_names == []
+    assert "cannot create the dataset" in str(schema_ex)
+
+    assert retry_load()(step_failed) is retried_by_retry_load
+    assert retry_schema_update()(step_failed) is True
+
+
+@pytest.mark.parametrize("failing_method", ["initialize_storage", "update_stored_schema"])
+def test_retry_schema_update(failing_method: str) -> None:
+    # retry_schema_update drives recovery: the first DDL call fails, the second succeeds
+    p = dlt.pipeline(pipeline_name="pipe_" + uniq_id(), destination=dummy(completed_prob=1.0))
+    orig = getattr(DummyClient, failing_method)
+    failures = 0
+
+    def flaky_ddl(self: Any, *args: Any, **kwargs: Any) -> Any:
+        nonlocal failures
+        if not failures:
+            failures += 1
+            raise DestinationTerminalException(f"{failing_method} failed once")
         return orig(self, *args, **kwargs)
 
     info = None
-    with patch.object(DummyClient, "update_stored_schema", flaky_update):
+    with patch.object(DummyClient, failing_method, flaky_ddl):
         for attempt in Retrying(
             stop=stop_after_attempt(3),
             retry=retry_if_exception(retry_schema_update()),
@@ -2651,7 +2687,7 @@ def test_retry_schema_update() -> None:
             with attempt:
                 info = p.run([1, 2, 3], table_name="digits")
 
-    assert calls == 2
+    assert failures == 1
     assert_load_info(info)
 
 
@@ -2769,6 +2805,12 @@ def test_dispatch_rows_to_tables(github_resource: DltResource):
         if table.get("parent") is None:
             assert table["write_disposition"] == "merge"
             assert table["columns"]["id"]["primary_key"] is True
+
+    # dispatched tables are not knowable before items flow, they still land in one output location
+    outputs = [location for metrics in info.metrics.values() for location in metrics[0]["outputs"]]
+    dispatched = [o for o in outputs if o["resource_name"] == "github_repo_events"]
+    assert len(dispatched) == 1
+    assert set(dispatched[0]["tables"]) == {t["name"] for t in p.default_schema.data_tables()}
 
 
 def test_resource_name_in_schema() -> None:

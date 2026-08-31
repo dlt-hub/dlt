@@ -5,9 +5,9 @@ keywords: [transformation, dataset, sql, pipeline, ibis, arrow]
 ---
 # Transformations: Reshape data after loading
 
-`dlthub transformations` let you build new tables or full datasets from datasets that have _already_ been ingested with `dlt`. `dlt transformations` are written and run in a very similar fashion to dlt source and resources. `dlt transformations` require you to have loaded data to a location, for example a local duckdb database, a bucket or a warehouse on which the transformations may be executed. `dlt transformations` are fully supported for all of our sql destinations including all filesystem and bucket formats.
+`dlt transformations` build new tables or full datasets from datasets that dlt has _already_ ingested. You write and run them in the same fashion as dlt sources and resources. A transformation needs data that you already loaded to a data location, for example a local duckdb database, a bucket, or a warehouse. dlt supports transformations on every SQL destination, and on every filesystem and bucket format.
 
-You create them with the `@dlt.hub.transformation` decorator, which has the same signature as the `@dlt.resource` decorator but yields a SQL query, including the resulting
+You create them with the `@dlt.hub.transformation` decorator. This decorator has the same signature as the `@dlt.resource` decorator, but it yields a SQL query with the resulting
 column schema, rather than data items. dlt transformations support the same write_dispositions per destination as dlt resources do.
 
 ## Motivations
@@ -16,18 +16,18 @@ A few real-world scenarios where dlt transformations can be useful:
 
 - **Build one-stop reporting tables** – Flatten and enrich raw data into a wide table that analysts can pivot, slice, and dice without writing SQL each time.
 - **Clean data** – Remove irrelevant columns or anonymize sensitive information before sending it to a layer with lower privacy protections.
-- **Normalize JSON into 3-NF** – Break out repeating attributes from nested JSON so updates are consistent and storage isn't wasted.
+- **Normalize JSON into 3-NF** – Break out repeating attributes from nested JSON so updates are consistent and storage is not wasted.
 - **Create dimensional (star-schema) models** – Produce fact and dimension tables so BI users can drag-and-drop metrics and break them down by any dimension.
 - **Generate task-specific feature sets** – Deliver slim tables tailored for personalization, forecasting, or other ML workflows.
-- **Apply shared business definitions** – Encode rules such as "a *sale* is a transaction whose status became *paid* this month," ensuring every metric is counted the same way.
-- **Merge heterogeneous sources** – Combine Shopify, Amazon, WooCommerce (etc.) into one canonical *orders* feed for unified inventory and revenue reporting.
+- **Apply shared business definitions** – Encode rules such as "a *sale* is a transaction whose status became *paid* this month". Every metric then counts the same way.
+- **Merge heterogeneous sources** – Combine Shopify, Amazon, WooCommerce, and more into one canonical *orders* feed for unified inventory and revenue reporting.
 - **Run transformations during ingestion pre-warehouse** – Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.
 - **…and more** – Any scenario where reshaping, enriching, or aggregating existing data unlocks faster insight or cleaner downstream pipelines.
 
 
-## Quick-start in three simple steps
+## Quick start
 
-For the example below, you can copy–paste everything into one script and run it.
+Copy the example below into one script. Then run the script.
 
 :::note
 It is useful to know how to use dlt [Datasets and Relations](../../general-usage/dataset-access/dataset.md), since these are heavily used in transformations.
@@ -52,35 +52,35 @@ The snippets below assume that we have a simple fruitshop dataset as produced by
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries_short-->
 
-That's it — `copied_customers` is now a new table in **the same** DuckDB schema with the first 5 customers when ordered by name. `dlt` has detected that we are loading into the same dataset
-and executed this transformation in SQL - no data was transferred to and from the machine executing this pipeline. Additionally, the new destination table `copied_customers` was automatically evolved
-to the correct new schema, and you could also set a different write disposition and even merge data from a transformation.
+That is it — `copied_customers` is now a new table in **the same** DuckDB schema with the first 5 customers when ordered by name. `dlt` detected that we load into the same dataset,
+and ran this transformation in SQL. No data travelled to and from the machine that runs this pipeline. `dlt` also evolved the new destination table `copied_customers`
+to the correct new schema. You can also set a different write disposition, and even merge data from a transformation.
 
 ## Defining a transformation
 
 :::info
-Most of the following examples will be using the ibis expressions of the `dlt.Dataset`. Read the detailed [dataset docs](../../general-usage/dataset-access/dataset.md) to learn how to use these.
+Most of the following examples use the ibis expressions of the `dlt.Dataset`. The detailed [dataset docs](../../general-usage/dataset-access/dataset.md) describe how to use them.
 :::
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::orders_per_user-->
 
 * **Decorator arguments** mirror those accepted by `@dlt.resource`.
-* The transformation function signature must contain at least one `dlt.Dataset` which is used inside the function to create the transformation SQL statements and calculate the resulting schema update.
-* A transformation yields a `Relation` created with ibis expressions or a select query which will be materialized into the destination table. If the first item yielded is a valid sql query or relation object, data will be interpreted as a transformation. In all other cases, the transformation decorator will work like any other resource.
+* The transformation function signature must contain at least one `dlt.Dataset`. The function uses that dataset to create the transformation SQL statements and to calculate the resulting schema update.
+* A transformation yields a `Relation` created with ibis expressions or a select query, which dlt materializes into the destination table. When the first yielded item is a valid sql query or relation object, dlt interprets the data as a transformation. In all other cases, the transformation decorator works like any other resource.
 
 ## Loading to other datasets
 
 
-### Loading to another dataset on the same physical location
+### Loading to another dataset at the same data location
 
-Below we load to the same DuckDB instance with a new pipeline that points to another `dataset`. dlt will be able to detect that both datasets live on the same destination and
-will run the transformation as pure SQL.
+Below we load to the same DuckDB instance with a new pipeline that points to another `dataset`. dlt detects that both datasets live on the same destination,
+and runs the transformation as pure SQL.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::loading_to_other_datasets-->
 
-### Loading to another dataset on a different physical location
+### Loading to another dataset at a different data location
 
-Below we load the data from our local DuckDB instance to a Postgres instance. dlt will use the query to extract the data as Parquet files and will do a regular dlt load, pushing the data to Postgres. Note that you can use the exact same transformation functions for both scenarios. This can be extremely useful when you want to avoid compute costs in warehouses by running transformations directly from a local duckdb instance or raw data in a bucket into the warehouse, as the compute will happen on the machine executing the pipeline that runs the transformations.
+Below we load the data from our local DuckDB instance to a Postgres instance. dlt uses the query to extract the data as Parquet files, and then runs a regular dlt load to Postgres. The same transformation functions work for both scenarios. This is useful when you want to avoid warehouse compute costs. The compute then happens on the machine that runs the pipeline, over a local duckdb instance or over raw data in a bucket.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::loading_to_other_datasets_other_engine-->
 
@@ -96,27 +96,95 @@ Below we load the data from our local DuckDB instance to a Postgres instance. dl
 
 ### Yielding multiple transformations from one transformation resource
 
-`dlt transformations` may also yield more than one transformation instruction. If no further table name hints are supplied, the result will be a union of the yielded transformation instructions. `dlt` will take care of the necessary schema migrations, you will just need to ensure that no columns are marked as non-nullable that are missing from one of the transformation instructions:
+A dlt transformation can also yield more than one relation. Without further table name hints, the result is a union of the yielded relations. `dlt` runs the necessary schema migrations. Make sure that no relation marks a column as non-nullable when another relation omits that column:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::multiple_transformation_instructions-->
 
 ### Supplying additional hints
 
-You may supply column and table hints the same way you do for regular resources. `dlt` will derive schema hints from your query, but in some cases you may need to modify or extend them — for example, making columns nullable as in the example above, or adjusting the precision or type of a column to ensure compatibility with a specific target destination (if it differs from the source).
+You can supply column and table hints the same way you do for regular resources. `dlt` derives schema hints from your query. Sometimes you must modify or extend them. Two examples are a nullable column, as above, and a change of precision or type for a target destination that differs from the source.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::supply_hints-->
 
 ### Writing your queries in SQL
 
-If you prefer to write your queries in SQL, you can omit ibis expressions by simply creating a `Relation` from a query on your dataset:
+To write your queries in SQL, create a `Relation` from a query on your dataset. Ibis expressions are then not necessary:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries-->
 
-The identifiers (table and column names) used in these raw SQL expressions must correspond to the identifiers as they are present in your dlt schema, NOT in your destination database schema.
+The identifiers in these raw SQL expressions are the table and column names of your dlt schema. They are **not** the names of your destination database schema.
+
+#### Write in one SQL dialect, run in another
+
+Pass `query_dialect` to say which dialect you wrote. dlt parses the query in that dialect and emits it in the dialect of the destination, so a query you wrote for one warehouse runs on another.
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_dialect_transpilation-->
+
+The duckdb query above is not valid mssql. `||` is a string concatenation that mssql spells `+`, and mssql has no `LIMIT` clause. dlt emits this instead:
+
+```sql
+SELECT TOP 10 [purchases].[customer] + ' (' + [purchases].[city] + ')' AS [label], [purchases].[amount] AS [amount]
+FROM [analytics].[purchases] AS [purchases]
+ORDER BY [purchases].[amount] DESC
+```
+
+A model job carries the dialect of the destination, never the dialect you wrote in. Without `query_dialect`, dlt reads the query in the dialect of the destination, and a construct that only the source dialect knows reaches the destination unchanged.
+
+## Transformations of multiple datasets
+
+A transformation receives its input datasets as arguments, so passing **more than one** `dlt.Dataset` lets you join across them. dlt inspects where the inputs and the output live and picks how to run the join:
+
+- when the output engine can read and write the inputs, the join runs **in-warehouse** as a model job. No data leaves the destination. One DuckDB database or one MotherDuck account is such a case.
+- otherwise dlt uses **eager materialization**. dlt runs the query on the machine that runs the pipeline, and loads the result as data.
+
+### Joining datasets on the same destination
+
+Pass two input datasets to the transformation. Join them into a new output table. Here `crm` and `sales` are two datasets in the same DuckDB, so the join runs in-warehouse:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_join_same_destination-->
+
+#### Joining new input against the existing output
+
+A transformation can also read the dataset it writes to. Pass the output dataset as another argument. On the first run the output has no tables yet. Guard that reference with [`schema.is_new`](../../general-usage/dataset-access/dataset.md). Join against the output only after it exists. This pattern processes the rows you have not loaded before:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_incremental_output_join-->
+
+For richer incremental patterns — cursors, scheduler windows, load-time cursors — see [Incremental transformations](#incremental-transformations).
+
+### Joining datasets across destinations with DuckDB
+
+dlt can join datasets that live on **different** destinations, when both use DuckDB as their query engine. dlt attaches the input dataset into the DuckDB engine of the output, under an **attach alias**. The query then resolves the input tables against that catalog. These destinations qualify:
+
+- `duckdb`, `ducklake`, `motherduck`
+- `lance`, `lancedb`
+- `filesystem`, including Hugging Face `hf://` buckets and the `delta` and `iceberg` open table formats
+
+`filesystem` qualifies for the `file`, `s3`, `az`, `abfss`, and `hf` protocols. dlt cannot attach `gs`, `sftp`, or `gdrive`, because those protocols read their data through an fsspec filesystem that only the local process holds.
+
+How the join runs depends on whether the **output** engine can write:
+
+- **Read-write engines** — `duckdb`, `ducklake`, and `motherduck` can materialize the result themselves. The join therefore runs in-warehouse as a model job, and the `SELECT` and the `ATTACH` statements execute on the destination. `duckdb` and `ducklake` run locally. Only `motherduck` is remote.
+- **Read-only engines** — `filesystem`, `lance`, and `lancedb` can only be read through DuckDB. A transformation that writes to them therefore always uses **eager materialization**: dlt runs the join locally and writes the result as files.
+
+**MotherDuck attaches inputs on your side.** A MotherDuck connection attaches every input except another MotherDuck database *locally*. DuckDB then splits the query between your machine and the server. The credentials of the input stay in your local session, and dlt never uploads them to MotherDuck. The rows of the input travel to your machine and on to MotherDuck as the query runs.
+
+Datasets in the **same** MotherDuck account need no attach, because the query engine already accesses every database of that account. dlt cannot attach a dataset in a **different** MotherDuck account, because the client must set the token before it opens the connection. dlt rejects that join.
+
+The example below joins a `filesystem` dataset (orders) into a `duckdb` output. Because the output engine can write, it runs in-warehouse:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_cross_destination_lazy-->
+
+**Secrets.** An attached input sometimes needs credentials: a MotherDuck token, cloud-bucket keys, or a catalog password. dlt encrypts those statements inside the `.model` file of the model job. The key comes from the encryption seed of the pipeline.
+
+Without a `pipeline_salt` of your own, dlt makes a new random seed for each pipeline instance, so only that instance can load the job. When a **new** process retries the load, for example after a crash, decryption fails. dlt then asks you to set a permanent `pipeline_salt`, for example `pipelines.<pipeline_name>.pipeline_salt` in `secrets.toml`, which makes the key reproducible. Inputs that need no credentials, such as local files or another local DuckDB, carry no secrets.
+
+**Force eager materialization.** To run the join on your machine, yield the materialized result rather than the relation. Yield an Arrow table or a DataFrame. dlt then creates no model job and serializes no credentials:
+
+<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_cross_destination_eager-->
 
 ## Using Pandas or Polars DataFrames and Arrow tables
 
-You can also write transformations directly using Pandas or Polars DataFrames and Arrow tables. Note that in this case your transformation resource behaves like a regular resource: column-level hints will not be propagated, and `dlt` will simply treat the yielded DataFrames or Arrow tables like data from any other resource. This behavior may change in the future.
+You can also write transformations directly with Pandas or Polars DataFrames and Arrow tables. Your transformation resource then behaves like a regular resource. `dlt` does not propagate column-level hints, and treats the yielded DataFrames or Arrow tables like data from any other resource. This behavior can change in a future release.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
 
@@ -129,16 +197,16 @@ Incremental transformations let each run work on the right slice of source data 
 
 There are two common ways to choose the slice:
 
-- [Use the scheduler interval](#the-scheduler-interval). dltHub Platform uses this approach: the scheduler sets `[start, end)` interval this run is responsible for.
-- [Continue from the previous run](#continue-from-the-previous-run). dltHub stores the last cursor value it processed and the next run starts after that value.
+- [Use the scheduler interval](#the-scheduler-interval). dltHub Platform uses this approach: the scheduler sets the `[start, end)` interval that this run is responsible for.
+- [Continue from the previous run](#continue-from-the-previous-run). dlt stores the last cursor value it processed, and the next run starts after that value.
 
 ### The scheduler interval
 
-Use a scheduler interval when the orchestrator decides what time range each run should process. This is the natural fit for cron schedules, retries, and backfills because the run does not depend on what happened in a previous run.
+When the orchestrator decides the time range of each run, use a scheduler interval. This is the natural fit for cron schedules, retries, and backfills because the run does not depend on what happened in a previous run.
 
-Set `allow_external_schedulers=True` on the cursor and dltHub Platform owns the interval: its cron schedules set `DLT_INTERVAL_START` and `DLT_INTERVAL_END`, which are picksed up to filter the source data.
+Set `allow_external_schedulers=True` on the cursor. dltHub Platform then owns the interval. Its cron schedules set `DLT_INTERVAL_START` and `DLT_INTERVAL_END`, and dlt filters the source data with these values.
 
-Here's an example. The transformation below reads the `orders` table and writes only the rows whose `created_at` falls in the `[start, end)` window to a new table `orders_window`.
+Here is an example. The transformation below reads the `orders` table and writes only the rows whose `created_at` falls in the `[start, end)` window to a new table `orders_window`.
 
 Given an `orders` table with one row per day:
 
@@ -157,12 +225,12 @@ Re-running the same `[start, end)` (start is included, end is excluded) interval
 
 ### Continue from the previous run
 
-Use a stateful cursor for runs not tied to an external scheduler, where each run should continue from the last successful one. dltHub stores the cursor state internally and uses it in the next run of the transformation.
+When each run must continue from the last successful run, use a stateful cursor. No external scheduler is then necessary. dlt stores the cursor state internally and uses it in the next run of the transformation.
 
 The transformation below appends rows from `orders` whose `created_at` is later than the persisted `last_value` to a new table `recent_orders`.
 
 :::note Implicit cursor
-The cursor below is declared on the decorator; the body yields a bare relation (Ibis expressions and raw SQL strings work too) and dltHub applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
+The cursor below is declared on the decorator. The body yields a bare relation (Ibis expressions and raw SQL strings work too), and dlt applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
 :::
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_stateful_cursor_definition-->
@@ -177,33 +245,33 @@ Now suppose `orders` is loaded in two batches:
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 
 :::caution Set `range_start="open"` on stateful cursors
-A stateful cursor persists `last_value` after each run. With the default `range_start="closed"`, the next run's filter is `cursor >= last_value`, so the row at the boundary is re-emitted every time. Set `range_start="open"` to make the filter `cursor > last_value` and exclude the boundary row.
+Set `range_start="open"` on every stateful cursor. The filter is then `cursor > last_value`, and it excludes the boundary row. A stateful cursor persists `last_value` after each run. With the default `range_start="closed"` the filter is `cursor >= last_value`, and the next run emits the boundary row again.
 :::
 
 ### Cursor column choices
 
-Use a domain cursor when the source table has a column that represents creation or update order. For append-only data, `created_at` or an increasing `id` is usually enough. For mutable data, use a cursor that changes whenever the row changes, such as `updated_at`; rows whose cursor value does not advance are intentionally ignored by the next stateful run.
+When the source table has a column for creation or update order, use a domain cursor. For append-only data, `created_at` or an increasing `id` is enough. For mutable data, use a cursor that changes with every row change, such as `updated_at`. The next stateful run ignores the rows whose cursor value does not advance.
 
-Use `_dlt_loads.inserted_at` when the source table has no domain timestamp and you want to process data by the time dltHub loaded it. A dotted cursor path such as `_dlt_loads.inserted_at` tells dltHub to follow the schema reference from the base table to `_dlt_loads`, join it, and filter on the joined column. The join is filter-only: columns from `_dlt_loads` are not added to the destination table.
+When the source table has no domain timestamp, use `_dlt_loads.inserted_at`. dlt then processes the data by load time. A dotted cursor path tells dlt to follow the schema reference from the base table to `_dlt_loads`. dlt joins that table and filters on the joined column. The join is filter-only, and dlt adds no `_dlt_loads` column to the destination table.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_load_time_cursor_definition-->
 
 :::note
-Under the hood, when dltHub can run the transformation directly as SQL/model job, the source query is modified to include the cursor filter. When the transformation is materialized first, for example if source and destination are different physical engines, or when you yield Python objects such as lists, Arrow tables, or DataFrames, filtering happens during extraction.
+Internally, dlt modifies the source query to include the cursor filter when it runs the transformation as a model job. dlt filters during extraction in two other cases. The first case is a source and a destination at different data locations. The second case is a yield of Python objects, such as lists, Arrow tables, or DataFrames.
 :::
 
 ### State and safety rules
 
-- `LIMIT` is rejected on stateful relation incrementals. Advancing state from a limited result can skip rows that were not returned. Remove the limit or use an explicit bounded window.
-- SQL-based cursors support `max` and `min` last-value functions. Custom Python `last_value_func` callables cannot be pushed down to SQL.
-- Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
+- dlt rejects `LIMIT` on stateful relation incrementals. A limited result can advance the state past rows that the query did not return. Remove the limit. As an alternative, use an explicit bounded window.
+- SQL-based cursors support `max` and `min` last-value functions. dlt cannot translate custom Python `last_value_func` callables to SQL.
+- Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`. `"exclude"` adds `AND cursor IS NOT NULL`. `"raise"` cannot raise in the middle of a query. It excludes the null cursor values instead.
 
 For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../general-usage/incremental/cursor.md).
 
 
-## Schema evolution and hints lineage
+## Schema evolution and hint lineage
 
-When executing transformations, `dlt` computes the resulting schema before the transformation is executed. This allows `dlt` to:
+`dlt` computes the resulting schema before it executes the transformation. This computation lets `dlt`:
 
 1. Migrate the destination schema accordingly, creating new columns or tables as needed
 2. Fail early if there are schema mismatches that cannot be resolved
@@ -211,38 +279,38 @@ When executing transformations, `dlt` computes the resulting schema before the t
 
 ### Schema evolution
 
-For example, if your transformation joins two tables and creates new columns, `dlt` will automatically update the destination schema to accommodate these changes. If your transformation would result in incompatible schema changes (like changing a column's data type in a way that could lose data), `dlt` will fail before executing the transformation, protecting your data and saving execution and debug time.
+For example, a transformation that joins two tables and creates new columns makes `dlt` update the destination schema. An incompatible schema change, such as a column type change that can lose data, makes `dlt` fail before the transformation runs. This protects your data and saves execution and debug time.
 
-You can inspect the computed result schema during development by looking at the result of `compute_columns_schema` on your `Relation`:
+You can inspect the computed result schema during development. Read `Relation.columns_schema`, or print `Relation.columns` for the column names only:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::computed_schema-->
 
-### Column level hint forwarding
+### Column-level hint forwarding
 
-When creating or updating tables with transformation resources, `dlt` will also forward certain column hints to the new tables. In our fruitshop source, we have applied a custom hint named
+When it creates or updates tables with transformation resources, `dlt` also forwards certain column hints to the new tables. In our fruitshop source, we apply a custom hint named
 `x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information).
-Downstream of the transformation layer, we may want to know which columns originate from columns that contain private data:
+Downstream of the transformation layer, we can then find out which columns originate from columns that contain private data:
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::column_level_lineage-->
 
-#### Features and limitations:
+#### Features and limitations
 
-* `dlt` will only forward certain types of hints to the resulting tables: custom hints starting with `x-annotation...` and type hints such as `nullable`, `data_type`, `precision`, `scale`, and `timezone`. Other hints, such as `primary_key` or `merge_keys`, will need to be set via the `columns` argument on the transformation decorator, since `dlt` does not know how the transformed tables will be used.
+* `dlt` forwards only certain hint types to the resulting tables: custom hints that start with `x-annotation...`, and the type hints `nullable`, `data_type`, `precision`, `scale`, and `timezone`. Set other hints, such as `primary_key` or `merge_keys`, with the `columns` argument on the transformation decorator. `dlt` does not know how you will use the transformed tables.
 * `dlt` cannot forward hints for columns that result from combining multiple origin columns, such as when they are concatenated or produced through other SQL operations.
 
 
 ## Lifecycle of a SQL transformation
 
-In this section, we focus on the lifecycle of transformations that yield a `Relation` object, which we call SQL transformations here. This is in contrast to Python-based transformations that yield dataframes, arrow tables, or polars frames, which go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
+This section covers the lifecycle of transformations that yield a `Relation` object. We call these SQL transformations. Python-based transformations yield dataframes, arrow tables, or polars frames. They go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
 
 ### Extract
 
-In the extract stage, a `Relation` yielded by a transformation is converted into a SQL string and saved as a `.model` file along with its source SQL dialect.
-At this stage, the SQL string is just the user's original query — either the string that was explicitly provided or the one generated by `Relation.to_sql()`. No `dlt`-specific columns like `_dlt_id` or `_dlt_load_id` are added yet.
+In the extract stage, `dlt` converts a `Relation` that a transformation yields into a SQL string. `dlt` saves that string as a `.model` file, together with its source SQL dialect.
+At this stage, the SQL string is the user's original query — either the string that you provided or the one that `Relation.to_sql()` generated. `dlt` adds no `dlt`-specific columns such as `_dlt_id` or `_dlt_load_id` yet.
 
 ### Normalize
 
-In the normalize stage, `.model` files are read and processed. The normalization process modifies your SQL queries to ensure they execute correctly and integrate with `dlt`'s features.
+In the normalize stage, `dlt` reads and processes the `.model` files. The normalization process modifies your SQL queries to make sure that they execute correctly and integrate with `dlt`'s features.
 
 :::info
 The normalization described here applies only to SQL-based transformations. Python-based transformations, such as those using dataframes, arrow tables, or polars frames, follow the [regular normalization process](../../reference/explainers/how-dlt-works.md#normalize).
@@ -250,7 +318,7 @@ The normalization described here applies only to SQL-based transformations. Pyth
 
 #### Adding `dlt` columns
 
-During normalization, `dlt` adds internal `dlt` columns to your SQL queries depending on the configuration:
+During normalization, `dlt` adds internal `dlt` columns to your SQL queries, based on the config:
 
 - `_dlt_load_id`, which tracks which load operation created or modified each row, is **added by default**. Even if present in your query, the `_dlt_load_id` column will be **replaced with a constant value** corresponding to the current load ID. To disable this behavior, set:
     ```toml
@@ -259,12 +327,12 @@ During normalization, `dlt` adds internal `dlt` columns to your SQL queries depe
     ```
     In this case, the column will not be added or replaced.
 
-- `_dlt_id`, a unique identifier for each row, is **not added by default**. If your query already includes a `_dlt_id` column, it will be left unchanged. To enable automatic generation of this column when it’s missing, set:
+- `_dlt_id`, a unique identifier for each row, is **not added by default**. If your query already includes a `_dlt_id` column, dlt leaves it unchanged. To generate this column when it is missing, set:
     ```toml
     [normalize.model_normalizer]
     add_dlt_id = true
     ```
-    When enabled and the column is not in the query, dlt will generate a `_dlt_id`. Note that if the column is already present, it will **not** be replaced.
+    When enabled and the column is not in the query, dlt generates a `_dlt_id`. When the column is already present, dlt does **not** replace it.
 
     The `_dlt_id` column is generated using the destination's UUID function, such as `generateUUIDv4()` in ClickHouse. For dialects without native UUID support:
      - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
@@ -273,18 +341,18 @@ During normalization, `dlt` adds internal `dlt` columns to your SQL queries depe
 
 #### Query transformations
 
-The normalization process also applies the following transformations to ensure your queries work correctly:
+The normalization process also applies the following transformations to make sure that your queries work correctly:
 
 1. Fully qualifies all identifiers with database and dataset prefixes
 2. Quotes and adjusts identifier casing to match destination requirements
 3. Normalizes column names according to the selected naming convention
 4. Aliases columns and tables to handle naming convention differences
 5. Reorders columns to match the destination table schema
-6. Fills in `NULL` values for columns that exist in the destination but aren't in your query
+6. Fills in `NULL` values for columns that exist in the destination but are not in your query
 
 ### Load
 
-In the load stage, the normalized queries from `.model` files are wrapped in INSERT statements and executed on the destination.
+In the load stage, `dlt` wraps the normalized queries from the `.model` files in INSERT statements, and executes them on the destination.
 For example, given this query from the extract stage:
 
 ```sql
@@ -294,7 +362,7 @@ SELECT
 FROM "my_pipeline_dataset"."my_table" AS "my_table"
 ```
 
-After the normalize stage processes it (adding dlt columns, wrapping in subquery, etc.) and results in:
+The normalize stage adds the dlt columns and wraps the query in a subquery. The result is:
 
 ```sql
 SELECT
@@ -330,20 +398,20 @@ FROM (
 AS _dlt_subquery
 ```
 
-The query is executed via the destination's SQL client, materializing the transformation result directly in the database.
+The destination's SQL client executes the query. This materializes the transformation result directly in the database.
 
 ## Examples
 
 ### Local in-transit transformations example
 
-If you require aggregated or otherwise transformed data in your warehouse, but would like to avoid or reduce the costs of running queries across many rows in your warehouse tables, you can run some or all of your transformations "in transit" while loading data from your source. The code below demonstrates how you can extract data with our `rest_api` source to a local DuckDB instance and then forward aggregated data to a warehouse destination.
+You sometimes need aggregated or otherwise transformed data in your warehouse, but you want to reduce the cost of large warehouse queries. You can then run some or all of your transformations "in transit", while you load data from your source. The code below extracts data with our `rest_api` source to a local DuckDB instance. It then forwards the aggregated data to a warehouse destination.
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::in_transit_transformations-->
 
-This script demonstrates:
-- Fetching data from a REST API using dlt's rest_api_source
-- Loading raw data into a local DuckDB instance as an intermediate step
-- Transforming the data by joining orders with stores and aggregating order counts directly on the local DuckDB instance, not in the destination warehouse
-- Loading only the aggregated results to a production warehouse (Postgres)
-- Reducing warehouse compute costs by performing transformations locally in DuckDB
-- Using multiple pipelines in a single workflow for different stages of processing
+This script:
+- fetches data from a REST API with dlt's `rest_api_source`
+- loads the raw data into a local DuckDB instance as an intermediate step
+- joins orders with stores and aggregates order counts on the local DuckDB instance, not in the destination warehouse
+- loads only the aggregated results to a production warehouse (Postgres)
+- reduces warehouse compute costs, because the transformations run locally in DuckDB
+- uses multiple pipelines in one workflow for different stages of processing

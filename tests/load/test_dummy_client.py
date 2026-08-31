@@ -4,7 +4,7 @@ from time import sleep, monotonic
 from unittest import mock
 import pytest
 from unittest.mock import patch
-from typing import Any, List, Tuple
+from typing import Any, List, Tuple, Type
 
 from dlt.common import pendulum
 from dlt.common.destination.exceptions import DestinationTerminalException
@@ -710,6 +710,80 @@ def test_abort_package_replays_started_jobs() -> None:
     assert "job interrupted by package abort" in failed_message
     assert len(jobs_by_state["started_jobs"]) == 0
     assert len(jobs_by_state["new_jobs"]) == 0
+
+
+def test_outputs_skip_failed_jobs_of_a_completed_package() -> None:
+    """Outputs describe data that landed, so a table whose job failed is not among them"""
+    load = setup_loader(
+        # fail_table_names completes every table it does not list
+        client_config=DummyClientConfiguration(fail_table_names=["event_loop_interrupted"]),
+        loader_config=LoaderConfiguration(
+            auto_abort_on_terminal_error=False, raise_on_failed_jobs=False
+        ),
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    run_all(load)
+
+    assert load.load_storage.get_load_package_info(load_id).state == "loaded"
+    metrics = load.get_step_info(MockPipeline("pipe", True)).metrics[load_id][0]  # type: ignore[abstract]
+    # both jobs ran and are in the metrics, only the one that completed is an output
+    assert {job.table_name: job.state for job in metrics["job_metrics"].values()} == {
+        "event_user": "completed",
+        "event_loop_interrupted": "failed",
+    }
+    assert [location["tables"] for location in metrics["outputs"]] == [["event_user"]]
+
+
+@pytest.mark.parametrize(
+    "auto_abort,package_state,expected_exception",
+    [
+        (True, "aborted", LoadPackageAborted),
+        (False, "normalized", LoadClientJobTerminalRetry),
+    ],
+    ids=["aborted", "pending_retry"],
+)
+def test_outputs_not_recorded_until_package_is_loaded(
+    auto_abort: bool, package_state: str, expected_exception: Type[Exception]
+) -> None:
+    """Only a loaded package has outputs, whatever its jobs managed to complete first"""
+    load = setup_loader(
+        # fail_table_names completes every table it does not list
+        client_config=DummyClientConfiguration(fail_table_names=["event_loop_interrupted"]),
+        loader_config=LoaderConfiguration(
+            auto_abort_on_terminal_error=auto_abort, raise_on_failed_jobs=True
+        ),
+    )
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    with pytest.raises(expected_exception):
+        run_all(load)
+
+    assert load.load_storage.get_load_package_info(load_id).state == package_state
+    metrics = load._step_info_metrics(load_id)[0]
+    # a job did complete first, so an unguarded output would have been recorded
+    assert "completed" in {job.state for job in metrics["job_metrics"].values()}
+    assert metrics["outputs"] == []
+
+
+def test_outputs_survive_a_restart_like_job_metrics() -> None:
+    """Outputs are derived from job metrics, so they cover jobs completed by an earlier process"""
+    load = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    load_id, _ = prepare_load_package(load.load_storage, NORMALIZED_FILES)
+    # the jobs complete and persist their metrics, the package does not complete
+    with patch.object(load, "complete_package", side_effect=RuntimeError("crash")):
+        with pytest.raises(RuntimeError):
+            load.run(None)
+    assert load.load_storage.get_load_package_info(load_id).state == "normalized"
+
+    resumed = setup_loader(client_config=DummyClientConfiguration(completed_prob=1.0))
+    assert resumed._job_metrics == {}
+    run_all(resumed)
+
+    assert resumed.load_storage.get_load_package_info(load_id).state == "loaded"
+    metrics = resumed.get_step_info(MockPipeline("pipe", True)).metrics[load_id][0]  # type: ignore[abstract]
+    assert sorted(table for location in metrics["outputs"] for table in location["tables"]) == [
+        "event_loop_interrupted",
+        "event_user",
+    ]
 
 
 def test_auto_abort_crash_resumes_via_flag() -> None:

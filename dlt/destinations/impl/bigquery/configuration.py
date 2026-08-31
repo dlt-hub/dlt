@@ -62,6 +62,8 @@ class BigQueryClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return digest128(self.credentials.project_id)
         return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns configured BigQuery location."""
-        return self.location or ""
+        if not self.location:
+            self._no_data_location("the configuration has no BigQuery location")
+        return self.location

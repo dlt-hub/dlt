@@ -117,7 +117,7 @@ motherduck.credentials="md:dlt_data_3?dbinstance_inactivity_ttl=0s"
 ```
 will disable connection caching.
 
-Additional `duckdb` configuration, [where you can set up extensions, pragmas, global and local setting](duckdb.md#additional-configuration), is also supported.
+Additional `duckdb` config, [where you can set up extensions, pragmas, the session timezone, and global and local config](duckdb.md#additional-config), is also supported.
 
 ## Write disposition
 All write dispositions are supported.

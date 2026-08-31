@@ -295,10 +295,11 @@ class ClickHouseSqlClient(
         quote: bool = True,
         casefold: bool = True,
         dataset_name: Optional[str] = None,
+        catalog: Optional[str] = None,
     ) -> List[str]:
         # get catalog and dataset
         path = super().make_qualified_table_name_path(
-            None, quote=quote, casefold=casefold, dataset_name=dataset_name
+            None, quote=quote, casefold=casefold, dataset_name=dataset_name, catalog=catalog
         )
         effective_dataset = dataset_name or self.dataset_name
         if table_name:

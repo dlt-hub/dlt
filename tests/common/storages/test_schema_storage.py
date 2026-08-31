@@ -105,6 +105,17 @@ def test_import_overwrites_existing_if_modified(
     assert_schema_imported(synced_storage, storage)
 
 
+def test_save_does_not_link_stale_schema_to_current_import(ie_storage: SchemaStorage) -> None:
+    stale_schema = Schema("ethereum")
+    imported_schema = prepare_eth_import_folder(ie_storage)
+
+    ie_storage.save_schema(stale_schema, link_import_schema=False)
+    loaded_schema = ie_storage.load_schema("ethereum")
+
+    assert "blocks" in loaded_schema.tables
+    assert loaded_schema._imported_version_hash == imported_schema.stored_version_hash
+
+
 def test_skip_import_if_not_modified(synced_storage: SchemaStorage, storage: SchemaStorage) -> None:
     storage_schema = assert_schema_imported(synced_storage, storage)
     assert not storage_schema.is_modified

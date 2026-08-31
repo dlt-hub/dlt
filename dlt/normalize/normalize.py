@@ -263,7 +263,8 @@ class Normalize(Runnable[Executor], WithStepInfo[NormalizeMetrics, NormalizeInfo
             logger.info(
                 f"Saving schema {schema.name} with version {schema.stored_version}:{schema.version}"
             )
-            self.schema_storage.save_schema(schema)
+            # import schema will relink on first use
+            self.schema_storage.save_schema(schema, link_import_schema=False)
         else:
             logger.info(
                 f"Schema {schema.name} with version {schema.version} was not modified. Save skipped"

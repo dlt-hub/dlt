@@ -1,7 +1,9 @@
+from typing import cast
 import pytest
 
 import dlt
 
+from dlt.sources.filesystem.helpers import TFilesystemDataLocation
 from dlt.sources.filesystem import filesystem
 
 from tests.load.utils import HTTP_BUCKET
@@ -26,3 +28,12 @@ def test_http_filesystem(public_http_server, bucket_url: str):
     )
     assert_load_info(load_info)
     assert pipeline.last_trace.last_normalize_info.row_counts["http_parquet_example"] == 1
+
+    # the bucket and glob it listed are recorded as the input of the run
+    extract_info = pipeline.last_trace.last_extract_info
+    inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
+    assert len(inputs) == 1
+    assert inputs[0]["kind"] == "filesystem"
+    assert inputs[0]["location"] == bucket_url
+    assert cast(TFilesystemDataLocation, inputs[0])["glob"] == "parquet/mlb_players.parquet"
+    assert inputs[0]["resource_name"] == "http_parquet_example"

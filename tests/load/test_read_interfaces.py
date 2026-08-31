@@ -385,6 +385,8 @@ def test_row_counts(populated_pipeline: Pipeline) -> None:
     total_records = _total_records(populated_pipeline.destination.destination_type)
 
     dataset = populated_pipeline.dataset()
+    # the output columns are named in the dlt schema namespace, also on case-folding destinations
+    assert list(dataset.row_counts().df().columns) == ["table_name", "row_count"]
     # default is all data tables
     assert set(dataset.row_counts().df().itertuples(index=False, name=None)) == {
         (
@@ -1271,6 +1273,76 @@ def test_ibis_expression_relation(populated_pipeline: Pipeline) -> None:
     )
 
 
+def _assert_ibis_dataset_access(pipeline: Pipeline, ibis_connection: Any) -> None:
+    """Asserts that `ibis_connection` reads all tables of `pipeline` dataset, both fully qualified
+    and unqualified: the backend must default to the dataset."""
+    destination_type = pipeline.destination.destination_type
+    total_records = _total_records(destination_type)
+
+    map_i = lambda x: x
+    if destination_type == "dlt.destinations.snowflake":
+        map_i = lambda x: x.upper()
+
+    dataset_name = map_i(pipeline.dataset_name)
+    table_like_statement = None
+    table_name_prefix = ""
+    additional_tables = []
+
+    # clickhouse has no datasets, but table prefixes and a sentinel table
+    if destination_type == "dlt.destinations.clickhouse":
+        table_like_statement = dataset_name + "."
+        table_name_prefix = dataset_name + "___"
+        dataset_name = None
+        additional_tables += ["dlt_sentinel_table"]
+    # from aleph schema
+    additional_tables += ["digits"]
+
+    add_table_prefix = lambda x: table_name_prefix + x
+
+    schema = pipeline.default_schema
+    expected_table_names = {
+        add_table_prefix(map_i(x))
+        for x in (
+            [
+                schema.loads_table_name,
+                schema.state_table_name,
+                schema.version_table_name,
+                "double_items",
+                "items",
+                "items__children",
+                "orderable_in_chain",
+            ]
+            + additional_tables
+        )
+    }
+    # databricks can't list tables (looks like internal ibis bug)
+    can_list_tables = destination_type != "dlt.destinations.databricks"
+    # clickhouse has no datasets and ibis does not set the mssql schema, so those backends do not
+    # default to the dataset
+    has_default_dataset = destination_type not in (
+        "dlt.destinations.clickhouse",
+        "dlt.destinations.mssql",
+    )
+
+    if can_list_tables:
+        table_names_in_ibis = ibis_connection.list_tables(
+            database=dataset_name, like=table_like_statement
+        )
+        print(table_names_in_ibis)
+        assert set(table_names_in_ibis) == expected_table_names
+
+    table_name = add_table_prefix(map_i("items"))
+    items_table = ibis_connection.table(table_name, database=dataset_name)
+    assert items_table.count().to_pandas() == total_records
+
+    if has_default_dataset:
+        if can_list_tables:
+            # the dataset tables are listed without naming the dataset
+            assert expected_table_names.issubset(set(ibis_connection.list_tables()))
+        assert ibis_connection.table(table_name).count().to_pandas() == total_records
+        assert ibis_connection.tables[table_name].count().to_pandas() == total_records
+
+
 @pytest.mark.no_load
 @pytest.mark.essential
 def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
@@ -1293,66 +1365,44 @@ def test_ibis_dataset_access(populated_pipeline: Pipeline) -> None:
         for _ in range(3):
             gc.collect()
 
-        total_records = _total_records(populated_pipeline.destination.destination_type)
-
-        map_i = lambda x: x
-        if populated_pipeline.destination.destination_type == "dlt.destinations.snowflake":
-            map_i = lambda x: x.upper()
-
-        dataset_name = map_i(populated_pipeline.dataset_name)
-        table_like_statement = None
-        table_name_prefix = ""
-        additional_tables = []
-
-        # clickhouse has no datasets, but table prefixes and a sentinel table
-        if populated_pipeline.destination.destination_type == "dlt.destinations.clickhouse":
-            table_like_statement = dataset_name + "."
-            table_name_prefix = dataset_name + "___"
-            dataset_name = None
-            additional_tables += ["dlt_sentinel_table"]
-        # from aleph schema
-        additional_tables += ["digits"]
-
-        add_table_prefix = lambda x: table_name_prefix + x
-
-        # databricks can't list tables (looks like internal ibis bug)
-        if populated_pipeline.destination.destination_type != "dlt.destinations.databricks":
-            # just do a basic check to see wether ibis can connect
-            schema = populated_pipeline.default_schema
-            table_names_in_ibis = ibis_connection.list_tables(
-                database=dataset_name, like=table_like_statement
-            )
-            expected_table_names = {
-                add_table_prefix(map_i(x))
-                for x in (
-                    [
-                        schema.loads_table_name,
-                        schema.state_table_name,
-                        schema.version_table_name,
-                        "double_items",
-                        "items",
-                        "items__children",
-                        "orderable_in_chain",
-                    ]
-                    + additional_tables
-                )
-            }
-            print(table_names_in_ibis)
-            assert set(table_names_in_ibis) == expected_table_names
-
-        table_name = add_table_prefix(map_i("items"))
-        items_table = ibis_connection.table(table_name, database=dataset_name)
-        assert items_table.count().to_pandas() == total_records
-
-        # some of the destinations allow to set default schema/dataset
-        try:
-            items_table = ibis_connection.tables[table_name]
-            assert items_table.count().to_pandas() == total_records
-        except KeyError:
-            if populated_pipeline.destination.destination_type not in ["dlt.destinations.mssql"]:
-                raise
+        _assert_ibis_dataset_access(populated_pipeline, ibis_connection)
     finally:
         ibis_connection.disconnect()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb"]),
+    ids=lambda x: x.name,
+)
+def test_ibis_dataset_access_external_connection(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """dlt hands over a connection that the caller opened, configured for the dataset."""
+    import duckdb
+
+    conn = duckdb.connect(":memory:")
+    pipeline = dlt.pipeline(
+        "read_pipeline_external_" + uniq_id(4),
+        destination=dlt.destinations.duckdb(conn),
+        dataset_name="read_test",
+        dev_mode=True,
+    )
+    pipeline.run(
+        create_test_source(pipeline.destination.destination_type, destination_config.table_format)
+    )
+    pipeline.run([1, 2, 3], table_name="digits", schema=Schema("aleph"))
+
+    ibis_connection = pipeline.dataset().ibis()
+    try:
+        _assert_ibis_dataset_access(pipeline, ibis_connection)
+        # the caller's connection is shared, so the pipeline still loads into the same database
+        pipeline.run([{"id": 1}], table_name="new_items")
+        assert ibis_connection.table("new_items").count().to_pandas() == 1
+    finally:
+        conn.close()
 
 
 @pytest.mark.no_load

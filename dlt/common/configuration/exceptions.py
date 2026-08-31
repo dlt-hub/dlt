@@ -11,6 +11,8 @@ class LookupTrace(NamedTuple):
     sections: Sequence[str]
     key: str
     value: Any
+    provider_location: str = ""
+    """Human readable location of the value"""
 
 
 class LookupTraces(NamedTuple):

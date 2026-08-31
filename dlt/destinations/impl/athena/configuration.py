@@ -2,6 +2,7 @@ import dataclasses
 from typing import Any, ClassVar, Dict, Final, List, Optional
 
 from dlt.common.configuration import configspec
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.client import DestinationClientDwhWithStagingConfiguration
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.utils import digest128
@@ -61,7 +62,7 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
     def _is_s3_tables_catalog(self) -> bool:
         return is_s3_tables_catalog(self.aws_data_catalog)
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns region/catalog, or just the catalog when region is unavailable."""
         # athena catalog names are case-insensitive, AWS docs spell the default `AwsDataCatalog`
         catalog = (self.aws_data_catalog or DEFAULT_AWS_DATA_CATALOG).lower()
@@ -75,10 +76,11 @@ class AthenaClientConfiguration(DestinationClientDwhWithStagingConfiguration):
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical Athena location."""
-        physical_location = self.physical_location()
-        if physical_location:
-            return digest128(physical_location)
-        return ""
+        # a fingerprint can say "cannot compute", where a location raises instead
+        try:
+            return digest128(self.data_location())
+        except ConfigurationValueError:
+            return ""
 
     def __str__(self) -> str:
         """Return displayable destination location"""
