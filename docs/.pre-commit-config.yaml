@@ -14,10 +14,25 @@ repos:
 
   - repo: local
     hooks:
-      - id: check-snippets
-        name: check-snippets
-        description: format, type check, and run code snippets
-        entry: uv run pytest -m "not example" -p xdist -n auto -rn --tb=line -p no:warnings test_snippets.py
+      - id: snippets-lint
+        name: snippets-lint
+        entry: make snippets-lint
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
+        pass_filenames: false
+
+      - id: snippets-typecheck
+        name: snippets-typecheck
+        entry: make snippets-typecheck
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
+        pass_filenames: false
+
+      - id: snippets-run
+        name: snippets-run
+        entry: make snippets-run
         language: system
         files: ^website/docs/.*\.md$
         types: [markdown]
@@ -26,7 +41,7 @@ repos:
       - id: check-examples
         name: check-examples
         description: format, type check, and run code examples (i.e., cookbook)
-        entry: uv run pytest -m "example" -p xdist -n auto -rn --tb=line -p no:warnings test_snippets.py
+        entry: uv run pytest -m "example" test_snippets.py
         language: system
         files: ^website/docs/examples.*\.md$
         types: [markdown]

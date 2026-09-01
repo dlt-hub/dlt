@@ -88,6 +88,13 @@ dlt = { path = "..", editable = true }
 [tool.pytest.ini_options]
 pythonpath = [".."]
 console_output_style = "count"
+addopts = [
+    "-p", "xdist",        # load the xdist parallel execution plugin
+    "-n", "auto",         # auto-detect worker count from available CPUs
+    "-rn",             # only show failed/errored test summary lines
+    "--tb=short",      # compact tracebacks on failure
+    "-p", "no:warnings",  # suppress Python warnings output
+]
 markers = [
     "lint_snippets: parametrizes a test with all lintable docs snippets/examples (see pytest_generate_tests)",
     "typecheck_snippets: parametrizes a test with all type-checkable docs snippets/examples (see pytest_generate_tests)",
