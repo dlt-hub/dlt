@@ -215,3 +215,44 @@ def test_read_csv_duckdb_use_pyarrow(tmp_path: pathlib.Path, data: list[dict[str
     assert isinstance(read_data[0], pyarrow.RecordBatch)  # batch of records
     assert isinstance(read_data[0][0], pyarrow.Array)  # column
     assert read_data == [pyarrow.RecordBatch.from_pylist(data)]
+
+
+def test_read_csv_duckdb_multiple_files_no_truncation(tmp_path: pathlib.Path) -> None:
+    """Regression test for https://github.com/dlt-hub/dlt/issues/4405.
+
+    When multiple _read_csv_duckdb generators are alive simultaneously
+    (interleaved by the extractor across pages), each file must still be
+    read in full. Previously, the shared global DuckDB connection meant
+    that starting a second relation invalidated the first one's pending
+    result, silently truncating every file to its first chunk.
+    """
+    n_files = 5
+    n_rows = 200  # enough rows to span multiple chunks at default chunk_size
+
+    files = []
+    for i in range(n_files):
+        sub = tmp_path / f"dir{i}"
+        sub.mkdir()
+        rows = [{"file_id": i, "row_id": j} for j in range(n_rows)]
+        files.append(_create_csv_file(data=rows, tmp_path=sub))
+
+    # Open all generators (simulates the extractor having multiple pages alive)
+    generators = [_read_csv_duckdb([f], chunk_size=50) for f in files]
+
+    # Round-robin between generators, like PipeIterator does
+    total_rows = {i: 0 for i in range(n_files)}
+    active = list(range(n_files))
+    while active:
+        next_active = []
+        for i in active:
+            batch = next(generators[i], None)
+            if batch is not None:
+                total_rows[i] += len(batch)
+                next_active.append(i)
+        active = next_active
+
+    for i in range(n_files):
+        assert total_rows[i] == n_rows, (
+            f"File {i}: expected {n_rows} rows but got {total_rows[i]} "
+            f"(truncated by interleaved DuckDB connections)"
+        )
