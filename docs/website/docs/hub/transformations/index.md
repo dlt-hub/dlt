@@ -303,7 +303,7 @@ schema.update_table(
 
 # the query is duckdb SQL, but the dataset writes to mssql
 mssql_dataset = dlt.dataset(
-    dlt.destinations.mssql(credentials="mssql://user:pw@host:1433/warehouse"),
+    dlt.destinations.mssql(credentials="mssql://user:pw@host:1433/warehouse?driver=ODBC+Driver+18+for+SQL+Server"),
     "analytics",
     schema=schema,
 )

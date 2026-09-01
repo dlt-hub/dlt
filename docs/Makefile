@@ -7,7 +7,7 @@ help: ## Shows this help message
 
 dev: ## Prepares development environment for docs tooling
 	uv sync --all-extras --all-groups --all-packages --quiet
-	uv run prek install
+	uv run prek install --hook-type pre-push
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
