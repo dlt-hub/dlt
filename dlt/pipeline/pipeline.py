@@ -2248,3 +2248,85 @@ class Pipeline(SupportsPipeline):
             if not self._dataset_access_tracked:
                 on_first_dataset_access(pipeline=self, schema_name=schema_name, success=success)
                 self._dataset_access_tracked = True
+
+    def local_dataset(
+        self, schema: Schema | None = None, load_id: str | None = None
+    ) -> dlt.Dataset:
+        """Returns a dataset over a normalized load package that is waiting to be loaded.
+
+        Args:
+            schema (Schema | None): Overrides the schema stored in the package.
+            load_id (str | None): Package to read. Defaults to the most recent normalized
+                package, which is what `normalize()` just produced. Pass a load id from
+                `NormalizeInfo.loads_ids` when earlier packages are still pending.
+
+
+        Returns:
+            dlt.Dataset: A dataset over the package job files.
+        """
+        _allow_missing_init()
+
+        if load_id is None:
+            load_ids = self.list_normalized_load_packages()
+            if not load_ids:
+                raise LoadPackageNotFound("<most recent normalized>")
+            load_id = load_ids[-1]
+        return _package_dataset(
+            self._get_load_storage().normalized_packages, load_id, schema=schema
+        )
+
+
+def _package_dataset(
+    storage: PackageStorage, load_id: str, /, schema: Schema | None = None
+) -> dlt.Dataset:
+    """Opens a normalized load package as a `dlt.Dataset` backed by the filesystem destination.
+
+    Args:
+        storage (PackageStorage): Storage rooted at the folder holding the packages.
+        load_id (str): Load id of the package to read. Its jobs must still be in `new_jobs`,
+            so the package must have normalized successfully and not started loading.
+        schema (Schema | None): Overrides the schema stored in the package.
+
+    Returns:
+        dlt.Dataset: A regular dataset over the package job files. dlt tables are not
+            exposed, and tables carrying no file in this package raise on query.
+    """
+    import pathlib
+
+    PACKAGE_LAYOUT = "{table_name}.{file_id}.{ext}"
+
+    if not storage.storage.has_folder(storage.get_package_path(load_id)):
+        raise LoadPackageNotFound(load_id)
+
+    package_root = storage.storage.make_full_path(storage.get_package_path(load_id))
+
+    destination = dlt.destinations.filesystem(
+        bucket_url=pathlib.Path(package_root).as_uri(),
+        credentials=None,
+        layout=PACKAGE_LAYOUT,
+    )
+    return dlt.Dataset(
+        destination=destination,
+        dataset_name=PackageStorage.NEW_JOBS_FOLDER,
+        schema=schema or storage.load_schema(load_id),
+    )
+
+
+# TODO figure out a way to safely do this on the instance rather than mutating the class
+def _allow_missing_init() -> None:
+    """Stands in for a missing-init fallback in `FilesystemClient.get_storage_versions`.
+
+    A load package has no `init` file and must not get one: the loader parses every name in
+    `new_jobs/` as a job file name.
+    """
+    from dlt.destinations.impl.filesystem.filesystem import CURRENT_VERSION, FilesystemClient
+
+    original = FilesystemClient.get_storage_versions
+
+    def get_storage_versions(self: FilesystemClient):  # type: ignore[no-untyped-def]
+        try:
+            return original(self)
+        except FileNotFoundError:
+            return CURRENT_VERSION, CURRENT_VERSION
+
+    FilesystemClient.get_storage_versions = get_storage_versions  # type: ignore[method-assign]
