@@ -1,0 +1,53 @@
+on:
+  workflow_call:
+  workflow_dispatch:
+
+jobs:
+  docs_check:
+    name: check
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    steps:
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '22'
+
+      - uses: astral-sh/setup-uv@v6
+        with:
+          version: "latest"
+          python-version: "3.10"
+          enable-cache: true
+          activate-environment: true
+          cache-local-path: /tmp/.uv-cache
+          working-directory: docs
+
+      # using the `actions/cache` to manually cache Python deps
+      # allows Blacksmith to automatically speed it up.
+      - name: Restore uv cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: /tmp/.uv-cache
+          key: uv-${{ runner.os }}-${{ hashFiles('docs/uv.lock') }}
+          restore-keys: |
+            uv-${{ runner.os }}-${{ hashFiles('docs/uv.lock') }}
+            uv-${{ runner.os }}
+
+      - name: Install dependencies
+        run: cd docs && make dev
+
+      # - name: Install root project for CLI docs check
+      #   run: uv sync --extra cli --group workspace-deps
+
+      - name: Check that CLI docs are up to date
+        run: make check-cli-docs
+
+      - name: Install node dependencies
+        run: cd docs/website && npm install
+
+      - name: Pre-commit hooks (format, lint, type-check)
+        run: |
+          uv run prek run --verbose --all-files
+
+      - name: Minimize uv cache
+        run: uv cache prune --ci
