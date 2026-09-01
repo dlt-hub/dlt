@@ -1,28 +1,22 @@
-name: docs | build docs
-
 on:
   workflow_call:
   workflow_dispatch:
 
 jobs:
-  build_docs:
+  docs_build:
     name: build
     runs-on: blacksmith-8vcpu-ubuntu-2404
 
     steps:
-      - name: Check out
-        uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
+      - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - name: Setup node 22
-        uses: actions/setup-node@v5
-        with:
-          node-version: '22'
+      - uses: actions/setup-node@v5
 
       # `uv` is required by some `npm` commands defined in docs/website/package.json
-      - name: Install uv
-        uses: astral-sh/setup-uv@v6
+      - uses: astral-sh/setup-uv@v6
         with:
           python-version: "3.10"
+          enable-cache: true
           activate-environment: true
 
       - name: Install node dependencies
@@ -31,5 +25,5 @@ jobs:
       - name: Build docs
         run: cd docs/website && npm run build
 
-      - name: Verify redirects
+      - name: Verify docs link redirects
         run: cd docs/website && npm run verify-redirects
