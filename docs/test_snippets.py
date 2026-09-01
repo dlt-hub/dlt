@@ -66,7 +66,7 @@ def _providers_for_page(page_dir: Path):
         ]
 
     with (
-        set_working_dir(str(page_dir)),
+        set_working_dir(str(page_dir.resolve())),
         patch(
             "dlt.common.runtime.run_context.RunContext.initial_providers",
             _initial_providers,

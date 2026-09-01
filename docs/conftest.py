@@ -42,7 +42,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         if not example.prefix.split()[:1] == ["py"]:
             continue
 
-        marks = [pytest.mark.example] if example.path.is_relative_to(EXAMPLES_DIR) else []
+        marks = [pytest.mark.example] if example.path.absolute().is_relative_to(EXAMPLES_DIR) else []
         lint_params.append(pytest.param(example, marks=marks))
         if "notype" in example.prefix_tags():
             typecheck_marks = marks + [pytest.mark.skip("Found `notype` directive.")]
@@ -67,7 +67,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
     run_params = []
     for path, examples in run_examples.items():
         marks = []
-        if path.is_relative_to(EXAMPLES_DIR):
+        if path.absolute().is_relative_to(EXAMPLES_DIR):
             marks.append(pytest.mark.example)
 
         if any("noexecute" in example.prefix_tags() for example in examples):
@@ -76,7 +76,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         param = pytest.param(
             path,
             examples,
-            str(path.relative_to(WEBSITE_DOCS_DIR)) in REQUIRES_SHARED_STATE,
+            str(path.absolute().relative_to(WEBSITE_DOCS_DIR)) in REQUIRES_SHARED_STATE,
             marks=marks,
             id=str(path),
         )
