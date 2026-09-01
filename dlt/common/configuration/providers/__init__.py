@@ -9,6 +9,14 @@ from .toml import (
     SECRETS_TOML,
     StringTomlProvider,
 )
+from .yaml import (
+    SecretsYamlProvider,
+    ConfigYamlProvider,
+    SettingsYamlProvider,
+    CONFIG_YAML,
+    SECRETS_YAML,
+    StringYamlProvider,
+)
 from .doc import CustomLoaderDocProvider
 from .vault import SECRETS_TOML_KEY, VaultDocProvider
 from .google_secrets import GoogleSecretsProvider
@@ -25,6 +33,12 @@ __all__ = [
     "CONFIG_TOML",
     "SECRETS_TOML",
     "StringTomlProvider",
+    "SecretsYamlProvider",
+    "ConfigYamlProvider",
+    "SettingsYamlProvider",
+    "CONFIG_YAML",
+    "SECRETS_YAML",
+    "StringYamlProvider",
     "SECRETS_TOML_KEY",
     "ContextProvider",
     "CustomLoaderDocProvider",

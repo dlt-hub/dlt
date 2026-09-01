@@ -26,6 +26,8 @@ from dlt.common.configuration.providers import (
     EnvironProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
+    SecretsYamlProvider,
+    ConfigYamlProvider,
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.resolve import resolve_configuration
@@ -699,6 +701,17 @@ def _reset_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
             EnvironProvider(),
             SecretsTomlProvider(settings_dir=settings_dir),
             ConfigTomlProvider(settings_dir=settings_dir),
+        ]
+    )
+
+
+def _reset_yaml_providers(settings_dir: str) -> Iterator[ConfigProvidersContainer]:
+    """Same as `_reset_providers` but with yaml providers initialized from `settings_dir`"""
+    yield from _inject_providers(
+        [
+            EnvironProvider(),
+            SecretsYamlProvider(settings_dir=settings_dir),
+            ConfigYamlProvider(settings_dir=settings_dir),
         ]
     )
 
