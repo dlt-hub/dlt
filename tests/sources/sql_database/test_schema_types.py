@@ -1,3 +1,5 @@
+from typing import Any
+
 import pytest
 import sqlalchemy as sa
 from sqlalchemy.dialects.mssql import DATETIMEOFFSET, UNIQUEIDENTIFIER
@@ -10,6 +12,8 @@ from dlt.sources.sql_database.schema_types import (
     sqla_col_to_column_schema,
     _is_uuid_type,
 )
+
+from tests.utils import capture_dlt_logger
 
 
 @pytest.mark.parametrize(
@@ -103,6 +107,38 @@ def test_datetime_timezone_mapping(sql_type: sa.types.TypeEngine, expected_tz: b
     col_schema = sqla_col_to_column_schema(table.c.col, "full")
     assert col_schema is not None
     assert col_schema["timezone"] is expected_tz
+
+
+def test_type_adapter_unchanged_keeps_reflected_type() -> None:
+    """Returning the argument unchanged from the callback is the 'no change' pattern: the
+    reflected type is mapped as usual."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("price", sa.Numeric(7, 2)))
+
+    col_schema = sqla_col_to_column_schema(
+        table.c.price, "full_with_precision", type_adapter_callback=lambda sql_t: sql_t
+    )
+    assert col_schema is not None
+    assert col_schema["data_type"] == "decimal"
+    assert col_schema["precision"] == 7
+    assert col_schema["scale"] == 2
+
+
+def test_type_adapter_none_drops_type_and_warns(caplog: Any) -> None:
+    """Returning None from the callback drops the reflected type (inferred from data) and warns
+    so the behavior is not silent."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("price", sa.Numeric(7, 2)))
+
+    with capture_dlt_logger(caplog):
+        col_schema = sqla_col_to_column_schema(
+            table.c.price, "full_with_precision", type_adapter_callback=lambda sql_t: None
+        )
+    assert col_schema is not None
+    assert "data_type" not in col_schema
+    assert any(
+        "price" in r.message and "returned None for column" in r.message for r in caplog.records
+    )
 
 
 def test_get_table_references() -> None:
