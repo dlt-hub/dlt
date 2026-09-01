@@ -74,7 +74,9 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             marks.append(pytest.mark.skip("Found a `noexecute` directive in one of the snippet of this page."))
 
         param = pytest.param(
-            path, examples, str(path) in REQUIRES_SHARED_STATE,
+            path,
+            examples,
+            str(path.relative_to(WEBSITE_DOCS_DIR)) in REQUIRES_SHARED_STATE,
             marks=marks,
             id=str(path),
         )
