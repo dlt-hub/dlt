@@ -6,10 +6,6 @@ jobs:
   docs_build:
     name: build
     runs-on: blacksmith-8vcpu-ubuntu-2404
-    env:
-      # Configure a constant location for the uv cache
-      UV_CACHE_DIR: /tmp/.uv-cache
-
     steps:
       - uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
@@ -24,6 +20,7 @@ jobs:
           python-version: "3.10"
           enable-cache: true
           activate-environment: true
+          cache-local-path: /tmp/.uv-cache
           working-directory: docs
 
       # using the `actions/cache` to manually cache Python deps
@@ -32,9 +29,9 @@ jobs:
         uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: /tmp/.uv-cache
-          key: uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+          key: uv-${{ runner.os }}-${{ hashFiles('docs/uv.lock') }}
           restore-keys: |
-            uv-${{ runner.os }}-${{ hashFiles('uv.lock') }}
+            uv-${{ runner.os }}-${{ hashFiles('docs/uv.lock') }}
             uv-${{ runner.os }}
 
       - name: Install Python dependencies
