@@ -205,7 +205,7 @@ If you plan to use `merge` write disposition, remember to [enable load ids](../v
 
 You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
 for loading and then use it for querying:
-```py
+```py notype
 import dlt
 import lancedb
 
