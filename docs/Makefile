@@ -56,9 +56,9 @@ test-tools: ## Tests docs tools
 	uv run pytest tools/
 
 build-molabs: ## Format the notebooks files first and build Molabs
-	uv run black education/*/*.ipynb --ipynb
+	uv run black education/*/*.ipynb --ipynb --quiet
 	uv run tools/preprocess_to_molab.py
-	uv run black education/*/*.py
+	uv run black education/*/*.py --quiet
 	uv run marimo check education/*/*.py --fix --quiet
 
 validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
