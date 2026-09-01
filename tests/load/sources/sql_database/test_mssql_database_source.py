@@ -72,6 +72,22 @@ def test_all_data_types(
     schema = pipeline.default_schema
     table = schema.tables["app_user"]
 
+    if reflection_level != "minimal":
+        assert table["columns"]["some_money"] == {
+            "name": "some_money",
+            "data_type": "decimal",
+            "precision": 19,
+            "scale": 4,
+            "nullable": True,
+        }
+        assert table["columns"]["some_smallmoney"] == {
+            "name": "some_smallmoney",
+            "data_type": "decimal",
+            "precision": 10,
+            "scale": 4,
+            "nullable": True,
+        }
+
     # check tz-awareness
     assert table["columns"]["some_datetimeoffset"].get("timezone", True) is True
     # timezones are inferred from data or set explicitly, just not on sqlalchemy minimal
