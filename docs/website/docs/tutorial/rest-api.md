@@ -154,6 +154,8 @@ Here's what's happening in the code:
 Let's break down the configuration of the REST API source. It consists of three main parts: `client`, `resource_defaults`, and `resources`.
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         # ...

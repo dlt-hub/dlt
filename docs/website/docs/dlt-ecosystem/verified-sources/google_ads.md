@@ -222,14 +222,15 @@ This function returns a list of resources including metadata, fields, and metric
 the Google Ads API.
 
 ```py
+from dlt.extract import DltResource
+from dlt.common.configuration.specs import GcpOAuthCredentials, GcpServiceAccountCredentials
+
 @dlt.source()
 def google_ads(
-    credentials: Union[
-        GcpOAuthCredentials, GcpServiceAccountCredentials
-    ] = dlt.secrets.value,
+    credentials: GcpOAuthCredentials | GcpServiceAccountCredentials = dlt.secrets.value,
     impersonated_email: str = dlt.secrets.value,
     dev_token: str = dlt.secrets.value,
-)  -> List[DltResource]:
+)  -> list[DltResource]:
    """
    Initializes a client with the provided credentials and development token to
    load default tables from Google Ads into the database. This function returns

@@ -134,12 +134,15 @@ You can write your own pipelines to load data to a destination using this verifi
 This function returns a list of resources to load companies, contacts, deals, tickets, products, and web analytics events data into the destination.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source(name="hubspot")
 def hubspot(
     api_key: str = dlt.secrets.value,
     include_history: bool = False,
     include_custom_props: bool = False,
-) -> Sequence[DltResource]:
+) -> Iterable[DltResource]:
    ...
 ```
 
@@ -179,7 +182,7 @@ This function loads web analytics events for specific objects from the Hubspot A
 @dlt.resource
 def hubspot_events_for_objects(
      object_type: THubspotObjectType,
-     object_ids: List[str],
+     object_ids: list[str],
      api_key: str = dlt.secrets.value,
      start_date: DateTime = START_DATE,
 ) -> DltResource:

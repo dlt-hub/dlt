@@ -51,6 +51,9 @@ pipeline.run([1, 2, 3], table_name="items")
 The full signature of the destination decorator plus its function is the following:
 
 ```py
+from dlt.common.typing import TDataItems
+from dlt.common.schema.typing import TTableSchema
+
 @dlt.destination(
     batch_size=10,
     loader_file_format="jsonl",
@@ -91,6 +94,9 @@ Settings above ensure that the shape of the data you receive in the destination 
 The destination decorator supports settings and secrets variables. If you, for example, plan to connect to a service that requires an API secret or a login, you can do the following:
 
 ```py
+from dlt.common.typing import TDataItems
+from dlt.common.schema.typing import TTableSchema
+
 @dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_destination")
 def my_destination(items: TDataItems, table: TTableSchema, api_key: str = dlt.secrets.value) -> None:
     ...
@@ -111,6 +117,9 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
 - Directly reference the destination function
 
   ```py
+  from dlt.common.typing import TDataItems
+  from dlt.common.schema.typing import TTableSchema
+
   @dlt.destination(batch_size=10)
   def local_destination_func(items: TDataItems, table: TTableSchema) -> None:
       ...
@@ -122,6 +131,10 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   Like for [regular destinations](../../general-usage/destination.md#pass-explicit-credentials), you are allowed to pass configuration and credentials
   explicitly to the destination function.
   ```py
+  import os
+  from dlt.common.typing import TDataItems
+  from dlt.common.schema.typing import TTableSchema
+
   @dlt.destination(batch_size=10, loader_file_format="jsonl", name="my_destination")
   def my_destination(items: TDataItems, table: TTableSchema, api_key: str = dlt.secrets.value) -> None:
       ...
@@ -132,6 +145,8 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
 - Via the `dlt.destination()` function that initializes the destination. In this case, don't use the decorator for the destination function.
   ```py
   # File my_destination.py
+  from dlt.common.typing import TDataItems
+  from dlt.common.schema.typing import TTableSchema
 
   # Don't use the decorator
   def local_destination_func(items: TDataItems, table: TTableSchema) -> None:

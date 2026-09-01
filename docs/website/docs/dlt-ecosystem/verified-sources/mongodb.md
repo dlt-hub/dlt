@@ -196,13 +196,16 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function loads data from a MongoDB database, yielding one or multiple collections to be retrieved.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def mongodb(
     connection_url: str = dlt.secrets.value,
-    database: Optional[str] = dlt.config.value,
-    collection_names: Optional[List[str]] = dlt.config.value,
-    incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
-    write_disposition: Optional[str] = dlt.config.value,
+    database: str | None = dlt.config.value,
+    collection_names: list[str] | None = dlt.config.value,
+    incremental: dlt.sources.incremental | None = None,  # type: ignore[type-arg]
+    write_disposition: str | None = dlt.config.value,
 ) -> Iterable[DltResource]:
    ...
 ```
@@ -223,13 +226,15 @@ def mongodb(
 This function fetches a single collection from a MongoDB database using PyMongo.
 
 ```py
+from dlt.common.data_writers import TDataItemFormat
+
 def mongodb_collection(
     connection_url: str = dlt.secrets.value,
-    database: Optional[str] = dlt.config.value,
+    database: str | None = dlt.config.value,
     collection: str = dlt.config.value,
-    incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
-    write_disposition: Optional[str] = dlt.config.value,
-    data_item_format: Optional[TDataItemFormat] = "object",
+    incremental: dlt.sources.incremental | None = None,  # type: ignore[type-arg]
+    write_disposition: str | None = dlt.config.value,
+    data_item_format: TDataItemFormat | None = "object",
 ) -> Any:
    ...
 ```

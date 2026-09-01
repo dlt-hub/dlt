@@ -27,7 +27,7 @@ We'll learn how to:
 __source_name__ = "mongodb"
 
 from itertools import islice
-from typing import Any, Dict, Iterator, Optional
+from typing import Any, Iterator, Optional
 
 from bson.decimal128 import Decimal128
 from bson.objectid import ObjectId
@@ -96,7 +96,7 @@ class CollectionLoader:
             self.last_value = None
 
     @property
-    def _filter_op(self) -> Dict[str, Any]:
+    def _filter_op(self) -> dict[str, Any]:
         if not self.incremental or not self.last_value:
             return {}
         if self.incremental.last_value_func is max:

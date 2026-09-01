@@ -159,6 +159,8 @@ Out of the box, LanceDB will act as a normal database. To use LanceDB's embeddin
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+ 
 lancedb_adapter(data, embed="title")
 ```
 
@@ -172,6 +174,8 @@ Returns: [dlt resource](../../general-usage/resource.md) object that you can pas
 Example:
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+
 lancedb_adapter(
   resource,
   embed=["title", "description"],
@@ -181,6 +185,9 @@ lancedb_adapter(
 When using the `lancedb_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
+from dlt.sources.sql_database import sql_database
+from dlt.destinations.adapters import lancedb_adapter
+
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
@@ -273,6 +280,8 @@ All [write dispositions](../../general-usage/incremental-loading.md#choosing-a-w
 The [replace](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource.
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+
 movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
   lancedb_adapter(
@@ -290,14 +299,18 @@ The [merge](../../general-usage/incremental-loading.md) write disposition merges
 You can specify the merge disposition, primary key, and merge key either in a resource or adapter:
 
 ```py
+from typing import Generator
+from dlt.common.typing import DictStrAny
+from dlt.destinations.adapters import lancedb_adapter
+
 @dlt.resource(
   primary_key=["doc_id", "chunk_id"],
   merge_key=["doc_id"],
   write_disposition={"disposition": "merge", "strategy": "upsert"},
 )
 def my_rag_docs(
-  data: List[DictStrAny],
-) -> Generator[List[DictStrAny], None, None]:
+  data: list[DictStrAny],
+) -> Generator[list[DictStrAny], None, None]:
     yield data
 
 pipeline.run(
@@ -322,6 +335,8 @@ This structure ensures proper record identification and maintains consistency wi
 LanceDB **automatically removes orphaned chunks** when updating or deleting parent documents during a merge operation. To disable this feature:
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+
 movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 pipeline.run(
   lancedb_adapter(

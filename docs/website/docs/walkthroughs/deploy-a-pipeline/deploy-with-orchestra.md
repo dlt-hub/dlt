@@ -48,7 +48,6 @@ After configuring you `.dlt` project, you should ensure the pipelines you want t
 Imported file;  `pipeline.py`
 
 ```py
-from typing import List
 import dlt
 
 from hubspot import hubspot, hubspot_events_for_objects, THubspotObjectType
@@ -144,7 +143,7 @@ def load_crm_objects_with_custom_properties() -> None:
 
 
 def load_web_analytics_events(
-    object_type: THubspotObjectType, object_ids: List[str]
+    object_type: THubspotObjectType, object_ids: list[str]
 ) -> None:
     """
     This function loads web analytics events for a list objects in `object_ids` of type `object_type`
@@ -229,4 +228,3 @@ _Left to right: the dlt Task Node, the raw logs from the dlt task, the Task para
   [here.](https://www.getorchestra.io/product/orchestra-dbt-core-tm)
 - Product Demos:
   [here.](https://www.youtube.com/@OrchestraDataPlatform)
-

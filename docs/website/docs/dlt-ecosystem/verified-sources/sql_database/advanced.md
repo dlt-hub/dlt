@@ -132,6 +132,8 @@ This both **disables the deduplication process** and changes the operator used i
 E.g.
 
 ```py
+from dlt.sources.sql_database import sql_table
+
 table = sql_table(
     table='family',
     incremental=dlt.sources.incremental(
@@ -324,6 +326,8 @@ The examples below show how you can set arguments in any of the TOML files (`sec
     The resulting source created below will extract data using the **pandas** backend with **chunk_size** 1000. The table **chat_message** will load data incrementally using the **updated_at** column. All the other tables will not use incremental loading and will instead load the full data.
 
     ```py
+    from dlt.sources.sql_database import sql_database
+
     database = sql_database()
     ```
 

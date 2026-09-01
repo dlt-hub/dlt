@@ -297,6 +297,8 @@ The `merge_key` identifies the parent document. If `merge_key` is not specified,
 By default, when parent documents are updated or deleted during a merge, orphaned child records (chunks that no longer have a matching parent) are automatically removed. To disable this:
 
 ```py
+from dlt.destinations.adapters import lance_adapter
+
 lance_adapter(data, merge_key="doc_id", remove_orphans=False)
 ```
 

@@ -13,10 +13,14 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
 1. Arguments passed explicitly are **never injected**. This makes the injection mechanism optional. Example with the Pipedrive source:
   ```py
+  import os
+  from typing import Iterator
+  from dlt.extract import DltResource
+
   @dlt.source(name="pipedrive")
   def pipedrive_source(
       pipedrive_api_key: str = dlt.secrets.value,
-      since_timestamp: Optional[Union[pendulum.DateTime, str]] = "1970-01-01 00:00:00",
+      since_timestamp: pendulum.DateTime | str | None = "1970-01-01 00:00:00",
   ) -> Iterator[DltResource]:
     ...
 
@@ -29,7 +33,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 
   ```py
   @dlt.source
-  def slack_data(channels_list: List[str], api_key: str = dlt.secrets.value):
+  def slack_data(channels_list: list[str], api_key: str = dlt.secrets.value):
     ...
   ```
   The `channels_list` argument won't be injected and will produce an error if not specified explicitly.
@@ -37,11 +41,15 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 3. Arguments with default values are injected if found in config providers. Otherwise, the default values from the function signature are used. Example:
 
   ```py
+  from dlt.common.typing import TAnyDateTime
+
+  START_DATE: pendulum.DateTime = pendulum.DateTime(2024, 1, 1)
+
   @dlt.source
   def slack_source(
-    page_size: int = MAX_PAGE_SIZE,
+    page_size: int = 100,
     access_token: str = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = START_DATE
+    start_date: TAnyDateTime | None = START_DATE
   ):
     ...
   ```
@@ -64,10 +72,12 @@ We recommend adding type annotations to your function signatures. This requires 
 Example:
 
 ```py
+from dlt.common.configuration.specs import GcpServiceAccountCredentials
+
 @dlt.source
 def google_sheets(
     spreadsheet_id: str = dlt.config.value,
-    tab_names: List[str] = dlt.config.value,
+    tab_names: list[str] = dlt.config.value,
     credentials: GcpServiceAccountCredentials = dlt.secrets.value,
     only_strings: bool = False
 ):
@@ -153,6 +163,8 @@ source_instance.run(destination="bigquery")
 `dlt.config` and `dlt.secrets` function as dictionaries. `dlt` examines all [config providers](setup) - environment variables, TOML files, etc. - to populate these dictionaries. You can also use `dlt.config.get()` or `dlt.secrets.get()` to retrieve a value and convert it to a specific type:
 
 ```py
+from dlt.common.configuration.specs import GcpServiceAccountCredentials
+
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
 ```
 This creates a `GcpServiceAccountCredentials` instance from the values stored under the `my_section.gcp_credentials` key.
@@ -211,7 +223,7 @@ def google_sheets(
     sheets = build('sheets', 'v4', credentials=ServiceAccountCredentials.from_service_account_info(credentials))  # ty: ignore
     tabs = []
     for tab_name in tab_names:
-        data = _get_sheet(sheets, spreadsheet_id, tab_name)
+        data = _get_sheet(sheets, spreadsheet_id, tab_name)  # ty: ignore[unresolved-reference]
         tabs.append(dlt.resource(data, name=tab_name))
     return tabs
 ```

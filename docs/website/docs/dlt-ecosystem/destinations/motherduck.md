@@ -142,7 +142,7 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 
 Some internal component (HTTPS) requires the **HOME** env variable to be present. Export such a variable to the command line. Here is what we do in our tests:
 
-```py
+```py notype
 os.environ["HOME"] = "/tmp"
 ```
 before opening the connection.

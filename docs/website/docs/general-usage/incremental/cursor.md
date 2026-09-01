@@ -23,7 +23,7 @@ def repo_issues(
     updated_at = dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z")
 ):
     # Get issues since "updated_at" stored in state on previous run (or initial_value on first run)
-    for page in _get_issues_page(access_token, repository, since=updated_at.start_value):
+    for page in _get_issues_page(access_token, repository, since=updated_at.start_value):  # ty: ignore[unresolved-reference]
         yield page
         # Last_value is updated after every page
         print(updated_at.last_value)
@@ -112,7 +112,7 @@ def repo_issues(
     updated_at=dlt.sources.incremental("updated_at", initial_value="1970-01-01T00:00:00Z", end_value="2022-07-01T00:00:00Z")
 ):
     # get issues updated in range defined by incremental
-    for page in _get_issues_page(access_token, repository, since=updated_at.start_value, until=updated_at.end_value):
+    for page in _get_issues_page(access_token, repository, since=updated_at.start_value, until=updated_at.end_value):  # ty: ignore[unresolved-reference]
         yield page
 ```
 Above, we use the `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve

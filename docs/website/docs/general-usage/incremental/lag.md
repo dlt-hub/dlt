@@ -27,6 +27,8 @@ This example demonstrates how to use a `datetime` cursor with a `lag` parameter,
 This setup demonstrates how `lag` ensures that a defined period of data remains refreshed, capturing updates or changes within the attribution window.
 
 ```py
+import duckdb
+
 pipeline = dlt.pipeline(
     destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
 )

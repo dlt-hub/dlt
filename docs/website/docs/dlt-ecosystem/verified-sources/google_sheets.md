@@ -367,13 +367,16 @@ This function loads data from a Google Spreadsheet. It retrieves data from all s
 whether explicitly defined or named, and obtains metadata for the first two rows within each range.
 
 ```py
+from collections.abc import Sequence
+from typing import Iterable
+from dlt.extract import DltResource
+from dlt.common.configuration.specs import GcpOAuthCredentials, GcpServiceAccountCredentials
+
 @dlt.source()
 def google_spreadsheet(
       spreadsheet_url_or_id: str = dlt.config.value,
       range_names: Sequence[str] = dlt.config.value,
-      credentials: Union[
-          GcpOAuthCredentials, GcpServiceAccountCredentials
-      ] = dlt.secrets.value,
+      credentials: GcpOAuthCredentials | GcpServiceAccountCredentials = dlt.secrets.value,
       get_sheets: bool = False,
       get_named_ranges: bool = True,
 ) -> Iterable[DltResource]:

@@ -140,7 +140,7 @@ For example:
 
 ```py
 from pydantic import BaseModel
-from typing import List, Optional, Union
+from typing import Optional, Union
 
 class Address(BaseModel):
     street: str
@@ -150,7 +150,7 @@ class Address(BaseModel):
 class User(BaseModel):
     id: int
     name: str
-    tags: List[str]
+    tags: list[str]
     email: Optional[str]
     address: Address
     status: Union[int, str]
@@ -233,6 +233,9 @@ For example, a resource that loads GitHub repository events wants to send `issue
 and `comment` events to separate tables. The type of the event is in the "type" field.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItems
+
 # send item to a table with name item["type"]
 @dlt.resource(table_name=lambda event: event['type'])
 def repo_events() -> Iterator[TDataItems]:
@@ -247,6 +250,9 @@ In more advanced cases, you can dispatch data to different tables directly in th
 resource function:
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItems
+
 @dlt.resource
 def repo_events() -> Iterator[TDataItems]:
     # mark the "item" to be sent to the table with the name item["type"]
@@ -286,7 +292,7 @@ You can feed data from one resource into another. The most common case is when y
 ```py
 @dlt.resource(write_disposition="replace")
 def users(limit=None):
-    for u in _get_users(limit):
+    for u in _get_users(limit):  # ty: ignore[unresolved-reference]
         yield u
 
 # Feed data from users as user_item below,
@@ -294,7 +300,7 @@ def users(limit=None):
 # argument that will receive data from the parent resource
 @dlt.transformer(data_from=users)
 def users_details(user_item):
-    for detail in _get_details(user_item["user_id"]):
+    for detail in _get_details(user_item["user_id"]):  # ty: ignore[unresolved-reference]
         yield detail
 
 # Just load the users_details.
@@ -360,12 +366,12 @@ To enable this for a sync resource, you can set the `parallelized` flag to `True
 ```py
 @dlt.resource(parallelized=True)
 def get_users():
-    for u in _get_users():
+    for u in _get_users():  # ty: ignore[unresolved-reference]
         yield u
 
 @dlt.resource(parallelized=True)
 def get_orders():
-    for o in _get_orders():
+    for o in _get_orders():  # ty: ignore[unresolved-reference]
         yield o
 
 # users and orders will be iterated in parallel in two separate threads
@@ -377,7 +383,8 @@ Async generators are automatically extracted concurrently with other resources:
 ```py
 @dlt.resource
 async def get_users():
-    async for u in _get_users():  # Assuming _get_users is an async generator
+    # Assuming _get_users is an async generator
+    async for u in _get_users(): # ty: ignore[unresolved-reference]
         yield u
 ```
 
@@ -410,15 +417,13 @@ import dlt
 
 @dlt.resource(write_disposition="replace")
 def users():
-    ...
-    users = requests.get(RESOURCE_URL)
-    ...
+    users = requests.get("https://pokeapi.co/api/v2/")
     yield users
 ```
 
 Here's our script that defines transformations and loads the data:
 
-```py
+```py  notype
 from pipedrive import users
 
 def anonymize_user(user_data):
@@ -504,6 +509,8 @@ If your resource loads thousands of pages of data from a REST API or millions of
 In the example below, we load just the first 10 items from an infinite counter - that would otherwise never end.
 
 ```py
+import itertools
+
 r = dlt.resource(itertools.count(), name="infinity").add_limit(10)
 assert list(r) == list(range(10))
 ```
@@ -560,6 +567,8 @@ You can also set the limit to `0` for the resource to not yield any items.
 You can change the schema of a resource, whether it is standalone or part of a source. Look for a method named `apply_hints` which takes the same arguments as the resource decorator. Obviously, you should call this method before data is extracted from the resource. The example below converts an `append` resource loading the `users` table into a [merge](merge-loading.md) resource that will keep just one updated record per `user_id`. It also adds ["last value" incremental loading](incremental/cursor.md) on the `created_at` column to prevent requesting again the already loaded records:
 
 ```py
+from dlt.sources.sql_database import sql_database
+
 tables = sql_database()
 tables.users.apply_hints(
     write_disposition="merge",
@@ -571,6 +580,8 @@ pipeline.run(tables)
 
 To change the name of a table to which the resource will load data, do the following:
 ```py
+from dlt.sources.sql_database import sql_database
+
 tables = sql_database()
 tables.users.table_name = "other_users"
 ```
@@ -681,10 +692,13 @@ Table `raw_events` is created with the defined schema and no rows.
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
 ```py
 import os
+from typing import Iterator
+
 import dlt
 from dlt.sources.filesystem import filesystem, FileItemDict
+from dlt.common.schema.typing import TColumnSchema
 
-columns: List[TColumnSchema] = [
+columns: list[TColumnSchema] = [
     {"name": "id", "data_type": "bigint"},
     {"name": "name", "data_type": "text"},
     {"name": "description", "data_type": "text"},

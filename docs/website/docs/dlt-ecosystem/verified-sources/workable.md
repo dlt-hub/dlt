@@ -167,11 +167,15 @@ endpoints allow incremental 'merge' mode loading.
 This source returns a sequence of dltResources that correspond to the endpoints.
 
 ```py
+from typing import Iterable
+from pendulum import DateTime
+from dlt.extract import DltResource
+
 @dlt.source(name="workable")
 def workable_source(
     access_token: str = dlt.secrets.value,
     subdomain: str = dlt.config.value,
-    start_date: Optional[DateTime] = None,
+    start_date: DateTime | None = None,
     load_details: bool = False,
 ) -> Iterable[DltResource]:
    ...

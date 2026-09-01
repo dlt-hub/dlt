@@ -34,7 +34,7 @@ pip install fastembed>=0.1.1
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "zendesk"
 
-from typing import Optional, Dict, Any, Tuple, Iterable, List
+from typing import Optional, Any, Iterable
 
 import dlt
 from dlt.common import pendulum
@@ -49,7 +49,7 @@ from dlt.extract import DltResource
 # function from: https://github.com/dlt-hub/verified-sources/tree/master/sources/zendesk
 @dlt.source(max_table_nesting=2)
 def zendesk_support(
-    credentials: Dict[str, str] = dlt.secrets.value,
+    credentials: dict[str, str] = dlt.secrets.value,
     start_date: Optional[TAnyDateTime] = pendulum.datetime(
         year=2000, month=1, day=1
     ),  # noqa: B008
@@ -131,10 +131,10 @@ def _fix_date(ticket):
 def get_pages(
     url: str,
     endpoint: str,
-    auth: Tuple[str, str],
+    auth: tuple[str, str],
     data_point_name: str,
-    params: Optional[Dict[str, Any]] = None,
-) -> Iterable[List[Dict[str, Any]]]:
+    params: Optional[dict[str, Any]] = None,
+) -> Iterable[list[dict[str, Any]]]:
     """
     Makes a request to a paginated endpoint and returns a generator of data items per page.
 

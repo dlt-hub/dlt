@@ -245,14 +245,18 @@ This function returns a list of resources including metadata, metrics, and dimen
 the Google Analytics API.
 
 ```py
+from dlt.extract import DltResource
+from dlt.common.typing import DictStrAny
+from dlt.common.configuration.specs import GcpOAuthCredentials, GcpServiceAccountCredentials
+
 @dlt.source(max_table_nesting=2)
 def google_analytics(
-    credentials: Union[ GcpOAuthCredentials, GcpServiceAccountCredentials ] = dlt.secrets.value,
+    credentials: GcpOAuthCredentials | GcpServiceAccountCredentials = dlt.secrets.value,
     property_id: int = dlt.config.value,
-    queries: List[DictStrAny] = dlt.config.value,
-    start_date: Optional[str] = START_DATE_STRING,
+    queries: list[DictStrAny] = dlt.config.value,
+    start_date: str | None = "2026-01-31",
     rows_per_page: int = 1000,
-) -> List[DltResource]:
+) -> list[DltResource]:
    ...
 ```
 

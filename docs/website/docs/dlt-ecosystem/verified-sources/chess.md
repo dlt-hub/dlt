@@ -96,7 +96,7 @@ DltResource objects. We'll discuss these in subsequent sections as resources.
 ```py notype
 dlt.source(name="chess")
 def source(
-    players: List[str], start_month: str = None, end_month: str = None
+    players: list[str], start_month: str = None, end_month: str = None
 ) -> Sequence[DltResource]:
     return (
         players_profiles(players),
@@ -115,9 +115,9 @@ to fetch game data (in "YYYY/MM" format).
 
 This is a `dlt.resource` function, which returns player profiles for a list of player usernames.
 
-```py
+```py notype
 @dlt.resource(write_disposition="replace")
-def players_profiles(players: List[str]) -> Iterator[TDataItem]:
+def players_profiles(players: list[str]) -> Iterator[TDataItem]:
 
     @dlt.defer
     def _get_profile(username: str) -> TDataItem:
@@ -136,8 +136,11 @@ It uses the `@dlt.defer` decorator to enable parallel run in a thread pool.
 This is a `dlt.resource` function, which returns a URL to game archives for specified players.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItem
+
 @dlt.resource(write_disposition="replace", selected=False)
-def players_archives(players: List[str]) -> Iterator[List[TDataItem]]:
+def players_archives(players: list[str]) -> Iterator[list[TDataItem]]:
     ...
 ```
 
@@ -152,9 +155,12 @@ This incremental resource takes data from players and returns games for the last
 specified otherwise.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItems
+
 @dlt.resource(write_disposition="append")
 def players_games(
-    players: List[str], start_month: str = None, end_month: str = None
+    players: list[str], start_month: str = None, end_month: str = None
 ) -> Iterator[TDataItems]:
     # gets a list of already checked (loaded) archives.
     checked_archives = dlt.current.resource_state().setdefault("archives", [])

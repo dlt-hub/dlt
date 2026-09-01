@@ -181,7 +181,7 @@ def orders(ordered_at = dlt.sources.incremental('ordered_at')):
     # Get a dataframe/arrow table from somewhere
     # If your database supports it, you can use the last_value to filter data at the source.
     # Otherwise, it will be filtered automatically after loading the data.
-    df = _get_orders(since=ordered_at.last_value)
+    df = _get_orders(since=ordered_at.last_value)  # ty: ignore[unresolved-reference]
     yield df
 
 pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")

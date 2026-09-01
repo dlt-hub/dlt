@@ -208,7 +208,7 @@ def shopify_partner_query(
     data_items_path: jp.TJsonPath,
     pagination_cursor_path: jp.TJsonPath,
     pagination_variable_name: str = "after",
-    variables: Optional[Dict[str, Any]] = None,
+    variables: Optional[dict[str, Any]] = None,
     access_token: str = dlt.secrets.value,
     organization_id: str = dlt.config.value,
     api_version: str = API_VERSION,
@@ -270,7 +270,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    min_start_date = current_start_date = pendulum.DateTime(2023, 1, 1)
    max_end_date = pendulum.now()
    # Create a list of time ranges of 1 week each, we'll use this to load the data in chunks
-   ranges: List[Tuple[pendulum.DateTime, pendulum.DateTime]] = []
+   ranges: list[tuple[pendulum.DateTime, pendulum.DateTime]] = []
    while current_start_date < max_end_date:
         end_date = min(current_start_date.add(weeks=1), max_end_date)
         ranges.append((current_start_date, end_date))

@@ -169,6 +169,8 @@ This `dlt.source` fetches repository events incrementally, dispatching them to s
 > Note: GitHub allows retrieving up to 300 events for public repositories, so frequent updates are recommended for active repos.
 
 ```py
+from dlt.extract import DltResource
+
 @dlt.source(max_table_nesting=2)
 def github_repo_events(
     owner: str, name: str, access_token: str = None
@@ -191,6 +193,9 @@ Read more about [nesting levels](../../general-usage/source#reduce-the-nesting-l
 This `dlt.resource` function serves as the resource for the `github_repo_events` source. It yields repository events as data items.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItems
+
 dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
 def repo_events(
     last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(

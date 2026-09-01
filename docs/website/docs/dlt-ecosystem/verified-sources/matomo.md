@@ -121,11 +121,15 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function executes and loads a set of reports defined in "queries" for a specific Matomo site identified by "site_id".
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+from dlt.common.typing import DictStrAny
+
 @dlt.source(max_table_nesting=2)
 def matomo_reports(
     api_token: str = dlt.secrets.value,
     url: str = dlt.config.value,
-    queries: List[DictStrAny] = dlt.config.value,
+    queries: list[DictStrAny] = dlt.config.value,
     site_id: int = dlt.config.value,
 ) -> Iterable[DltResource]:
    ...
@@ -146,6 +150,8 @@ def matomo_reports(
 The function loads visits from the current day and the past `initial_load_past_days` on the first run. In subsequent runs, it continues from the last load and skips active visits until they are closed.
 
 ```py
+from dlt.extract import DltResource
+
 @dlt.source()
 def matomo_visits(
     api_token: str = dlt.secrets.value,
@@ -155,7 +161,7 @@ def matomo_visits(
     visit_timeout_seconds: int = 1800,
     visit_max_duration_seconds: int = 3600,
     get_live_event_visitors: bool = False,
-) -> List[DltResource]:
+) -> list[DltResource]:
    ...
 ```
 
@@ -220,7 +226,7 @@ This function retrieves unique visit information from get_last_visits.
     primary_key="visitorId",
 )
 def get_unique_visitors(
-    visits: List[DictStrAny], client: MatomoAPIClient, site_id: int
+    visits: list[DictStrAny], client: MatomoAPIClient, site_id: int
 ) -> Iterator[TDataItem]:
    ...
 ```
