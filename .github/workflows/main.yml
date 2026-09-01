@@ -33,10 +33,9 @@ jobs:
     secrets: inherit
 
   # NOTE: we build docs the same way as on cloudflare, so we can catch problems early
-  build_docs:
-    name: build docs
-    uses: ./.github/workflows/build_docs.yml
-  
+  docs_build:
+    uses: ./.github/workflows/docs_build.yml
+
   lint:
     name: lint
     needs: get_docs_changes
@@ -102,7 +101,7 @@ jobs:
     needs: [test_common, authorize_secrets]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
-  
+
   # dbt cloud tests currently are disabled, TODO: explain why
   # test_tools_dbt_cloud:
   #   needs: [test_common, authorize_secrets]
