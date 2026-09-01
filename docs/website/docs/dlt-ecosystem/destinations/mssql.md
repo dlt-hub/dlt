@@ -18,14 +18,35 @@ pip install "dlt[mssql]"
 
 ### Prerequisites
 
-The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
-This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
+This destination uses the [mssql-python](https://github.com/microsoft/mssql-python) driver, which is
+installed automatically with `dlt[mssql]` together with its `mssql-python-odbc` dependency, providing
+the SQL Server client libraries. No separate ODBC driver installation is required.
 
-Supported driver versions:
-* `ODBC Driver 18 for SQL Server`
-* `ODBC Driver 17 for SQL Server`
+:::warning
+**`dlt[mssql]`, `dlt[synapse]` and `dlt[fabric]` install `mssql-python` instead of `pyodbc`.** Existing
+credentials keep working: a `driver` option, whether set directly or as a `?driver=` connection string
+parameter, is accepted and ignored with a deprecation warning, since mssql-python installs and manages
+its own driver dependency. Two things do change for code that reaches past the destination: `to_odbc_dsn()`
+no longer emits a `DRIVER=` key, and `MsSqlCredentials.SUPPORTED_DRIVERS` is gone, along with the error
+it raised for unrecognized driver names.
 
-You can also [configure the driver name](#additional-destination-options) explicitly.
+If you install `mssql-python` with `pip install --no-deps`, or from a private/mirrored index, make
+sure `mssql-python-odbc` is installed or mirrored alongside it — the driver binaries live in that
+companion package, not in `mssql-python` itself, and a plain `pip install mssql-python` only pulls it
+in when normal dependency resolution runs.
+:::
+
+:::note Connection pooling and token expiry
+mssql-python pools connections by default. Since v1.13 the pool key is identity-aware for the
+`Authentication=` methods where the driver acquires the token itself (`ActiveDirectoryMsi`,
+`ActiveDirectoryDeviceCode`, and off Windows `ActiveDirectoryInteractive`), and those pooled
+connections are refreshed by the driver when their token nears expiry. `ActiveDirectoryDefault`,
+`access_token` and `azure_credential` are pooled by token hash instead — distinct tokens never
+share a connection — but are **not** refreshed on expiry: if a long-running pipeline's token
+expires while its connection sits pooled, the next use fails and dlt does not renew it. Handing
+`azure_credential` to the driver does not change this; a custom provider is keyed on the token it
+mints, not on the provider object.
+:::
 
 ### Create a pipeline
 
@@ -60,17 +81,22 @@ connect_timeout = 15
 TrustServerCertificate="yes"
 # require SSL connection
 Encrypt="yes"
-# send large string as VARCHAR, not legacy TEXT
-LongAsMax="yes"
 ```
 
 You can also pass a SQLAlchemy-like database connection:
 ```toml
 # Keep it at the top of your TOML file, before any section starts
-destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes&LongAsMax=yes"
+destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?TrustServerCertificate=yes&Encrypt=yes"
 ```
 
 You can place any ODBC-specific settings into the query string or **destination.mssql.credentials.query** TOML table as in the example above.
+
+:::note
+`authentication`, `uid`, `pwd` and `trusted_connection` query keys are dropped from the connection
+string when `access_token` or `azure_credential` is set — otherwise the driver would sign in as that
+identity and ignore the token you configured. Pick one or the other. Every other query key is passed
+through untouched.
+:::
 
 **To connect to an `mssql` server using Windows authentication**, include `trusted_connection=yes` in the connection string.
 
@@ -92,10 +118,81 @@ destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?encrypt=
 destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?TrustServerCertificate=yes"
 ```
 
-**To use long strings (>8k) and avoid collation errors**:
+Long strings (>8k) are handled automatically by the driver, no extra configuration is needed.
+
+### Microsoft Entra ID authentication
+
+For Azure-hosted SQL Server (Azure SQL Database, Managed Instance) you can authenticate with
+Entra ID instead of a SQL login. Set the `authentication` credential option; `dlt` writes it to the
+connection string as `Authentication=` and the
+[mssql-python](https://github.com/microsoft/mssql-python) driver performs the sign-in, so no
+separate `azure-identity` install is needed.
+
+Leaving `authentication` empty keeps the plain SQL login with `username` and `password`. `ActiveDirectoryServicePrincipal` needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias `default`, which covers managed identity, environment and Azure CLI) and `ActiveDirectoryDeviceCode` need no further fields.
+
+Passwordless example (e.g. after `az login`):
 ```toml
-destination.mssql.credentials="mssql://loader:loader@localhost/dlt_data?LongAsMax=yes"
+[destination.mssql.credentials]
+database = "dlt_data"
+host = "loader.database.windows.net"
+authentication = "default"
 ```
+
+Service Principal example:
+```toml
+[destination.mssql.credentials]
+database = "dlt_data"
+host = "loader.database.windows.net"
+authentication = "ActiveDirectoryServicePrincipal"
+azure_tenant_id = "your-tenant-id"
+azure_client_id = "your-client-id"
+azure_client_secret = "your-client-secret"
+```
+
+#### Passing a credential object or a token yourself
+
+Instead of naming a method, you can hand `dlt` a credential object through `azure_credential`. It is
+passed straight to the driver, which acquires the token, so any object with a `get_token(scope)`
+method works — every `azure-identity` credential, or your own wrapper:
+
+```py
+from azure.identity import DefaultAzureCredential
+
+pipeline = dlt.pipeline(
+  pipeline_name='chess',
+  destination=dlt.destinations.mssql(credentials={
+    "host": "loader.database.windows.net",
+    "database": "dlt_data",
+    "azure_credential": DefaultAzureCredential(),
+  }),
+  dataset_name='chess_data')
+```
+
+A pre-acquired token goes in `access_token` instead, which wins over both `azure_credential` and
+`authentication`.
+
+:::note Sovereign clouds
+The driver requests the token for the Azure **commercial** SQL scope
+(`https://database.windows.net/.default`). Azure US Government, Azure China and Azure Germany need a
+different audience, and a token minted for the wrong one is rejected at login. For those, acquire
+the token yourself for the right scope and pass it as `access_token`.
+:::
+
+:::warning Not every credential works with parquet
+[Fast loading with parquet](#fast-loading-with-parquet) opens its **own** connection and signs in
+again, and that connection supports fewer methods than the ODBC one. It cannot use:
+
+* `access_token` — a pre-acquired token is never handed to it,
+* `authentication = "ActiveDirectoryPassword"` and `"ActiveDirectoryIntegrated"` — it does not
+  implement them.
+
+A parquet load job configured with any of these fails immediately with a terminal error, before any
+row is sent, rather than signing in as the wrong identity. Use `azure_credential`, another
+`ActiveDirectory*` method, or keep that pipeline on `insert_values`.
+
+`authentication = "ActiveDirectoryInteractive"` does work, but the bulk copy connection acquires its
+own token — off Windows that can open a browser prompt in the middle of a load.
+:::
 
 **To pass credentials directly**, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
 ```py
@@ -113,54 +210,64 @@ recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: MSSQL su
 
 ## Data loading
 
-:::tip
-We recommend using ADBC + parquet to load data. We observed 10x - 100x increase in loading speed compared to the INSERT method. **parquet** file format
-will activate automatically if the right driver is present in the system. 
-:::
+Data is loaded with INSERT statements by default. The [parquet](../file-formats.md#parquet) file
+format is much faster and is available whenever `pyarrow` is installed, but you have to ask for it —
+see [fast loading with parquet](#fast-loading-with-parquet) for the trade-off.
 
 ### Fast loading with parquet
 
-[parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/). **mssql** driver is provided by
-[Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
+Parquet load files are streamed straight into SQL Server with mssql-python's native Arrow bulk copy,
+which needs no additional driver — just `pyarrow`:
+
 ```sh
-pip install adbc-driver-manager dbc
-dbc install mssql
+pip install "dlt[mssql,parquet]"
 ```
 
-with `uv` you can run `dbc` directly:
-```sh
-uv tool run dbc search
+Select it per pipeline or per resource:
+
+```py
+pipeline.run(data_iter, table_name="unsw_flow", loader_file_format="parquet")
 ```
-`dlt` will make **parquet** the preferred file format once driver is detected at runtime. This method is 10x-70x faster than INSERT and
-we make it a default for all input data types.
 
-Not all arrow data types are supported by the driver, see driver docs for more details:
-* fixed length binary
-* time with precision different than microseconds
+`dlt` reads the load file one row group at a time and hands the driver a `pyarrow.RecordBatchReader`,
+so peak memory does not grow with the file size. Source columns are mapped to destination columns by
+name rather than by ordinal position, which keeps loads correct after a schema evolution appends a
+column to the table.
 
-We copy parquet files with batches of size of 1 row group. All groups are copied in a single transaction.
+Each load file is sent as a **single transactional batch**, so a job that fails part-way commits
+nothing and is retried like any other load job. The flip side is that one file is one transaction:
+a very large load file means a long-lived transaction and a correspondingly large log. Control it
+with the [parquet writer's](../file-formats.md#parquet) `file_max_items` / `file_max_bytes` rather
+than by splitting the batch.
 
-:::caution
-It looks like ADBC driver is based on [go-mssqldb](https://github.com/denisenkom/go-mssqldb?tab=readme-ov-file)
+A bulk copy is given one hour to complete. Change it with `bulk_copy_timeout` (seconds):
 
-DSN format is different. We translate a few overlapping keys. `pyodbc` and `adbc` ignore unknown keys so you can specify keys for both in the same string.
+```toml
+[destination.mssql]
+bulk_copy_timeout = 7200
+```
+
+:::caution Parquet does not fire triggers or check constraints
+Bulk copy uses SQL Server's bulk-load path, which by default skips INSERT triggers and CHECK/FOREIGN
+KEY constraints. `insert_values` fires and checks both. Switching a table to parquet therefore
+changes its semantics if you rely on either. UNIQUE indexes are always enforced.
+
+This — together with the credential limits above and the fact that end-to-end validation of the
+native path is still young — is why `insert_values` stays the preferred format and parquet is opt-in.
 :::
 
-You can go back to `insert_values` by passing `loader_file_format` to a resource or pipeline
-```py
-# revert to INSERT statements
-pipeline.run(data_iter, dataset_name="speed_test_2", write_disposition="replace", table_name="unsw_flow", loader_file_format="insert_values")
-```
+Arrow dictionary-encoded arrays are not supported, so `dlt` writes plain columns for this
+destination. Everything else in `dlt`'s type matrix is passed through natively.
 
 ### Loading with INSERT statements
 
 Data is loaded via INSERT statements by default. MSSQL has a limit of 1000 rows per INSERT, and this is what we use. We send multiple
-sql statements in a single batch. In case you observe odbc driver locking (i.e. when connection with open transaction leaks into the pool) you can:
+sql statements in a single batch. In case you observe driver locking (i.e. when connection with open transaction leaks into the pool) you can:
 
-1. disable `pyodbc` connection pool.
+1. disable the connection pool that `mssql-python` enables by default.
 ```py
-import pyodbc
-pyodbc.pooling = False
+import mssql_python
+mssql_python.pooling(enabled=False)
 ```
 
 2. disable batching of multiple statements in `dlt`
@@ -171,7 +278,7 @@ dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dl
 
 ## Supported file formats
 * [insert-values](../file-formats.md#sql-insert) is used by default
-* [parquet](../file-formats.md#parquet) is used if mssql ADBC driver is installed
+* [parquet](../file-formats.md#parquet) is available when `pyarrow` is installed, and is opt-in
 
 ## Supported column hints
 **mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
@@ -196,19 +303,6 @@ The **mssql** destination **does not** create UNIQUE indexes by default on colum
 ```toml
 [destination.mssql]
 create_indexes=true
-```
-
-You can explicitly set the ODBC driver name:
-```toml
-[destination.mssql.credentials]
-driver="ODBC Driver 18 for SQL Server"
-```
-
-When using a SQLAlchemy connection string, replace spaces with `+`:
-
-```toml
-# Keep it at the top of your TOML file, before any section starts
-destination.mssql.credentials="mssql://loader:<password>@loader.database.windows.net/dlt_data?driver=ODBC+Driver+18+for+SQL+Server"
 ```
 
 ### dbt support
