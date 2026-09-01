@@ -83,15 +83,8 @@ function buildSlugMap(sourceDir) {
   return slugMap;
 }
 
-/**
- * Clean MDX/React artifacts from markdown source.
- *
- * - Strips `import ... from '...'` lines (MDX imports)
- * - Strips single-line self-closing React component tags: <Component />
- * - Strips multi-line self-closing React component tags that start with
- *   <Component on one line and end with /> on a later line
- */
-function cleanMarkdown(content) {
+/** Strip MDX imports and self-closing React tags. With `expandCtx`, expand `<DocCardList />` to a markdown list instead. */
+function cleanMarkdown(content, expandCtx) {
   const lines = content.split("\n");
   const result = [];
   let insideComponent = false;
@@ -112,6 +105,12 @@ function cleanMarkdown(content) {
 
     // Single-line self-closing React component: <Component ... />
     if (/^\s*<[A-Z][A-Za-z]*[\s/]/.test(line) && /\/>\s*$/.test(line)) {
+      if (expandCtx) {
+        const expansion = expandDocCardList(line, expandCtx);
+        if (expansion !== null) {
+          result.push(expansion);
+        }
+      }
       continue;
     }
 
@@ -125,6 +124,91 @@ function cleanMarkdown(content) {
   }
 
   return result.join("\n");
+}
+
+/** Expand `<DocCardList />` to a markdown list of children, or return null to fall back to stripping. */
+function expandDocCardList(line, ctx) {
+  if (!/^\s*<DocCardList[\s/]/.test(line)) return null;
+
+  const children = ctx.childrenMap[ctx.docId] || ctx.childrenMap[`${ctx.docId}/index`];
+  if (!children || children.length === 0) return null;
+
+  const items = [];
+  for (const childDocId of children) {
+    // Skip self-references: the index doc that owns this DocCardList.
+    const childUrlDocId = childDocId.replace(/\/index$/, "");
+    if (childUrlDocId === ctx.docId) continue;
+
+    const childInfo = readChildFrontmatter(childDocId, ctx.sourceDir);
+    if (!childInfo) continue;
+
+    const url = `${ctx.baseUrl}${ctx.routePrefix}${childUrlDocId}.md`;
+    const desc = childInfo.description ? `: ${childInfo.description}` : "";
+    items.push(`- [${childInfo.title}](${url})${desc}`);
+  }
+
+  return items.length > 0 ? items.join("\n") : null;
+}
+
+/** Read a child doc's frontmatter from `sourceDir`, or null if no source file exists. */
+function readChildFrontmatter(docId, sourceDir) {
+  const candidates = [path.join(sourceDir, `${docId}.md`), path.join(sourceDir, `${docId}.mdx`)];
+  for (const candidate of candidates) {
+    if (fs.existsSync(candidate)) {
+      const fm = readFrontmatter(fs.readFileSync(candidate, "utf8"));
+      return {
+        title: fm.title || path.basename(docId),
+        description: fm.description || "",
+      };
+    }
+  }
+  return null;
+}
+
+/** Map each category's index docId to its children, in sidebar order. */
+function buildCategoryChildrenMap(sidebarItems) {
+  const map = {};
+
+  function flatten(items) {
+    const out = [];
+    for (const item of items) {
+      if (typeof item === "string") {
+        out.push(item);
+      } else if (item && item.type === "doc" && item.id) {
+        out.push(item.id);
+      } else if (item && item.type === "category") {
+        if (item.link && item.link.type === "doc" && item.link.id) {
+          out.push(item.link.id);
+        }
+      }
+    }
+    return out;
+  }
+
+  function walk(items) {
+    for (const item of items) {
+      if (!item || typeof item !== "object") continue;
+      if (item.type === "category" && Array.isArray(item.items)) {
+        const children = flatten(item.items);
+        const anchors = new Set();
+        // Cookbook-style anchor: category's link.id points at the index doc.
+        if (item.link && item.link.type === "doc" && item.link.id) {
+          anchors.add(item.link.id);
+        }
+        // Destinations-style anchor: an /index doc listed inside items[].
+        for (const c of children) {
+          if (c.endsWith("/index")) anchors.add(c);
+        }
+        for (const anchor of anchors) {
+          map[anchor] = children;
+        }
+        walk(item.items);
+      }
+    }
+  }
+
+  walk(sidebarItems);
+  return map;
 }
 
 /**
@@ -364,12 +448,32 @@ module.exports = function llmsTxtPlugin(_context, options) {
           sourceFile,
           sourceDir: route.sourceDir,
           isMaster: route.isMaster,
+          routePrefix: route.prefix,
         });
       }
 
       console.log(`[llms-txt] Found ${pages.length} pages with source .md files`);
 
-      // Step 3: Copy source .md files with cleanup
+      // Load sidebar definitions early so the copy step can expand DocCardList.
+      let sidebars = {};
+      const sidebarsPath = path.join(siteDir, "sidebars.js");
+      try {
+        sidebars = require(sidebarsPath);
+      } catch (e) {
+        console.warn(`[llms-txt] Could not load sidebars.js: ${e.message}`);
+      }
+
+      // Merge category-children maps across all sidebars (docsSidebar, hubSidebar, etc.)
+      // so any page that anchors a category can have its <DocCardList /> expanded.
+      const childrenMap = {};
+      for (const sidebarId of Object.keys(sidebars)) {
+        const sidebarItems = sidebars[sidebarId];
+        if (!Array.isArray(sidebarItems)) continue;
+        Object.assign(childrenMap, buildCategoryChildrenMap(sidebarItems));
+      }
+      console.log(`[llms-txt] Category children map: ${Object.keys(childrenMap).length} anchor docs`);
+
+      // Step 3: Copy source .md files with cleanup (and DocCardList expansion)
       let copiedCount = 0;
       for (const page of pages) {
         const destFile = path.join(outDir, page.mdRel);
@@ -378,7 +482,17 @@ module.exports = function llmsTxtPlugin(_context, options) {
           fs.mkdirSync(destDir, { recursive: true });
         }
         const content = fs.readFileSync(page.sourceFile, "utf8");
-        const cleaned = cleanMarkdown(content);
+        // Derive docId from page.mdRel: strip the route prefix and the .md
+        // extension. Also strip a trailing /index because the URL collapses it.
+        const innerMdRel = page.routePrefix ? page.mdRel.slice(page.routePrefix.length) : page.mdRel;
+        const docId = innerMdRel.replace(/\.md$/, "").replace(/\/index$/, "");
+        const cleaned = cleanMarkdown(content, {
+          docId,
+          childrenMap,
+          sourceDir: page.sourceDir,
+          baseUrl,
+          routePrefix: page.routePrefix,
+        });
         fs.writeFileSync(destFile, cleaned);
         copiedCount++;
       }
@@ -386,15 +500,6 @@ module.exports = function llmsTxtPlugin(_context, options) {
 
       // Step 4: Generate llms.txt (master version only)
       const masterPages = pages.filter((p) => p.isMaster && !excludeFromIndex.some((pat) => p.mdRel.includes(pat)));
-
-      // Load sidebar definitions and build sidebar maps
-      let sidebars = {};
-      const sidebarsPath = path.join(siteDir, "sidebars.js");
-      try {
-        sidebars = require(sidebarsPath);
-      } catch (e) {
-        console.warn(`[llms-txt] Could not load sidebars.js: ${e.message}`);
-      }
 
       // Build sidebar map for main docs (docsSidebar)
       let mainSidebarMap = null;
