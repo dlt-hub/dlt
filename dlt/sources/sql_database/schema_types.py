@@ -117,9 +117,19 @@ def sqla_col_to_column_schema(
     sql_t = sql_col.type
 
     if type_adapter_callback:
+        original_sql_t = sql_t
         sql_t = type_adapter_callback(sql_t)
+        if sql_t is None:
+            logger.warning(
+                "`type_adapter_callback` returned None for column %s with reflected type %s."
+                " This drops reflected type information and forces dlt to infer the type from"
+                " data. If you want to keep the reflected type unchanged, return the original"
+                " SQLAlchemy type from the callback.",
+                sql_col.name,
+                original_sql_t,
+            )
         # Check if sqla type class rather than instance is returned
-        if sql_t is not None and isinstance(sql_t, type):
+        elif isinstance(sql_t, type):
             sql_t = sql_t()
 
     if sql_t is None:
