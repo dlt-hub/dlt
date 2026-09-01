@@ -105,7 +105,7 @@ pipeline.run(initial_resource)
 
 By default, the `_DLT_DELETED` or the `_DLT_SYS_CHANGE_VERSION` columns are only created by the incremental change tracking resource when there are changes. If you want these to be created during the initial load, you can configure this with `apply_hints` before running the pipeline as follows:
 
-```py
+```py notype
 initial_resource.apply_hints(
         columns=[
             {"name": "_dlt_sys_change_version", "data_type": "bigint"},
@@ -116,7 +116,7 @@ initial_resource.apply_hints(
 
 Next, configure the incremental resource for the first run with the `create_change_tracking_table` function and run it **once**:
 
-```py
+```py notype
 from dlthub.sources.mssql import create_change_tracking_table
 
 # Optional: Configure engine isolation level
@@ -304,7 +304,7 @@ ORDER BY
 Doing a full refresh will drop the destination table, i.e., delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
-```py
+```py notype
 pipeline.run(initial_resource, refresh="drop_resources")
 ```
 

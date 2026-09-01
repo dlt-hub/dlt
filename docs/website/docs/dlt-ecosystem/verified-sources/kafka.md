@@ -106,7 +106,7 @@ If you created a topic and start reading from it immediately, the brokers may no
 
 This function retrieves messages from the given Kafka topics.
 
-```py
+```py notype
 @dlt.resource(name="kafka_messages", table_name=lambda msg: msg["_kafka"]["topic"])
 def kafka_consumer(
     topics: Union[str, List[str]],
@@ -160,7 +160,7 @@ this offset.
 
 2. To extract several topics:
 
-   ```py
+   ```py notype
    topics = ["topic1", "topic2", "topic3"]
 
    resource = kafka_consumer(topics)
@@ -169,7 +169,7 @@ this offset.
 
 3. To extract messages and process them in a custom way:
 
-   ```py
+   ```py notype
     def custom_msg_processor(msg: confluent_kafka.Message) -> Dict[str, Any]:
         return {
             "_kafka": {
@@ -186,7 +186,7 @@ this offset.
 
 4. To extract messages, starting from a timestamp:
 
-   ```py
+   ```py notype
     resource = kafka_consumer("topic", start_from=pendulum.DateTime(2023, 12, 15))
     pipeline.run(resource)
    ```

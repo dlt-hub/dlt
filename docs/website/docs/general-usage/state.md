@@ -127,7 +127,7 @@ def comments(user_id: str):
         max_id_expression = user_comments.filter(user_comments.user_id == user_id).select(user_comments["_id"].max())
         max_id_df = dataset(max_id_expression).df()
         # if there are no comments for the user, max_id will be None, so we replace it with 0
-        max_id = max_id_df[0][0] if len(max_id_df.index) else 0
+        max_id = max_id_df[0][0] if len(max_id_df.index) else 0  # ty: ignore
 
     # use max_id to filter our results (we simulate an API query)
     yield from [
@@ -160,4 +160,3 @@ This will display the source and resource state slots for all known sources.
 
 - Use the `dlt pipeline <pipeline_name> drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#dlt-pipeline-drop).
 - Use the `dlt pipeline <pipeline_name> drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#dlt-pipeline-drop).
-

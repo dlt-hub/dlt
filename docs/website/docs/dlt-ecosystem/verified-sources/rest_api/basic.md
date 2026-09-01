@@ -306,7 +306,7 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
     - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
 
 Example:
-```py
+```py notype
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
 config = {
@@ -993,7 +993,7 @@ Each processing step is a dictionary specifying the type of operation (`filter`,
 
 #### Quick example
 
-```py
+```py notype
 def lower_title(record):
     record["title"] = record["title"].lower()
     return record
@@ -1072,7 +1072,7 @@ config: RESTAPIConfig = {
 
 The `yield_map` step allows you to transform a record into multiple records. The provided function should take a record as an argument and return an iterator of records. For example, to flatten the `reactions` field:
 
-```py
+```py notype
 def flatten_reactions(post):
     post_without_reactions = copy.deepcopy(post)
     post_without_reactions.pop("reactions")
@@ -1097,7 +1097,7 @@ config: RESTAPIConfig = {
 
 You can combine multiple processing steps to achieve complex transformations:
 
-```py
+```py notype
 {
     "name": "posts",
     "endpoint": "posts",
@@ -1424,7 +1424,7 @@ When you are running the pipeline and getting a `DictValidationException`, it me
 
 For example, if you have a source configuration like this:
 
-```py
+```py notype
 config: RESTAPIConfig = {
     "client": {
         # ...

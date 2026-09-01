@@ -142,7 +142,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function returns a list of resources to load products, orders, and customers data from the Shopify API.
 
-```py
+```py notype
 @dlt.source()
 def shopify_source(
     private_app_password: str = dlt.secrets.value,
@@ -177,7 +177,7 @@ def shopify_source(
 
 This resource loads products from your Shopify shop into the destination. It supports incremental loading and pagination.
 
-```py
+```py notype
 @dlt.resource(primary_key="id", write_disposition="merge")
 def products(
     updated_at: dlt.sources.incremental[
@@ -201,7 +201,7 @@ Similar to the mentioned resource, there are two more resources "orders" and "cu
 ### Resource `shopify_partner_query`:
 This resource can be used to run custom GraphQL queries to load paginated data.
 
-```py
+```py notype
 @dlt.resource
 def shopify_partner_query(
     query: str,
@@ -254,7 +254,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from "products", "orders", and "customers" from January 1, 2023:
 
-   ```py
+   ```py notype
    # Add your desired resources to the list...
    resources = ["products", "orders", "customers"]
 
@@ -265,7 +265,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load past Shopify orders in weekly chunks using start_date and end_date parameters. This minimizes potential failure during large data loads. Running chunks and incremental loads in parallel accelerates the initial load.
 
-   ```py
+   ```py notype
    # Load all orders from 2023-01-01 to now
    min_start_date = current_start_date = pendulum.DateTime(2023, 1, 1)
    max_end_date = pendulum.now()
@@ -297,7 +297,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    print(load_info)
    ```
 1. To load the first 10 transactions via a GraphQL query from the Shopify Partner API.
-   ```py
+   ```py notype
     # Construct query to load transactions 100 per page, the `$after` variable is used to paginate
     query = """query Transactions($after: String) {
     transactions(after: $after, first: 10) {

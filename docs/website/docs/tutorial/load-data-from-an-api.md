@@ -444,7 +444,7 @@ def get_comments(
 
 We can load this resource separately from the issues resource; however, loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
 
-```py
+```py notype
 @dlt.source
 def github_source():
     return [get_issues, get_comments]
@@ -550,7 +550,8 @@ For the next step, we'd want to get the [number of repository clones](https://do
 
 Let's handle this by changing our `fetch_github_data()` function first:
 
-```py
+```py notype
+from dlt.sources.helpers.rest_client import paginate
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 def fetch_github_data_with_token(endpoint, params={}, access_token=None):
@@ -578,7 +579,7 @@ def github_source_with_token(access_token: str):
 
 Here, we added an `access_token` parameter and now we can use it to pass the access token to the request:
 
-```py
+```py notype
 load_info = pipeline.run(github_source_with_token(access_token="ghp_XXXXX"))
 ```
 
@@ -611,8 +612,6 @@ access_token = "ghp_A...3aRY"
 Now we can run the script and it will load the data from the `traffic/clones` endpoint:
 
 ```py
-...
-
 @dlt.source
 def github_source_with_token_from_secrets(
     access_token: str = dlt.secrets.value,
@@ -620,7 +619,7 @@ def github_source_with_token_from_secrets(
     for endpoint in ["issues", "comments", "traffic/clones"]:
         params = {"per_page": 100}
         yield dlt.resource(
-            fetch_github_data_with_token(endpoint, params, access_token),
+            fetch_github_data_with_token(endpoint, params, access_token),  # ty: ignore
             name=endpoint,
             write_disposition="merge",
             primary_key="id",
@@ -652,7 +651,7 @@ def fetch_github_data_with_token_and_params(repo_name, endpoint, params={}, acce
     return paginate(
         url,
         params=params,
-        auth=BearerTokenAuth(token=access_token) if access_token else None,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,  # ty: ignore
     )
 
 

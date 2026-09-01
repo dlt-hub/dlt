@@ -580,18 +580,16 @@ Definition-time (always use current load time):
 )
 def dim_customer():
     ...
-```
 
-Per-run reset (override just for this run):
-```py
-r.apply_hints(
+# Per-run reset (override just for this run):
+dim_customer.apply_hints(
     write_disposition={
         "disposition": "merge",
         "strategy": "scd2",
         "boundary_timestamp": None,  # reset to current load time for this run
     }
 )
-pipeline.run(r(...))
+pipeline.run(dim_customer())
 ```
 When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
 
@@ -617,19 +615,20 @@ If your source data contains nested fields (like lists or arrays) that may retur
 ### 🧪 Use scd2 with Arrow tables, Pandas or Polars DataFrames
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
-```py
+
+```py notype
 import dlt
 from dlt.sources.helpers.transform import add_row_hash_to_table
 
 scd2_r = dlt.resource(
-          arrow_table,
-          name="tabular",
-          write_disposition={
-              "disposition": "merge",
-              "strategy": "scd2",
-              "row_version_column_name": "row_hash",
-          },
-      ).add_map(add_row_hash_to_table("row_hash"))
+    arrow_table,
+    name="tabular",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "scd2",
+        "row_version_column_name": "row_hash",
+    },
+).add_map(add_row_hash_to_table("row_hash"))
 ```
 `add_row_hash_to_table` is the name of the transform function that will compute and create the `row_hash` column that is declared as holding the hash by `row_version_column_name`.
 

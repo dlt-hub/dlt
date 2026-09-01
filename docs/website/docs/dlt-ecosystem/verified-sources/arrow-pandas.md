@@ -233,7 +233,7 @@ All struct types are represented as `json` and will be loaded as JSON (if the de
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
 If you want to represent nested data as separate tables, you must yield DataFrames and Arrow tables as records. In the examples above:
-```py
+```py notype
 # yield pandas DataFrame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
 

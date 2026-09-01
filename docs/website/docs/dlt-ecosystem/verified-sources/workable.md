@@ -190,7 +190,7 @@ def workable_source(
 
 This function is used to retrieve "candidates" endpoints.
 
-```py
+```py notype
 @dlt.resource(name="candidates", write_disposition="merge", primary_key="id")
 def candidates_resource(
     updated_at: Optional[Any] = dlt.sources.incremental(
@@ -223,7 +223,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load all data:
 
-   ```py
+   ```py notype
    load_data = workable_source()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -233,7 +233,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load data from a specific date, including dependent endpoints:
 
-   ```py
+   ```py notype
    load_data = workable_source(start_date=pendulum.DateTime(2022, 1, 1), load_details=True)
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -245,7 +245,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load custom endpoints “candidates” and “members”:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("candidates", "members"))
    # print the information on data that was loaded
    print(load_info)
@@ -255,7 +255,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load data from the “jobs” endpoint and its dependent endpoints like "activities" and "application_form":
 
-   ```py
+   ```py notype
    load_data = workable_source(start_date=pendulum.DateTime(2022, 2, 1), load_details=True)
    # Set the load_details as True to load all the dependent endpoints.
    load_info = pipeline.run(load_data.with_resources("jobs","jobs_activities","jobs_application_form"))

@@ -323,7 +323,7 @@ Also, since recently, `dlt` no longer recognizes date and time types, so you hav
 Use the `apply_hints` method on the resource to achieve this.
 Here's how you can do it:
 
-```py
+```py notype
 for resource in resources:
     resource.apply_hints(columns={
         "total_amount": {"data_type": "double"},
@@ -396,7 +396,7 @@ def google_spreadsheet(
 This function processes each range name provided by the source function, loading its data into
 separate tables in the destination.
 
-```py
+```py notype
 dlt.resource(
      process_range(data, headers=headers, data_types=data_types),
      name=name,
@@ -426,7 +426,7 @@ This table refreshes after each load, storing information on loaded ranges:
 - Range name as given to the source.
 - String and parsed representation of the loaded range.
 
-```py
+```py notype
 dlt.resource(
      metadata_table,
      write_disposition="merge",
@@ -464,7 +464,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from explicit range names:
 
-   ```py
+   ```py notype
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         range_names=["range_name1", "range_name2"], # Range names
@@ -479,7 +479,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the range_names from the spreadsheet:
 
-   ```py
+   ```py notype
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         get_sheets=False,
@@ -493,7 +493,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the sheets from the spreadsheet:
 
-   ```py
+   ```py notype
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         get_sheets=True,
@@ -507,7 +507,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the sheets and range_names:
 
-   ```py
+   ```py notype
    load_data = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/1HhWHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         get_sheets=True,
@@ -521,7 +521,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from multiple spreadsheets:
 
-   ```py
+   ```py notype
    load_data1 = google_spreadsheet(
         "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
         range_names=["Sheet 1!A1:B10"],
@@ -539,7 +539,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load with table rename:
 
-   ```py
+   ```py notype
    load_data = google_spreadsheet(
     "https://docs.google.com/spreadsheets/d/43lkHjqouQnnCIZAFa2rL6vT91YRN8aIhts22SUUR580/edit#gid=0", # Spreadsheet URL
      range_names=["Sheet 1!A1:B10"],
@@ -578,7 +578,7 @@ Below is the correct way to set up an Airflow DAG for this purpose:
 
 - When adding the Google Spreadsheet task to the pipeline, avoid decomposing it; run it as a single task for efficiency.
 
-```py
+```py notype
 from dlt.helpers.airflow_helper import PipelineTasksGroup
 
 @dag(

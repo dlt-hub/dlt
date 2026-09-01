@@ -234,7 +234,6 @@ The `parallelized=True` argument wraps the resources in a generator that yields 
 ```py execute
 import dlt
 import time
-from threading import currentThread
 
 @dlt.resource(parallelized=True)
 def list_users(n_users):
@@ -248,7 +247,7 @@ def list_users(n_users):
 def get_user_details(user_id):
     # Transformer that fetches details for users in a page
     time.sleep(0.1)  # Simulate latency of a rest API call
-    # print(f"user_id {user_id} in thread {currentThread().name}")
+    # print(f"user_id {user_id} in thread {threading.current_thread().name}")
     return {"entity": "user", "id": user_id}
 
 @dlt.resource(parallelized=True)
@@ -261,7 +260,7 @@ def list_products(n_products):
 @dlt.transformer(parallelized=True)
 def get_product_details(product_id):
     time.sleep(0.1)
-    # print(f"product_id {product_id} in thread {currentThread().name}")
+    # print(f"product_id {product_id} in thread {threading.current_thread().name}")
     return {"entity": "product", "id": product_id}
 
 @dlt.source
@@ -365,7 +364,6 @@ The example below does the same but using an async generator as the main resourc
 The `parallelized` flag is not supported or needed for async generators; these are wrapped and evaluated concurrently by default:
 ```py execute
 import asyncio
-from threading import currentThread
 
 import dlt
 
@@ -382,7 +380,7 @@ async def a_list_items(start, limit):
 async def a_get_details(item_id):
     # simulate a slow REST API where you wait 0.3 sec for each item
     await asyncio.sleep(0.3)
-    # print(f"item_id {item_id} in thread {currentThread().name}")
+    # print(f"item_id {item_id} in thread {threading.current_thread().name}")
     # just return the results, if you yield, generator will be evaluated in main thread
     return {"row": item_id}
 
@@ -655,12 +653,12 @@ with signals.intercepted_signals():
     asyncio.run(_run_async())
 # activate pipelines before they are used
 pipeline_1.activate()
-pipeline_1_count = pipeline_1.last_trace.last_normalize_info.row_counts["async_table"]
+pipeline_1_count = pipeline_1.last_trace.last_normalize_info.row_counts["async_table"]  # ty: ignore
 print(pipeline_1_count)
 #> 10
 
 pipeline_2.activate()
-pipeline_2_count = pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"]
+pipeline_2_count = pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"]  # ty: ignore
 print(pipeline_2_count)
 #> 5
 ```

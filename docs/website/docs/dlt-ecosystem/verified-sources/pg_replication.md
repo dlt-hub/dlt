@@ -144,7 +144,7 @@ The `init_replication` function serves two main purposes:
 1. Sets up Postgres replication by creating the necessary replication slot and publication if they don't already exist.
 2. Optionally captures an initial snapshot when `persist_snapshots=True` and returns snapshot resources for loading existing data.
 
-```py
+```py notype
 def init_replication(
     slot_name: str = dlt.config.value,
     pub_name: str = dlt.config.value,
@@ -235,7 +235,7 @@ The general workflow for setting up replication is:
     
 2. Initialize replication (if needed) with `init_replication`, and capture a snapshot of the source:
       
-      ```py
+      ```py notype
       snapshot = init_replication(  
          slot_name="my_slot",
          pub_name="my_pub",
@@ -248,13 +248,13 @@ The general workflow for setting up replication is:
 
 3. Load the initial snapshot, so the destination contains all existing data before replication begins:
     
-   ```py
+   ```py notype
    repl_pl.run(snapshot)
    ```
     
 4. Apply ongoing changes by creating a `replication_resource` to capture updates and keep the destination in sync:
       
-   ```py
+   ```py notype
    # Create a resource that generates items for each change in the source table
    changes = replication_resource("my_slot", "my_pub")
  

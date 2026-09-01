@@ -179,7 +179,7 @@ def matomo_visits(
 
 This function retrieves site visits within a specified timeframe. If a start date is given, it begins from that date. If not, it retrieves all visits up until now.
 
-```py
+```py notype
 @dlt.resource(
     name="visits", write_disposition="append", primary_key="idVisit", selected=True
 )
@@ -212,7 +212,7 @@ This is an [incremental](../../general-usage/incremental-loading) resource metho
 
 This function retrieves unique visit information from get_last_visits.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=get_last_visits,
     write_disposition="merge",
@@ -251,7 +251,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load the data from reports.
 
-   ```py
+   ```py notype
    data_reports = matomo_reports()
    load_info = pipeline.run(data_reports)
    print(load_info)
@@ -260,7 +260,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load custom data from reports using queries.
 
-   ```py
+   ```py notype
    queries = [
        {
            "resource_name": "custom_report_name",
@@ -281,7 +281,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from reports and visits.
 
-   ```py
+   ```py notype
    data_reports = matomo_reports()
    data_events = matomo_visits()
    load_info = pipeline.run([data_reports, data_events])
@@ -290,7 +290,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data on live visits and visitors, and only retrieve data from today.
 
-   ```py
+   ```py notype
    load_data = matomo_visits(initial_load_past_days=1, get_live_event_visitors=True)
    load_info = pipeline.run(load_data)
    print(load_info)

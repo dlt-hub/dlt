@@ -161,7 +161,7 @@ verified source.
 
 2. To load all the integrated databases:
 
-   ```py
+   ```py notype
    load_data = notion_databases()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -169,7 +169,7 @@ verified source.
 
 3. To load the custom databases:
 
-   ```py
+   ```py notype
    selected_database_ids = [{"id": "0517dae9409845cba7d","use_name":"db_one"}, {"id": "d8ee2d159ac34cfc"}]
    load_data = notion_databases(database_ids=selected_database_ids)
    load_info = pipeline.run(load_data)

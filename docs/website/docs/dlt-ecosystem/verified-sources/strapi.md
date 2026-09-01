@@ -68,7 +68,7 @@ To get started with your data pipeline, follow these steps:
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```py
+   ```py notype
    # put your secret values and credentials here. do not share this file and do not push it to github
    [sources.strapi]
    api_secret_key = "api_secret_key" # please set me up!
@@ -161,7 +161,7 @@ verified source.
 
 1. To load the specified endpoints:
 
-   ```py
+   ```py notype
    endpoints = ["athletes"]
    load_data = strapi_source(endpoints=endpoints)
 

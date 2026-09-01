@@ -61,7 +61,7 @@ You can also access the last `extract`, `normalize`, and `load` infos directly:
     # print human-friendly normalization information
     print(pipeline.last_trace.last_normalize_info)
     # access row counts dictionary of normalize info
-    print(pipeline.last_trace.last_normalize_info.row_counts)
+    print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore
     # print human-friendly load information
     print(pipeline.last_trace.last_load_info)
 ```
@@ -122,9 +122,10 @@ RUNTIME__SLACK_INCOMING_HOOK="https://hooks.slack.com/services/T04DHMAF13Q/B04E7
 
 Then, the configured hook is available via the pipeline object. We also provide a convenience method to send Slack messages:
 
-```py
+```py notype
 from dlt.common.runtime.slack import send_slack_message
 
+message = "..."
 send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 
 ```
@@ -567,7 +568,7 @@ This reports the row count per table for that `load_id` (including `_dlt` tables
 
 Retrying the load is always the safest remedy: run the pipeline again (ideally wrapped in `tenacity`, see below) and `dlt` resumes the pending package and completes it. If retrying is not possible, the remedy depends on the write disposition. For `merge` and `replace` tables, do not delete rows by hand — abort the package with `pipeline.abort_packages()`, which restores the local checkpoint the package was created from, then run the pipeline again. For `append` tables you can instead remove the partially-loaded rows yourself. Attach the pipeline, take the `load_id` of the partially-loaded package, and set `root_table` to the affected append table. The root table carries `_dlt_load_id`, while nested tables link to it through `_dlt_parent_id`, so rows are deleted deepest-first with a subquery that walks up to the root:
 
-```py execute
+```py execute notype
 import dlt
 from dlt.common.schema.utils import get_nested_tables
 from dlt.common.utils import uniq_id
@@ -657,7 +658,7 @@ the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. The snippet 
 `load` stage with the `retry_load` strategy and define back-off or re-raise exceptions for any other
 steps (`extract`, `normalize`) and for terminal exceptions.
 
-```py
+```py notype
 from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry, wait_exponential
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
@@ -680,7 +681,7 @@ if __name__ == "__main__":
 
 You can also use `tenacity` to decorate functions. This example additionally retries on `extract`:
 
-```py
+```py notype
 if __name__ == "__main__":
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
 
@@ -794,11 +795,10 @@ Obviously, this requires a very long grace period to be defined in your producti
 
 :::warning
 Note that signal interception is possible only in the main Python thread. If you offload pipeline runs to a thread pool ([or async pool with thread executors](../reference/performance.md#parallelism-within-a-single-process)), intercept signal handling before any pipeline runs in the pool:
-```py
+```py notype
 import asyncio
 
 from dlt.common.runtime import signals
-
 
 with signals.intercepted_signals():
     # load data

@@ -300,6 +300,10 @@ You can combine table properties with partitioning:
 ```py
 from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
 
+@dlt.resource(table_format="iceberg")
+def my_data():
+    yield [{"id": 1, "value": "a"}]
+
 iceberg_adapter(
     my_data,
     partition=[iceberg_partition.month("created_at")],

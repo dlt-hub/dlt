@@ -196,7 +196,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load the entire base:
 
-   ```py
+   ```py notype
    base_id = "Please set me up!"     # The ID of the base.
 
    airtables = airtable_source(base_id=base_id)
@@ -205,7 +205,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load selected tables from a base table:
 
-   ```py
+   ```py notype
    base_id = "Please set me up!"     # The ID of the base.
    table_names = ["Table1", "Table2"] # A list of table IDs or table names to load.
 
@@ -221,7 +221,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data and apply hints to a specific column:
 
-   ```py
+   ```py notype
    base_id = "Please set me up!"       # The ID of the base.
    table_names = ["Table1", "Table2"]   # A list of table IDs or table names to load.
    resource_name = "Please set me up!" # The table name we want to apply hints.

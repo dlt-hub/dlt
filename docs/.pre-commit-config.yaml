@@ -16,11 +16,11 @@ repos:
     hooks:
       - id: check-snippets
         name: check-snippets
-        entry: uv run pytest -m "not example" -rn --tb=no -p no:warnings test_snippets.py --pages
+        entry: uv run pytest -m "not example" -p xdist -n auto -rn --tb=no -p no:warnings test_snippets.py --pages
         language: system
         files: ^website/docs/.*\.md$
         types: [markdown]
-        pass_filenames: true
+        pass_filenames: false
 
   - repo: local
     hooks:

@@ -122,7 +122,7 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 ### Source `personio_source`
 
 This `dlt` source returns data resources like `employees`, `absences`, `absence_types`, etc.
-```py
+```py notype
 @dlt.source(name="personio")
 def personio_source(
     client_id: str = dlt.secrets.value,
@@ -204,7 +204,7 @@ The transformer functions transform or process data from resources.
 The transformer function `employees_absences_balance` processes data from the `employees` resource.
 It fetches and returns a list of the absence balances for each employee.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=employees,
     write_disposition="merge",
@@ -237,14 +237,14 @@ verified source.
 
 1. To load employee data:
 
-   ```py
+   ```py notype
    load_data = personio_source().with_resources("employees")
    print(pipeline.run(load_data))
    ```
 
 1. To load data from all supported endpoints:
 
-   ```py
+   ```py notype
    load_data = personio_source()
    print(pipeline.run(load_data))
    ```

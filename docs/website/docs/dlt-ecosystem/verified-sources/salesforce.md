@@ -182,7 +182,7 @@ the "user_role" endpoint.
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.
 
-```py
+```py notype
 @dlt.resource(write_disposition="merge")
 def opportunity(
     last_timestamp: incremental[str] = dlt.sources.incremental(
@@ -230,7 +230,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
-   ```py
+   ```py notype
    from dlt.common.schema.typing import TSimpleRegex
 
    load_data = salesforce_source()
@@ -244,7 +244,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To use the method `pipeline.run()` to load custom endpoints “candidates” and “members”:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("opportunity", "contact"))
    # print the information on data that was loaded
    print(load_info)
@@ -256,7 +256,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load data from the “contact” in replace mode and “task” incrementally merge mode endpoints:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("contact", "task"))
    # pretty print the information on data that was loaded
    print(load_info)

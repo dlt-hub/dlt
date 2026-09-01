@@ -213,7 +213,7 @@ With `decompose="parallel"` or `decompose="parallel-isolated"`, the decomposed t
   - Change the name from “pipeline_name” to yours, for example, “pipedrive”.
   - Change runtime settings: data_folder, logging, retry policy, etc. For example, let’s wipe all the data created by the pipeline (`wipe_local_data=True`), redirect the dlt logger into the task logger (`use_task_logger=True`), and set the retry policy as a Retrying class object with three restart attempts.
 
-  ```py
+  ```py notype
   from tenacity import Retrying, stop_after_attempt
 
   # Set `use_data_folder` to True to store temporary data in the `data` bucket.
@@ -272,7 +272,7 @@ You should now move your working code from the pipeline script you previously ra
 
   **Note**: PipelineTasksGroup can’t handle the list of sources (e.g., data=[source, activities_source]), so we have to add them sequentially. See the [Troubleshooting](deploy-with-airflow-composer.md#troubleshooting) section.
 
-  ```py
+  ```py notype
   # Create the source,
   # the "serialize" decompose option will convert
   # dlt resources into Airflow tasks.
@@ -585,7 +585,7 @@ In this case, you perhaps passed a list of sources to the method `add_run` as da
 
 For example:
 
-```py
+```py notype
 tasks.add_run(
     pipeline=pipeline,
     data=[source, activities_source],
@@ -597,7 +597,7 @@ If `data` is a DltSource and `decompose` is “serialize,” it will decompose t
 
 PipelineTasksGroup can't handle the list of sources in the “serialize” mode; it can only decompose `DltSource`, so we have to add them sequentially:
 
-```py
+```py notype
 tasks.add_run(
     pipeline=pipeline,
     data=source,

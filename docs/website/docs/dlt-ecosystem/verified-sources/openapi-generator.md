@@ -103,7 +103,7 @@ This file contains the [configuration dictionary](./rest_api/basic#source-config
 
 The generated dictionary will look something like this:
 
-```py
+```py notype
 {
     "client": {
         "base_url": base_url,

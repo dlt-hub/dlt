@@ -278,7 +278,7 @@ You can combine both `query_adapter_callback` and `table_adapter_callback`
 to filter rows and select specific columns within the same source.  
 This works for one or more tables.
 
-```py
+```py notype
 source = sql_database(
     table_names=["family"],
     query_adapter_callback=query_adapter_callback,
@@ -399,7 +399,7 @@ table = sql_table(
 
 You can register a custom backend name so it can be used as the `backend` parameter:
 
-```py
+```py notype
 from dlt.sources.sql_database import (
     BaseTableLoader,
     register_table_loader_backend,

@@ -139,7 +139,7 @@ password="..."
 
 While `dlt` handles credentials automatically, you can also access them directly in your code. The `dlt.secrets` and `dlt.config` objects provide dictionary-like access to configuration values and secrets, enabling custom preprocessing if required. You can also store custom settings in the same configuration files.
 
-```py
+```py notype
 # Use `dlt.secrets` and `dlt.config` to explicitly retrieve values from providers
 source_instance = google_sheets(
     dlt.config["sheet_id"],
@@ -160,7 +160,7 @@ This creates a `GcpServiceAccountCredentials` instance from the values stored un
 ## Write configs and secrets in code
 
 You can also set values programmatically using `dlt.config` and `dlt.secrets`:
-```py
+```py notype
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
 ```
@@ -208,7 +208,7 @@ def google_sheets(
     # Handle tabs as either list or comma-separated string
     if isinstance(tab_names, str):
       tab_names = tab_names.split(",")
-    sheets = build('sheets', 'v4', credentials=ServiceAccountCredentials.from_service_account_info(credentials))
+    sheets = build('sheets', 'v4', credentials=ServiceAccountCredentials.from_service_account_info(credentials))  # ty: ignore
     tabs = []
     for tab_name in tab_names:
         data = _get_sheet(sheets, spreadsheet_id, tab_name)
@@ -243,14 +243,14 @@ In this example:
 
 In fact, `dlt` synthesizes a unique spec for each decorated function. For example, in the case of `google_sheets`, the following class is created:
 
-```py
-from dlt.common.configuration import configspec, with_config
+```py notype
+from dlt.common.configuration import configspec, with_config, BaseConfiguration
 
 @configspec
 class GoogleSheetsConfiguration(BaseConfiguration):
-  tab_names: List[str] = None  # mandatory
+  tab_names: list[str] = None  # mandatory
   credentials: GcpServiceAccountCredentials = None # mandatory secret
-  only_strings: Optional[bool] = False
+  only_strings: bool | None = False
 ```
 
 ### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
@@ -271,4 +271,3 @@ More information about this class can be found in the class docstrings.
 This class is a subclass of `BaseConfiguration` and is meant to serve as a base class for handling various types of credentials. It defines methods for initializing credentials, converting them to native representations, and generating string representations while ensuring sensitive information is appropriately handled.
 
 More information about this class can be found in the class docstrings.
-

@@ -34,7 +34,7 @@ This deploys the file ad-hoc, executes it on the platform, and streams logs back
 
 To run the same pipeline as a managed job, decorate the entrypoint and declare it in a workspace `__deployment__.py`:
 
-```py
+```py notype
 import dlt
 from dlt.hub import run
 
@@ -74,7 +74,7 @@ See [Deployments](../../hub/pipeline-operations/deployments.md) for the manifest
 
 Pass a `trigger=` to the decorator to make the job cron-driven:
 
-```py
+```py notype
 from dlt.hub.run import trigger
 
 

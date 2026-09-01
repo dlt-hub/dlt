@@ -154,8 +154,8 @@ import os
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
-os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID")
-os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID", "")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET", "")
 ```
 </TabItem>
 </Tabs>
@@ -209,7 +209,7 @@ import os
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__SERVER_HOSTNAME"] = "MY_DATABRICKS.azuredatabricks.net"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehouses/12345"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
-os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN")
+os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN", "")
 ```
 </TabItem>
 </Tabs>
@@ -441,8 +441,8 @@ import os
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
 os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
-os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID")
-os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID", "")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 ```
 </TabItem>
 </Tabs>
@@ -503,8 +503,8 @@ import os
 # Do not set up the secrets directly in the code!
 # What you can do is reassign env variables.
 os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@storage_account_name.dfs.core.windows.net/path"
-os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME")
-os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME", "")
+os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY", "")
 ```
 </TabItem>
 </Tabs>
@@ -752,7 +752,7 @@ from dlt.destinations.adapters import databricks_adapter
 
 @dlt.resource
 def high_volume_events():
-    yield from generate_events()  # Your event generator
+    yield from iter(()) # Your event generator
 
 databricks_adapter(
     high_volume_events,
@@ -788,7 +788,7 @@ from dlt.destinations.adapters import databricks_adapter
 
 @dlt.resource
 def customer_data():
-    yield from load_customers()  # Your customer data source
+    yield from iter(())  # Your customer data source
 
 # Create an Iceberg table for better schema evolution
 databricks_adapter(
@@ -820,7 +820,7 @@ from dlt.destinations.adapters import databricks_adapter
     ]
 )
 def transactions():
-    yield from load_transactions()
+    yield from iter(())  # your data generator
 
 # Apply comprehensive Databricks optimizations
 databricks_adapter(

@@ -101,7 +101,7 @@ This guide shows how to use the `RESTClient` class to read data from APIs, focus
 
 ## Creating a RESTClient instance
 
-```py
+```py notype
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
@@ -535,7 +535,7 @@ NextPageToken: n3xtp4g3
 
 To paginate through responses from this API, use `HeaderCursorPaginator` with `cursor_key` set to `"NextPageToken"`:
 
-```py
+```py notype
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=HeaderCursorPaginator(cursor_key="NextPageToken")
@@ -586,7 +586,7 @@ class QueryParamPaginator(BasePaginator):
 
 After defining your custom paginator, you can use it with the `RESTClient` by passing an instance of your paginator to the paginator parameter during the client's initialization. Here's how to use the `QueryParamPaginator`:
 
-```py
+```py notype
 from dlt.sources.helpers.rest_client import RESTClient
 
 client = RESTClient(
@@ -784,7 +784,7 @@ response = client.get("/users")
 
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
-```py
+```py notype
 from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
@@ -801,7 +801,7 @@ class CustomAuth(AuthConfigBase):
 
 Then, you can use your custom authentication class with the `RESTClient`:
 
-```py
+```py notype
 client = RESTClient(
     base_url="https://api.example.com",
     auth=CustomAuth(token="your_custom_token_here")
@@ -1057,7 +1057,7 @@ This is sometimes needed when loading from non-standard APIs which don't use HTT
 
 For example:
 
-```py
+```py notype
 from dlt.sources.helpers import requests
 
 def retry_if_error_key(response: Optional[requests.Response], exception: Optional[BaseException]) -> bool:
@@ -1359,7 +1359,7 @@ In this example, the resource will set the correct encoding for all responses. M
 
 ### Setup timeouts and retry strategies
 `rest_api` uses `dlt` custom sessions and `RESTClient` to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
-```py
+```py notype
 from dlt.sources.helpers import requests
 
 source_config: RESTAPIConfig = {

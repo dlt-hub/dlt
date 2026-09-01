@@ -255,7 +255,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the collections in a database:
 
-   ```py
+   ```py notype
    load_data = mongodb()
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
@@ -263,7 +263,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load specific collections from the database:
 
-   ```py
+   ```py notype
    load_data = mongodb().with_resources("collection_1", "collection_2")
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
@@ -271,7 +271,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load specific collections from the source incrementally:
 
-   ```py
+   ```py notype
    load_data = mongodb(incremental=dlt.sources.incremental("date")).with_resources("collection_1")
    load_info = pipeline.run(load_data, write_disposition="merge")
    print(load_info)
@@ -280,7 +280,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from a particular collection, say "movies," incrementally:
 
-   ```py
+   ```py notype
    load_data = mongodb_collection(
        collection="movies",
        incremental=dlt.sources.incremental(
@@ -298,7 +298,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To incrementally load a table with an append-only disposition using hints:
 
-   ```py
+   ```py notype
    # Suitable for tables where new rows are added, but existing rows aren't updated.
    # Load data from the 'listingsAndReviews' collection in MongoDB, using 'last_scraped' for incremental addition.
    airbnb = mongodb().with_resources("listingsAndReviews")
@@ -315,7 +315,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load a selected collection and rename it in the destination:
 
-   ```py
+   ```py notype
    # Create the MongoDB source and select the "collection_1" collection
    source = mongodb().with_resources("collection_1")
 
@@ -328,7 +328,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```
 
 1. To load a selected collection, using Apache Arrow for data conversion:
-   ```py
+   ```py notype
    # Load collection "movies", using Apache Arrow for conversion
    movies = mongodb_collection(
       collection="movies",
