@@ -101,6 +101,9 @@ class HfFilesystemDestinationClientConfiguration(FilesystemDestinationClientConf
     credentials: HfCredentials = None
     hf_dataset_card: bool = True
     """Create and update dataset card (README.md) with subset metadata for the Hugging Face dataset viewer."""
+    hf_show_progress: bool = False
+    """Show `huggingface_hub` upload and commit progress bars in the terminal. Disabled by default so
+    that `dlt` controls progress reporting via `dlt.pipeline(progress=...)`."""
 
     @property
     def hf_namespace(self) -> str:

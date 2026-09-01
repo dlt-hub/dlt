@@ -1478,9 +1478,31 @@ class HfFilesystemClient(FilesystemClient):
         capabilities: DestinationCapabilitiesContext,
     ) -> None:
         from huggingface_hub import HfApi
+        from huggingface_hub.utils import (
+            are_progress_bars_disabled,
+            disable_progress_bars,
+            enable_progress_bars,
+        )
 
         super().__init__(schema, config, capabilities)
         self.config: HfFilesystemDestinationClientConfiguration = config
+        # by default dlt reports progress via `dlt.pipeline(progress=...)`, so silence the
+        # `huggingface_hub` upload and commit tqdm progress bars unless the user opts in.
+        # `huggingface_hub` exposes no scoped/per-client switch for these bars, so this is a
+        # process-global toggle (the same one `disable_progress_bars()`/`enable_progress_bars()`
+        # flip); with concurrent pipelines using different settings the last constructed client
+        # wins. we minimize that churn by only flipping the state when it actually differs.
+        # the `HF_HUB_DISABLE_PROGRESS_BARS` env var takes priority in `huggingface_hub`, so when
+        # the user pinned it we leave the global state alone -- detecting presence (rather than the
+        # parsed constant) keeps this robust across `huggingface_hub` versions and avoids
+        # `huggingface_hub` warning and ignoring us on every construction
+        if "HF_HUB_DISABLE_PROGRESS_BARS" not in os.environ:
+            want_disabled = not config.hf_show_progress
+            if are_progress_bars_disabled() is not want_disabled:
+                if config.hf_show_progress:
+                    enable_progress_bars()
+                else:
+                    disable_progress_bars()
         self.hf_api = HfApi(**config.credentials.to_hf_api_credentials())
 
     @property
