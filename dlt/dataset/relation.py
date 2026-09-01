@@ -79,6 +79,7 @@ from dlt.dataset._join import (
     _apply_join,
     _apply_explicit_join,
     _extract_joined_table_aliases,
+    _from_source,
     _JoinTarget,
     _left_source_qualifier,
     _qualify_unscoped_tables_with_dataset,
@@ -409,10 +410,16 @@ class Relation(WithSqlClient):
         proj = [sge.Column(this=sge.to_identifier(col, quoted=True)) for col in columns]
         rel = self.__copy__()
         if has_pure_column_projection(self.sqlglot_expression):
-            expr = self.sqlglot_expression.copy()
-            expr.set("expressions", proj)
-            rel._sqlglot_expression = expr
-            return rel
+            current_columns = [sel.output_name for sel in self.sqlglot_expression.selects]
+            source = _from_source(self.sqlglot_expression)
+            can_replace_projection = list(columns) == current_columns or (
+                isinstance(source, sge.Subquery) and all(col in current_columns for col in columns)
+            )
+            if can_replace_projection:
+                expr = self.sqlglot_expression.copy()
+                expr.set("expressions", proj)
+                rel._sqlglot_expression = expr
+                return rel
         # a defining projection (aliases, expressions, distinct, group) must become a derived table
         qualifier = _left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
         subquery = self.sqlglot_expression.subquery(qualifier)

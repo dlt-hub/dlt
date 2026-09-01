@@ -750,8 +750,38 @@ def test_chained_column_selection(populated_pipeline: Pipeline) -> None:
     data_frame = table_relationship.select(*columns).select(*["other_decimal"]).head().df()
     assert list(data_frame.columns.values) == ["other_decimal"]
 
-    data_frame = table_relationship.select(*columns).select(*["decimal"]).head().df()
-    assert list(data_frame.columns.values) == ["decimal"]
+    with pytest.raises(LineageFailedException):
+        table_relationship.select(*columns).select(*["decimal"]).head().df()
+
+
+@pytest.mark.no_load
+@pytest.mark.essential
+def test_select_preserves_single_row_struct_query_aliases(populated_pipeline: Pipeline) -> None:
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        pytest.skip("DuckDB struct field syntax is used for this regression test")
+
+    relation = populated_pipeline.dataset()("""
+        SELECT
+            'items' AS "table_name",
+            'id' AS "column_name",
+            "t1"."id"."maximum" AS "maximum",
+            "t1"."id"."minimum" AS "minimum",
+            "t1"."id"."row_count" AS "row_count"
+        FROM (
+            SELECT {
+                'maximum': MAX("t0"."id"),
+                'minimum': MIN("t0"."id"),
+                'row_count': COUNT("t0"."id")
+            } AS "id"
+            FROM items AS "t0"
+        ) AS "t1"
+        """)
+
+    selected = relation.select(*relation.columns)
+
+    assert relation.columns == ["table_name", "column_name", "maximum", "minimum", "row_count"]
+    assert list(selected.df().columns.values) == relation.columns
+    assert "FROM (SELECT 'items' AS \"table_name\"" in selected.to_sql()
 
 
 @pytest.mark.no_load
