@@ -11,6 +11,7 @@ from typing import (
 )
 from typing_extensions import TypeAlias
 
+from sqlalchemy.dialects import mssql
 from sqlalchemy.exc import NoReferencedTableError
 
 from dlt.common.typing import TypedDict
@@ -131,6 +132,10 @@ def sqla_col_to_column_schema(
     if _is_uuid_type(sql_t):
         # we represent UUID as text by default, see default_table_adapter
         col["data_type"] = "text"
+    elif isinstance(sql_t, (mssql.MONEY, mssql.SMALLMONEY)):
+        col["data_type"] = "decimal"
+        col["precision"] = 19 if isinstance(sql_t, mssql.MONEY) else 10
+        col["scale"] = 4
     elif isinstance(sql_t, sqltypes.Numeric):
         # check for Numeric type first and integer later, some numeric types (ie. Oracle)
         # derive from both
