@@ -11,18 +11,6 @@
 
 // @ts-check
 const fs = require("node:fs");
-const path = require("node:path");
-
-function* walkSync(dir) {
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-  for (const file of files) {
-    if (file.isDirectory()) {
-      yield* walkSync(path.join(dir, file.name));
-    } else {
-      yield path.join(dir, file.name);
-    }
-  }
-}
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
