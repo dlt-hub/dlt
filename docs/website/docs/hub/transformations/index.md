@@ -76,10 +76,10 @@ def copied_customers(dataset: dlt.Dataset) -> Any:
     yield customers_table.order_by("name").limit(5)
 
 # Same pipeline & same dataset
-fruitshop_pipeline.run(copied_customers(fruitshop_pipeline.dataset()))
+fruitshop_pipeline.run(copied_customers(fruitshop_pipeline.dataset()))  # ty: ignore[unresolved-reference]
 
 # show rowcounts again, we now have a new table in the schema and the destination
-print(fruitshop_pipeline.dataset().row_counts().df())
+print(fruitshop_pipeline.dataset().row_counts().df())  # ty: ignore[unresolved-reference]
 """
              table_name  row_count
 0             customers         13
@@ -158,7 +158,7 @@ dest_p = dlt.pipeline(
     dataset_name="copied_dataset",
     dev_mode=True,
 )
-dest_p.run(copied_customers(fruitshop_pipeline.dataset()))
+dest_p.run(copied_customers(fruitshop_pipeline.dataset()))    # ty: ignore[unresolved-reference]
 ```
 
 ### Loading to another dataset at a different data location
