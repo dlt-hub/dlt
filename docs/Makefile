@@ -18,10 +18,10 @@ check-orphan-docs: ## Checks that all docs pages are reachable from website side
 	cd website && npm run check-orphan-docs
 
 cli-generate: ## Regenerates CLI reference docs
-	uv run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md
+	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md
 
 cli-check: ## Checks CLI reference docs are up to date (CI)
-	uv run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
+	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
 # Generated example test files (docs/examples/**/test_*.py) are gitignored and
 # created by prepare-examples-tests, so exclude them from mypy.
