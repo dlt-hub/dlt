@@ -41,7 +41,7 @@ jobs:
 
       - name: Pre-commit hooks (format, lint, type-check)
         run: |
-          uv run prek run --verbose --all-files
+          uv --directory docs run prek run --verbose --all-files
 
       - name: Minimize uv cache
         run: uv cache prune --ci
