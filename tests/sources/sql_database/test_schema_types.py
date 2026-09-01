@@ -218,3 +218,38 @@ def test_get_table_references() -> None:
 
     refs = get_table_references(child)
     assert refs == []
+
+
+@pytest.mark.parametrize(
+    "sql_type",
+    [sa.Float(), sa.REAL()],
+    ids=["float", "real"],
+)
+def test_float_types_mapped_to_double(sql_type: sa.types.TypeEngine) -> None:
+    """FLOAT/REAL/DOUBLE map to data_type="double", incl. SA 2.1 where Float is not a Numeric subclass."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sql_type))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["data_type"] == "double"
+
+
+def test_double_mapped_to_double_sa2() -> None:
+    """sa.Double (SA >= 2.0) also maps to data_type="double"."""
+    sa2 = pytest.importorskip("sqlalchemy", minversion="2.0")
+    metadata = sa2.MetaData()
+    table = sa2.Table("t", metadata, sa2.Column("col", sa2.Double()))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["data_type"] == "double"
+
+
+def test_numeric_mapped_to_decimal_not_shadowed() -> None:
+    """Numeric(10, 2) still maps to data_type="decimal" with precision/scale."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sa.Numeric(10, 2)))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["data_type"] == "decimal"
+    assert col_schema["precision"] == 10
+    assert col_schema["scale"] == 2
