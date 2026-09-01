@@ -120,7 +120,11 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             name=self.config.embedding_model,
             max_retries=self.config.options.max_retries,
             # actually the model func doesnt need the api-key!
-            **({"host": embedding_model_host, "base_url": embedding_model_host} if embedding_model_host else {}),
+            **(
+                {"host": embedding_model_host, "base_url": embedding_model_host}
+                if embedding_model_host
+                else {}
+            ),
         )
 
     @property

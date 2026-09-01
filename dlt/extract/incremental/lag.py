@@ -1,11 +1,11 @@
-from datetime import datetime, timedelta, date  # noqa: I251
+from datetime import datetime, timedelta, date, timezone  # noqa: I251
 from typing import Any, Optional, Type, Union
 
-from dlt.common import logger, pendulum
+from dlt.common import logger
 from dlt.common.time import (
     detect_datetime_format,
-    ensure_pendulum_date,
-    ensure_pendulum_datetime_non_utc,
+    ensure_datetime,
+    ensure_datetime_in_tz,
     datetime_obj_to_str,
 )
 from dlt.common.typing import is_subclass
@@ -56,11 +56,12 @@ def _apply_lag_to_value(
         date_type = datetime if isinstance(value, datetime) else date
 
     if isinstance(value, (str, date)):
-        # coerce to the cursor type, fails on values that do not parse
+        # coerce to the cursor type, fails on values that do not parse. pendulum drops the timezone
+        # when a timedelta is added to a value with a foreign tzinfo so lag computes on stdlib types
         value = (
-            ensure_pendulum_datetime_non_utc(value)
+            ensure_datetime(value)
             if is_subclass(date_type, datetime)
-            else ensure_pendulum_date(value)
+            else ensure_datetime_in_tz(value, timezone.utc).date()
         )
         value = _apply_lag_to_datetime(lag, value, last_value_func)
         # go back to string or pass exact type
@@ -81,16 +82,18 @@ def _apply_lag_to_value(
 
 def _apply_lag_to_datetime(
     lag: float,
-    value: Union[pendulum.Date, pendulum.DateTime],
+    value: Union[date, datetime],
     last_value_func: LastValueFunc[TCursorValue],
-) -> Union[pendulum.Date, pendulum.DateTime]:
+) -> Union[date, datetime]:
     if last_value_func is max:
         lag = -lag
 
-    if isinstance(value, pendulum.DateTime):
-        return value.add(seconds=lag)
-    # pendulum types days as int but fractional days work as well
-    return value.add(days=lag)  # type: ignore[arg-type]
+    if not isinstance(value, datetime):
+        return value + timedelta(days=lag)
+    if value.tzinfo is None:
+        return value + timedelta(seconds=lag)
+    # shift the instant and not the wall clock so the lag stays exact across DST transitions
+    return (value.astimezone(timezone.utc) + timedelta(seconds=lag)).astimezone(value.tzinfo)
 
 
 def _apply_lag_to_number(

@@ -1,5 +1,6 @@
 import pytest
 from datetime import datetime, date, timedelta, timezone
+from zoneinfo import ZoneInfo
 from typing import Any, Callable, Optional, Type, Union
 
 from dlt.common.incremental.typing import LastValueFunc
@@ -122,7 +123,8 @@ def test_apply_lag_to_value_python_date(
 ) -> None:
     result = _apply_lag_to_value(lag, value, last_value_func)
     assert result == expected
-    assert type(result) is pendulum.Date
+    # a stdlib date keeps its exact type
+    assert type(result) is date
 
 
 @pytest.mark.parametrize(
@@ -160,8 +162,9 @@ def test_apply_lag_to_value_pendulum_datetime(
     result = _apply_lag_to_value(lag, value, last_value_func)
 
     assert result == expected
-    assert isinstance(result, pendulum.DateTime)
-    assert result.timezone == value.timezone
+    # a pendulum input is computed as a stdlib datetime keeping its timezone
+    assert type(result) is datetime
+    assert result.utcoffset() == value.utcoffset()
 
 
 @pytest.mark.parametrize(
@@ -193,7 +196,7 @@ def test_apply_lag_to_pendulum_date(
     result = _apply_lag_to_value(lag, value, last_value_func)
 
     assert result == expected
-    assert isinstance(result, pendulum.Date)
+    assert type(result) is date
 
 
 @pytest.mark.parametrize(
@@ -492,3 +495,35 @@ def test_cursor_date_type(
     cursor_type: Type[Any], initial_value: Any, expected: Optional[Type[Any]]
 ) -> None:
     assert _cursor_date_type(cursor_type, initial_value) is expected
+
+
+def test_apply_lag_to_value_named_timezone() -> None:
+    """lag on a cursor in a named timezone is exact real time, also over a DST transition"""
+    berlin = ZoneInfo("Europe/Berlin")
+
+    value = datetime(2026, 8, 27, 3, 30, tzinfo=berlin)
+    assert _apply_lag_to_value(3600, value, max) == datetime(2026, 8, 27, 2, 30, tzinfo=berlin)
+    assert _apply_lag_to_value(3600, value, min) == datetime(2026, 8, 27, 4, 30, tzinfo=berlin)
+
+    # one hour of real time also when DST starts on that day: 03:30+02:00 -> 01:30+01:00
+    in_gap = _apply_lag_to_value(3600, datetime(2026, 3, 29, 3, 30, tzinfo=berlin), max)
+    assert in_gap == datetime(2026, 3, 29, 0, 30, tzinfo=timezone.utc)
+    assert in_gap.replace(tzinfo=None) == datetime(2026, 3, 29, 1, 30)
+    assert in_gap.utcoffset() == timedelta(hours=1)
+
+
+@pytest.mark.parametrize(
+    "tz_name,expected_offset_hours",
+    [("Europe/Berlin", 2), ("America/New_York", -4), ("UTC", 0)],
+    ids=["berlin", "new_york", "utc"],
+)
+def test_apply_lag_to_pendulum_datetime_foreign_tzinfo(
+    tz_name: str, expected_offset_hours: int
+) -> None:
+    """pendulum drops the timezone when a timedelta is added to a value with a non-pendulum tzinfo"""
+    value = pendulum.DateTime(2026, 8, 27, 3, 30, tzinfo=ZoneInfo(tz_name))
+
+    result = _apply_lag_to_value(3600, value, max)
+
+    assert result == datetime(2026, 8, 27, 2, 30, tzinfo=ZoneInfo(tz_name))
+    assert result.utcoffset() == timedelta(hours=expected_offset_hours)
