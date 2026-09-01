@@ -30,9 +30,9 @@ repos:
         types: [markdown]
         pass_filenames: false
 
-      - id: snippets-run
-        name: snippets-run
-        entry: make snippets-run
+      - id: snippets-test
+        name: snippets-test
+        entry: make snippets-test
         language: system
         files: ^website/docs/.*\.md$
         types: [markdown]
