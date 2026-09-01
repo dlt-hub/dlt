@@ -623,6 +623,30 @@ def test_write_value(toml_providers: ConfigProvidersContainer) -> None:
         assert provider._config_doc["new_pipeline"]["runner_config"] == expected_pool
 
 
+def test_write_value_removes_nested_none(tmp_path: Path) -> None:
+    value = {
+        "nested": {"keep": "x", "optional": None},
+        "items": [{"keep": 1, "optional": None}],
+        "tuple_items": ({"keep": 2, "optional": None},),
+    }
+    expected = {
+        "nested": {"keep": "x"},
+        "items": [{"keep": 1}],
+        "tuple_items": [{"keep": 2}],
+    }
+
+    string_provider = StringTomlProvider("")
+    string_provider.set_value("payload", value, None)
+    assert StringTomlProvider.loads(string_provider.dumps()).unwrap() == {"payload": expected}
+
+    file_provider = ConfigTomlProvider(str(tmp_path), global_dir=None)
+    file_provider.set_value("payload", value, None)
+    assert file_provider._config_doc == file_provider._config_toml.unwrap() == {"payload": expected}
+    file_provider.write_toml()
+    reloaded_provider = ConfigTomlProvider(str(tmp_path), global_dir=None)
+    assert reloaded_provider.get_value("payload", dict, None)[0] == expected
+
+
 def test_set_value_none_deletes_key(toml_providers: ConfigProvidersContainer) -> None:
     """value=None deletes the key from BOTH the dict mirror and the tomlkit doc."""
     TAny: Type[Any] = Any
