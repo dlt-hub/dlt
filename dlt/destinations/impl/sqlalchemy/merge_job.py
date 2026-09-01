@@ -416,13 +416,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         select_cols = []
         for col in root_table_obj.columns:
             if col.name == from_:
-                select_cols.append(sa.literal(boundary_literal.strip("'")).label(from_))
+                select_cols.append(sa.literal_column(boundary_literal).label(from_))
             elif col.name == to:
                 select_cols.append(
-                    sa.literal(
-                        active_record_literal.strip("'")
+                    (
+                        sa.literal_column(active_record_literal)
                         if active_record_literal is not None
-                        else None
+                        else sa.null()
                     ).label(to)
                 )
             else:

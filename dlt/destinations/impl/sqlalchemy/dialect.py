@@ -216,6 +216,13 @@ class MssqlDialectCapabilities(DialectCapabilities):
 class OracleDialectCapabilities(DialectCapabilities):
     """Capabilities for Oracle."""
 
+    def adjust_capabilities(
+        self,
+        caps: DestinationCapabilitiesContext,
+        dialect: sa.engine.interfaces.Dialect,
+    ) -> None:
+        caps.format_datetime_literal = _format_oracle_datetime_literal
+
     def is_undefined_relation(self, e: Exception) -> Optional[bool]:
         msg = str(e).lower()
         # ORA-00942: table or view does not exist
@@ -239,6 +246,18 @@ def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = Fal
     from dlt.common.data_writers.escape import format_datetime_literal
 
     return format_datetime_literal(v, precision, no_tz=True)
+
+
+def _format_oracle_datetime_literal(v: Any, precision: int = 6, no_tz: bool = False) -> str:
+    from dlt.common.data_writers.escape import format_datetime_literal
+
+    datetime = format_datetime_literal(v, precision, no_tz=no_tz).strip("'")
+    oracle_format = "YYYY-MM-DD HH24:MI:SS"
+    if precision >= 3:
+        oracle_format += f".FF{precision}"
+    if no_tz:
+        return f"TO_TIMESTAMP('{datetime}', '{oracle_format}')"
+    return f"TO_TIMESTAMP_TZ('{datetime}', '{oracle_format} TZH:TZM')"
 
 
 register_dialect_capabilities("mysql", MysqlDialectCapabilities)
