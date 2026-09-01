@@ -6,7 +6,7 @@ table adapter, error handler, and backward compat with type_mapper= param.
 """
 
 from typing import Optional, Set, Type
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 
@@ -209,6 +209,62 @@ def test_oracle_dialect_caps() -> None:
     assert dc.is_undefined_relation(Exception("relation does not exist")) is True
     # unrelated error returns None
     assert dc.is_undefined_relation(Exception("syntax error")) is None
+
+
+def test_base_create_dataset_emits_create_schema() -> None:
+    """The generic create_dataset issues a CREATE SCHEMA statement."""
+    dc = DialectCapabilities("postgresql")
+    client = MagicMock()
+    client.dataset_name = "my_schema"
+
+    dc.create_dataset(client)
+
+    assert client.execute_sql.call_count == 1
+    stmt = client.execute_sql.call_args[0][0]
+    assert isinstance(stmt, sa.schema.CreateSchema)
+
+
+def test_base_drop_dataset_emits_drop_schema() -> None:
+    """The generic drop_dataset issues a DROP SCHEMA statement."""
+    dc = DialectCapabilities("postgresql")
+    client = MagicMock()
+    client.dataset_name = "my_schema"
+
+    dc.drop_dataset(client)
+
+    assert client.execute_sql.call_count == 1
+    stmt = client.execute_sql.call_args[0][0]
+    assert isinstance(stmt, sa.schema.DropSchema)
+
+
+def test_oracle_create_dataset_raises_instead_of_create_schema() -> None:
+    """Oracle cannot CREATE SCHEMA; dlt raises a clear terminal error and emits no DDL."""
+    dc = OracleDialectCapabilities("oracle")
+    client = MagicMock()
+    client.dataset_name = "MY_SCHEMA"
+
+    with pytest.raises(DatabaseTerminalException, match="does not exist and cannot be"):
+        dc.create_dataset(client)
+    # no CREATE SCHEMA must be emitted
+    client.execute_sql.assert_not_called()
+
+
+def test_oracle_drop_dataset_drops_tables_not_schema() -> None:
+    """Oracle cannot DROP SCHEMA; drop_dataset drops the tables within the schema instead."""
+    dc = OracleDialectCapabilities("oracle")
+    client = MagicMock()
+    client.dataset_name = "MY_SCHEMA"
+
+    inspector = MagicMock()
+    inspector.get_table_names.return_value = ["t1", "t2"]
+
+    with patch.object(sa, "inspect", return_value=inspector):
+        dc.drop_dataset(client)
+
+    inspector.get_table_names.assert_called_once_with(schema="MY_SCHEMA")
+    client.drop_tables.assert_called_once_with("t1", "t2")
+    # no DROP SCHEMA must be emitted
+    client.execute_sql.assert_not_called()
 
 
 def test_sqlglot_dialect_explicit_mappings() -> None:
