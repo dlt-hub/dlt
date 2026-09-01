@@ -249,7 +249,7 @@ TTableProcessingHints = TypedDict(
 
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only", "cdc"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
@@ -280,12 +280,18 @@ class TScd2StrategyDict(TMergeDispositionDict, total=False):
     row_version_column_name: Optional[str]
 
 
+class TCdcStrategyDict(TMergeDispositionDict, total=False):
+    merge_filter: Optional[str]
+    """SQL condition applied to both staging and destination tables to limit the merge scope."""
+
+
 TWriteDispositionConfig = Union[
     TWriteDisposition,
     TWriteDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
     TDeleteInsertStrategyDict,
+    TCdcStrategyDict,
 ]
 
 

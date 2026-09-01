@@ -2144,3 +2144,298 @@ def test_insert_only_with_nested_tables(destination_config: DestinationTestConfi
     # Child1 exists so not re-inserted, Child2 unchanged,
     # Child3 and Child4 are new inserts
     assert len(parent_tables["parent_items__children"]) == 4
+
+
+@pytest.mark.essential
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_cdc_strategy(destination_config: DestinationTestConfiguration) -> None:
+    """Test cdc merge strategy: staging data is a full snapshot, new records are
+    inserted, changed records are updated and records absent from staging are deleted."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    p = destination_config.setup_pipeline("cdc_test", dev_mode=True)
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def items():
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 200},
+            {"id": 3, "name": "Charlie", "value": 300},
+        ]
+
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    load_ids = {row["id"]: row["_dlt_load_id"] for row in tables["items"]}
+
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def items_snapshot():
+        # id 1 unchanged, id 2 updated, id 3 deleted, id 4 inserted
+        yield [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 999},
+            {"id": 4, "name": "Dave", "value": 400},
+        ]
+
+    info = p.run(items_snapshot(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    assert_records_as_set(
+        [{k: v for k, v in row.items() if not k.startswith("_dlt")} for row in tables["items"]],
+        [
+            {"id": 1, "name": "Alice", "value": 100},
+            {"id": 2, "name": "Bob", "value": 999},
+            {"id": 4, "name": "Dave", "value": 400},
+        ],
+    )
+    new_load_ids = {row["id"]: row["_dlt_load_id"] for row in tables["items"]}
+    # unchanged record was not rewritten, changed record was
+    assert new_load_ids[1] == load_ids[1]
+    assert new_load_ids[2] != load_ids[2]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_cdc_with_merge_filter(destination_config: DestinationTestConfiguration) -> None:
+    """Test cdc strategy with merge_filter: only records inside the filter window are
+    compared and deleted, records outside the window stay untouched."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    p = destination_config.setup_pipeline("cdc_filter", dev_mode=True)
+
+    @dlt.resource(
+        name="events",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def events():
+        yield [
+            {"id": 1, "bucket": "old", "value": 1},
+            {"id": 2, "bucket": "new", "value": 2},
+            {"id": 3, "bucket": "new", "value": 3},
+        ]
+
+    info = p.run(events(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    @dlt.resource(
+        name="events",
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "cdc",
+            "merge_filter": "bucket = 'new'",
+        },
+    )
+    def events_window():
+        # snapshot of the 'new' window only: id 2 updated, id 3 deleted
+        yield [
+            {"id": 2, "bucket": "new", "value": 22},
+        ]
+
+    info = p.run(events_window(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "events", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["events"],
+        [
+            {"id": 1, "bucket": "old", "value": 1},
+            {"id": 2, "bucket": "new", "value": 22},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_cdc_with_hard_delete(destination_config: DestinationTestConfiguration) -> None:
+    """Test cdc strategy with hard_delete column: flagged records are deleted even
+    when present in staging."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    p = destination_config.setup_pipeline("cdc_hard_delete", dev_mode=True)
+
+    @dlt.resource(
+        name="accounts",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+        columns={"deleted": {"hard_delete": True, "data_type": "bool"}},
+    )
+    def accounts():
+        yield [
+            {"id": 1, "name": "Alice", "deleted": False},
+            {"id": 2, "name": "Bob", "deleted": False},
+        ]
+
+    info = p.run(accounts(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    @dlt.resource(
+        name="accounts",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+        columns={"deleted": {"hard_delete": True, "data_type": "bool"}},
+    )
+    def accounts_snapshot():
+        # id 1 flagged deleted, id 2 kept, id 3 arrives already deleted and is never inserted
+        yield [
+            {"id": 1, "name": "Alice", "deleted": True},
+            {"id": 2, "name": "Bob", "deleted": False},
+            {"id": 3, "name": "Charlie", "deleted": True},
+        ]
+
+    info = p.run(accounts_snapshot(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "accounts", exclude_system_cols=True)
+    assert_records_as_set(
+        tables["accounts"],
+        [
+            {"id": 2, "name": "Bob", "deleted": False},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_cdc_with_nested_tables(destination_config: DestinationTestConfiguration) -> None:
+    """Test cdc strategy with nested tables: nested rows follow their parents on
+    delete and removed list elements are deleted."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    p = destination_config.setup_pipeline("cdc_nested", dev_mode=True)
+
+    @dlt.resource(
+        name="parent_items",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def parent_items():
+        yield [
+            {"id": 1, "name": "Parent1", "children": [{"child_id": 1}, {"child_id": 2}]},
+            {"id": 2, "name": "Parent2", "children": [{"child_id": 3}]},
+        ]
+
+    info = p.run(parent_items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    @dlt.resource(
+        name="parent_items",
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def parent_items_snapshot():
+        # parent 1 loses child 2 and gains child 4, parent 2 is deleted with its children
+        yield [
+            {"id": 1, "name": "Parent1", "children": [{"child_id": 1}, {"child_id": 4}]},
+        ]
+
+    info = p.run(parent_items_snapshot(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(
+        p, "parent_items", "parent_items__children", exclude_system_cols=True
+    )
+    assert_records_as_set(tables["parent_items"], [{"id": 1, "name": "Parent1"}])
+    assert_records_as_set(tables["parent_items__children"], [{"child_id": 1}, {"child_id": 4}])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+    ),
+    ids=lambda x: x.name,
+)
+def test_cdc_composite_primary_key(destination_config: DestinationTestConfiguration) -> None:
+    """Test cdc strategy with a composite primary key: inserts, updates and deletes are
+    derived from the full snapshot when a record is identified by more than one key column."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    p = destination_config.setup_pipeline("cdc_composite", dev_mode=True)
+
+    @dlt.resource(
+        name="items",
+        primary_key=["region", "id"],
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def items():
+        yield [
+            {"region": "eu", "id": 1, "value": 100},
+            {"region": "eu", "id": 2, "value": 200},
+            {"region": "us", "id": 1, "value": 300},
+        ]
+
+    info = p.run(items(), **destination_config.run_kwargs)
+    assert_load_info(info)
+    load_ids = {
+        (row["region"], row["id"]): row["_dlt_load_id"]
+        for row in load_tables_to_dicts(p, "items")["items"]
+    }
+
+    @dlt.resource(
+        name="items",
+        primary_key=["region", "id"],
+        write_disposition={"disposition": "merge", "strategy": "cdc"},
+    )
+    def items_snapshot():
+        # (eu, 1) unchanged, (eu, 2) updated, (us, 1) deleted, (us, 2) inserted.
+        # (eu, 2) and (us, 2) share the id 2 but differ on region: the composite key must
+        # keep them distinct.
+        yield [
+            {"region": "eu", "id": 1, "value": 100},
+            {"region": "eu", "id": 2, "value": 999},
+            {"region": "us", "id": 2, "value": 400},
+        ]
+
+    info = p.run(items_snapshot(), **destination_config.run_kwargs)
+    assert_load_info(info)
+
+    tables = load_tables_to_dicts(p, "items")
+    assert_records_as_set(
+        [{k: v for k, v in row.items() if not k.startswith("_dlt")} for row in tables["items"]],
+        [
+            {"region": "eu", "id": 1, "value": 100},
+            {"region": "eu", "id": 2, "value": 999},
+            {"region": "us", "id": 2, "value": 400},
+        ],
+    )
+    new_load_ids = {(row["region"], row["id"]): row["_dlt_load_id"] for row in tables["items"]}
+    # unchanged record was not rewritten, changed record was
+    assert new_load_ids[("eu", 1)] == load_ids[("eu", 1)]
+    assert new_load_ids[("eu", 2)] != load_ids[("eu", 2)]
