@@ -39,6 +39,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalCursorInvalidCoercion,
     IncrementalCursorPathHasValueNone,
     IncrementalCursorPathMissing,
+    IncrementalCursorThresholdExceeded,
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
@@ -4859,3 +4860,49 @@ def test_decorator_incremental_type_from_typed_default() -> None:
     list(r)
     # type from typed default [str]
     assert r.incremental._incremental.get_incremental_value_type() is str
+
+
+def _boundary_source(n: int) -> DltResource:
+    """Resource whose `n` records all share the same cursor value (the boundary)."""
+
+    @dlt.resource(name="items", write_disposition="append", primary_key="id")
+    def items() -> Any:
+        for i in range(n):
+            yield {"id": i, "ts": "2024-01-01", "v": i}
+
+    items.apply_hints(incremental=dlt.sources.incremental("ts"))
+    return items
+
+
+def test_duplicate_cursor_warning_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    # warning fires once boundary records exceed the warning threshold, and points at the mitigations
+    monkeypatch.setattr(Incremental, "duplicate_cursor_warning_threshold", 5)
+    p = dlt.pipeline(pipeline_name="dup_cursor_warn", destination="duckdb", dev_mode=True)
+    with mock.patch("dlt.extract.incremental.logger.warning") as warn:
+        p.run(_boundary_source(10))
+    # logger is a shared module, so other steps may warn too: match on the threshold message
+    threshold_warnings = [
+        call.args[0]
+        for call in warn.call_args_list
+        if "duplicate_cursor_error_threshold" in call.args[0]
+    ]
+    assert len(threshold_warnings) == 1
+    assert "range_start='open'" in threshold_warnings[0]
+
+
+def test_duplicate_cursor_error_threshold(monkeypatch: pytest.MonkeyPatch) -> None:
+    # default (None): unbounded boundary dedup keeps all hashes and never raises
+    p = dlt.pipeline(pipeline_name="dup_cursor_off", destination="duckdb", dev_mode=True)
+    p.run(_boundary_source(50))
+    state = p.state["sources"]["dup_cursor_off"]["resources"]["items"]["incremental"]["ts"]
+    assert len(state["unique_hashes"]) == 50
+
+    # threshold set: crossing it raises a terminal error instead of growing state
+    monkeypatch.setattr(Incremental, "duplicate_cursor_error_threshold", 10)
+    p2 = dlt.pipeline(pipeline_name="dup_cursor_err", destination="duckdb", dev_mode=True)
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        p2.run(_boundary_source(50))
+    inner = py_ex.value.__cause__
+    assert isinstance(inner, IncrementalCursorThresholdExceeded)
+    assert inner.threshold == 10
+    assert inner.hash_count > 10

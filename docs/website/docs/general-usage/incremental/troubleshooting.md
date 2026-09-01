@@ -63,6 +63,20 @@ sources:
 
 Verify that the `last_value` is updated between pipeline runs.
 
+### Growing pipeline state from boundary deduplication
+
+To avoid loading the same row twice, dlt keeps a deduplication hash in `unique_hashes` for **every record that shares the current boundary (maximum) cursor value**. This list is stored in the pipeline state and re-written on every run. When many records share the same cursor value — for example a low-resolution cursor (a date without a time) or a backfill that stamps every row with the same timestamp — `unique_hashes` can grow to tens of MB and bloat the `_dlt_pipeline_state` table.
+
+dlt logs a warning once the number of boundary records passes `Incremental.duplicate_cursor_warning_threshold` (200 by default). To address it:
+
+- Use a cursor column with higher resolution so fewer records share the same value.
+- If you do not need boundary deduplication (for example because a `primary_key` merge already removes duplicates, or rows never overlap between runs), switch to `merge_key` together with `range_start="open"`, which excludes records equal to the last value and disables the deduplication state.
+- Set `Incremental.duplicate_cursor_error_threshold` (disabled by default) to fail with `IncrementalCursorThresholdExceeded` instead of silently accumulating state once the boundary record count crosses the threshold:
+
+```py
+dlt.sources.incremental.duplicate_cursor_error_threshold = 100_000
+```
+
 ### Type mismatch errors
 
 If you encounter an `IncrementalCursorInvalidCoercion` error, it typically means the `initial_value` type does not match the data type of the field in your source data.
