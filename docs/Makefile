@@ -63,3 +63,15 @@ build-molabs: ## Format the notebooks files first and build Molabs
 
 validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
 	git diff --exit-code -- education/
+
+snippets-lint:
+	uv run pytest -m "not example" test_snippets.py::test_lint_snippets
+
+snippets-format:
+	uv run pytest -m "not example" test_snippets.py::test_lint_snippets --update-examples
+
+snippets-typecheck:
+	uv run pytest -m "not example" test_snippets.py::test_typecheck_snippets
+
+snippets-test:
+	uv run pytest -m "not example" test_snippets.py::test_run_snippets
