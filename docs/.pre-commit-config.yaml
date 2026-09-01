@@ -30,6 +30,7 @@ repos:
         language: system
         files: ^website/docs/examples.*\.md$
         types: [markdown]
+        stages: [pre-push]
         pass_filenames: false
 
   - repo: local
