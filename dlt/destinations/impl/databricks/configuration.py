@@ -271,6 +271,14 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
             return ""
 
     def on_resolved(self) -> None:
+        if self.staging_volume_name:
+            parts = self.staging_volume_name.split(".")
+            if len(parts) != 3 or any(not part or part != part.strip() for part in parts):
+                raise ConfigurationValueError(
+                    f"Invalid `staging_volume_name` value `{self.staging_volume_name}`. It must be"
+                    " a fully qualified name in the form `catalog.database.volume`."
+                )
+
         if self.zerobus is None:
             return
 
