@@ -12,6 +12,7 @@ keywords: [add_map, transform data, remove columns]
 ```py
 from dlt.extract import DltResource
 from dlt.extract.items_transform import ItemTransformFunc
+from dlt.common.typing import TDataItem
 
 def add_map(
     item_map: ItemTransformFunc[TDataItem],

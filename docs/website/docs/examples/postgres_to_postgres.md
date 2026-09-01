@@ -60,7 +60,6 @@ here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), th
 import argparse
 import os
 from dlt.common import pendulum
-from typing import List
 
 import connectorx as cx
 import duckdb
@@ -93,7 +92,7 @@ def read_sql_x_chunked(conn_str: str, query: str, chunk_size: int = CHUNKSIZE):
 @dlt.source(max_table_nesting=0)
 def pg_resource_chunked(
     table_name: str,
-    primary_key: List[str],
+    primary_key: list[str],
     schema_name: str,
     order_date: str,
     load_type: str = "merge",

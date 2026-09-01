@@ -121,9 +121,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function loads notion databases from Notion into the destination.
 
 ```py
+from typing import Iterator
+from dlt.extract import DltResource
+
 @dlt.source
 def notion_databases(
-    database_ids: Optional[List[Dict[str, str]]] = None,
+    database_ids: list[dict[str, str]] | None = None,
     api_key: str = dlt.secrets.value,
 ) -> Iterator[DltResource]:
    ...

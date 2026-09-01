@@ -136,7 +136,7 @@ The `weaviate_adapter` is a helper function that configures the resource for the
 ```py
 from dlt.destinations.adapters import weaviate_adapter
 
-weaviate_adapter(data, vectorize, tokenization)
+weaviate_adapter(data, vectorize, tokenization)  # ty: ignore[unresolved-reference]
 ```
 
 It accepts the following arguments:

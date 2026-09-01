@@ -32,7 +32,7 @@ The example below loads all the GitHub events and updates them in the destinatio
 ```py
 @dlt.resource(primary_key="id", write_disposition="merge")
 def github_repo_events():
-    yield from _get_event_pages()
+    yield from _get_event_pages()  # ty: ignore[unresolved-reference]
 ```
 
 Since primary key is a [compound property](../general-usage/schema.md#compound-hints), you can define a composite primary key by providing multiple column names:
@@ -46,7 +46,7 @@ def resource():
 The example below merges on the `batch_day` column that holds the day for which the given record is valid.
 Merge keys also can be [compound](../general-usage/schema.md#compound-hints):
 
-```py
+```py notype
 @dlt.resource(merge_key="batch_day", write_disposition="merge")
 def get_daily_batch(day):
     yield _get_batch_from_bucket(day)
@@ -56,11 +56,14 @@ As with any other write disposition, you can use it to load data ad hoc. Below, 
 
 ```py
 p = dlt.pipeline(destination="bigquery", dataset_name="github")
+
 issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
+headers: dict[str, str] = {}
+repo_name = "dlt-hub/dlt"
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{repo_name}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="merge", primary_key="id", table_name="issues")
@@ -72,7 +75,7 @@ The example below dispatches GitHub events to several tables by event type, keep
 @dlt.resource(primary_key="id", write_disposition="merge", table_name=lambda i: i['type'])
 def github_repo_events(last_created_at = dlt.sources.incremental("created_at", "1970-01-01T00:00:00Z")):
     """A resource taking a stream of github events and dispatching them to tables named by event type. Deduplicates by 'id'. Loads incrementally by 'created_at' """
-    yield from _get_rest_pages("events")
+    yield from _get_rest_pages("events")  # ty: ignore[unresolved-reference]
 ```
 
 :::note
@@ -140,7 +143,7 @@ may save some costs:
 ```py
 @dlt.resource(primary_key="id", write_disposition={"disposition": "merge", "strategy": "delete-insert", "deduplicated": True})
 def github_repo_events():
-    yield from _get_event_pages()
+    yield from _get_event_pages()  # ty: ignore[unresolved-reference]
 ```
 
 ### Delete records

@@ -124,6 +124,9 @@ You can write your own pipelines to load data to a destination using this verifi
 This source function creates a list of resources to load data into the destination.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def jira(
      subdomain: str = dlt.secrets.value,
@@ -142,6 +145,9 @@ def jira(
 This function returns a resource for querying issues using JQL [(Jira Query Language)](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/).
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def jira_search(
      subdomain: str = dlt.secrets.value,
@@ -158,8 +164,11 @@ The above function uses the same arguments `subdomain`, `email`, and `api_token`
 The resource function searches issues using JQL queries and then loads them to the destination.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(write_disposition="replace")
-def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
+def issues(jql_queries: list[str]) -> Iterable[TDataItem]:
    api_path = "rest/api/3/search"
    return {}  # return the retrieved values here
 ```

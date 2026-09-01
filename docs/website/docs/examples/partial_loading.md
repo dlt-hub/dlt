@@ -26,7 +26,7 @@ We'll learn:
 import os
 import re
 from dlt.common import pendulum as p
-from typing import Dict, List, Iterator
+from typing import Iterator
 
 import dlt
 from dlt.sources import DltResource
@@ -37,7 +37,7 @@ from dlt.sources.rest_api import RESTAPIConfig, rest_api_resources
 
 @dlt.source
 def chess_com_source(
-    username: str, months: List[Dict[str, str]]
+    username: str, months: list[dict[str, str]]
 ) -> Iterator[DltResource]:
     """
     Configures and yields resources to fetch chess game data for a given user across specified months.
@@ -76,7 +76,7 @@ def chess_com_source(
 
 def generate_months(
     start_year: int, start_month: int, end_year: int, end_month: int
-) -> Iterator[Dict[str, str]]:
+) -> Iterator[dict[str, str]]:
     """
     Generates a list of months between the start and end dates.
 

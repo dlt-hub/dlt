@@ -89,10 +89,14 @@ You can inspect stored artifacts using the command
 You can run several pipelines with the same name but with different configurations, for example, to target development, staging, or production environments.
 Set the `pipelines_dir` argument to store all the working folders in a specific place. For example:
 ```py
+import pathlib
+
 import dlt
+
 from dlt.common.pipeline import get_dlt_pipelines_dir
 
-dev_pipelines_dir = os.path.join(get_dlt_pipelines_dir(), "dev")
+
+dev_pipelines_dir = str(pathlib.Path(get_dlt_pipelines_dir(), "dev"))
 pipeline = dlt.pipeline(destination="duckdb", dataset_name="sequence", pipelines_dir=dev_pipelines_dir)
 ```
 This code stores the pipeline working folder in `~/.dlt/pipelines/dev/<pipeline_name>`. Note that you need to pass this `~/.dlt/pipelines/dev/`

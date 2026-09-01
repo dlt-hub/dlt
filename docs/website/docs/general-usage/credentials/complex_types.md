@@ -80,6 +80,8 @@ The `ConnectionStringCredentials` class handles connection string credentials fo
 
 #### Usage
 ```py
+from dlt.common.configuration.specs import ConnectionStringCredentials
+
 credentials = ConnectionStringCredentials()
 
 # Set the necessary attributes
@@ -108,6 +110,8 @@ The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID
 
 Usage:
 ```py
+from dlt.common.configuration.specs import OAuth2Credentials
+
 oauth_credentials = OAuth2Credentials(
     client_id="CLIENT_ID",
     client_secret="CLIENT_SECRET",  # type: ignore
@@ -154,6 +158,8 @@ The `GcpServiceAccountCredentials` class manages GCP Service Account credentials
 - Or default credentials will be used.
 
 ```py
+from dlt.common.configuration.specs import GcpServiceAccountCredentials
+
 gcp_credentials = GcpServiceAccountCredentials()
 # Parse a native value (ServiceAccountCredentials)
 # Accepts a native value, which can be either an instance of ServiceAccountCredentials
@@ -203,6 +209,8 @@ The `GcpOAuthCredentials` class is responsible for handling OAuth2 credentials f
 ##### Usage
 
 ```py
+from dlt.common.configuration.specs import GcpOAuthCredentials
+
 oauth_credentials = GcpOAuthCredentials()
 
 # Accepts a native value, which can be either an instance of GoogleOAuth2Credentials
@@ -289,6 +297,8 @@ The `AwsCredentials` class is responsible for handling AWS credentials, includin
 
 #### Usage
 ```py
+from dlt.common.configuration.specs import AwsCredentials
+
 aws_credentials = AwsCredentials()
 # Set the necessary attributes
 aws_credentials.aws_access_key_id = "ACCESS_KEY_ID"
@@ -299,6 +309,7 @@ or
 ```py
 # Imports an external botocore session and sets the credentials properties accordingly.
 import botocore.session
+from dlt.common.configuration.specs import AwsCredentials
 
 aws_credentials = AwsCredentials()
 session = botocore.session.get_session()

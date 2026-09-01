@@ -42,7 +42,7 @@ load_info = pipeline.run(table)
 
 ```py noexecute notype
 from enum import Enum
-from typing import Any, Callable, Dict, List, Optional, Union
+from typing import Any, Callable, Optional, Union
 
 import pyarrow as pa
 import pandas as pd
@@ -54,7 +54,7 @@ class MaskingMethod(str, Enum):
 
 
 def mask_columns(
-    columns: List[str],
+    columns: list[str],
     method: Optional[MaskingMethod] = None,
     mask: str = "******",
 ) -> Callable[..., Any]:
@@ -74,8 +74,8 @@ def mask_columns(
     )
 
     def _apply(
-        table_or_row: Union[pa.Table, pd.DataFrame, Dict[str, Any]],
-    ) -> Union[pa.Table, pd.DataFrame, Dict[str, Any]]:
+        table_or_row: Union[pa.Table, pd.DataFrame, dict[str, Any]],
+    ) -> Union[pa.Table, pd.DataFrame, dict[str, Any]]:
         # pyarrow / connectorx backends
         if isinstance(table_or_row, pa.Table):
             table = table_or_row

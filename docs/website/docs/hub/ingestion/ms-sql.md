@@ -83,7 +83,9 @@ Now you can use the `sql_table` resource to perform the initial backfill:
 ```py
 import dlt
 from dlt.sources.sql_database import sql_table
+from sqlalchemy import create_engine, Engine
 
+engine: Engine = create_engine("...")
 # Initial full load
 initial_resource = sql_table(
     credentials=engine,
@@ -142,8 +144,10 @@ After the initial load, you can run the `create_change_tracking_table` resource 
 You do not need to pass `initial_tracking_version` anymore, since this is automatically stored in the dlt state.
 
 ```py
+from sqlalchemy import create_engine, Engine
 from dlthub.sources.mssql import create_change_tracking_table
 
+engine: Engine = create_engine("...")
 incremental_resource = create_change_tracking_table(
     credentials=engine,
     table=table_name,
@@ -314,8 +318,10 @@ pipeline.run(initial_resource, refresh="drop_resources")
 There is an optional parameter that can be passed to `create_change_tracking_table` for configuring how to handle deletes:
 
 ```py
+from sqlalchemy import create_engine, Engine
 from dlthub.sources.mssql import create_change_tracking_table
 
+engine: Engine = create_engine("...")
 incremental_resource = create_change_tracking_table(
     credentials=engine,
     table=table_name,
@@ -345,9 +351,9 @@ Because deleted rows carry NULLs, the destination schema must accept NULLs for t
 
 ```py
 from dlthub.sources.mssql import remove_nullability_adapter
+from dlt.sources.sql_database import sql_table
 
 table = sql_table(
     table_adapter_callback=remove_nullability_adapter,
 )
 ```
-

@@ -218,7 +218,7 @@ Let's improve our GitHub API example and get only issues that were created since
 Instead of using the `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
 ```py
-from typing import Any, Dict, Iterator
+from typing import Any, Iterator
 
 import dlt
 from dlt.sources.helpers import requests
@@ -228,7 +228,7 @@ def get_issues(
     created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
         "created_at", initial_value="1970-01-01T00:00:00Z"
     ),
-) -> Iterator[Dict[str, Any]]:
+) -> Iterator[dict[str, Any]]:
     # NOTE: we read only open issues to minimize number of calls to the API.
     # There's a limit of ~50 calls for not authenticated Github users.
     url = (
@@ -311,7 +311,7 @@ To always get fresh content of all the issues, combine incremental load with the
 like in the script below.
 
 ```py
-from typing import Any, Dict, Iterator
+from typing import Any, Iterator
 
 import dlt
 from dlt.sources.helpers import requests
@@ -325,7 +325,7 @@ def get_issues(
     updated_at: dlt.sources.incremental[str] = dlt.sources.incremental(
         "updated_at", initial_value="1970-01-01T00:00:00Z"
     ),
-) -> Iterator[Dict[str, Any]]:
+) -> Iterator[dict[str, Any]]:
     # NOTE: we read only open issues to minimize number of calls to
     # the API. There's a limit of ~50 calls for not authenticated
     # Github users

@@ -169,6 +169,9 @@ This function returns a list of resources to load campaigns, ad sets, ads, creat
 data from the Facebook Marketing API.
 
 ```py
+from collections.abc import Sequence
+from dlt.extract import DltResource
+
 @dlt.source(name="facebook_ads")
 def facebook_ads_source(
     account_id: str = dlt.config.value,

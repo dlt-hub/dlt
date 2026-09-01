@@ -206,6 +206,9 @@ If you decide to change the [filename layout](./filesystem#files-layout) from th
 You can save your tables as Iceberg tables to Athena. This will enable you, for example, to delete data from them later if you need to. To switch a resource to the Iceberg table format, supply the table_format argument like this:
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(table_format="iceberg")
 def data() -> Iterable[TDataItem]:
     ...

@@ -327,6 +327,8 @@ def my_resource():
 ### Example 1: sequence of column names
 
 ```py
+from dlt.destinations.adapters import clickhouse_adapter
+
 clickhouse_adapter(
    my_resource,
    sort=["timestamp", "street"],
@@ -346,6 +348,8 @@ PARTITION by town
 ### Example 2: SQL expression
 
 ```py
+from dlt.destinations.adapters import clickhouse_adapter
+
 clickhouse_adapter(
    my_resource,
    sort="(upper(town), street)",
@@ -367,6 +371,8 @@ PARTITION BY toYYYYMMDD(timestamp)
 SQL expressions are used **as is** to generate the SQL clauses. Hence, when providing a SQL expression, use normalized column names:
 
 ```py
+from dlt.destinations.adapters import clickhouse_adapter
+
 @dlt.resource(columns={"TIMESTAMP": {"nullable": False}})  # non-normalized column name (upper case)
 def my_resource():
     ...

@@ -127,9 +127,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function retrieves data from Strapi.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def strapi_source(
-    endpoints: List[str],
+    endpoints: list[str],
     api_secret_key: str = dlt.secrets.value,
     domain: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:

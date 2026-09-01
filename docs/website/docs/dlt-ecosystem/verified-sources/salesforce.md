@@ -143,6 +143,9 @@ This function returns a list of resources to load users, user_role, opportunity,
 opportunity_line_item, account, etc., data from the Salesforce API.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source(name="salesforce")
 def salesforce_source(
     user_name: str = dlt.secrets.value,
@@ -163,9 +166,11 @@ def salesforce_source(
 This resource function retrieves records from the Salesforce "User" endpoint.
 
 ```py
+from typing import Iterator
+
 @dlt.resource(write_disposition="replace")
-def sf_user() -> Iterator[Dict[str, Any]]:
-    yield from _get_records(client, "User")
+def sf_user() -> Iterator[dict[str, Any]]:
+    yield from _get_records(client, "User")  # ty: ignore[unresolved-reference]
 ```
 
 Besides "sf_user", there are several resources that use replace mode for data writing to the

@@ -133,12 +133,16 @@ INCREMENTAL_ENDPOINTS = ("Event", "BalanceTransaction")
 This function retrieves data from the Stripe API for the specified endpoint:
 
 ```py
+from typing import Iterable
+from pendulum import DateTime
+from dlt.extract import DltResource
+
 @dlt.source
 def stripe_source(
-    endpoints: Tuple[str, ...] = ENDPOINTS,
+    endpoints: tuple[str, ...],
     stripe_secret_key: str = dlt.secrets.value,
-    start_date: Optional[DateTime] = None,
-    end_date: Optional[DateTime] = None,
+    start_date: DateTime | None = None,
+    end_date: DateTime | None = None,
 ) -> Iterable[DltResource]:
    ...
 ```
@@ -157,7 +161,7 @@ This source loads data in 'append' mode from incremental endpoints.
 ```py notype
 @dlt.source
 def incremental_stripe_source(
-    endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
+    endpoints: tuple[str, ...] = INCREMENTAL_ENDPOINTS,
     stripe_secret_key: str = dlt.secrets.value,
     initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,

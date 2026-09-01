@@ -143,10 +143,13 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function retrieves tables from a given Airtable base.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def airtable_source(
     base_id: str = dlt.config.value,
-    table_names: Optional[List[str]] = None,
+    table_names: list[str] | None = None,
     access_token: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
    ...
@@ -165,11 +168,12 @@ This function retrieves data from a single Airtable table.
 
 ```py
 import pyairtable
+from dlt.extract import DltResource
 
 def airtable_resource(
     api: pyairtable.Api,
     base_id: str,
-    table: Dict[str, Any],
+    table: dict[str, Any],
 ) -> DltResource:
    ...
 ```

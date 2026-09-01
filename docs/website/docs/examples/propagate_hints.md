@@ -24,13 +24,13 @@ Please note that dlt metadata, including `_dlt_id` and `_dlt_load_id`, will stil
 ### Full source code
 
 ```py noexecute notype
-from typing import List, Dict, Any, Generator
+from typing import Any, Generator
 import dlt
 
 
 # Define a dlt resource with write disposition to 'merge'
 @dlt.resource(name="parent_with_children", write_disposition={"disposition": "merge"})
-def data_source() -> Generator[List[Dict[str, Any]], None, None]:
+def data_source() -> Generator[list[dict[str, Any]], None, None]:
     # Example data
     data = [
         {
@@ -52,7 +52,7 @@ def data_source() -> Generator[List[Dict[str, Any]], None, None]:
 
 
 # Function to add parent_id to each child record within a parent record
-def add_parent_id(record: Dict[str, Any]) -> Dict[str, Any]:
+def add_parent_id(record: dict[str, Any]) -> dict[str, Any]:
     parent_id_key = "parent_id"
     for child in record["children"]:
         child[parent_id_key] = record[parent_id_key]

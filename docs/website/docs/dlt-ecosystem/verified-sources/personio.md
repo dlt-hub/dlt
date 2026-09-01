@@ -154,6 +154,9 @@ def personio_source(
 This resource retrieves data on all the employees in a company.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(primary_key="id", write_disposition="merge")
 def employees(
     updated_at: dlt.sources.incremental[
@@ -161,7 +164,7 @@ def employees(
     ] = dlt.sources.incremental(
         "last_modified_at", initial_value=None, allow_external_schedulers=True
     ),
-    items_per_page: int = ITEMS_PER_PAGE,
+    items_per_page: int = 100,
 ) -> Iterable[TDataItem]:
     ...
 ```
@@ -180,8 +183,11 @@ data incrementally from the Personio API to your preferred destination.
 
 Simple resource, which retrieves a list of various types of employee absences.
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(primary_key="id", write_disposition="replace")
-def absence_types(items_per_page: int = ITEMS_PER_PAGE) -> Iterable[TDataItem]:
+def absence_types(items_per_page: int = 100) -> Iterable[TDataItem]:
    ...
 ...
 ```

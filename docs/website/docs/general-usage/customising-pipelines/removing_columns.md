@@ -30,9 +30,9 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 2. Next, create a function to filter out columns from the data before loading it into a database as follows:
 
    ```py
-   from typing import Dict, List, Optional
+   from typing import Optional
 
-   def remove_columns(doc: Dict, remove_columns: Optional[List[str]] = None) -> Dict:
+   def remove_columns(doc: dict, remove_columns: Optional[list[str]] = None) -> dict:
        if remove_columns is None:
            remove_columns = []
 

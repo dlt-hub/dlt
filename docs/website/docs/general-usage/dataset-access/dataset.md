@@ -76,6 +76,8 @@ print(dataset.row_counts().df())
 The simplest `Relation` is a full table:
 
 ```py
+dataset: dlt.Dataset = pipeline.dataset() # or `dlt.dataset(destination, dataset_name)`
+
 # Using the `table` method
 customers_relation = dataset.table("customers")
 
@@ -86,6 +88,8 @@ customers_relation = dataset["customers"]
 ### Create relations with SQL query strings
 
 ```py
+dataset: dlt.Dataset = pipeline.dataset() # or `dlt.dataset(destination, dataset_name)`
+
 # Join 'customers' and 'purchases' tables and filter by quantity
 query = """
 SELECT *
@@ -164,9 +168,11 @@ The methods on the Relation match the methods on the cursor that the SQL client 
 Some calls read data from the destination, for example `df()`, `arrow()`, and `fetchall()`. For each of these calls, the dataset opens a connection. The dataset closes the connection after the read completes or the iterator ends. To keep one connection open across several calls, use the dataset context manager:
 
 ```py
+dataset: dlt.Dataset = pipeline.dataset() # or `dlt.dataset(destination, dataset_name)`
+
 # the dataset context manager keeps the connection open
 # and closes it when the with block ends
-with dataset:
+with dataset:  # ty: ignore
     print(dataset.table("customers").limit(50).arrow())
     print(dataset.table("purchases").arrow())
 ```
@@ -176,6 +182,8 @@ with dataset:
 You can use the `row_counts` method to get the row counts of all tables in the destination as a DataFrame.
 
 ```py
+dataset: dlt.Dataset = pipeline.dataset() # or `dlt.dataset(destination, dataset_name)`
+
 # print the row counts of all tables in the destination as a DataFrame
 print(dataset.row_counts().df())
 """
@@ -304,6 +312,8 @@ A dotted `cursor_path` of the form `table.column` auto-joins `table` and filters
 A common case is filtering any user table by dlt load time via `_dlt_loads`:
 
 ```py
+dataset = pipeline.dataset()
+
 # only rows from loads that happened after 2026-01-01
 cursor = dlt.sources.incremental(
     "_dlt_loads.inserted_at",
@@ -390,6 +400,8 @@ The auto mode can need intermediate tables to build the path to the target table
 Pass `on=` to write the join condition yourself, as a SQL string or a `sqlglot` expression. If the auto mode does not work for your tables, use this form. One example is a join between two top-level tables with no parent/child relationship.
 
 ```py
+dataset = pipeline.dataset()
+
 # `customers` and `purchases` are two top-level tables connected
 # by `purchases.customer_id` and `customers.id`. There is no schema
 # reference between them, so we provide the join condition ourselves.
@@ -424,6 +436,8 @@ In `on`, dlt reads column and table names as dlt schema names. These are the nor
 Self-joins work with explicit `on`. The two instances of the table need distinct SQL qualifiers, so that the predicate can tell them apart. Alias one side with a `dataset.query(...)`. Then refer to that alias in `on`:
 
 ```py
+dataset = pipeline.dataset()
+
 # attach each employee's manager from the same table
 managers = dataset.query("SELECT * FROM employees AS managers")
 with_managers = dataset["employees"].join(
@@ -761,23 +775,25 @@ An example from our previous docs for joining a customers and a purchase table w
 
 ```py
 # get two relations
-customers_relation = dataset["customers"]
-purchases_relation = dataset["purchases"]
+customers_expr = dataset["customers"].to_ibis()
+purchases_expr = dataset["purchases"].to_ibis()
 
 # join them using an ibis expression
-joined_relation = customers_relation.join(
-    purchases_relation, customers_relation.id == purchases_relation.customer_id
+joined_expr = customers_expr.to_ibis().join(
+    purchases_expr, customers_expr.id == purchases_expr.customer_id
 )
 
 # ... do other ibis operations
 
 # directly fetch the data on the expression we have built
-df = joined_relation.df()
+df = dataset(joined_expr).df()
 ```
 
 The migrated version looks like this:
 
 ```py
+dataset = pipeline.dataset()
+
 # we convert the dlt.Relation to an Ibis Table object
 customers_expression = dataset.table("customers").to_ibis()
 purchases_expression = dataset.table("purchases").to_ibis()
@@ -829,6 +845,7 @@ records = customers_relation.fetchmany(10)
 **Note:** On filesystem tables, DuckDB can give you a different chunk size. The size depends on the parquet files behind the table.
 
 ```py notype
+dataset = pipeline.dataset()
 customers_relation: dlt.Relation
 
 # DataFrames

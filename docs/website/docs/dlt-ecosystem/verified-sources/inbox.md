@@ -185,11 +185,11 @@ def inbox_source(
 This resource collects email message UIDs (Unique IDs) from the mailbox.
 
 ```py
+from dlt.common.typing import TDataItem
+
 @dlt.resource(name="uids")
 def get_messages_uids(
-    initial_message_num: Optional[
-        dlt.sources.incremental[int]
-    ] = dlt.sources.incremental("message_uid", initial_value=1),
+    initial_message_num: dlt.sources.incremental[int] | None = dlt.sources.incremental("message_uid", initial_value=1),
 ) -> TDataItem:
    ...
 ```
@@ -201,6 +201,8 @@ def get_messages_uids(
 This resource retrieves emails by UID (Unique IDs), yielding a dictionary with metadata like UID, ID, sender, subject, dates, content type, and body.
 
 ```py
+from dlt.common.typing import TDataItem, TDataItems
+
 @dlt.transformer(name="messages", primary_key="message_uid")
 def get_messages(
     items: TDataItems,
@@ -219,6 +221,7 @@ Similar to the previous resources, resource `get_attachments` extracts email att
 It yields file items with attachments in the file_content field and the original email in the message field.
 
 ```py
+from typing import Iterable
 from dlt.extract.items import TDataItems
 from dlt.sources.filesystem import FileItem
 
@@ -228,7 +231,7 @@ from dlt.sources.filesystem import FileItem
 )
 def get_attachments(
     items: TDataItems,
-) -> Iterable[List[FileItem]]:
+) -> Iterable[list[FileItem]]:
    ...
 ```
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
