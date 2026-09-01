@@ -428,12 +428,6 @@ start-test-containers: ## Starts docker containers for local testing (postgres, 
 	docker compose -f "tests/load/sqlalchemy/docker-compose.yml" up -d
 	docker compose -f "tests/load/clickhouse/docker-compose.yml" up -d
 
-update-cli-docs: ## Regenerates CLI reference docs
-	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md
-
-check-cli-docs: ## Checks CLI reference docs are up to date (CI)
-	uv run python docs/tools/check_cli_docs.py docs/website/docs/reference/command-line-interface.md --compare
-
 test-e2e-dashboard: ## Runs dashboard e2e tests with headless chromium
 	uv run pytest --browser chromium tests/e2e
 
