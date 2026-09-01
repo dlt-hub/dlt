@@ -10,6 +10,7 @@ from dlt.common.configuration.providers import (
 )
 from dlt.common.configuration.specs import (
     AwsCredentials,
+    AzureKeyVaultCredentials,
     GcpServiceAccountCredentials,
     BaseConfiguration,
     configspec,
@@ -39,6 +40,7 @@ class ConfigProvidersConfiguration(BaseConfiguration):
     enable_airflow_secrets: bool = True
     enable_google_secrets: bool = False
     enable_aws_secrets: bool = False
+    enable_azure_secrets: bool = False
 
     airflow_secrets: VaultProviderConfiguration = VaultProviderConfiguration(
         only_secrets=False, only_toml_fragments=False, list_secrets=False
@@ -48,6 +50,9 @@ class ConfigProvidersConfiguration(BaseConfiguration):
     )  # None  # dataclasses.field(default_factory=lambda: dict(only_secrets=True, only_toml_fragments=True, list_secrets=False))
     # VaultProviderConfiguration(only_secrets=True, only_toml_fragments=True, list_secrets=False)
     aws_secrets: AwsSecretsProviderConfiguration = AwsSecretsProviderConfiguration(
+        only_secrets=True, only_toml_fragments=True, list_secrets=False
+    )
+    azure_secrets: VaultProviderConfiguration = VaultProviderConfiguration(
         only_secrets=True, only_toml_fragments=True, list_secrets=False
     )
     # always look in providers
@@ -110,6 +115,8 @@ def _extra_providers() -> List[ConfigProvider]:
         extra_providers.append(_google_secrets_provider(providers_config.google_secrets))
     if providers_config.enable_aws_secrets:
         extra_providers.append(_aws_secrets_provider(providers_config.aws_secrets))
+    if providers_config.enable_azure_secrets:
+        extra_providers.append(_azure_secrets_provider(providers_config.azure_secrets))
     return extra_providers
 
 
@@ -129,6 +136,16 @@ def _aws_secrets_provider(settings: AwsSecretsProviderConfiguration) -> ConfigPr
 
     c = resolve_configuration(AwsCredentials(), sections=(known_sections.PROVIDERS, "aws_secrets"))
     return AwsSecretsManagerProvider(c, **dict(settings))
+
+
+def _azure_secrets_provider(settings: VaultProviderConfiguration) -> ConfigProvider:
+    from dlt.common.configuration.resolve import resolve_configuration
+    from dlt.common.configuration.providers.azure_secrets import AzureKeyVaultProvider
+
+    c = resolve_configuration(
+        AzureKeyVaultCredentials(), sections=(known_sections.PROVIDERS, "azure_secrets")
+    )
+    return AzureKeyVaultProvider(c, **dict(settings))
 
 
 def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvider]:

@@ -279,9 +279,13 @@ Only values marked as secrets (with `dlt.secrets.value` or using types like `TSe
 
 * For Google Cloud Secrets Manager, see our [example walkthrough](../../walkthroughs/add_credentials.md#retrieving-credentials-from-google-cloud-secret-manager) and [reference](vaults.md#configure-google-secret-provider)
 
+* For AWS Secrets Manager, see the [reference](vaults.md#configure-aws-secrets-manager-provider)
+
+* For Azure Key Vault, see the [reference](vaults.md#configure-azure-key-vault-provider)
+
 * For Airflow Variable see the [reference and examples](vaults.md#configure-airflow-variables-as-provider)
 
-* For other vault integrations like AWS Secrets Manager or Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
+* For other vault integrations we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
 
 ## secrets.toml and config.toml
 
