@@ -1,14 +1,19 @@
 import os
-from typing import Iterator
+from typing import Iterator, Any
 import pytest
+import threading
 import tempfile
 
 import dlt
+import requests
+from dlt.common import sleep
 from dlt.common.runners import Venv
 from dlt.common.schema.schema import Schema
+from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.helpers.dbt import create_venv
 from dlt.helpers.dbt.exceptions import DBTProcessingError, PrerequisitesException
+from dlt.sources.helpers.requests import client
 
 from tests.pipeline.utils import select_data
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -72,6 +77,50 @@ def test_run_jaffle_package(
     assert len(orders) == 99
 
 
+@dlt.source
+def chess(
+    chess_url: str = dlt.config.value,
+    title: str = "GM",
+    max_players: int = 2,
+    year: int = 2022,
+    month: int = 10,
+):
+    def _get_data_with_retry(path: str) -> StrAny:
+        r = client.get(f"{chess_url}{path}")
+        return r.json()
+
+    @dlt.resource(write_disposition="replace")
+    def players() -> Iterator[TDataItems]:
+        # return players one by one, you could also return a list
+        # that would be faster but we want to pass players item by item to the transformer
+        yield from _get_data_with_retry(f"titled/{title}")["players"][:max_players]
+
+    # this resource takes data from players and returns profiles
+    # it uses `paralellized` flag to enable parallel run in thread pool.
+    @dlt.transformer(data_from=players, write_disposition="replace", parallelized=True)
+    def players_profiles(username: Any) -> TDataItems:
+        print(
+            f"getting {username} profile via thread {threading.current_thread().name}"
+        )
+        sleep(1)  # add some latency to show parallel runs
+        return _get_data_with_retry(f"player/{username}")
+
+    # this resource takes data from players and returns games for the last month
+    # if not specified otherwise
+    @dlt.transformer(data_from=players, write_disposition="append")
+    def players_games(username: Any) -> Iterator[TDataItems]:
+        # https://api.chess.com/pub/player/{username}/games/{YYYY}/{MM}
+        path = f"player/{username}/games/{year:04d}/{month:02d}"
+        try:
+            yield _get_data_with_retry(path)["games"]
+        except requests.HTTPError as exc:
+            # we allow players to not have games for some months
+            if not exc.response.status_code == 404:
+                raise exc
+
+    return players(), players_profiles, players_games
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, supports_dbt=True),
@@ -83,8 +132,6 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
             "mssql/fabric require non standard SQL syntax and we do not have specialized dbt"
             " package for it"
         )
-
-    from docs.examples.chess.chess import chess
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
@@ -146,7 +193,6 @@ def test_run_chess_dbt_to_other_dataset(
             "mssql/fabric require non standard SQL syntax and we do not have specialized dbt"
             " package for it"
         )
-    from docs.examples.chess.chess import chess
 
     # provide chess url via environ
     os.environ["CHESS_URL"] = "https://api.chess.com/pub/"
