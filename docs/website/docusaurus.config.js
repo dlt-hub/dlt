@@ -179,6 +179,7 @@ const config = {
             label: "Education",
           },
           { to: "/release-highlights", label: "What's new?", position: "left" },
+          { type: "custom-statusItem", position: "left" },
           { to: "https://dlthub.com/blog", label: "Blog", position: "right" },
           {
             href: "https://dlthub.com/community",
@@ -227,6 +228,11 @@ const config = {
               {
                 label: "Twitter",
                 href: "https://twitter.com/dlthub",
+                className: "footer-link",
+              },
+              {
+                label: "Status",
+                href: "https://status.dlthub.com",
                 className: "footer-link",
               },
             ],
