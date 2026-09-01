@@ -88,8 +88,6 @@ import sqlglot
 
 # this should suffice for now
 DDL_COMMANDS = ["ALTER", "CREATE", "DROP"]
-# TODO: move to respective sql clients
-UNLOGGED_COMMANDS = ["ALTER SCHEMA"]
 
 
 class SqlLoadJob(RunnableLoadJob):
@@ -131,9 +129,6 @@ class SqlLoadJob(RunnableLoadJob):
         return False
 
     def _has_out_of_transaction_commands(self, sql: str) -> bool:
-        for cmd in UNLOGGED_COMMANDS:
-            if re.search(cmd, sql, re.IGNORECASE):
-                return True
         # disable transaction on synapse when doing sql jobs, to enable:
         # TODO: 1. disable transaction if temp table is created via select into
         # 2. swap TRUNCATE for delete in replace jobs
