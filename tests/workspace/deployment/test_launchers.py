@@ -379,6 +379,35 @@ def test_marimo_launcher_with_base_path() -> None:
         assert "/workspace/123/nb" in cmd
 
 
+def test_dashboard_launcher_execs_marimo_without_importing_dashboard() -> None:
+    """Dashboard launcher execs marimo directly (no nested subprocess or heavy imports)."""
+    module_name = "dlt._workspace.helpers.dashboard.dlt_dashboard"
+    entry_point = _entry(module_name, port=8080)
+    sys.modules.pop(module_name, None)
+
+    with (
+        patch("dlt._workspace.deployment.launchers.marimo.exec_process") as mock_exec,
+        patch(
+            "dlt._workspace.deployment.launchers.marimo.resolve_module_path",
+            return_value="/path/to/dlt_dashboard.py",
+        ),
+    ):
+        from dlt._workspace.deployment.launchers.dashboard import run
+
+        run(entry_point)
+
+        cmd = mock_exec.call_args[0][0]
+        assert cmd[:3] == ["marimo", "-y", "run"]
+        assert "/path/to/dlt_dashboard.py" in cmd
+        assert "--port" in cmd
+        assert "8080" in cmd
+        assert "--host" in cmd
+        assert "0.0.0.0" in cmd
+        assert "--headless" in cmd
+
+    assert module_name not in sys.modules
+
+
 def test_streamlit_launcher_builds_correct_args() -> None:
     """Streamlit launcher passes `streamlit run` and correct flags to exec_process."""
     entry_point = _entry(f"{WORKSPACE}.streamlit_app", port=8501)
