@@ -135,7 +135,9 @@ rules:
 #         exclude: []
 #         field: ""
 #         include: []
-ignore: []
+ignore: [
+  "website/docs/reference/command-line-interface.md",
+]
 overrides: []
 # front-matter: true
 categories:

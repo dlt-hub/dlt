@@ -36,12 +36,6 @@ jobs:
       - name: Install dependencies
         run: cd docs && make dev
 
-      # - name: Install root project for CLI docs check
-      #   run: uv sync --extra cli --group workspace-deps
-
-      - name: Check that CLI docs are up to date
-        run: make check-cli-docs
-
       - name: Install node dependencies
         run: cd docs/website && npm install
 

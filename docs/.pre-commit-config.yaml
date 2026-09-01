@@ -20,7 +20,7 @@ repos:
         language: system
         files: ^website/docs/.*\.md$
         types: [markdown]
-        pass_filenames: false
+        pass_filenames: true
 
   - repo: local
     hooks:
@@ -62,6 +62,12 @@ repos:
         entry: make lint-notebooks
         files: ^education/.*\.ipynb$
         types: [jupyter]
+        language: system
+        pass_filenames: false
+
+      - id: cli-check
+        name: cli-check
+        entry: uv run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
         language: system
         pass_filenames: false
 

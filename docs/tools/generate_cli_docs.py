@@ -1,5 +1,24 @@
 # ruff: noqa: T201
 # flake8: noqa: T201
+# /// script
+# requires-python = ">=3.10"
+# dependencies = [
+#   "dlt[cli]",
+#   "duckdb>=0.9",
+#   "ibis-framework>=12.0.0",
+#   "pyarrow>=16.0.0",
+#   "marimo>=0.14.5",
+#   "fastmcp>=3.0.0",
+#   "mowidgets>=0.2.1 ; python_version >= '3.11'",
+#   "pathspec>=0.11.2",
+#   "pydbml>=1.2.0",
+#   "croniter>=6.0.0",
+#   "s3fs>=2022.4.0",
+# ]
+#
+# [tool.uv.sources]
+# dlt = { path = "../..", editable = true }
+# ///
 """Standalone tool for generating and checking CLI reference docs.
 
 Usage:
@@ -286,6 +305,7 @@ def render_argparse_markdown(
     return header + markdown
 
 
+# TODO we can probably remove the `file_name` argument for the output and set a constant
 def main() -> None:
     parser = argparse.ArgumentParser(description="Generate or check CLI reference docs.")
     parser.add_argument("file_name", help="Output file name")
