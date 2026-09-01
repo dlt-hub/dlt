@@ -921,9 +921,9 @@ requires-dist = [
     { name = "lancedb", marker = "extra == 'lance'", specifier = ">=0.33.0" },
     { name = "lancedb", marker = "extra == 'lancedb'", specifier = ">=0.22.0" },
     { name = "oracledb", marker = "extra == 'oracle'", specifier = ">=3.4.1" },
-    { name = "orjson", marker = "python_full_version >= '3.14'", specifier = ">=3.11.0" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.6.7,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1,<4" },
     { name = "orjson", marker = "platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.10.1" },
+    { name = "orjson", marker = "python_full_version >= '3.14' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'", specifier = ">=3.11.0" },
     { name = "packaging", specifier = ">=21.1" },
     { name = "paramiko", marker = "extra == 'sftp'", specifier = ">=3.3.0,<5" },
     { name = "pathvalidate", specifier = ">=2.5.2" },
@@ -1116,6 +1116,7 @@ dependencies = [
     { name = "lancedb" },
     { name = "logfire" },
     { name = "marimo" },
+    { name = "mdsmith" },
     { name = "modal" },
     { name = "mypy" },
     { name = "nbqa" },
@@ -1161,6 +1162,7 @@ requires-dist = [
     { name = "lancedb", marker = "python_full_version < '3.13'", specifier = ">=0.8.2" },
     { name = "logfire", specifier = ">=4.32.1" },
     { name = "marimo", specifier = ">=0.17.4" },
+    { name = "mdsmith", specifier = ">=0.55.1" },
     { name = "modal", specifier = ">=0.64.170" },
     { name = "modal", specifier = ">=1.2.1" },
     { name = "mypy", specifier = ">=1.11.0,<1.13.0" },
@@ -2377,6 +2379,18 @@ source = { registry = "https://pypi.org/simple" }
 sdist = { url = "https://files.pythonhosted.org/packages/e7/ff/0ffefdcac38932a54d2b5eed4e0ba8a408f215002cd178ad1df0f2806ff8/mccabe-0.7.0.tar.gz", hash = "sha256:348e0240c33b60bbdf4e523192ef919f28cb2c3d7d5c7794f74009290f236325", size = 9658, upload-time = "2022-01-24T01:14:51.113Z" }
 wheels = [
     { url = "https://files.pythonhosted.org/packages/27/1a/1f68f9ba0c207934b35b86a8ca3aad8395a3d6dd7921c0686e23853ff5a9/mccabe-0.7.0-py2.py3-none-any.whl", hash = "sha256:6c2d30ab6be0e4a46919781807b4f0d834ebdd6c6e3dca0bda5a15f863427b6e", size = 7350, upload-time = "2022-01-24T01:14:49.62Z" },
+]
+
+[[package]]
+name = "mdsmith"
+version = "0.55.1"
+source = { registry = "https://pypi.org/simple" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/50/aa/b10d00ab9d1482c283f7b5d944eb1176a157c8b15cb9ec54e7124d253b57/mdsmith-0.55.1-py3-none-macosx_11_0_arm64.whl", hash = "sha256:8624215ffe896e6cf85bf6a776d19570c6fc98e31fbbc254aa2a87e7f1afccf3", size = 4978930, upload-time = "2026-08-29T22:31:09.573Z" },
+    { url = "https://files.pythonhosted.org/packages/02/c8/754a122f201d3735bad6217b08dc43bc947cee2bf3ba905759a69bcbdd89/mdsmith-0.55.1-py3-none-macosx_11_0_x86_64.whl", hash = "sha256:9662f8b0810bc9c22baf9bbff828ea58d172f6d6927d84b2911dc63e8642d396", size = 5404133, upload-time = "2026-08-29T22:31:12.022Z" },
+    { url = "https://files.pythonhosted.org/packages/b5/11/73d5ca8a04c6e44bd1a806f5474de68fd058bc4e06eed733f8d40fb9d37e/mdsmith-0.55.1-py3-none-manylinux2014_aarch64.manylinux_2_17_aarch64.whl", hash = "sha256:5bba2baf87462037d866ac51a95c2292288f2d085c4cb7754a783ba15e3f1d10", size = 4823050, upload-time = "2026-08-29T22:31:13.725Z" },
+    { url = "https://files.pythonhosted.org/packages/38/3a/3bfa1e144c7a8ccad3804c73b4568ac41bef3a9340ac298bb8e719093d4c/mdsmith-0.55.1-py3-none-manylinux2014_x86_64.manylinux_2_17_x86_64.whl", hash = "sha256:9bb3b65cebf86c17ee9e1cd208c3984edfc5e1862592fe5533f2ca7124cd1bdd", size = 5347880, upload-time = "2026-08-29T22:31:16.379Z" },
+    { url = "https://files.pythonhosted.org/packages/8f/23/24a5cfa851c41e8a7868e6f3c1f89868d824c2ce432ae6b7609e8ff3a914/mdsmith-0.55.1-py3-none-win_amd64.whl", hash = "sha256:5b4e0dc53f9618920f57a242429cfc8bc7fa4828b45763420b8047fbaaa5ae65", size = 5478102, upload-time = "2026-08-29T22:31:18.617Z" },
 ]
 
 [[package]]
