@@ -230,7 +230,8 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
             staging_credentials_name (str, optional): If set, credentials with given name will be used in copy command
             destination_name (str, optional): Name of the destination, can be used in config section to differentiate between multiple of the same type
             environment (str, optional): Environment of the destination
-            staging_volume_name (str, optional): Name of the staging volume to use
+            staging_volume_name (str, optional): Fully qualified name of the Databricks managed volume for temporary storage, e.g., `catalog.database.volume`.
+                When omitted, dlt creates or reuses `_dlt_staging_load_volume` in the destination catalog and dataset.
             create_indexes (bool, optional): Whether PRIMARY KEY or FOREIGN KEY constrains should be created
             insert_api (TDatabricksInsertApi, optional): Ingestion backend for `append` write
                 disposition. Can be overridden per resource via `databricks_adapter`.

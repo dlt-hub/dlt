@@ -251,7 +251,10 @@ class DatabricksClientConfiguration(DestinationClientDwhWithStagingConfiguration
     is_staging_external_location: bool = False
     """If true, the temporary credentials are not propagated to the COPY command"""
     staging_volume_name: Optional[str] = None
-    """Name of the Databricks managed volume for temporary storage, e.g., <catalog_name>.<database_name>.<volume_name>. Defaults to '_dlt_temp_load_volume' if not set."""
+    """Fully qualified name of the Databricks managed volume for temporary storage, e.g.,
+    `catalog.database.volume`. When omitted, dlt creates or reuses `_dlt_staging_load_volume`
+    in the destination catalog and dataset.
+    """
     keep_staged_files: Optional[bool] = True
     """Tells if to keep the files in internal (volume) stage"""
     create_indexes: bool = False
