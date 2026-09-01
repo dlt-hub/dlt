@@ -573,6 +573,38 @@ print(info)
 ```
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
 
+### MSSQL Arrow
+
+The `mssql_arrow` backend reads `Arrow` record batches straight off the [mssql-python](https://github.com/microsoft/mssql-python) cursor over the Arrow C Data Interface. Compared to the `PyArrow` backend it drops the SQLAlchemy row objects and the Python tuples that Arrow tables would otherwise be rebuilt from, which matters most on large SQL Server tables and on wide `varbinary(max)` columns.
+
+The backend needs a connection that is actually driven by mssql-python:
+
+* `sqlalchemy>=2.1`, which is the first version shipping the `mssqlpython` dialect.
+* An `mssql+mssqlpython://` connection string. The more common `mssql+pyodbc://` hands out a pyODBC cursor, which has no Arrow reader.
+* `mssql-python>=1.13.0` and `pyarrow` installed.
+
+Selecting `backend="mssql_arrow"` on a connection that cannot provide an Arrow cursor raises an error naming the dialect it needs. It does not silently fall back to another backend.
+
+```py
+import dlt
+from dlt.sources.sql_database import sql_table
+
+user_table = sql_table(
+    "mssql+mssqlpython://loader:loader@localhost:1433/dlt_data?TrustServerCertificate=yes",
+    "app_user",
+    "my_schema",
+    backend="mssql_arrow",
+    chunk_size=10000,
+)
+
+pipeline = dlt.pipeline(pipeline_name="mssql_arrow_download", destination="duckdb")
+
+info = pipeline.run(user_table)
+print(info)
+```
+
+On a local SQL Server 2022 reading 2000 rows holding 125 MB of `varbinary(max)`, extraction runs about 25% faster than the `PyArrow` backend at roughly 30% lower peak memory (0.35 s / 167 MB versus 0.46 s / 239 MB). Both Arrow backends skip the `dlt` normalizer, which is where they pull away from `SQLAlchemy`: the same load end to end takes 1.2 s with either Arrow backend and 6.8 s with `SQLAlchemy`.
+
 ### Custom backends
 
 You can write your own table loader backend by subclassing `BaseTableLoader` (for an entirely different data access method) or `TableLoader` (to customize row loading within SQLAlchemy). Pass your class via the `table_loader_class` parameter or register it as a named backend with `register_table_loader_backend`.
