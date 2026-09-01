@@ -13,14 +13,12 @@ jobs:
       - name: Check out
         uses: actions/checkout@9c091bb21b7c1c1d1991bb908d89e4e9dddfe3e0 # v7.0.0
 
-      - uses: pnpm/action-setup@v2
-        with:
-          version: 9.13.2
-
-      - uses: actions/setup-node@v5
+      - name: Setup node 22
+        uses: actions/setup-node@v5
         with:
           node-version: '22'
 
+      # `uv` is required by some `npm` commands defined in docs/website/package.json
       - name: Install uv
         uses: astral-sh/setup-uv@v6
         with:
@@ -30,7 +28,7 @@ jobs:
       - name: Install node dependencies
         run: cd docs/website && npm install
 
-      - name: Install python dependencies
+      - name: Build docs
         run: cd docs/website && npm run build
 
       - name: Verify redirects
