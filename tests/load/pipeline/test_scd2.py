@@ -913,6 +913,7 @@ def test_merge_key_compound_natural_key(
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
+        name="s",  # ensure the staging alias cannot shadow the root table name
         merge_key=["first_name", "last_name"],
         write_disposition={"disposition": "merge", "strategy": "scd2"},
     )
@@ -921,39 +922,55 @@ def test_merge_key_compound_natural_key(
 
     # vary `first_name` type to test mixed compound `merge_key`
     if key_type == "text":
-        first_name = "John"
+        first_name: Any = "ab"
+        last_name = "c"
+        colliding_first_name: Any = "a"
+        colliding_last_name = "bc"
     elif key_type == "bigint":
-        first_name = 1  # type: ignore[assignment]
+        first_name = 12
+        last_name = "3"
+        colliding_first_name = 1
+        colliding_last_name = "23"
     # load 1 — initial load
     dim_snap = [
-        {"first_name": first_name, "last_name": "Doe", "age": 20},
+        {"first_name": first_name, "last_name": last_name, "age": 20},
         {"first_name": first_name, "last_name": "Dodo", "age": 20},
+        {
+            "first_name": colliding_first_name,
+            "last_name": colliding_last_name,
+            "age": 20,
+        },
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 2
-    # both records should be active (i.e. not retired)
-    assert [row[TO] for row in get_table(p, "dim_test_compound")] == [None, None]
+    assert load_table_counts(p, "s")["s"] == 3
+    # all records should be active (i.e. not retired)
+    assert [row[TO] for row in get_table(p, "s")] == [None, None, None]
 
-    # load 2 — "Dodo" is absent, "Doe" has changed
+    # load 2 — "Dodo" and the colliding key are absent, while the first record has changed
     dim_snap = [
-        {"first_name": first_name, "last_name": "Doe", "age": 30},
+        {"first_name": first_name, "last_name": last_name, "age": 30},
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 3
+    assert load_table_counts(p, "s")["s"] == 4
     ts3 = get_load_package_created_at(p, info)
-    # "Doe" should now have two records (one retired, one active)
+    # the changed key should have two records; unrelated absent keys must stay active
     actual = [
         {k: v for k, v in row.items() if k in ("first_name", "last_name", TO)}
-        for row in get_table(p, "dim_test_compound", ts_columns=[FROM, TO])
+        for row in get_table(p, "s", ts_columns=[FROM, TO])
     ]
     expected = [
-        {"first_name": first_name, "last_name": "Doe", TO: ts3},
-        {"first_name": first_name, "last_name": "Doe", TO: None},
+        {"first_name": first_name, "last_name": last_name, TO: ts3},
+        {"first_name": first_name, "last_name": last_name, TO: None},
         {"first_name": first_name, "last_name": "Dodo", TO: None},
+        {
+            "first_name": colliding_first_name,
+            "last_name": colliding_last_name,
+            TO: None,
+        },
     ]
-    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+    assert_records_as_set(actual, expected)
 
 
 @pytest.mark.essential

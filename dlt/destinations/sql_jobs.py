@@ -374,8 +374,19 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
-    def gen_concat_sql(cls, columns: Sequence[str]) -> str:
-        return f"CONCAT({', '.join(columns)})"
+    def gen_scd2_key_present_sql(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        merge_keys: Sequence[str],
+    ) -> str:
+        staging_alias = "s_" if root_table_name.strip('"`[]').casefold() == "s" else "s"
+        key_match = " AND ".join(
+            f"{root_table_name}.{key} = {staging_alias}.{key}" for key in merge_keys
+        )
+        return (
+            f"EXISTS (SELECT 1 FROM {staging_root_table_name} AS {staging_alias} WHERE {key_match})"
+        )
 
     @classmethod
     def _shorten_table_name(cls, ident: str, sql_client: SqlClientBase[Any]) -> str:
@@ -982,9 +993,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         if len(merge_keys) > 0:
             if len(merge_keys) == 1:
                 key = merge_keys[0]
+                key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
             else:
-                key = cls.gen_concat_sql(merge_keys)  # compound key
-            key_present = f"{key} IN (SELECT {key} FROM {staging_root_table_name})"
+                key_present = cls.gen_scd2_key_present_sql(
+                    escape_column_id(root_table["name"]),
+                    staging_root_table_name,
+                    merge_keys,
+                )
             retire_sql = retire_sql.rstrip()[:-1]  # remove semicolon
             retire_sql += f" AND {key_present}"
         sql.append(retire_sql)
