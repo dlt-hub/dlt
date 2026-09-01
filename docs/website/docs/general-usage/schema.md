@@ -806,15 +806,17 @@ settings:
 Above, we prefer the `timestamp` data type for all columns containing the **timestamp** substring and define a few exact matches, i.e., **created_at**.
 Here's the same thing in code:
 ```py
-  source = data_source()
-  source.schema.update_preferred_types(
-    {
-      TSimpleRegex("re:timestamp"): "timestamp",
-      TSimpleRegex("inserted_at"): "timestamp",
-      TSimpleRegex("created_at"): "timestamp",
-      TSimpleRegex("updated_at"): "timestamp",
-    }
-  )
+from dlt.common.schema.typing import TSimpleRegex
+
+source = data_source()
+source.schema.update_preferred_types(
+{
+    TSimpleRegex("re:timestamp"): "timestamp",
+    TSimpleRegex("inserted_at"): "timestamp",
+    TSimpleRegex("created_at"): "timestamp",
+    TSimpleRegex("updated_at"): "timestamp",
+}
+)
 ```
 ### Applying data types directly with `@dlt.resource` and `apply_hints`
 `dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
@@ -838,7 +840,7 @@ For example, to apply a `json` data type across all collections from a MongoDB s
 
 ```py
 all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
-source_data = mongodb().with_resources(*all_collections)
+source_data = mongodb().with_resources(*all_collections)  # ty: ignore
 
 for col in all_collections:
     source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "json"}})

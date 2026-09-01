@@ -72,7 +72,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 1. In your Dagster project, define the dlt pipeline in the `github_source` folder.
 
    **Note**: The dlt Dagster helper works only with dlt sources. Your resources should always be grouped in a source.
-     ```py
+     ```py notype
      import dlt
      ...
      @dlt.resource(
@@ -221,7 +221,7 @@ For a complete picture of Dagster's integration with dlt, please refer to their 
 
   To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, modify your resource setup to include `bigquery_adapter` with the partition parameter. Here's a quick example:
 
-  ```py
+  ```py notype
   import dlt
   from google.analytics import BetaAnalyticsDataClient
   from dlt.destinations.adapters import bigquery_adapter

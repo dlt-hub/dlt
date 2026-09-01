@@ -109,19 +109,19 @@ If a table is large, apply a limit or iterate in chunks. A full table read can e
 
 #### As a Pandas DataFrame
 
-```py
+```py notype
 df = customers_relation.df()
 ```
 
 #### As a PyArrow Table
 
-```py
+```py notype
 arrow_table = customers_relation.arrow()
 ```
 
 #### As a list of Python tuples
 
-```py
+```py notype
 items_list = customers_relation.fetchall()
 ```
 
@@ -135,7 +135,7 @@ To handle large datasets efficiently, you can process data in smaller chunks.
 
 ### Iterate as Pandas DataFrames
 
-```py
+```py notype
 for df_chunk in customers_relation.iter_df(chunk_size=5):
     # Process each DataFrame chunk
     pass
@@ -143,7 +143,7 @@ for df_chunk in customers_relation.iter_df(chunk_size=5):
 
 ### Iterate as PyArrow Tables
 
-```py
+```py notype
 for arrow_chunk in customers_relation.iter_arrow(chunk_size=5):
     # Process each PyArrow chunk
     pass
@@ -151,7 +151,7 @@ for arrow_chunk in customers_relation.iter_arrow(chunk_size=5):
 
 ### Iterate as lists of tuples
 
-```py
+```py notype
 for items_chunk in customers_relation.iter_fetch(chunk_size=5):
     # Process each chunk of tuples
     pass
@@ -206,20 +206,20 @@ You can change a query in these ways:
 
 ### Limit the number of records
 
-```py
+```py notype
 # Get the first 50 items as a PyArrow table
 arrow_table = customers_relation.limit(50).arrow()
 ```
 
 #### Using `head()` to get the first 5 records
 
-```py
+```py notype
 df = customers_relation.head().df()
 ```
 
 ### Select specific columns
 
-```py
+```py notype
 # Select only 'id' and 'name' columns
 items_list = customers_relation.select("id", "name").fetchall()
 
@@ -232,14 +232,14 @@ items_list = customers_relation[["name"]].fetchall()
 
 ### Sort results
 
-```py
+```py notype
 # Order by 'id'
 ordered_list = customers_relation.order_by("id").fetchall()
 ```
 
 ### Filter rows
 
-```py
+```py notype
 # Filter by 'id'
 filtered = customers_relation.where("id", "in", [3, 1, 7]).fetchall()
 
@@ -258,7 +258,7 @@ filtered = customers_relation.where(expr).fetchall()
 
 ### Aggregate data
 
-```py
+```py notype
 # Get max 'id'
 max_id = customers_relation.select("id").max().fetchscalar()
 
@@ -288,7 +288,7 @@ rows = dataset.table("events").incremental(cursor).fetchall()
 
 Or pass it directly on `dataset.table(..., incremental=...)`:
 
-```py
+```py notype
 rows = dataset.table("events", incremental=cursor).fetchall()
 ```
 
@@ -554,7 +554,7 @@ To write a cross-destination join into a new table, use a transformation. See [T
 
 You can combine `select`, `limit`, and other methods.
 
-```py
+```py notype
 # Select columns and limit the number of records
 arrow_table = customers_relation.select("id", "name").limit(50).arrow()
 ```
@@ -724,7 +724,7 @@ expr = customers_expression.order_by(ibis.desc("id"), ibis.asc("city")).limit(10
 # group by and aggregate
 expr = (
     customers_expression.group_by("city")
-    .having(customers_expression.count() >= 3)
+    .having(customers_expression.count() >= 3)  # ty: ignore
     .aggregate(sum_id=customers_expression.id.sum())
 )
 # print(dataset(expr).df())
@@ -814,13 +814,13 @@ Note: `delta` tables autorefresh by default. Delta core implements this refresh.
 
 ### Fetch one record as a tuple
 
-```py
+```py notype
 record = customers_relation.fetchone()
 ```
 
 ### Fetch many records as tuples
 
-```py
+```py notype
 records = customers_relation.fetchmany(10)
 ```
 
@@ -828,7 +828,9 @@ records = customers_relation.fetchmany(10)
 
 **Note:** On filesystem tables, DuckDB can give you a different chunk size. The size depends on the parquet files behind the table.
 
-```py
+```py notype
+customers_relation: dlt.Relation
+
 # DataFrames
 for df_chunk in (
     customers_relation.select("id", "name").limit(100).iter_df(chunk_size=20)

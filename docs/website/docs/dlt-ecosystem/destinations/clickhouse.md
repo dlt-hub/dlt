@@ -301,8 +301,8 @@ def my_resource():
 
 clickhouse_adapter(
    my_resource,
-   sort = sorting_key,
-   partition = partition_key
+   sort="updated_at",
+   partition="org",
 )
 ```
 

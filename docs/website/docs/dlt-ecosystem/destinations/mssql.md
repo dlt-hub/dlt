@@ -149,6 +149,7 @@ DSN format is different. We translate a few overlapping keys. `pyodbc` and `adbc
 You can go back to `insert_values` by passing `loader_file_format` to a resource or pipeline
 ```py
 # revert to INSERT statements
+data_iter = iter(())  # your data generator
 pipeline.run(data_iter, dataset_name="speed_test_2", write_disposition="replace", table_name="unsw_flow", loader_file_format="insert_values")
 ```
 

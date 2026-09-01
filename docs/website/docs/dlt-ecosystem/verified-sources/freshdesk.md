@@ -179,7 +179,7 @@ verified source.
    [documentation](../../general-usage/pipeline).
 
 2. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
-   ```py
+   ```py notype
    load_data = freshdesk_source()
    # Run the pipeline
    load_info = pipeline.run(load_data)
@@ -188,7 +188,7 @@ verified source.
    ```
 
 3. To load the data from "agents", "contacts", and "tickets":
-   ```py
+   ```py notype
    load_data = freshdesk_source().with_resources("agents", "contacts", "tickets")
    # Run the pipeline
    load_info = pipeline.run(load_data)

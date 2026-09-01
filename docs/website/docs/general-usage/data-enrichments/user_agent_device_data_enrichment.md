@@ -230,7 +230,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```py
+   ```py notype
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_one",
@@ -249,7 +249,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    do so, you need to add the transformer decorator at the top of the `fetch_average_price` function.
    For `pipeline.run`, you can use the following code:
 
-   ```py
+   ```py notype
    # using fetch_average_price as a transformer function
    load_info = pipeline.run(
        tracked_data | fetch_average_price,
@@ -284,4 +284,3 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_one`; you can use
    any custom name instead.
-

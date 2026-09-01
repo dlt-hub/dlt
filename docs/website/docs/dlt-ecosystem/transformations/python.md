@@ -32,7 +32,7 @@ reactions = github_issues.select(
 ).df()
 
 # calculate and print out the sum of all reactions
-counts = reactions.sum(0).sort_values(0, ascending=False)
+counts = reactions.sum(0).sort_values(0, ascending=False)  # ty: ignore
 print(counts)
 
 # alternatively, you can fetch the data as an arrow table
@@ -113,7 +113,7 @@ pipeline.run(users.iter_arrow(chunk_size=1000), table_name="users_clean")
 
 The example above could easily be done in SQL. Let's assume you'd like to actually do in Python some Arrow transformations. For this we will create a resource from which we can yield the modified Arrow tables. The same is possibly with DataFrames.
 
-```py
+```py notype
 import pyarrow.compute as pc
 
 pipeline = dlt.pipeline(

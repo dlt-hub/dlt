@@ -35,7 +35,7 @@ This page covers all the trigger types and the related scheduling features.
 
 A job can have any number of triggers. Pass a list and inspect `run_context["trigger"]` to discover which one fired:
 
-```py
+```py notype
 from dlt.hub.run import TJobRunContext
 
 @run.job(
@@ -57,7 +57,7 @@ def transform(run_context: TJobRunContext):
 
 Every decorated job exposes `.success`, `.fail`, and `.completed` trigger properties. Use them to chain jobs into a dependency graph.
 
-```py
+```py notype
 from dlt.hub.run import TJobRunContext
 
 @run.pipeline("transform_pipeline", trigger=ingest_job.success)
@@ -71,7 +71,7 @@ Follow-up triggers fire as soon as the upstream completes — no polling, no sch
 
 For incremental pipelines, declare the overall time range with `interval=` and let the dltHub platform hand each run a `[interval_start, interval_end]` window:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
     interval={"start": "2026-01-01T00:00:00Z"},
@@ -104,7 +104,7 @@ An `every` trigger generates relative intervals of a fixed period, starting from
 
 `freshness=[upstream.is_fresh]` blocks a job until the upstream's most recent interval has fully completed:
 
-```py
+```py notype
 @run.pipeline(
     "report_pipeline",
     trigger=trigger.schedule("0 * * * *"),
@@ -136,7 +136,7 @@ Refresh policies:
 | `"auto"` | Pass through any refresh signal received from upstream (default) |
 | `"block"` | Stop refresh propagation here |
 
-```py
+```py notype
 @run.job(expose={"tags": ["backfill"]}, refresh="always")
 def backfill():
     """Cascade a refresh; does not load data."""
@@ -150,7 +150,7 @@ dlthub run backfill --refresh    # explicit refresh on a single job
 ```
 
 Note that the refresh signal will not drop your data automatically, you should use one of the [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
-```py
+```py notype
 @run.pipeline(
     "report_pipeline",
     trigger=trigger.schedule("0 * * * *"),
@@ -187,7 +187,7 @@ dlthub job trigger "tag:ingest" --dry-run
 
 Cron expressions default to UTC. To interpret them in a specific IANA timezone, declare it on the job:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
     trigger=trigger.schedule("0 9 * * *"),    # 9am

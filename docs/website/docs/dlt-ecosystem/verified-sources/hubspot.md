@@ -151,7 +151,7 @@ def hubspot(
 
 This resource function fetches data from the "companies" endpoint and loads it to the destination, replacing any existing data.
 
-```py
+```py notype
 @dlt.resource(name="companies", write_disposition="replace")
 def companies(
    api_key: str = API_KEY,
@@ -175,7 +175,7 @@ This resource function takes the same arguments, `api_key` and `include_history`
 
 This function loads web analytics events for specific objects from the Hubspot API into the destination.
 
-```py
+```py notype
 @dlt.resource
 def hubspot_events_for_objects(
      object_type: THubspotObjectType,
@@ -219,7 +219,7 @@ verified source.
 
 1. To load all the data from contacts, companies, deals, products, tickets, and quotes into the destination.
 
-   ```py
+   ```py notype
    load_data = hubspot()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -227,7 +227,7 @@ verified source.
 
 1. To load data from contacts and companies, with time history using the "with_resources" method.
 
-   ```py
+   ```py notype
    load_data = hubspot(include_history=True).with_resources("companies","contacts")
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -237,7 +237,7 @@ verified source.
 1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
     set the flag `include_custom_props=False` and add a list of properties with the `props` arg.
 
-   ```py
+   ```py notype
    load_data = hubspot()
    load_data.contacts.bind(props=["date_of_birth", "degree"], include_custom_props=False)
    load_info = pipeline.run(load_data.with_resources("contacts"))
@@ -245,7 +245,7 @@ verified source.
 
 1. If you want to read all the custom properties of CRM objects and some additional (e.g., Hubspot driven) properties.
 
-   ```py
+   ```py notype
    load_data = hubspot()
    load_data.contacts.bind(props=["hs_content_membership_email", "hs_content_membership_email_confirmed"])
    load_info = pipeline.run(load_data.with_resources("contacts"))
@@ -254,7 +254,7 @@ verified source.
 
 1. To load the web analytics events of a given object type.
 
-   ```py
+   ```py notype
    resource = hubspot_events_for_objects("company", ["7086461639", "7086464459"])
    # Here, object type: company, and object IDs: 7086461639 and 7086464459
    load_info = pipeline.run([resource])
@@ -281,7 +281,7 @@ Default properties are defined in `settings.py`, and you can change them.
 The custom properties could cause the error as there might be too many of them available in your HubSpot.
 To change this, you can pass `include_custom_props=False` when initializing the source:
 
-```py
+```py notype
 info = p.run(hubspot(include_custom_props=False))
 ```
 Or, if you wish to include them, you can modify `settings.py`.

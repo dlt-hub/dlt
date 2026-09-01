@@ -102,7 +102,6 @@ For example:
 import dlt
 from dlt.destinations.adapters import lancedb_adapter
 
-
 movies = [
   {
     "id": 1,
@@ -120,20 +119,12 @@ movies = [
     "year": 1999,
   },
 ]
-```
 
-### Create a pipeline:
-
-```py
 pipeline = dlt.pipeline(
   pipeline_name="movies",
   destination="lancedb",
 )
-```
 
-### Run the pipeline:
-
-```py
 info = pipeline.run(
   lancedb_adapter(
     movies,
@@ -227,7 +218,7 @@ pipeline = dlt.pipeline(
 
 ...
 
-tbl = db.open_table("movies")
+tbl = db.table("movies")
 print(tbl.query("magic dog"))
 ```
 
@@ -243,7 +234,7 @@ pipeline = dlt.pipeline(
 
 ...
 
-with pipeline.destination_client() as job_client:
+with pipeline.destination_client() as job_client:  # type: ignore
   db: DBConnection = job_client.db_client  # type: ignore
   tbl = db.open_table("movies")
   tbl.create_scalar_index("id")
@@ -282,6 +273,7 @@ All [write dispositions](../../general-usage/incremental-loading.md#choosing-a-w
 The [replace](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource.
 
 ```py
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
   lancedb_adapter(
     movies,
@@ -307,14 +299,10 @@ def my_rag_docs(
   data: List[DictStrAny],
 ) -> Generator[List[DictStrAny], None, None]:
     yield data
-```
 
-Or:
-
-```py
 pipeline.run(
   lancedb_adapter(
-    my_new_rag_docs,
+    my_rag_docs,
     merge_key="doc_id"
   ),
   write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -334,6 +322,7 @@ This structure ensures proper record identification and maintains consistency wi
 LanceDB **automatically removes orphaned chunks** when updating or deleting parent documents during a merge operation. To disable this feature:
 
 ```py
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 pipeline.run(
   lancedb_adapter(
     movies,
@@ -371,4 +360,3 @@ The LanceDB destination doesn't support dbt integration.
 The LanceDB destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA lancedb-->
-

@@ -120,7 +120,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This `dlt.source` function uses GraphQL to fetch DltResource objects: issues and pull requests along with associated reactions, comments, and reactions to comments.
 
-```py
+```py notype
 @dlt.source
 def github_reactions(
     owner: str,
@@ -228,7 +228,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the data from the repo on issues, pull requests, their comments, and reactions, you can do the following:
 
-   ```py
+   ```py notype
    load_data = github_reactions("duckdb", "duckdb")
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -237,7 +237,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load only the first 100 issues, you can do the following:
 
-   ```py
+   ```py notype
    load_data = github_reactions("duckdb", "duckdb", max_items=100)
    load_info = pipeline.run(load_data.with_resources("issues"))
    print(load_info)
@@ -245,7 +245,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. You can fetch and process repo events data incrementally. It loads all data during the first run and incrementally in subsequent runs.
 
-   ```py
+   ```py notype
    load_data = github_repo_events(
        "duckdb", "duckdb", access_token=os.getenv("ACCESS_TOKEN_ENV_VAR")
    )

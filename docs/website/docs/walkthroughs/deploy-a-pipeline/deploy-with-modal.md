@@ -61,7 +61,7 @@ multiple containers.
 
 Here’s how to include your SQL pipeline in the Modal Function:
 
-```py
+```py notype
 @app.function(
     volumes={"/data/": vol}, schedule=modal.Period(days=1), serialized=True
 )

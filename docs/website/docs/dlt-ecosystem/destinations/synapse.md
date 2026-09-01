@@ -109,18 +109,15 @@ conn_str = (
 )
 ```
 
-Next, create the connection URL:
+Create the connection URL, which you can use directly in your pipeline configuration or convert to a string.
 ```py
 from sqlalchemy.engine import URL
 
 connection_url = URL.create(
     "mssql+pyodbc",
-    query={"odbc_connect": conn_str}
+    query={"odbc_connect": "..."}
 )
-```
 
-Once you have the connection URL, you can directly use it in your pipeline configuration or convert it to a string.
-```py
 pipeline = dlt.pipeline(
     pipeline_name='chess',
     destination=dlt.destinations.synapse(

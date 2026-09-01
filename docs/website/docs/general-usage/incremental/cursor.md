@@ -42,7 +42,7 @@ When paginating, you probably need the **start_value** which does not change dur
 Behind the scenes, dlt will deduplicate the results, i.e., in case the last issue is returned again (`updated_at` filter is inclusive) and skip already loaded ones.
 
 In the example below, we incrementally load the GitHub events, where the API does not let us filter for the newest events - it always returns all of them. Nevertheless, `dlt` will load only the new items, filtering out all the duplicates and past issues.
-```py
+```py notype
 # Use naming function in table name to generate separate tables for each event
 @dlt.resource(primary_key="id", table_name=lambda i: i['type'])  # type: ignore
 def repo_events(
@@ -125,7 +125,7 @@ Please note that when `end_date` is specified, `dlt` **will not modify the exist
 
 To define specific ranges to load, you can simply override the incremental argument in the resource, for example:
 
-```py
+```py notype
 july_issues = repo_issues(
     updated_at=dlt.sources.incremental(
         initial_value='2022-07-01T00:00:00Z', end_value='2022-08-01T00:00:00Z'
@@ -301,7 +301,7 @@ Deduplication is also disabled when [lag](lag.md) is used or when `end_value` is
 
 When resources are [created dynamically](../source.md#create-resources-dynamically), it is possible to use the `dlt.sources.incremental` definition as well.
 
-```py
+```py notype
 @dlt.source
 def stripe():
     # declare a generator function
@@ -356,7 +356,7 @@ We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `Tr
 
 Let's generate a deployment with `dlt deploy zendesk_pipeline.py airflow-composer` and customize the DAG:
 
-```py
+```py notype
 from dlt.helpers.airflow_helper import PipelineTasksGroup
 
 @dag(
@@ -396,7 +396,7 @@ When you enable the DAG in Airflow, it will generate several runs and start exec
 
 You can repurpose the DAG above to start loading new data incrementally after (or during) the backfill:
 
-```py
+```py notype
 @dag(
     schedule_interval='@daily',
     start_date=pendulum.DateTime(2023, 2, 1),
@@ -460,7 +460,7 @@ with Container().injectable_context(TimeIntervalContext(interval=(start, end))):
 
 `TimeIntervalContext` also accepts an `allow_external_schedulers` field that **overrides** the per-incremental setting. Useful when you want a single switch at the runtime layer:
 
-```py
+```py notype
 ctx = TimeIntervalContext(interval=(start, end), allow_external_schedulers=True)
 with Container().injectable_context(ctx):
     # joins the context even if individual resources didn't opt in

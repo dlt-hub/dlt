@@ -182,8 +182,8 @@ collation = "Latin1_General_100_CI_AS_KS_WS_SC_UTF8"  # case-insensitive
 Or in code:
 ```py
 pipeline = dlt.pipeline(
-    destination=fabric(
-        credentials=my_credentials,
+    destination=dlt.destinations.fabric(
+        credentials={},
         collation="Latin1_General_100_CI_AS_KS_WS_SC_UTF8"
     )
 )

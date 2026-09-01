@@ -6,68 +6,6 @@ from pytest_examples import CodeExample, find_examples
 
 WEBSITE_DOCS_DIR = pathlib.Path("website/docs").absolute()
 EXAMPLES_DIR = (WEBSITE_DOCS_DIR / "examples").absolute()
-# TODO: fix the docs and shrink this list. Some failures are genuine docs issues that
-# weren't caught by previous checks.
-TYPECHECK_IGNORE = {
-    "dlt-ecosystem/verified-sources/",
-    "dlt-ecosystem/destinations/clickhouse.md",
-    "dlt-ecosystem/destinations/databricks.md",
-    "dlt-ecosystem/destinations/destination.md",
-    "dlt-ecosystem/destinations/ducklake.md",
-    "dlt-ecosystem/destinations/fabric.md",
-    "dlt-ecosystem/destinations/iceberg.md",
-    "dlt-ecosystem/destinations/lance.md",
-    "dlt-ecosystem/destinations/lancedb.md",
-    "dlt-ecosystem/destinations/mssql.md",
-    "dlt-ecosystem/destinations/qdrant.md",
-    "dlt-ecosystem/destinations/sqlalchemy.md",
-    "dlt-ecosystem/destinations/synapse.md",
-    "dlt-ecosystem/destinations/weaviate.md",
-    "dlt-ecosystem/transformations/add-map.md",
-    "dlt-ecosystem/transformations/dbt/dbt.md",
-    "dlt-ecosystem/transformations/python.md",
-    "dlt-ecosystem/transformations/sql.md",
-    "general-usage/credentials/advanced.md",
-    "general-usage/credentials/complex_types.md",
-    "general-usage/credentials/setup.md",
-    "general-usage/customising-pipelines/removing_columns.md",
-    "general-usage/data-enrichments/currency_conversion_data_enrichment.md",
-    "general-usage/data-enrichments/url-parser-data-enrichment.md",
-    "general-usage/data-enrichments/user_agent_device_data_enrichment.md",
-    "general-usage/dataset-access/dataset.md",
-    "general-usage/destination.md",
-    "general-usage/incremental/advanced-state.md",
-    "general-usage/incremental/cursor.md",
-    "general-usage/merge-loading.md",
-    "general-usage/resource.md",
-    "general-usage/schema-contracts.md",
-    "general-usage/schema.md",
-    "general-usage/source.md",
-    "general-usage/state.md",
-    "hub/data-quality/index.md",
-    "hub/ingestion/dashboard.md",
-    "hub/ingestion/ms-sql.md",
-    "hub/pipeline-operations/deployments.md",
-    "hub/pipeline-operations/job-configuration.md",
-    "hub/pipeline-operations/secrets-management.md",
-    "hub/pipeline-operations/triggers.md",
-    "hub/transformations/explore-and-transform.md",
-    "hub/transformations/index.md",
-    "reference/performance.md",
-    "release-notes/1.12.1.md",
-    "release-notes/1.17.md",
-    "release-notes/1.18.md",
-    "release-notes/1.19.md",
-    "running-in-production/running.md",
-    "tutorial/filesystem.md",
-    "tutorial/load-data-from-an-api.md",
-    "tutorial/rest-api.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-modal.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-dagster.md",
-    "walkthroughs/deploy-a-pipeline/deploy-with-prefect.md",
-    "walkthroughs/deploy-a-pipeline/orchestrate-with-dlthub.md",
-}
 
 REQUIRES_SHARED_STATE = {
     "general-usage/dataset-access/dataset.md",
@@ -106,10 +44,7 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
         marks = [pytest.mark.example] if example.path.is_relative_to(EXAMPLES_DIR) else []
         lint_params.append(pytest.param(example, marks=marks))
-        # TODO explicitly set `nolint` on individual snippets
-        if any(ignored in str(example.path) for ignored in TYPECHECK_IGNORE):
-            typecheck_marks = marks + [pytest.mark.skip("File is ignored.")]
-        elif "notype" in example.prefix_tags():
+        if "notype" in example.prefix_tags():
             typecheck_marks = marks + [pytest.mark.skip("Found `notype` directive.")]
         else:
             typecheck_marks = marks

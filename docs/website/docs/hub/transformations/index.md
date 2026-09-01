@@ -53,7 +53,7 @@ fruitshop_pipeline.run(fruitshop_source())
 
 ### 2. Inspect the dataset
 
-```py execute
+```py notype execute
 # Show row counts for every table
 print(fruitshop_pipeline.dataset().row_counts().df())
 """
@@ -165,7 +165,7 @@ dest_p.run(copied_customers(fruitshop_pipeline.dataset()))
 
 Below we load the data from our local DuckDB instance to a Postgres instance. dlt uses the query to extract the data as Parquet files, and then runs a regular dlt load to Postgres. The same transformation functions work for both scenarios. This is useful when you want to avoid warehouse compute costs. The compute then happens on the machine that runs the pipeline, over a local duckdb instance or over raw data in a bucket.
 
-```py
+```py notype
 # different engine (DuckDB → Postgres)
 duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
 duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
@@ -179,7 +179,7 @@ duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
 
 `dlt transformations` can be grouped like all other resources into sources and will be executed together. You can even mix regular resources and transformations in one pipeline load.
 
-```py execute
+```py notype execute
 import dlt
 
 @dlt.source
@@ -390,7 +390,7 @@ marts_pipeline.run(user_orders(crm_pipeline.dataset(), sales_pipeline.dataset())
 
 A transformation can also read the dataset it writes to. Pass the output dataset as another argument. On the first run the output has no tables yet. Guard that reference with [`schema.is_new`](../../general-usage/dataset-access/dataset.md). Join against the output only after it exists. This pattern processes the rows you have not loaded before:
 
-```py execute
+```py notype execute
 # a dedicated output pipeline/dataset for this transformation
 known_pipeline = dlt.pipeline(
     "known", destination=dlt.destinations.duckdb(db_path), dataset_name="known_data"
@@ -484,7 +484,7 @@ Without a `pipeline_salt` of your own, dlt makes a new random seed for each pipe
 
 **Force eager materialization.** To run the join on your machine, yield the materialized result rather than the relation. Yield an Arrow table or a DataFrame. dlt then creates no model job and serializes no credentials:
 
-```py execute
+```py notype execute
 # to run the join locally and load plain data instead, yield the materialized
 # result (an Arrow table or DataFrame) rather than the relation
 @dlt.hub.transformation(table_name="user_orders_eager")
@@ -503,7 +503,7 @@ warehouse_pipeline.run(
 
 You can also write transformations directly with Pandas or Polars DataFrames and Arrow tables. Your transformation resource then behaves like a regular resource. `dlt` does not propagate column-level hints, and treats the yielded DataFrames or Arrow tables like data from any other resource. This behavior can change in a future release.
 
-```py execute
+```py notype execute
 
 @dlt.hub.transformation
 def copied_customers(dataset: dlt.Dataset) -> Any:
@@ -674,7 +674,7 @@ For example, a transformation that joins two tables and creates new columns make
 
 You can inspect the computed result schema during development. Read `Relation.columns_schema`, or print `Relation.columns` for the column names only:
 
-```py execute
+```py notype execute
 # Show the computed schema before the transformation is executed
 dataset = fruitshop_pipeline.dataset()
 purchases = dataset.table("purchases").to_ibis()
@@ -707,7 +707,7 @@ When it creates or updates tables with transformation resources, `dlt` also forw
 `x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information).
 Downstream of the transformation layer, we can then find out which columns originate from columns that contain private data:
 
-```py execute
+```py notype execute
 @dlt.hub.transformation(table_name="enriched_purchases_lineage")
 def enriched_purchases_lineage(dataset: dlt.Dataset) -> Any:
     enriched_purchases = dataset(

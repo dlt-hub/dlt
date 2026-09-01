@@ -115,7 +115,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function yields resources "asset_resource" and "views_resource" to load video assets and views.
 
-```py
+```py notype
 @dlt.source
 def mux_source() -> Iterable[DltResource]:
     yield assets_resource
@@ -148,7 +148,7 @@ def assets_resource(
 
 This function yields data about every video view from yesterday to be loaded.
 
-```py
+```py notype
 @dlt.resource(write_disposition="append")
 def views_resource(
     mux_api_access_token: str = dlt.secrets.value,
@@ -179,21 +179,21 @@ verified source.
 
 2. To load metadata about every asset to be loaded:
 
-    ```py
+    ```py notype
     load_info = pipeline.run(mux_source().with_resources("assets_resource"))
     print(load_info)
     ```
 
 3. To load data for each video view from yesterday:
 
-    ```py
+    ```py notype
     load_info = pipeline.run(mux_source().with_resources("views_resource"))
     print(load_info)
     ```
 
 4. To load both metadata about assets and video views from yesterday:
 
-    ```py
+    ```py notype
     load_info = pipeline.run(mux_source())
     print(load_info)
     ```

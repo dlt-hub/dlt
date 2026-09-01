@@ -92,7 +92,7 @@ If you wish to create your data pipeline, follow these steps:
    from the website. For example, the class `Myspider` below scrapes data from
    URL: "[https://quotes.toscrape.com/page/1/](https://quotes.toscrape.com/page/1/)".
 
-   ```py
+   ```py notype
    class MySpider(Spider):
        def parse(self, response: Response, **kwargs: Any) -> Any:
            # Iterate through each "next" page link found
@@ -131,7 +131,7 @@ If you wish to create your data pipeline, follow these steps:
 
 1. To run the pipeline with customized scrapy settings:
 
-   ```py
+   ```py notype
    run_pipeline(
        pipeline,
        MySpider,
@@ -158,7 +158,7 @@ If you wish to create your data pipeline, follow these steps:
    the resources the pipeline processes. For instance, setting the resource limit to two allows
    the pipeline to yield a maximum of two resources.
 
-   ```py
+   ```py notype
    def on_before_start(res: DltResource) -> None:
        res.add_limit(2)
 
@@ -181,7 +181,7 @@ If you wish to create your data pipeline, follow these steps:
 1. To create a pipeline using Scrapy host, use `create_pipeline_runner` defined in
    `helpers.py`. As follows:
 
-   ```py
+   ```py notype
    scraping_host = create_pipeline_runner(pipeline, MySpider, batch_size=10)
    scraping_host.pipeline_runner.scraping_resource.add_limit(2)
    scraping_host.run(dataset_name="quotes", write_disposition="append")

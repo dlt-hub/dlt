@@ -91,10 +91,11 @@ def players_games(chess_url, players, start_month=None, end_month=None):
 
 ### Advanced state usage: tracking the last value for all search terms in Twitter API
 
-```py
+```py notype
 @dlt.resource(write_disposition="append")
 def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, start_time=None, end_time=None, last_value=None):
     headers = _headers(twitter_bearer_token)
+    search_terms = [...]
     for search_term in search_terms:
         # Make cache for each term
         last_value_cache = dlt.current.resource_state().setdefault(f"last_value_{search_term}", None)

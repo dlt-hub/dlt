@@ -27,15 +27,12 @@ def generate_rows():
 @dlt.source
 def source_name():
     return generate_rows
-```
 
-To get the data of a resource, we could do:
-
-```py
+# To get the data of a resource, we could do:
 for row in generate_rows():
     print(row)
 
-for row in source_name().resources.get('table_name'):
+for row in source_name().resources['table_name']:
     print(row)
 ```
 
@@ -176,7 +173,7 @@ Things to note:
 
 You can override this by configuring the Pydantic model:
 
-```py
+```py notype
 from typing import ClassVar
 from dlt.common.libs.pydantic import DltConfig
 
@@ -196,7 +193,7 @@ The following `DltConfig` options are available:
 
 Example with `return_validated_models`:
 
-```py
+```py notype
 from typing import ClassVar
 from pydantic import BaseModel
 from dlt.common.libs.pydantic import DltConfig
@@ -304,8 +301,10 @@ def users_details(user_item):
 # dlt figures out dependencies for you.
 pipeline.run(users_details)
 ```
+
 In the example above, `users_details` will receive data from the default instance of the `users` resource (with `limit` set to `None`). You can also use the **pipe |** operator to bind resources dynamically.
-```py
+
+```py notype
 # You can be more explicit and use a pipe operator.
 # With it, you can create dynamic pipelines where the dependencies
 # are set at run time and resources are parametrized, i.e.,
@@ -315,6 +314,7 @@ pipeline.run(users(limit=100) | users_details)
 
 :::tip
 Transformers are allowed not only to **yield** but also to **return** values and can decorate **async** functions and [**async generators**](../reference/performance.md#extract). Below we decorate an async function and request details on two pokemons. HTTP calls are made in parallel via the httpx library.
+
 ```py
 import dlt
 import httpx
@@ -579,7 +579,7 @@ tables.users.table_name = "other_users"
 
 You can set or update the table name, columns, and other schema elements when your resource is executed, and you already yield data. Such changes will be merged with the existing schema in the same way the `apply_hints` method above works. There are many reasons to adjust the schema at runtime. For example, when using Airflow, you should avoid lengthy operations (i.e., reflecting database tables) during the creation of the DAG, so it is better to do it when the DAG executes. You may also emit partial hints (i.e., precision and scale for decimal types) for columns to help `dlt` type inference.
 
-```py
+```py notype
 @dlt.resource
 def sql_table(credentials, schema, table):
     # Create a SQL Alchemy engine
@@ -595,7 +595,10 @@ def sql_table(credentials, schema, table):
         # SqlAlchemy model
         yield dlt.mark.with_hints(
             batch,
-            dlt.mark.make_hints(columns=table_to_columns(table_obj), primary_key=_get_primary_key(table_obj)),
+            dlt.mark.make_hints(
+                columns=table_to_columns(table_obj),  # ty: ignore
+                primary_key=_get_primary_key(table_obj)
+            ),
         )
       else:
         # Just yield all the other rows
@@ -679,7 +682,7 @@ You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items 
 ```py
 import os
 import dlt
-from dlt.sources.filesystem import filesystem
+from dlt.sources.filesystem import filesystem, FileItemDict
 
 columns: List[TColumnSchema] = [
     {"name": "id", "data_type": "bigint"},
@@ -796,7 +799,7 @@ print(load_info)
 # Access custom metrics from last trace
 trace = pipeline.last_trace
 load_id = load_info.loads_ids[0]
-resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]
+resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]  # ty: ignore
 
 print(f"Custom metrics: {resource_metrics.custom_metrics}")
 ```
@@ -860,7 +863,7 @@ print(load_info)
 # Access custom metrics from last trace
 trace = pipeline.last_trace
 load_id = load_info.loads_ids[0]
-resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]
+resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics"]["get_pokemons"]  # ty: ignore
 
 print(f"Custom metrics: {resource_metrics.custom_metrics}")
 ```

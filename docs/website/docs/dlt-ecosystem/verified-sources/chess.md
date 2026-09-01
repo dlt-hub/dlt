@@ -93,7 +93,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This is a `dlt.source` function for the Chess.com API named "chess", which returns a sequence of
 DltResource objects. We'll discuss these in subsequent sections as resources.
 
-```py
+```py notype
 dlt.source(name="chess")
 def source(
     players: List[str], start_month: str = None, end_month: str = None
@@ -207,7 +207,7 @@ To create your data loading pipeline for players and load data, follow these ste
 
 1. Use the method `pipeline.run()` to execute the pipeline.
 
-   ```py
+   ```py notype
    info = pipeline.run(source_instance)
    # print the information on data that was loaded
    print(info)
@@ -215,7 +215,7 @@ To create your data loading pipeline for players and load data, follow these ste
 
 1. To load data from specific resources like "players_games" and "player_profiles", modify the above code as:
 
-   ```py
+   ```py notype
    info = pipeline.run(source_instance.with_resources("players_games", "players_profiles"))
    # print the information on data that was loaded
    print(info)

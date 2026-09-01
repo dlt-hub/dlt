@@ -155,7 +155,7 @@ This code generates resources for each entity in
 [RECENTS_ENTITIES](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive/settings.py),
 stores them in endpoints_resources, and then loads data from each endpoint to the destination.
 
-```py
+```py notype
 endpoints_resources = {}
 for entity, resource_name in RECENTS_ENTITIES.items():
     endpoints_resources[resource_name] = dlt.resource(
@@ -182,7 +182,7 @@ for entity, resource_name in RECENTS_ENTITIES.items():
 
 This function gets the participants of deals from the Pipedrive API and yields the result.
 
-```py
+```py notype
 def pipedrive_source(args):
   # Rest of function
    yield endpoints_resources["deals"] |  dlt.transformer(

@@ -243,7 +243,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```
 1. To load Slack resources from the specified start date:
 
-   ```py
+   ```py notype
    source = slack_source(page_size=1000, start_date=datetime.datetime(2023, 9, 1), end_date=datetime.datetime(2023, 9, 8))
 
    # Enable below to load only 'access_logs', available for paid accounts only.
@@ -257,7 +257,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from selected Slack channels from the specified start date:
 
-   ```py
+   ```py notype
    # To load data from selected channels.
    selected_channels=["general", "random"] # Enter the channel names here.
 
@@ -274,7 +274,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load only messages from selected Slack resources:
 
-   ```py
+   ```py notype
    # To load data from selected channels.
    selected_channels=["general", "random"] # Enter the channel names here.
 

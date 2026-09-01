@@ -56,7 +56,7 @@ dsn.password="loader"
 
 You can explicitly provide credentials in various forms:
 
-```py
+```py notype
 query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data") # type: ignore[arg-type]
 # or
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"}) # type: ignore[arg-type]
@@ -212,7 +212,7 @@ native_value_oauth = {"client_secret": ...}
 oauth_credentials.parse_native_representation(native_value_oauth)
 ```
 Or more preferred use:
-```py
+```py notype
 import dlt
 from dlt.sources.credentials import GcpOAuthCredentials
 
@@ -306,7 +306,7 @@ aws_credentials.parse_native_representation(session)
 print(aws_credentials.aws_access_key_id)
 ```
 or more preferred use:
-```py
+```py notype
 @dlt.source
 def aws_readers(
     bucket_url: str = dlt.config.value,
@@ -374,14 +374,14 @@ This is the way to force a specific local or dev identity for consumers that wou
 The `AzureCredentials` class is responsible for handling Azure Blob Storage credentials, including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a format suitable for interacting with Azure Blob Storage using the adlfs library.
 
 #### Usage
-```py
+```py notype
 az_credentials = AzureCredentials()
 # Set the necessary attributes
 az_credentials.azure_storage_account_name = "ACCOUNT_NAME"
 az_credentials.azure_storage_account_key = "ACCOUNT_KEY"
 ```
 or more preferred use:
-```py
+```py notype
 @dlt.source
 def azure_readers(
     bucket_url: str = dlt.config.value,
@@ -445,7 +445,7 @@ If your source/resource allows for many authentication methods, you can support 
 
 Example:
 
-```py
+```py notype
 @dlt.source
 def zen_source(credentials: Union[ZenApiKeyCredentials, ZenEmailCredentials, str] = dlt.secrets.value, some_option: bool = False):
   # Depending on what the user provides in config, ZenApiKeyCredentials or ZenEmailCredentials will be injected into the `credentials` argument. Both classes implement `auth` so you can always call it.

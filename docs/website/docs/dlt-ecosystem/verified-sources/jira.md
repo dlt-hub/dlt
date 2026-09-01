@@ -184,7 +184,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 2. To load custom endpoints such as "issues" and "users" using the jira source function:
 
-    ```py
+    ```py notype
     # Run the pipeline
     load_info = pipeline.run(jira().with_resources("issues", "users"))
     print(f"Load Information: {load_info}")
@@ -192,7 +192,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 3. To load custom issues using JQL queries, you can use custom queries. Here is an example below:
 
-    ```py
+    ```py notype
     # Define the JQL queries as follows
     queries = [
               "created >= -30d order by created DESC",
