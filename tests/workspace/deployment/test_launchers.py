@@ -442,6 +442,42 @@ def test_mcp_config_override() -> None:
         del os.environ["JOBS__MCP_SERVER__MCP__STATELESS_HTTP"]
 
 
+def test_mcp_launcher_disables_host_origin_protection() -> None:
+    """Behind the runtime proxy the launcher disables FastMCP's DNS-rebinding guard
+    (off by default) when the installed FastMCP supports it, so requests don't 421."""
+    entry_point = _entry(f"{WORKSPACE}.mcp_server", port=5000)
+    with (
+        patch("fastmcp.FastMCP.run") as mock_run,
+        patch(
+            "dlt._workspace.deployment.launchers.mcp._fastmcp_supports_host_origin_protection",
+            return_value=True,
+        ),
+    ):
+        from dlt._workspace.deployment.launchers.mcp import run
+
+        run(entry_point)
+
+        assert mock_run.call_args[1]["host_origin_protection"] is False
+
+
+def test_mcp_launcher_omits_host_origin_protection_on_old_fastmcp() -> None:
+    """FastMCP < 3.4.3 has no `host_origin_protection` arg, so the launcher must not
+    pass it (doing so would raise TypeError)."""
+    entry_point = _entry(f"{WORKSPACE}.mcp_server", port=5000)
+    with (
+        patch("fastmcp.FastMCP.run") as mock_run,
+        patch(
+            "dlt._workspace.deployment.launchers.mcp._fastmcp_supports_host_origin_protection",
+            return_value=False,
+        ),
+    ):
+        from dlt._workspace.deployment.launchers.mcp import run
+
+        run(entry_point)
+
+        assert "host_origin_protection" not in mock_run.call_args[1]
+
+
 def test_launcher_fails_without_port() -> None:
     """Interactive launchers fail if run_args.port is not provided."""
     entry_point = _entry(f"{WORKSPACE}.mcp_server")  # no port in run_args

@@ -55,3 +55,8 @@ class McpConfiguration(BaseConfiguration):
     """Log level: DEBUG, INFO, WARNING, ERROR, CRITICAL."""
     stateless_http: bool = False
     """Stateless mode for horizontal scaling (no session affinity)."""
+    host_origin_protection: bool = False
+    """Enable FastMCP's DNS-rebinding (Host header) protection. Off by default because
+    the launcher runs behind the runtime's authenticated proxy, which rewrites the Host
+    header; FastMCP >= 3.4.3 turns this guard on by default and would otherwise reject
+    every proxied request with 421 "Invalid Host header"."""

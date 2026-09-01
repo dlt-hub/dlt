@@ -43,6 +43,21 @@ def _resolve_config(sections: Tuple[str, ...]) -> McpConfiguration:
     return resolve_configuration(McpConfiguration(), sections=sections)
 
 
+def _fastmcp_supports_host_origin_protection() -> bool:
+    """True if the installed FastMCP accepts the `host_origin_protection` run arg.
+
+    The DNS-rebinding guard (and this option) landed in FastMCP 3.4.3. Passing the
+    argument to an older FastMCP would raise `TypeError`, so gate on the version.
+    """
+    import semver
+    from importlib.metadata import version
+
+    try:
+        return semver.Version.parse(version("fastmcp")) >= semver.Version.parse("3.4.3")
+    except Exception:
+        return False
+
+
 def run_mcp_instance(instance: Any, port: int, sections: Tuple[str, ...]) -> None:
     """Run a FastMCP instance with resolved configuration.
 
@@ -50,7 +65,7 @@ def run_mcp_instance(instance: Any, port: int, sections: Tuple[str, ...]) -> Non
     and the job launcher (return value fallback).
     """
     config = _resolve_config(sections)
-    instance.run(
+    run_kwargs: Dict[str, Any] = dict(
         transport=config.transport,
         host="0.0.0.0",
         port=port,
@@ -58,6 +73,14 @@ def run_mcp_instance(instance: Any, port: int, sections: Tuple[str, ...]) -> Non
         log_level=config.log_level,
         stateless_http=config.stateless_http,
     )
+    # FastMCP >= 3.4.3 enables DNS-rebinding (Host header) protection by default. Behind
+    # the runtime's reverse proxy (modal / tower / local runner), which rewrites the Host
+    # header, that guard rejects every request with 421. These servers only receive traffic
+    # from the authenticated runtime proxy, so the guard is redundant; disable it by default
+    # (overridable via the `host_origin_protection` config). Older FastMCP has no such option.
+    if _fastmcp_supports_host_origin_protection():
+        run_kwargs["host_origin_protection"] = config.host_origin_protection
+    instance.run(**run_kwargs)
 
 
 def run(entry_point: TRuntimeEntryPoint) -> None:
