@@ -40,7 +40,9 @@ def to_tzinfo(timezone: str) -> datetime.tzinfo:
 
 @configspec
 class TimezoneContext(ContainerInjectableContext):
-    """Timezone `dlt` stores loaded values in. Process-wide and scoped to the run, UTC by default.
+    """Context timezone, the one `dlt` stores loaded values in.
+
+    Process-wide and scoped to the run, UTC by default.
 
     A scheduler interval installs its own timezone here, see `TimeIntervalContext`.
     """

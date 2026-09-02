@@ -52,7 +52,7 @@ def context_optional(run_context: TJobRunContext = None):
 
 @job
 def timezone_aware():
-    """Job that reports the timezone `dlt` stores loaded values in, and how it stores a value."""
+    """Job that reports the context timezone, and how `dlt` stores a value."""
     from datetime import datetime
 
     from dlt.common.configuration.container import Container

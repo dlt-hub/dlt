@@ -140,7 +140,7 @@ def test_job_launcher_no_interval() -> None:
     ids=["berlin-cet", "new-york-est", "utc"],
 )
 def test_job_launcher_stores_values_in_declared_timezone(iv_tz: str, expected_stored: str) -> None:
-    """`require.timezone` decides the timezone the job stores loaded values in."""
+    """`require.timezone` decides the context timezone for the job."""
     ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
     ep["interval_start"] = "2024-01-15T00:00:00Z"
     ep["interval_end"] = "2024-01-16T00:00:00Z"

@@ -92,7 +92,7 @@ class TimeIntervalContext(ContainerInjectableContext):
         self._install_timezone()
 
     def _install_timezone(self) -> None:
-        """Installs the interval's timezone as the one `dlt` stores loaded values in.
+        """Installs the interval's timezone as the context timezone.
 
         The timezone belongs to the run rather than to this context, so it is not restored when
         this context is removed. `worker_affinity` then carries it to the normalize pool.
@@ -259,7 +259,7 @@ interval = _IntervalAccessor()
 
 
 def timezone() -> tzinfo:
-    """Timezone `dlt` stores loaded values in. UTC unless the job interval sets one.
+    """The context timezone. UTC unless the job interval sets one.
 
     Unlike `dlt.current.interval.timezone`, which describes the zone the interval bounds
     happen to carry, this is the zone `dlt` actually writes values in and is never `None`.

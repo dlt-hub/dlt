@@ -659,7 +659,7 @@ def test_build_runtime_entry_point_optional_interval_and_utc() -> None:
 
 
 def test_build_runtime_entry_point_timezone_without_interval() -> None:
-    """`require.timezone` is the zone the whole run stores values in, so a trigger that
+    """`require.timezone` is the context timezone for the whole run, so a trigger that
     generates no interval must still carry it."""
     jd = _job("jobs.a", require={"timezone": "Europe/Berlin"})
     ep = build_runtime_entry_point(jd, {}, "dev", False, None, None, dlt_version=_DLT_SPEC)

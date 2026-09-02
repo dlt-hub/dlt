@@ -1,4 +1,4 @@
-"""Prints the timezone `dlt` stores loaded values in, and the interval, when run as __main__."""
+"""Prints the context timezone, and the interval, when run as __main__."""
 
 if __name__ == "__main__":
     from datetime import datetime

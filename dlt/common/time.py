@@ -52,7 +52,10 @@ _CONTEXT_TZ: datetime.tzinfo = _env_context_timezone()
 
 
 def get_context_timezone() -> datetime.tzinfo:
-    """Timezone `dlt` stores loaded values in, UTC unless a launcher or `TimezoneContext` set one."""
+    """Context timezone, the one `dlt` stores loaded values in.
+
+    UTC unless a launcher or `TimezoneContext` set one.
+    """
     return _CONTEXT_TZ
 
 
@@ -80,15 +83,14 @@ def get_context_timezone_name() -> str:
     name = to_iana_name(_CONTEXT_TZ)
     if name is None:
         raise ValueError(
-            f"Timezone `{_CONTEXT_TZ}` that `dlt` stores loaded values in has no IANA name, so"
-            " values cannot be labelled with it. Set a canonical IANA name, for example"
-            " `Europe/Berlin` or `UTC`."
+            f"The context timezone `{_CONTEXT_TZ}` has no IANA name, so `dlt` cannot label values"
+            " with it. Set a canonical IANA name, for example `Europe/Berlin` or `UTC`."
         )
     return name
 
 
 def set_context_timezone(tz: Optional[datetime.tzinfo]) -> datetime.tzinfo:
-    """Installs the timezone `dlt` stores loaded values in and returns the previous one.
+    """Installs the context timezone and returns the previous one.
 
     Internal: called by `TimezoneContext` lifecycle hooks and by a launcher preparing a run.
 
@@ -342,7 +344,7 @@ def _parse_pendulum_datetime(value: TAnyDateTime) -> pendulum.DateTime:
 def normalize_timezone(
     value: datetime.datetime, timezone: bool, tz: Optional[datetime.tzinfo] = None
 ) -> datetime.datetime:
-    """Puts a datetime in the timezone `dlt` stores loaded values in, per the `timezone` column hint.
+    """Puts a datetime in the context timezone, per the `timezone` column hint.
 
     A naive input is taken to already be in `tz`, so the system timezone never takes part.
 

@@ -1310,7 +1310,7 @@ def test_snowflake_timestamp_tz_keeps_written_offset(
     """`use_timestamp_tz` freezes the offset stored with each value, so every session returns the
     same offset. `TIMESTAMP_LTZ` renders the instant in the session timezone instead.
 
-    The stored offset is the one `dlt` wrote, so it follows the timezone `dlt` stores values in.
+    The stored offset is the one `dlt` wrote, so it follows the context timezone.
     January keeps `Europe/Berlin` on standard time, so the offset is not a DST guess.
 
     Both file formats are loaded because they carry the offset differently: `jsonl` writes it into
