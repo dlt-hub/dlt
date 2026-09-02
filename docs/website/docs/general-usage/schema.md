@@ -309,6 +309,8 @@ The hint applies to every value of the column, including values that already arr
 naive timestamps are **read as UTC**, system timezone settings are ignored by `dlt`
 :::
 
+`dlt` stores values in UTC by default. `dlt` can also store them in another timezone, called the [context timezone](#context-timezone). That timezone then takes UTC's place in the table above.
+
 Ultimately, the destination will interpret the timestamp values. Some destinations:
 - do not support naive timestamps (i.e. BigQuery) and will interpret them as naive UTC by attaching UTC timezone
 - do not support tz-aware timestamps (i.e. Dremio, Athena) and will strip timezones from timestamps being loaded
@@ -320,7 +322,7 @@ Ultimately, the destination will interpret the timestamp values. Some destinatio
 
 ### Handling dates
 * `date` carries no timezone. `dlt` passes dates to the destination as calendar days.
-* `dlt` takes the day of a **timestamp** in UTC: a tz-aware timestamp is shifted to UTC first, a naive one is read as UTC. Two timestamps that are the same instant always give the same day.
+* `dlt` takes the day of a **timestamp** in UTC, or in the [context timezone](#context-timezone) when you set one. `dlt` shifts a tz-aware timestamp to that timezone first, and reads a naive timestamp in it. Two timestamps that are the same instant always give the same day.
 * `dlt` converts a `date` into a **timestamp** as midnight without a timezone. The timestamp rules above then apply, so a `date` becomes midnight UTC.
 * The same rules apply to tabular data (arrow/pandas/polars), to Python objects, and to [incremental cursors](incremental/cursor.md) on `date` columns.
 * A SQL cast from a timestamp to `date` is not portable. `duckdb` and `postgres` use the session timezone, `snowflake` the offset in the value, `bigquery` always UTC. An explicit `AT TIME ZONE` in the query removes that difference. `dlt` sets its own sessions to UTC.
@@ -330,6 +332,43 @@ Ultimately, the destination will interpret the timestamp values. Some destinatio
 | `2026-07-25T00:00:00+02:00` | `2026-07-24`   |
 | `2026-07-25T00:00:00`       | `2026-07-25`   |
 |                             |                |
+
+### Context timezone
+
+The two sections above describe UTC because UTC is the default. `dlt` can store values in another
+timezone. This timezone is the **context timezone**. Every rule above then holds with the context
+timezone in place of UTC.
+
+`dlt` uses one context timezone for each run. The name must be a canonical IANA name, for example
+`Europe/Berlin`. `dlt` rejects a fixed offset such as `+02:00`.
+
+Set the context timezone for a block of code with `TimezoneContext`:
+
+```py
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
+
+with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+    pipeline.run(my_source)
+```
+
+`dlt.current.timezone()` returns the context timezone in force, and never `None`.
+
+Reading the same four cases as the table above, under a `Europe/Berlin` context timezone:
+
+| input timestamp | `timezone` hint | stored value                                    |
+| --------------- | --------------- | ----------------------------------------------- |
+| naive           | `None`, `True`  | read as Berlin, so the instant moves            |
+| naive           | `False`         | untouched, nothing to convert                   |
+| tz-aware        | `None`, `True`  | `Europe/Berlin` in load package, but destination can change the storage timezone |
+| tz-aware        | `False`         | converted to Berlin, then naive |
+|                 |                 |                                                 |
+
+:::note
+This is not the destination's **session timezone**, which decides how a destination renders stored
+timestamps when you read them back. The two are set independently - see the `Session timezone`
+section on your destination's page.
+:::
 
 ### Handling precision
 The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.

@@ -425,7 +425,7 @@ If you want to run this DAG parallel with the backfill DAG, change the pipeline 
 
 When `allow_external_schedulers=True`, `dlt` looks up the active `TimeIntervalContext` while binding the resource. The context resolves an interval from, in order:
 1. An interval passed directly to its constructor (programmatic injection - see [Injecting and reading the current interval](#injecting-and-reading-the-current-interval) below).
-2. `DLT_INTERVAL_START` / `DLT_INTERVAL_END` environment variables (UTC ISO 8601). An optional `DLT_INTERVAL_TIMEZONE` (IANA name) is applied after string parsing.
+2. `DLT_INTERVAL_START` / `DLT_INTERVAL_END` environment variables (UTC ISO 8601). An optional `DLT_INTERVAL_TIMEZONE` (IANA name) is applied after string parsing. This variable also sets the [context timezone](../schema.md#context-timezone) for the whole process. `dlt` then uses that timezone for every value the run loads, not only for the interval.
 3. Airflow's `data_interval_start` / `data_interval_end` from the current task context (both the modern `airflow.sdk.get_current_context()` and the older `airflow.operators.python.get_current_context()` are supported).
 
 The resolved interval is mapped onto `initial_value` and `end_value` of the `Incremental` class:

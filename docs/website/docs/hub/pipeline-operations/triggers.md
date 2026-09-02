@@ -199,6 +199,11 @@ def morning_load():
 
 Intervals in `run_context` remain UTC datetimes, but they align to tick boundaries in the declared timezone.
 
+`require={"timezone": ...}` holds for the whole run, whether or not the trigger generates an
+interval. This timezone is also the [context timezone](../../general-usage/schema.md#context-timezone)
+for the run, so `dlt` reads a naive timestamp in it and takes the day of a `date` column in it.
+When a job declares no timezone, `dlt` uses UTC.
+
 ## Next steps
 
 - [Job configuration](job-configuration.md) — execution timeouts, dependency groups, TOML config sections
