@@ -17,7 +17,7 @@ const DOCS_DIR = path.join(WEBSITE_DIR, "docs");
 
 function loadSidebarIds() {
   // sidebars.js scans docs_processed/examples at require time; make sure it exists
-  // so the check can run before `make preprocess-docs` (e.g. in the lint CI step)
+  // so the check can run before `make process-docs` (e.g. in the lint CI step)
   fs.mkdirSync(path.join(WEBSITE_DIR, "docs_processed", "examples"), { recursive: true });
   process.chdir(WEBSITE_DIR);
   const sidebars = require(path.join(WEBSITE_DIR, "sidebars.js"));
