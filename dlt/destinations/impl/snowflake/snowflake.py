@@ -173,7 +173,9 @@ class SnowflakeClient(SqlJobClientWithStagingDataset, SupportsStagingDestination
         super().__init__(schema, config, sql_client)
         self.config: SnowflakeClientConfiguration = config
         self.sql_client: SnowflakeSqlClient = sql_client  # type: ignore
-        self.type_mapper = self.capabilities.get_type_mapper(config.use_decfloat)
+        self.type_mapper = self.capabilities.get_type_mapper(
+            config.use_decfloat, config.use_timestamp_tz
+        )
         self.active_hints = SUPPORTED_HINTS if self.config.create_indexes else {}
 
     def create_load_job(

@@ -145,6 +145,19 @@ or
 destination.snowflake.credentials="snowflake:///dlt_data?authenticator=oauth"  # host and token not specified
 ```
 
+In **Workload Identity Federation (WIF)** authentication, set `authenticator` to
+`WORKLOAD_IDENTITY` and pass `workload_identity_provider` as `AWS`, `AZURE`, `GCP`,
+or `OIDC`. For `OIDC`, also set `token`. Requires `snowflake-connector-python>=3.17.0`.
+See [Snowflake WIF](https://docs.snowflake.com/en/user-guide/workload-identity-federation).
+
+```toml
+[destination.snowflake.credentials]
+database = "dlt_data"
+host = "kgiotue-wn98412"
+authenticator = "WORKLOAD_IDENTITY"
+workload_identity_provider = "AWS"
+```
+
 ### Additional connection options
 
 We pass all query parameters to the `connect` function of the Snowflake Python Connector. For example:
@@ -166,6 +179,7 @@ will pass `client_session_keep_alive` as a string to the connect method (which w
 ### Session timezone
 `dlt` sets the session `TIMEZONE` to `UTC`, so a load does not take the timezone of the account. It
 does not change the column types that `CREATE TABLE` produces.
+[`TIMESTAMP_LTZ` columns](#timestamp_ltz-or-timestamp_tz) render in this timezone.
 
 ```toml
 [destination.snowflake.credentials]
@@ -228,7 +242,7 @@ keep_staged_files = false
 - **Precision**: Allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
 - **Timezone**:
   - Setting `timezone=False` maps to `TIMESTAMP_NTZ`.
-  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_TZ`.
+  - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP_LTZ`.
 
 #### Example precision and timezone: TIMESTAMP_NTZ(3)
 ```py
@@ -242,6 +256,49 @@ def events():
 pipeline = dlt.pipeline(destination="snowflake")
 pipeline.run(events())
 ```
+
+#### TIMESTAMP_LTZ or TIMESTAMP_TZ
+
+`TIMESTAMP_LTZ` stores an absolute instant. Every session reads it in its own timezone, which is
+what a timezone-aware `dlt` timestamp means.
+
+`TIMESTAMP_TZ` stores an offset next to each value and returns that offset to every reader. Because
+`dlt` normalizes timestamps to UTC before it writes them, that stored offset is always UTC. It tells
+a reader nothing about the source, and it does not change with the session.
+
+`TIMESTAMP_LTZ` is therefore the default.
+
+Set the session timezone with the `session_timezone` credential (`UTC` by default) to control what
+`TIMESTAMP_LTZ` renders.
+
+If a downstream consumer depends on the stored offset, keep `TIMESTAMP_TZ`:
+
+```toml
+[destination.snowflake]
+use_timestamp_tz = true
+```
+
+Or as an argument to `dlt.destinations.snowflake`:
+
+```py
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="...",
+    destination=dlt.destinations.snowflake(use_timestamp_tz=True),
+)
+```
+
+:::note
+`dlt` never alters a column that already exists. A pipeline that ran while `TIMESTAMP_TZ` was the
+default keeps those columns. Only new tables and new columns get `TIMESTAMP_LTZ`.
+
+[Structured types](#nested-types-array-and-object) are the exception. `dlt` re-applies the full type
+of a structured column on every load. Snowflake then rejects the changed nested field with
+`cannot change column PAYLOAD.ts from type TIMESTAMP_TZ(6) to TIMESTAMP_LTZ(6)`. If you enabled
+`use_nested_types` before `TIMESTAMP_LTZ` became the default, and a structured column holds a
+timestamp, set `use_timestamp_tz = true`.
+:::
 
 ### DECFLOAT type
 

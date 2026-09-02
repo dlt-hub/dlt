@@ -14,7 +14,7 @@ from dlt._workspace.helpers.dashboard.utils.ui import dlt_table
 from tests.workspace.helpers.dashboard.example_pipelines import (
     ALL_PIPELINES,
     PIPELINES_WITH_LOAD,
-    SUCCESS_PIPELINE_DUCKDB,
+    SUCCESS_PIPELINE_FILESYSTEM,
 )
 
 
@@ -123,7 +123,7 @@ def test_get_row_counts_list(pipeline: dlt.Pipeline):
             "customers": 13,
             "inventory": 6,
             "purchases": (
-                100 if pipeline.pipeline_name == SUCCESS_PIPELINE_DUCKDB else 103
+                103 if pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM else 100
             ),  #  merge does not work on filesystem
             "purchases__child": 3,
             "inventory_categories": 3,

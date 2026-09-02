@@ -10,13 +10,13 @@ keywords: [playground, workspace, onboarding, dlthub platform, profiles]
 
 The **Playground workspace** is a regular dltHub [workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) that the platform creates for you automatically when you create your account, so you always have somewhere to try dltHub without setting one up yourself. It is personal (single-member) and, unlike other workspaces, cannot be renamed or deleted.
 
-When you run `uvx dlthub-start`, it connects your local project to this workspace and provides a sample pipeline that loads to the [Playground destination](../ingestion/playground.md), so data lands on dltHub-managed storage with no warehouse, bucket, or credentials to configure.
+When you run `uvx dlthub-start`, it connects your local project to this workspace and provides a sample pipeline that loads to the [Playground destination](../ingestion/playground.md), so data lands on dltHub-managed storage with no warehouse, bucket, or credentials to configure. See [Deploy your first pipeline](../getting-started/onboarding.md) for the full flow.
 
 ## When to use it
 
 Use the Playground workspace to get started with dltHub:
 
-* Complete onboarding and the guided tour (`uvx dlthub-start`).
+* Complete [onboarding](../getting-started/onboarding.md) and the guided tour (`uvx dlthub-start`).
 * Learn how dltHub works: deployments, cloud runs, and the dashboard.
 * Run examples, paired with the [Playground destination](../ingestion/playground.md) so you can load and explore data without any setup.
 
@@ -41,7 +41,7 @@ Any organization **Member** can create workspaces; **Owners** additionally manag
 
 ## Next steps
 
-* [Workspace setup](../pipeline-operations/workspace-setup.md): configure destinations, config, and secrets.
-* [Profiles](../pipeline-operations/profiles.md): target different destinations from the same code.
-* [Deployments](../pipeline-operations/deployments.md): declare jobs and run them on the platform.
+* [Workspace setup](workspace-setup.md): configure destinations, config, and secrets.
+* [Profiles](profiles.md): target different destinations from the same code.
+* [Deployments](deployments.md): declare jobs and run them on the platform.
 * [Users and roles](../platform-capabilities/users-and-roles.md): invite teammates and manage access.

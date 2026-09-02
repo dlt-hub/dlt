@@ -83,7 +83,9 @@ class WorkspaceFileSelector(BaseFileSelector):
         from pathspec.util import iter_tree_files
 
         root_path = Path(self.root_path)
-        for file_path in iter_tree_files(self.root_path):
+        # do not follow symlinks: a symlink pointing at one of its own parents makes
+        # `iter_tree_files` recurse until it raises RecursionError
+        for file_path in iter_tree_files(self.root_path, follow_links=False):
             if not self.ignore_spec.match_file(file_path):
                 yield root_path / file_path, Path(file_path)
 

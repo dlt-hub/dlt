@@ -170,7 +170,14 @@ def _float_to_wei(value: float) -> Wei:
 
 
 def _numeric_to_bigint(value: Any) -> int:
-    if value % 1 != 0:
+    try:
+        if value % 1 != 0:
+            raise ValueError(value)
+    except InvalidOperation:
+        # A non-finite Decimal/Wei (Infinity, -Infinity) has no integer form,
+        # and `value % 1` raises InvalidOperation rather than returning a
+        # remainder. Surface it as a normal coercion failure, the same way the
+        # text-to-decimal coercers already do.
         raise ValueError(value)
     return int(value)
 

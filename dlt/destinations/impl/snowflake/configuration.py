@@ -31,6 +31,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
     role: Optional[str] = None
     authenticator: Optional[str] = None
     token: Optional[str] = None
+    workload_identity_provider: Optional[str] = None
     private_key: Optional[TSecretStrValue] = None
     private_key_path: Optional[str] = None
     private_key_passphrase: Optional[TSecretStrValue] = None
@@ -52,6 +53,7 @@ class SnowflakeCredentialsWithoutDefaults(ConnectionStringCredentials):
         "role",
         "authenticator",
         "token",
+        "workload_identity_provider",
         "private_key",
         "private_key_path",
         "private_key_passphrase",
@@ -186,6 +188,9 @@ class SnowflakeClientConfiguration(DestinationClientDwhWithStagingConfiguration)
 
     use_nested_types: bool = False
     """When true, arrow-nested `json` columns are created as native ARRAY/OBJECT (structured) types instead of VARIANT."""
+
+    use_timestamp_tz: bool = False
+    """When true, timezone-aware timestamps are created as `TIMESTAMP_TZ`, which stores the offset written with each value, instead of `TIMESTAMP_LTZ`"""
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the account host."""

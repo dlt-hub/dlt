@@ -14,6 +14,8 @@ Workspace settings are scoped to a single workspace. Workspace [Owners](users-an
 
 - **Name and description.** Edit the workspace name and description. Changes save immediately.
 - **Connection info.** Connection details that external tools and integrations use to talk to the workspace.
+- **Environment variables.** Define plain and secret process environment variables for the whole workspace or for a specific profile. See [Environment variables](../pipeline-operations/environment-variables.md).
+- **Alerts.** Subscribe to workspace alerts and get an email when a job run fails. See [dltHub Platform alerts](../notifications/email.md#dlthub-platform-alerts).
 - **Usage chart.** A monthly bar chart showing workspace consumption for the previous six months.
 
 ### Members
@@ -68,5 +70,7 @@ Existing keys can be deleted at any time. Once deleted, the key can no longer au
 ## See also
 
 - [Users and roles](users-and-roles.md)
+- [Environment variables](../pipeline-operations/environment-variables.md)
 - [Regions and data residency](regions.md)
+- [Send email notifications](../notifications/email.md)
 - [dltHub platform overview](../pipeline-operations/overview.md)

@@ -1,14 +1,30 @@
 ---
 title: Send email notifications
-description: Notify by email when a dltHub job succeeds or fails, using Gmail SMTP.
-keywords: [email, smtp, gmail, notifications, alerting, hub, dltHub]
+description: Subscribe to dltHub workspace failure alerts, or send your own emails from a job with SMTP.
+keywords: [email, smtp, gmail, notifications, alerting, alerts, hub, dltHub]
 ---
 
 # Send email notifications
 
-The pattern below uses Python's standard `smtplib` with Gmail SMTP, but the same shape works for any SMTP server (Outlook, Workspace SMTP relay, or transactional providers like Resend, SendGrid, Mailgun).
+## dltHub Platform alerts
 
-## Prerequisites
+Failure alerts by email: subscribe to workspace alerts and get an email when a run fails. Manage
+subscriptions from the **Alerts** tab in workspace settings.
+
+![Alerts settings showing the job run failure alerts toggle and role selection](https://storage.googleapis.com/dlt-blog-images/workspace-images/alerts.png)
+
+## Custom email notification on pipeline failure
+
+:::note
+Platform alerts above notify you when a **job run** fails, whatever the cause. The custom
+notification below covers **pipeline failures** only: it runs inside your job, so it cannot report a
+job that fails before your code runs or is killed mid-run.
+:::
+
+If you need a different channel, recipient list, or message body than the platform alerts provide,
+send the email from the job itself. The pattern below uses Python's standard `smtplib` with Gmail SMTP, but the same shape works for any SMTP server (Outlook, Workspace SMTP relay, or transactional providers like Resend, SendGrid, Mailgun).
+
+### Prerequisites
 
 Generate a Gmail **App Password**, a 16-character credential that lets SMTP authenticate without your real password:
 
@@ -21,7 +37,7 @@ App Passwords don't affect normal sign-in: your password, 2FA, and existing sess
 
 If you're on a **Google Workspace** domain, an administrator may have disabled App Passwords org-wide. In that case use a transactional provider (Resend, SendGrid, Mailgun). The wiring is the same; just point `smtplib` at their SMTP server and use their API key as the password.
 
-## Store credentials in your prod profile
+### Store credentials in your prod profile
 
 Add to `.dlt/prod.secrets.toml`:
 
@@ -40,7 +56,7 @@ password = "abcdefghijklmnop"     # 16 chars, no spaces, no angle brackets
 If your SMTP server requires IP allowlisting, enable [static egress IPs](../pipeline-operations/job-configuration.md#static-egress-ips) so the job's outbound traffic uses a known set of source IPs.
 :::
 
-## Wire it into your pipeline
+### Wire it into your pipeline
 
 ```python
 import smtplib
@@ -105,7 +121,7 @@ def my_job():
 
 Wrap the failure-path `send_email` in its own try/except: a broken alerting channel shouldn't mask the underlying pipeline error.
 
-## Deploy and trigger
+### Deploy and trigger
 
 ```sh
 uv run dlthub deploy                            # syncs code + SMTP credentials

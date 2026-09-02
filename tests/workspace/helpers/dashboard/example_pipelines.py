@@ -23,6 +23,7 @@ from dlt.common.destination.exceptions import (
 from tests.utils import get_test_storage_root
 
 SUCCESS_PIPELINE_DUCKDB = "success_pipeline_duckdb"
+SUCCESS_PIPELINE_DUCKDB_CASEFOLD = "success_pipeline_duckdb_casefold"
 SUCCESS_PIPELINE_FILESYSTEM = "success_pipeline_filesystem"
 EXTRACT_EXCEPTION_PIPELINE = "extract_exception_pipeline"
 NORMALIZE_EXCEPTION_PIPELINE = "normalize_exception_pipeline"
@@ -36,6 +37,7 @@ CUSTOM_DEST_STRING_REF_PIPELINE = "custom_dest_string_ref_pipeline"
 
 ALL_PIPELINES = [
     SUCCESS_PIPELINE_DUCKDB,
+    SUCCESS_PIPELINE_DUCKDB_CASEFOLD,
     EXTRACT_EXCEPTION_PIPELINE,
     NORMALIZE_EXCEPTION_PIPELINE,
     NEVER_RAN_PIPELINE,
@@ -60,7 +62,11 @@ PIPELINES_WITH_EXCEPTIONS = [
     LOAD_EXCEPTION_PIPELINE,
     SYNC_EXCEPTION_PIPELINE,
 ]
-PIPELINES_WITH_LOAD = [SUCCESS_PIPELINE_DUCKDB, SUCCESS_PIPELINE_FILESYSTEM]
+PIPELINES_WITH_LOAD = [
+    SUCCESS_PIPELINE_DUCKDB,
+    SUCCESS_PIPELINE_DUCKDB_CASEFOLD,
+    SUCCESS_PIPELINE_FILESYSTEM,
+]
 
 
 def run_success_pipeline(pipeline: dlt.Pipeline):
@@ -125,6 +131,26 @@ def create_success_pipeline_duckdb(pipelines_dir: str = None, db_conn: Any = Non
         pipeline_name=SUCCESS_PIPELINE_DUCKDB,
         pipelines_dir=pipelines_dir,
         destination=dlt.destinations.duckdb(credentials=db_conn if db_conn else None),
+    )
+
+    run_success_pipeline(pipeline)
+
+    return pipeline
+
+
+def create_success_pipeline_duckdb_casefold(pipelines_dir: str = None, db_conn: Any = None):
+    """Create a test pipeline on a duckdb that folds identifiers to upper case, like snowflake.
+
+    Properties see `run_success_pipeline`.
+    """
+    pipeline = dlt.pipeline(
+        pipeline_name=SUCCESS_PIPELINE_DUCKDB_CASEFOLD,
+        pipelines_dir=pipelines_dir,
+        destination=dlt.destinations.duckdb(
+            credentials=db_conn if db_conn else None,
+            casefold_identifier=str.upper,
+            has_case_sensitive_identifiers=True,
+        ),
     )
 
     run_success_pipeline(pipeline)
@@ -350,6 +376,7 @@ def create_custom_dest_string_ref_pipeline(pipelines_dir: str = None):
 # NOTE: this script can be run to create the test pipelines globally for manual testing of the dashboard app and cli
 if __name__ == "__main__":
     create_success_pipeline_duckdb()
+    create_success_pipeline_duckdb_casefold()
     create_success_pipeline_filesystem()
     create_extract_exception_pipeline()
     create_normalize_exception_pipeline()

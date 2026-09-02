@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.30.0a0"
+version = "1.30.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.10, <3.15"
@@ -48,7 +48,7 @@ dependencies = [
     "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     # enables pyodide install, mind that 3.10.1 is a buggy version and should be yanked
     "orjson>=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "orjson>=3.11.0 ; python_version > '3.13'",
+    "orjson>=3.11.0 ; python_version > '3.13' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.8.0",
     "fsspec>=2022.4.0",
@@ -63,7 +63,7 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.29.0, <0.31",
+    "dlthub>=0.30.0a1, <0.31",
     "dlthub-client>=0.28.1",
 ]
 gcp = [

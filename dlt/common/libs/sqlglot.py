@@ -1131,7 +1131,7 @@ def bind_query(
     if is_casefolding:
         orig_selects = {}
         for i, proj in enumerate(qualified_query.selects):
-            orig_selects[i] = proj.name or proj.args["alias"].name
+            orig_selects[i] = proj.output_name
 
     # case-fold overrides for identifiers that belong to a dataset, recorded at the parent
     # table or column (the walk visits a parent first and its mutated children after)

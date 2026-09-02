@@ -1,10 +1,10 @@
 ---
-title: Build and Deploy Streamlit App
+title: Build and deploy a Streamlit app
 description: Build, serve, and deploy a Streamlit app on dltHub.
 keywords: [streamlit, dashboard, hub, app, deploy, dltHub]
 ---
 
-# Build and Deploy Streamlit App
+# Build and deploy a Streamlit app
 
 [Streamlit](https://docs.streamlit.io/) is a Python framework for turning a script into an interactive web app. On dltHub, a Streamlit app is a plain `.py` file that imports `streamlit`, and the runtime serves it as an interactive dashboard.
 
@@ -18,7 +18,7 @@ Add Streamlit to your workspace dependencies:
 uv add streamlit
 ```
 
-The example below reads from the `sample_shop_pipeline` that `uvx dlthub-start@latest` scaffolds. The dashboard needs that data already loaded against the same destination it'll read from:
+The example below reads from the `sample_shop_pipeline` that `uvx dlthub-start@latest` scaffolds (see [Deploy your first pipeline](../getting-started/onboarding.md)). The dashboard needs that data already loaded against the same destination it'll read from:
 
 ```sh
 # Load locally (dev profile, DuckDB) so the dashboard works under `dlthub local serve`

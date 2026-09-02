@@ -152,6 +152,29 @@ def test_only_authenticator() -> None:
     }
 
 
+def test_workload_identity_provider() -> None:
+    c = resolve_configuration(
+        SnowflakeCredentialsWithoutDefaults(
+            "snowflake://host1/db1?authenticator=WORKLOAD_IDENTITY"
+            "&workload_identity_provider=AWS&warehouse=wh1"
+        )
+    )
+    assert c.authenticator == "WORKLOAD_IDENTITY"
+    assert c.workload_identity_provider == "AWS"
+    assert c.warehouse == "wh1"
+    assert c.to_connector_params() == {
+        "timezone": "UTC",
+        "authenticator": "WORKLOAD_IDENTITY",
+        "workload_identity_provider": "AWS",
+        "warehouse": "wh1",
+        "user": None,
+        "password": None,
+        "account": "host1",
+        "database": "db1",
+        "application": "dltHub_dlt",
+    }
+
+
 # def test_no_query(environment) -> None:
 #     c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1")
 #     assert str(c.to_url()) == "snowflake://user1:pass1@host1/db1"
@@ -174,7 +197,7 @@ def test_query_additional_params() -> None:
 
 
 def test_session_timezone() -> None:
-    # UTC is pinned so the offset stored in `TIMESTAMP_TZ` does not follow the account
+    # UTC is pinned so the offset `TIMESTAMP_LTZ` renders does not follow the account
     c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1")
     assert c.to_connector_params()["timezone"] == "UTC"
 

@@ -110,6 +110,22 @@ def test_default_ignores_applied_without_ignore_file() -> None:
         assert "empty_file.py" in files
 
 
+def test_file_selector_does_not_follow_symlink_loops() -> None:
+    """A symlink pointing at one of its own parents must not make iteration recurse."""
+    with isolated_workspace("default") as ctx:
+        root = Path(ctx.run_dir)
+        looping_dir = root / "looping"
+        looping_dir.mkdir(exist_ok=True)
+        (looping_dir / "somefile.py").write_text("x")
+        os.symlink(looping_dir, looping_dir / "self")
+
+        selector = WorkspaceFileSelector(ctx, ignore_file=".ignorefile")
+        files = {rel.as_posix() for _, rel in selector}
+
+        assert "looping/somefile.py" in files
+        assert "ducklake_pipeline.py" in files
+
+
 def test_default_ignores_not_applied_with_ignore_file() -> None:
     """DEFAULT_IGNORES patterns are NOT applied when an ignore file exists."""
     with isolated_workspace("default") as ctx:

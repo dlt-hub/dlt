@@ -113,6 +113,15 @@ def test_coerce_type_to_bigint() -> None:
     with pytest.raises(ValueError):
         coerce_value("bigint", "wei", Wei(912.12))
 
+    # non-finite decimals/wei have no integer form: they must raise ValueError,
+    # not leak decimal.InvalidOperation
+    with pytest.raises(ValueError):
+        coerce_value("bigint", "decimal", Decimal("Infinity"))
+    with pytest.raises(ValueError):
+        coerce_value("bigint", "decimal", Decimal("-Infinity"))
+    with pytest.raises(ValueError):
+        coerce_value("bigint", "wei", Wei("Infinity"))
+
     # non parsable floats and ints
     with pytest.raises(ValueError):
         coerce_value("bigint", "text", "f912.12")

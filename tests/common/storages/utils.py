@@ -1,5 +1,6 @@
 import os
 import glob
+from datetime import datetime  # noqa: I251
 from pathlib import Path
 from urllib.parse import urlparse
 import pytest
@@ -88,7 +89,7 @@ def assert_sample_files(
         assert item["file_url"].endswith(item["relative_path"])
         assert isinstance(item["mime_type"], str)
         assert isinstance(item["size_in_bytes"], int)
-        assert isinstance(item["modification_date"], pendulum.DateTime)
+        assert isinstance(item["modification_date"], datetime)
 
         # create file dict
         file_dict = FileItemDict(item, fs_client)

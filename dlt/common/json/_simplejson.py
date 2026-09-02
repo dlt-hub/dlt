@@ -1,7 +1,7 @@
 import codecs
 from typing import IO, Any, Union
 
-import simplejson
+import simplejson  # noqa: I251
 import platform
 
 from dlt.common.json import (
