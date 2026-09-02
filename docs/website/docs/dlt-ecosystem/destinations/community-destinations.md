@@ -64,3 +64,18 @@ https://github.com/crate/dlt-cratedb
 
 Original PR with discussion (currently on hiatus):
 https://github.com/dlt-hub/dlt/pull/2733
+
+
+
+## Hotdata.dev
+
+by: [Hotdata](https://github.com/hotdata-dev)
+
+Hotdata is a high-concurrency SQL execution layer built on Apache DataFusion for AI agents and data-intensive applications. This destination adapter loads data into Hotdata through its HTTP API:
+
+- Automatic creation and reuse of instant databases
+- Native append, replace, and merge/upsert write modes
+- Compatible with PostgreSQL, DuckDB, and Snowflake SQL for server-side queries
+- Parquet-native loading and Arrow-native results
+  
+Code: https://github.com/hotdata-dev/hotdata-dlt-destination
