@@ -41,7 +41,7 @@ jobs:
         run: cd docs/website && npm install
 
       - name: Build docs
-        run: make build
+        run: cd docs/ make build
 
       - name: Minimize uv cache
         run: uv cache prune --ci
