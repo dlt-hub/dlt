@@ -8,6 +8,8 @@ import pytest
 
 # patch which providers to enable
 from dlt.common.time import get_context_timezone, set_context_timezone
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.configuration.providers import (
     ConfigProvider,
     EnvironProvider,
@@ -243,10 +245,15 @@ def pytest_sessionfinish(session: "pytest.Session", exitstatus: int) -> None:
 @pytest.fixture(autouse=True)
 def preserve_context_timezone() -> Iterator[None]:
     """Restores the context timezone: an interval installs it run-scoped and never undoes it."""
+    container = Container()
+    had_context = TimezoneContext in container
     previous = get_context_timezone()
     try:
         yield
     finally:
+        # `del` runs the context's own restore, the explicit set below is what wins
+        if not had_context and TimezoneContext in container:
+            del container[TimezoneContext]
         set_context_timezone(previous)
 
 

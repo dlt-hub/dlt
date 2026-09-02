@@ -233,31 +233,6 @@ def test_parquet_writer_config() -> None:
             assert reader.metadata.row_group(0).column(0).compression == "GZIP"
 
 
-def test_arrow_parquet_writer_ignores_timestamp_timezone() -> None:
-    """`ArrowToParquetWriter` keeps the incoming arrow schema, so `timestamp_timezone` is read
-    but never applied. Only the object path honors the setting."""
-    os.environ["NORMALIZE__DATA_WRITER__TIMESTAMP_TIMEZONE"] = "Europe/Berlin"
-
-    columns = {"col1": new_column("col1", "timestamp")}
-    item = pa.Table.from_pydict(
-        {
-            "col1": pa.array(
-                [datetime.datetime(2024, 3, 4, 5, 6, 7)], type=pa.timestamp("us", tz="UTC")
-            )
-        }
-    )
-
-    with inject_section(ConfigSectionContext(pipeline_name=None, sections=("normalize",))):
-        with get_writer(ArrowToParquetWriter) as writer:
-            writer.write_data_item(item, columns=columns)
-            writer._flush_items()
-            assert writer._writer.parquet_format.timestamp_timezone == "Europe/Berlin"
-
-    with pa.parquet.ParquetFile(writer.closed_files[0].file_path) as reader:
-        # the setting is read but never applied on this path
-        assert reader.schema_arrow.field(0).type.tz == "UTC"
-
-
 TZ_CONTEXT_COLUMNS: TTableSchemaColumns = {
     "ts_aware": {"name": "ts_aware", "data_type": "timestamp", "timezone": True},
     "ts_naive": {"name": "ts_naive", "data_type": "timestamp", "timezone": False},

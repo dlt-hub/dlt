@@ -2,7 +2,7 @@
 
 import os
 import time
-from datetime import date, datetime, timezone  # noqa: I251
+from datetime import date, datetime, timedelta, timezone, tzinfo  # noqa: I251
 from typing import Any, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
@@ -11,12 +11,9 @@ import pytest
 
 import dlt
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.pendulum import pendulum
-from dlt.common.time import (
-    ensure_datetime,
-    ensure_datetime,
-    ensure_pendulum_datetime,
-)
+from dlt.common.time import ensure_datetime, ensure_pendulum_datetime, to_iana_name
 from dlt.common.typing import TTimeInterval
 from dlt.common.utils import uniq_id
 from dlt.extract.incremental.context import (
@@ -220,7 +217,8 @@ def test_detect_applies_interval_timezone_env_var(
     expected_start: datetime,
     expected_end: datetime,
 ) -> None:
-    """`DLT_INTERVAL_TIMEZONE` (optional) is applied to UTC ISO env values."""
+    """`DLT_INTERVAL_TIMEZONE` (optional) is applied to UTC ISO env values and installed as the
+    context timezone."""
     env = {
         "DLT_INTERVAL_START": "2024-01-15T00:00:00Z",
         "DLT_INTERVAL_END": "2024-01-16T00:00:00Z",
@@ -230,17 +228,18 @@ def test_detect_applies_interval_timezone_env_var(
     with patch.dict(os.environ, env, clear=False):
         if iv_tz is None:
             os.environ.pop("DLT_INTERVAL_TIMEZONE", None)
-        ctx = TimeIntervalContext()
         # `interval` re-detects on access when not set explicitly, so the
         # assertions must happen inside the patch.dict scope
-        assert ctx.interval is not None
-        assert ctx.interval[0] == expected_start
-        assert ctx.interval[1] == expected_end
-        if expected_tz_name is not None:
-            assert isinstance(ctx.interval[0].tzinfo, ZoneInfo)
-            assert ctx.interval[0].tzinfo.key == expected_tz_name
-        else:
-            assert ctx.interval[0].tzinfo == timezone.utc
+        with Container().injectable_context(TimeIntervalContext()) as ctx:
+            assert ctx.interval is not None
+            assert ctx.interval[0] == expected_start
+            assert ctx.interval[1] == expected_end
+            if expected_tz_name is not None:
+                assert isinstance(ctx.interval[0].tzinfo, ZoneInfo)
+                assert ctx.interval[0].tzinfo.key == expected_tz_name
+            else:
+                assert ctx.interval[0].tzinfo == timezone.utc
+            assert dlt.current.timezone() == (ZoneInfo(iv_tz) if iv_tz else timezone.utc)
 
 
 def test_context_preserves_timezone() -> None:
@@ -1061,3 +1060,38 @@ def test_naive_interval_is_read_in_context_timezone() -> None:
         # an update stays in that zone
         _interval_accessor.update(start="2024-01-10T06:00:00")
         assert _interval_accessor()[0] == datetime(2024, 1, 10, 6, tzinfo=timezone.utc)
+
+
+def _interval(tz: Optional[tzinfo]) -> TTimeInterval:
+    return TTimeInterval(datetime(2024, 1, 15, tzinfo=tz), datetime(2024, 1, 16, tzinfo=tz))
+
+
+@pytest.mark.parametrize(
+    "tz,expected",
+    [
+        (ZoneInfo("Europe/Berlin"), ZoneInfo("Europe/Berlin")),
+        (pendulum.UTC, timezone.utc),
+        (None, timezone.utc),
+        (timezone(timedelta(hours=2)), timezone.utc),
+    ],
+    ids=["zoneinfo", "pendulum-utc", "naive", "fixed-offset"],
+)
+def test_interval_installs_its_timezone(tz: Optional[tzinfo], expected: tzinfo) -> None:
+    """An interval installs the zone its bounds carry. A naive bound is read in the context
+    timezone and a fixed offset names no zone, so both keep UTC."""
+    with Container().injectable_context(TimeIntervalContext(interval=_interval(tz))):
+        assert dlt.current.timezone() == expected
+        assert Container()[TimezoneContext].timezone == to_iana_name(expected)
+
+
+def test_interval_set_moves_timezone_and_outlives_context() -> None:
+    berlin, kolkata = ZoneInfo("Europe/Berlin"), ZoneInfo("Asia/Kolkata")
+    container = Container()
+    with container.injectable_context(TimeIntervalContext(interval=_interval(berlin))):
+        assert dlt.current.timezone() == berlin
+        # replacing the interval moves the timezone with it
+        dlt.current.interval.set(_interval(kolkata))
+        assert dlt.current.timezone() == kolkata
+    # the timezone belongs to the run, so it outlives the interval context that installed it
+    assert dlt.current.timezone() == kolkata
+    assert container[TimezoneContext].timezone == "Asia/Kolkata"

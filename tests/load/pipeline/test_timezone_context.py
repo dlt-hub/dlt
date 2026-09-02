@@ -16,7 +16,7 @@ from dlt.common.time import ensure_datetime
 from dlt.common.utils import uniq_id
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
-from tests.pipeline.utils import assert_load_info, load_table_counts, load_tables_to_dicts
+from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
 
 pytestmark = pytest.mark.essential
 
@@ -168,52 +168,3 @@ def test_berlin_context_timezone_matrix(
     _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, "aware -> aware")
     # aware input, timezone=False: converted to Berlin, then stripped, so the wall clock moves
     _assert_wall_clock(rows[2]["ts_naive"], datetime(2024, 1, 16, 0, 30), caps, "aware -> naive")
-
-
-LAG_COLUMNS: Any = {"id": {"data_type": "bigint"}, "ts": {"data_type": "timestamp"}}
-LAG_SECONDS = 3600
-# an hour apart, so one hour of lag reaches back over the two rows the first run already saw
-FIRST_ROWS = [
-    {"id": 1, "ts": datetime(2024, 1, 15, 22, 30)},
-    {"id": 2, "ts": datetime(2024, 1, 15, 23, 30)},
-]
-SECOND_ROWS = FIRST_ROWS + [{"id": 3, "ts": datetime(2024, 1, 16, 0, 30)}]
-
-
-def _lagged_rows(rows: List[Dict[str, Any]], aware: bool) -> List[Dict[str, Any]]:
-    if not aware:
-        return rows
-    return [{**row, "ts": row["ts"].replace(tzinfo=timezone.utc)} for row in rows]
-
-
-def _lagged_source(rows: List[Dict[str, Any]], timezone_hint: bool) -> Any:
-    columns = dict(LAG_COLUMNS, ts={**LAG_COLUMNS["ts"], "timezone": timezone_hint})
-
-    @dlt.resource(name="lagged", columns=columns, write_disposition="append")
-    def lagged(ts: Any = dlt.sources.incremental("ts", lag=LAG_SECONDS)) -> Any:
-        yield rows
-
-    return lagged
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
-    ids=lambda x: x.name,
-)
-@pytest.mark.parametrize("aware", [True, False], ids=["aware-cursor", "naive-cursor"])
-def test_incremental_lag_is_timezone_invariant(
-    destination_config: DestinationTestConfiguration, aware: bool
-) -> None:
-    """Lag shifts the cursor by absolute seconds, so it must select the same rows in any timezone."""
-    loaded: Dict[str, int] = {}
-    for tz_name in ("UTC", "Europe/Berlin"):
-        pipeline = _pipeline(destination_config)
-        with Container().injectable_context(TimezoneContext(tz_name)):
-            assert_load_info(pipeline.run(_lagged_source(_lagged_rows(FIRST_ROWS, aware), aware)))
-            assert load_table_counts(pipeline, "lagged")["lagged"] == 2
-            # the lag window reaches back before `last_value`, so both earlier rows come again
-            assert_load_info(pipeline.run(_lagged_source(_lagged_rows(SECOND_ROWS, aware), aware)))
-        loaded[tz_name] = load_table_counts(pipeline, "lagged")["lagged"]
-
-    assert loaded["UTC"] == loaded["Europe/Berlin"] == 5, loaded

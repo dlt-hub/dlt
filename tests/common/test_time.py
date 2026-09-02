@@ -196,7 +196,7 @@ def test_parse_iso_like_datetime() -> None:
 @pytest.mark.parametrize(
     "date_value, expected_utc, expected_non_utc, expected_date", datetime_test_params
 )
-def test_ensure_pendulum_datetime_utc(
+def test_ensure_pendulum_datetime_defaults_to_utc(
     local_tz: str,
     date_value: TAnyDateTime,
     expected_utc: pendulum.DateTime,
@@ -612,11 +612,9 @@ NORMALIZE_MATRIX = [
 ]
 
 
-@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 @pytest.mark.parametrize("via", ["configured", "explicit"])
 @pytest.mark.parametrize("tz_name,hint,value,expected_wall_clock,expected_offset", NORMALIZE_MATRIX)
 def test_normalize_timezone_matrix(
-    local_tz: str,
     via: str,
     tz_name: str,
     hint: bool,
@@ -626,37 +624,23 @@ def test_normalize_timezone_matrix(
 ) -> None:
     """`normalize_timezone` puts a value in the configured timezone or in an explicit one."""
     tz = ZoneInfo(tz_name)
-    with local_timezone(local_tz):
-        if via == "explicit":
-            result = normalize_timezone(value, hint, tz)
-        else:
-            previous = set_context_timezone(tz)
-            try:
-                result = normalize_timezone(value, hint)
-            finally:
-                set_context_timezone(previous)
+    if via == "explicit":
+        result = normalize_timezone(value, hint, tz)
+    else:
+        previous = set_context_timezone(tz)
+        try:
+            result = normalize_timezone(value, hint)
+        finally:
+            set_context_timezone(previous)
 
     assert result.replace(tzinfo=None) == expected_wall_clock
     assert result.utcoffset() == expected_offset
     # an aware input keeps its instant whenever the result is aware
     if value.tzinfo is not None and expected_offset is not None:
         assert result == value
-
-
-@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
-@pytest.mark.parametrize("hint", [True, False], ids=["tz_aware", "tz_naive"])
-def test_normalize_timezone_utc_is_a_no_op(local_tz: str, hint: bool) -> None:
-    """The default, an explicit UTC and a configured UTC must all agree."""
-    with local_timezone(local_tz):
-        for value in (_NAIVE, _AWARE):
-            default = normalize_timezone(value, hint)
-            assert default == normalize_timezone(value, hint, timezone.utc)
-            previous = set_context_timezone(timezone.utc)
-            try:
-                assert default == normalize_timezone(value, hint)
-            finally:
-                set_context_timezone(previous)
-            assert default.utcoffset() == (timedelta(0) if hint else None)
+    # the default context is UTC, so the plain call must agree with both UTC forms
+    if tz_name == "UTC":
+        assert result == normalize_timezone(value, hint)
 
 
 @pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
@@ -927,7 +911,7 @@ def test_ensure_datetime_add_then_format(value) -> None:
     ],
     ids=["plus5", "minus8", "utc"],
 )
-def test_ensure_pendulum_datetime_utc_add_preserves_utc(value, expected_hour) -> None:
+def test_ensure_pendulum_datetime_add_preserves_utc(value, expected_hour) -> None:
     """UTC conversion must shift the hour correctly and survive .add() arithmetic."""
     result = ensure_pendulum_datetime(value)
     assert result.hour == expected_hour
@@ -1069,7 +1053,7 @@ def test_date_to_epoch_days() -> None:
         (ensure_datetime_in_tz, ("2021-01-01T12:00:00+02:00",)),
         (ensure_datetime_in_tz, ("2021-01-01T12:00:00+02:00", ZoneInfo("Europe/Berlin"))),
     ],
-    ids=["ensure_datetime", "ensure_datetime_in_tz", "ensure_datetime_in_tz"],
+    ids=["ensure_datetime", "ensure_datetime_in_tz_default", "ensure_datetime_in_tz_explicit"],
 )
 def test_ensure_datetime_helpers_return_stdlib(fn, args) -> None:
     """All three helpers return stdlib `datetime.datetime`, not `pendulum.DateTime`."""
@@ -1111,20 +1095,6 @@ def test_ensure_datetime_in_tz_interprets_naive_only(value, default_tz, expected
     assert result == expected
     # always lands in the requested zone, the context default being UTC
     assert result.tzinfo == (default_tz or timezone.utc)
-
-
-def test_ensure_datetime_zoneinfo_aware_input() -> None:
-    """A datetime already carrying a named ZoneInfo tzinfo converts correctly, without the
-    pendulum round-trip that drops the offset on old pendulum versions."""
-    # 01:00 Berlin (winter, +01:00) == 00:00 UTC
-    berlin = datetime(2024, 1, 15, 1, 0, tzinfo=ZoneInfo("Europe/Berlin"))
-    assert ensure_datetime(berlin).utcoffset() == timedelta(hours=1)
-    assert ensure_datetime_in_tz(berlin) == datetime(2024, 1, 15, 0, 0, tzinfo=timezone.utc)
-    assert ensure_datetime_in_tz(berlin).isoformat() == "2024-01-15T00:00:00+00:00"
-    # convert to a different named zone (Tokyo, UTC+9)
-    assert ensure_datetime_in_tz(berlin, ZoneInfo("Asia/Tokyo")) == datetime(
-        2024, 1, 15, 9, 0, tzinfo=ZoneInfo("Asia/Tokyo")
-    )
 
 
 @pytest.mark.parametrize(

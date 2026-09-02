@@ -2,10 +2,10 @@ import asyncio
 import inspect
 import os
 import random
-from datetime import datetime, date  # noqa: I251
+from datetime import datetime, date, timezone  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional, Literal, Sequence, Dict, Iterable
+from typing import Any, Optional, Literal, Sequence, Dict, Iterable, List
 from unittest import mock
 import itertools
 
@@ -18,6 +18,7 @@ from dlt.common import Decimal
 from dlt.common.configuration import ConfigurationValueError
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import InvalidNativeValue
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.configuration.specs.base_configuration import (
     BaseConfiguration,
     configspec,
@@ -47,7 +48,7 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
 from tests.extract.utils import data_item_to_list
-from tests.pipeline.utils import assert_query_column
+from tests.pipeline.utils import assert_query_column, load_table_counts
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
     TestDataItemFormat,
@@ -3452,6 +3453,43 @@ def test_incremental_lag_datetime_str(lag: float, last_value_func) -> None:
             for row in sql_client.execute_sql(f"SELECT event FROM {name} ORDER BY _dlt_load_id, id")
         ]
         assert result == expected_results[int(lag)]
+
+
+LAG_TZ_COLUMNS: Any = {"id": {"data_type": "bigint"}, "ts": {"data_type": "timestamp"}}
+# an hour apart, so one hour of lag reaches back over the two rows the first run already saw
+LAG_TZ_FIRST_ROWS = [
+    {"id": 1, "ts": datetime(2024, 1, 15, 22, 30)},
+    {"id": 2, "ts": datetime(2024, 1, 15, 23, 30)},
+]
+LAG_TZ_SECOND_ROWS = LAG_TZ_FIRST_ROWS + [{"id": 3, "ts": datetime(2024, 1, 16, 0, 30)}]
+
+
+def _lagged_source(rows: List[Dict[str, Any]], aware: bool) -> Any:
+    if aware:
+        rows = [{**row, "ts": row["ts"].replace(tzinfo=timezone.utc)} for row in rows]
+    columns = dict(LAG_TZ_COLUMNS, ts={**LAG_TZ_COLUMNS["ts"], "timezone": aware})
+
+    @dlt.resource(name="lagged", columns=columns, write_disposition="append")
+    def lagged(ts: Any = dlt.sources.incremental("ts", lag=3600)) -> Any:
+        yield rows
+
+    return lagged
+
+
+@pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"], ids=["utc", "berlin"])
+@pytest.mark.parametrize("aware", [True, False], ids=["aware-cursor", "naive-cursor"])
+def test_incremental_lag_is_timezone_invariant(tz_name: str, aware: bool) -> None:
+    """Lag shifts the cursor by absolute seconds, so it selects the same rows in any timezone."""
+    pipeline = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+    with Container().injectable_context(TimezoneContext(tz_name)):
+        pipeline.run(_lagged_source(LAG_TZ_FIRST_ROWS, aware))
+        assert load_table_counts(pipeline, "lagged")["lagged"] == 2
+        # the lag window reaches back before `last_value`, so both earlier rows come again
+        pipeline.run(_lagged_source(LAG_TZ_SECOND_ROWS, aware))
+    assert load_table_counts(pipeline, "lagged")["lagged"] == 5
 
 
 @pytest.mark.parametrize("lag", [3601, 3600, 60, 0])
