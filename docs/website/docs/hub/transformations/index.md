@@ -245,12 +245,12 @@ Now suppose `orders` is loaded in two batches:
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 
 :::caution Pick ranges by how your cursor behaves
-Each stateful run sets its range end to `MAX(cursor)` computed at extraction and advances `last_value` to it, so a run never sees rows that land after its aggregate. How the boundary row (the row at `MAX`) is handled depends on the ranges:
+Each stateful run computes `MAX(cursor)` at extraction and sets its range end to that value. The run then advances `last_value` to it. As a result, a run never sees rows that arrive after this aggregate. The **boundary row** is the row at `MAX`. The ranges decide how `dlt` handles it:
 
-- `range_start="open"` (recommended for append): the boundary row loads in the run that records it and is never re-read. The synthesized range end is always inclusive for open starts — an open end would make the boundary row unreachable.
-- Default `range_start="closed"` with `range_end="open"`: the boundary row is deferred — excluded from the run that records it and loaded exactly once by the next run that observes a greater cursor value. No duplicates with append, but each run's newest rows wait one cycle for newer data.
-- `range_start="closed"` with `range_end="closed"` and `write_disposition="merge"` + primary key: the boundary is loaded eagerly and re-read every run; merge removes the overlap. Use when late rows sharing the boundary cursor value must load without waiting a cycle.
-- A `primary_key` on the incremental equal to the cursor column declares cursor values unique: the boundary loads eagerly and never replays, regardless of the range settings.
+- `range_start="open"` (recommended for append): the boundary row loads in the run that records it, and no later run reads it again. The range end is always inclusive for an open start, because an open end never loads the boundary row.
+- Default `range_start="closed"` with `range_end="open"`: `dlt` defers the boundary row. The run that records it excludes it. The next run that observes a greater cursor value loads it exactly once. Append creates no duplicates, but the newest rows of each run wait one cycle.
+- `range_start="closed"` with `range_end="closed"`, `write_disposition="merge"` and a primary key: `dlt` loads the boundary eagerly and reads it again in every run. The merge removes the overlap. Use this combination when late rows that share the boundary cursor value must load without a wait.
+- A `primary_key` on the incremental that equals the cursor column declares the cursor values unique. The boundary then loads eagerly and never replays, whatever the range settings are.
 :::
 
 ### Cursor column choices

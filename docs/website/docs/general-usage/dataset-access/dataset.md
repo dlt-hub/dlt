@@ -176,7 +176,7 @@ The translation from `Incremental` to SQL follows these rules:
 - `last_value_func` must be `max` or `min`. Custom callables can't be pushed down to SQL.
 - `range_start` / `range_end` decide endpoint inclusivity (`"closed"` -> `>=`/`<=`, `"open"` -> `>`/`<`); operator direction follows `last_value_func`.
 - `on_cursor_value_missing="include"` translates to `... OR cursor IS NULL`; `"exclude"` to `... AND cursor IS NOT NULL`. `"raise"` cannot raise mid-query in SQL pushdown, so it falls back to `IS NOT NULL` and emits a warning when the cursor column is nullable.
-- `lag` is applied to the start of the range exactly as it would be during a resource extraction.
+- `dlt` applies `lag` to the start of the range, exactly as it does during a resource extraction.
 
 See [Incremental transformations](../../hub/transformations/index.md#incremental-transformations) to use this in `@dlt.hub.transformation`. That page covers stateful cursors, scheduler-owned windows, and `_dlt_loads.inserted_at` load-time cursors.
 
