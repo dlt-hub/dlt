@@ -19,7 +19,7 @@ build: ## Full production build of the docs website into `website/build/docs`
 	cd website && npm run check-orphan-docs
 	$(MAKE) process-docs
 	cd website && npx docusaurus build --out-dir build/docs
-	cd docs/website && npm run verify-redirects
+	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
