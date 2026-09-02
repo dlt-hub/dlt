@@ -658,6 +658,22 @@ def test_build_runtime_entry_point_optional_interval_and_utc() -> None:
     assert ep["interval_timezone"] == "Europe/Berlin"
 
 
+def test_build_runtime_entry_point_timezone_without_interval() -> None:
+    """`require.timezone` is the zone the whole run stores values in, so a trigger that
+    generates no interval must still carry it."""
+    jd = _job("jobs.a", require={"timezone": "Europe/Berlin"})
+    ep = build_runtime_entry_point(jd, {}, "dev", False, None, None, dlt_version=_DLT_SPEC)
+    assert ep["interval_timezone"] == "Europe/Berlin"
+    assert "interval_start" not in ep
+    assert "interval_end" not in ep
+
+    # an explicit `tz` overrides the job's own zone
+    ep = build_runtime_entry_point(
+        jd, {}, "dev", False, None, None, dlt_version=_DLT_SPEC, tz="Asia/Kolkata"
+    )
+    assert ep["interval_timezone"] == "Asia/Kolkata"
+
+
 def test_build_runtime_entry_point_keeps_preset_run_args() -> None:
     """Interactive run_args provided by the caller are not overwritten."""
     jd = _job("jobs.dash", job_type="interactive")

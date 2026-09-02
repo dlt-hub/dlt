@@ -9,7 +9,7 @@ from typing import Callable, Dict, List, Optional, Tuple, cast
 from uuid import uuid4
 from zoneinfo import ZoneInfo
 
-from dlt.common.time import ensure_datetime_in_tz
+from dlt.common.time import UTC_NAME, ensure_datetime_in_tz
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.deployment._job_ref import format_job_label, resolve_job_ref, short_name
@@ -358,7 +358,7 @@ def build_runtime_entry_point(
         ).isoformat()
     if interval_end is not None:
         entry_point["interval_end"] = ensure_datetime_in_tz(interval_end, timezone.utc).isoformat()
-    if interval_start is not None or interval_end is not None:
+    if interval_start is not None or interval_end is not None or tz != UTC_NAME:
         entry_point["interval_timezone"] = tz
     # pass mode explicitly when set, keep deprecated flag for old launchers and backends.
     # unset jobs get neither key so launcher-side `jobs` configuration may apply
