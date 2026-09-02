@@ -78,6 +78,10 @@ class Dlt100DeprecationWarning(DltDeprecationWarning):
 warnings.simplefilter("once", DltDeprecationWarning)
 
 
+class TNoExtraKwargs(typing_extensions.TypedDict):
+    """Empty schema for a `**kwargs` that only collects deprecated argument names."""
+
+
 class SkipDeprecation:
     """Sentinel returned by a `Deprecated.convert` to write nothing to the replacement field."""
 

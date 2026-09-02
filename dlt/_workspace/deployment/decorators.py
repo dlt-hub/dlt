@@ -8,9 +8,9 @@ from dlt.common.configuration import get_fun_spec, with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.pipeline import SupportsPipeline, TRefreshMode
 from dlt.common.reflection.inspect import iscoroutinefunction
-from dlt.common.typing import AnyFun, Generic, ParamSpec
+from dlt.common.typing import AnyFun, Generic, ParamSpec, Unpack
 from dlt.common.utils import get_callable_name, get_module_name
-from dlt.common.warnings import apply_deprecations
+from dlt.common.warnings import TNoExtraKwargs, apply_deprecations
 
 from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
@@ -385,7 +385,7 @@ def job(
     refresh_propagation: TRefreshPolicy = "auto",
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
-    **kwargs: Any,
+    **kwargs: Unpack[TNoExtraKwargs],
 ) -> Any:
     """Marks a function as a deployable batch job.
 
@@ -503,7 +503,7 @@ def interactive(
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
-    **kwargs: Any,
+    **kwargs: Unpack[TNoExtraKwargs],
 ) -> Any:
     """Marks a function as a deployable interactive job.
 
@@ -571,7 +571,7 @@ def pipeline_run(
     refresh_propagation: TRefreshPolicy = "auto",
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
-    **kwargs: Any,
+    **kwargs: Unpack[TNoExtraKwargs],
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]:
     """Creates a job bound to a specific pipeline.
 

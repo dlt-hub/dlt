@@ -446,7 +446,7 @@ def test_deprecated_kwarg_routed_through_pipeline_run_and_interactive() -> None:
     # pipeline_run and interactive forward **kwargs into _job, so the same deprecation applies
     with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
 
-        @pipeline_run("my_pipeline", refresh="always")
+        @pipeline_run("my_pipeline", refresh="always")  # type: ignore[call-arg]
         def pr():
             pass
 
