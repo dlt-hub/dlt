@@ -6,8 +6,21 @@ help: ## Shows this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Prepares development environment for docs tooling
-	uv sync --all-extras --all-groups --all-packages --quiet
+	uv sync --all-extras --all-groups --all-packages --quiet --locked
 	uv run prek install --hook-type pre-push
+
+start: ## Generate docs and start the docusaurus dev server
+	$(MAKE) process-docs
+	cd website && npx docusaurus start
+
+build: ## Full production build of the docs website into `website/build/docs`
+	cd website && uv run npm run update-versions
+	cd website && npm run compile-redirects
+	cd website && npm run check-orphan-docs
+	$(MAKE) process-docs
+	cd website && npx docusaurus build --out-dir build/docs
+	cd docs/website && npm run verify-redirects
+	cd website && node scripts/verify-llms-txt.js
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -45,11 +58,16 @@ format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black tools website
 	uv run black education/*/*.ipynb --ipynb
 
-generate-api-ref: ## Generates the API reference documentation from dlt codebase for website
+preprocess-markers: ## Copy website/docs -> docs_processed, expanding @@@DLT_* markers (tuba/SEO links, capabilities)
+	uv run --script tools/preprocess_docs.py
+
+generate-api-ref: ## Generate the API reference into docs_processed/api_reference
 	uv run --script tools/generate_api_reference.py
 
-preprocess-docs:  ## Preprocesses the docs pages, copies docs to docs_processed folder and inserts snippets and tuba links
-	uv run --script tools/preprocess_docs.py
+# Order matters: preprocess-markers wipes and recreates docs_processed, so
+# generators that write into it must run afterwards.
+process-docs: ## Build website/docs_processed from sources (markers + API reference)
+	$(MAKE) preprocess-markers
 	$(MAKE) generate-api-ref
 
 test-tools: ## Tests docs tools

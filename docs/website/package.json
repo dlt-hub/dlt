@@ -3,8 +3,8 @@
   "version": "0.0.0",
   "private": true,
   "scripts": {
-    "start": "cd .. && make preprocess-docs && cd website && docusaurus start",
-    "build": "uv run npm run update-versions && npm run compile-redirects && npm run check-orphan-docs && cd .. && make preprocess-docs && cd website && docusaurus build --out-dir build/docs && node scripts/verify-llms-txt.js",
+    "start": "cd .. && make start",
+    "build": "cd .. && make build",
     "clear": "docusaurus clear",
     "serve": "docusaurus serve --dir build/docs",
     "clear-versions": "node tools/clear_versions.js",

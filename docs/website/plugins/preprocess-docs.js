@@ -6,11 +6,16 @@
  * pages docusaurus actually renders in `website/docs_processed`, expanding
  * `@@@DLT_*` markers on the way.
  *
- * This plugin exists so that there is a single file watcher: `docusaurus start`
+ * This plugin's only job is live-reload during development: `docusaurus start`
  * watches `website/docs` for us and calls `loadContent()` on change, which
- * re-runs the preprocessor. The preprocessor only rewrites files whose content
- * changed, so the docs plugin (which watches `docs_processed`) then reloads
- * just the affected pages.
+ * re-runs the preprocessor incrementally. The preprocessor only rewrites files
+ * whose content changed, so the docs plugin (which watches `docs_processed`)
+ * then reloads just the affected pages.
+ *
+ * The initial `docs_processed` (markers + API reference) is built by
+ * `make process-docs`, which `make start`/`make build` run before docusaurus
+ * boots (see `docs/Makefile` and `website/package.json`). This watcher never
+ * regenerates the API reference; it only re-expands markers on source edits.
  */
 const { spawnSync } = require("node:child_process");
 const path = require("node:path");
@@ -33,8 +38,8 @@ module.exports = function preprocessDocsPlugin(context) {
     },
 
     async loadContent() {
-      // the initial run is done by `make preprocess-docs` (see package.json),
-      // which also generates the api reference
+      // the initial docs_processed is built by `make process-docs` before
+      // docusaurus boots, so the first load has nothing to do
       if (isFirstRun) {
         isFirstRun = false;
         return;
