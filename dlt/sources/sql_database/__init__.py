@@ -453,6 +453,9 @@ def sql_database_source(
             ],
         })
     """
+    # validate the config as passed so a bad field is reported before anything is resolved or
+    # connected to. `sql_database_resources` validates again, then including the values that
+    # dlt config providers injected.
     # TODO: this must be removed when TypedDicts are supported by resolve_configuration
     #   so config values are bound BEFORE validation
     validate_config(config)

@@ -35,12 +35,13 @@ from dlt.sources.sql_database.typing import SqlTableResource
 from tests.utils import get_test_storage_root
 
 
-@pytest.fixture
-def credentials() -> str:
-    """Creates an on-disk sqlite db with two tables and returns its connection url."""
+def create_sqlite_db(items: str, orders: str) -> str:
+    """Creates an on-disk sqlite db with an `items` and an `orders` table filled with the given
+    rows and returns its connection url."""
     test_dir = Path(get_test_storage_root()) / f"sqlite_{uuid.uuid4().hex}"
     test_dir.mkdir(parents=True, exist_ok=True)
-    engine = sa.create_engine(f"sqlite:///{test_dir / 'test.db'}")
+    credentials = f"sqlite:///{test_dir / 'test.db'}"
+    engine = sa.create_engine(credentials)
     try:
         with engine.begin() as conn:
             conn.execute(
@@ -49,17 +50,20 @@ def credentials() -> str:
                     " updated_at TEXT)"
                 )
             )
-            conn.execute(
-                sa.text(
-                    "INSERT INTO items VALUES (1, 'a', 'x', '2024-01-01'), (2, 'b', 'y',"
-                    " '2024-06-01')"
-                )
-            )
+            conn.execute(sa.text(f"INSERT INTO items VALUES {items}"))
             conn.execute(sa.text("CREATE TABLE orders (id INTEGER PRIMARY KEY, item_id INTEGER)"))
-            conn.execute(sa.text("INSERT INTO orders VALUES (1, 1), (2, 2), (3, 2)"))
+            conn.execute(sa.text(f"INSERT INTO orders VALUES {orders}"))
     finally:
         engine.dispose()
-    return f"sqlite:///{test_dir / 'test.db'}"
+    return credentials
+
+
+@pytest.fixture
+def credentials() -> str:
+    return create_sqlite_db(
+        items="(1, 'a', 'x', '2024-01-01'), (2, 'b', 'y', '2024-06-01')",
+        orders="(1, 1), (2, 2), (3, 2)",
+    )
 
 
 def assert_same_resource(declared: DltResource, expected: DltResource) -> None:
@@ -194,6 +198,40 @@ def test_ready_resources_are_passed_through(credentials: str) -> None:
 
     assert [resource.name for resource in resources] == ["orders", "items"]
     assert resources[0] is orders
+
+
+def test_engine_kwargs_reach_create_engine(credentials: str) -> None:
+    """`engine_kwargs` are forwarded to `sqlalchemy.create_engine()`, which validates them."""
+    with pytest.raises(TypeError):
+        sql_database_resources(
+            {
+                "credentials": credentials,
+                "engine_kwargs": {"this_is_an_invalid_argument_name": True},
+                "tables": ["items"],
+            }
+        )
+
+
+def test_engine_adapter_callback_replaces_shared_engine(credentials: str) -> None:
+    """The callback is called once and the engine it returns is used by all tables."""
+    other_credentials = create_sqlite_db(items="(3, 'c', 'z', '2025-01-01')", orders="(4, 3)")
+    adapted = []
+
+    def engine_adapter_callback(engine: sa.engine.Engine) -> sa.engine.Engine:
+        adapted.append(engine)
+        return sa.create_engine(other_credentials)
+
+    resources = sql_database_resources(
+        {
+            "credentials": credentials,
+            "engine_adapter_callback": engine_adapter_callback,
+            "tables": ["items", "orders"],
+        }
+    )
+
+    assert len(adapted) == 1
+    assert [row["id"] for row in resources[0]] == [3]
+    assert [row["id"] for row in resources[1]] == [4]
 
 
 def test_source_is_configured_like_sql_database(credentials: str) -> None:
