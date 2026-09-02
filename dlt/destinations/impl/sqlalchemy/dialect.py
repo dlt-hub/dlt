@@ -180,6 +180,8 @@ class MysqlDialectCapabilities(DialectCapabilities):
         caps.max_column_identifier_length = 64
         caps.format_datetime_literal = _format_mysql_datetime_literal
         caps.enforces_nulls_on_alter = False
+        # `MysqlVariantTypeMapper` stores every timestamp as `DATETIME`, which holds no timezone
+        caps.supports_tz_aware_datetime = False
 
     def type_mapper_class(self) -> Type[DataTypeMapper]:
         from dlt.destinations.impl.sqlalchemy.type_mapper import MysqlVariantTypeMapper
