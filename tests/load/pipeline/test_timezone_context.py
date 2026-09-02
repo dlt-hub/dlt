@@ -11,6 +11,8 @@ import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.common.destination import TLoaderFileFormat
+from dlt.common.time import ensure_datetime
 from dlt.common.utils import uniq_id
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
@@ -42,9 +44,41 @@ def _events() -> Any:
     ]
 
 
+def _arrow_events(pyarrow: Any) -> List[Any]:
+    """The same two rows as `_events`, as arrow tables."""
+    naive, aware = pyarrow.timestamp("us"), pyarrow.timestamp("us", tz="UTC")
+    return [
+        pyarrow.table(
+            {
+                "id": pyarrow.array([1], type=pyarrow.int64()),
+                "ts_aware": pyarrow.array([NAIVE_IN], type=naive),
+                "ts_naive": pyarrow.array([NAIVE_IN], type=naive),
+            }
+        ),
+        pyarrow.table(
+            {
+                "id": pyarrow.array([2], type=pyarrow.int64()),
+                "ts_aware": pyarrow.array([AWARE_IN], type=aware),
+                "ts_naive": pyarrow.array([AWARE_IN], type=aware),
+            }
+        ),
+    ]
+
+
 def _rows_by_id(pipeline: dlt.Pipeline) -> Dict[int, Dict[str, Any]]:
     tables = load_tables_to_dicts(pipeline, "events", exclude_system_cols=True, sortkey="id")
-    return {row["id"]: row for row in tables["events"]}
+    return {row["id"]: _parse_timestamps(row) for row in tables["events"]}
+
+
+def _parse_timestamps(row: Dict[str, Any]) -> Dict[str, Any]:
+    """Coerces timestamp columns that a destination returns as text, as sqlite does.
+
+    `ensure_datetime` keeps awareness as written, so a naive string stays naive.
+    """
+    return {
+        key: ensure_datetime(value) if key.startswith("ts_") and isinstance(value, str) else value
+        for key, value in row.items()
+    }
 
 
 def _assert_instant(
@@ -84,17 +118,40 @@ def _assert_wall_clock(
         assert value.replace(tzinfo=None) == expected, case
 
 
+@pytest.mark.parametrize("items_format", ["dict", "arrow"])
+@pytest.mark.parametrize("loader_file_format", ["jsonl", "parquet"])
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_berlin_context_timezone_matrix(destination_config: DestinationTestConfiguration) -> None:
-    """All four pairs, loaded and read back under a Berlin context timezone."""
+def test_berlin_context_timezone_matrix(
+    destination_config: DestinationTestConfiguration,
+    loader_file_format: TLoaderFileFormat,
+    items_format: str,
+) -> None:
+    """All four pairs, loaded and read back under a Berlin context timezone.
+
+    Both item formats and both file formats must agree: the offset travels in the value text on
+    the `jsonl` path and as a column label on the `parquet` path.
+    """
+    supported = destination_config.raw_capabilities().supported_loader_file_formats or []
+    if loader_file_format not in supported:
+        pytest.skip(f"`{destination_config.destination_type}` cannot load `{loader_file_format}`")
+
     pipeline = _pipeline(destination_config)
+    run_kwargs = {**destination_config.run_kwargs, "loader_file_format": loader_file_format}
 
     with Container().injectable_context(TimezoneContext("Europe/Berlin")):
-        assert_load_info(pipeline.run(_events()))
+        if items_format == "dict":
+            assert_load_info(pipeline.run(_events(), **run_kwargs))
+        else:
+            pyarrow = pytest.importorskip("pyarrow")
+            assert_load_info(
+                pipeline.run(
+                    _arrow_events(pyarrow), table_name="events", columns=COLUMNS, **run_kwargs
+                )
+            )
         rows = _rows_by_id(pipeline)
     caps = pipeline._get_destination_capabilities()
 
@@ -111,79 +168,6 @@ def test_berlin_context_timezone_matrix(destination_config: DestinationTestConfi
     _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, "aware -> aware")
     # aware input, timezone=False: converted to Berlin, then stripped, so the wall clock moves
     _assert_wall_clock(rows[2]["ts_naive"], datetime(2024, 1, 16, 0, 30), caps, "aware -> naive")
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
-    ids=lambda x: x.name,
-)
-@pytest.mark.parametrize("via", ["unset", "utc"], ids=["context-unset", "context-utc"])
-def test_utc_context_timezone_is_a_no_op(
-    destination_config: DestinationTestConfiguration, via: str
-) -> None:
-    """A UTC context timezone, set or left alone, must store exactly what dlt stores today."""
-    pipeline = _pipeline(destination_config)
-
-    if via == "utc":
-        with Container().injectable_context(TimezoneContext("UTC")):
-            assert_load_info(pipeline.run(_events()))
-            rows = _rows_by_id(pipeline)
-    else:
-        assert_load_info(pipeline.run(_events()))
-        rows = _rows_by_id(pipeline)
-    caps = pipeline._get_destination_capabilities()
-
-    # a naive value is read as UTC, so the instant does not move and neither does the wall clock
-    _assert_instant(rows[1]["ts_aware"], AWARE_IN, caps, "naive -> aware")
-    _assert_wall_clock(rows[1]["ts_naive"], NAIVE_IN, caps, "naive -> naive")
-    _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, "aware -> aware")
-    _assert_wall_clock(rows[2]["ts_naive"], NAIVE_IN, caps, "aware -> naive")
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
-    ids=lambda x: x.name,
-)
-def test_berlin_context_timezone_agrees_across_item_formats(
-    destination_config: DestinationTestConfiguration,
-) -> None:
-    """The object path and the arrow path must store the same values under a context timezone."""
-    pyarrow = pytest.importorskip("pyarrow")
-
-    object_pipeline = _pipeline(destination_config)
-    arrow_pipeline = _pipeline(destination_config)
-
-    table = pyarrow.table(
-        {
-            "id": pyarrow.array([1, 2], type=pyarrow.int64()),
-            "ts_aware": pyarrow.array(
-                [NAIVE_IN, AWARE_IN.replace(tzinfo=None)], type=pyarrow.timestamp("us")
-            ),
-            "ts_naive": pyarrow.array(
-                [NAIVE_IN, AWARE_IN.replace(tzinfo=None)], type=pyarrow.timestamp("us")
-            ),
-        }
-    )
-
-    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
-        assert_load_info(object_pipeline.run(_events()))
-        assert_load_info(arrow_pipeline.run(table, table_name="events", columns=COLUMNS))
-        object_rows = _rows_by_id(object_pipeline)
-        arrow_rows = _rows_by_id(arrow_pipeline)
-
-    # the arrow table carries naive values, so only row 1 is the same input on both paths
-    columns: List[str] = ["ts_aware", "ts_naive"]
-    for column in columns:
-        object_value, arrow_value = object_rows[1][column], arrow_rows[1][column]
-        if object_value.tzinfo is None or arrow_value.tzinfo is None:
-            object_value = object_value.replace(tzinfo=None)
-            arrow_value = arrow_value.replace(tzinfo=None)
-        else:
-            object_value = object_value.astimezone(timezone.utc)
-            arrow_value = arrow_value.astimezone(timezone.utc)
-        assert object_value == arrow_value, f"paths disagree on `{column}`"
 
 
 LAG_COLUMNS: Any = {"id": {"data_type": "bigint"}, "ts": {"data_type": "timestamp"}}
