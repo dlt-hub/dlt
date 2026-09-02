@@ -72,8 +72,19 @@ def to_iana_name(tz: Optional[datetime.tzinfo]) -> Optional[str]:
 
 
 def get_context_timezone_name() -> str:
-    """IANA name of the context timezone, `UTC` when it carries no name."""
-    return to_iana_name(_CONTEXT_TZ) or UTC_NAME
+    """IANA name of the context timezone.
+
+    Raises:
+        ValueError: The context timezone carries no IANA name.
+    """
+    name = to_iana_name(_CONTEXT_TZ)
+    if name is None:
+        raise ValueError(
+            f"Timezone `{_CONTEXT_TZ}` that `dlt` stores loaded values in has no IANA name, so"
+            " values cannot be labelled with it. Set a canonical IANA name, for example"
+            " `Europe/Berlin` or `UTC`."
+        )
+    return name
 
 
 def set_context_timezone(tz: Optional[datetime.tzinfo]) -> datetime.tzinfo:
