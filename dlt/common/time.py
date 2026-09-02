@@ -52,10 +52,8 @@ _CONTEXT_TZ: datetime.tzinfo = _env_context_timezone()
 
 
 def get_context_timezone() -> datetime.tzinfo:
-    """Context timezone, the one `dlt` stores loaded values in.
+    """Context timezone, the one `dlt` uses to normalize timestamps and to store in load packages"""
 
-    UTC unless a launcher or `TimezoneContext` set one.
-    """
     return _CONTEXT_TZ
 
 
