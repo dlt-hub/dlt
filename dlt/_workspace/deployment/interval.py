@@ -6,6 +6,7 @@ from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
+from dlt.common.interval import lag_cron
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
@@ -175,22 +176,8 @@ def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") 
 
 
 def cron_floor(cron_expr: str, dt: datetime) -> datetime:
-    """Latest cron tick <= dt, preserving dt's timezone.
-
-    Iterates cron in naive local time (stripping `dt`'s tzinfo internally) to
-    get clean wall-clock semantics across DST transitions, then re-attaches
-    `dt.tzinfo` to the result.
-    """
-    # get_prev returns the tick strictly before its base, so step forward by
-    # one microsecond to include dt itself when it falls exactly on a tick
-    # (seconds-epsilon is too coarse for sub-second inputs: `11:59:59.999999`
-    # would yield `12:00:00` which is > dt).
-    base = (dt.replace(tzinfo=None) if dt.tzinfo else dt) + timedelta(microseconds=1)
-    cron = croniter(cron_expr, base)
-    prev_naive: datetime = cron.get_prev(datetime)
-    if dt.tzinfo is not None:
-        return prev_naive.replace(tzinfo=dt.tzinfo)
-    return prev_naive
+    """Latest cron tick <= dt, preserving dt's timezone."""
+    return lag_cron(cron_expr, dt, 0)
 
 
 def _check_schedule_run_freshness(

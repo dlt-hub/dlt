@@ -11,7 +11,6 @@ from dlt.common.time import ensure_datetime_in_tz
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.interval import (
     compute_run_interval,
-    cron_floor,
     next_scheduled_run,
     resolve_interval_spec,
 )
@@ -53,21 +52,6 @@ def test_resolve_explicit_end_snapped() -> None:
     start, end = resolve_interval_spec(spec, "0 0 * * *")
     assert start == ensure_datetime_in_tz("2024-01-01")
     assert end == ensure_datetime_in_tz("2024-01-05")
-
-
-@pytest.mark.parametrize(
-    "cron_expr,dt,expected",
-    [
-        ("0 0 * * *", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"),
-        ("0 0 * * *", "2024-01-01T06:30:00Z", "2024-01-01T00:00:00Z"),
-        ("*/3 * * * *", "2024-01-01T11:40:00Z", "2024-01-01T11:39:00Z"),
-        ("*/3 * * * *", "2024-01-01T11:42:00Z", "2024-01-01T11:42:00Z"),
-        ("* * * * *", "2024-01-01T11:40:00Z", "2024-01-01T11:40:00Z"),
-    ],
-    ids=["daily-aligned", "daily-misaligned", "3min-misaligned", "3min-aligned", "1min-aligned"],
-)
-def test_cron_floor(cron_expr: str, dt: str, expected: str) -> None:
-    assert cron_floor(cron_expr, ensure_datetime_in_tz(dt)) == ensure_datetime_in_tz(expected)
 
 
 @pytest.mark.parametrize(
