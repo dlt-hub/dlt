@@ -15,6 +15,7 @@ from dlt.common.interval import full_days_interval, lag_interval
 from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, get_context_timezone
 from dlt.common.typing import TAnyDateTime, TTimeInterval
 from dlt.common.utils import str2bool
+from dlt.extract.incremental.exceptions import IntervalNotAvailable
 
 TAnyTimeInterval = Union[TTimeInterval, Tuple[datetime, datetime]]
 """A `(start, end)` interval as either a `TTimeInterval` or a plain datetime tuple."""
@@ -37,13 +38,6 @@ def _to_time_interval(interval: Optional[TAnyTimeInterval]) -> Optional[TTimeInt
         return None
     start, end = interval
     return TTimeInterval(_bound_in_context_tz(start), _bound_in_context_tz(end))
-
-
-def _in_interval_tz(value: TAnyDateTime, tz: Optional[tzinfo]) -> datetime:
-    # astimezone(None) would silently adopt the machine's local zone
-    if tz is None:
-        return ensure_datetime(value)
-    return ensure_datetime_in_tz(value, tz)
 
 
 @configspec
@@ -139,7 +133,7 @@ class _IntervalAccessor:
     def set(self, interval: Optional[TAnyTimeInterval]) -> None:  # noqa: A003
         ctx = get_interval_context()
         if ctx is None:
-            raise RuntimeError("no TimeIntervalContext active")
+            raise IntervalNotAvailable("set", context_missing=True)
         ctx.interval = interval
 
     def update(
@@ -159,16 +153,16 @@ class _IntervalAccessor:
             end (Optional[TAnyDateTime]): New end of the interval.
 
         Raises:
-            RuntimeError: If no interval is active.
+            IntervalNotAvailable: If no interval is active.
         """
         ctx = get_interval_context()
         cur = ctx.interval if ctx else None
         if cur is None:
-            raise RuntimeError("no active interval to update")
+            raise IntervalNotAvailable("update")
         tz = ctx.timezone
         ctx.interval = TTimeInterval(
-            cur.start if start is None else _in_interval_tz(start, tz),
-            cur.end if end is None else _in_interval_tz(end, tz),
+            cur.start if start is None else ensure_datetime_in_tz(start, tz),
+            cur.end if end is None else ensure_datetime_in_tz(end, tz),
         )
 
     @property
@@ -200,12 +194,12 @@ class _IntervalAccessor:
 
         Raises:
             ValueError: If the adjusted interval is empty or negative.
-            RuntimeError: If no interval is active.
+            IntervalNotAvailable: If no interval is active.
         """
         ctx = get_interval_context()
         cur = ctx.interval if ctx else None
         if cur is None:
-            raise RuntimeError("no active interval to lag")
+            raise IntervalNotAvailable("lag")
         ctx.interval = lag_interval(cur, trigger, count, lag_end)
         return self
 
@@ -217,12 +211,12 @@ class _IntervalAccessor:
             The accessor itself, so calls can be chained.
 
         Raises:
-            RuntimeError: If no interval is active.
+            IntervalNotAvailable: If no interval is active.
         """
         ctx = get_interval_context()
         cur = ctx.interval if ctx else None
         if cur is None:
-            raise RuntimeError("no active interval to adjust")
+            raise IntervalNotAvailable("widen")
         ctx.interval = full_days_interval(cur)
         return self
 

@@ -5,7 +5,8 @@ import subprocess
 import sys
 import time
 from datetime import date, datetime, timezone  # noqa: I251
-from typing import Any, Dict, List, Optional
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
@@ -24,7 +25,11 @@ from dlt.extract.incremental.context import (
     get_interval_context,
     interval as _interval_accessor,
 )
-from dlt.extract.incremental.exceptions import ExternalSchedulerNotAvailable, JoinSchedulerError
+from dlt.extract.incremental.exceptions import (
+    ExternalSchedulerNotAvailable,
+    IntervalNotAvailable,
+    JoinSchedulerError,
+)
 
 from tests.extract.utils import AssertItems, data_item_to_list
 from tests.utils import (
@@ -1002,13 +1007,32 @@ def test_accessor_update(kwargs: Dict[str, str], expected_start: str, expected_e
         assert _interval_accessor() == _utc_iv(expected_start, expected_end)
 
 
-def test_accessor_update_raises_when_no_interval() -> None:
+@pytest.mark.parametrize(
+    "mutate,operation",
+    [
+        (partial(_interval_accessor.update, start="2024-01-01T00:00:00Z"), "update"),
+        (partial(_interval_accessor.apply_lag, "0 0 * * *"), "lag"),
+        (_interval_accessor.apply_full_days, "widen"),
+    ],
+    ids=["update", "apply_lag", "apply_full_days"],
+)
+def test_accessor_mutators_raise_without_interval(
+    mutate: Callable[[], Any], operation: str
+) -> None:
+    """Manual and event triggers generate no interval, so a job adjusting one must be told."""
     with (
         patch.dict(os.environ, {}, clear=True),
         Container().injectable_context(TimeIntervalContext()),
     ):
-        with pytest.raises(RuntimeError, match="no active interval to update"):
-            _interval_accessor.update(start=ensure_pendulum_datetime("2024-01-01T00:00:00Z"))
+        with pytest.raises(IntervalNotAvailable, match=f"Cannot {operation} the interval"):
+            mutate()
+
+
+def test_accessor_set_raises_without_context() -> None:
+    # `set` needs only a context, not an interval, so it fails one step earlier
+    with patch("dlt.extract.incremental.context.get_interval_context", return_value=None):
+        with pytest.raises(IntervalNotAvailable, match="no `TimeIntervalContext` is active"):
+            _interval_accessor.set(None)
 
 
 def test_accessor_apply_lag_and_full_days() -> None:
@@ -1022,13 +1046,6 @@ def test_accessor_apply_lag_and_full_days() -> None:
         )
         # mutators set the active interval
         assert _interval_accessor() == _utc_iv("2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z")
-
-    # no active interval raises
-    with Container().injectable_context(TimeIntervalContext()):
-        with pytest.raises(RuntimeError, match="no active interval"):
-            _interval_accessor.apply_lag("0 0 * * *")
-        with pytest.raises(RuntimeError, match="no active interval"):
-            _interval_accessor.apply_full_days()
 
 
 def test_accessor_timezone() -> None:
