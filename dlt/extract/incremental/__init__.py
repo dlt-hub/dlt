@@ -11,7 +11,7 @@ from typing import (
     Literal,
     Tuple,
 )
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timezone as dt_timezone  # noqa: I251
 import inspect
 from functools import wraps
 
@@ -46,7 +46,7 @@ from dlt.common.data_types.type_helpers import (
     py_type_to_sc_type,
 )
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.utils import simple_repr, without_none
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
@@ -68,7 +68,11 @@ from dlt.extract.incremental.context import TimeIntervalContext, get_interval_co
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
 from dlt.extract.items_transform import ItemTransform
 from dlt.extract.state import resource_state
-from dlt.extract.utils import digest_dedup_value, has_legacy_dedup_hashes
+from dlt.extract.utils import (
+    digest_dedup_value,
+    has_legacy_dedup_hashes,
+    resolve_column_value,
+)
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -358,7 +362,17 @@ class Incremental(
         return new
 
     def advance(self, last_value: TCursorValue) -> Self:
-        """Advance incremental range to `last_value` and prevent filtering in __call__."""
+        """Pins the range end to `last_value` and passes rows through unfiltered.
+
+        Use when the range was already applied elsewhere, ie. pushed down to SQL. A `None`
+        value leaves the range as is and only disables filtering.
+
+        Args:
+            last_value (TCursorValue): The value to pin the range end to.
+
+        Returns:
+            Incremental[TCursorValue]: This instance, so calls can be chained.
+        """
         if last_value is not None:
             self._current_last_value = last_value
             if self._cached_state is not None:
@@ -380,21 +394,23 @@ class Incremental(
             return False
         return ([pk] if isinstance(pk, str) else list(pk)) == [cursor]
 
-    @staticmethod
-    def cursor_value_hash(value: Any, legacy: bool = False) -> str:
+    def cursor_value_hash(self, value: Any, legacy: bool = False) -> str:
         """Dedup hash of a cursor value. Equal datetimes hash equally regardless of timezone
         or awareness. `legacy` matches hashes written before 1.29, which hashed the raw value."""
-        if legacy:
-            return digest_dedup_value(value, legacy=True)
-        # normalize to a UTC instant so representation differences do not change the hash
-        if isinstance(value, datetime):
-            value = ensure_pendulum_datetime(value).isoformat()
-        return digest_dedup_value(value)
+        if not legacy and isinstance(value, datetime):
+            # a fixed UTC instant, so a changed context timezone cannot change the hash
+            value = ensure_datetime_in_tz(value, dt_timezone.utc).isoformat()
+        if self.is_unique_cursor():
+            # hash the shape the row transforms hash: a sequence primary key yields a list
+            cursor = self.get_cursor_column_name()
+            value = resolve_column_value(self.primary_key, {cursor: value})
+        return digest_dedup_value(value, legacy)
 
     def unique_boundary_consumed(self) -> bool:
         """True when state marks the row at `last_value` as already loaded."""
-        # cursor column must be unique to perfrm the check
-        assert self.is_unique_cursor()
+        # a non-unique cursor never records the boundary row, so it is never known-consumed
+        if not self.is_unique_cursor():
+            return False
 
         state = self._cached_state
         if not state or not state.get("unique_hashes"):
@@ -785,12 +801,12 @@ class Incremental(
         if rows is None or (isinstance(rows, list) and len(rows) == 0):
             return rows
 
-        if self._advanced:
-            return rows
-
         # collect metrics
         self._incremental_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
         self._incremental_metrics["unfiltered_batches_count"] += 1
+
+        if self._advanced:
+            return rows
 
         transformer = self._get_transform(rows)
         if isinstance(rows, list):

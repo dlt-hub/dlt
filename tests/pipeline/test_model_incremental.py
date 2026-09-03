@@ -77,7 +77,7 @@ def _model_transformer(
         "start_value": start_value,
         # the dedup marker for the row at last_value, as written by an eager unique
         # cursor advance or by the row transform loading the boundary row
-        "unique_hashes": [Incremental.cursor_value_hash(start_value)] if boundary_consumed else [],
+        "unique_hashes": [parent.cursor_value_hash(start_value)] if boundary_consumed else [],
     }
     parent.start_value = start_value
     transformer = ModelIncremental(

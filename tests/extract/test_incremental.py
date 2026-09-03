@@ -7,6 +7,7 @@ from itertools import chain, count
 from time import sleep
 from typing import Any, Optional, Literal, Sequence, Dict, Iterable, List
 from unittest import mock
+from zoneinfo import ZoneInfo
 import itertools
 
 import duckdb
@@ -44,7 +45,11 @@ from dlt.extract.incremental.exceptions import (
 from dlt.extract.incremental.lag import apply_lag
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
-from dlt.extract.utils import digest_dedup_value
+from dlt.extract.utils import (
+    digest_dedup_value,
+    has_legacy_dedup_hashes,
+    resolve_column_value,
+)
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
@@ -3098,6 +3103,70 @@ def test_advance_workflow() -> None:
     assert inner._cached_state["last_value"] == 99
     assert inner._cached_state is not incr._cached_state
     assert incr._cached_state["last_value"] == 42
+
+
+@pytest.mark.parametrize("primary_key", ["ts", ("ts",)], ids=["pk-str", "pk-sequence"])
+def test_cursor_value_hash_pins_a_utc_instant(primary_key: Any) -> None:
+    """Equal instants hash equally however they are represented, and the context timezone
+    never enters the hash - `unique_hashes` in state must survive a changed job timezone."""
+    incr = dlt.sources.incremental[Any]("ts", primary_key=primary_key)
+    utc = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+    # the same instant carried in another zone, and the same wall clock left naive
+    berlin = datetime(2024, 1, 16, 0, 30, tzinfo=ZoneInfo("Europe/Berlin"))
+    naive = datetime(2024, 1, 15, 23, 30)
+    expected = incr.cursor_value_hash(utc)
+    assert incr.cursor_value_hash(berlin) == expected
+    assert incr.cursor_value_hash(naive) == expected
+    with Container().injectable_context(TimezoneContext("Asia/Kolkata")):
+        assert incr.cursor_value_hash(utc) == expected
+        assert incr.cursor_value_hash(naive) == expected
+
+    # legacy hashes the raw value, so representations differ - but it must reproduce exactly
+    # what the pre-1.29 row transform wrote for a row carrying that value at the cursor
+    legacy_row_hash = digest_dedup_value(
+        resolve_column_value(primary_key, {"ts": utc}), legacy=True
+    )
+    assert incr.cursor_value_hash(utc, legacy=True) == legacy_row_hash
+    assert has_legacy_dedup_hashes([incr.cursor_value_hash(utc, legacy=True)])
+    assert not has_legacy_dedup_hashes([expected])
+
+
+def test_cursor_value_hash_on_non_unique_cursor() -> None:
+    """Without a unique cursor there is no row shape to mirror, so the plain value is hashed."""
+    value = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+    expected = digest_dedup_value(value.isoformat())
+    assert dlt.sources.incremental[Any]("ts").cursor_value_hash(value) == expected
+    assert dlt.sources.incremental[Any]("ts", primary_key=()).cursor_value_hash(value) == expected
+    jsonpath = dlt.sources.incremental[Any]("data.ts", primary_key="data.ts")
+    assert jsonpath.cursor_value_hash(value) == expected
+
+
+def test_unique_boundary_consumed() -> None:
+    """A unique cursor marks the boundary row loaded by storing its hash, in either format."""
+    incr = dlt.sources.incremental[int]("id", primary_key="id")
+    incr._cached_state = {
+        "initial_value": 0,
+        "last_value": 10,
+        "start_value": 0,
+        "unique_hashes": [],
+    }
+    assert incr.is_unique_cursor()
+    # no marker yet: the boundary row has not been loaded
+    assert incr.unique_boundary_consumed() is False
+    # a marker for another value does not consume this boundary
+    incr._cached_state["unique_hashes"] = [incr.cursor_value_hash(9)]
+    assert incr.unique_boundary_consumed() is False
+    incr._cached_state["unique_hashes"] = [incr.cursor_value_hash(10)]
+    assert incr.unique_boundary_consumed() is True
+    # state written before 1.29 keeps the legacy digest and is still recognized
+    incr._cached_state["unique_hashes"] = [incr.cursor_value_hash(10, legacy=True)]
+    assert incr.unique_boundary_consumed() is True
+
+    # a non-unique cursor never records the boundary row, so it is never known-consumed
+    plain = dlt.sources.incremental[int]("id", primary_key="other")
+    plain._cached_state = incr._cached_state
+    assert plain.is_unique_cursor() is False
+    assert plain.unique_boundary_consumed() is False
 
 
 def test_copy_with_transient_state() -> None:
