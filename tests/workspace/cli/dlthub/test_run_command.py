@@ -18,13 +18,8 @@ from dlt._workspace.deployment.exceptions import (
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, _launcher as launcher_mod
 from dlt._workspace.deployment.typing import (
-    MANIFEST_ENGINE_VERSION,
-    TEntryPoint,
-    TExecuteSpec,
     TJobDefinition,
-    TJobRef,
     TJobsDeploymentManifest,
-    TTrigger,
 )
 
 from tests.workspace.manifest_utils import make_job, make_manifest

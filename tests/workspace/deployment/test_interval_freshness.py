@@ -30,16 +30,9 @@ from dlt._workspace.deployment.freshness import (
     get_transitive_freshness_downstream,
 )
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
-    TFreshnessConstraint,
-    TIncrementalSource,
     TIntervalSpec,
     TJobDefinition,
-    TJobRef,
     TJobType,
-    TRefreshPolicy,
-    TTrigger,
 )
 
 from tests.workspace.manifest_utils import make_job

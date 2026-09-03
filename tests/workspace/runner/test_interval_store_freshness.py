@@ -12,15 +12,10 @@ from dlt._workspace.deployment._interval_store_freshness import (
     resolve_interval_freshness_checks,
 )
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TFreshnessConstraint,
     TIntervalSpec,
     TJobDefinition,
-    TJobRef,
     TJobType,
-    TRefreshPolicy,
-    TTrigger,
 )
 from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore
 

@@ -31,14 +31,9 @@ from dlt._workspace.deployment.exceptions import (
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.typing import (
-    MANIFEST_ENGINE_VERSION,
-    TEntryPoint,
-    TExecuteSpec,
     TIncrementalSource,
     TInstallSpec,
-    TIntervalSpec,
     TJobDefinition,
-    TJobRef,
     TJobsDeploymentManifest,
     TRefreshPolicy,
     TRequireSpec,

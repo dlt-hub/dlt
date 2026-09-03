@@ -14,7 +14,6 @@ from dlt._workspace.deployment import interval as interval_mod
 from dlt._workspace.deployment.decorators import job
 from dlt._workspace.deployment.exceptions import (
     InvalidJobDefinition,
-    JobValidationResult,
     ManifestEngineNoUpgradePath,
 )
 from dlt._workspace.deployment.manifest import (
@@ -34,11 +33,7 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
-    TJobsDeploymentManifest,
-    TEntryPoint,
-    TExecuteSpec,
     TJobDefinition,
-    TJobRef,
     TJobType,
     TTrigger,
 )

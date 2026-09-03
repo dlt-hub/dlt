@@ -12,16 +12,13 @@ from tests.workspace.runner._runner import runner as runner_mod
 from tests.workspace.runner._runner.freshness_store import DuckDBJobFreshnessStore
 from tests.workspace.runner._runner.run_store import TJobRun
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TFreshnessConstraint,
     TJobDefinition,
-    TJobRef,
     TRefreshPolicy,
     TTrigger,
 )
 
-from tests.workspace.manifest_utils import make_job, make_manifest
+from tests.workspace.manifest_utils import make_job
 
 
 def _dt(s: str) -> datetime:

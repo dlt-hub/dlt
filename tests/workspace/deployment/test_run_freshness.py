@@ -7,15 +7,10 @@ import pytest
 
 from dlt._workspace.deployment.interval import check_all_upstream_run_fresh
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TFreshnessConstraint,
     TIntervalSpec,
     TJobDefinition,
-    TJobRef,
     TJobType,
-    TRefreshPolicy,
-    TTrigger,
 )
 
 from tests.workspace.manifest_utils import make_job
