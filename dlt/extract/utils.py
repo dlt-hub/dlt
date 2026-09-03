@@ -11,6 +11,7 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Generator,
+    Iterable,
     Iterator,
 )
 from collections.abc import Mapping as C_Mapping
@@ -91,9 +92,25 @@ def resolve_column_value(
     return [item[k] for k in columns]
 
 
-def digest_dedup_value(value: Any) -> str:
-    """Stable content hash of a JSON-serializable value used for incremental dedup."""
-    return digest128(json.dumps(value, sort_keys=True))
+DEDUP_HASH_BYTES = 9
+"""Digest length of an incremental dedup hash, 12 characters in base64."""
+LEGACY_DEDUP_HASH_LEN = 20
+"""Length of a dedup hash written before 1.29: a 15 byte digest over the `Z` rendering of UTC."""
+
+
+def digest_dedup_value(value: Any, legacy: bool = False) -> str:
+    """Stable content hash of a JSON-serializable value used for incremental dedup.
+
+    `legacy` reproduces the hash written before 1.29, so hashes kept in older state still match.
+    """
+    if legacy:
+        return digest128(json.dumps(value, sort_keys=True, utc_z=True))
+    return digest128(json.dumps(value, sort_keys=True), DEDUP_HASH_BYTES)
+
+
+def has_legacy_dedup_hashes(hashes: Iterable[str]) -> bool:
+    """True when `hashes` were written before 1.29 and only match `legacy` digests."""
+    return any(len(h) == LEGACY_DEDUP_HASH_LEN for h in hashes)
 
 
 def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColumns:

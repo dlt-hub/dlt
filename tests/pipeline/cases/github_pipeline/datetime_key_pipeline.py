@@ -6,9 +6,9 @@ differently re-keys every row: scd2 duplicates it, upsert inserts a copy instead
 
 `incremental` hashes the rows on the cursor boundary at extract time, from the Python objects
 through `json.dumps`. Rendering a UTC datetime differently invalidates the hashes kept in state,
-so the next run loads the boundary rows again.
+so the next run loads the boundary rows again. `advance` adds a row past the boundary.
 
-Usage: datetime_key_pipeline.py [scd2|upsert|incremental]
+Usage: datetime_key_pipeline.py [scd2|upsert|incremental] [advance]
 """
 import sys
 from datetime import datetime, timedelta, timezone  # noqa: I251
@@ -35,15 +35,17 @@ INCREMENTAL_ROWS = [
     {"id": 2, "occurred_at": datetime(2024, 1, 16, 23, 30, tzinfo=timezone.utc)},
     {"id": 3, "occurred_at": datetime(2024, 1, 16, 23, 30, tzinfo=timezone.utc)},
 ]
+ADVANCED_ROW = {"id": 4, "occurred_at": datetime(2024, 1, 17, 23, 30, tzinfo=timezone.utc)}
 
 
 @dlt.source(name="datetime_key")
-def datetime_key_source(strategy: str) -> Any:
+def datetime_key_source(strategy: str, advance: bool = False) -> Any:
     write_disposition, primary_key, cursor = STRATEGIES[strategy]
+    rows = INCREMENTAL_ROWS + ([ADVANCED_ROW] if advance else []) if cursor else ROWS
 
     @dlt.resource(name="events", primary_key=primary_key, write_disposition=write_disposition)
     def events(occurred_at: Any = dlt.sources.incremental(cursor) if cursor else None) -> Any:
-        yield INCREMENTAL_ROWS if cursor else ROWS
+        yield rows
 
     return events
 
@@ -55,4 +57,4 @@ if __name__ == "__main__":
         destination="duckdb",
         dataset_name="datetime_key_data",
     )
-    print(pipeline.run(datetime_key_source(strategy)))
+    print(pipeline.run(datetime_key_source(strategy, advance="advance" in sys.argv[2:])))

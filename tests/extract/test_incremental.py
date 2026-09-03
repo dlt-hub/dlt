@@ -29,7 +29,7 @@ from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
 from dlt.common.typing import TSortOrder, TDataItems
-from dlt.common.utils import chunks, digest128, uniq_id
+from dlt.common.utils import chunks, uniq_id
 
 from dlt.extract import DltSource
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
@@ -44,6 +44,7 @@ from dlt.extract.incremental.exceptions import (
 from dlt.extract.incremental.lag import apply_lag
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
+from dlt.extract.utils import digest_dedup_value
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
@@ -648,6 +649,41 @@ def test_incremental_transform_return_empty_rows_with_lag(item_type: TestDataIte
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_legacy_unique_hashes_dedup_boundary(item_type: TestDataItemFormat) -> None:
+    """Hashes written before 1.29 keep matching in their own format until the cursor moves on."""
+    rows: List[Dict[str, Any]] = [{"id": 1, "v": 10}, {"id": 2, "v": 20}, {"id": 3, "v": 20}]
+    # 15 byte digests of the two rows on the boundary, as dlt wrote them before 1.29
+    legacy_hashes = ["l0X+94h1WS9GCZKf91oU", "6K1oWMqvXc28CwBbSv5B"]
+
+    @dlt.resource
+    def some_data(v=dlt.sources.incremental("v")):
+        yield from data_to_item_format(item_type, rows)
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        r = some_data()
+        assert data_item_length(list(r)) == 3
+        s = r.state["incremental"]["v"]
+        assert s["last_value"] == 20
+        # the state as an older version left it
+        s["unique_hashes"] = list(legacy_hashes)
+
+        # both boundary rows are recognized and only the new one at the boundary comes through
+        rows = rows + [{"id": 4, "v": 20}]
+        r = some_data()
+        assert data_item_length(list(r)) == 1
+        # the set was not rebuilt, so the new hash joins it in the legacy format
+        assert set(r.state["incremental"]["v"]["unique_hashes"]) == set(
+            legacy_hashes + ["kGqfog0fPWbTfETshA8j"]
+        )
+
+        # a row past the boundary rebuilds the set in the short format
+        rows = rows + [{"id": 5, "v": 30}]
+        r = some_data()
+        assert data_item_length(list(r)) == 1
+        assert r.state["incremental"]["v"]["unique_hashes"] == [digest_dedup_value(rows[-1])]
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_descending_order_unique_hashes(item_type: TestDataItemFormat) -> None:
     """Resource returns items in descending order but using `max` last value function.
     Only hash matching last_value are stored.
@@ -666,9 +702,7 @@ def test_descending_order_unique_hashes(item_type: TestDataItemFormat) -> None:
         "created_at"
     ]
 
-    last_hash = digest128(json.dumps({"created_at": 24}))
-
-    assert s["unique_hashes"] == [last_hash]
+    assert s["unique_hashes"] == [digest_dedup_value({"created_at": 24})]
 
     # make sure nothing is returned on a next run, source will use state from the active pipeline
     assert list(some_data()) == []
@@ -1646,7 +1680,7 @@ def test_dynamic_dedup_key() -> None:
     # row 1,2: type=a → key=alt_id → value=10 (duplicate)
     # row 3: type=b → key=id → value=3
     hashes = some_data.state["incremental"]["created_at"]["unique_hashes"]
-    assert set(hashes) == {digest128(json.dumps(10)), digest128(json.dumps(3))}
+    assert set(hashes) == {digest_dedup_value(10), digest_dedup_value(3)}
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
@@ -2025,6 +2059,42 @@ def test_last_value_func_on_dict() -> None:
         watch_events = list(r)
         assert len(watch_events) > 0
         assert [e for e in all_events if e["type"] == "WatchEvent"] == watch_events
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+@pytest.mark.parametrize("lag", [None, 3600], ids=["no-lag", "lag"])
+def test_pendulum_cursor_survives_state_round_trip(
+    item_type: TestDataItemFormat, lag: Optional[float]
+) -> None:
+    """A pendulum-typed incremental fed pendulum values keeps working once state comes back
+    as stdlib datetimes."""
+    hours = [pendulum.datetime(2024, 1, 15, h, tz="UTC") for h in (1, 2, 3)]
+    seen: List[Any] = []
+
+    @dlt.resource(primary_key="id")
+    def some_data(
+        max_rows: int,
+        updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "updated_at", initial_value=hours[0], lag=lag
+        ),
+    ):
+        seen.append(updated_at.last_value)
+        rows = [{"id": id_, "updated_at": ts} for id_, ts in enumerate(hours[:max_rows], 1)]
+        yield data_to_item_format(item_type, rows)
+
+    def _items_count(info: Any) -> int:
+        return info.metrics[info.loads_ids[0]][0]["resource_metrics"]["some_data"].items_count
+
+    pipeline = dlt.pipeline(pipeline_name="p" + uniq_id())
+    assert _items_count(pipeline.extract(some_data(2))) == 2
+    # the first run sees the value as it was given
+    assert isinstance(seen[0], pendulum.DateTime)
+
+    # rows below the start are gone and the boundary row is deduped, lag re-reads the last hour
+    assert _items_count(pipeline.extract(some_data(3))) == (3 if lag else 1)
+    # state comes back as stdlib, lag arithmetic hands back pendulum
+    assert type(seen[1]) is (pendulum.DateTime if lag else datetime)
+    assert seen[1] == (hours[0] if lag else hours[1])
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)

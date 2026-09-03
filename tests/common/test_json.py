@@ -1,6 +1,6 @@
 import io
 import os
-from datetime import timedelta  # noqa: I251
+from datetime import datetime, timedelta, timezone  # noqa: I251
 from typing import Any, List, NamedTuple
 from dataclasses import dataclass
 import pytest
@@ -242,6 +242,19 @@ def test_json_pendulum(json_impl: SupportsJson) -> None:
     assert copied_values["utc"].utcoffset() == timedelta(0)
     assert copied_values["0200"].utcoffset() == timedelta(hours=2)
     assert copied_values["naive"].utcoffset() is None
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+def test_json_dumps_utc_z(json_impl: SupportsJson) -> None:
+    """`utc_z` restores each backend's own pre-1.29 rendering of a UTC datetime."""
+    value = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+    assert json_impl.dumps(value) == '"2024-01-15T23:30:00+00:00"'
+    legacy = (
+        '"2024-01-15T23:30:00Z"'
+        if json_impl._impl_name == "orjson"
+        else '"2024-01-15T23:30:00+00:00"'
+    )
+    assert json_impl.dumps(value, utc_z=True) == legacy
 
 
 # @pytest.mark.parametrize("json_impl", _JSON_IMPL)

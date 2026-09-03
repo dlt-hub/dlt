@@ -86,7 +86,8 @@ def typed_loadb(s: Union[bytes, bytearray, memoryview], decoders: TPuaDecoders =
     return custom_pua_decode_nested(loadb(s), decoders)
 
 
-def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False) -> str:
+def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False, utc_z: bool = False) -> str:
+    # `utc_z` has no effect: `isoformat` writes `+00:00`, which is what this backend always did
     if pretty:
         indent = 2
     else:

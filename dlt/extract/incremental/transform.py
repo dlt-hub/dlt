@@ -22,7 +22,7 @@ from dlt.common.incremental.typing import (
     OnCursorValueMissing,
     TIncrementalRange,
 )
-from dlt.extract.utils import resolve_column_value, digest_dedup_value
+from dlt.extract.utils import resolve_column_value, digest_dedup_value, has_legacy_dedup_hashes
 from dlt.extract.items import TTableHintTemplate
 
 if TYPE_CHECKING:
@@ -70,6 +70,9 @@ class IncrementalTransform:
         self.last_value_func = last_value_func
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
+        # hashes from before 1.29 keep their format until the set is rebuilt on a new last value
+        self.start_hashes_legacy = has_legacy_dedup_hashes(unique_hashes)
+        self.unique_hashes_legacy = self.start_hashes_legacy
         self.on_cursor_value_missing = on_cursor_value_missing
         self.lag = lag
         self.range_start = range_start
@@ -90,12 +93,13 @@ class IncrementalTransform:
         self,
         row: TDataItem,
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
+        legacy: bool = False,
     ) -> str:
         try:
             if primary_key:
-                return digest_dedup_value(resolve_column_value(primary_key, row))
+                return digest_dedup_value(resolve_column_value(primary_key, row), legacy)
             elif primary_key is None:
-                return digest_dedup_value(row)
+                return digest_dedup_value(row, legacy)
             else:
                 return None
         except KeyError as k_err:
@@ -300,7 +304,9 @@ class JsonIncremental(IncrementalTransform):
                 # if equal there's still a chance that item gets in
                 if processed_row_value == self.start_value:
                     if self.boundary_deduplication:
-                        unique_value = self.compute_unique_value(row, self._primary_key)
+                        unique_value = self.compute_unique_value(
+                            row, self._primary_key, self.start_hashes_legacy
+                        )
                         # if unique value exists then use it to deduplicate
                         if unique_value in self.start_unique_hashes:
                             return None, True, False
@@ -318,6 +324,7 @@ class JsonIncremental(IncrementalTransform):
                 # store rows with "max" values to compute hashes after processing full batch
                 self.last_rows = [row]
                 self.unique_hashes = set()
+                self.unique_hashes_legacy = False
 
         return row, False, False
 
@@ -352,21 +359,23 @@ class ArrowIncremental(IncrementalTransform):
                 "Only `min` or `max` of `last_value_func` is supported for arrow tables"
             )
 
-    def compute_unique_values(self, item: "TAnyArrowItem", unique_columns: List[str]) -> List[str]:
+    def compute_unique_values(
+        self, item: "TAnyArrowItem", unique_columns: List[str], legacy: bool = False
+    ) -> List[str]:
         if not unique_columns:
             return []
         rows = item.select(unique_columns).to_pylist()
-        return [self.compute_unique_value(row, self._primary_key) for row in rows]
+        return [self.compute_unique_value(row, self._primary_key, legacy) for row in rows]
 
     def compute_unique_values_with_index(
-        self, item: "TAnyArrowItem", unique_columns: List[str]
+        self, item: "TAnyArrowItem", unique_columns: List[str], legacy: bool = False
     ) -> List[Tuple[Any, str]]:
         if not unique_columns:
             return []
         indices = item[self._dlt_index].to_pylist()
         rows = item.select(unique_columns).to_pylist()
         return [
-            (index, self.compute_unique_value(row, self._primary_key))
+            (index, self.compute_unique_value(row, self._primary_key, legacy))
             for index, row in zip(indices, rows)
         ]
 
@@ -511,7 +520,9 @@ class ArrowIncremental(IncrementalTransform):
                 # Remove already processed rows where the cursor is equal to the start value
                 eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
                 # compute index, unique hash mapping
-                unique_values_index = self.compute_unique_values_with_index(eq_rows, unique_columns)
+                unique_values_index = self.compute_unique_values_with_index(
+                    eq_rows, unique_columns, self.start_hashes_legacy
+                )
                 unique_values_index = [
                     (i, uq_val)
                     for i, uq_val in unique_values_index
@@ -539,6 +550,7 @@ class ArrowIncremental(IncrementalTransform):
                         unique_columns,
                     )
                 )
+                self.unique_hashes_legacy = False
         elif self.last_value == row_value and self.boundary_deduplication:
             # last value is unchanged, add the hashes
             self.unique_hashes.update(
@@ -546,6 +558,7 @@ class ArrowIncremental(IncrementalTransform):
                     self.compute_unique_values(
                         tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
                         unique_columns,
+                        self.unique_hashes_legacy,
                     )
                 )
             )
@@ -595,6 +608,7 @@ class ModelIncremental(IncrementalTransform):
         # mirror state advanced by apply_incremental so Incremental.__call__ write-back preserves it
         self.last_value = self._incremental.last_value
         self.unique_hashes = set(self._incremental._cached_state["unique_hashes"])
+        self.unique_hashes_legacy = has_legacy_dedup_hashes(self.unique_hashes)
         # framework-driven advance, not user-driven: clear the flag so subsequent
         # relations yielded by the same resource get filtered too
         self._incremental._advanced = False

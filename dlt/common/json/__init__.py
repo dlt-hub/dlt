@@ -245,7 +245,10 @@ class SupportsJson(Protocol):
         self, s: Union[bytes, bytearray, memoryview], decoders: TPuaDecoders = DECODERS
     ) -> Any: ...
 
-    def dumps(self, obj: Any, sort_keys: bool = False, pretty: bool = False) -> str: ...
+    def dumps(
+        self, obj: Any, sort_keys: bool = False, pretty: bool = False, utc_z: bool = False
+    ) -> str:
+        """`utc_z` renders a UTC datetime with `Z` where the backend supports it, the pre-1.29 form."""
 
     def dumpb(self, obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes: ...
 

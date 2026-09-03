@@ -68,7 +68,7 @@ from dlt.extract.incremental.context import TimeIntervalContext, get_interval_co
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
 from dlt.extract.items_transform import ItemTransform
 from dlt.extract.state import resource_state
-from dlt.extract.utils import digest_dedup_value
+from dlt.extract.utils import digest_dedup_value, has_legacy_dedup_hashes
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -381,9 +381,11 @@ class Incremental(
         return ([pk] if isinstance(pk, str) else list(pk)) == [cursor]
 
     @staticmethod
-    def cursor_value_hash(value: Any) -> str:
+    def cursor_value_hash(value: Any, legacy: bool = False) -> str:
         """Dedup hash of a cursor value. Equal datetimes hash equally regardless of timezone
-        or awareness."""
+        or awareness. `legacy` matches hashes written before 1.29, which hashed the raw value."""
+        if legacy:
+            return digest_dedup_value(value, legacy=True)
         # normalize to a UTC instant so representation differences do not change the hash
         if isinstance(value, datetime):
             value = ensure_pendulum_datetime(value).isoformat()
@@ -397,7 +399,10 @@ class Incremental(
         state = self._cached_state
         if not state or not state.get("unique_hashes"):
             return False
-        return self.cursor_value_hash(state["last_value"]) in state["unique_hashes"]
+        hashes = state["unique_hashes"]
+        return (
+            self.cursor_value_hash(state["last_value"], has_legacy_dedup_hashes(hashes)) in hashes
+        )
 
     def get_cursor_column_name(self) -> Optional[str]:
         """Return the name of the cursor column if the cursor path resolves to a single column"""
@@ -816,7 +821,9 @@ class Incremental(
             # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
             #  hashes directly
             unique_hashes = set(
-                transformer.compute_unique_value(row, self.primary_key)
+                transformer.compute_unique_value(
+                    row, self.primary_key, transformer.unique_hashes_legacy
+                )
                 for row in transformer.last_rows
             )
             initial_hash_list = cached_state.get("unique_hashes")

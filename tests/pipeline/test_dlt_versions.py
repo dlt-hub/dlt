@@ -1,6 +1,6 @@
 import os
 from datetime import datetime  # noqa: I251
-from typing import List, Optional, Dict
+from typing import Any, List, Optional, Dict
 import sys
 from subprocess import CalledProcessError
 import pytest
@@ -893,3 +893,52 @@ def test_upsert_datetime_key_hash_stable_after_dlt_update(test_storage: FileStor
         # the datetime primary key is the hash, so a moved rendering inserts copies instead
         assert len(new_rows) == 3
         assert [row[0] for row in old_rows] == [row[0] for row in new_rows]
+
+
+def _incremental_state(pipeline: dlt.Pipeline) -> Dict[str, Any]:
+    return pipeline.state["sources"]["datetime_key"]["resources"]["events"]["incremental"][
+        "occurred_at"
+    ]
+
+
+def test_incremental_boundary_hashes_stable_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_incremental.duckdb"}
+    ):
+        _run_datetime_key_case("1.25.0", "incremental")
+
+        pipeline = dlt.attach("datetime_key")
+        assert load_table_counts(pipeline, "events") == {"events": 3}
+        # both rows on the max cursor are remembered so the next run can skip them
+        old_hashes = set(_incremental_state(pipeline)["unique_hashes"])
+        assert len(old_hashes) == 2
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "incremental"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        pipeline = dlt.attach("datetime_key")
+        # the same rows must hash the same, or the two boundary rows are loaded a second time
+        assert load_table_counts(pipeline, "events") == {"events": 3}
+        assert set(_incremental_state(pipeline)["unique_hashes"]) == old_hashes
+
+        # a row past the boundary rebuilds the set in the short format
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "incremental", "advance"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        pipeline = dlt.attach("datetime_key")
+        assert load_table_counts(pipeline, "events") == {"events": 4}
+        new_hashes = _incremental_state(pipeline)["unique_hashes"]
+        assert len(new_hashes) == 1
+        assert len(new_hashes[0]) == 12

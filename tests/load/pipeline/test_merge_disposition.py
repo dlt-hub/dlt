@@ -30,6 +30,7 @@ from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
 from dlt.extract import DltResource
 from dlt.extract.hints import TResourceHints
+from dlt.extract.utils import digest_dedup_value
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -1093,7 +1094,7 @@ def test_merge_with_dispatch_and_incremental(
             == newest_issue["created_at"]
         )
         assert incremental_state["incremental"]["created_at"]["unique_hashes"] == [
-            digest128(f'"{newest_issue["id"]}"')
+            digest_dedup_value(newest_issue["id"])
         ]
         # subsequent load will skip all elements
         assert len(list(_get_shuffled_events(True) | github_resource)) == 0
@@ -1104,7 +1105,7 @@ def test_merge_with_dispatch_and_incremental(
             > newest_issue["created_at"]
         )
         assert incremental_state["incremental"]["created_at"]["unique_hashes"] != [
-            digest128(str(newest_issue["id"]))
+            digest_dedup_value(newest_issue["id"])
         ]
 
     # load to destination
