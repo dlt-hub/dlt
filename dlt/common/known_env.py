@@ -41,3 +41,6 @@ DLT_INTERVAL_END = "DLT_INTERVAL_END"
 
 DLT_INTERVAL_TIMEZONE = "DLT_INTERVAL_TIMEZONE"
 """IANA name of the timezone the interval bounds are converted to"""
+
+DLT_ALLOW_EXTERNAL_SCHEDULERS = "DLT_ALLOW_EXTERNAL_SCHEDULERS"
+"""`True` lets incrementals that left the flag unset take the interval above, process-wide"""

@@ -17,7 +17,10 @@ import dlt
 from dlt.common import known_env
 from dlt.common.configuration.specs import InvalidTimezoneName
 from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
-from dlt._workspace.deployment.launchers._launcher import apply_job_configuration
+from dlt._workspace.deployment.launchers._launcher import (
+    apply_job_configuration,
+    prepare_run_env,
+)
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
 from dlt._workspace.deployment.typing import TInstallSpec, TJobDefinition, TRuntimeEntryPoint
@@ -1122,3 +1125,31 @@ def test_job_launcher_opt_out_of_signal_interception() -> None:
     with pytest.raises(KeyboardInterrupt) as exc_info:
         job_run(ep, run_id="test-no-intercept", trigger="manual:")
     assert type(exc_info.value) is KeyboardInterrupt
+
+
+@pytest.mark.parametrize(
+    "ep_patch,expected",
+    [
+        ({"incremental_mode": "interval"}, "True"),
+        ({"incremental_mode": "pipeline"}, "False"),
+        ({"allow_external_schedulers": True}, "True"),
+        ({}, None),
+    ],
+    ids=["interval", "pipeline", "legacy-flag", "unset"],
+)
+def test_prepare_run_env_carries_allow_external_schedulers(
+    ep_patch: Dict[str, Any], expected: str
+) -> None:
+    """Subprocess launchers exec the user module, so the flag must travel in the environment."""
+    os.environ.pop(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, None)
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
+    ep.update(ep_patch)  # type: ignore[typeddict-item]
+    prepare_run_env(ep)
+    assert os.environ.get(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS) == expected
+
+
+def test_prepare_run_env_clears_stale_allow_external_schedulers() -> None:
+    """A launcher process must not inherit the flag from an unrelated earlier run."""
+    os.environ[known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS] = "True"
+    prepare_run_env(_entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job"))
+    assert known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS not in os.environ

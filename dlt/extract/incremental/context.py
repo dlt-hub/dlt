@@ -14,6 +14,7 @@ from dlt.common.configuration.specs.timezone_context import to_tzinfo
 from dlt.common.interval import full_days_interval, lag_interval
 from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, get_context_timezone
 from dlt.common.typing import TAnyDateTime, TTimeInterval
+from dlt.common.utils import str2bool
 
 TAnyTimeInterval = Union[TTimeInterval, Tuple[datetime, datetime]]
 """A `(start, end)` interval as either a `TTimeInterval` or a plain datetime tuple."""
@@ -23,6 +24,12 @@ def _bound_in_context_tz(value: TAnyDateTime) -> datetime:
     """Interval bounds are always tz-aware, so a naive one is read in the context timezone."""
     dt = ensure_datetime(value)
     return dt if dt.tzinfo else dt.replace(tzinfo=get_context_timezone())
+
+
+def _detect_allow_external_schedulers() -> Optional[bool]:
+    """Process-wide flag, set by a launcher before it exec's the user module."""
+    value = os.environ.get(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS)
+    return str2bool(value) if value else None
 
 
 def _to_time_interval(interval: Optional[TAnyTimeInterval]) -> Optional[TTimeInterval]:
@@ -55,6 +62,8 @@ class TimeIntervalContext(ContainerInjectableContext):
         allow_external_schedulers: Optional[bool] = None,
     ) -> None:
         super().__init__()
+        if allow_external_schedulers is None:
+            allow_external_schedulers = _detect_allow_external_schedulers()
         self.allow_external_schedulers = allow_external_schedulers
         # explicit interval is stored; when None, `interval` property auto-detects
         # fresh on every access (so long-lived processes like an Airflow worker

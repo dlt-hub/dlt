@@ -1,6 +1,8 @@
 """Tests for TimeIntervalContext — creation, detection, and dlt.current.interval()."""
 
 import os
+import subprocess
+import sys
 import time
 from datetime import date, datetime, timezone  # noqa: I251
 from typing import Any, Dict, List, Optional
@@ -10,6 +12,7 @@ from zoneinfo import ZoneInfo
 import pytest
 
 import dlt
+from dlt.common import known_env
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import InvalidTimezoneName, TimezoneContext
 from dlt.common.pendulum import pendulum
@@ -1111,3 +1114,58 @@ def test_interval_does_not_install_timezone() -> None:
         assert dlt.current.interval.timezone == berlin
         assert dlt.current.timezone() == timezone.utc
         assert TimezoneContext not in Container()
+
+
+@pytest.mark.parametrize(
+    "flag,expected",
+    [("True", True), ("true", True), ("False", False), ("0", False), (None, None)],
+    ids=["True", "true", "False", "0", "unset"],
+)
+def test_context_reads_allow_external_schedulers_from_env(
+    flag: Optional[str], expected: Optional[bool], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A subprocess launcher passes the join decision through `DLT_ALLOW_EXTERNAL_SCHEDULERS`."""
+    monkeypatch.delenv(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, raising=False)
+    if flag is not None:
+        monkeypatch.setenv(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, flag)
+    assert TimeIntervalContext().allow_external_schedulers is expected
+    # an explicit value always wins over the environment
+    assert TimeIntervalContext(allow_external_schedulers=False).allow_external_schedulers is False
+
+
+def test_allow_external_schedulers_env_survives_process_boundary() -> None:
+    """The whole point of the env var: subprocess launchers `exec`, losing any injected context."""
+    script = (
+        "import dlt\n"
+        "from datetime import datetime\n"
+        "@dlt.resource\n"
+        "def events(updated_at=dlt.sources.incremental('updated_at',"
+        " initial_value=datetime(2000, 1, 1))):\n"
+        "    yield []\n"
+        "r = events()\n"
+        "list(r)\n"
+        "inc = r.incremental._incremental\n"
+        "print(f'RANGE {inc.start_value}|{inc.end_value}')\n"
+    )
+    env = {
+        **os.environ,
+        known_env.DLT_INTERVAL_START: "2024-01-15T00:00:00+00:00",
+        known_env.DLT_INTERVAL_END: "2024-01-16T00:00:00+00:00",
+    }
+
+    joined = subprocess.run(
+        [sys.executable, "-c", script],
+        env={**env, known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS: "True"},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert joined.returncode == 0, joined.stderr
+    assert "RANGE 2024-01-15 00:00:00|2024-01-16 00:00:00+00:00" in joined.stdout
+
+    env.pop(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, None)
+    unset = subprocess.run(
+        [sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=120
+    )
+    assert unset.returncode == 0, unset.stderr
+    assert "RANGE 2000-01-01 00:00:00|None" in unset.stdout

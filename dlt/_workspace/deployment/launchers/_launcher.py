@@ -14,7 +14,7 @@ from dlt._workspace import known_sections as ws_known_sections
 from dlt.common import known_env
 from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment.configuration import JobConfiguration
-from dlt._workspace.deployment.typing import TRuntimeEntryPoint
+from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
 
 
 def exec_process(argv: List[str]) -> None:
@@ -123,6 +123,15 @@ def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
     if iv_start and iv_end:
         os.environ[known_env.DLT_INTERVAL_START] = iv_start
         os.environ[known_env.DLT_INTERVAL_END] = iv_end
+
+    # subprocess launchers exec the user module, so the join decision only reaches incrementals
+    # through the environment
+    if "incremental_mode" in entry_point or "allow_external_schedulers" in entry_point:
+        os.environ[known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS] = str(
+            resolve_incremental_mode(entry_point) == "interval"
+        )
+    else:
+        os.environ.pop(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, None)
 
     # `require.timezone` holds for the whole run, so a manually or on-success triggered job gets
     # it without any interval
