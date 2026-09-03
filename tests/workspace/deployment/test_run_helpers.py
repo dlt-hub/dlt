@@ -31,6 +31,7 @@ from dlt._workspace.deployment.exceptions import (
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
     TIncrementalSource,
@@ -45,6 +46,8 @@ from dlt._workspace.deployment.typing import (
 )
 from dlt._workspace.profile import DEFAULT_PROFILE
 
+from tests.workspace.manifest_utils import make_job, make_manifest
+
 
 NOW = datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
 _DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": "1.29.0", "mode": "pypi"}
@@ -54,44 +57,25 @@ def _job(
     ref: str,
     *,
     triggers: Optional[List[str]] = None,
-    default_trigger: Optional[str] = None,
     job_type: str = "batch",
     function: Optional[str] = "main",
-    refresh_propagation: Optional[TRefreshPolicy] = None,
-    require: Optional[TRequireSpec] = None,
-    interval: Optional[TIntervalSpec] = None,
-    incremental_mode: Optional[TIncrementalSource] = None,
     launcher: Optional[str] = None,
+    **fields: Any,
 ) -> TJobDefinition:
-    entry: TEntryPoint = {
-        "module": "my_mod",
-        "function": function,
-        "job_type": job_type,  # type: ignore[typeddict-item]
-        "launcher": launcher or "dlt._workspace.deployment.launchers.job",
-    }
-    if triggers is None:
-        triggers = [f"manual:{ref}"]
-    jd: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": entry,
-        "triggers": [TTrigger(t) for t in triggers],
-        "execute": TExecuteSpec(),
-    }
-    if default_trigger is not None:
-        jd["default_trigger"] = TTrigger(default_trigger)
-    if refresh_propagation is not None:
-        jd["refresh_propagation"] = refresh_propagation
-    if require is not None:
-        jd["require"] = require
-    if interval is not None:
-        jd["interval"] = interval
-    if incremental_mode is not None:
-        jd["incremental_mode"] = incremental_mode
-    return jd
+    return make_job(
+        ref,
+        job_type=job_type,  # type: ignore[arg-type]
+        triggers=[f"manual:{ref}"] if triggers is None else triggers,
+        module="my_mod",
+        function=function,
+        launcher=launcher or LAUNCHER_JOB,
+        concurrency=None,
+        **{k: v for k, v in fields.items() if v is not None},
+    )
 
 
 def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
-    return {"engine_version": 1, "jobs": jobs}  # type: ignore[typeddict-item]
+    return make_manifest(jobs)
 
 
 @pytest.mark.parametrize(

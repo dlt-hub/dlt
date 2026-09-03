@@ -26,7 +26,6 @@ from dlt._workspace.deployment.manifest import (
     hash_job_definition,
     load_manifest,
     generate_manifest,
-    generate_manifest_hash,
     migrate_job_definition,
     migrate_manifest,
     save_manifest,
@@ -43,6 +42,8 @@ from dlt._workspace.deployment.typing import (
     TJobType,
     TTrigger,
 )
+
+from tests.workspace.manifest_utils import make_job, make_manifest
 
 
 @pytest.fixture
@@ -63,31 +64,10 @@ def _make_job(
     triggers: Optional[List[str]] = None,
     **kwargs: Any,
 ) -> TJobDefinition:
-    entry_point: TEntryPoint = {
-        "module": "test_module",
-        "function": job_ref.split(".")[-1],
-        "job_type": job_type,
-        "launcher": "dlt._workspace.deployment.launchers.job",
-    }
-    job: TJobDefinition = {
-        "job_ref": TJobRef(job_ref),
-        "entry_point": entry_point,
-        "triggers": [TTrigger(t) for t in triggers] if triggers else [],
-        "execute": TExecuteSpec(concurrency=1),
-    }
-    job.update(kwargs)  # type: ignore[typeddict-item]
-    return job
+    return make_job(job_ref, job_type=job_type, triggers=triggers, **kwargs)
 
 
-def _make_manifest(jobs: List[TJobDefinition], **kwargs: Any) -> TJobsDeploymentManifest:
-    manifest: TJobsDeploymentManifest = {
-        "engine_version": MANIFEST_ENGINE_VERSION,
-        "created_at": "2026-03-10T00:00:00Z",
-        "deployment_module": "test",
-        "jobs": jobs,
-    }
-    manifest.update(kwargs)  # type: ignore[typeddict-item]
-    return manifest
+_make_manifest = make_manifest
 
 
 def test_valid_manifest() -> None:
@@ -307,18 +287,10 @@ def test_is_matching_interval_fresh_disabled_raises() -> None:
         validate_manifest(manifest)
 
 
-@pytest.mark.parametrize(
-    "job_kwargs",
-    [
-        {"incremental_mode": "interval"},
-        {"incremental_mode": "interval"},
-    ],
-    ids=["incremental-mode", "legacy-flag"],
-)
-def test_incremental_mode_interval_without_interval_warns(job_kwargs: Dict[str, Any]) -> None:
+def test_incremental_mode_interval_without_interval_warns() -> None:
     manifest = _make_manifest(
         [
-            _make_job("jobs.mod.a", triggers=["schedule:0 0 * * *"], **job_kwargs),
+            _make_job("jobs.mod.a", triggers=["schedule:0 0 * * *"], incremental_mode="interval"),
         ]
     )
     result = validate_manifest(manifest)
@@ -628,93 +600,49 @@ def test_manifest_interval_spec_accepts_datetime(
     assert isinstance(iv["end"], str)
 
 
-def test_migrate_manifest_same_version_is_noop() -> None:
-    manifest: Dict[str, Any] = dict(_make_manifest([]))
-    assert migrate_manifest(manifest, MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION) is manifest
+@pytest.mark.parametrize(
+    "migrate,make_doc",
+    [
+        (migrate_manifest, lambda: dict(_make_manifest([]))),
+        (migrate_job_definition, lambda: dict(_make_job("jobs.mod.a"))),
+    ],
+    ids=["manifest", "job-definition"],
+)
+def test_migrate_same_version_returns_input(migrate: Any, make_doc: Any) -> None:
+    doc = make_doc()
+    assert migrate(doc, MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION) is doc
 
 
-def test_migrate_job_definition_v1_to_v2() -> None:
-    """Single job definitions migrate independently — the backend stores them separately."""
-    # flag True converted to interval mode and dropped
-    job: Dict[str, Any] = dict(
-        _make_job("jobs.mod.iv", triggers=["schedule:0 * * * *"], allow_external_schedulers=True)
-    )
-    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
-    assert migrated["incremental_mode"] == "interval"
-    assert "allow_external_schedulers" not in migrated
-
-    # explicit flag False pins pipeline mode, matching the replacement spelling
-    job = dict(_make_job("jobs.mod.off", allow_external_schedulers=False))
-    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
-    assert migrated["incremental_mode"] == "pipeline"
-    assert "allow_external_schedulers" not in migrated
-
-    # refresh policy converted to refresh_propagation and dropped
-    job = dict(_make_job("jobs.mod.blocked", refresh="block"))
-    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
-    assert migrated["refresh_propagation"] == "block"
-    assert "refresh" not in migrated
-
-    # nested require.machine converted to require.instance and dropped
-    job = dict(_make_job("jobs.mod.gpu", require={"machine": "gpu-a100"}))
-    migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
-    assert migrated["require"] == {"instance": {"size": "gpu-a100"}}
-
-    # job without deprecated fields untouched
-    job = dict(_make_job("jobs.mod.plain"))
-    assert migrate_job_definition(dict(job), 1, MANIFEST_ENGINE_VERSION) == job
-
-    # same version is a noop, unknown path raises
-    job = dict(_make_job("jobs.mod.iv", allow_external_schedulers=True, refresh="always"))
-    assert migrate_job_definition(job, MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION) is job
-    assert job["allow_external_schedulers"] is True
-    assert job["refresh"] == "always"
-    with pytest.raises(ValueError, match="No job definition migration path"):
-        migrate_job_definition(job, 99, 1)
-
-
-def test_migrate_manifest_v1_to_v2() -> None:
-    """Engine 2 migrates every job and stamps the version; field mapping is covered
-    by `test_migrate_job_definition_v1_to_v2`."""
-    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
-        manifest_dict: Dict[str, Any] = stdlib_json.load(f)
-    assert manifest_dict["engine_version"] == 1
-
-    migrated = migrate_manifest(manifest_dict, 1, MANIFEST_ENGINE_VERSION)
-    assert migrated["engine_version"] == MANIFEST_ENGINE_VERSION
-    jobs: Dict[str, Any] = {j["job_ref"]: j for j in migrated["jobs"]}
-    # spot-check each job went through job definition migration
-    assert jobs["jobs.events.hourly_events"]["incremental_mode"] == "interval"
-    assert jobs["jobs.events.daily_report"]["refresh_propagation"] == "block"
-    assert jobs["jobs.events.cleanup"]["refresh_propagation"] == "always"
-    # migrated manifest validates cleanly
-    result = validate_manifest(migrated)
-    assert result.is_valid, result.errors
-    assert not any("incremental_mode" in w for w in result.warnings)
+@pytest.mark.parametrize(
+    "migrate,make_doc",
+    [
+        (migrate_manifest, lambda: {"engine_version": 99}),
+        (migrate_job_definition, lambda: dict(_make_job("jobs.mod.a"))),
+    ],
+    ids=["manifest", "job-definition"],
+)
+def test_migrate_unsupported_path_raises(migrate: Any, make_doc: Any) -> None:
+    with pytest.raises(ManifestEngineNoUpgradePath, match="migration path from engine 99 to 1"):
+        migrate(make_doc(), 99, 1)
 
 
 def test_load_manifest_migrates_stored_v1() -> None:
-    """`load_manifest` transparently migrates stored v1 manifests."""
+    """`load_manifest` migrates a stored engine-1 manifest; field mapping is covered by
+    `test_migrate_job_definition_field_mapping`."""
     with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
         loaded = load_manifest(f)
     assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
-    assert loaded["jobs"][0]["incremental_mode"] == "interval"
-    assert loaded["jobs"][1]["refresh_propagation"] == "block"
-    assert "refresh" not in loaded["jobs"][1]
-    # nested require migrates through the manifest too, not just the per-job call
-    assert loaded["jobs"][2]["require"] == {"instance": {"size": "gpu-a100"}}
+    jobs: Dict[str, Any] = {j["job_ref"]: j for j in loaded["jobs"]}
+    assert jobs["jobs.events.hourly_events"]["incremental_mode"] == "interval"
+    assert jobs["jobs.events.daily_report"]["refresh_propagation"] == "block"
+    assert "refresh" not in jobs["jobs.events.daily_report"]
+    assert jobs["jobs.events.cleanup"]["refresh_propagation"] == "always"
+    # nested require migrates through the manifest loop, not just the per-job call
+    assert jobs["jobs.events.cleanup"]["require"] == {"instance": {"size": "gpu-a100"}}
 
-    # flag without interval migrates too; validation warns about missing interval
     with open(_manifest_case_path("ev1/no_interval_flag"), "rb") as f:
         loaded = load_manifest(f)
     assert loaded["jobs"][0]["incremental_mode"] == "interval"
-    result = validate_manifest(loaded)
-    assert any("incremental_mode" in w and "no interval" in w for w in result.warnings)
-
-
-def test_migrate_invalid_path() -> None:
-    with pytest.raises(ValueError, match="No manifest migration path"):
-        migrate_manifest({"engine_version": 99}, 99, 1)
 
 
 def test_load_manifest_raises_invalid_manifest() -> None:

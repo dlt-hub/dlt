@@ -342,51 +342,48 @@ def test_job_definition_batch() -> None:
     assert job_def["description"] == "Daily ETL."
 
 
-def test_job_definition_incremental_mode() -> None:
+@pytest.mark.parametrize(
+    "deco_kwargs,expected",
+    [
+        (
+            {"incremental_mode": "interval", "interval": {"start": "2024-01-01T00:00:00Z"}},
+            "interval",
+        ),
+        # explicit pipeline mode is emitted so it survives `jobs` config defaults
+        ({"incremental_mode": "pipeline"}, "pipeline"),
+        ({}, None),
+    ],
+    ids=["interval", "explicit-pipeline", "unset"],
+)
+def test_job_definition_incremental_mode(deco_kwargs: Dict[str, Any], expected: str) -> None:
     """Engine-2 job definitions carry `incremental_mode` only; unset emits nothing."""
 
-    @job(incremental_mode="interval", interval={"start": "2024-01-01T00:00:00Z"})
-    def interval_etl():
+    @job(**deco_kwargs)
+    def etl():
         pass
 
-    job_def = interval_etl.to_job_definition()
-    assert job_def["incremental_mode"] == "interval"
+    job_def = etl.to_job_definition()
+    assert job_def.get("incremental_mode") == expected
     assert "allow_external_schedulers" not in job_def
 
-    # explicit pipeline mode is emitted so it survives `jobs` config defaults
-    @job(incremental_mode="pipeline")
-    def pipeline_etl():
-        pass
-
-    job_def = pipeline_etl.to_job_definition()
-    assert job_def["incremental_mode"] == "pipeline"
-    assert "allow_external_schedulers" not in job_def
-
-    # unset emits neither field
-    @job
-    def default_etl():
-        pass
-
-    job_def = default_etl.to_job_definition()
-    assert "allow_external_schedulers" not in job_def
-    assert "incremental_mode" not in job_def
-
-    # pipeline_run decorator accepts the same arg
-    @pipeline_run("my_pipeline", incremental_mode="interval")
+    @pipeline_run("my_pipeline", **deco_kwargs)
     def run_pipeline():
         pass
 
-    job_def = run_pipeline.to_job_definition()
-    assert job_def["incremental_mode"] == "interval"
-    assert "allow_external_schedulers" not in job_def
+    assert run_pipeline.to_job_definition().get("incremental_mode") == expected
 
-    # auto_refresh_pipeline_mode is emitted verbatim, default emits nothing
+
+def test_job_definition_auto_refresh_pipeline_mode() -> None:
     @job(auto_refresh_pipeline_mode="drop_sources")
     def refreshing():
         pass
 
+    @job
+    def plain():
+        pass
+
     assert refreshing.to_job_definition()["auto_refresh_pipeline_mode"] == "drop_sources"
-    assert "auto_refresh_pipeline_mode" not in default_etl.to_job_definition()
+    assert "auto_refresh_pipeline_mode" not in plain.to_job_definition()
 
 
 def test_deprecated_refresh_kwarg_maps_to_refresh_propagation() -> None:

@@ -21,6 +21,8 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 
+from tests.workspace.manifest_utils import make_job, make_manifest
+
 
 def _dt(s: str) -> datetime:
     return ensure_datetime_in_tz(s)
@@ -31,22 +33,18 @@ def _job(
     freshness: Optional[List[str]] = None,
     refresh_propagation: Optional[TRefreshPolicy] = None,
 ) -> TJobDefinition:
-    job: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(
-            module="m",
-            function="f",
-            job_type="batch",
-            launcher="dlt._workspace.deployment.launchers.job",
-        ),
-        "triggers": [TTrigger(f"manual:{ref}")],
-        "execute": TExecuteSpec(),
+    optional: Dict[str, Any] = {
+        "freshness": freshness,
+        "refresh_propagation": refresh_propagation,
     }
-    if refresh_propagation is not None:
-        job["refresh_propagation"] = refresh_propagation
-    if freshness is not None:
-        job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    return job
+    return make_job(
+        ref,
+        module="m",
+        function="f",
+        triggers=[f"manual:{ref}"],
+        concurrency=None,
+        **{k: v for k, v in optional.items() if v is not None},
+    )
 
 
 def _run_record(
@@ -275,20 +273,11 @@ def test_cascade_skips_interval_store_seed(
     "jd_patch,expected_allow,expected_mode",
     [
         ({}, None, None),  # not set in manifest → entry_point gets neither key
-        ({"incremental_mode": "pipeline"}, False, "pipeline"),
-        ({"incremental_mode": "interval"}, True, "interval"),
         ({"incremental_mode": "interval"}, True, "interval"),
         ({"incremental_mode": "pipeline"}, False, "pipeline"),
         ({"auto_refresh_pipeline_mode": "drop_sources"}, None, None),
     ],
-    ids=[
-        "unset",
-        "legacy-false",
-        "legacy-true",
-        "mode-interval",
-        "mode-pipeline",
-        "auto-refresh-mode",
-    ],
+    ids=["unset", "mode-interval", "mode-pipeline", "auto-refresh-mode"],
 )
 def test_incremental_mode_propagates_to_entry_point(
     runner_state: Dict[str, TJobDefinition],

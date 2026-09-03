@@ -1,5 +1,5 @@
 import warnings
-from typing import Any, Dict
+from typing import Any, Dict, Optional
 
 import pytest
 
@@ -70,43 +70,46 @@ def test_apply_deprecations_recurses_into_nested_schema() -> None:
     assert len(record) == 2
 
 
-def test_apply_deprecations_skips_nested_when_not_a_dict() -> None:
-    # `child` present but not a dict: recursion is skipped and the value is untouched
-    doc: Dict[str, Any] = {"child": "not-a-dict"}
-    apply_deprecations(TOuterDeprecated, doc, since="1.0.0")
-    assert doc == {"child": "not-a-dict"}
-
-
-def test_apply_deprecations_options_and_messages() -> None:
-    # both old and new present: prefer_new keeps the new value, drops the old, still warns
-    doc: Dict[str, Any] = {"old_a": "old", "new_a": "new"}
-    with pytest.warns(DltDeprecationWarning):
-        apply_deprecations(TDeprecated, doc, since="1.0.0")
-    assert doc == {"new_a": "new"}
-
-    # remove=False keeps the old key alongside the new one
-    doc = {"old_a": "x"}
-    with pytest.warns(DltDeprecationWarning):
-        apply_deprecations(TDeprecated, doc, since="1.0.0", remove=False)
-    assert doc == {"old_a": "x", "new_a": "x"}
-
-    # custom marker message is used verbatim
-    doc = {"old_d": "x"}
-    with pytest.warns(DltDeprecationWarning, match="use new_d"):
-        apply_deprecations(TDeprecated, doc, since="1.0.0")
-
-    # per-field `since` on the marker overrides the call-site default
-    doc = {"old_e": "x"}
-    with pytest.warns(DltDeprecationWarning, match="2.5.0"):
-        apply_deprecations(TDeprecated, doc, since="1.0.0")
-
-    # warn=False converts silently; nothing to convert is a no-op — both raise on any warning
-    with warnings.catch_warnings():
-        warnings.simplefilter("error")
-        doc = {"old_a": "x"}
-        apply_deprecations(TDeprecated, doc, since="1.0.0", warn=False)
-        assert doc == {"new_a": "x"}
-
-        doc = {"keep": 1}
-        apply_deprecations(TDeprecated, doc, since="1.0.0")
-        assert doc == {"keep": 1}
+@pytest.mark.parametrize(
+    "spec,doc,kwargs,expected,warns",
+    [
+        (TDeprecated, {"old_a": "old", "new_a": "new"}, {}, {"new_a": "new"}, "deprecated"),
+        (
+            TDeprecated,
+            {"old_a": "x"},
+            {"remove": False},
+            {"old_a": "x", "new_a": "x"},
+            "deprecated",
+        ),
+        (TDeprecated, {"old_d": "x"}, {}, {"new_d": "x"}, "use new_d"),
+        (TDeprecated, {"old_e": "x"}, {}, {"new_e": "x"}, "2.5.0"),
+        (TDeprecated, {"old_a": "x"}, {"warn": False}, {"new_a": "x"}, None),
+        (TDeprecated, {"keep": 1}, {}, {"keep": 1}, None),
+        (TOuterDeprecated, {"child": "not-a-dict"}, {}, {"child": "not-a-dict"}, None),
+    ],
+    ids=[
+        "prefer-new-keeps-replacement",
+        "remove-false-keeps-old-key",
+        "marker-message-used-verbatim",
+        "marker-since-overrides-call-site",
+        "warn-false-converts-silently",
+        "nothing-to-convert",
+        "nested-value-not-a-dict",
+    ],
+)
+def test_apply_deprecations_options(
+    spec: Any,
+    doc: Dict[str, Any],
+    kwargs: Dict[str, Any],
+    expected: Dict[str, Any],
+    warns: Optional[str],
+) -> None:
+    if warns:
+        with pytest.warns(DltDeprecationWarning, match=warns):
+            apply_deprecations(spec, doc, since="1.0.0", **kwargs)
+    else:
+        # a silent path must emit nothing at all, so any warning is an error
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            apply_deprecations(spec, doc, since="1.0.0", **kwargs)
+    assert doc == expected

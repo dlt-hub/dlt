@@ -1,6 +1,6 @@
 """Freshness checks that require DuckDBIntervalStore for completion tracking."""
 
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
@@ -24,6 +24,8 @@ from dlt._workspace.deployment.typing import (
 )
 from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore
 
+from tests.workspace.manifest_utils import make_job
+
 
 def _iv(start: str, end: str) -> TTimeInterval:
     return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
@@ -36,28 +38,23 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
-    refresh_propagation: Optional[TRefreshPolicy] = None,
+    **fields: Any,
 ) -> TJobDefinition:
-    job: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(
-            module="m",
-            function="f",
-            job_type=job_type,
-            launcher="dlt._workspace.deployment.launchers.job",
-        ),
-        "triggers": [TTrigger(t) for t in (triggers or [])],
-        "execute": TExecuteSpec(),
+    optional = {
+        "interval": interval,
+        "default_trigger": default_trigger,
+        "freshness": freshness,
+        **fields,
     }
-    if interval is not None:
-        job["interval"] = interval
-    if default_trigger is not None:
-        job["default_trigger"] = TTrigger(default_trigger)
-    if freshness is not None:
-        job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    if refresh_propagation is not None:
-        job["refresh_propagation"] = refresh_propagation
-    return job
+    return make_job(
+        ref,
+        job_type=job_type,
+        triggers=triggers,
+        module="m",
+        function="f",
+        concurrency=None,
+        **{k: v for k, v in optional.items() if v is not None},
+    )
 
 
 def _check_interval_freshness(
