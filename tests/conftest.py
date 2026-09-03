@@ -244,7 +244,7 @@ def pytest_sessionfinish(session: "pytest.Session", exitstatus: int) -> None:
 
 @pytest.fixture(autouse=True)
 def preserve_context_timezone() -> Iterator[None]:
-    """Restores the context timezone: an interval installs it run-scoped and never undoes it."""
+    """Restores the context timezone and drops a `TimezoneContext` a test left in the container."""
     container = Container()
     had_context = TimezoneContext in container
     previous = get_context_timezone()

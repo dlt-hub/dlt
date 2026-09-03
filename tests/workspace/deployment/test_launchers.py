@@ -15,6 +15,7 @@ import pytest
 
 import dlt
 from dlt.common import known_env
+from dlt.common.configuration.specs import InvalidTimezoneName
 from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
 from dlt._workspace.deployment.launchers._launcher import apply_job_configuration
 from dlt._workspace.deployment.exceptions import JobResolutionError
@@ -147,6 +148,21 @@ def test_job_launcher_stores_values_in_declared_timezone(iv_tz: str, expected_st
     ep["interval_timezone"] = iv_tz
     result = job_run(ep, run_id=f"tz-job-{iv_tz}", trigger="schedule:0 0 * * *")
     assert f"stored={expected_stored}" in result
+    # the launcher injects the context, it does not only rely on env
+    assert "tz_ctx=True" in result
+
+
+@pytest.mark.parametrize("with_interval", [True, False], ids=["interval", "no-interval"])
+def test_job_launcher_rejects_invalid_timezone(with_interval: bool) -> None:
+    """A bad `require.timezone` fails in the launcher, before the job body runs."""
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "timezone_aware")
+    ep["interval_timezone"] = "Nowhere/Bogus"
+    if with_interval:
+        ep["interval_start"] = "2024-01-15T00:00:00Z"
+        ep["interval_end"] = "2024-01-16T00:00:00Z"
+    with pytest.raises(InvalidTimezoneName) as exc:
+        job_run(ep, run_id="tz-bad", trigger="manual:")
+    assert exc.value.timezone == "Nowhere/Bogus"
 
 
 @pytest.mark.parametrize(
@@ -160,6 +176,7 @@ def test_job_launcher_timezone_without_interval(trigger: str) -> None:
 
     assert "tz=Europe/Berlin" in result
     assert "stored=2024-01-15T23:30:00+01:00" in result
+    assert "tz_ctx=True" in result
     assert os.environ["DLT_INTERVAL_TIMEZONE"] == "Europe/Berlin"
     assert known_env.DLT_INTERVAL_START not in os.environ
 

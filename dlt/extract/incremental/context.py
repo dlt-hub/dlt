@@ -3,22 +3,16 @@
 import os
 from typing import ClassVar, Optional, Tuple, Union
 from datetime import datetime, timezone as dt_timezone, tzinfo
-from zoneinfo import ZoneInfo
 
 from dlt.common.configuration.specs.base_configuration import (
     ContainerInjectableContext,
     configspec,
 )
-from dlt.common import known_env, logger
+from dlt.common import known_env
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.common.configuration.specs.timezone_context import to_tzinfo
 from dlt.common.interval import full_days_interval, lag_interval
-from dlt.common.time import (
-    ensure_datetime,
-    ensure_datetime_in_tz,
-    get_context_timezone,
-    to_iana_name,
-)
+from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, get_context_timezone
 from dlt.common.typing import TAnyDateTime, TTimeInterval
 
 TAnyTimeInterval = Union[TTimeInterval, Tuple[datetime, datetime]]
@@ -79,7 +73,6 @@ class TimeIntervalContext(ContainerInjectableContext):
     @interval.setter
     def interval(self, interval: Optional[TAnyTimeInterval]) -> None:
         self._interval = _to_time_interval(interval)
-        self._install_timezone()
 
     @property
     def timezone(self) -> tzinfo:
@@ -87,39 +80,12 @@ class TimeIntervalContext(ContainerInjectableContext):
         interval = self.interval
         return interval.start.tzinfo if interval else get_context_timezone()
 
-    def add_extras(self) -> None:
-        super().add_extras()
-        self._install_timezone()
-
-    def _install_timezone(self) -> None:
-        """Installs the interval's timezone as the context timezone.
-
-        The timezone belongs to the run rather than to this context, so it is not restored when
-        this context is removed. `worker_affinity` then carries it to the normalize pool.
-        """
-        # without an interval the context timezone is already in place, so nothing to install
-        if self.interval is None:
-            return
-        tz = self.timezone
-        tz_name = to_iana_name(tz)
-        if tz_name is None:
-            logger.info(
-                f"Interval timezone `{tz}` has no IANA name, so `dlt` keeps storing values in"
-                f" {get_context_timezone()}."
-            )
-            return
-        container = Container()
-        current = container.get(TimezoneContext)
-        if current is None or current.timezone != tz_name:
-            container[TimezoneContext] = TimezoneContext(tz_name)
-
     def _detect(self) -> Optional[TTimeInterval]:
         """Detect interval from environment. Order: dlt env vars -> Airflow -> None.
 
         `DLT_INTERVAL_START` / `DLT_INTERVAL_END` are UTC ISO 8601. An optional
-        `DLT_INTERVAL_TIMEZONE` (IANA name) is applied after UTC parsing so the
-        resulting interval. Partial detection (start without end, or vice versa)
-        returns `None`.
+        `DLT_INTERVAL_TIMEZONE` (IANA name) converts both bounds into that zone. Partial
+        detection (start without end, or vice versa) returns `None`.
         """
         start_value = os.environ.get(known_env.DLT_INTERVAL_START)
         end_value = os.environ.get(known_env.DLT_INTERVAL_END)
@@ -128,7 +94,7 @@ class TimeIntervalContext(ContainerInjectableContext):
             end_utc = ensure_datetime_in_tz(end_value, dt_timezone.utc)
             tz_name = os.environ.get(known_env.DLT_INTERVAL_TIMEZONE)
             if tz_name:
-                tz = ZoneInfo(tz_name)
+                tz = to_tzinfo(tz_name)
                 return TTimeInterval(start_utc.astimezone(tz), end_utc.astimezone(tz))
             return TTimeInterval(start_utc, end_utc)
 
@@ -259,7 +225,8 @@ interval = _IntervalAccessor()
 
 
 def timezone() -> tzinfo:
-    """The context timezone. UTC unless the job interval sets one.
+    """The context timezone. UTC unless the run declares one through `TimezoneContext` or
+    `DLT_INTERVAL_TIMEZONE`.
 
     Unlike `dlt.current.interval.timezone`, which describes the zone the interval bounds
     happen to carry, this is the zone `dlt` actually writes values in and is never `None`.

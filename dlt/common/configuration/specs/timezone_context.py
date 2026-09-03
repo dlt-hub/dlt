@@ -43,8 +43,6 @@ class TimezoneContext(ContainerInjectableContext):
     """Context timezone, the one `dlt` stores loaded values in.
 
     Process-wide and scoped to the run, UTC by default.
-
-    A scheduler interval installs its own timezone here, see `TimeIntervalContext`.
     """
 
     # a job runs in one process, so this is not per-thread. `worker_affinity` carries it

@@ -6,7 +6,7 @@ from zoneinfo import ZoneInfo
 
 from croniter import croniter
 
-from dlt.common.time import ensure_datetime_in_tz, ensure_datetime_in_tz
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._trigger_helpers import (

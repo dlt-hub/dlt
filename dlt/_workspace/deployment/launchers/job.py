@@ -4,10 +4,11 @@ from datetime import timezone
 import asyncio
 import inspect
 from contextlib import nullcontext
-from typing import Any, Dict, List, Optional
-from zoneinfo import ZoneInfo
+from typing import Any, ContextManager, Dict, List, Optional
 
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
+from dlt.common.configuration.specs.timezone_context import to_tzinfo
 from dlt.common.libs import is_instance_lib
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime import signals
@@ -158,7 +159,8 @@ def run(
     # fill unset job settings from config, then set env vars - both before user module
     # import so pipelines created at import time pick them up
     apply_job_configuration(entry_point, entry_point.get("function"))
-    # TODO: only emit profile. everything else must be injected with context
+    # env is emitted as well so processes the job starts inherit the run settings, the contexts
+    # entered below scope the same settings in-process
     prepare_run_env(entry_point)
 
     job = _resolve_job(entry_point)
@@ -172,7 +174,7 @@ def run(
     if iv_start_str and iv_end_str:
         # intervals are in UTC in transit - if user requested a different timezone
         # apply it here
-        target_tz = ZoneInfo(iv_tz_name)
+        target_tz = to_tzinfo(iv_tz_name)
         iv = TTimeInterval(
             ensure_datetime_in_tz(iv_start_str, timezone.utc).astimezone(target_tz),
             ensure_datetime_in_tz(iv_end_str, timezone.utc).astimezone(target_tz),
@@ -201,29 +203,27 @@ def run(
         else nullcontext()
     )
 
-    # inject interval context into Container so dlt.current.interval() works.
-    with signal_ctx:
-        # TODO: inject timezone context
-        # TODO: inject interval context such that timezone won't be installed (add flag)
-        # TODO: why null context can't be used to reduce code duplication
-        # TODO: job (JobFactory) should have a method that returns pipeline name on the factory
-        #       then if refresh flag is set, we refresh ONLY this pipeline
-        if iv is not None:
-            # pass True or None, False has no effect on incrementals
-            iv_ctx = TimeIntervalContext(
+    # the timezone context validates the declared zone before any user code runs
+    tz_ctx = Container().injectable_context(TimezoneContext(iv_tz_name))
+    # both branches yield different context types, which mypy cannot join without the annotation
+    iv_ctx: ContextManager[Any] = nullcontext()
+    if iv is not None:
+        # pass True or None, False has no effect on incrementals
+        iv_ctx = Container().injectable_context(
+            TimeIntervalContext(
                 interval=iv,
                 allow_external_schedulers=(
                     resolve_incremental_mode(entry_point) == "interval" or None
                 ),
             )
-            with Container().injectable_context(iv_ctx):
-                result = job(**kwargs)
-                if asyncio.iscoroutine(result):
-                    result = asyncio.run(result)
-        else:
-            result = job(**kwargs)
-            if asyncio.iscoroutine(result):
-                result = asyncio.run(result)
+        )
+
+    # TODO: job (JobFactory) should have a method that returns pipeline name on the factory
+    #       then if refresh flag is set, we refresh ONLY this pipeline
+    with signal_ctx, tz_ctx, iv_ctx:
+        result = job(**kwargs)
+        if asyncio.iscoroutine(result):
+            result = asyncio.run(result)
 
     _check_return_value(result, job, entry_point)
     return result
