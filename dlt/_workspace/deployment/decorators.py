@@ -264,7 +264,7 @@ def _job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
-    refresh_propagation: TRefreshPolicy = "auto",
+    refresh_propagation: Optional[TRefreshPolicy] = None,
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
     **kwargs: Any,
@@ -285,8 +285,8 @@ def _job(
         incremental_mode = kwargs.pop("incremental_mode", None)
     else:
         kwargs.pop("incremental_mode", None)
-    if refresh_propagation == "auto":
-        refresh_propagation = kwargs.pop("refresh_propagation", refresh_propagation)
+    if refresh_propagation is None:
+        refresh_propagation = kwargs.pop("refresh_propagation", None)
     else:
         kwargs.pop("refresh_propagation", None)
     if kwargs:
@@ -311,7 +311,7 @@ def _job(
     wrapper.interval = interval
     wrapper.freshness = normalize_freshness_constraints(freshness)
     wrapper.incremental_mode = incremental_mode
-    wrapper.refresh_propagation = refresh_propagation
+    wrapper.refresh_propagation = refresh_propagation or "auto"
     wrapper.auto_refresh_pipeline_mode = auto_refresh_pipeline_mode
     wrapper._user_spec = spec
 
@@ -336,7 +336,7 @@ def job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
-    refresh_propagation: TRefreshPolicy = "auto",
+    refresh_propagation: Optional[TRefreshPolicy] = None,
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> JobFactory[TJobFunParams, TJobResult]: ...
@@ -358,7 +358,7 @@ def job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
-    refresh_propagation: TRefreshPolicy = "auto",
+    refresh_propagation: Optional[TRefreshPolicy] = None,
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
 ) -> Callable[[Callable[TJobFunParams, TJobResult]], JobFactory[TJobFunParams, TJobResult]]: ...
@@ -379,7 +379,7 @@ def job(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
-    refresh_propagation: TRefreshPolicy = "auto",
+    refresh_propagation: Optional[TRefreshPolicy] = None,
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
     **kwargs: Unpack[TNoExtraKwargs],
@@ -565,7 +565,7 @@ def pipeline_run(
         None, str, TFreshnessConstraint, Sequence[Union[str, TFreshnessConstraint]]
     ] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
-    refresh_propagation: TRefreshPolicy = "auto",
+    refresh_propagation: Optional[TRefreshPolicy] = None,
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
     **kwargs: Unpack[TNoExtraKwargs],

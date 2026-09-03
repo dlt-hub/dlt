@@ -408,6 +408,15 @@ def test_deprecated_refresh_kwarg_maps_to_refresh_propagation() -> None:
 
     assert etl_both.refresh_propagation == "always"
 
+    # also when the explicit value equals the default, which must not read as "unset"
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(refresh="block", refresh_propagation="auto")  # type: ignore[call-overload]
+        def etl_explicit_auto():
+            pass
+
+    assert etl_explicit_auto.refresh_propagation == "auto"
+
 
 def test_deprecated_allow_external_schedulers_maps_to_incremental_mode() -> None:
     with pytest.warns(DltDeprecationWarning, match="incremental_mode"):
