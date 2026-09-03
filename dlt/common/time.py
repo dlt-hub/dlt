@@ -4,7 +4,7 @@ import os
 import re
 import sys
 import warnings
-from typing import Any, Optional, Union, overload, TypeVar, Callable  # noqa
+from typing import Any, Dict, Optional, Tuple, Union, overload, TypeVar, Callable  # noqa
 from zoneinfo import ZoneInfo
 
 from pendulum.parsing import (
@@ -70,6 +70,29 @@ def to_iana_name(tz: Optional[datetime.tzinfo]) -> Optional[str]:
         if name := getattr(tz, attr, None):
             return None if name[0] in "+-" else str(name)
     return None
+
+
+_ZONE_NAMES: Dict[int, Tuple[datetime.tzinfo, Optional[str]]] = {}
+"""Resolved names keyed by tzinfo identity. The entry holds the object, so the id stays valid."""
+
+
+def _zone_name(tz: datetime.tzinfo) -> Optional[str]:
+    # not every tzinfo is hashable (dateutil), so the cache is keyed by id and verified by identity
+    entry = _ZONE_NAMES.get(id(tz))
+    if entry is not None and entry[0] is tz:
+        return entry[1]
+    name = to_iana_name(tz)
+    if len(_ZONE_NAMES) < 256:
+        _ZONE_NAMES[id(tz)] = (tz, name)
+    return name
+
+
+def _same_zone(a: datetime.tzinfo, b: datetime.tzinfo) -> bool:
+    """True when both carry the same IANA name; nameless offsets never match each other."""
+    if a is b:
+        return True
+    name = _zone_name(a)
+    return name is not None and name == _zone_name(b)
 
 
 def get_context_timezone_name() -> str:
@@ -281,9 +304,12 @@ def ensure_datetime_in_tz(
             `TimezoneContext` is active.
 
     Returns:
-        A stdlib `datetime.datetime` with `tzinfo == tz`.
+        A stdlib `datetime.datetime` with `tzinfo` being `tz` itself.
     """
-    return normalize_timezone(ensure_datetime(value), True, tz)
+    tz = tz or _CONTEXT_TZ
+    result = normalize_timezone(ensure_datetime(value), True, tz)
+    # the same zone may arrive under another tzinfo class, the caller asked for this one
+    return result if result.tzinfo is tz else result.replace(tzinfo=tz)
 
 
 def ensure_date(value: TAnyDateTime, tz: Optional[datetime.tzinfo] = None) -> datetime.date:
@@ -354,7 +380,8 @@ def normalize_timezone(
             `TimezoneContext` is active.
 
     Returns:
-        A tz-aware datetime in `tz`, naive when `timezone` is `False`.
+        A tz-aware datetime in `tz`, naive when `timezone` is `False`. A value already in `tz`
+        is returned as is and keeps its own tzinfo object.
     """
     value_tz = value.tzinfo
     if value_tz is None and not timezone:
@@ -365,7 +392,7 @@ def normalize_timezone(
     if value_tz is None:
         # a naive value already counts as being in `tz`
         return value.replace(tzinfo=tz)
-    if value_tz is not tz:
+    if not _same_zone(value_tz, tz):
         # pendulum converts several times slower than the stdlib
         if isinstance(value, DateTime):
             value = to_py_datetime(value)
@@ -560,17 +587,20 @@ def to_py_date(value: datetime.date) -> datetime.date:
 
 
 def datetime_to_timestamp(moment: datetime.datetime) -> int:
-    """Converts a datetime to whole seconds since Unix epoch, naive input taken as UTC."""
+    """Converts a datetime to whole seconds since Unix epoch. Naive input is taken as UTC, never as
+    the context timezone."""
     return _epoch_delta(moment) // datetime.timedelta(seconds=1)
 
 
 def datetime_to_timestamp_ms(moment: datetime.datetime) -> int:
-    """Converts a datetime to whole milliseconds since Unix epoch, naive input taken as UTC."""
+    """Converts a datetime to whole milliseconds since Unix epoch. Naive input is taken as UTC,
+    never as the context timezone."""
     return _epoch_delta(moment) // datetime.timedelta(milliseconds=1)
 
 
 def datetime_to_timestamp_us(moment: datetime.datetime) -> int:
-    """Converts a datetime to whole microseconds since Unix epoch, naive input taken as UTC."""
+    """Converts a datetime to whole microseconds since Unix epoch. Naive input is taken as UTC,
+    never as the context timezone."""
     return _epoch_delta(moment) // datetime.timedelta(microseconds=1)
 
 

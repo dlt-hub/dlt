@@ -30,6 +30,7 @@ from dlt.common.time import (
     normalize_timezone,
     set_context_timezone,
     datetime_obj_to_str,
+    to_iana_name,
 )
 from dlt.common.typing import TAnyDateTime
 
@@ -596,17 +597,23 @@ def test_normalize_timezone(
 
 _NAIVE = pendulum.DateTime(2024, 1, 15, 23, 30)
 _AWARE = pendulum.DateTime(2024, 1, 15, 23, 30, tzinfo=UTC)
+# the same instant, spelled in a named zone and in a nameless fixed offset
+_BERLIN = pendulum.DateTime(2024, 1, 16, 0, 30, tzinfo=pendulum.timezone("Europe/Berlin"))
+_OFFSET = pendulum.DateTime(2024, 1, 16, 1, 30, tzinfo=fixed_timezone(7200))
 
 # every input x hint pair: wall clock and offset the value must end up with
 NORMALIZE_MATRIX = [
     ("UTC", True, _NAIVE, datetime(2024, 1, 15, 23, 30), timedelta(0)),
     ("UTC", True, _AWARE, datetime(2024, 1, 15, 23, 30), timedelta(0)),
+    ("UTC", True, _OFFSET, datetime(2024, 1, 15, 23, 30), timedelta(0)),
     ("UTC", False, _AWARE, datetime(2024, 1, 15, 23, 30), None),
+    ("UTC", False, _OFFSET, datetime(2024, 1, 15, 23, 30), None),
     ("UTC", False, _NAIVE, datetime(2024, 1, 15, 23, 30), None),
     # a naive value keeps its wall clock, so the instant moves
     ("Europe/Berlin", True, _NAIVE, datetime(2024, 1, 15, 23, 30), timedelta(hours=1)),
     # an aware value keeps its instant, so the wall clock moves
     ("Europe/Berlin", True, _AWARE, datetime(2024, 1, 16, 0, 30), timedelta(hours=1)),
+    ("Europe/Berlin", True, _BERLIN, datetime(2024, 1, 16, 0, 30), timedelta(hours=1)),
     ("Europe/Berlin", False, _AWARE, datetime(2024, 1, 16, 0, 30), None),
     ("Europe/Berlin", False, _NAIVE, datetime(2024, 1, 15, 23, 30), None),
 ]
@@ -638,9 +645,21 @@ def test_normalize_timezone_matrix(
     # an aware input keeps its instant whenever the result is aware
     if value.tzinfo is not None and expected_offset is not None:
         assert result == value
+    # a value already in the target zone passes through untouched, whatever tzinfo class it carries
+    if hint and value.tzinfo is not None and to_iana_name(value.tzinfo) == tz_name:
+        assert result is value
     # the default context is UTC, so the plain call must agree with both UTC forms
     if tz_name == "UTC":
         assert result == normalize_timezone(value, hint)
+
+
+def test_normalize_timezone_nameless_zones_never_match() -> None:
+    """Two fixed offsets carry no name, so even an equal offset goes through the conversion."""
+    target = timezone(timedelta(hours=2))
+    result = normalize_timezone(_OFFSET, True, target)
+    assert result is not _OFFSET
+    assert result.tzinfo is target
+    assert result == _OFFSET
 
 
 @pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
@@ -1112,12 +1131,15 @@ def test_ensure_datetime_in_tz_interprets_naive_only(value, default_tz, expected
         ),
         # aware string +05:00 → converted to Tokyo (+09:00) → +4h
         ("2021-01-15T12:00:00+05:00", ZoneInfo("Asia/Tokyo"), (2021, 1, 15, 16, 0)),
+        # already in the zone under pendulum's tzinfo, the requested object is still pinned
+        (pendulum.DateTime(2021, 1, 15, 12, tzinfo=UTC), timezone.utc, (2021, 1, 15, 12, 0)),
     ],
     ids=[
         "naive-str-attach",
         "naive-datetime-attach",
         "aware-convert-to-berlin",
         "aware-string-convert-to-tokyo",
+        "pendulum-utc-pinned",
     ],
 )
 def test_ensure_datetime_in_tz(value, tz, expected_wall_clock) -> None:
