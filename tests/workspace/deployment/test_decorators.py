@@ -468,6 +468,24 @@ def test_deprecated_kwarg_routed_through_pipeline_run_and_interactive() -> None:
     assert it.refresh_propagation == "always"
 
 
+@pytest.mark.parametrize(
+    "deco,apply",
+    [
+        ("job", lambda **kw: job(**kw)),
+        ("interactive", lambda **kw: interactive(**kw)),
+        ("pipeline_run", lambda **kw: pipeline_run("my_pipeline", **kw)),
+    ],
+    ids=["job", "interactive", "pipeline_run"],
+)
+def test_messages_name_the_decorator_used(deco: str, apply: Any) -> None:
+    """`_job` serves all three, so a shared message would send users to the wrong decorator."""
+    with pytest.warns(DltDeprecationWarning, match=rf"deprecated at `@{deco}`"):
+        apply(refresh="block")(lambda: None)
+
+    with pytest.raises(TypeError, match=rf"^{deco}\(\) got an unexpected keyword argument"):
+        apply(bogus=1)(lambda: None)
+
+
 def test_job_definition_interactive() -> None:
     """to_job_definition produces correct TJobDefinition for interactive jobs."""
 

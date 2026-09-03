@@ -267,6 +267,7 @@ def _job(
     refresh_propagation: Optional[TRefreshPolicy] = None,
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
+    deco_name: str = "@job",
     **kwargs: Any,
 ) -> Any:
     """Common decorator implementation for all job types."""
@@ -276,7 +277,7 @@ def _job(
     apply_deprecations(
         TJobDefinitionDeprecated,
         kwargs,
-        path="@job",
+        path=deco_name,
         since=WORKSPACE_DEPRECATED_SINCE,
         stacklevel=4,
     )
@@ -290,7 +291,9 @@ def _job(
     else:
         kwargs.pop("refresh_propagation", None)
     if kwargs:
-        raise TypeError(f"job() got an unexpected keyword argument {next(iter(kwargs))!r}")
+        raise TypeError(
+            f"{deco_name.lstrip('@')}() got an unexpected keyword argument {next(iter(kwargs))!r}"
+        )
     _validate_job_name(name)
     _validate_job_section(section)
     wrapper: JobFactory[Any, Any] = JobFactory()
@@ -542,6 +545,7 @@ def interactive(
         name=name,
         section=section,
         job_type="interactive",
+        deco_name="@interactive",
         trigger=_triggers.http(),
         execute=exec_spec,
         expose=full_expose,
@@ -632,6 +636,7 @@ def pipeline_run(
             name=name,
             section=section,
             job_type="batch",
+            deco_name="@pipeline_run",
             trigger=trigger,
             execute=execute,
             expose=full_expose,
