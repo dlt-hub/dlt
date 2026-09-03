@@ -69,7 +69,7 @@ const sidebars = {
           label: "Release highlights",
           link: {
             type: "generated-index",
-            title: "Release highlights",
+            title: "dlt release highlights",
             slug: "/release-highlights",
             keywords: ["release notes", "release highlights"],
           },
@@ -571,6 +571,17 @@ const sidebars = {
         "hub/platform-capabilities/users-and-roles",
         "hub/platform-capabilities/settings",
       ],
+    },
+    {
+      type: "category",
+      label: "Release highlights",
+      link: {
+        type: "generated-index",
+        title: "dltHub release highlights",
+        slug: "/hub/release-highlights",
+        keywords: ["release notes", "release highlights", "dlthub"],
+      },
+      items: [{ type: "doc", id: "hub/release-notes/0.26", label: "0.26" }],
     },
     "hub/command-line-interface",
     "hub/license",

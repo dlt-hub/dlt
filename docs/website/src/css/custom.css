@@ -932,3 +932,8 @@ and (max-height : 850px) {
   height: auto;
   border-radius: 8px;
 }
+
+/* hover still opens it; only the caret is dropped, so the version dropdown keeps its own */
+.navbar__link.whats-new-navbar:after {
+  display: none;
+}
