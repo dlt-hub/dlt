@@ -3,13 +3,20 @@
 import json as stdlib_json
 import os
 from datetime import datetime, timezone  # noqa: I251
+from copy import deepcopy
 from io import BytesIO
+from types import ModuleType
 from typing import Any, Dict, List, Optional
 
 import pytest
 
 from dlt._workspace.deployment import interval as interval_mod
-from dlt._workspace.deployment.exceptions import InvalidJobDefinition, JobValidationResult
+from dlt._workspace.deployment.decorators import job
+from dlt._workspace.deployment.exceptions import (
+    InvalidJobDefinition,
+    JobValidationResult,
+    ManifestEngineNoUpgradePath,
+)
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
     InvalidManifest,
@@ -18,6 +25,8 @@ from dlt._workspace.deployment.manifest import (
     generate_manifest_hash,
     hash_job_definition,
     load_manifest,
+    generate_manifest,
+    generate_manifest_hash,
     migrate_job_definition,
     migrate_manifest,
     save_manifest,
@@ -302,7 +311,7 @@ def test_is_matching_interval_fresh_disabled_raises() -> None:
     "job_kwargs",
     [
         {"incremental_mode": "interval"},
-        {"allow_external_schedulers": True},
+        {"incremental_mode": "interval"},
     ],
     ids=["incremental-mode", "legacy-flag"],
 )
@@ -604,7 +613,7 @@ def test_manifest_interval_spec_accepts_datetime(
                 "jobs.mod.a",
                 triggers=["schedule:0 * * * *"],
                 interval={"start": raw_start, "end": raw_end},
-                allow_external_schedulers=True,
+                incremental_mode="interval",
             )
         ]
     )
@@ -634,10 +643,10 @@ def test_migrate_job_definition_v1_to_v2() -> None:
     assert migrated["incremental_mode"] == "interval"
     assert "allow_external_schedulers" not in migrated
 
-    # explicit flag False dropped without setting a mode
+    # explicit flag False pins pipeline mode, matching the replacement spelling
     job = dict(_make_job("jobs.mod.off", allow_external_schedulers=False))
     migrated = migrate_job_definition(job, 1, MANIFEST_ENGINE_VERSION)
-    assert "incremental_mode" not in migrated
+    assert migrated["incremental_mode"] == "pipeline"
     assert "allow_external_schedulers" not in migrated
 
     # refresh policy converted to refresh_propagation and dropped
@@ -660,7 +669,7 @@ def test_migrate_job_definition_v1_to_v2() -> None:
     assert migrate_job_definition(job, MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION) is job
     assert job["allow_external_schedulers"] is True
     assert job["refresh"] == "always"
-    with pytest.raises(ValueError, match="no job definition migration path"):
+    with pytest.raises(ValueError, match="No job definition migration path"):
         migrate_job_definition(job, 99, 1)
 
 
@@ -692,6 +701,8 @@ def test_load_manifest_migrates_stored_v1() -> None:
     assert loaded["jobs"][0]["incremental_mode"] == "interval"
     assert loaded["jobs"][1]["refresh_propagation"] == "block"
     assert "refresh" not in loaded["jobs"][1]
+    # nested require migrates through the manifest too, not just the per-job call
+    assert loaded["jobs"][2]["require"] == {"instance": {"size": "gpu-a100"}}
 
     # flag without interval migrates too; validation warns about missing interval
     with open(_manifest_case_path("ev1/no_interval_flag"), "rb") as f:
@@ -702,7 +713,7 @@ def test_load_manifest_migrates_stored_v1() -> None:
 
 
 def test_migrate_invalid_path() -> None:
-    with pytest.raises(ValueError, match="no manifest migration path"):
+    with pytest.raises(ValueError, match="No manifest migration path"):
         migrate_manifest({"engine_version": 99}, 99, 1)
 
 
@@ -948,12 +959,12 @@ def test_is_fresh_on_event_upstream_valid() -> None:
             None,
             None,
         ),
-        # allow_external_schedulers without interval
+        # incremental_mode interval without interval
         (
             _make_job(
                 "jobs.mod.warn",
                 triggers=["schedule:0 0 * * *"],
-                allow_external_schedulers=True,
+                incremental_mode="interval",
             ),
             None,
             "incremental_mode",
@@ -1119,3 +1130,121 @@ def test_expand_triggers_no_pipeline_name() -> None:
     job = _make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
     expanded = expand_triggers(job)
     assert not any(str(t).startswith("pipeline_name:") for t in expanded)
+
+
+def test_generated_manifest_needs_no_migration() -> None:
+    """A manifest this dlt writes is already engine 2, so migrating it changes nothing.
+
+    If the engine-1 migration still finds something to rename, the emitter is writing
+    engine-1 field names under an engine-2 stamp.
+    """
+    module = ModuleType("__deployment__")
+
+    @job(
+        incremental_mode="interval",
+        refresh_propagation="block",
+        require={"instance": {"size": "medium"}},
+        interval={"start": "2024-01-01T00:00:00Z"},
+        trigger="schedule:0 * * * *",
+    )
+    def hourly() -> None: ...
+
+    hourly._f.__module__ = "events"
+    module.hourly = hourly  # type: ignore[attr-defined]
+    module.__all__ = ["hourly"]  # type: ignore[attr-defined]
+
+    manifest, _ = generate_manifest(module)
+    assert manifest["engine_version"] == MANIFEST_ENGINE_VERSION
+    for job_def in manifest["jobs"]:
+        assert (
+            migrate_job_definition(deepcopy(dict(job_def)), 1, MANIFEST_ENGINE_VERSION) == job_def
+        ), job_def["job_ref"]
+
+
+@pytest.mark.parametrize(
+    "legacy,expected",
+    [
+        ({"allow_external_schedulers": True}, {"incremental_mode": "interval"}),
+        ({"allow_external_schedulers": False}, {"incremental_mode": "pipeline"}),
+        ({"refresh": "block"}, {"refresh_propagation": "block"}),
+        ({"require": {"machine": "gpu-a100"}}, {"require": {"instance": {"size": "gpu-a100"}}}),
+        # the replacement wins and the legacy key is still dropped
+        (
+            {"allow_external_schedulers": True, "incremental_mode": "pipeline"},
+            {"incremental_mode": "pipeline"},
+        ),
+        ({"refresh": "block", "refresh_propagation": "always"}, {"refresh_propagation": "always"}),
+    ],
+    ids=[
+        "flag-true",
+        "flag-false",
+        "refresh",
+        "require-machine",
+        "prefer-new-mode",
+        "prefer-new-refresh",
+    ],
+)
+def test_migrate_job_definition_field_mapping(
+    legacy: Dict[str, Any], expected: Dict[str, Any]
+) -> None:
+    migrated = migrate_job_definition(
+        dict(_make_job("jobs.mod.a", **legacy)), 1, MANIFEST_ENGINE_VERSION
+    )
+    for key, value in expected.items():
+        assert migrated[key] == value  # type: ignore[literal-required]
+    assert "allow_external_schedulers" not in migrated
+    assert "refresh" not in migrated
+
+
+def test_validate_manifest_rejects_unmigrated_engine_1() -> None:
+    """Engine-2 types no longer declare the legacy fields, so an unmigrated document is rejected."""
+    legacy = _make_job("jobs.mod.old", allow_external_schedulers=True, refresh="block")
+    result = validate_manifest(_make_manifest([legacy]))
+    assert not result.is_valid
+    assert "received unexpected fields" in result.errors[0]
+    assert "allow_external_schedulers" in result.errors[0]
+
+    nested = _make_job("jobs.mod.gpu", require={"machine": "gpu-a100"})
+    result = validate_manifest(_make_manifest([nested]))
+    assert not result.is_valid
+    assert "machine" in result.errors[0]
+
+    # migrating first makes both valid
+    for job_def in (legacy, nested):
+        migrated = migrate_job_definition(dict(job_def), 1, MANIFEST_ENGINE_VERSION)
+        assert validate_manifest(_make_manifest([migrated])).is_valid
+
+
+@pytest.mark.parametrize("engine", [0, MANIFEST_ENGINE_VERSION + 1])
+def test_load_manifest_unsupported_engine(engine: int) -> None:
+    """A manifest from a newer dlt fails as a manifest error, not a stray ValueError."""
+    manifest = dict(_make_manifest([_make_job("jobs.mod.a")]))
+    manifest["engine_version"] = engine
+    with pytest.raises(ManifestEngineNoUpgradePath, match="No manifest migration path"):
+        load_manifest(BytesIO(stdlib_json.dumps(manifest).encode()))
+
+
+def test_load_manifest_defaults_missing_engine_to_1() -> None:
+    manifest = dict(_make_manifest([_make_job("jobs.mod.a", allow_external_schedulers=True)]))
+    del manifest["engine_version"]
+    loaded = load_manifest(BytesIO(stdlib_json.dumps(manifest).encode()))
+    assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
+    assert loaded["jobs"][0]["incremental_mode"] == "interval"
+
+
+def test_migrated_manifest_round_trips_and_bumps_version() -> None:
+    """Migration rewrites content, so the stored hash is stale and the next save bumps."""
+    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+        stored_hash = stdlib_json.loads(f.read())["version_hash"]
+    with open(_manifest_case_path("ev1/interval_jobs"), "rb") as f:
+        migrated = load_manifest(f)
+
+    assert generate_manifest_hash(migrated) != stored_hash
+    buf = BytesIO()
+    save_manifest(migrated, buf)
+    buf.seek(0)
+    reloaded = load_manifest(buf)
+    assert reloaded["version"] == 2
+    assert stored_hash in reloaded["previous_hashes"]
+    # a migrated manifest is stable from then on
+    assert generate_manifest_hash(reloaded) == generate_manifest_hash(migrated)

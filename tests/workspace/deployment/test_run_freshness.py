@@ -26,7 +26,7 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
-    refresh: Optional[TRefreshPolicy] = None,
+    refresh_propagation: Optional[TRefreshPolicy] = None,
 ) -> TJobDefinition:
     job: TJobDefinition = {
         "job_ref": TJobRef(ref),
@@ -45,8 +45,8 @@ def _job(
         job["default_trigger"] = TTrigger(default_trigger)
     if freshness is not None:
         job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    if refresh is not None:
-        job["refresh"] = refresh
+    if refresh_propagation is not None:
+        job["refresh_propagation"] = refresh_propagation
     return job
 
 

@@ -32,6 +32,7 @@ from dlt._workspace.deployment.exceptions import (
     InvalidJobRef,
     InvalidManifest,
     InvalidTrigger,
+    ManifestEngineNoUpgradePath,
     JobValidationResult,
     ManifestValidationResult,
 )
@@ -58,8 +59,6 @@ from dlt._workspace.deployment.typing import (
     TJobRef,
     TTrigger,
     WORKSPACE_DEPRECATED_SINCE,
-    resolve_incremental_mode,
-    resolve_refresh_propagation,
 )
 
 DEPLOYMENT_ENGINE_VERSION = 1
@@ -118,7 +117,11 @@ def bump_manifest_version(
 def migrate_job_definition(
     job_dict: DictStrAny, from_engine: int, to_engine: int
 ) -> TJobDefinition:
-    """Migrate a single job definition dict between engine versions, in place."""
+    """Migrate a single job definition dict between engine versions, in place.
+
+    WARNING: if you add new migration you MUST make sure that build_runtime_entry_point has downgrade
+    path for previous dlt versions.
+    """
     if from_engine == to_engine:
         return job_dict  # type: ignore[return-value]
     if from_engine == 1 and to_engine > 1:
@@ -133,18 +136,24 @@ def migrate_job_definition(
         from_engine = 2
 
     if from_engine != to_engine:
-        raise ValueError(
-            f"no job definition migration path from engine {from_engine} to {to_engine}"
-        )
+        raise ManifestEngineNoUpgradePath("job definition", from_engine, to_engine)
     return job_dict  # type: ignore[return-value]
 
 
 def migrate_manifest(
     manifest_dict: DictStrAny, from_engine: int, to_engine: int
 ) -> TJobsDeploymentManifest:
-    """Migrate a manifest dict between engine versions."""
+    """Migrate a manifest dict between engine versions.
+
+    WARNING: if you add new migration you MUST make sure that build_runtime_entry_point has downgrade
+    path for previous dlt versions.
+    """
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
+    # checked before the job loop so an unreachable path is reported against the manifest
+    # rather than against whichever job happened to be migrated first
+    if not 1 <= from_engine < to_engine:
+        raise ManifestEngineNoUpgradePath("manifest", from_engine, to_engine)
     for job in manifest_dict.get("jobs", []):
         migrate_job_definition(job, from_engine, to_engine)
     # manifest-level migrations per engine version
@@ -153,7 +162,7 @@ def migrate_manifest(
         from_engine = 2
 
     if from_engine != to_engine:
-        raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
+        raise ManifestEngineNoUpgradePath("manifest", from_engine, to_engine)
     manifest_dict["engine_version"] = to_engine
     return manifest_dict  # type: ignore[return-value]
 
@@ -342,13 +351,10 @@ def validate_job_definition(
                         f" cron tick for {cron_expr!r} — will be snapped backward"
                     )
 
-    if resolve_incremental_mode(job_def) == "interval" and not has_interval:
+    if job_def.get("incremental_mode") == "interval" and not has_interval:
         warnings.append(f"job {ref!r} has incremental_mode 'interval' but no interval")
 
-    if (
-        job_def.get("auto_refresh_pipeline_mode")
-        and resolve_refresh_propagation(job_def) == "block"
-    ):
+    if job_def.get("auto_refresh_pipeline_mode") and job_def.get("refresh_propagation") == "block":
         warnings.append(
             f"job {ref!r} has auto_refresh_pipeline_mode but refresh_propagation 'block'"
             " prevents refresh runs"

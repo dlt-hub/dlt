@@ -3,7 +3,7 @@
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import pytest
 
@@ -57,12 +57,10 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: str = "batch",
     function: Optional[str] = "main",
-    refresh: Optional[TRefreshPolicy] = None,
     refresh_propagation: Optional[TRefreshPolicy] = None,
     require: Optional[TRequireSpec] = None,
     interval: Optional[TIntervalSpec] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
-    allow_external_schedulers: bool = False,
     launcher: Optional[str] = None,
 ) -> TJobDefinition:
     entry: TEntryPoint = {
@@ -81,8 +79,6 @@ def _job(
     }
     if default_trigger is not None:
         jd["default_trigger"] = TTrigger(default_trigger)
-    if refresh is not None:
-        jd["refresh"] = refresh
     if refresh_propagation is not None:
         jd["refresh_propagation"] = refresh_propagation
     if require is not None:
@@ -91,8 +87,6 @@ def _job(
         jd["interval"] = interval
     if incremental_mode is not None:
         jd["incremental_mode"] = incremental_mode
-    if allow_external_schedulers:
-        jd["allow_external_schedulers"] = True
     return jd
 
 
@@ -345,26 +339,13 @@ def test_resolve_refresh(
     expected_refresh: bool,
     expect_warning: bool,
 ) -> None:
-    # legacy `refresh` field
-    jd = _job("jobs.a", refresh=policy)
+    jd = _job("jobs.a", refresh_propagation=policy)
     effective, warning = resolve_refresh(user_flag, jd)
     assert effective is expected_refresh
     if expect_warning:
         assert warning and "refresh_propagation=block" in warning
     else:
         assert warning is None
-    # `refresh_propagation` field resolves identically
-    jd = _job("jobs.a", refresh_propagation=policy)
-    effective, _ = resolve_refresh(user_flag, jd)
-    assert effective is expected_refresh
-
-
-def test_resolve_refresh_propagation_precedence() -> None:
-    """`refresh_propagation` wins over a stale legacy `refresh` field."""
-    jd = _job("jobs.a", refresh="block", refresh_propagation="auto")
-    effective, warning = resolve_refresh(True, jd)
-    assert effective is True
-    assert warning is None
 
 
 @pytest.mark.parametrize(
@@ -600,13 +581,11 @@ def test_build_runtime_entry_point_config_merges() -> None:
 
 
 def test_build_runtime_entry_point_propagates_modes() -> None:
-    """incremental_mode propagates with the compat flag derived from it;
+    """incremental_mode is dual-written with `allow_external_schedulers` for older launchers;
     auto_refresh_pipeline_mode passes through verbatim."""
     mode_cases: List[Tuple[Dict[str, Any], bool, Optional[str]]] = [
-        ({"allow_external_schedulers": True}, True, "interval"),
         ({"incremental_mode": "interval"}, True, "interval"),
         ({"incremental_mode": "pipeline"}, False, "pipeline"),
-        ({"incremental_mode": "pipeline", "allow_external_schedulers": True}, False, "pipeline"),
     ]
     for jd_kwargs, expected_allow, expected_mode in mode_cases:
         jd = _job("jobs.a", **jd_kwargs)
@@ -768,3 +747,17 @@ def test_warn_missing_profiles_returns_empty_when_both_present(
 
     monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
     assert warn_missing_profiles() == []
+
+
+@pytest.mark.parametrize("mode", ["interval", "pipeline"])
+def test_entry_point_always_dual_writes_legacy_flag(mode: str) -> None:
+    """The entry point is the compatibility layer, not the job definition.
+
+    Launchers of older dlt versions only read `allow_external_schedulers`, so it must be
+    emitted whenever `incremental_mode` is. Dropping it as redundant silently breaks every
+    already-deployed workspace running an older dlt.
+    """
+    jd = _job("jobs.a", incremental_mode=cast(TIncrementalSource, mode))
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
+    assert ep["incremental_mode"] == mode
+    assert ep["allow_external_schedulers"] is (mode == "interval")

@@ -230,9 +230,8 @@ def test_decorator_to_launcher_e2e_incremental_mode() -> None:
     """End-to-end: `@job(incremental_mode="interval")` on the decorator reaches the
     launcher's `TimeIntervalContext` and the incremental auto-joins."""
     job_def = batch_jobs.incremental_interval_job.to_job_definition()
-    # job definition serializes the mode as the backward-compatible flag
-    assert job_def["allow_external_schedulers"] is True
-    assert "incremental_mode" not in job_def
+    assert job_def["incremental_mode"] == "interval"
+    assert "allow_external_schedulers" not in job_def
     assert job_def["interval"] == {"start": "2024-01-15T00:00:00Z"}
 
     ep = build_runtime_entry_point(

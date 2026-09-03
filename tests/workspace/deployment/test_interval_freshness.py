@@ -54,7 +54,6 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
-    refresh: Optional[TRefreshPolicy] = None,
     refresh_propagation: Optional[TRefreshPolicy] = None,
     incremental_mode: Optional[TIncrementalSource] = None,
 ) -> TJobDefinition:
@@ -75,8 +74,6 @@ def _job(
         job["default_trigger"] = TTrigger(default_trigger)
     if freshness is not None:
         job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    if refresh is not None:
-        job["refresh"] = refresh
     if refresh_propagation is not None:
         job["refresh_propagation"] = refresh_propagation
     if incremental_mode is not None:
@@ -240,7 +237,7 @@ def _diamond_with_blocked_branch() -> Dict[str, TJobDefinition]:
             "jobs.c",
             ["manual:jobs.c"],
             freshness=["job.is_fresh:jobs.a"],
-            refresh="block",
+            refresh_propagation="block",
         ),
         "jobs.d": _job(
             "jobs.d",
@@ -258,7 +255,7 @@ def _chain_with_always_middle() -> Dict[str, TJobDefinition]:
             "jobs.b",
             ["manual:jobs.b"],
             freshness=["job.is_fresh:jobs.a"],
-            refresh="always",
+            refresh_propagation="always",
         ),
         "jobs.c": _job("jobs.c", ["manual:jobs.c"], freshness=["job.is_fresh:jobs.b"]),
     }

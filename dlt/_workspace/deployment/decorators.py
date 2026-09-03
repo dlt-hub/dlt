@@ -229,13 +229,10 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             job_def["interval"] = self.interval
         if self.freshness:
             job_def["freshness"] = list(self.freshness)
-        # serialize as the backward-compatible flag, `incremental_mode` is not emitted yet.
-        # explicit `pipeline` is serialized as False so it survives config defaults
         if self.incremental_mode is not None:
-            job_def["allow_external_schedulers"] = self.incremental_mode == "interval"
-        # serialize as the backward-compatible field, `refresh_propagation` is not emitted yet
+            job_def["incremental_mode"] = self.incremental_mode
         if self.refresh_propagation != "auto":
-            job_def["refresh"] = self.refresh_propagation
+            job_def["refresh_propagation"] = self.refresh_propagation
         if self.auto_refresh_pipeline_mode:
             job_def["auto_refresh_pipeline_mode"] = self.auto_refresh_pipeline_mode
 

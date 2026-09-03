@@ -3,7 +3,7 @@ from typing import Any, Dict, List, Literal, Mapping, NamedTuple, NewType, Optio
 
 from dlt.common.pipeline import TRefreshMode
 from dlt.common.typing import Annotated, NotRequired, TypedDict
-from dlt.common.warnings import Deprecated, SkipDeprecation
+from dlt.common.warnings import Deprecated
 
 
 MANIFEST_ENGINE_VERSION = 2
@@ -119,8 +119,6 @@ class TRequireSpec(TypedDict, total=False):
     instance: Dict[str, Any]
     """Runner instance requirements, e.g. `{"size": "medium"}`. Consult the online
     documentation for all supported instance configuration keys."""
-    machine: str
-    """Deprecated: use `instance` instead. Machine spec identifier (e.g. `"gpu-a100"`, `"2xlarge"`)."""
     region: str
     """Runner region for placement (e.g. `"us-east-1"`, `"eu-west"`)."""
     timezone: str
@@ -214,7 +212,8 @@ class TRuntimeEntryPoint(TEntryPoint):
     incremental_mode: NotRequired[TIncrementalSource]
     """Incremental mode of the job, takes precedence over `allow_external_schedulers`."""
     allow_external_schedulers: NotRequired[bool]
-    """Backward-compatible form of `incremental_mode`: `True` means `interval` mode."""
+    """Always written alongside `incremental_mode` so launchers of older dlt versions,
+    which do not know the newer field, still see the join decision."""
     profile: NotRequired[str]
     """Active workspace profile, resolved from require.profile."""
     config: NotRequired[Dict[str, Any]]
@@ -280,17 +279,13 @@ class TJobDefinition(TypedDict):
     freshness: NotRequired[List[TFreshnessConstraint]]
     """Upstream freshness constraints for interval eligibility."""
     incremental_mode: NotRequired[TIncrementalSource]
-    """Incremental mode of the job, takes precedence over `allow_external_schedulers`."""
-    allow_external_schedulers: NotRequired[bool]
-    """Backward-compatible form of `incremental_mode`: when `True`, intervals and state are managed by the scheduler."""
+    """How incrementals obtain their range during a run. Unset falls back to `jobs` configuration."""
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]
-    """Refresh propagation policy of the job, takes precedence over `refresh`."""
-    refresh: NotRequired[TRefreshPolicy]
-    """Backward-compatible form of `refresh_propagation`."""
+    """How a refresh signal cascades through the job graph. Defaults to `auto`."""
     auto_refresh_pipeline_mode: NotRequired[TRefreshMode]
     """Refresh mode applied to every pipeline in the job when a refresh run is requested."""
 
@@ -314,8 +309,12 @@ class TFilesManifest(TypedDict):
 
 
 def resolve_incremental_mode(d: Mapping[str, Any]) -> TIncrementalSource:
-    """Resolves incremental mode from a job definition or entry point, preferring
-    `incremental_mode` over the deprecated `allow_external_schedulers` flag."""
+    """Resolves incremental mode from a runtime entry point.
+
+    Entry points are dual-written for launchers of older dlt versions, so `incremental_mode`
+    is preferred and `allow_external_schedulers` is the fallback. Job definitions are engine 2
+    and carry `incremental_mode` only — read that field directly instead.
+    """
     mode: Optional[TIncrementalSource] = d.get("incremental_mode")
     if mode is not None:
         return mode
@@ -323,14 +322,13 @@ def resolve_incremental_mode(d: Mapping[str, Any]) -> TIncrementalSource:
 
 
 def resolve_refresh_propagation(d: Mapping[str, Any]) -> TRefreshPolicy:
-    """Resolves refresh propagation policy from a job definition, preferring
-    `refresh_propagation` over the deprecated `refresh` field."""
-    return d.get("refresh_propagation") or d.get("refresh") or "auto"
+    """Resolves refresh propagation policy from a job definition."""
+    # never accepts an entry point: `TRuntimeEntryPoint.refresh` is a bool signal, not a policy
+    return d.get("refresh_propagation") or "auto"
 
 
-def _bool_to_incremental_mode(allow_external: bool) -> Any:
-    # False writes nothing so a legacy flag never forces `pipeline` mode
-    return "interval" if allow_external else SkipDeprecation
+def _bool_to_incremental_mode(allow_external: bool) -> TIncrementalSource:
+    return "interval" if allow_external else "pipeline"
 
 
 def _machine_to_instance(machine: str) -> Any:

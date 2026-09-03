@@ -360,11 +360,9 @@ def build_runtime_entry_point(
         entry_point["interval_end"] = ensure_datetime_in_tz(interval_end, timezone.utc).isoformat()
     if interval_start is not None or interval_end is not None or tz != UTC_NAME:
         entry_point["interval_timezone"] = tz
-    # pass mode explicitly when set, keep deprecated flag for old launchers and backends.
     # unset jobs get neither key so launcher-side `jobs` configuration may apply
     mode = job_def.get("incremental_mode")
-    if mode is None and job_def.get("allow_external_schedulers") is not None:
-        mode = "interval" if job_def["allow_external_schedulers"] else "pipeline"
+    # dual-written: launchers of older dlt versions only know `allow_external_schedulers`.
     if mode is not None:
         entry_point["incremental_mode"] = mode
         entry_point["allow_external_schedulers"] = mode == "interval"

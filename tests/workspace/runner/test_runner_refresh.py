@@ -28,7 +28,6 @@ def _dt(s: str) -> datetime:
 
 def _job(
     ref: str,
-    refresh: Optional[TRefreshPolicy] = None,
     freshness: Optional[List[str]] = None,
     refresh_propagation: Optional[TRefreshPolicy] = None,
 ) -> TJobDefinition:
@@ -43,8 +42,6 @@ def _job(
         "triggers": [TTrigger(f"manual:{ref}")],
         "execute": TExecuteSpec(),
     }
-    if refresh is not None:
-        job["refresh"] = refresh
     if refresh_propagation is not None:
         job["refresh_propagation"] = refresh_propagation
     if freshness is not None:
@@ -278,8 +275,8 @@ def test_cascade_skips_interval_store_seed(
     "jd_patch,expected_allow,expected_mode",
     [
         ({}, None, None),  # not set in manifest → entry_point gets neither key
-        ({"allow_external_schedulers": False}, False, "pipeline"),
-        ({"allow_external_schedulers": True}, True, "interval"),
+        ({"incremental_mode": "pipeline"}, False, "pipeline"),
+        ({"incremental_mode": "interval"}, True, "interval"),
         ({"incremental_mode": "interval"}, True, "interval"),
         ({"incremental_mode": "pipeline"}, False, "pipeline"),
         ({"auto_refresh_pipeline_mode": "drop_sources"}, None, None),
@@ -415,7 +412,7 @@ def _block_in_chain_graph() -> Dict[str, TJobDefinition]:
     return {
         "jobs.a": _job("jobs.a"),
         "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
-        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"], refresh="block"),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"], refresh_propagation="block"),
         "jobs.d": _job("jobs.d", freshness=["job.is_fresh:jobs.c"]),
     }
 
@@ -424,7 +421,7 @@ def _block_in_diamond_graph() -> Dict[str, TJobDefinition]:
     return {
         "jobs.a": _job("jobs.a"),
         "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
-        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.a"], refresh="block"),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.a"], refresh_propagation="block"),
         "jobs.d": _job("jobs.d", freshness=["job.is_fresh:jobs.b", "job.is_fresh:jobs.c"]),
     }
 
@@ -484,8 +481,8 @@ def _always_chain_graph() -> Dict[str, TJobDefinition]:
 
 def _always_then_block_graph() -> Dict[str, TJobDefinition]:
     return {
-        "jobs.a": _job("jobs.a", refresh="always"),
-        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"], refresh="block"),
+        "jobs.a": _job("jobs.a", refresh_propagation="always"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"], refresh_propagation="block"),
     }
 
 
@@ -550,7 +547,7 @@ def test_pokemon_chain_settles_after_one_cascade(
     completing job's watermark and never touches downstream — so the
     chain settles after each cascade fires.
     """
-    runner_state["jobs.backfill"] = _job("jobs.backfill", refresh="always")
+    runner_state["jobs.backfill"] = _job("jobs.backfill", refresh_propagation="always")
     runner_state["jobs.daily"] = _job("jobs.daily", freshness=["job.is_fresh:jobs.backfill"])
     runner_state["jobs.transform"] = _job("jobs.transform", freshness=["job.is_fresh:jobs.daily"])
 

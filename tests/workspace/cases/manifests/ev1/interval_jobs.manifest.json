@@ -45,6 +45,7 @@
       },
       "triggers": ["manual:jobs.events.cleanup"],
       "execute": {"concurrency": 1},
+      "require": {"machine": "gpu-a100"},
       "refresh": "always"
     }
   ]
