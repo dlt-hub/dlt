@@ -94,8 +94,8 @@ def lag_interval(
 def full_days_interval(interval: TTimeInterval) -> TTimeInterval:
     """Widen an interval so it covers whole days.
 
-    The start is floored to the midnight at or before it and the end is extended to
-    the next midnight, each adjusted in its own timezone.
+    The start is floored to the midnight at or before it and the end raised to the
+    midnight at or after it, each adjusted in its own timezone.
 
     Args:
         interval (TTimeInterval): The interval to widen.
@@ -104,4 +104,7 @@ def full_days_interval(interval: TTimeInterval) -> TTimeInterval:
         TTimeInterval: The widened interval.
     """
     daily = "0 0 * * *"
-    return TTimeInterval(lag_cron(daily, interval.start, 0), lag_cron(daily, interval.end, -1))
+    # an end already at midnight covers whole days, so it stays put and widening is idempotent
+    end_floor = lag_cron(daily, interval.end, 0)
+    end = end_floor if end_floor == interval.end else lag_cron(daily, interval.end, -1)
+    return TTimeInterval(lag_cron(daily, interval.start, 0), end)

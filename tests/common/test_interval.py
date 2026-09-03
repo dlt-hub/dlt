@@ -30,6 +30,11 @@ def _iv(start: str, end: str) -> TTimeInterval:
         # hourly cron
         ("0 * * * *", "2024-01-15T14:30:00Z", 2, "2024-01-15T12:00:00Z"),
         ("0 * * * *", "2024-01-15T14:30:00Z", -1, "2024-01-15T15:00:00Z"),
+        # sub-hour grids, where a seconds-wide epsilon would overshoot the floor
+        ("*/3 * * * *", "2024-01-01T11:40:00Z", 0, "2024-01-01T11:39:00Z"),
+        ("*/3 * * * *", "2024-01-01T11:42:00Z", 0, "2024-01-01T11:42:00Z"),
+        ("* * * * *", "2024-01-01T11:40:00Z", 0, "2024-01-01T11:40:00Z"),
+        ("* * * * *", "2024-01-01T11:59:59.999999Z", 0, "2024-01-01T11:59:00Z"),
     ],
     ids=[
         "daily-floor",
@@ -42,6 +47,10 @@ def _iv(start: str, end: str) -> TTimeInterval:
         "on-tick-forward-1",
         "hourly-back-2",
         "hourly-forward-1",
+        "3min-misaligned",
+        "3min-aligned",
+        "1min-aligned",
+        "1min-sub-second",
     ],
 )
 def test_lag_cron(cron: str, dt: str, count: int, expected: str) -> None:
@@ -91,8 +100,12 @@ def test_full_days_interval() -> None:
     assert full_days_interval(_iv("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")) == _iv(
         "2024-01-13T00:00:00Z", "2024-01-16T00:00:00Z"
     )
-    # exact-midnight end still extends by one day
-    assert full_days_interval(_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")) == _iv(
+    # an interval already covering whole days is returned unchanged, so widening is idempotent
+    aligned = _iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    assert full_days_interval(aligned) == aligned
+    assert full_days_interval(full_days_interval(aligned)) == aligned
+    # a sub-second past midnight still rounds up to the next one
+    assert full_days_interval(_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00.000001Z")) == _iv(
         "2024-01-15T00:00:00Z", "2024-01-17T00:00:00Z"
     )
     # bounds floor on the wall clock of their own timezone
