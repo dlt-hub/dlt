@@ -178,7 +178,18 @@ const config = {
             position: "left",
             label: "Education",
           },
-          { to: "/release-highlights", label: "What's new?", position: "left" },
+          {
+            type: "dropdown",
+            label: "What's new?",
+            position: "left",
+            className: "whats-new-navbar",
+            items: [
+              { to: "/release-highlights", label: "dlt" },
+              // devel-scoped until this page reaches master; retarget to
+              // /hub/release-highlights once it is in the released version
+              { to: "/devel/hub/release-highlights", label: "dltHub" },
+            ],
+          },
           { to: "https://dlthub.com/blog", label: "Blog", position: "right" },
           {
             href: "https://dlthub.com/community",
