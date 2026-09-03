@@ -28,6 +28,7 @@ pip install fastembed>=0.1.1
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example
 __source_name__ = "zendesk"
 
+from datetime import datetime
 from typing import Optional, Dict, Any, Tuple, Iterable, List
 
 import dlt
@@ -77,9 +78,7 @@ def zendesk_support(
     #  when two events have the same timestamp
     @dlt.resource(primary_key="id", write_disposition="append")
     def tickets_data(
-        updated_at: dlt.sources.incremental[
-            pendulum.DateTime
-        ] = dlt.sources.incremental(
+        updated_at: dlt.sources.incremental[datetime] = dlt.sources.incremental(
             "updated_at",
             initial_value=start_date_obj,
             end_value=end_date_obj,
@@ -88,12 +87,13 @@ def zendesk_support(
     ):
         # URL For ticket events
         # 'https://d3v-dlthub.zendesk.com/api/v2/incremental/tickets_data.json?start_time=946684800'
+        # `last_value` is a stdlib datetime once it comes back from state, whatever type went in
         event_pages = get_pages(
             url=url,
             endpoint="/api/v2/incremental/tickets",
             auth=auth,
             data_point_name="tickets",
-            params={"start_time": updated_at.last_value.int_timestamp},
+            params={"start_time": int(updated_at.last_value.timestamp())},
         )
         for page in event_pages:
             yield ([_fix_date(ticket) for ticket in page])
