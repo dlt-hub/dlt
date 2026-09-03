@@ -259,6 +259,7 @@ dev = [
     "flake8-tidy-imports>=4.8.0",
     "flake8-encodings",
     "flake8-builtins>=1.5.3,<2",
+    "Flake8-pyproject>=1.2.3,<2",
     "boto3-stubs[lakeformation,s3,s3tables]>=1.28.28,<2",
     "types-tqdm>=4.66.0.2,<5",
     "types-psutil>=5.9.5.16,<6",
@@ -433,6 +434,64 @@ line_length = 100
 profile = "black"
 src_paths = ["dlt"]
 multi_line_output = 3
+
+[tool.flake8]
+ignore = [
+    "E1",
+    "E2",
+    "E3",
+    "E4",
+    "F401",
+    "W391",
+    "W292",
+    "E501",
+    "E731",
+    "F811",
+    "W503",
+    "E704",
+    "W504",
+    "DOC502",
+    "DOC503",
+    "DOC501",
+    "B010",
+    "I250",
+    "B042",
+]
+banned-modules = """
+    datetime = use dlt.common.pendulum
+    json = use dlt.common.json
+    orjson = use dlt.common.json
+    simplejson = use dlt.common.json
+    decimal = use dlt.common.decimal
+    decimal.Decimal = use dlt.common.Decimal
+    open = use dlt.common.open
+    pendulum = use dlt.common.pendulum
+    ibis = use dlt.common.libs.ibis
+    sqlalchemy = use dlt.common.libs.sql_alchemy
+    typing.TypedDict = use dlt.common.typing.TypedDict
+    typing.ParamSpec = use dlt.common.typing.ParamSpec
+    typing.Concatenate = use dlt.common.typing.Concatenate
+    typing.TypeAlias = use dlt.common.typing.TypeAlias
+    typing.Self = use dlt.common.typing.Self
+    typing.Never = use dlt.common.typing.Never
+    typing.Unpack = use dlt.common.typing.Unpack
+    typing.Annotated = use dlt.common.typing.Annotated
+    typing.get_original_bases = use dlt.common.typing.get_original_bases
+    typing_extensions.NotRequired = use dlt.common.typing.NotRequired
+"""
+extend-immutable-calls = ["dlt.sources.incremental"]
+# allow banned-imports (I251) in tests and docs e.g., direct numpy import
+per-file-ignores = [
+    "tests/*: T20, I251, B017",
+    "tools/tests/*: T20, I251",
+    "docs/*: T20, I251",
+    "dlt/common/typing.py: I251",
+    "dlt/_workspace/_templates/*: I251",
+]
+# docstring linting
+style = "google"
+allow-init-docstring = true
+arg-type-hints-in-docstring = true
 
 [tool.mypy]
 python_version = "3.10"
