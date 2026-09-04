@@ -533,6 +533,7 @@ def test_build_runtime_entry_point_batch_sets_interval_and_profile() -> None:
         tz="UTC",
         dlt_version=_DLT_SPEC,
     )
+    assert ep["job_ref"] == "jobs.a"
     assert ep["interval_start"] == "2026-04-19T10:00:00+00:00"
     assert ep["interval_end"] == "2026-04-19T11:00:00+00:00"
     assert ep["interval_timezone"] == "UTC"

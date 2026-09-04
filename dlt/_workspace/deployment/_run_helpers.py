@@ -340,6 +340,7 @@ def build_runtime_entry_point(
         TRuntimeEntryPoint: The entry point enriched with runtime launch context.
     """
     entry_point: TRuntimeEntryPoint = copy.copy(job_def["entry_point"])  # type: ignore[assignment]
+    entry_point["job_ref"] = job_def["job_ref"]
 
     if cli_config:
         merged = dict(entry_point.get("config", {}))

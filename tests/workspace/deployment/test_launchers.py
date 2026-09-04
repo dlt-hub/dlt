@@ -43,7 +43,8 @@ def _entry(
     **run_args: object,
 ) -> TRuntimeEntryPoint:
     """Helper to build TRuntimeEntryPoint dicts for tests."""
-    ep: TRuntimeEntryPoint = {"module": module, "function": function, "job_type": job_type}  # type: ignore[typeddict-item]
+    job_ref = f"jobs.{module.rsplit('.', 1)[-1]}" + (f".{function}" if function else "")
+    ep: TRuntimeEntryPoint = {"module": module, "function": function, "job_type": job_type, "job_ref": job_ref}  # type: ignore[typeddict-item]
     if run_args:
         ep["run_args"] = run_args  # type: ignore[typeddict-item]
     return ep
@@ -184,20 +185,12 @@ def test_job_launcher_timezone_without_interval(trigger: str) -> None:
     assert known_env.DLT_INTERVAL_START not in os.environ
 
 
-@pytest.mark.parametrize(
-    "ep_patch",
-    [
-        {"incremental_mode": "interval"},
-        {"allow_external_schedulers": True},
-    ],
-    ids=["incremental-mode", "legacy-flag"],
-)
-def test_job_launcher_interval_forces_incremental_join(ep_patch: Dict[str, Any]) -> None:
+def test_job_launcher_interval_forces_incremental_join() -> None:
     """Launcher honors interval incremental mode in entry point so incrementals join."""
     ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
     ep["interval_start"] = "2024-01-15T00:00:00Z"
     ep["interval_end"] = "2024-01-16T00:00:00Z"
-    ep.update(ep_patch)  # type: ignore[typeddict-item]
+    ep["incremental_mode"] = "interval"
     result = job_run(ep, run_id="inc-iv-1", trigger="schedule:0 0 * * *")
     # incremental joined the scheduler: initial_value and end_value come from the interval
     assert "iv=2024-01-15" in result
@@ -211,13 +204,12 @@ def test_job_launcher_interval_forces_incremental_join(ep_patch: Dict[str, Any])
         {},
         {"incremental_mode": "pipeline", "allow_external_schedulers": True},
     ],
-    ids=["unset", "mode-wins-over-stale-flag"],
+    ids=["unset", "stale-legacy-flag-ignored"],
 )
 def test_job_launcher_interval_pipeline_mode_does_not_force_join(ep_patch: Dict[str, Any]) -> None:
     """In `pipeline` mode (also the default), incrementals do NOT auto-join the runner interval.
 
-    Explicit `incremental_mode` takes precedence over the deprecated
-    `allow_external_schedulers` flag.
+    `allow_external_schedulers` is written for older launchers only and never read here.
     """
     ep = _entry(f"{WORKSPACE}.batch_jobs", "incremental_interval_job")
     ep["interval_start"] = "2024-01-15T00:00:00Z"
@@ -318,18 +310,6 @@ def test_job_launcher_auto_refresh_pipeline_mode(
             "drop_sources",
         ),
         (
-            {"allow_external_schedulers": True},
-            {"JOBS__INCREMENTAL_MODE": "pipeline"},
-            "interval",
-            None,
-        ),
-        (
-            {"allow_external_schedulers": False},
-            {"JOBS__INCREMENTAL_MODE": "interval"},
-            "pipeline",
-            None,
-        ),
-        (
             {},
             {
                 "JOBS__INCREMENTAL_MODE": "pipeline",
@@ -338,6 +318,21 @@ def test_job_launcher_auto_refresh_pipeline_mode(
             "interval",
             None,
         ),
+        (
+            {"job_ref": "jobs.clean_sec.daily"},
+            {
+                "JOBS__CLEAN_SEC__DAILY__INCREMENTAL_MODE": "interval",
+                "JOBS__BATCH_JOBS__MY_JOB__INCREMENTAL_MODE": "pipeline",
+            },
+            "interval",
+            None,
+        ),
+        (
+            {"job_ref": "jobs.batch_jobs", "function": None},
+            {"JOBS__BATCH_JOBS__AUTO_REFRESH_PIPELINE_MODE": "drop_data"},
+            None,
+            "drop_data",
+        ),
         ({}, {}, None, None),
     ],
     ids=[
@@ -345,9 +340,9 @@ def test_job_launcher_auto_refresh_pipeline_mode(
         "config-fills-refresh",
         "explicit-mode-wins",
         "explicit-refresh-wins",
-        "legacy-flag-is-explicit",
-        "legacy-false-is-explicit-pipeline",
         "per-job-section-wins",
+        "named-section-ref",
+        "module-level-ref",
         "nothing-set",
     ],
 )
@@ -357,11 +352,12 @@ def test_apply_job_configuration(
     expected_mode: Any,
     expected_refresh: Any,
 ) -> None:
-    """Config fills unset entry point settings; explicit entry point values win."""
+    """Config fills unset entry point settings; explicit entry point values win. Sections come
+    from `job_ref`."""
     os.environ.update(env_patch)
     ep = _entry(f"{WORKSPACE}.batch_jobs", "my_job")
     ep.update(ep_patch)  # type: ignore[typeddict-item]
-    apply_job_configuration(ep, ep.get("function"))
+    apply_job_configuration(ep)
     assert ep.get("incremental_mode") == expected_mode
     assert ep.get("auto_refresh_pipeline_mode") == expected_refresh
 
@@ -390,6 +386,16 @@ def test_job_launcher_config_driven_modes() -> None:
     ep["auto_refresh_pipeline_mode"] = "drop_sources"
     assert job_run(ep, run_id="cfg-apr-2", trigger="manual:") == "refresh=drop_sources"
 
+    # a job with `section=` and `name=` reads `[jobs.<section>.<name>]`, not module and function
+    os.environ["JOBS__INCREMENTAL_MODE"] = "pipeline"
+    os.environ["JOBS__BATCH_JOBS__NAMED_SECTION_JOB__INCREMENTAL_MODE"] = "pipeline"
+    os.environ["JOBS__CLEAN_SEC__DAILY__INCREMENTAL_MODE"] = "interval"
+    ep = _entry(f"{WORKSPACE}.batch_jobs", "named_section_job")
+    ep["job_ref"] = "jobs.clean_sec.daily"  # type: ignore[typeddict-item]
+    ep["interval_start"] = "2024-01-15T00:00:00Z"
+    ep["interval_end"] = "2024-01-16T00:00:00Z"
+    assert job_run(ep, run_id="cfg-iv-2", trigger="schedule:0 0 * * *") == "allow_ext=True"
+
 
 @pytest.mark.parametrize("source", ["entry-point", "jobs-config"])
 def test_job_launcher_auto_refresh_import_time_pipeline(tmp_path: Any, source: str) -> None:
@@ -398,6 +404,7 @@ def test_job_launcher_auto_refresh_import_time_pipeline(tmp_path: Any, source: s
         "module": f"{WORKSPACE}.import_time_pipeline",
         "function": "report_module_pipeline_refresh",
         "job_type": "batch",
+        "job_ref": "jobs.import_time_pipeline.report_module_pipeline_refresh",
         "refresh": True,
     }
     env = dict(os.environ)
@@ -708,6 +715,7 @@ def test_job_launcher_via_cli() -> None:
             "module": f"{WORKSPACE}.batch_jobs",
             "function": "backfill",
             "job_type": "batch",
+            "job_ref": "jobs.batch_jobs.backfill",
         }
     )
     result = subprocess.run(
@@ -737,6 +745,7 @@ def test_module_launcher_via_cli() -> None:
             "module": f"{WORKSPACE}.hello_module",
             "function": None,
             "job_type": "batch",
+            "job_ref": "jobs.hello_module",
         }
     )
     result = subprocess.run(
@@ -788,6 +797,7 @@ def test_module_launcher_applies_interval_and_timezone() -> None:
             "module": f"{WORKSPACE}.timezone_module",
             "function": None,
             "job_type": "batch",
+            "job_ref": "jobs.timezone_module",
             "interval_start": "2024-01-15T00:00:00Z",
             "interval_end": "2024-01-16T00:00:00Z",
             "interval_timezone": "Europe/Berlin",
@@ -808,6 +818,7 @@ def test_module_launcher_timezone_without_interval() -> None:
             "module": f"{WORKSPACE}.timezone_module",
             "function": None,
             "job_type": "batch",
+            "job_ref": "jobs.timezone_module",
             "interval_timezone": "Europe/Berlin",
         },
         run_id="mod-tz-no-iv",
@@ -822,7 +833,12 @@ def test_module_launcher_timezone_without_interval() -> None:
 def test_module_launcher_defaults_to_utc() -> None:
     """No declared timezone keeps dlt storing values in UTC."""
     stdout = _run_module_launcher(
-        {"module": f"{WORKSPACE}.timezone_module", "function": None, "job_type": "batch"},
+        {
+            "module": f"{WORKSPACE}.timezone_module",
+            "function": None,
+            "job_type": "batch",
+            "job_ref": "jobs.timezone_module",
+        },
         run_id="mod-tz-utc",
         trigger="manual:",
     )
@@ -837,6 +853,7 @@ def test_module_launcher_cli_error_exit_code() -> None:
             "module": "nonexistent.module",
             "function": None,
             "job_type": "batch",
+            "job_ref": "jobs.module",
         }
     )
     result = subprocess.run(
@@ -865,6 +882,7 @@ def test_job_launcher_cli_error_exit_code() -> None:
             "module": "nonexistent.module",
             "function": "foo",
             "job_type": "batch",
+            "job_ref": "jobs.module.foo",
         }
     )
     result = subprocess.run(
@@ -930,6 +948,7 @@ def test_isolated_job_launcher_via_cli(launcher_workspace: object, python_cmd: L
             "module": module,
             "function": "backfill",
             "job_type": "batch",
+            "job_ref": f"jobs.{module.rsplit('.', 1)[-1]}.backfill",
             "launcher": "dlt._workspace.deployment.launchers.job",
         }
     )
@@ -963,6 +982,7 @@ def test_isolated_job_launcher_config_toml_auto_refresh() -> None:
                 "module": "batch_jobs",
                 "function": "auto_refresh_probe",
                 "job_type": "batch",
+                "job_ref": "jobs.batch_jobs.auto_refresh_probe",
                 "launcher": "dlt._workspace.deployment.launchers.job",
                 "refresh": True,
             }
@@ -998,6 +1018,7 @@ def test_isolated_module_launcher_via_cli(
             "module": module,
             "function": None,
             "job_type": "batch",
+            "job_ref": f"jobs.{module.rsplit('.', 1)[-1]}",
             "launcher": "dlt._workspace.deployment.launchers.module",
         }
     )
@@ -1132,10 +1153,10 @@ def test_job_launcher_opt_out_of_signal_interception() -> None:
     [
         ({"incremental_mode": "interval"}, "True"),
         ({"incremental_mode": "pipeline"}, "False"),
-        ({"allow_external_schedulers": True}, "True"),
+        ({"allow_external_schedulers": True}, None),
         ({}, None),
     ],
-    ids=["interval", "pipeline", "legacy-flag", "unset"],
+    ids=["interval", "pipeline", "legacy-flag-alone-ignored", "unset"],
 )
 def test_prepare_run_env_carries_allow_external_schedulers(
     ep_patch: Dict[str, Any], expected: str

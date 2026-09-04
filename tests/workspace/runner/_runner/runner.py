@@ -418,6 +418,7 @@ def _start_job(
     else:
         # interval-store job dispatched without a computed interval
         entry_point = dict(job_def["entry_point"])  # type: ignore[assignment]
+        entry_point["job_ref"] = job_def["job_ref"]
         if _config:
             entry_point["config"] = dict(_config)
         if "profile" in require:

@@ -13,6 +13,7 @@ from dlt.common.time import set_context_timezone
 from dlt._workspace import known_sections as ws_known_sections
 from dlt.common import known_env
 from dlt._workspace._known_env import WORKSPACE__PROFILE
+from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
 
@@ -85,22 +86,17 @@ def set_config_env_vars(sections: Tuple[str, ...], config: Dict[str, Any]) -> No
         add_config_dict_to_env(config, sections, overwrite_keys=True)
 
 
-def apply_job_configuration(entry_point: TRuntimeEntryPoint, job_name: Optional[str]) -> None:
+def apply_job_configuration(entry_point: TRuntimeEntryPoint) -> None:
     """Updates unset job behavior settings in `entry_point` from configuration.
 
-    Explicit entry point values take precedence over config providers. Config resolves
-    in job sections derived from the entry point module and `job_name`.
+    Explicit entry point values take precedence over config providers.
     """
-    section = entry_point["module"].rsplit(".", 1)[-1]
-    sections = (ws_known_sections.JOBS, section) + ((job_name,) if job_name else ())
+    # config resolves in the job's own sections, `jobs.<section>.<name>` taken from `job_ref`.
+    parts = tuple(p for p in parse_job_ref(entry_point["job_ref"]) if p)
+    sections = (ws_known_sections.JOBS,) + parts
     explicit: Dict[str, Any] = {}
     if entry_point.get("incremental_mode"):
         explicit["incremental_mode"] = entry_point["incremental_mode"]
-    elif entry_point.get("allow_external_schedulers") is not None:
-        # the legacy flag is set both ways for explicit modes, False means `pipeline`
-        explicit["incremental_mode"] = (
-            "interval" if entry_point["allow_external_schedulers"] else "pipeline"
-        )
     if entry_point.get("auto_refresh_pipeline_mode"):
         explicit["auto_refresh_pipeline_mode"] = entry_point["auto_refresh_pipeline_mode"]
     config = resolve_configuration(
@@ -126,7 +122,7 @@ def prepare_run_env(entry_point: TRuntimeEntryPoint) -> None:
 
     # subprocess launchers exec the user module, so the join decision only reaches incrementals
     # through the environment
-    if "incremental_mode" in entry_point or "allow_external_schedulers" in entry_point:
+    if "incremental_mode" in entry_point:
         os.environ[known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS] = str(
             resolve_incremental_mode(entry_point) == "interval"
         )

@@ -19,7 +19,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     # exec'd process inherits the env
-    apply_job_configuration(entry_point, None)
+    apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     set_config_env_vars((ws_known_sections.JOBS, section), entry_point.get("config", {}))
     exec_process([sys.executable, "-m", module_name])

@@ -12,7 +12,7 @@ from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
 def run(entry_point: TRuntimeEntryPoint) -> None:
     """Launch the workspace dashboard."""
-    apply_job_configuration(entry_point, None)
+    apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     port = get_run_args_port(entry_point)
     run_dashboard(port=port, host="0.0.0.0", headless=True)

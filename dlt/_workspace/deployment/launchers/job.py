@@ -158,7 +158,7 @@ def run(
     """
     # fill unset job settings from config, then set env vars - both before user module
     # import so pipelines created at import time pick them up
-    apply_job_configuration(entry_point, entry_point.get("function"))
+    apply_job_configuration(entry_point)
     # env is emitted as well so processes the job starts inherit the run settings, the contexts
     # entered below scope the same settings in-process
     prepare_run_env(entry_point)

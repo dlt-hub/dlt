@@ -202,6 +202,7 @@ class TJobRunContext(TypedDict):
 class TRuntimeEntryPoint(TEntryPoint):
     """Entry point enriched with runtime-assigned launch arguments."""
 
+    job_ref: TJobRef
     run_args: NotRequired[TRunArgs]
     interval_start: NotRequired[str]
     """ISO 8601 UTC start of the interval being processed."""
@@ -309,16 +310,10 @@ class TFilesManifest(TypedDict):
 
 
 def resolve_incremental_mode(d: Mapping[str, Any]) -> TIncrementalSource:
-    """Resolves incremental mode from a runtime entry point.
-
-    Entry points are dual-written for launchers of older dlt versions, so `incremental_mode`
-    is preferred and `allow_external_schedulers` is the fallback. Job definitions are engine 2
-    and carry `incremental_mode` only — read that field directly instead.
-    """
+    """Incremental mode of a runtime entry point or job definition, `pipeline` when unset."""
+    # `allow_external_schedulers` is written for launchers of older dlt versions only, never read
     mode: Optional[TIncrementalSource] = d.get("incremental_mode")
-    if mode is not None:
-        return mode
-    return "interval" if d.get("allow_external_schedulers") else "pipeline"
+    return mode or "pipeline"
 
 
 def resolve_refresh_propagation(d: Mapping[str, Any]) -> TRefreshPolicy:

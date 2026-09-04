@@ -67,7 +67,7 @@ def run(entry_point: TRuntimeEntryPoint) -> None:
     module_name = entry_point["module"]
     section = module_name.rsplit(".", 1)[-1]
     sections = (ws_known_sections.JOBS, section)
-    apply_job_configuration(entry_point, None)
+    apply_job_configuration(entry_point)
     prepare_run_env(entry_point)
     set_config_env_vars(sections, entry_point.get("config", {}))
 

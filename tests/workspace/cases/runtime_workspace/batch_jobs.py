@@ -106,6 +106,20 @@ def incremental_interval_job(run_context: TJobRunContext):
 
 
 @job(
+    name="daily",
+    section="clean_sec",
+    interval={"start": "2024-01-15T00:00:00Z"},
+    trigger="0 0 * * *",
+)
+def named_section_job(run_context: TJobRunContext):
+    """Job configured under its own section, `[jobs.clean_sec.daily]`."""
+    from dlt.extract.incremental.context import get_interval_context
+
+    ctx = get_interval_context()
+    return f"allow_ext={ctx.allow_external_schedulers if ctx else None}"
+
+
+@job(
     incremental_mode="interval",
     interval={"start": "2020-01-01T00:00:00Z"},
     trigger="0 0 * * *",
