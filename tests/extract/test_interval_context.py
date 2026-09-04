@@ -38,17 +38,13 @@ from tests.utils import (
     TestDataItemFormat,
     data_to_item_format,
     local_timezone,
+    make_interval,
 )
-
-
-def _utc_iv(start: str, end: str) -> TTimeInterval:
-    """Build a UTC interval from ISO strings."""
-    return TTimeInterval(ensure_pendulum_datetime(start), ensure_pendulum_datetime(end))
 
 
 def test_explicit_context_with_tuple() -> None:
     """Created with (start, end) tuple, .interval returns it."""
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     assert ctx.interval == iv
 
@@ -185,7 +181,7 @@ def test_detect_from_airflow(
 
 def test_injectable_context_and_current() -> None:
     """Injected context accessible via get_interval_context and dlt.current.interval."""
-    iv = _utc_iv("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z")
+    iv = make_interval("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         assert get_interval_context() is ctx
@@ -293,7 +289,7 @@ def test_incremental_with_explicit_context() -> None:
             "state": updated_at.get_state(),
         }
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -317,7 +313,7 @@ def test_join_scheduler_with_pendulum_type() -> None:
     ):
         yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     with Container().injectable_context(TimeIntervalContext(interval=iv)):
         r = my_resource()
         assert len(list(r)) == 1
@@ -356,7 +352,7 @@ def test_decorator_incremental_with_interval_context() -> None:
     ):
         yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -388,7 +384,7 @@ def test_allow_external_schedulers_from_config() -> None:
     env = {
         "UPDATED_AT__ALLOW_EXTERNAL_SCHEDULERS": "true",
     }
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with patch.dict(os.environ, env), Container().injectable_context(ctx):
         r = scheduled_resource()
@@ -634,7 +630,7 @@ def test_scheduler_range_clipping(
         for day in data_items:
             yield {"updated_at": _dt(day)}
 
-    iv = _utc_iv(sched_start + "T00:00:00Z", sched_end + "T00:00:00Z")
+    iv = make_interval(sched_start + "T00:00:00Z", sched_end + "T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -687,7 +683,7 @@ def test_context_allow_external_schedulers_flag(
     ):
         yield {"updated_at": pendulum.datetime(2024, 7, 15, tz="UTC")}
 
-    iv = _utc_iv("2024-07-01T00:00:00Z", "2024-08-01T00:00:00Z")
+    iv = make_interval("2024-07-01T00:00:00Z", "2024-08-01T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv, allow_external_schedulers=ctx_aes)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -716,7 +712,7 @@ def test_str_cursor_raises_join_error() -> None:
     ):
         yield {"updated_at": "2024-01-15"}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -733,7 +729,7 @@ def test_any_cursor_raises_join_error() -> None:
     ):
         yield {"updated_at": "2024-01-15"}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -752,7 +748,7 @@ def test_date_cursor_with_datetime_interval() -> None:
     ):
         yield {"updated_at": date(2024, 1, 15)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -775,7 +771,7 @@ def test_date_cursor_non_midnight_interval() -> None:
     ):
         yield {"updated_at": date(2024, 1, 15)}
 
-    iv = _utc_iv("2024-01-15T06:30:00Z", "2024-01-16T18:45:00Z")
+    iv = make_interval("2024-01-15T06:30:00Z", "2024-01-16T18:45:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -801,7 +797,7 @@ def test_float_cursor_as_timestamp() -> None:
     ):
         yield {"updated_at": mid_ts}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -825,7 +821,7 @@ def test_naive_datetime_cursor_with_tz_aware_scheduler() -> None:
     ):
         yield {"updated_at": datetime(2024, 1, 15, 12)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = no_bounds()
@@ -845,7 +841,7 @@ def test_naive_datetime_cursor_with_tz_aware_scheduler() -> None:
     ):
         yield {"updated_at": datetime(2024, 1, 15, 12)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = with_naive_bounds()
@@ -870,7 +866,7 @@ def test_naive_datetime_cursor_with_tz_aware_scheduler() -> None:
     ):
         yield {"updated_at": datetime(2024, 1, 15, 12)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = with_clipping_naive_bounds()
@@ -897,7 +893,7 @@ def test_int_cursor_as_timestamp() -> None:
     ):
         yield {"updated_at": mid_ts}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -946,8 +942,8 @@ def test_numeric_cursor_from_naive_interval(local_tz: str) -> None:
 
 
 def test_accessor_get_and_set() -> None:
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
-    new_iv = _utc_iv("2023-06-01T00:00:00Z", "2023-12-31T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    new_iv = make_interval("2023-06-01T00:00:00Z", "2023-12-31T00:00:00Z")
     with Container().injectable_context(TimeIntervalContext()):
         # empty context reads as None
         assert _interval_accessor() is None
@@ -974,7 +970,7 @@ def test_accessor_is_empty() -> None:
         _interval_accessor.set(TTimeInterval(now, now))
         assert _interval_accessor.is_empty
         # real interval
-        _interval_accessor.set(_utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z"))
+        _interval_accessor.set(make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z"))
         assert not _interval_accessor.is_empty
 
 
@@ -1000,11 +996,11 @@ def test_accessor_is_empty() -> None:
     ids=["start-only", "end-only", "both"],
 )
 def test_accessor_update(kwargs: Dict[str, str], expected_start: str, expected_end: str) -> None:
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     parsed = {k: ensure_pendulum_datetime(v) for k, v in kwargs.items()}
     with Container().injectable_context(TimeIntervalContext(interval=iv)):
         _interval_accessor.update(**parsed)
-        assert _interval_accessor() == _utc_iv(expected_start, expected_end)
+        assert _interval_accessor() == make_interval(expected_start, expected_end)
 
 
 @pytest.mark.parametrize(
@@ -1037,15 +1033,15 @@ def test_accessor_set_raises_without_context() -> None:
 
 def test_accessor_apply_lag_and_full_days() -> None:
     """`dlt.current.interval` mutators chain and replicate the manual lag-and-widen pattern."""
-    iv = _utc_iv("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")
+    iv = make_interval("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")
     with Container().injectable_context(TimeIntervalContext(interval=iv)):
         assert not _interval_accessor.is_empty
         # mutators return the accessor so calls chain; result reads via the call form
-        assert _interval_accessor.apply_full_days().apply_lag("0 0 * * *", 3)() == _utc_iv(
+        assert _interval_accessor.apply_full_days().apply_lag("0 0 * * *", 3)() == make_interval(
             "2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z"
         )
         # mutators set the active interval
-        assert _interval_accessor() == _utc_iv("2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z")
+        assert _interval_accessor() == make_interval("2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z")
 
 
 def test_accessor_timezone() -> None:

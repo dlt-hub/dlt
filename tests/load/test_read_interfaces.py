@@ -5,11 +5,9 @@ import pytest
 import dlt
 import os
 import sqlglot.expressions as sge
-from copy import copy
 
 from dlt import Pipeline
 from dlt.common import Decimal
-from dlt.common.incremental.typing import IncrementalColumnState
 from dlt.common.pendulum import pendulum
 
 from functools import reduce
@@ -24,6 +22,7 @@ from dlt.extract.incremental import Incremental
 from dlt.extract.source import DltSource
 from dlt.dataset.exceptions import LineageFailedException
 
+from tests.extract.utils import bind_state
 from tests.load.read_dataset_fixtures import (
     destination_config,
     preserve_module_environ_per_destination_config,
@@ -858,16 +857,9 @@ def test_relation_incremental_datetime_on_dataset(populated_pipeline: Pipeline) 
     total_records = _total_records(populated_pipeline.destination.destination_type)
     last_dt = ITEMS_EPOCH + timedelta(seconds=total_records - 1)
 
-    # post-run state matches what `bind()` persisted: start_value snapshot == last_value
-    cached_state: IncrementalColumnState = {
-        "initial_value": ITEMS_EPOCH,
-        "last_value": None,
-        "start_value": last_dt,
-        "unique_hashes": [],
-    }
-
     def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
-        incr._cached_state = copy(cached_state)
+        # post-run state matches what `bind()` persisted: start_value snapshot == last_value
+        bind_state(incr, None, initial_value=ITEMS_EPOCH, start_value=last_dt)
         # set deduplication key on "created_at" to make it unique
         incr.set_deduplication_key("created_at", from_hints=False)
         incr.start_value = instance_start_value if instance_start_value is not None else last_dt
@@ -926,17 +918,11 @@ def test_relation_incremental_date_on_dataset(populated_pipeline: Pipeline) -> N
     total_records = _total_records(populated_pipeline.destination.destination_type)
     epoch_date = ITEMS_EPOCH.date()
     last_date = epoch_date + timedelta(days=total_records - 1)
-
-    cached_state: IncrementalColumnState = {
-        "initial_value": epoch_date.subtract(days=1),
-        "last_value": None,
-        "start_value": last_date.subtract(days=1),
-        "unique_hashes": [],
-    }
+    initial_date = epoch_date.subtract(days=1)
 
     def _bind(incr: Incremental[Any], instance_start_value: Any = None) -> Incremental[Any]:
-        incr._cached_state = copy(cached_state)
-        incr.initial_value = cached_state["initial_value"]
+        bind_state(incr, None, initial_value=initial_date, start_value=last_date.subtract(days=1))
+        incr.initial_value = initial_date
         # this will include the upper boundary but also assumes that days are unique
         incr.range_start = "open"
         incr.range_end = "closed"

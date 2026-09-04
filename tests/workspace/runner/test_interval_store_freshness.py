@@ -19,11 +19,8 @@ from dlt._workspace.deployment.typing import (
 )
 from tests.workspace.runner._runner.interval_store import DuckDBIntervalStore
 
+from tests.utils import make_interval
 from tests.workspace.manifest_utils import make_job
-
-
-def _iv(start: str, end: str) -> TTimeInterval:
-    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
 
 
 def _job(
@@ -169,16 +166,16 @@ def test_check_upstream_freshness(
     for s, e in completed:
         store.mark_interval_completed(
             "jobs.up",
-            TTimeInterval(ensure_datetime_in_tz(s), ensure_datetime_in_tz(e)),
+            make_interval(s, e),
         )
-    ds_overall = _iv("2024-01-01", "2025-06-01")
+    ds_overall = make_interval("2024-01-01", "2025-06-01")
     up = _job(
         "jobs.up",
         ["schedule:0 0 * * *"],
         interval=us_interval_spec,
         default_trigger="schedule:0 0 * * *",
     )
-    fresh, _ = _check_interval_freshness(_iv(*ds_iv), ds_overall, up, store, constraint)
+    fresh, _ = _check_interval_freshness(make_interval(*ds_iv), ds_overall, up, store, constraint)
     assert fresh == expected
     store.close()
 
@@ -188,7 +185,7 @@ def test_all_upstream_must_pass() -> None:
     store = DuckDBIntervalStore()
     store.mark_interval_completed(
         "jobs.a",
-        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02")),
+        make_interval("2024-01-01", "2024-01-02"),
     )
     up_a = _job(
         "jobs.a",
@@ -208,8 +205,8 @@ def test_all_upstream_must_pass() -> None:
         TFreshnessConstraint("job.is_matching_interval_fresh:jobs.b"),
     ]
     fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01", "2024-01-02"),
-        _iv("2024-01-01", "2024-01-31"),
+        make_interval("2024-01-01", "2024-01-02"),
+        make_interval("2024-01-01", "2024-01-31"),
         freshness,
         all_jobs,
         store,
@@ -224,11 +221,11 @@ def test_all_upstream_fresh_when_all_covered() -> None:
     store = DuckDBIntervalStore()
     store.mark_interval_completed(
         "jobs.a",
-        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02")),
+        make_interval("2024-01-01", "2024-01-02"),
     )
     store.mark_interval_completed(
         "jobs.b",
-        TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02")),
+        make_interval("2024-01-01", "2024-01-02"),
     )
     up_a = _job(
         "jobs.a",
@@ -248,8 +245,8 @@ def test_all_upstream_fresh_when_all_covered() -> None:
         TFreshnessConstraint("job.is_matching_interval_fresh:jobs.b"),
     ]
     fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01", "2024-01-02"),
-        _iv("2024-01-01", "2024-01-31"),
+        make_interval("2024-01-01", "2024-01-02"),
+        make_interval("2024-01-01", "2024-01-31"),
         freshness,
         all_jobs,
         store,
@@ -268,10 +265,10 @@ def test_freshness_with_misaligned_cron_schedules() -> None:
         interval={"start": "2024-01-01T11:40:00Z", "end": "2024-01-01T12:00:00Z"},
         default_trigger="schedule:*/3 * * * *",
     )
-    ds_overall = _iv("2024-01-01T11:40:00Z", "2024-01-01T12:00:00Z")
+    ds_overall = make_interval("2024-01-01T11:40:00Z", "2024-01-01T12:00:00Z")
 
     fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
+        make_interval("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
         ds_overall,
         up,
         store,
@@ -286,7 +283,7 @@ def test_freshness_with_misaligned_cron_schedules() -> None:
         ),
     )
     fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
+        make_interval("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
         ds_overall,
         up,
         store,
@@ -294,7 +291,7 @@ def test_freshness_with_misaligned_cron_schedules() -> None:
     assert fresh
 
     fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:42:00Z", "2024-01-01T11:43:00Z"),
+        make_interval("2024-01-01T11:42:00Z", "2024-01-01T11:43:00Z"),
         ds_overall,
         up,
         store,
@@ -309,7 +306,7 @@ def test_freshness_with_misaligned_cron_schedules() -> None:
         ),
     )
     fresh, _ = _check_interval_freshness(
-        _iv("2024-01-01T11:42:00Z", "2024-01-01T11:43:00Z"),
+        make_interval("2024-01-01T11:42:00Z", "2024-01-01T11:43:00Z"),
         ds_overall,
         up,
         store,
@@ -330,10 +327,10 @@ def test_freshness_via_resolve_and_check_with_misaligned_cron() -> None:
     )
     all_jobs: Dict[str, TJobDefinition] = {"jobs.up": up}
     freshness = [TFreshnessConstraint("job.is_matching_interval_fresh:jobs.up")]
-    ds_overall = _iv("2024-01-01T11:40:00Z", "2024-01-01T12:00:00Z")
+    ds_overall = make_interval("2024-01-01T11:40:00Z", "2024-01-01T12:00:00Z")
 
     fresh, _ = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
+        make_interval("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
         ds_overall,
         freshness,
         all_jobs,
@@ -349,7 +346,7 @@ def test_freshness_via_resolve_and_check_with_misaligned_cron() -> None:
         ),
     )
     fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
+        make_interval("2024-01-01T11:40:00Z", "2024-01-01T11:41:00Z"),
         ds_overall,
         freshness,
         all_jobs,
@@ -378,8 +375,8 @@ def test_interval_fresh_rejects_invalid_upstream(
     all_jobs: Dict[str, TJobDefinition] = {"jobs.up": up}
     freshness = [TFreshnessConstraint("job.is_fresh:jobs.up")]
     fresh, reasons = _resolve_and_check_interval_freshness(
-        _iv("2024-01-01", "2024-01-02"),
-        _iv("2024-01-01", "2024-01-31"),
+        make_interval("2024-01-01", "2024-01-02"),
+        make_interval("2024-01-01", "2024-01-31"),
         freshness,
         all_jobs,
         store,

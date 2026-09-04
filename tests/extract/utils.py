@@ -1,4 +1,4 @@
-from typing import Any, Optional, List
+from typing import Any, Optional, List, Sequence
 from itertools import zip_longest
 
 from dlt.common.storages import PackageStorage, ParsedLoadJobFileName
@@ -6,9 +6,35 @@ from dlt.common.typing import TDataItem, TDataItems
 
 from dlt.extract.extract import ExtractStorage
 from dlt.extract.extractors import Extractor
+from dlt.extract.incremental import Incremental
 from dlt.extract.items_transform import BaseItemTransform, ItemTransform
 
 from tests.utils import TestDataItemFormat
+
+
+def bind_state(
+    incr: Incremental[Any],
+    last_value: Any,
+    *,
+    initial_value: Any = None,
+    start_value: Any = None,
+    unique_hashes: Sequence[str] = (),
+) -> Incremental[Any]:
+    """Loads fake persisted state into `incr` as `bind()` would, so it filters without a pipe."""
+    if initial_value is None:
+        initial_value = last_value
+    if start_value is None:
+        start_value = last_value
+    incr._cached_state = {
+        "initial_value": initial_value,
+        "last_value": last_value,
+        "start_value": start_value,
+        "unique_hashes": list(unique_hashes),
+    }
+    incr._cached_state_start_value = last_value
+    # the resolved range start applies lag, exactly as bind() does
+    incr.start_value = incr.last_value
+    return incr
 
 
 def assert_written_tables_are_computed(extractor: Extractor) -> None:

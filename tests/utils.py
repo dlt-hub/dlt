@@ -43,7 +43,8 @@ from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.metrics import DataWriterMetrics
-from dlt.common.typing import StrAny, TDataItem, PathLike
+from dlt.common.time import ensure_datetime_in_tz
+from dlt.common.typing import StrAny, TDataItem, PathLike, TTimeInterval
 from dlt.common.utils import set_working_dir
 
 
@@ -58,6 +59,11 @@ LOCAL_TIMEZONES = [
     "Asia/Kolkata",
 ]
 """Local timezones to parametrize over so that no result depends on the machine setting."""
+
+
+def make_interval(start: str, end: str) -> TTimeInterval:
+    """Builds a tz-aware `[start, end)` interval from two ISO strings."""
+    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
 
 
 @contextlib.contextmanager

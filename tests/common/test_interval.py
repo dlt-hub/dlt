@@ -9,9 +9,7 @@ from dlt.common.interval import full_days_interval, lag_cron, lag_interval
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
-
-def _iv(start: str, end: str) -> TTimeInterval:
-    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
+from tests.utils import make_interval
 
 
 @pytest.mark.parametrize(
@@ -67,24 +65,28 @@ def test_lag_cron_preserves_timezone() -> None:
 
 
 def test_lag_interval() -> None:
-    iv = _iv("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")
+    iv = make_interval("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")
 
     # bare cron lags the start, end untouched
-    assert lag_interval(iv, "0 0 * * *", 3) == _iv("2024-01-10T00:00:00Z", "2024-01-15T14:00:00Z")
+    assert lag_interval(iv, "0 0 * * *", 3) == make_interval(
+        "2024-01-10T00:00:00Z", "2024-01-15T14:00:00Z"
+    )
     # schedule: trigger form, count 0 floors the start
-    assert lag_interval(iv, "schedule:0 0 * * *", 0) == _iv(
+    assert lag_interval(iv, "schedule:0 0 * * *", 0) == make_interval(
         "2024-01-13T00:00:00Z", "2024-01-15T14:00:00Z"
     )
     # lag_end drops the incomplete trailing day
-    assert lag_interval(iv, "0 0 * * *", 0, lag_end=True) == _iv(
+    assert lag_interval(iv, "0 0 * * *", 0, lag_end=True) == make_interval(
         "2024-01-13T07:00:00Z", "2024-01-15T00:00:00Z"
     )
     # negative count moves the bound into the future
-    assert lag_interval(iv, "0 0 * * *", -1, lag_end=True) == _iv(
+    assert lag_interval(iv, "0 0 * * *", -1, lag_end=True) == make_interval(
         "2024-01-13T07:00:00Z", "2024-01-16T00:00:00Z"
     )
     # every: trigger shifts by period, count 0 is a no-op
-    assert lag_interval(iv, "every:1h", 2) == _iv("2024-01-13T05:00:00Z", "2024-01-15T14:00:00Z")
+    assert lag_interval(iv, "every:1h", 2) == make_interval(
+        "2024-01-13T05:00:00Z", "2024-01-15T14:00:00Z"
+    )
     assert lag_interval(iv, "every:1h", 0) == iv
 
     # lagging the end below the start raises
@@ -97,17 +99,17 @@ def test_lag_interval() -> None:
 
 def test_full_days_interval() -> None:
     # mid-day bounds widened to cover both days fully
-    assert full_days_interval(_iv("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")) == _iv(
-        "2024-01-13T00:00:00Z", "2024-01-16T00:00:00Z"
-    )
+    assert full_days_interval(
+        make_interval("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")
+    ) == make_interval("2024-01-13T00:00:00Z", "2024-01-16T00:00:00Z")
     # an interval already covering whole days is returned unchanged, so widening is idempotent
-    aligned = _iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    aligned = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     assert full_days_interval(aligned) == aligned
     assert full_days_interval(full_days_interval(aligned)) == aligned
     # a sub-second past midnight still rounds up to the next one
-    assert full_days_interval(_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00.000001Z")) == _iv(
-        "2024-01-15T00:00:00Z", "2024-01-17T00:00:00Z"
-    )
+    assert full_days_interval(
+        make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00.000001Z")
+    ) == make_interval("2024-01-15T00:00:00Z", "2024-01-17T00:00:00Z")
     # bounds floor on the wall clock of their own timezone
     berlin = ZoneInfo("Europe/Berlin")
     widened = full_days_interval(

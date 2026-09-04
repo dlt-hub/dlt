@@ -53,7 +53,7 @@ from dlt.extract.utils import (
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.sources.helpers.transform import take_first
 
-from tests.extract.utils import data_item_to_list
+from tests.extract.utils import bind_state, data_item_to_list
 from tests.pipeline.utils import assert_query_column, load_table_counts
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
@@ -3077,15 +3077,7 @@ def test_advance_workflow() -> None:
     assert incr.get_current_range() == (0, 10)
 
     # bound: baseline __call__ filters rows below start and writes last_value back
-    incr = dlt.sources.incremental[int]("v", initial_value=10)
-    incr._cached_state = {
-        "initial_value": 10,
-        "last_value": 10,
-        "start_value": 10,
-        "unique_hashes": [],
-    }
-    incr._cached_state_start_value = 10
-    incr.start_value = 10
+    incr = bind_state(dlt.sources.incremental[int]("v", initial_value=10), 10)
     rows = [{"v": 5}, {"v": 15}, {"v": 25}]
     assert incr(list(rows)) == [{"v": 15}, {"v": 25}]
     assert incr._cached_state["last_value"] == 25
@@ -3143,13 +3135,9 @@ def test_cursor_value_hash_on_non_unique_cursor() -> None:
 
 def test_unique_boundary_consumed() -> None:
     """A unique cursor marks the boundary row loaded by storing its hash, in either format."""
-    incr = dlt.sources.incremental[int]("id", primary_key="id")
-    incr._cached_state = {
-        "initial_value": 0,
-        "last_value": 10,
-        "start_value": 0,
-        "unique_hashes": [],
-    }
+    incr = bind_state(
+        dlt.sources.incremental[int]("id", primary_key="id"), 10, initial_value=0, start_value=0
+    )
     assert incr.is_unique_cursor()
     # no marker yet: the boundary row has not been loaded
     assert incr.unique_boundary_consumed() is False
@@ -3172,14 +3160,14 @@ def test_unique_boundary_consumed() -> None:
 def test_copy_with_transient_state() -> None:
     """copy() carries config only; copy(with_transient_state=True) also snapshots bound state
     (cached state, resolved start_value, advanced last value) but never the bound pipe."""
-    incr = dlt.sources.incremental[int]("v", initial_value=10)
-    incr._cached_state = {
-        "initial_value": 10,
-        "last_value": 25,
-        "start_value": 10,
-        "unique_hashes": ["h"],
-    }
-    incr.start_value = 23  # resolved at bind() from last_value (incl. lag)
+    incr = bind_state(
+        dlt.sources.incremental[int]("v", initial_value=10),
+        25,
+        initial_value=10,
+        start_value=10,
+        unique_hashes=["h"],
+    )
+    incr.start_value = 23  # as if lag had stepped the resolved start back from last_value
     incr._current_last_value = 25
     incr._bound_pipe = object()  # type: ignore[assignment] # pretend bound to a pipe
 
@@ -3208,16 +3196,13 @@ def test_with_cursor_date_state_filters_datetime_field(item_type: TestDataItemFo
     """A date cursor state re-pointed onto a datetime field via `with_cursor` (no lag) raises
     `IncrementalCursorInvalidCoercion` in the row/batch (json/arrow) model: cursor and data types
     must match. The SQL model path coerces date to timestamp instead; this path does not."""
-    outer = dlt.sources.incremental[Any]("day", initial_value=date(2026, 1, 1))
     # bind a date-typed state directly, as a prior run on the `day` column would produce
-    outer._cached_state = {
-        "initial_value": date(2026, 1, 1),
-        "last_value": date(2026, 1, 10),
-        "start_value": date(2026, 1, 1),
-        "unique_hashes": [],
-    }
-    outer._cached_state_start_value = date(2026, 1, 1)
-    outer.start_value = date(2026, 1, 10)
+    outer = bind_state(
+        dlt.sources.incremental[Any]("day", initial_value=date(2026, 1, 1)),
+        date(2026, 1, 10),
+        initial_value=date(2026, 1, 1),
+        start_value=date(2026, 1, 1),
+    )
 
     # re-point at a datetime input field, no lag
     inner = outer.with_cursor("created_at")
@@ -4784,13 +4769,7 @@ def test_start_range_open_no_deduplication(item_type: TestDataItemFormat) -> Non
 
 
 def test_primary_key_disables_deduplication() -> None:
-    incremental = dlt.sources.incremental[int]("updated_at")
-    incremental._cached_state = {
-        "unique_hashes": [],
-        "initial_value": None,
-        "last_value": None,
-        "start_value": None,
-    }
+    incremental = bind_state(dlt.sources.incremental[int]("updated_at"), None)
     assert incremental._get_transform({}).boundary_deduplication is True
     incremental.set_deduplication_key((), False)
     assert incremental._get_transform({}).boundary_deduplication is False

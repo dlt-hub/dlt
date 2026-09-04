@@ -35,11 +35,8 @@ from dlt._workspace.deployment.typing import (
     TJobType,
 )
 
+from tests.utils import make_interval
 from tests.workspace.manifest_utils import make_job
-
-
-def _iv(start: str, end: str) -> TTimeInterval:
-    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
 
 
 def _job(
@@ -389,7 +386,7 @@ def test_iter_intervals(
     first_start: Optional[str],
     first_end: Optional[str],
 ) -> None:
-    iv = _iv(*overall)
+    iv = make_interval(*overall)
     intervals = list(iter_intervals(cron, iv))
     assert len(intervals) == expected_count
     if first_start is not None:
@@ -401,7 +398,7 @@ def test_iter_intervals(
 
 def test_monthly_variable_length_intervals() -> None:
     """Monthly cron produces intervals of variable length (28-31 days)."""
-    overall = _iv("2024-01-01", "2024-05-01")
+    overall = make_interval("2024-01-01", "2024-05-01")
     intervals = list(iter_intervals("0 0 1 * *", overall))
     lengths = [(iv[1] - iv[0]).days for iv in intervals]
     assert lengths == [31, 29, 31, 30]
@@ -409,7 +406,7 @@ def test_monthly_variable_length_intervals() -> None:
 
 def test_weekly_cron() -> None:
     """Weekly cron (every Monday at midnight)."""
-    overall = _iv("2024-01-01", "2024-01-29")
+    overall = make_interval("2024-01-01", "2024-01-29")
     intervals = list(iter_intervals("0 0 * * 1", overall))
     assert len(intervals) == 4
     for iv in intervals:
@@ -417,7 +414,7 @@ def test_weekly_cron() -> None:
 
 
 def test_iter_intervals_is_lazy() -> None:
-    overall = _iv("2024-01-01", "2024-12-31")
+    overall = make_interval("2024-01-01", "2024-12-31")
     gen = iter_intervals("0 0 * * *", overall)
     first = next(gen)
     assert first == (
@@ -444,20 +441,20 @@ def test_eligible_intervals_skips_completed() -> None:
             ),
         ]
     )
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     eligible = get_eligible_intervals("0 0 * * *", overall, completed)
     assert len(eligible) == 2
     assert eligible[0][0] == ensure_datetime_in_tz("2024-01-03")
 
 
 def test_eligible_intervals_all_when_none_completed() -> None:
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     eligible = get_eligible_intervals("0 0 * * *", overall, [])
     assert len(eligible) == 4
 
 
 def test_eligible_intervals_ordered() -> None:
-    overall = _iv("2024-01-01", "2024-01-04")
+    overall = make_interval("2024-01-01", "2024-01-04")
     eligible = get_eligible_intervals("0 0 * * *", overall, [])
     starts = [iv[0] for iv in eligible]
     assert starts == sorted(starts)
@@ -467,7 +464,7 @@ def test_next_eligible_interval_returns_first_incomplete() -> None:
     completed = [
         TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-02"))
     ]
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
     assert iv[0] == ensure_datetime_in_tz("2024-01-02")
@@ -477,7 +474,7 @@ def test_next_eligible_interval_none_when_all_done() -> None:
     completed = [
         TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-01-03"))
     ]
-    overall = _iv("2024-01-01", "2024-01-03")
+    overall = make_interval("2024-01-01", "2024-01-03")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is None
 
@@ -487,7 +484,7 @@ def test_next_eligible_skips_leading_completed() -> None:
     completed = [
         TTimeInterval(ensure_datetime_in_tz("2024-01-01"), ensure_datetime_in_tz("2024-04-10"))
     ]
-    overall = _iv("2024-01-01", "2024-06-01")
+    overall = make_interval("2024-01-01", "2024-06-01")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
     assert iv[0] == ensure_datetime_in_tz("2024-04-10")
@@ -507,7 +504,7 @@ def test_next_eligible_with_gap_in_middle() -> None:
             ),
         ]
     )
-    overall = _iv("2024-01-01", "2024-01-05")
+    overall = make_interval("2024-01-01", "2024-01-05")
     iv = next_eligible_interval("0 0 * * *", overall, completed)
     assert iv is not None
     assert iv == (
@@ -563,7 +560,7 @@ def test_iter_intervals_respects_tz_across_dst(
     Uses exact match on starts (not just `in`) so phantom DST duplicates or drifted
     ticks fail the test rather than being silently tolerated.
     """
-    overall = _iv(overall_start, overall_end)
+    overall = make_interval(overall_start, overall_end)
     intervals = list(iter_intervals(cron, overall, tz=tz))
     for iv in intervals:
         assert iv[0].tzinfo == timezone.utc
@@ -605,7 +602,7 @@ def test_next_eligible_interval_tz_returns_utc(
     expected_end: str,
 ) -> None:
     """next_eligible_interval with a non-UTC tz returns UTC intervals."""
-    overall = _iv(overall_start, overall_end)
+    overall = make_interval(overall_start, overall_end)
     iv = next_eligible_interval(cron, overall, [], tz=tz)
     assert iv is not None
     assert iv[0].tzinfo == timezone.utc

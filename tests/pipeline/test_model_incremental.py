@@ -9,6 +9,8 @@ import dlt
 from dlt.extract.incremental import Incremental
 from dlt.extract.incremental.transform import ModelIncremental
 
+from tests.extract.utils import bind_state
+
 
 EVENTS_LOAD_0 = [
     {"id": 1, "value": 1.0},
@@ -71,15 +73,14 @@ def _model_transformer(
         range_start=range_start,
         range_end=range_end,
     )
-    parent._cached_state = {
-        "initial_value": initial_value,
-        "last_value": start_value,
-        "start_value": start_value,
-        # the dedup marker for the row at last_value, as written by an eager unique
-        # cursor advance or by the row transform loading the boundary row
-        "unique_hashes": [parent.cursor_value_hash(start_value)] if boundary_consumed else [],
-    }
-    parent.start_value = start_value
+    # the dedup marker for the row at last_value, as an eager unique cursor advance writes it
+    bind_state(
+        parent,
+        start_value,
+        initial_value=initial_value,
+        start_value=start_value,
+        unique_hashes=[parent.cursor_value_hash(start_value)] if boundary_consumed else (),
+    )
     transformer = ModelIncremental(
         resource_name="test",
         cursor_path=cursor_path,
@@ -130,15 +131,9 @@ def _capture_stateful_relation(
 
 def test_dispatches_modelincremental_for_relation(incremental_pipeline: dlt.Pipeline) -> None:
     dataset = incremental_pipeline.dataset()
-    incremental: dlt.sources.incremental[int] = dlt.sources.incremental(
-        "id", initial_value=0, end_value=10**12
+    incremental: dlt.sources.incremental[int] = bind_state(
+        dlt.sources.incremental("id", initial_value=0, end_value=10**12), 0
     )
-    incremental._cached_state = {
-        "unique_hashes": [],
-        "initial_value": 0,
-        "last_value": 0,
-        "start_value": 0,
-    }
     relation = dataset.table("events")
     incremental_transform = incremental._get_transform(relation)
     assert isinstance(incremental_transform, ModelIncremental)
@@ -327,15 +322,9 @@ def test_user_advance_skips_incremental_filter(incremental_pipeline: dlt.Pipelin
     # user pre-advances → parent __call__ short-circuits, ModelIncremental never fires,
     # and the relation passes through unchanged on every subsequent yield
     dataset = incremental_pipeline.dataset()
-    incremental: dlt.sources.incremental[int] = dlt.sources.incremental("id", initial_value=0)
-    incremental._cached_state = {
-        "initial_value": 0,
-        "last_value": 0,
-        "start_value": 0,
-        "unique_hashes": [],
-    }
-    incremental._cached_state_start_value = 0
-    incremental.start_value = 0
+    incremental: dlt.sources.incremental[int] = bind_state(
+        dlt.sources.incremental("id", initial_value=0), 0
+    )
 
     relation = dataset.table("events")
     incremental.advance(2)
