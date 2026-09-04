@@ -11,6 +11,7 @@ from zoneinfo import ZoneInfo
 
 import duckdb
 import pyarrow as pa
+import pytz
 import pytest
 
 import dlt
@@ -42,6 +43,7 @@ from dlt.extract.incremental.exceptions import (
     IncrementalPrimaryKeyMissing,
 )
 from dlt.extract.incremental.lag import apply_lag
+from dlt.extract.incremental.transform import ArrowIncremental
 from dlt.extract.items_transform import ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.extract.utils import (
@@ -3122,10 +3124,40 @@ def test_cursor_value_hash_pins_a_utc_instant(primary_key: Any) -> None:
     assert not has_legacy_dedup_hashes([expected])
 
 
+@pytest.mark.parametrize("primary_key", ["ts", ("ts",)], ids=["pk-str", "pk-sequence"])
+@pytest.mark.parametrize(
+    "value",
+    [
+        datetime(2024, 1, 15, 23, 30),
+        datetime(2024, 1, 16, 0, 30, tzinfo=ZoneInfo("Europe/Berlin")),
+        pytz.UTC.localize(datetime(2024, 1, 15, 23, 30)),
+        pendulum.DateTime(2024, 1, 15, 23, 30, tzinfo=pendulum.UTC),
+    ],
+    ids=["naive", "berlin", "pytz-utc", "pendulum"],
+)
+def test_row_and_cursor_hashes_agree(primary_key: Any, value: datetime) -> None:
+    """The row transforms hash the datetime as it arrives, `cursor_value_hash` the value kept in
+    state, possibly in another zone. Both must mark the same boundary row."""
+    incr = bind_state(dlt.sources.incremental[Any]("ts", primary_key=primary_key), value)
+    row = {"ts": value}
+    json_hash = incr._get_transform([row]).compute_unique_value(row, primary_key)
+    arrow_transform = incr._get_transform(pa.Table.from_pylist([row]))
+    assert isinstance(arrow_transform, ArrowIncremental)
+    (arrow_hash,) = arrow_transform.compute_unique_values(pa.Table.from_pylist([row]), ["ts"])
+    assert json_hash == arrow_hash == incr.cursor_value_hash(value)
+
+    # an aggregate returns the instant in the machine zone, the marker must still be recognized
+    incr._cached_state["unique_hashes"] = [json_hash]
+    incr._cached_state["last_value"] = datetime(
+        2024, 1, 15, 23, 30, tzinfo=timezone.utc
+    ).astimezone(ZoneInfo("Asia/Kolkata"))
+    assert incr.unique_boundary_consumed() is True
+
+
 def test_cursor_value_hash_on_non_unique_cursor() -> None:
     """Without a unique cursor there is no row shape to mirror, so the plain value is hashed."""
     value = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
-    expected = digest_dedup_value(value.isoformat())
+    expected = digest_dedup_value(value)
     assert dlt.sources.incremental[Any]("ts").cursor_value_hash(value) == expected
     assert dlt.sources.incremental[Any]("ts", primary_key=()).cursor_value_hash(value) == expected
     jsonpath = dlt.sources.incremental[Any]("data.ts", primary_key="data.ts")

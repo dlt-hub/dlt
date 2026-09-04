@@ -1,12 +1,15 @@
 import io
 import os
-from datetime import datetime, timedelta, timezone  # noqa: I251
+from datetime import date, datetime, time, timedelta, timezone  # noqa: I251
 from typing import Any, List, NamedTuple
 from dataclasses import dataclass
+from zoneinfo import ZoneInfo
 import pytest
+import pytz
 from copy import deepcopy
 
 from dlt.common import json, Decimal, pendulum
+from dlt.common.time import datetime_to_timestamp_us
 from dlt.common.arithmetics import numeric_default_context
 from dlt.common import known_env
 from dlt.common.json import (
@@ -255,6 +258,39 @@ def test_json_dumps_utc_z(json_impl: SupportsJson) -> None:
         else '"2024-01-15T23:30:00+00:00"'
     )
     assert json_impl.dumps(value, utc_z=True) == legacy
+
+
+@pytest.mark.parametrize("json_impl", _JSON_IMPL)
+@pytest.mark.parametrize(
+    "value",
+    [
+        datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc),
+        datetime(2024, 1, 16, 0, 30, tzinfo=ZoneInfo("Europe/Berlin")),
+        datetime(2024, 1, 15, 23, 30),
+        pendulum.DateTime(2024, 1, 15, 23, 30, tzinfo=pendulum.UTC),
+        pytz.UTC.localize(datetime(2024, 1, 15, 23, 30)),
+    ],
+    ids=["utc", "berlin", "naive", "pendulum", "pytz"],
+)
+def test_json_dumps_datetime_encoder(json_impl: SupportsJson, value: datetime) -> None:
+    """`datetime_encoder` replaces `isoformat` for every datetime, nested ones included, and
+    leaves dates, times and other custom types as they render without it."""
+    doc = {
+        "dt": value,
+        "nested": [value, {"dt": value}],
+        "d": date(2024, 1, 15),
+        "t": time(23, 30, 15, 123456),
+        "dec": Decimal("1.25"),
+    }
+    encoded = json_impl.dumps(doc, sort_keys=True, datetime_encoder=datetime_to_timestamp_us)
+    assert (
+        encoded
+        == '{"d":"2024-01-15","dec":"1.25","dt":1705361400000000,"nested":[1705361400000000,{"dt":1705361400000000}],"t":"23:30:15.123456"}'
+    )
+    # the other values render exactly as they do without the encoder
+    plain = json_impl.loads(json_impl.dumps(doc, sort_keys=True))
+    del plain["dt"], plain["nested"]
+    assert plain == {"d": "2024-01-15", "dec": "1.25", "t": "23:30:15.123456"}
 
 
 # @pytest.mark.parametrize("json_impl", _JSON_IMPL)

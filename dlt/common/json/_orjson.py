@@ -1,11 +1,13 @@
-from typing import IO, Any, Union
+from typing import IO, Any, Optional, Union
 import orjson  # noqa: I251
 
 from dlt.common.json import (
     custom_pua_encode,
     custom_pua_decode_nested,
     custom_encode,
+    custom_encode_datetimes,
     set_custom_encoder_impl,
+    DatetimeEncoder,
     TPuaDecoders,
     DECODERS,
 )
@@ -51,8 +53,20 @@ def typed_loadb(s: Union[bytes, bytearray, memoryview], decoders: TPuaDecoders =
     return custom_pua_decode_nested(loadb(s), decoders)
 
 
-def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False, utc_z: bool = False) -> str:
-    return _dumps(obj, sort_keys, pretty, options=orjson.OPT_UTC_Z if utc_z else 0).decode("utf-8")
+def dumps(
+    obj: Any,
+    sort_keys: bool = False,
+    pretty: bool = False,
+    utc_z: bool = False,
+    datetime_encoder: Optional[DatetimeEncoder] = None,
+) -> str:
+    options = orjson.OPT_UTC_Z if utc_z else 0
+    default = custom_encode
+    if datetime_encoder:
+        # orjson renders datetimes, dates and times itself unless they pass through to `default`
+        options |= orjson.OPT_PASSTHROUGH_DATETIME
+        default = custom_encode_datetimes(datetime_encoder)
+    return _dumps(obj, sort_keys, pretty, default, options).decode("utf-8")
 
 
 def dumpb(obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes:

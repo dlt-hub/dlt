@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import pathlib
+from datetime import datetime  # noqa: I251
 from typing import Any, Iterator, Literal
 
 import pytest
@@ -30,6 +31,7 @@ def module_tmp_path(tmp_path_factory: pytest.TempPathFactory) -> pathlib.Path:
 
 @pytest.fixture(scope="module")
 def incremental_pipeline(module_tmp_path: pathlib.Path) -> dlt.Pipeline:
+    # a module-scoped pipeline outlives the per-test storage cleanup, so it needs its own dir
     pipeline = dlt.pipeline(
         pipeline_name="model_incremental",
         pipelines_dir=str(module_tmp_path / "pipelines_dir"),
@@ -249,7 +251,6 @@ def test_unique_cursor_takes_boundary_eagerly(
     ],
 )
 def test_multi_run_windows_tile_e2e(
-    tmp_path: pathlib.Path,
     incremental_kwargs: dict[str, Any],
     batches: list[list[tuple[int, int]]],
     expected_per_run: list[list[int]],
@@ -257,12 +258,7 @@ def test_multi_run_windows_tile_e2e(
 ) -> None:
     """Across pipeline runs the stateful windows tile the cursor axis: every row loads
     exactly once with append and state advances through real pipeline state."""
-    pipeline = dlt.pipeline(
-        pipeline_name="multi_run_e2e",
-        pipelines_dir=str(tmp_path / "pipelines_dir"),
-        destination=dlt.destinations.duckdb(str(tmp_path / "multi_run.db")),
-        dev_mode=True,
-    )
+    pipeline = dlt.pipeline(pipeline_name="multi_run_e2e", destination="duckdb", dev_mode=True)
 
     @dlt.resource(name="events", primary_key="id", write_disposition="append")
     def raw_events(rows: list[tuple[int, int]]) -> Iterator[Any]:
@@ -292,6 +288,44 @@ def test_multi_run_windows_tile_e2e(
             "downstream"
         ]["incremental"]["ts"]
         assert cursor_state["last_value"] == expected_last_value
+
+
+def test_unique_boundary_marked_by_rows_is_seen_by_sql_path() -> None:
+    """A unique cursor on naive timestamps loaded through the row path leaves a boundary marker
+    that a stateful `Relation.incremental()` recognizes: the SQL range starts open, so the
+    boundary row is not read again and the aggregate finds nothing new."""
+    pipeline = dlt.pipeline(pipeline_name="cross_path", destination="duckdb", dev_mode=True)
+    rows = [
+        {"id": 1, "ts": datetime(2024, 1, 15, 23, 30)},
+        {"id": 2, "ts": datetime(2024, 1, 16, 23, 30)},
+    ]
+    initial_value = datetime(2024, 1, 1)
+    captured: dict[str, Any] = {}
+
+    @dlt.resource(name="events", write_disposition="append")
+    def events(
+        mode: str,
+        cursor: dlt.sources.incremental[datetime] = dlt.sources.incremental(
+            "ts", primary_key="ts", initial_value=initial_value
+        ),
+    ) -> Iterator[Any]:
+        if mode == "rows":
+            yield rows
+        else:
+            # this works only because hash digests for sql and dict incrementals
+            # are compatible
+            captured["consumed"] = cursor.unique_boundary_consumed()
+            relation = pipeline.dataset().table("events").incremental(cursor)
+            captured["where"] = relation.to_sql().split("WHERE", 1)[1]
+            captured["rows"] = relation.fetchall()
+            yield from []
+
+    pipeline.run(events("rows"))
+    pipeline.run(events("relation"))
+    assert captured["consumed"] is True
+    assert ">=" not in captured["where"]
+    assert ">" in captured["where"]
+    assert captured["rows"] == []
 
 
 def test_auto_applies_on_bare_relation(incremental_pipeline: dlt.Pipeline) -> None:

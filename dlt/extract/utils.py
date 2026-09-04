@@ -19,6 +19,7 @@ from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
 from dlt.common.json import json
+from dlt.common.time import datetime_to_timestamp_us
 from dlt.common.libs import (
     get_pandas_module,
     get_polars_module,
@@ -105,7 +106,11 @@ def digest_dedup_value(value: Any, legacy: bool = False) -> str:
     """
     if legacy:
         return digest128(json.dumps(value, sort_keys=True, utc_z=True))
-    return digest128(json.dumps(value, sort_keys=True), DEDUP_HASH_BYTES)
+    # rows and SQL aggregates carry one instant in different zones or naive, all must hash alike
+    return digest128(
+        json.dumps(value, sort_keys=True, datetime_encoder=datetime_to_timestamp_us),
+        DEDUP_HASH_BYTES,
+    )
 
 
 def has_legacy_dedup_hashes(hashes: Iterable[str]) -> bool:

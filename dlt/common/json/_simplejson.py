@@ -1,5 +1,5 @@
 import codecs
-from typing import IO, Any, Union
+from typing import IO, Any, Optional, Union
 
 import simplejson  # noqa: I251
 import platform
@@ -8,7 +8,9 @@ from dlt.common.json import (
     custom_pua_encode,
     custom_pua_decode_nested,
     custom_encode,
+    custom_encode_datetimes,
     set_custom_encoder_impl,
+    DatetimeEncoder,
     TPuaDecoders,
     DECODERS,
 )
@@ -86,7 +88,13 @@ def typed_loadb(s: Union[bytes, bytearray, memoryview], decoders: TPuaDecoders =
     return custom_pua_decode_nested(loadb(s), decoders)
 
 
-def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False, utc_z: bool = False) -> str:
+def dumps(
+    obj: Any,
+    sort_keys: bool = False,
+    pretty: bool = False,
+    utc_z: bool = False,
+    datetime_encoder: Optional[DatetimeEncoder] = None,
+) -> str:
     # `utc_z` has no effect: `isoformat` writes `+00:00`, which is what this backend always did
     if pretty:
         indent = 2
@@ -95,7 +103,7 @@ def dumps(obj: Any, sort_keys: bool = False, pretty: bool = False, utc_z: bool =
     return simplejson.dumps(
         obj,
         use_decimal=False,
-        default=custom_encode,
+        default=custom_encode_datetimes(datetime_encoder) if datetime_encoder else custom_encode,
         encoding=None,
         ensure_ascii=False,
         separators=(",", ":"),

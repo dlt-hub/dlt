@@ -1,5 +1,7 @@
+import datetime  # noqa: I251
 from typing import Dict, List, Any, Type
 import pytest
+import pytz
 from pydantic import BaseModel
 
 from dlt.common.schema.typing import TColumnSchema
@@ -12,13 +14,14 @@ from dlt.extract.utils import digest_dedup_value, resolve_column_value
 from dlt.extract.decorators import resource
 
 from tests.cases import TABLE_UPDATE
-from tests.common.normalizers.test_row_hash import ALL_TYPES, JSON_IMPLS, KEY_SUBSET
+from tests.common.normalizers.test_row_hash import ALL_TYPES, BERLIN, JSON_IMPLS, KEY_SUBSET
 
-# the dedup hash runs over raw values through untyped `json.dumps`, so a change in a backend's
-# rendering or in the digest length moves these and replays rows on the cursor boundary
-EXPECTED_DEDUP_HASH = "eONA4BD7501U"
+# the dedup hash runs over raw values through untyped `json.dumps`, datetimes as epoch microseconds,
+# so a change in a backend's rendering or in the digest length moves these and replays rows on the
+# cursor boundary
+EXPECTED_DEDUP_HASH = "r74ru5MyM+cp"
 EXPECTED_KEY_DEDUP_HASH = "YE7Zd+POmhwr"
-EXPECTED_COMPOUND_KEY_DEDUP_HASH = "cRKc7ZQZ6R8X"
+EXPECTED_COMPOUND_KEY_DEDUP_HASH = "sRhsRYvbPQC3"
 # produced by dlt 1.25.0 as `digest128(json.dumps(value, sort_keys=True))` on each backend, only
 # orjson rendered UTC with `Z`
 EXPECTED_LEGACY_DEDUP_HASH = {
@@ -144,3 +147,20 @@ def test_stdlib_and_pendulum_dedup_hash_alike(
     assert digest_dedup_value(ALL_TYPES[stdlib_key]) == digest_dedup_value(
         ALL_TYPES[pendulum_key]
     ), json_impl
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        ALL_TYPES["ts_utc_pendulum"],
+        datetime.datetime(2024, 1, 16, 0, 30, tzinfo=BERLIN),
+        datetime.datetime(2024, 1, 15, 23, 30),
+        pytz.UTC.localize(datetime.datetime(2024, 1, 15, 23, 30)),
+    ],
+    ids=["pendulum", "berlin", "naive", "pytz"],
+)
+def test_dedup_hash_pins_datetime_instant(json_impl: str, value: Any) -> None:
+    """One instant hashes alike whatever zone or awareness it arrives with, nested values too."""
+    utc = ALL_TYPES["ts_utc_stdlib"]
+    expected = digest_dedup_value({"k": [utc, {"ts": utc}]})
+    assert digest_dedup_value({"k": [value, {"ts": value}]}) == expected, json_impl

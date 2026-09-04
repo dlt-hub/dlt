@@ -34,7 +34,7 @@ Here we add an `updated_at` argument that will receive incremental state, initia
 In essence, the `dlt.sources.incremental` instance above:
 * **updated_at.initial_value** which is always equal to "1970-01-01T00:00:00Z" passed in the constructor
 * **updated_at.start_value** a maximum `updated_at` value from the previous run or the **initial_value** on the first run
-* **updated_at.last_value** a "real-time" `updated_at` value updated with each yielded item or page. Before the first yield, it equals **start_value**
+* **updated_at.last_value** a "real-time" `updated_at` value updated with each yielded item or page. Before the first yield, it equals **start_value**.
 * **updated_at.end_value** (here not used) [marking the end of the backfill range](#using-end_value-for-backfill)
 
 When paginating, you probably need the **start_value** which does not change during the execution of the resource, however, most paginators will return a **next page** link which you should use.

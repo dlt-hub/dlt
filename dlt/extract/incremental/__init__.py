@@ -11,7 +11,7 @@ from typing import (
     Literal,
     Tuple,
 )
-from datetime import datetime, timezone as dt_timezone  # noqa: I251
+from datetime import datetime  # noqa: I251
 import inspect
 from functools import wraps
 
@@ -46,7 +46,6 @@ from dlt.common.data_types.type_helpers import (
     py_type_to_sc_type,
 )
 from dlt.common.data_writers.writers import count_rows_in_items
-from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.utils import simple_repr, without_none
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
@@ -395,11 +394,7 @@ class Incremental(
         return ([pk] if isinstance(pk, str) else list(pk)) == [cursor]
 
     def cursor_value_hash(self, value: Any, legacy: bool = False) -> str:
-        """Dedup hash of a cursor value. Equal datetimes hash equally regardless of timezone
-        or awareness. `legacy` matches hashes written before 1.29, which hashed the raw value."""
-        if not legacy and isinstance(value, datetime):
-            # a fixed UTC instant, so a changed context timezone cannot change the hash
-            value = ensure_datetime_in_tz(value, dt_timezone.utc).isoformat()
+        """Dedup hash of a cursor value, `legacy` matches hashes written before 1.29"""
         if self.is_unique_cursor():
             # hash the shape the row transforms hash: a sequence primary key yields a list
             cursor = self.get_cursor_column_name()
