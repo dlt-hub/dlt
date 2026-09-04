@@ -8,6 +8,7 @@ from dlt.sources.sql_database.schema_types import (
     default_table_adapter,
     get_table_references,
     sqla_col_to_column_schema,
+    table_to_columns,
     _is_uuid_type,
 )
 
@@ -218,3 +219,55 @@ def test_get_table_references() -> None:
 
     refs = get_table_references(child)
     assert refs == []
+
+
+def test_column_comment_propagated_to_description() -> None:
+    """sqla_col_to_column_schema reads column comment into description."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sa.String(), comment="user email address"))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["description"] == "user email address"
+
+
+@pytest.mark.parametrize(
+    "reflection_level",
+    ["minimal", "full", "full_with_precision"],
+    ids=["minimal", "full", "full_with_precision"],
+)
+def test_column_comment_at_all_reflection_levels(reflection_level: str) -> None:
+    """Column comment is propagated regardless of reflection level."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sa.Integer(), comment="primary identifier"))
+    col_schema = sqla_col_to_column_schema(table.c.col, reflection_level)
+    assert col_schema is not None
+    assert col_schema["description"] == "primary identifier"
+
+
+@pytest.mark.parametrize(
+    "comment",
+    [None, ""],
+    ids=["none", "empty_string"],
+)
+def test_column_no_description_when_no_comment(comment: str) -> None:
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sa.String(), comment=comment))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert "description" not in col_schema
+
+
+def test_table_to_columns_propagates_comments() -> None:
+    """table_to_columns preserves column comments as descriptions."""
+    metadata = sa.MetaData()
+    table = sa.Table(
+        "t",
+        metadata,
+        sa.Column("id", sa.Integer(), comment="primary key"),
+        sa.Column("name", sa.String(), comment="user name"),
+        sa.Column("age", sa.Integer()),
+    )
+    columns = table_to_columns(table, "full")
+    assert columns["id"]["description"] == "primary key"
+    assert columns["name"]["description"] == "user name"
+    assert "description" not in columns["age"]
