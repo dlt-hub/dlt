@@ -964,6 +964,32 @@ def test_cursor_path_none_excludes_records_and_updates_incremental_cursor(
     assert s["last_value"] == 2
 
 
+def test_all_null_arrow_batch_does_not_close_bounded_ascending_source() -> None:
+    """A null-only cursor batch must not be read as crossing `end_value` (issue #4284)."""
+    requested_pages = []
+
+    @dlt.resource
+    def pages(
+        ts=dlt.sources.incremental(
+            "ts",
+            initial_value=0,
+            end_value=10,
+            row_order="asc",
+            on_cursor_value_missing="exclude",
+        ),
+    ):
+        requested_pages.append(1)
+        yield pa.table({"id": [1, 2], "ts": pa.array([None, None], type=pa.int64())})
+
+        requested_pages.append(2)
+        yield pa.table({"id": [3, 4], "ts": [5, 6]})
+
+    result = list(pages())
+
+    assert requested_pages == [1, 2]
+    assert [row["ts"] for tbl in result for row in tbl.to_pylist()] == [5, 6]
+
+
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_cursor_path_none_can_raise_on_none_1(item_type: TestDataItemFormat) -> None:
     data = [
