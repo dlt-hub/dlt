@@ -29,20 +29,36 @@ Supported driver versions:
 
 You can also [configure the driver name](#additional-destination-options) explicitly.
 
-### Service Principal Authentication
+### Authentication
 
-Fabric Warehouse requires Azure Active Directory Service Principal authentication. You'll need:
-
-1. **Tenant ID**: Your Azure AD tenant ID (GUID)
-2. **Client ID**: Application (service principal) client ID (GUID)
-3. **Client Secret**: Application client secret
-4. **Host**: Your Fabric warehouse SQL endpoint
-5. **Database**: The database name within your warehouse
+Fabric Warehouse authenticates with Microsoft Entra ID. Whichever method you choose, you always set the warehouse SQL endpoint as the `host` (`<guid>.datawarehouse.fabric.microsoft.com`) and the warehouse name as the `database`.
 
 **Finding your SQL endpoint:**
 - In the Fabric portal, go to your warehouse **Settings**
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
+
+The method is selected with the `authentication` credential option. Fabric Warehouse accepts these
+authentication types:
+
+- Service Principal, and the other methods the ODBC driver signs in with itself
+- [azure-identity](https://learn.microsoft.com/python/api/overview/azure/identity-readme) methods, where `dlt` acquires the token
+- `fab_notebookutils`, for pipelines running inside a Fabric notebook
+
+With the **driver-native** methods the ODBC driver performs the Entra ID sign-in. `ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`; `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive` and `ActiveDirectoryMsi` need no further fields.
+
+With the **azure-identity** methods `dlt` acquires an access token and injects it into the connection, so no secret is needed in `secrets.toml`. These work cross-platform, including macOS, where the ODBC driver's built-in Entra ID modes are unreliable. Use `ActiveDirectoryDefault` (alias `default`) for `DefaultAzureCredential`, or `ActiveDirectoryDeviceCode` for `DeviceCodeCredential`. When `authentication` is left at its default but no Service Principal secret is configured, `dlt` falls back to `ActiveDirectoryDefault`.
+
+**`fab_notebookutils`** authenticates as whoever runs the notebook through [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials), so that identity needs write access to the warehouse. A Fabric notebook has no environment variables, managed identity or Azure CLI login, so `DefaultAzureCredential` cannot sign in there:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "fab_notebookutils"
+```
+
+The `notebookutils` module ships with the Fabric runtime and is not installed by `dlt`, so it is imported only when this method is used. Using it outside the Fabric runtime raises a configuration error rather than falling back silently. Staging through OneLake or Azure Blob Storage picks the same identity up automatically — see [OneLake staging from a Fabric notebook](#onelake-staging-from-a-fabric-notebook).
 
 ### Create a pipeline
 
@@ -62,6 +78,8 @@ pip install "dlt[fabric]"
 
 **3. Enter your credentials into `.dlt/secrets.toml`.**
 
+Service Principal (default):
+
 ```toml
 [destination.fabric.credentials]
 host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
@@ -71,6 +89,15 @@ azure_client_id = "your-client-id"
 azure_client_secret = "your-client-secret"
 port = 1433
 connect_timeout = 30
+```
+
+azure-identity, e.g. `DefaultAzureCredential` after `az login`, which needs no secret:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "default"
 ```
 
 ## Write disposition
@@ -118,6 +145,30 @@ azure_client_secret = "your-client-secret"
 2. The workspace GUID is in the URL: `https://fabric.microsoft.com/groups/<workspace_guid>/...`
 3. Open your Lakehouse
 4. The lakehouse GUID is in the URL: `https://fabric.microsoft.com/.../lakehouses/<lakehouse_guid>`
+
+#### OneLake staging from a Fabric notebook
+
+Inside a Fabric notebook you can drop the Service Principal from the staging credentials entirely.
+Leave out `azure_storage_account_key`, `azure_storage_sas_token` and the principal fields, and `dlt`
+authenticates to blob storage with the notebook identity through NotebookUtils, the same way the
+warehouse connection does:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "fab_notebookutils"
+
+[destination.filesystem]
+bucket_url = "abfss://<your-workspace-guid>@onelake.dfs.fabric.microsoft.com/<your-lakehouse-guid>/Files"
+
+[destination.filesystem.credentials]
+azure_storage_account_name = "onelake"
+azure_account_host = "onelake.blob.fabric.microsoft.com"
+```
+
+Outside the Fabric runtime the same configuration keeps using `DefaultAzureCredential`, so a static
+secret or an explicitly passed credential always takes precedence over NotebookUtils.
 
 #### `.dlt/secrets.toml` when using Azure Blob / Data Lake Storage:
 
@@ -207,7 +258,7 @@ driver="ODBC Driver 18 for SQL Server"
 
 While Fabric Warehouse is based on SQL Server, there are key differences:
 
-1. **Authentication**: Fabric requires Service Principal; username/password auth is not supported
+1. **Authentication**: Fabric uses Entra ID; in addition to Service Principal, `dlt` supports several azure-identity methods (see [Authentication](#authentication))
 2. **Type System**: Uses `varchar` and `datetime2` instead of `nvarchar` and `datetimeoffset`
 3. **Collation**: Optimized for UTF-8 collations with automatic `LongAsMax` configuration
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
@@ -234,7 +285,7 @@ sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 Ensure your Service Principal has:
 - Proper permissions on the Fabric workspace
 - Access to the target database/warehouse  
-- Correct tenant ID (your Azure AD tenant, not the workspace/capacity ID)
+- Correct tenant ID (your Entra ID tenant, not the workspace/capacity ID)
 
 ### UTF-8 Character Issues
 
