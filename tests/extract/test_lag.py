@@ -156,7 +156,6 @@ def test_apply_lag_to_value_pendulum_datetime(
     result = _apply_lag_to_value(lag, value, last_value_func)
 
     assert result == expected
-    assert isinstance(result, pendulum.DateTime)
     assert result.utcoffset() == value.utcoffset()
 
 

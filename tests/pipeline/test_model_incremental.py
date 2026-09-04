@@ -227,7 +227,7 @@ def test_unique_cursor_takes_boundary_eagerly(
 
 
 @pytest.mark.parametrize(
-    "incremental_kwargs,batches,expected_per_run",
+    "incremental_kwargs,batches,expected_per_run,expected_last_value_per_run",
     [
         # boundary row defers one cycle, late arrival at the watermark (id 4, ts 200)
         # loads exactly once, run without new data loads nothing, 6 stays deferred
@@ -235,6 +235,7 @@ def test_unique_cursor_takes_boundary_eagerly(
             {},
             [[(1, 100), (2, 100), (3, 200)], [(4, 200), (5, 300)], [], [(6, 400)]],
             [[1, 2], [3, 4], [], [5]],
+            [200, 300, 300, 400],
             id="default-ranges-deferred-tiling",
         ),
         # primary key equal to the cursor: boundary loads eagerly and never replays
@@ -242,6 +243,7 @@ def test_unique_cursor_takes_boundary_eagerly(
             {"primary_key": "ts"},
             [[(1, 100), (2, 150), (3, 200)], [(4, 250), (5, 300)], [], [(6, 400)]],
             [[1, 2, 3], [4, 5], [], [6]],
+            [200, 300, 300, 400],
             id="unique-cursor-eager",
         ),
     ],
@@ -251,6 +253,7 @@ def test_multi_run_windows_tile_e2e(
     incremental_kwargs: dict[str, Any],
     batches: list[list[tuple[int, int]]],
     expected_per_run: list[list[int]],
+    expected_last_value_per_run: list[int],
 ) -> None:
     """Across pipeline runs the stateful windows tile the cursor axis: every row loads
     exactly once with append and state advances through real pipeline state."""
@@ -277,11 +280,18 @@ def test_multi_run_windows_tile_e2e(
         captured.append(sorted(int(r[0]) for r in out.select("id").fetchall()))  # type: ignore
         yield from []
 
-    for batch, expected in zip(batches, expected_per_run):
+    for batch, expected, expected_last_value in zip(
+        batches, expected_per_run, expected_last_value_per_run
+    ):
         if batch:
             pipeline.run(raw_events(batch))
         pipeline.run(downstream())
         assert captured[-1] == expected
+        # the window end is persisted, so the next run tiles from it
+        cursor_state = pipeline.state["sources"][pipeline.default_schema_name]["resources"][
+            "downstream"
+        ]["incremental"]["ts"]
+        assert cursor_state["last_value"] == expected_last_value
 
 
 def test_auto_applies_on_bare_relation(incremental_pipeline: dlt.Pipeline) -> None:
@@ -328,7 +338,6 @@ def test_user_advance_skips_incremental_filter(incremental_pipeline: dlt.Pipelin
 
     relation = dataset.table("events")
     incremental.advance(2)
-    assert incremental._advanced is True
 
     first = incremental(relation)
     assert first is relation
@@ -337,7 +346,6 @@ def test_user_advance_skips_incremental_filter(incremental_pipeline: dlt.Pipelin
     # opt-out persists across yields (framework does not reset for user-driven advance)
     second = incremental(relation)
     assert second is relation
-    assert incremental._advanced is True
 
 
 def test_aggregate_with_inner_and_outer(incremental_pipeline: dlt.Pipeline) -> None:

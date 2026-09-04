@@ -4,9 +4,9 @@ import os
 import subprocess
 import sys
 import time
-from datetime import date, datetime, timezone  # noqa: I251
+from datetime import date, datetime, timezone, tzinfo  # noqa: I251
 from functools import partial
-from typing import Any, Callable, Dict, List, Optional
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
@@ -42,42 +42,30 @@ from tests.utils import (
 )
 
 
-def test_explicit_context_with_tuple() -> None:
-    """Created with (start, end) tuple, .interval returns it."""
-    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
-    ctx = TimeIntervalContext(interval=iv)
-    assert ctx.interval == iv
+_START = pendulum.datetime(2024, 6, 1, tz="UTC")
+_END = pendulum.datetime(2024, 6, 2, tz="UTC")
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 
-def test_explicit_context_with_pendulum() -> None:
-    start = pendulum.datetime(2024, 6, 1, tz="UTC")
-    end = pendulum.datetime(2024, 6, 2, tz="UTC")
-    ctx = TimeIntervalContext(interval=TTimeInterval(start, end))
-    assert ctx.interval == (start, end)
-
-
-def test_explicit_context_with_plain_tuple() -> None:
-    """A plain (start, end) tuple is accepted and normalized to TTimeInterval, so
-    `.start`/`.end` work the same as when a TTimeInterval is passed."""
-    start = pendulum.datetime(2024, 6, 1, tz="UTC")
-    end = pendulum.datetime(2024, 6, 2, tz="UTC")
-
-    # constructor accepts a plain tuple
-    ctx = TimeIntervalContext(interval=(start, end))
+@pytest.mark.parametrize(
+    "interval",
+    [
+        pytest.param(TTimeInterval(_START, _END), id="time-interval"),
+        pytest.param((_START, _END), id="plain-tuple"),
+    ],
+)
+def test_explicit_interval_is_normalized(interval: Any) -> None:
+    """Any (start, end) shape is stored as a `TTimeInterval` by the constructor, the setter
+    and `dlt.current.interval.set()` alike."""
+    ctx = TimeIntervalContext(interval=interval)
     assert isinstance(ctx.interval, TTimeInterval)
-    assert ctx.interval == (start, end)
-    assert ctx.interval.start == start
-    assert ctx.interval.end == end
-
-    # setter accepts a plain tuple too
-    ctx.interval = (start, end)
+    assert ctx.interval == (_START, _END)
+    ctx.interval = interval
     assert isinstance(ctx.interval, TTimeInterval)
-
-    # dlt.current.interval.set() normalizes as well
     with Container().injectable_context(TimeIntervalContext()):
-        _interval_accessor.set((start, end))
+        _interval_accessor.set(interval)
         assert isinstance(_interval_accessor(), TTimeInterval)
-        assert _interval_accessor() == (start, end)
+        assert _interval_accessor() == (_START, _END)
 
 
 def test_no_interval_when_empty() -> None:
@@ -653,6 +641,9 @@ def test_scheduler_range_clipping(
         # user setting is None: context fills in
         (None, True, True),
         (None, False, False),
+        # context unset: the user setting stands on its own
+        (True, None, True),
+        (False, None, False),
         # both None: no join
         (None, None, False),
     ],
@@ -663,6 +654,8 @@ def test_scheduler_range_clipping(
         "user-false-ctx-false",
         "ctx-fills-in-true",
         "ctx-fills-in-false",
+        "user-true-ctx-none",
+        "user-false-ctx-none",
         "both-none",
     ],
 )
@@ -1042,36 +1035,45 @@ def test_accessor_apply_lag_and_full_days() -> None:
         )
         # mutators set the active interval
         assert _interval_accessor() == make_interval("2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z")
+        # the schedule: trigger form and lag_end reach the same lag helper
+        _interval_accessor.set(iv)
+        assert _interval_accessor.apply_lag(
+            "schedule:0 0 * * *", 1, lag_end=True
+        )() == make_interval("2024-01-13T07:00:00Z", "2024-01-14T00:00:00Z")
 
 
-def test_accessor_timezone() -> None:
-    berlin = ZoneInfo("Europe/Berlin")
+@pytest.mark.parametrize(
+    "interval,expected",
+    [
+        # the named zone survives, so it can be passed back to ensure_datetime_in_tz
+        pytest.param(
+            (datetime(2024, 1, 15, tzinfo=_BERLIN), datetime(2024, 1, 16, tzinfo=_BERLIN)),
+            _BERLIN,
+            id="named-zone",
+        ),
+        pytest.param(
+            (
+                datetime(2024, 1, 15, tzinfo=timezone.utc),
+                datetime(2024, 1, 16, tzinfo=timezone.utc),
+            ),
+            timezone.utc,
+            id="utc",
+        ),
+        # a naive interval carries no zone, so the context timezone answers instead
+        pytest.param((datetime(2024, 1, 15), datetime(2024, 1, 16)), timezone.utc, id="naive"),
+        # taken from the start, so a mixed interval reports the start's zone
+        pytest.param(
+            (datetime(2024, 1, 15, tzinfo=_BERLIN), datetime(2024, 1, 16)), _BERLIN, id="mixed"
+        ),
+    ],
+)
+def test_accessor_timezone(interval: Tuple[datetime, datetime], expected: tzinfo) -> None:
     # without an interval to carry a zone, the context timezone answers
     assert _interval_accessor.timezone == timezone.utc
     with Container().injectable_context(TimeIntervalContext()):
         assert _interval_accessor.timezone == timezone.utc
-        _interval_accessor.set(
-            TTimeInterval(
-                datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16, tzinfo=berlin)
-            )
-        )
-        # the named zone survives, so it can be passed back to ensure_datetime_in_tz
-        assert _interval_accessor.timezone == berlin
-        _interval_accessor.set(
-            TTimeInterval(
-                datetime(2024, 1, 15, tzinfo=timezone.utc),
-                datetime(2024, 1, 16, tzinfo=timezone.utc),
-            )
-        )
-        assert _interval_accessor.timezone == timezone.utc
-        # a naive interval carries no zone, so the context timezone answers instead
-        _interval_accessor.set(TTimeInterval(datetime(2024, 1, 15), datetime(2024, 1, 16)))
-        assert _interval_accessor.timezone == timezone.utc
-        # taken from the start, so a mixed interval reports the start's zone
-        _interval_accessor.set(
-            TTimeInterval(datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16))
-        )
-        assert _interval_accessor.timezone == berlin
+        _interval_accessor.set(interval)
+        assert _interval_accessor.timezone == expected
 
 
 @pytest.mark.parametrize(

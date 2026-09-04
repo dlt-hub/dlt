@@ -5,10 +5,9 @@ import random
 from datetime import datetime, date, timezone  # noqa: I251
 from itertools import chain, count
 from time import sleep
-from typing import Any, Optional, Literal, Sequence, Dict, Iterable, List
+from typing import Any, Optional, Literal, Sequence, Dict, Iterable, List, Tuple
 from unittest import mock
 from zoneinfo import ZoneInfo
-import itertools
 
 import duckdb
 import pyarrow as pa
@@ -3155,6 +3154,9 @@ def test_unique_boundary_consumed() -> None:
     plain._cached_state = incr._cached_state
     assert plain.is_unique_cursor() is False
     assert plain.unique_boundary_consumed() is False
+    # a callable primary key cannot be proven equal to the cursor column
+    callable_pk = dlt.sources.incremental[int]("id", primary_key=lambda row: "id")
+    assert callable_pk.is_unique_cursor() is False
 
 
 def test_copy_with_transient_state() -> None:
@@ -3221,37 +3223,66 @@ def test_with_cursor_date_state_filters_datetime_field(item_type: TestDataItemFo
     assert "created_at" in str(exc.value)
 
 
-def test_with_cursor_without_pipeline_state() -> None:
-    # get_current_range() on a standalone Incremental — no pipeline, no resource.
-    # exercises the "build a SQL filter outside a running pipeline" path.
+@pytest.mark.parametrize(
+    "incr,apply_lag,expected",
+    [
+        pytest.param(
+            dlt.sources.incremental[int]("day", initial_value=10),
+            True,
+            (10, None),
+            id="initial-only",
+        ),
+        pytest.param(
+            dlt.sources.incremental[int]("day", initial_value=10, end_value=20),
+            True,
+            (10, 20),
+            id="initial-and-end",
+        ),
+        pytest.param(
+            dlt.sources.incremental[int]("day", initial_value=10, end_value=20),
+            False,
+            (10, 20),
+            id="initial-and-end-raw",
+        ),
+        # unbound: there is no last_value for lag to step back from
+        pytest.param(
+            dlt.sources.incremental[int]("day", initial_value=10, lag=5),
+            True,
+            (10, None),
+            id="lag-unbound-noop",
+        ),
+        pytest.param(
+            dlt.sources.incremental[int]("day", initial_value=10, end_value=20).with_cursor("time"),
+            True,
+            (10, 20),
+            id="with-cursor-copy",
+        ),
+        # bound with lag: the resolved start steps back from last_value, the raw one does not
+        pytest.param(
+            bind_state(dlt.sources.incremental[int]("day", initial_value=10, lag=5), 20),
+            True,
+            (15, None),
+            id="lag-bound-applied",
+        ),
+        pytest.param(
+            bind_state(dlt.sources.incremental[int]("day", initial_value=10, lag=5), 20),
+            False,
+            (20, None),
+            id="lag-bound-raw",
+        ),
+    ],
+)
+def test_get_current_range_without_pipeline(
+    incr: Incremental[int], apply_lag: bool, expected: Tuple[Any, Any]
+) -> None:
+    """`get_current_range()` needs no pipeline or resource, so a SQL filter can be built
+    outside a running pipeline."""
+    assert incr.get_current_range(apply_lag=apply_lag) == expected
 
-    # 1. get_current_range: initial_value only
-    incr = dlt.sources.incremental[int]("day", initial_value=10)
-    lower, upper = incr.get_current_range()
-    assert (lower, upper) == (10, None)
 
-    # 2. get_current_range: initial + end_value
-    incr = dlt.sources.incremental[int]("day", initial_value=10, end_value=20)
-    assert incr.get_current_range() == (10, 20)
-    # apply_lag=False is the same shape since lag is unset
-    assert incr.get_current_range(apply_lag=False) == (10, 20)
-
-    # 3. get_current_range: lag is a no-op without a prior last_value
-    incr = dlt.sources.incremental[int]("day", initial_value=10, lag=5)
-    lower, _ = incr.get_current_range(apply_lag=True)
-    assert lower == 10
-
-    # 4. chained: with_cursor + get_current_range
-    outer = dlt.sources.incremental[int]("day", initial_value=10, end_value=20)
-    inner = outer.with_cursor("time")
-    assert inner.get_current_range() == (10, 20)
-    assert inner.cursor_path == "time"
-
-
-def test_with_cursor_get_current_range_via_list_resource_with_pipeline() -> None:
-    # seed pipeline state by running a resource, then iterate a same-name resource
-    # to bind the cursor against persisted state and exercise with_cursor +
-    # get_current_range against real pipeline state
+@pytest.fixture
+def seeded_pipeline() -> dlt.Pipeline:
+    """A dummy pipeline whose `seed` resource ran once, leaving `day` cursor state at 5."""
     os.environ["COMPLETED_PROB"] = "1.0"
     pipeline = dlt.pipeline(pipeline_name="probe_" + uniq_id(), destination="dummy")
 
@@ -3262,10 +3293,16 @@ def test_with_cursor_get_current_range_via_list_resource_with_pipeline() -> None
         yield [{"day": 1}, {"day": 5}, {"day": 3}]
 
     pipeline.run(seed())
+    return pipeline
 
-    persisted = pipeline.state["sources"][pipeline.default_schema_name]["resources"]["seed"][
-        "incremental"
-    ]["day"]
+
+def test_with_cursor_get_current_range_via_list_resource_with_pipeline(
+    seeded_pipeline: dlt.Pipeline,
+) -> None:
+    # iterate a same-name resource to bind the cursor against the persisted state
+    persisted = seeded_pipeline.state["sources"][seeded_pipeline.default_schema_name]["resources"][
+        "seed"
+    ]["incremental"]["day"]
     assert persisted["last_value"] == 5
 
     captured: Dict[str, Any] = {}
@@ -3297,21 +3334,11 @@ def test_with_cursor_get_current_range_via_list_resource_with_pipeline() -> None
     assert captured["inner_state_detached"] is True
 
 
-def test_with_cursor_standalone_incremental_sees_persisted_state() -> None:
-    # seed state via a pipeline run, then a STANDALONE incremental (created outside
-    # any resource arg) can pull that state via get_state() — making with_cursor()
-    # and last_value visible to flows that build SQL filters outside resource args
-    os.environ["COMPLETED_PROB"] = "1.0"
-    pipeline = dlt.pipeline(pipeline_name="probe_" + uniq_id(), destination="dummy")
-
-    @dlt.resource(name="seed")
-    def seed(
-        cursor: dlt.sources.incremental[int] = dlt.sources.incremental("day", initial_value=0),
-    ):
-        yield [{"day": 1}, {"day": 5}, {"day": 3}]
-
-    pipeline.run(seed())
-
+def test_with_cursor_standalone_incremental_sees_persisted_state(
+    seeded_pipeline: dlt.Pipeline,
+) -> None:
+    # a STANDALONE incremental (created outside any resource arg) pulls persisted state via
+    # get_state(), so with_cursor() and last_value work for flows building SQL filters
     captured: Dict[str, Any] = {}
 
     @dlt.resource(name="seed")
@@ -3347,6 +3374,32 @@ def test_with_cursor_standalone_incremental_sees_persisted_state() -> None:
     assert captured["inner_cursor"] == "time"
     assert captured["inner_last_value"] == 5
     assert captured["inner_state_last_value"] == 5
+
+
+def test_rebind_resets_advance(seeded_pipeline: dlt.Pipeline) -> None:
+    """A manual advance() holds for one extraction only: the next one binds afresh from the
+    pinned value and filters again."""
+    bound_starts: List[int] = []
+
+    @dlt.resource(name="seed")
+    def probe(
+        cursor: dlt.sources.incremental[int] = dlt.sources.incremental("day", initial_value=0),
+    ):
+        bound_starts.append(cursor.start_value)
+        if len(bound_starts) == 1:
+            cursor.advance(100)
+        yield from [{"day": 8}, {"day": 200}]
+
+    def persisted_last_value() -> int:
+        return seeded_pipeline.state["sources"][seeded_pipeline.default_schema_name]["resources"][
+            "seed"
+        ]["incremental"]["day"]["last_value"]
+
+    seeded_pipeline.extract(probe())
+    assert persisted_last_value() == 100
+    # a still-advanced cursor would pass rows through without writing last_value back
+    seeded_pipeline.extract(probe())
+    assert (bound_starts[1], persisted_last_value()) == (100, 200)
 
 
 @pytest.mark.parametrize("lag", [0, 1, 100, 200, 1000])
