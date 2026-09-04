@@ -121,8 +121,15 @@ TDataRecordBatch = list[TDataRecord]
 """List of table row dictionaries. Not guaranteed to be JSON serializable without custom encoding."""
 TAnyDateTime = Union[pendulum.DateTime, pendulum.Date, datetime, date, str, float, int]
 """DateTime represented as pendulum/python object, ISO string or unix timestamp"""
-TTimeInterval = Tuple[datetime, datetime]
-"""Half-open time interval `[start, end)` as timezone-aware datetimes."""
+
+
+class TTimeInterval(NamedTuple):
+    """Time interval `[start, end)` as timezone-aware datetimes."""
+
+    start: datetime
+    end: datetime
+
+
 TVariantBase = TypeVar("TVariantBase", covariant=True)
 TVariantRV = Tuple[str, Any]
 VARIANT_FIELD_FORMAT = "v_%s"

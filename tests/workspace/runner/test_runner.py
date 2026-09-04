@@ -251,8 +251,8 @@ def test_freshness_blocks_interval_job_when_upstream_not_fresh(
         ),
         "triggers": [TTrigger("schedule:* * * * *")],
         "execute": TExecuteSpec(),
-        "interval": {"start": "2020-01-01T00:00:00Z"},
-        "allow_external_schedulers": True,
+        "interval": {"start": "2020-01-01T00:00:00Z", "mode": "parallel"},
+        "incremental_mode": "interval",
         "default_trigger": TTrigger("schedule:* * * * *"),
     }
     downstream: TJobDefinition = {
@@ -268,8 +268,8 @@ def test_freshness_blocks_interval_job_when_upstream_not_fresh(
             TTrigger("manual:jobs.batch_jobs.transform"),
         ],
         "execute": TExecuteSpec(),
-        "interval": {"start": "2020-01-01T00:00:00Z"},
-        "allow_external_schedulers": True,
+        "interval": {"start": "2020-01-01T00:00:00Z", "mode": "parallel"},
+        "incremental_mode": "interval",
         "freshness": [TFreshnessConstraint("job.is_fresh:jobs.batch_jobs.backfill")],
         "default_trigger": TTrigger("schedule:* * * * *"),
     }

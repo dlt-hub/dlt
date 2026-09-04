@@ -4,8 +4,11 @@ from typing import Any, Dict
 from datetime import date, datetime, time, timezone  # noqa: I251
 
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
-from dlt.common.time import reduce_pendulum_datetime_precision
+from dlt.common.time import (
+    get_context_timezone_name,
+    normalize_timezone,
+    reduce_pendulum_datetime_precision,
+)
 
 # use regex to escape characters in single pass
 # NUL (\x00) is stripped: postgres/redshift cannot store it in text and duckdb cannot parse it
@@ -286,9 +289,10 @@ escape_bigquery_identifier = escape_hive_identifier
 
 
 def format_datetime_value(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
-    """ISO datetime string at given `precision`, optionally UTC-naive."""
-    if no_tz and v.tzinfo is not None:
-        v = v.astimezone(tz=timezone.utc).replace(tzinfo=None)
+    """ISO datetime string at given `precision`, optionally naive."""
+    if no_tz:
+        # same call the loaded value goes through, so literal and stored value agree
+        v = normalize_timezone(v, False)
     v = reduce_pendulum_datetime_precision(v, precision)
     if precision < 3:
         timespec = "seconds"
@@ -304,9 +308,7 @@ def format_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False
     return "'" + format_datetime_value(v, precision, no_tz) + "'"
 
 
-def format_bigquery_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
+def format_bigquery_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
     """Returns BigQuery-adjusted datetime literal by prefixing required `TIMESTAMP` indicator.
 
     Also works for Presto-based engines.
@@ -315,9 +317,8 @@ def format_bigquery_datetime_literal(
     return "TIMESTAMP " + format_datetime_literal(v, precision, no_tz)
 
 
-def format_clickhouse_datetime_literal(
-    v: pendulum.DateTime, precision: int = 6, no_tz: bool = False
-) -> str:
+def format_clickhouse_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
     """Returns clickhouse compatible function"""
+    # the literal is naive in the context timezone, so `toDateTime64` must read it in that zone
     datetime = format_datetime_literal(v, precision, True)
-    return f"toDateTime64({datetime}, {precision}, '{v.tzinfo}')"
+    return f"toDateTime64({datetime}, {precision}, '{get_context_timezone_name()}')"

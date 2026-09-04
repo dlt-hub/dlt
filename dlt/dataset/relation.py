@@ -67,13 +67,11 @@ from dlt.destinations.sql_client import (
 from dlt.destinations.queries import build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
 from dlt.dataset._incremental import (
+    apply_incremental,
     _build_incremental_aggregate,
-    _build_incremental_condition,
-    _maybe_warn_on_cursor_missing_raise,
-    _parse_incremental_cursor_path,
-    _raise_incomplete_cursor_column,
+    parse_incremental_cursor_path,
+    raise_incomplete_cursor_column,
     _RelationIncrementalContext,
-    _sqlglot_type_for_column,
 )
 from dlt.dataset._join import (
     _apply_join,
@@ -721,10 +719,10 @@ class Relation(WithSqlClient):
             f"`other` must be a table name or a `dlt.Relation`, got `{type(other).__name__}`."
         )
 
-    def incremental(self, incremental: Incremental[Any]) -> Self:
+    def incremental(self, incremental: Incremental[Any], *, advance: bool = True) -> Self:
         """Filter this relation to a cursor range using an Incremental.
 
-        Translates the `Incremental` bounds (`initial_value`/`end_value`, `range_start`/
+        Translates the `Incremental` range (`initial_value`/`end_value`, `range_start`/
         `range_end`, `last_value_func`) into a SQL `WHERE` clause. When the cursor
         path is `table.column`, joins the referenced table via the dataset schema
         without adding its columns to the projection, then filters on the joined
@@ -733,29 +731,27 @@ class Relation(WithSqlClient):
         Args:
             incremental (Incremental[Any]): The incremental whose cursor path and
                 range define the filter. `last_value_func` must be `min` or `max`.
+            advance (bool): When True and `incremental.end_value` is unset, compute
+                the range end via aggregate, call `incremental.advance(new_value)`
+                to mutate state and disable framework filtering, then apply the full range.
 
         Returns:
             Self: A new relation with the incremental filter applied.
         """
-        if self._incremental_ctx is not None:
-            raise ValueError(
-                "`.incremental()` has already been applied to this relation with "
-                f"cursor `{self._incremental_ctx.incremental.cursor_path}`."
-            )
-
-        table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
+        table_name, column_name = parse_incremental_cursor_path(incremental.cursor_path)
         naming = self._dataset.schema.naming
         column_name = naming.normalize_identifier(column_name)
 
         if table_name is None:
             relation_columns = self.columns_schema
             if column_name not in relation_columns:
-                _raise_incomplete_cursor_column(incremental.cursor_path, "this relation")
+                raise_incomplete_cursor_column(incremental.cursor_path, "this relation")
             return self._apply_incremental(
                 incremental=incremental,
                 target_query=self.sqlglot_expression,
                 column_ref=sge.Column(this=sge.to_identifier(column_name, quoted=True)),
                 column_lookup_columns=relation_columns,
+                advance=advance,
             )
 
         if not self._table_name:
@@ -771,7 +767,7 @@ class Relation(WithSqlClient):
             )
         target_columns = self._dataset.schema.get_table_columns(table_name)
         if column_name not in target_columns:
-            _raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
+            raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
         if self._table_name not in _extract_joined_table_aliases(
             self.sqlglot_expression, self._dataset.dataset_name
         ):
@@ -805,6 +801,7 @@ class Relation(WithSqlClient):
                 table=sge.to_identifier(target_qualifier, quoted=False),
             ),
             column_lookup_columns=target_columns,
+            advance=advance,
         )
 
     def _apply_incremental(
@@ -814,26 +811,26 @@ class Relation(WithSqlClient):
         target_query: sge.Query,
         column_ref: sge.Column,
         column_lookup_columns: TTableSchemaColumns,
+        advance: bool = False,
     ) -> Self:
-        """Build the WHERE for `incremental`."""
-        column_name = column_ref.name
-        sqlglot_type = _sqlglot_type_for_column(column_lookup_columns, column_name)
-        _maybe_warn_on_cursor_missing_raise(incremental, column_lookup_columns, column_name)
-        condition = _build_incremental_condition(
-            incremental,
-            column_ref,
-            sqlglot_type,
-            destination_capabilities=self.sql_client.capabilities,
-        )
+        def _fetch_agg(agg_query: sge.Query) -> Any:
+            agg_rel = self.__copy__()
+            agg_rel._sqlglot_expression = agg_query
+            agg_rel._incremental_ctx = None
+            return agg_rel.fetchscalar()
 
-        rel = self.__copy__()
-        rel._sqlglot_expression = (
-            target_query.where(condition) if condition is not None else target_query
-        )
-        rel._incremental_ctx = _RelationIncrementalContext(
+        final_query, ctx = apply_incremental(
             incremental=incremental,
-            cursor_column=column_ref.copy(),
+            target_query=target_query,
+            column_ref=column_ref,
+            column_lookup_columns=column_lookup_columns,
+            destination_capabilities=self.sql_client.capabilities,
+            advance=advance,
+            fetch_aggregate_scalar=_fetch_agg,
         )
+        rel = self.__copy__()
+        rel._sqlglot_expression = final_query
+        rel._incremental_ctx = ctx
         return rel
 
     @property
@@ -841,15 +838,23 @@ class Relation(WithSqlClient):
         """True if any clause on this relation was produced by `.incremental()`."""
         return self._incremental_ctx is not None
 
-    def _incremental_aggregate_relation(self) -> Optional[Self]:
-        """Return a relation computing `<last_value_func>(cursor)` over this relation
-        or `None` if this relation is not incremental.
-        """
+    def _incremental_aggregate_relation(
+        self, incremental: Optional[Incremental[Any]] = None
+    ) -> Optional[Self]:
+        """Return a relation computing `<last_value_func>(cursor)` for `incremental`
+        or this relation's incremental ctx. When `incremental` is given, the cursor
+        is applied first (adding the join + filter) so the aggregate runs over the
+        filtered relation."""
+        if incremental is not None:
+            # apply the incremental — adds join for qualified cursors, WHERE for the range.
+            # existing joins/ctx are reused via _extract_joined_table_aliases.
+            return self.incremental(incremental, advance=False)._incremental_aggregate_relation()
         if self._incremental_ctx is None:
             return None
         agg_query = _build_incremental_aggregate(
             self.sqlglot_expression,
-            self._incremental_ctx,
+            self._incremental_ctx.incremental,
+            self._incremental_ctx.cursor_column,
             destination_capabilities=self.sql_client.capabilities,
         )
         rel = self.__copy__()

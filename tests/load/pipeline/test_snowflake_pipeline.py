@@ -10,6 +10,8 @@ from pytest_mock import MockerFixture
 import dlt
 from dlt.common import pendulum
 from dlt.common.data_writers.escape import escape_snowflake_literal
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.utils import uniq_id
@@ -1293,23 +1295,44 @@ def test_snowflake_json_columns_stay_variant(
     destinations_configs(default_sql_configs=True, subset=["snowflake"]),
     ids=lambda x: x.name,
 )
+@pytest.mark.parametrize("loader_file_format", ["jsonl", "parquet"])
+@pytest.mark.parametrize(
+    "context_timezone,expected_offset_hours",
+    [("UTC", 0), ("Europe/Berlin", 1)],
+    ids=["context-utc", "context-berlin"],
+)
 def test_snowflake_timestamp_tz_keeps_written_offset(
     destination_config: DestinationTestConfiguration,
+    context_timezone: str,
+    expected_offset_hours: int,
+    loader_file_format: TLoaderFileFormat,
 ) -> None:
     """`use_timestamp_tz` freezes the offset stored with each value, so every session returns the
-    same offset. `TIMESTAMP_LTZ` renders the instant in the session timezone instead."""
+    same offset. `TIMESTAMP_LTZ` renders the instant in the session timezone instead.
+
+    The stored offset is the one `dlt` wrote, so it follows the context timezone.
+    January keeps `Europe/Berlin` on standard time, so the offset is not a DST guess.
+
+    Both file formats are loaded because they carry the offset differently: `jsonl` writes it into
+    the value text, while `parquet` writes the same epoch whatever the timezone and carries the
+    zone as a column label only.
+    """
     instant = datetime.datetime(2024, 1, 1, tzinfo=datetime.timezone.utc)
+    if expected_offset_hours == 1 and loader_file_format == "parquet":
+        # parquet ignore timezone label in parquet metadata
+        expected_offset_hours = 0
+    expected_offset = datetime.timedelta(hours=expected_offset_hours)
+    run_kwargs = {**destination_config.run_kwargs, "loader_file_format": loader_file_format}
 
     pipeline = destination_config.setup_pipeline(
         "test_snowflake_timestamp_tz_" + uniq_id(),
         dev_mode=True,
         destination=destination_config.destination_factory(use_timestamp_tz=True),
     )
-    assert_load_info(
-        pipeline.run(
-            [{"id": 1, "ts": instant}], table_name="events", **destination_config.run_kwargs
+    with Container().injectable_context(TimezoneContext(context_timezone)):
+        assert_load_info(
+            pipeline.run([{"id": 1, "ts": instant}], table_name="events", **run_kwargs)
         )
-    )
 
     with pipeline.sql_client() as client:
         column_type = client.execute_sql(
@@ -1323,6 +1346,6 @@ def test_snowflake_timestamp_tz_keeps_written_offset(
         for session_timezone in ("America/New_York", "Asia/Tokyo"):
             client.execute_sql(f"ALTER SESSION SET TIMEZONE = '{session_timezone}'")
             value = client.execute_sql(f"SELECT ts FROM {qualified_name}")[0][0]
-            # dlt normalizes to UTC before writing, so UTC is the stored offset
-            assert value.utcoffset() == datetime.timedelta(0)
+            assert value.utcoffset() == expected_offset
+            # whatever offset is stored, the instant must survive
             assert value == instant

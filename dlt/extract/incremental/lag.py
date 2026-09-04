@@ -5,7 +5,7 @@ from dlt.common import logger
 from dlt.common.time import (
     detect_datetime_format,
     ensure_datetime,
-    ensure_datetime_in_tz,
+    ensure_date,
     datetime_obj_to_str,
 )
 from dlt.common.typing import is_subclass
@@ -56,13 +56,8 @@ def _apply_lag_to_value(
         date_type = datetime if isinstance(value, datetime) else date
 
     if isinstance(value, (str, date)):
-        # coerce to the cursor type, fails on values that do not parse. pendulum drops the timezone
-        # when a timedelta is added to a value with a foreign tzinfo so lag computes on stdlib types
-        value = (
-            ensure_datetime(value)
-            if is_subclass(date_type, datetime)
-            else ensure_datetime_in_tz(value, timezone.utc).date()
-        )
+        # stdlib types only, pendulum arithmetic drops any tzinfo that is not its own
+        value = ensure_datetime(value) if is_subclass(date_type, datetime) else ensure_date(value)
         value = _apply_lag_to_datetime(lag, value, last_value_func)
         # go back to string or pass exact type
         value = datetime_obj_to_str(value, value_format) if value_format else value

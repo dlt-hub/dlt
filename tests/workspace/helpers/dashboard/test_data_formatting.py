@@ -1,6 +1,7 @@
 from datetime import datetime
 
 from dlt.common import pendulum
+from dlt.common.time import ensure_datetime_in_tz
 from dlt._workspace.helpers.dashboard.config import DashboardConfiguration
 from dlt._workspace.helpers.dashboard.utils.ui import _style_cell as style_cell
 from dlt._workspace.helpers.dashboard.utils.formatters import (
@@ -40,7 +41,8 @@ def test_humanize_datetime():
     dt = datetime(2023, 1, 1, 12, 0, 0)
     assert humanize_datetime(dt, fmt) == "2023-01-01 12:00:00 +00:00"
 
-    # pendulum datetime
+    # NOTE: pendulum stays here. the dashboard formats whatever a user's pipeline state holds,
+    # which is still pendulum for anyone passing it in
     pdt = pendulum.datetime(2023, 6, 15, 10, 30, 0, tz="UTC")
     assert humanize_datetime(pdt, fmt) == "2023-06-15 10:30:00 +00:00"
 
@@ -160,8 +162,8 @@ def test_humanize_datetime_values():
     config.datetime_format = "YYYY-MM-DD HH:mm:ss Z"
 
     input_dict = {
-        "started_at": pendulum.parse("2023-01-01T12:00:00"),
-        "finished_at": pendulum.parse("2023-01-01T12:30:00"),
+        "started_at": ensure_datetime_in_tz("2023-01-01T12:00:00"),
+        "finished_at": ensure_datetime_in_tz("2023-01-01T12:30:00"),
         "created": 1672574400,  # Unix timestamp
         "last_modified": "1672574400.123",  # String timestamp
         "inserted_at": datetime(2023, 1, 1, 12, 0, 0),

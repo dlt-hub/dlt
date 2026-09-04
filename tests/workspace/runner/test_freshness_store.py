@@ -1,13 +1,14 @@
 """Tests for the per-job freshness store implementation."""
 
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import datetime
+
+from dlt.common.time import ensure_datetime_in_tz
 
 from tests.workspace.runner._runner.freshness_store import DuckDBJobFreshnessStore
 
 
-def _dt(s: str) -> pendulum.DateTime:
-    return ensure_pendulum_datetime_utc(s)
+def _dt(s: str) -> datetime:
+    return ensure_datetime_in_tz(s)
 
 
 def test_get_unknown_returns_none() -> None:

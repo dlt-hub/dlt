@@ -4,9 +4,9 @@ from datetime import datetime, timedelta, timezone  # noqa: I251
 from typing import Dict, Iterator, List, NamedTuple, Optional, Sequence, Tuple
 from zoneinfo import ZoneInfo
 
-from dlt import version
-from dlt.common.exceptions import MissingDependencyException
-from dlt.common.time import ensure_datetime_utc
+from croniter import croniter
+
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._trigger_helpers import maybe_parse_schedule
@@ -19,14 +19,6 @@ from dlt._workspace.deployment.typing import (
     TJobDefinition,
 )
 
-try:
-    from croniter import croniter
-except ModuleNotFoundError:
-    raise MissingDependencyException(
-        "dltHub workspace",
-        [f"{version.DLT_PKG_NAME}[hub]"],
-    )
-
 
 def sort_and_coalesce(intervals: Sequence[TTimeInterval]) -> List[TTimeInterval]:
     """Sort intervals by start and merge adjacent/overlapping into contiguous ranges."""
@@ -37,7 +29,7 @@ def sort_and_coalesce(intervals: Sequence[TTimeInterval]) -> List[TTimeInterval]
     for iv in sorted_ivs[1:]:
         prev_start, prev_end = merged[-1]
         if iv[0] <= prev_end:
-            merged[-1] = (prev_start, max(prev_end, iv[1]))
+            merged[-1] = TTimeInterval(prev_start, max(prev_end, iv[1]))
         else:
             merged.append(iv)
     return merged
@@ -59,8 +51,8 @@ def iter_intervals(
         return
 
     target_tz = ZoneInfo(tz)
-    start_tz = ensure_datetime_utc(start).astimezone(target_tz)
-    end_tz = ensure_datetime_utc(end).astimezone(target_tz)
+    start_tz = ensure_datetime_in_tz(start, timezone.utc).astimezone(target_tz)
+    end_tz = ensure_datetime_in_tz(end, timezone.utc).astimezone(target_tz)
 
     # iterate cron in naive local time to get clean wall-clock semantics across
     # DST transitions (see next_scheduled_run for rationale)
@@ -74,7 +66,7 @@ def iter_intervals(
         if next_naive <= end_naive:
             tick_utc = tick_naive.replace(tzinfo=target_tz).astimezone(timezone.utc)
             next_utc = next_naive.replace(tzinfo=target_tz).astimezone(timezone.utc)
-            yield (tick_utc, next_utc)
+            yield TTimeInterval(tick_utc, next_utc)
         tick_naive = next_naive
 
 
@@ -94,7 +86,7 @@ def get_eligible_intervals(
     """
     effective_start, comp_idx = _trim_leading_completed(overall[0], completed)
     result: List[TTimeInterval] = []
-    for iv in iter_intervals(cron_expr, (effective_start, overall[1]), tz=tz):
+    for iv in iter_intervals(cron_expr, TTimeInterval(effective_start, overall[1]), tz=tz):
         while comp_idx < len(completed) and completed[comp_idx][1] <= iv[0]:
             comp_idx += 1
         if (
@@ -122,7 +114,7 @@ def next_eligible_interval(
         tz: IANA timezone for cron evaluation. Returned interval is UTC.
     """
     effective_start, comp_idx = _trim_leading_completed(overall[0], completed)
-    for interval in iter_intervals(cron_expr, (effective_start, overall[1]), tz=tz):
+    for interval in iter_intervals(cron_expr, TTimeInterval(effective_start, overall[1]), tz=tz):
         # advance past completed ranges that end before this interval
         while comp_idx < len(completed) and completed[comp_idx][1] <= interval[0]:
             comp_idx += 1
@@ -209,7 +201,7 @@ def resolve_interval_freshness_checks(
             checks.append(
                 TIntervalFreshnessCheck(
                     upstream_ref=upstream_ref,
-                    effective_interval=(effective_start, effective_end),
+                    effective_interval=TTimeInterval(effective_start, effective_end),
                     reason_if_not_completed=(
                         f"upstream {upstream_ref} not fresh"
                         f" for [{effective_start}, {effective_end})"
@@ -230,7 +222,7 @@ def resolve_interval_freshness_checks(
             checks.append(
                 TIntervalFreshnessCheck(
                     upstream_ref=upstream_ref,
-                    effective_interval=(effective_start, effective_end),
+                    effective_interval=TTimeInterval(effective_start, effective_end),
                     reason_if_not_completed=(
                         f"upstream {upstream_ref} not fully fresh for overall interval"
                     ),

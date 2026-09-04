@@ -18,3 +18,20 @@ def test_is_instance_lib_pyarrow() -> None:
 
     arr = pyarrow.array([0, 1])
     assert is_instance_lib(arr, class_ref="pyarrow.Array") is True
+
+
+def test_is_instance_lib_imports_submodules() -> None:
+    """Submodules of an imported package are imported on demand — packages do not
+    necessarily re-export them (e.g. newest starlette drops `starlette.applications`)."""
+    import sys
+    import xml  # noqa: F401
+
+    sys.modules.pop("xml.sax", None)
+    assert is_instance_lib(object(), class_ref="xml.sax.xmlreader.XMLReader") is False
+
+    import xml.sax.xmlreader
+
+    reader = xml.sax.xmlreader.XMLReader()
+    assert is_instance_lib(reader, class_ref="xml.sax.xmlreader.XMLReader") is True
+    # missing submodule of an imported package
+    assert is_instance_lib(object(), class_ref="xml.nonexistent.Klass") is False

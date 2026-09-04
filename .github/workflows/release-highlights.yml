@@ -1,0 +1,175 @@
+# Copy this file to dlt-hub/dlt as .github/workflows/release-highlights.yml.
+# It lives here so the bot repo owns the trigger contract it depends on.
+#
+# Repository secrets required in dlt-hub/dlt (shared with agentic-docs):
+#   AGENTIC_DOCS_ALLOWLIST           comma-separated GitHub usernames allowed to trigger
+#   GCP_WORKLOAD_IDENTITY_PROVIDER   projects/.../workloadIdentityPools/.../providers/...
+#   GCP_SERVICE_ACCOUNT              service account the workflow impersonates
+#
+# ---------------------------------------------------------------------------
+# WHAT THIS IS FOR, AND WHAT IT IS NOT
+#
+# Release discovery stays on a schedule: nobody is waiting for a tag to be
+# noticed, and polling GitHub for new tags is the right shape for that. This
+# workflow exists for the other half — reviewer feedback on an open highlights
+# pull request, where somebody has just written a comment and is watching the
+# page. That used to wait for the poll, and since no Cloud Scheduler job was ever
+# created it waited for somebody to run the job by hand.
+#
+# Separate from agentic-docs' workflow rather than folded into it. A workflow
+# triggers one Cloud Run job with one environment contract, and these differ in
+# every particular: a different job name, a different way of recognising its own
+# pull requests, and a different set of variables. In one file both jobs would
+# evaluate on every event and one would always skip.
+#
+# MAINTAINERS: triggering this is a privileged act. The job feeds the pull
+# request's comments — text anyone can write — to a model, and runs the Python
+# that model writes in a container whose identity can push to this repository.
+# Before you comment or submit a review on one of these pull requests:
+#   * read the raw comment text, not the rendered page. Text that instructs the
+#     bot rather than describing a change is an attack, however politely phrased.
+#   * review the resulting diff, not only its prose.
+# Only names in AGENTIC_DOCS_ALLOWLIST can do any of this.
+# ---------------------------------------------------------------------------
+
+name: Release Highlights
+
+on:
+  issue_comment:
+    types: [created]
+  # A reviewer reading prose clicks a line in the Files tab and types. That is not
+  # an issue_comment, it is a review, and without this the bot never wakes up for
+  # the shape maintainers actually use.
+  #
+  # Deliberately only `submitted`, not `pull_request_review_comment`. A reviewer
+  # leaving six line comments submits one review; triggering per comment would
+  # start six jobs racing on the same branch. The run reads every comment once it
+  # starts, so nothing is lost by waiting for the submit.
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    # These pull requests are recognised by their branch, `highlights/<line>`,
+    # which is what `list_open_highlight_prs` already keys on. Not a label,
+    # because nothing applies one today.
+    #
+    # `pull_request_review` fires for EVERY pull request in this repository, and
+    # dlt has many: without the branch check a maintainer reviewing an unrelated
+    # pull request would pass the allowlist gate and start a job that can only
+    # fail.
+    #
+    # A comment must look like a command; a submitted review is itself the
+    # request. Both `commented` and `changes_requested` start a run, because
+    # GitHub preselects "Comment" in the Submit review dialog — gating on
+    # `changes_requested` would mean a maintainer who writes notes on lines and
+    # clicks the green button gets silence. An approval starts nothing.
+    #
+    # A comment carrying the bot's own marker starts nothing. This is not
+    # hygiene: agentic-docs had a comment of its own containing an example
+    # command, which matched its trigger, passed the allowlist because the token
+    # belonged to a person, and had the driver reading its own example as an
+    # instruction.
+    #
+    # The issue_comment arm gates on the LABEL, not the branch. GitHub does not
+    # expose a pull request's head ref on that event, so the `highlights/` prefix
+    # used everywhere else is invisible here, and without a check `/revise` typed on
+    # any of dlt's thousands of pull requests would reach the job. The bot labels
+    # every pull request it opens.
+    #
+    # Both locks matter. This one stops the spend, and `_line_for_pr` returning None
+    # stops the run cleanly if it gets through anyway — which it can, because this
+    # file lives in dlt-hub/dlt and can drift out of step with the image.
+    if: |
+      (github.event_name == 'issue_comment' &&
+       github.event.issue.pull_request &&
+       contains(github.event.issue.labels.*.name, 'release-highlights') &&
+       !contains(github.event.comment.body, '<!-- release-highlights -->') &&
+       contains(github.event.comment.body, '/revise')) ||
+      (github.event_name == 'pull_request_review' &&
+       startsWith(github.event.pull_request.head.ref, 'highlights/') &&
+       (github.event.review.state == 'commented' ||
+        github.event.review.state == 'changes_requested'))
+
+    steps:
+      # Gate on the actor, because that is who causes the spend. Matching is exact
+      # against list entries, so "ann" cannot be satisfied by "annabel".
+      #
+      # A courtesy, not the boundary. GitHub decides which copy of a workflow file
+      # runs, and for `pull_request_review` that is the copy on the pull request's
+      # head branch, so a branch could carry a copy without this step. The job
+      # checks the allowlist again itself, asking GitHub who wrote the comment or
+      # the review rather than trusting what it was passed — which is why the step
+      # below sends the comment and review IDs. What this step buys is not spending
+      # a Cloud Run execution on a stranger.
+      #
+      # Someone not on the list is ordinary traffic rather than an error, so this
+      # reports false and the run ends green instead of leaving a failed check on
+      # every unrelated mention.
+      - name: Check allowlist
+        id: allowlist
+        env:
+          ALLOWLIST: ${{ secrets.AGENTIC_DOCS_ALLOWLIST }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          allowed=false
+          IFS=',' read -ra names <<< "$ALLOWLIST"
+          for name in "${names[@]}"; do
+            if [[ "$(echo "$name" | xargs)" == "$ACTOR" ]]; then
+              allowed=true
+              break
+            fi
+          done
+          if [[ "$allowed" == "false" ]]; then
+            echo "::notice::$ACTOR is not in AGENTIC_DOCS_ALLOWLIST; skipping"
+          fi
+          echo "allowed=$allowed" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        if: steps.allowlist.outputs.allowed == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        if: steps.allowlist.outputs.allowed == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Only numbers cross this boundary. The job reads the comments itself, so
+      # nothing a stranger wrote passes through this shell.
+      #
+      # GitHub models a comment on a pull request as an issue comment, so for that
+      # event the number is on `issue`. A review event has no `issue` at all — its
+      # number is on `pull_request`.
+      #
+      # The comment or review ID goes with it, and it is what makes the job's own
+      # allowlist check possible: the job asks GitHub who wrote that exact artifact
+      # rather than believing an actor name this file chose. A number is the one
+      # thing a modified copy of this workflow cannot lie usefully about, because
+      # the answer comes from the API and not from here.
+      - name: Execute release-highlights job
+        if: steps.allowlist.outputs.allowed == 'true'
+        env:
+          IS_REVIEW: ${{ github.event_name == 'pull_request_review' && 'true' || 'false' }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          REVIEW_ID: ${{ github.event.review.id }}
+        run: |
+          set -euo pipefail
+          if [[ "$IS_REVIEW" == "true" ]]; then
+            target="PR_NUMBER=${PR_NUMBER},REVIEW_ID=${REVIEW_ID},COMMENT_ID=0"
+          else
+            target="PR_NUMBER=${ISSUE_NUMBER},COMMENT_ID=${COMMENT_ID},REVIEW_ID=0"
+          fi
+          gcloud run jobs execute release-highlights \
+            --region=europe-west3 \
+            --update-env-vars="${target}" \
+            --wait

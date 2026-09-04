@@ -2,14 +2,12 @@ import os
 import base64
 import dataclasses
 from datetime import date, datetime, time  # noqa: I251
-from typing import Any, Callable, List, Protocol, IO, Union, Dict
+from typing import Any, Callable, List, Optional, Protocol, IO, Union, Dict
 from uuid import UUID
 from enum import Enum
 
 from dlt.common import known_env
 from dlt.common.libs import is_pydantic_model
-from dlt.common.exceptions import TypeErrorWithKnownTypes
-from dlt.common.pendulum import pendulum
 from dlt.common.arithmetics import Decimal
 from dlt.common.wei import Wei
 from dlt.common.utils import map_nested_values_in_place  # noqa: F401
@@ -71,6 +69,21 @@ def _custom_encode(obj: Any) -> JsonSerializable:
 
 custom_encode: JsonEncoder = _custom_encode
 
+DatetimeEncoder = Callable[[datetime], Any]
+"""A callable that renders a `datetime` for JSON instead of `isoformat`."""
+
+
+def custom_encode_datetimes(datetime_encoder: DatetimeEncoder) -> JsonEncoder:
+    """`custom_encode` that hands every `datetime` to `datetime_encoder`"""
+
+    def _encode(obj: Any) -> JsonSerializable:
+        if isinstance(obj, datetime):
+            return datetime_encoder(obj)  # type: ignore[no-any-return]
+        return custom_encode(obj)
+
+    return _encode
+
+
 # use PUA range to encode additional types
 PUA_START = int(os.environ.get(known_env.DLT_JSON_TYPED_PUA_START, "0xf026"), 16)
 
@@ -86,36 +99,26 @@ _TIME = chr(PUA_START + 7)
 PUA_START_UTF8_MAGIC = _DECIMAL.encode("utf-8")[:2]
 
 
-def _datetime_decoder(obj: str) -> pendulum.DateTime:
+def _datetime_decoder(obj: str) -> datetime:
     if obj.endswith("Z"):
-        # Backwards compatibility for data encoded with previous dlt version
+        # backwards compatibility for data encoded with previous dlt version
         # fromisoformat does not support Z suffix (until py3.11)
         obj = obj[:-1] + "+00:00"
-    # tz=None sets no timezone if if it not specified on string
-    dt = pendulum.parse(obj, tz=None)
-    if not isinstance(dt, pendulum.DateTime):
-        raise TypeErrorWithKnownTypes("obj", dt, ["pendulum.DateTime"])
-
-    return dt
+    # stays naive when the string carries no offset
+    return datetime.fromisoformat(obj)
 
 
-# define decoder for each prefix
+# BREAKING: decoders return stdlib types, not pendulum. the encoded form is unchanged
 DECODERS: TPuaDecoders = [
     Decimal,
     _datetime_decoder,
-    pendulum.Date.fromisoformat,
+    date.fromisoformat,
     UUID,
     HexBytes,
     base64.b64decode,
     Wei,
-    pendulum.Time.fromisoformat,
+    time.fromisoformat,
 ]
-# Alternate decoders that decode date/time/datetime to stdlib types instead of pendulum
-PY_DATETIME_DECODERS = list(DECODERS)
-PY_DATETIME_DECODERS[1] = datetime.fromisoformat
-PY_DATETIME_DECODERS[2] = date.fromisoformat
-PY_DATETIME_DECODERS[7] = time.fromisoformat
-# how many decoders?
 PUA_CHARACTER_MAX = len(DECODERS)
 
 
@@ -257,7 +260,16 @@ class SupportsJson(Protocol):
         self, s: Union[bytes, bytearray, memoryview], decoders: TPuaDecoders = DECODERS
     ) -> Any: ...
 
-    def dumps(self, obj: Any, sort_keys: bool = False, pretty: bool = False) -> str: ...
+    def dumps(
+        self,
+        obj: Any,
+        sort_keys: bool = False,
+        pretty: bool = False,
+        utc_z: bool = False,
+        datetime_encoder: Optional[DatetimeEncoder] = None,
+    ) -> str:
+        """`utc_z` renders a UTC datetime with `Z` where the backend supports it, the pre-1.29 form.
+        `datetime_encoder` renders every `datetime` instead of `isoformat`."""
 
     def dumpb(self, obj: Any, sort_keys: bool = False, pretty: bool = False) -> bytes: ...
 
@@ -296,6 +308,8 @@ else:
 __all__ = [
     "json",
     "custom_encode",
+    "custom_encode_datetimes",
+    "DatetimeEncoder",
     "custom_pua_encode",
     "custom_pua_decode",
     "custom_pua_decode_nested",
@@ -306,5 +320,4 @@ __all__ = [
     "may_have_pua",
     "TPuaDecoders",
     "DECODERS",
-    "PY_DATETIME_DECODERS",
 ]

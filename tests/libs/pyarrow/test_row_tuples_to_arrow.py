@@ -1,8 +1,9 @@
 import sys
 import types
-from datetime import date, datetime, timezone, time, timedelta  # noqa: I251
+from datetime import date, datetime, timezone, time, timedelta
 from uuid import uuid4
 from typing import List, Tuple, Any
+from zoneinfo import ZoneInfo
 
 import pyarrow as pa
 import pytest
@@ -550,6 +551,40 @@ def test_row_tuples_to_arrow_various_timestamps(
     # timezone hint controls tz metadata
     expected_tz = None if tz_hint is False else "UTC"
     assert col_type.tz == expected_tz
+
+
+@pytest.mark.parametrize("tz", ["UTC", "Europe/Berlin", "Asia/Kolkata"])
+def test_row_tuples_to_arrow_timestamp_tz_argument(tz: str) -> None:
+    """An aware input keeps its instant, a naive one is read in `tz`."""
+    columns: TTableSchemaColumns = {"ts": {"name": "ts", "data_type": "timestamp"}}
+    instant = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+    aware_values = ["2024-01-15T23:30:00+00:00", instant]
+    naive_values = ["2024-01-15T23:30:00", datetime(2024, 1, 15, 23, 30)]
+
+    for value in aware_values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us", tz=tz), value
+        assert tbl["ts"][0].as_py() == instant, value
+
+    # the wall clock is kept and the instant moves with the zone
+    for value in naive_values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us", tz=tz), value
+        assert tbl["ts"][0].as_py() == datetime(2024, 1, 15, 23, 30, tzinfo=ZoneInfo(tz)), value
+
+    # a `timezone=False` column is naive, holding the wall clock in `tz`
+    columns["ts"]["timezone"] = False
+    for value in naive_values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us")
+        assert tbl["ts"][0].as_py() == datetime(2024, 1, 15, 23, 30), value
+
+    # an aware value is converted to `tz` before the zone is dropped
+    local_wall_clock = instant.astimezone(ZoneInfo(tz)).replace(tzinfo=None)
+    for value in aware_values:
+        tbl = row_tuples_to_arrow([(value,)], _caps(), columns=columns, tz=tz)
+        assert tbl["ts"].type == pa.timestamp("us")
+        assert tbl["ts"][0].as_py() == local_wall_clock, value
 
 
 def test_row_tuples_to_arrow_pandas_ns_downcasts_to_us() -> None:

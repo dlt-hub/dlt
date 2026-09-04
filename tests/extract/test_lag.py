@@ -1,11 +1,12 @@
 import pytest
-from datetime import datetime, date, timedelta, timezone
+import pytz
+from datetime import datetime, date, timedelta, timezone, tzinfo
 from zoneinfo import ZoneInfo
 from typing import Any, Callable, Optional, Type, Union
 
 from dlt.common.incremental.typing import LastValueFunc
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime_non_utc
+from dlt.common.pendulum import pendulum, ensure_pendulum_dt
+from dlt.common.time import ensure_pendulum_date, ensure_datetime
 from dlt.extract.incremental.lag import (
     _apply_lag_to_value,
     _cursor_date_type,
@@ -156,8 +157,8 @@ def test_apply_lag_to_value_python_date(
 def test_apply_lag_to_value_pendulum_datetime(
     lag: Union[int, float], value_str: str, last_value_func: LastValueFunc[Any], expected_str: str
 ) -> None:
-    value = ensure_pendulum_datetime_non_utc(value_str)
-    expected = ensure_pendulum_datetime_non_utc(expected_str)
+    value = ensure_pendulum_dt(ensure_datetime(value_str))
+    expected = ensure_datetime(expected_str)
 
     result = _apply_lag_to_value(lag, value, last_value_func)
 
@@ -334,14 +335,14 @@ def test_apply_lag_to_value_timezone_preservation(
     assert isinstance(result, str)
 
     # Parse both original and result to check timezone info
-    parsed_original = ensure_pendulum_datetime_non_utc(value)
-    parsed_result = ensure_pendulum_datetime_non_utc(result)
+    parsed_original = ensure_datetime(value)
+    parsed_result = ensure_datetime(result)
 
     if expected_tz_preserved:
-        assert parsed_result.timezone == parsed_original.timezone
+        assert parsed_result.utcoffset() == parsed_original.utcoffset()
     else:
         # For naive datetimes, both should be naive
-        assert parsed_result.timezone is None or str(parsed_result.timezone) == "UTC"
+        assert parsed_result.utcoffset() in (None, timedelta(0))
 
 
 def test_apply_lag_to_value_edge_cases():
@@ -513,17 +514,34 @@ def test_apply_lag_to_value_named_timezone() -> None:
 
 
 @pytest.mark.parametrize(
-    "tz_name,expected_offset_hours",
-    [("Europe/Berlin", 2), ("America/New_York", -4), ("UTC", 0)],
-    ids=["berlin", "new_york", "utc"],
+    "tz,expected_offset",
+    [
+        (pendulum.timezone("Europe/Berlin"), timedelta(hours=2)),
+        (ZoneInfo("Europe/Berlin"), timedelta(hours=2)),
+        (ZoneInfo("America/New_York"), timedelta(hours=-4)),
+        (timezone(timedelta(hours=5)), timedelta(hours=5)),
+        (pytz.FixedOffset(330), timedelta(hours=5, minutes=30)),
+    ],
+    ids=["pendulum_tz", "zoneinfo_berlin", "zoneinfo_new_york", "stdlib_offset", "pytz_offset"],
 )
-def test_apply_lag_to_pendulum_datetime_foreign_tzinfo(
-    tz_name: str, expected_offset_hours: int
-) -> None:
-    """pendulum drops the timezone when a timedelta is added to a value with a non-pendulum tzinfo"""
-    value = pendulum.DateTime(2026, 8, 27, 3, 30, tzinfo=ZoneInfo(tz_name))
+def test_apply_lag_to_pendulum_datetime_user_tzinfo(tz: tzinfo, expected_offset: timedelta) -> None:
+    """pendulum arithmetic drops any tzinfo that is not its own, lag must keep it"""
+    value = pendulum.DateTime(2026, 8, 27, 3, 30, tzinfo=tz)
 
     result = _apply_lag_to_value(3600, value, max)
 
-    assert result == datetime(2026, 8, 27, 2, 30, tzinfo=ZoneInfo(tz_name))
-    assert result.utcoffset() == timedelta(hours=expected_offset_hours)
+    assert result == datetime(2026, 8, 27, 2, 30, tzinfo=tz)
+    assert result.utcoffset() == expected_offset
+
+
+@pytest.mark.parametrize(
+    "tz",
+    [pendulum.timezone("Europe/Berlin"), ZoneInfo("Europe/Berlin")],
+    ids=["pendulum", "zoneinfo"],
+)
+def test_apply_lag_to_pendulum_datetime_over_dst(tz: tzinfo) -> None:
+    # DST starts that day: 03:30+02:00 minus one hour of real time is 01:30+01:00
+    result = _apply_lag_to_value(3600, pendulum.DateTime(2026, 3, 29, 3, 30, tzinfo=tz), max)
+
+    assert result == datetime(2026, 3, 29, 0, 30, tzinfo=timezone.utc)
+    assert result.utcoffset() == timedelta(hours=1)

@@ -21,8 +21,9 @@ The unit comes from the cursor type you **declare**, not from the format of the 
 3. only when neither is present, the cursor values in the data decide
 
 Cursor values are coerced to the declared type before the lag is applied: a date cursor turns
-`"2024-05-07T10:00:00Z"` into `2024-05-07` (in UTC) and a datetime cursor turns `"2024-05-07"` into
-midnight of that day. A value that does not parse to the declared type raises an error.
+`"2024-05-07T10:00:00Z"` into `2024-05-07` (the day in the context timezone, UTC unless configured)
+and a datetime cursor turns `"2024-05-07"` into midnight of that day. A value that does not parse to
+the declared type raises an error.
 
 
 ### Example using `datetime` incremental cursor with `merge` as `write_disposition`

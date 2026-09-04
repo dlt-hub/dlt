@@ -74,6 +74,13 @@ const sidebars = {
             keywords: ["release notes", "release highlights"],
           },
           items: [
+            { type: "doc", id: "release-notes/1.30", label: "1.30" },
+            { type: "doc", id: "release-notes/1.29", label: "1.29" },
+            { type: "doc", id: "release-notes/1.28", label: "1.28" },
+            { type: "doc", id: "release-notes/1.27", label: "1.27" },
+            { type: "doc", id: "release-notes/1.26", label: "1.26" },
+            { type: "doc", id: "release-notes/1.25", label: "1.25" },
+            { type: "doc", id: "release-notes/1.24", label: "1.24" },
             { type: "doc", id: "release-notes/1.23", label: "1.23" },
             { type: "doc", id: "release-notes/1.22", label: "1.22" },
             { type: "doc", id: "release-notes/1.21.2", label: "1.21.2" },

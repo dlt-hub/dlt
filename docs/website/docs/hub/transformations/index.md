@@ -217,7 +217,7 @@ Given an `orders` table with one row per day:
 | …  | … |
 | 10 | 2026-01-10 |
 
-and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open upper bound).
+and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open range end).
 
 <!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_scheduler_window_definition-->
 
@@ -244,8 +244,13 @@ Now suppose `orders` is loaded in two batches:
 
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 
-:::caution Set `range_start="open"` on stateful cursors
-Set `range_start="open"` on every stateful cursor. The filter is then `cursor > last_value`, and it excludes the boundary row. A stateful cursor persists `last_value` after each run. With the default `range_start="closed"` the filter is `cursor >= last_value`, and the next run emits the boundary row again.
+:::caution Pick ranges by how your cursor behaves
+Each stateful run computes `MAX(cursor)` at extraction and sets its range end to that value. The run then advances `last_value` to it. As a result, a run never sees rows that arrive after this aggregate. The **boundary row** is the row at `MAX`. The ranges decide how `dlt` handles it:
+
+- `range_start="open"` (recommended for append): the boundary row loads in the run that records it, and no later run reads it again. The range end is always inclusive for an open start, because an open end never loads the boundary row.
+- Default `range_start="closed"` with `range_end="open"`: `dlt` defers the boundary row. The run that records it excludes it. The next run that observes a greater cursor value loads it exactly once. Append creates no duplicates, but the newest rows of each run wait one cycle.
+- `range_start="closed"` with `range_end="closed"`, `write_disposition="merge"` and a primary key: `dlt` loads the boundary eagerly and reads it again in every run. The merge removes the overlap. Use this combination when late rows that share the boundary cursor value must load without a wait.
+- A `primary_key` on the incremental that equals the cursor column declares the cursor values unique. The boundary then loads eagerly and never replays, whatever the range settings are.
 :::
 
 ### Cursor column choices
@@ -262,9 +267,9 @@ Internally, dlt modifies the source query to include the cursor filter when it r
 
 ### State and safety rules
 
-- dlt rejects `LIMIT` on stateful relation incrementals. A limited result can advance the state past rows that the query did not return. Remove the limit. As an alternative, use an explicit bounded window.
-- SQL-based cursors support `max` and `min` last-value functions. dlt cannot translate custom Python `last_value_func` callables to SQL.
-- Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`. `"exclude"` adds `AND cursor IS NOT NULL`. `"raise"` cannot raise in the middle of a query. It excludes the null cursor values instead.
+- `LIMIT` is rejected on stateful relation incrementals. Advancing state from a limited result can skip rows that were not returned. Remove the limit or use an explicit fixed range.
+- SQL-based cursors support `max` and `min` last-value functions. Custom Python `last_value_func` callables cannot be pushed down to SQL.
+- Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
 
 For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../general-usage/incremental/cursor.md).
 

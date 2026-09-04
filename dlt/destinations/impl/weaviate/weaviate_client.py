@@ -14,6 +14,8 @@ from typing import (
     cast,
 )
 
+from datetime import datetime, timezone
+
 from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
@@ -39,9 +41,8 @@ from weaviate.exceptions import (
 
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.typing import StrAny, TFun
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.schema import Schema, TSchemaTables, TTableSchemaColumns
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -205,7 +206,7 @@ class LoadWeaviateJob(RunnableLoadJob):
                     data[key] = json.dumps(data[key])
             for key in self.date_indices:
                 if key in data:
-                    data[key] = ensure_pendulum_datetime_utc(data[key]).isoformat()
+                    data[key] = ensure_datetime_in_tz(data[key]).isoformat()
             if self.unique_identifiers:
                 uuid = self.generate_uuid(data, self.unique_identifiers, self._collection_name)
             else:
@@ -974,7 +975,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             load_id,
             self.schema.name,
             0,
-            pendulum.now().isoformat(),
+            datetime.now(timezone.utc).isoformat(),
             self.schema.version_hash,
         ]
         assert len(values) == len(self.loads_collection_properties)
@@ -1001,7 +1002,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         values = [
             schema.version,
             schema.ENGINE_VERSION,
-            str(pendulum.now().isoformat()),
+            str(datetime.now(timezone.utc).isoformat()),
             schema.name,
             schema.stored_version_hash,
             schema_str,

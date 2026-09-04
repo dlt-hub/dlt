@@ -1,28 +1,35 @@
 """System launcher for function-based jobs."""
 
+from datetime import timezone
 import asyncio
 import inspect
-import os
 from contextlib import nullcontext
-from typing import Any, Dict, List, Optional
-from zoneinfo import ZoneInfo
+from typing import Any, ContextManager, Dict, List, Optional
 
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
+from dlt.common.time import to_tzinfo
 from dlt.common.libs import is_instance_lib
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime import signals
-from dlt.common.time import ensure_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace import known_sections as ws_known_sections
-from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment.decorators import JobFactory
 from dlt._workspace.deployment.exceptions import JobResolutionError
-from dlt._workspace.deployment.typing import TJobRunContext, TRuntimeEntryPoint, TTrigger
+from dlt._workspace.deployment.typing import (
+    TJobRunContext,
+    TRuntimeEntryPoint,
+    TTrigger,
+    resolve_incremental_mode,
+)
 from dlt.extract.incremental.context import TimeIntervalContext
 from dlt._workspace.deployment.launchers._launcher import (
+    apply_job_configuration,
     get_run_args_port,
     parse_launcher_args,
+    prepare_run_env,
     set_config_env_vars,
 )
 
@@ -149,33 +156,29 @@ def run(
     Returns:
         Any: The return value of the job function.
     """
+    # fill unset job settings from config, then set env vars - both before user module
+    # import so pipelines created at import time pick them up
+    apply_job_configuration(entry_point)
+    # env is emitted as well so processes the job starts inherit the run settings, the contexts
+    # entered below scope the same settings in-process
+    prepare_run_env(entry_point)
+
     job = _resolve_job(entry_point)
     sections = (ws_known_sections.JOBS, job.section, job.name)
     set_config_env_vars(sections, entry_point.get("config", {}))
 
-    # activate workspace profile via env var — subprocess launchers inherit it,
-    # the workspace plugin reads it on init
-    profile = entry_point.get("profile")
-    if profile:
-        os.environ[WORKSPACE__PROFILE] = profile
-
-    # parse interval from entry point. The runner always serializes in UTC and
-    # ships `interval_timezone` (IANA name) as a sidecar so tz identity survives
-    # JSON round-trip. Re-apply tz here — this is the boundary where the
-    # user-facing interval gets its original timezone back.
     iv_start_str = entry_point.get("interval_start")
     iv_end_str = entry_point.get("interval_end")
     iv_tz_name = entry_point.get("interval_timezone", "UTC")
     iv: Optional[TTimeInterval] = None
     if iv_start_str and iv_end_str:
-        target_tz = ZoneInfo(iv_tz_name)
-        iv = (
-            ensure_datetime_utc(iv_start_str).astimezone(target_tz),
-            ensure_datetime_utc(iv_end_str).astimezone(target_tz),
+        # intervals are in UTC in transit - if user requested a different timezone
+        # apply it here
+        target_tz = to_tzinfo(iv_tz_name)
+        iv = TTimeInterval(
+            ensure_datetime_in_tz(iv_start_str, timezone.utc).astimezone(target_tz),
+            ensure_datetime_in_tz(iv_end_str, timezone.utc).astimezone(target_tz),
         )
-        os.environ["DLT_INTERVAL_START"] = iv_start_str
-        os.environ["DLT_INTERVAL_END"] = iv_end_str
-        os.environ["DLT_INTERVAL_TIMEZONE"] = iv_tz_name
 
     # inject run_context if the function signature declares it
     kwargs: Dict[str, Any] = {}
@@ -200,21 +203,27 @@ def run(
         else nullcontext()
     )
 
-    # inject interval context into Container so dlt.current.interval() works.
-    with signal_ctx:
-        if iv is not None:
-            iv_ctx = TimeIntervalContext(
+    # the timezone context validates the declared zone before any user code runs
+    tz_ctx = Container().injectable_context(TimezoneContext(iv_tz_name))
+    # both branches yield different context types, which mypy cannot join without the annotation
+    iv_ctx: ContextManager[Any] = nullcontext()
+    if iv is not None:
+        # pass True or None, False has no effect on incrementals
+        iv_ctx = Container().injectable_context(
+            TimeIntervalContext(
                 interval=iv,
-                allow_external_schedulers=entry_point.get("allow_external_schedulers", False),
+                allow_external_schedulers=(
+                    resolve_incremental_mode(entry_point) == "interval" or None
+                ),
             )
-            with Container().injectable_context(iv_ctx):
-                result = job(**kwargs)
-                if asyncio.iscoroutine(result):
-                    result = asyncio.run(result)
-        else:
-            result = job(**kwargs)
-            if asyncio.iscoroutine(result):
-                result = asyncio.run(result)
+        )
+
+    # TODO: job (JobFactory) should have a method that returns pipeline name on the factory
+    #       then if refresh flag is set, we refresh ONLY this pipeline
+    with signal_ctx, tz_ctx, iv_ctx:
+        result = job(**kwargs)
+        if asyncio.iscoroutine(result):
+            result = asyncio.run(result)
 
     _check_return_value(result, job, entry_point)
     return result
