@@ -484,7 +484,11 @@ class ArrowIncremental(IncrementalTransform):
                 ) from ex
             # Is max row value higher than end value?
             # NOTE: pyarrow bool *always* evaluates to python True. `as_py()` is necessary
-            end_out_of_range = not self.end_compare(row_value_scalar, end_value_scalar).as_py()
+            # NOTE: an all-null cursor column aggregates to a null scalar, and comparing it
+            # yields null as well. That means "no comparable cursor value in this batch",
+            # not "out of range" - treating it as out of range closes an ordered source early.
+            end_compare_result = self.end_compare(row_value_scalar, end_value_scalar).as_py()
+            end_out_of_range = end_compare_result is not None and not end_compare_result
             if end_out_of_range:
                 tbl = tbl.filter(self.end_compare(tbl[cursor_path], end_value_scalar))
                 # NOTE: here we should recalculate row_value_scalar and row_value because it was out of range!
