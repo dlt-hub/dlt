@@ -225,15 +225,84 @@ When passing these hints to a resource, keep in mind that:
 
 In the example below, the `primary_key="col_1"` argument takes precedence over any `primary_key` hints defined in `columns`. As a result, only `col_1` will be treated as the primary key.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::compound_hints_direct_key_precedence-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_data",
+)
+
+@dlt.resource(
+    name="my_table",
+    primary_key="col_1",
+    columns={"col_2": {"primary_key": True}},
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+```
 
 Note that direct `primary_key` and `merge_key` hints are always authoritative within a single resource definition, even if they are set to an empty value (e.g. `""` or `[]`). In that case, the empty direct hint forces any column-level key hints to be ignored. In the following example, `col_2` will not receive a primary key hint.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_empty_direct_key_precedence-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_data_2",
+)
+
+@dlt.resource(
+    name="my_table",
+    primary_key="",
+    columns={"col_2": {"primary_key": True}},
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+assert not pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+    "primary_key"
+)
+assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+    "primary_key"
+)
+```
 
 The same precedence rule applies to `merge_key`. It also applies when direct key and column-level hints are both provided via `apply_hints`. In the example below, only `col_1` will be treated as the merge key.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_direct_key_precedence_apply_hints-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline",
+    destination="duckdb",
+    dataset_name="my_data_3",
+)
+
+@dlt.resource(
+    name="my_table",
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+my_resource.apply_hints(merge_key="col_1", columns={"col_2": {"merge_key": True}})
+
+pipeline.run(my_resource)
+
+assert (
+    pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("merge_key")
+    is True
+)
+assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+    "merge_key"
+)
+```
 
 #### 2. Redefining hints on an already extracted resource replaces previous configuration
 
@@ -241,7 +310,42 @@ If you redefine a compound hint for a resource that has already been extracted, 
 
 In the example below, the resource is first defined with `partition` on `col_2`. After the first run, we update the resource hints and set `partition` on `col_1` instead. On the next run, only `col_1` will remain partitioned, and `col_2` will no longer have the `partition` property.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_compound_hints_replace_previous_compound_props-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline1",
+    destination="duckdb",
+    dataset_name="my_data",
+)
+
+@dlt.resource(
+    name="my_table",
+    columns={"col_2": {"partition": True}},
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+@dlt.resource(  # type: ignore[no-redef]
+    name="my_table",
+    columns={"col_1": {"partition": True}},
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+# only col_1 has the partition property, col_2 lost it on redefinition
+assert (
+    pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get("partition")
+    is True
+)
+assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+    "partition"
+)
+```
 
 :::warning
 Note that direct `primary_key` and `merge_key` hints automatically set `nullable=False` for the respective columns, unless you explicitly set `nullable=True`. If you later redefine the key hints, columns that were previously part of the key will keep their existing nullability and will not be reset to `nullable=True` automatically.
@@ -249,13 +353,82 @@ Note that direct `primary_key` and `merge_key` hints automatically set `nullable
 
 Be aware that redefining `primary_key` or `merge_key` to an empty value on an extracted resource does not clear any key properties in the schema. In the example below, `col_1` will remain the primary key.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_empty_value_key_hints_do_not_replace_previous_hints-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline1",
+    destination="duckdb",
+    dataset_name="my_data_2",
+)
+
+@dlt.resource(
+    name="my_table",
+    primary_key="col_1",
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+@dlt.resource(  # type: ignore[no-redef]
+    name="my_table",
+    primary_key=[],
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+# col_1 remains the primary key, the empty redefinition is ignored
+assert (
+    pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+        "primary_key"
+    )
+    is True
+)
+```
 
 #### 3. Column-level compound hints via `apply_hints` are merged
 
 When you call `apply_hints` with column-level compound hints on a resource that has already been extracted, the new column hints are merged into the existing schema. In the example below, the first run defines `col_2` as a primary key. After the run, we add a `primary_key` hint for `col_1` via the `columns` argument of `apply_hints`. On the next run, both `col_1` and `col_2` are treated as primary keys.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_column_level_compound_prop_hints_via_apply_hints_merged-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline1",
+    destination="duckdb",
+    dataset_name="my_data_3",
+)
+
+@dlt.resource(
+    name="my_table",
+    columns={"col_2": {"primary_key": True}},
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+my_resource.apply_hints(columns={"col_1": {"primary_key": True}})
+
+pipeline.run(my_resource)
+
+# both col_1 and col_2 are now primary keys, apply_hints merged them
+assert (
+    pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+        "primary_key"
+    )
+    is True
+)
+assert (
+    pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+        "primary_key"
+    )
+    is True
+)
+```
 
 :::note
 This merging behavior applies to all column-level hints passed via `apply_hints`, not only to 
@@ -266,7 +439,39 @@ compound hints.
 
 Unlike column-level hints, direct key hints provided through `apply_hints` are treated as authoritative. As a result, they replace any existing key configuration instead of being merged. In the example below, setting `primary_key="col_1"` via `apply_hints` replaces the previously defined primary key on `col_2`.
 
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::test_direct_key_hint_via_apply_hints_replaces-->
+```py execute
+import dlt
+
+pipeline = dlt.pipeline(
+    pipeline_name="my_pipeline1",
+    destination="duckdb",
+    dataset_name="my_data_4",
+)
+
+@dlt.resource(
+    name="my_table",
+    columns={"col_2": {"primary_key": True}},
+)
+def my_resource():
+    yield {"col_1": 1, "col_2": 2}
+
+pipeline.run(my_resource)
+
+my_resource.apply_hints(primary_key="col_1")
+
+pipeline.run(my_resource)
+
+# the direct key hint replaces col_2's primary key instead of merging with it
+assert (
+    pipeline.default_schema.tables["my_table"]["columns"]["col_1"].get(
+        "primary_key"
+    )
+    is True
+)
+assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
+    "primary_key"
+)
+```
 
 ## Data types
 
@@ -369,7 +574,71 @@ You are able to bring your own `row_key` by adding a `_dlt_id` column/field to y
 ### Generate custom linking for nested tables
 Using `nested_hints` in `@dlt.resource` you can model your own relations between root and nested tables. You do that by specifying `primary_key` or `merge_key` on
 a nested table.
-<!--@@@DLT_SNIPPET ./snippets/schema-snippets.py::nested_hints_primary_key-->
+```py execute
+import dlt
+from dlt.common import Decimal
+
+@dlt.resource(
+    primary_key="id",
+    write_disposition="merge",
+    nested_hints={
+        "purchases": dlt.mark.make_nested_hints(
+            # column hint is optional - makes sure that customer_id is a first column in the table
+            columns=[{"name": "customer_id", "data_type": "bigint"}],
+            primary_key=["customer_id", "id"],
+            write_disposition="merge",
+            references=[
+                {
+                    "referenced_table": "customers",
+                    "columns": ["customer_id"],
+                    "referenced_columns": ["id"],
+                }
+            ],
+        )
+    },
+)
+def customers():
+    """Load customer data from a simple python list."""
+    yield [
+        {
+            "id": 1,
+            "name": "simon",
+            "city": "berlin",
+            "purchases": [{"id": 1, "name": "apple", "price": Decimal("1.50")}],
+        },
+        {
+            "id": 2,
+            "name": "violet",
+            "city": "london",
+            "purchases": [{"id": 1, "name": "banana", "price": Decimal("1.70")}],
+        },
+        {
+            "id": 3,
+            "name": "tammo",
+            "city": "new york",
+            "purchases": [{"id": 1, "name": "pear", "price": Decimal("2.50")}],
+        },
+    ]
+
+def _pushdown_customer_id(row):
+    id_ = row["id"]
+    for purchase in row["purchases"]:
+        purchase["customer_id"] = id_
+    return row
+
+p = dlt.pipeline(
+    pipeline_name="test_nested_hints_primary_key",
+    destination="duckdb",
+    dataset_name="local",
+)
+p.run(customers().add_map(_pushdown_customer_id))
+# load same data again to prove that merge works
+p.run(customers().add_map(_pushdown_customer_id))
+# check counts
+row_count = p.dataset().row_counts().fetchall()
+print(dict(row_count))
+#> {'customers': 3, 'customers__purchases': 3}
+```
 
 In the above example we effectively convert `customers__purchases` table into a top level table that is linked to `customers` table `id` column with `customer_id` foreign key.
 1. we declare compound primary key on `purchases` on (customer_id, id) columns
@@ -537,15 +806,17 @@ settings:
 Above, we prefer the `timestamp` data type for all columns containing the **timestamp** substring and define a few exact matches, i.e., **created_at**.
 Here's the same thing in code:
 ```py
-  source = data_source()
-  source.schema.update_preferred_types(
-    {
-      TSimpleRegex("re:timestamp"): "timestamp",
-      TSimpleRegex("inserted_at"): "timestamp",
-      TSimpleRegex("created_at"): "timestamp",
-      TSimpleRegex("updated_at"): "timestamp",
-    }
-  )
+from dlt.common.schema.typing import TSimpleRegex
+
+source = data_source()
+source.schema.update_preferred_types(
+{
+    TSimpleRegex("re:timestamp"): "timestamp",
+    TSimpleRegex("inserted_at"): "timestamp",
+    TSimpleRegex("created_at"): "timestamp",
+    TSimpleRegex("updated_at"): "timestamp",
+}
+)
 ```
 ### Applying data types directly with `@dlt.resource` and `apply_hints`
 `dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
@@ -569,7 +840,7 @@ For example, to apply a `json` data type across all collections from a MongoDB s
 
 ```py
 all_collections = ["collection1", "collection2", "collection3"]  # replace with your actual collection names
-source_data = mongodb().with_resources(*all_collections)
+source_data = mongodb().with_resources(*all_collections)  # ty: ignore
 
 for col in all_collections:
     source_data.resources[col].apply_hints(columns={"column_name": {"data_type": "json"}})
@@ -657,4 +928,3 @@ def textual(nesting_level: int):
 
     return dlt.resource([])
 ```
-

@@ -12,7 +12,7 @@ dlt ships a small helper, `send_slack_message`, that posts to a Slack [incoming 
 
 Create an incoming webhook for the channel that should receive alerts:
 
-1. Open https://api.slack.com/messaging/webhooks.
+1. Open [https://api.slack.com/messaging/webhooks](https://api.slack.com/messaging/webhooks).
 2. Create a new Slack app (or pick an existing one), enable **Incoming Webhooks**, and add a webhook to your workspace.
 3. Pick the destination channel. You'll get a URL of the form `https://hooks.slack.com/services/T…/B…/…`.
 

@@ -122,7 +122,7 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 ### Source `personio_source`
 
 This `dlt` source returns data resources like `employees`, `absences`, `absence_types`, etc.
-```py
+```py notype
 @dlt.source(name="personio")
 def personio_source(
     client_id: str = dlt.secrets.value,
@@ -154,6 +154,9 @@ def personio_source(
 This resource retrieves data on all the employees in a company.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(primary_key="id", write_disposition="merge")
 def employees(
     updated_at: dlt.sources.incremental[
@@ -161,7 +164,7 @@ def employees(
     ] = dlt.sources.incremental(
         "last_modified_at", initial_value=None, allow_external_schedulers=True
     ),
-    items_per_page: int = ITEMS_PER_PAGE,
+    items_per_page: int = 100,
 ) -> Iterable[TDataItem]:
     ...
 ```
@@ -180,8 +183,11 @@ data incrementally from the Personio API to your preferred destination.
 
 Simple resource, which retrieves a list of various types of employee absences.
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(primary_key="id", write_disposition="replace")
-def absence_types(items_per_page: int = ITEMS_PER_PAGE) -> Iterable[TDataItem]:
+def absence_types(items_per_page: int = 100) -> Iterable[TDataItem]:
    ...
 ...
 ```
@@ -204,7 +210,7 @@ The transformer functions transform or process data from resources.
 The transformer function `employees_absences_balance` processes data from the `employees` resource.
 It fetches and returns a list of the absence balances for each employee.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=employees,
     write_disposition="merge",
@@ -237,14 +243,14 @@ verified source.
 
 1. To load employee data:
 
-   ```py
+   ```py notype
    load_data = personio_source().with_resources("employees")
    print(pipeline.run(load_data))
    ```
 
 1. To load data from all supported endpoints:
 
-   ```py
+   ```py notype
    load_data = personio_source()
    print(pipeline.run(load_data))
    ```

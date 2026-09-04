@@ -698,7 +698,7 @@ from typing import Iterator
 
 import dlt
 from dlt.common.storages.fsspec_filesystem import FileItemDict
-from dlt.common.typing import TDataItem
+from dlt.common.typing import TDataItems
 from dlt.sources.filesystem import filesystem
 
 BUCKET_URL = "s3://my_bucket/data"
@@ -735,6 +735,8 @@ print(load_info)
 You can use any third-party library to parse an `xml` file (e.g., [BeautifulSoup](https://pypi.org/project/beautifulsoup4/), [pandas](https://pandas.pydata.org/docs/reference/api/pandas.read_xml.html)). In the following example, we will be using the [xmltodict](https://pypi.org/project/xmltodict/) Python library.
 
 ```py
+from typing import Iterator
+
 import dlt
 from dlt.common.storages.fsspec_filesystem import FileItemDict
 from dlt.common.typing import TDataItems

@@ -1,3 +1,0 @@
-packages:
-  - package: calogica/dbt_expectations
-    version: [">=0.4.0"]

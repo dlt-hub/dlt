@@ -121,9 +121,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function loads notion databases from Notion into the destination.
 
 ```py
+from typing import Iterator
+from dlt.extract import DltResource
+
 @dlt.source
 def notion_databases(
-    database_ids: Optional[List[Dict[str, str]]] = None,
+    database_ids: list[dict[str, str]] | None = None,
     api_key: str = dlt.secrets.value,
 ) -> Iterator[DltResource]:
    ...
@@ -161,7 +164,7 @@ verified source.
 
 2. To load all the integrated databases:
 
-   ```py
+   ```py notype
    load_data = notion_databases()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -169,7 +172,7 @@ verified source.
 
 3. To load the custom databases:
 
-   ```py
+   ```py notype
    selected_database_ids = [{"id": "0517dae9409845cba7d","use_name":"db_one"}, {"id": "d8ee2d159ac34cfc"}]
    load_data = notion_databases(database_ids=selected_database_ids)
    load_info = pipeline.run(load_data)

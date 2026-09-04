@@ -57,6 +57,7 @@ Table truncation/drop happens when the load step starts, so a failed extract or 
 Example:
 ```py
 import dlt
+from dlt.sources.sql_database import sql_database
 
 pipeline = dlt.pipeline("airtable_demo", destination="duckdb")
 pipeline.run(sql_database().with_resources("users"), refresh="drop_data")

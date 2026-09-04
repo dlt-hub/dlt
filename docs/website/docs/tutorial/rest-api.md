@@ -154,6 +154,8 @@ Here's what's happening in the code:
 Let's break down the configuration of the REST API source. It consists of three main parts: `client`, `resource_defaults`, and `resources`.
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         # ...
@@ -190,7 +192,8 @@ In our case, we don't want to append the data every time we run the pipeline. Le
 To change the write disposition to `replace`, update the `resource_defaults` configuration in the `rest_api_pipeline.py` file:
 
 ```py
-...
+from dlt.sources.rest_api import rest_api_source
+
 pokemon_source = rest_api_source(
     {
         "client": {
@@ -211,7 +214,6 @@ pokemon_source = rest_api_source(
         ],
     }
 )
-...
 ```
 
 Run the pipeline again with `python rest_api_pipeline.py`. This time, the data will be replaced in the destination table instead of being appended.
@@ -223,7 +225,8 @@ When you want to update the existing data as new data is loaded, you can use the
 Let's update our example to use the `merge` write disposition. We need to specify the primary key for the `pokemon` resource and set the write disposition to `merge`:
 
 ```py
-...
+from dlt.sources.rest_api import rest_api_source
+
 pokemon_source = rest_api_source(
     {
         "client": {

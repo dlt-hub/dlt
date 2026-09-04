@@ -122,7 +122,24 @@ This tutorial uses the GitHub REST API for demonstration purposes only. If you n
 
 First, we need to create a [pipeline](../general-usage/pipeline). Pipelines are the main building blocks of `dlt` and are used to load data from sources to destinations. Open your favorite text editor and create a file called `github_issues.py`. Add the following code to it:
 
-<!--@@@DLT_SNIPPET basic_api-->
+```py
+import dlt
+from dlt.sources.helpers import requests
+
+# Specify the URL of the API endpoint
+url = "https://api.github.com/repos/dlt-hub/dlt/issues"
+# Make a request and check if it was successful
+response = requests.get(url)
+response.raise_for_status()
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_issues",
+    destination="duckdb",
+    dataset_name="github_data",
+)
+# The response contains a list of issues
+pipeline.run(response.json(), table_name="issues")
+```
 
 
 Here's what the code above does:
@@ -200,7 +217,62 @@ You can pass a generator to the `run` method directly or use the `@dlt.resource`
 Let's improve our GitHub API example and get only issues that were created since the last load.
 Instead of using the `replace` write disposition and downloading all issues each time the pipeline is run, we do the following:
 
-<!--@@@DLT_SNIPPET incremental-->
+```py
+from typing import Any, Iterator
+
+import dlt
+from dlt.sources.helpers import requests
+
+@dlt.resource(table_name="issues", write_disposition="append")
+def get_issues(
+    created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+        "created_at", initial_value="1970-01-01T00:00:00Z"
+    ),
+) -> Iterator[dict[str, Any]]:
+    # NOTE: we read only open issues to minimize number of calls to the API.
+    # There's a limit of ~50 calls for not authenticated Github users.
+    url = (
+        "https://api.github.com/repos/dlt-hub/dlt/issues"
+        "?per_page=100&sort=created&directions=desc&state=open"
+    )
+
+    while True:
+        response = requests.get(url)
+        response.raise_for_status()
+        yield response.json()
+
+        # Stop requesting pages if the last element was already
+        # older than initial value
+        # Note: incremental will skip those items anyway, we just
+        # do not want to use the api limits
+        if created_at.start_out_of_range:
+            break
+
+        # get next page
+        if "next" not in response.links:
+            break
+        url = response.links["next"]["url"]
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_issues_incremental",
+    destination="duckdb",
+    dataset_name="github_data_append",
+)
+
+load_info = pipeline.run(get_issues)
+normalize_info = pipeline.last_trace.last_normalize_info
+
+# print(normalize_info.row_counts)
+"""
+{
+    'issues': 420,
+    'issues__labels': 379,
+    'issues__assignees': 138,
+    'issues__performed_via_github_app__events': 48,
+    '_dlt_pipeline_state': 1,
+}
+"""
+```
 
 
 Let's take a closer look at the code above.
@@ -238,7 +310,52 @@ It will ignore any updates to **existing** issue text, emoji reactions, etc.
 To always get fresh content of all the issues, combine incremental load with the `merge` write disposition,
 like in the script below.
 
-<!--@@@DLT_SNIPPET incremental_merge-->
+```py
+from typing import Any, Iterator
+
+import dlt
+from dlt.sources.helpers import requests
+
+@dlt.resource(
+    table_name="issues",
+    write_disposition="merge",
+    primary_key="id",
+)
+def get_issues(
+    updated_at: dlt.sources.incremental[str] = dlt.sources.incremental(
+        "updated_at", initial_value="1970-01-01T00:00:00Z"
+    ),
+) -> Iterator[dict[str, Any]]:
+    # NOTE: we read only open issues to minimize number of calls to
+    # the API. There's a limit of ~50 calls for not authenticated
+    # Github users
+    url = (
+        "https://api.github.com/repos/dlt-hub/dlt/issues"
+        f"?since={updated_at.last_value}&per_page=100&sort=updated"
+        "&directions=desc&state=open"
+    )
+
+    while True:
+        response = requests.get(url)
+        response.raise_for_status()
+        yield response.json()
+
+        # Get next page
+        if "next" not in response.links:
+            break
+        url = response.links["next"]["url"]
+
+pipeline = dlt.pipeline(
+    pipeline_name="github_issues_merge",
+    destination="duckdb",
+    dataset_name="github_data_merge",
+)
+load_info = pipeline.run(get_issues)
+normalize_info = pipeline.last_trace.last_normalize_info
+
+# print(normalize_info.row_counts)
+#> {'_dlt_pipeline_state': 1}
+```
 
 
 Above, we add the `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates whose content it will merge.
@@ -327,7 +444,7 @@ def get_comments(
 
 We can load this resource separately from the issues resource; however, loading both issues and comments in one go is more efficient. To do that, we'll use the `@dlt.source` decorator on a function that returns a list of resources:
 
-```py
+```py notype
 @dlt.source
 def github_source():
     return [get_issues, get_comments]
@@ -433,7 +550,8 @@ For the next step, we'd want to get the [number of repository clones](https://do
 
 Let's handle this by changing our `fetch_github_data()` function first:
 
-```py
+```py notype
+from dlt.sources.helpers.rest_client import paginate
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 
 def fetch_github_data_with_token(endpoint, params={}, access_token=None):
@@ -461,7 +579,7 @@ def github_source_with_token(access_token: str):
 
 Here, we added an `access_token` parameter and now we can use it to pass the access token to the request:
 
-```py
+```py notype
 load_info = pipeline.run(github_source_with_token(access_token="ghp_XXXXX"))
 ```
 
@@ -494,8 +612,6 @@ access_token = "ghp_A...3aRY"
 Now we can run the script and it will load the data from the `traffic/clones` endpoint:
 
 ```py
-...
-
 @dlt.source
 def github_source_with_token_from_secrets(
     access_token: str = dlt.secrets.value,
@@ -503,7 +619,7 @@ def github_source_with_token_from_secrets(
     for endpoint in ["issues", "comments", "traffic/clones"]:
         params = {"per_page": 100}
         yield dlt.resource(
-            fetch_github_data_with_token(endpoint, params, access_token),
+            fetch_github_data_with_token(endpoint, params, access_token),  # ty: ignore
             name=endpoint,
             write_disposition="merge",
             primary_key="id",
@@ -535,7 +651,7 @@ def fetch_github_data_with_token_and_params(repo_name, endpoint, params={}, acce
     return paginate(
         url,
         params=params,
-        auth=BearerTokenAuth(token=access_token) if access_token else None,
+        auth=BearerTokenAuth(token=access_token) if access_token else None,  # ty: ignore
     )
 
 

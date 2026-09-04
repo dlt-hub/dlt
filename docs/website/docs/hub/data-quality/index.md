@@ -183,7 +183,7 @@ dq.read_metric(
 
 `read_metric` returns rows **ordered newest-first by `_dlt_load_id`** — so the first row in the result is the most recent snapshot. To grab the current value of a metric, for example, the row count of a table:
 
-```py
+```py notype
 latest = dq.read_metric(dataset, table="customers", metric="row_count").df()
 latest_row_count = latest["metric_value"].iloc[0]
 ```
@@ -318,7 +318,7 @@ all_checks = dq.read_check(dataset, table="orders").df()
 
 `read_check` returns rows **ordered newest-first by `_dlt_load_id`** — so the first row is the most recent check result. To grab the latest `success_rate` for a specific check:
 
-```py
+```py notype
 all_checks = dq.read_check(dataset, table="orders").df()
 latest_success_rate = all_checks[
     all_checks["check_qualified_name"] == "payment_method__is_in"

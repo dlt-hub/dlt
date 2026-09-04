@@ -39,7 +39,7 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Ensure that you have Ads Manager active for your Facebook account.
 1. Find your account ID, which is a long number. You can locate it by clicking on the Account
    Overview dropdown in Ads Manager or by checking the link address. For example,
-   https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324.
+   [https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324](https://adsmanager.facebook.com/adsmanager/manage/accounts?act=10150974068878324).
 1. Note this account ID as it will further be used in configuring dlt.
 
 #### Grab `Access_Token`
@@ -52,7 +52,7 @@ To get a complete list of sub-endpoints that can be loaded, see
 1. Go to the "Basic" settings in the left-hand side menu.
 1. Copy the "App ID" and "App secret" and paste them as "client_id" and "client_secret" in the
    secrets.toml file in the .dlt folder.
-1. Next, obtain a short-lived access token at https://developers.facebook.com/tools/explorer/.
+1. Next, obtain a short-lived access token at [https://developers.facebook.com/tools/explorer/](https://developers.facebook.com/tools/explorer/).
 1. Select the created app, add "ads_read" and "lead_retrieval" permissions, and generate a
    short-lived access token.
 1. Copy the access token and update it in the `.dlt/secrets.toml` file.
@@ -169,6 +169,9 @@ This function returns a list of resources to load campaigns, ad sets, ads, creat
 data from the Facebook Marketing API.
 
 ```py
+from collections.abc import Sequence
+from dlt.extract import DltResource
+
 @dlt.source(name="facebook_ads")
 def facebook_ads_source(
     account_id: str = dlt.config.value,
@@ -198,7 +201,7 @@ were issued, e.g., 'v17.0'. Defaults to the _facebook_business_ library default 
 The ads function fetches ad data. It retrieves ads from a specified account with specific fields and
 states.
 
-```py
+```py notype
 @dlt.resource(primary_key="id", write_disposition="replace")
 def ads(
     fields: Sequence[str] = DEFAULT_AD_FIELDS,
@@ -233,7 +236,7 @@ The default fields are defined in
 
 This function returns a list of resources to load facebook_insights.
 
-```py
+```py notype
 @dlt.source(name="facebook_ads")
 def facebook_insights_source(
     account_id: str = dlt.config.value,
@@ -283,7 +286,7 @@ def facebook_insights_source(
 
 This function fetches Facebook insights data incrementally from a specified start date until the current date, in day steps.
 
-```py
+```py notype
 @dlt.resource(primary_key=INSIGHTS_PRIMARY_KEY, write_disposition="merge")
 def facebook_insights(
     date_start: dlt.sources.incremental[str] = dlt.sources.incremental(
@@ -354,7 +357,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. This pipeline includes an enrichment transformation called `enrich_ad_objects` that you can apply to any resource to obtain additional data per object using `object.get_api`. The following code demonstrates how to enrich objects by adding an enrichment transformation that includes additional fields.
 
-   ```py
+   ```py notype
    # You can reduce the chunk size for smaller requests
    load_data = facebook_ads_source(chunk_size=2)
 
@@ -381,7 +384,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. You can also load insights reports incrementally with defined granularity levels, fields, breakdowns, etc., as defined in the `facebook_insights_source`. This function generates daily reports for a specified number of past days.
 
-   ```py
+   ```py notype
    load_data = facebook_insights_source(
        initial_load_past_days=30,
        attribution_window_days_lag=7,

@@ -1,0 +1,100 @@
+fail_fast: false
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v6.0.0
+    hooks:
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+
+  - repo: https://github.com/astral-sh/uv-pre-commit
+    rev: 0.10.4
+    hooks:
+      - id: uv-lock
+
+  - repo: local
+    hooks:
+      - id: snippets-lint
+        name: snippets-lint
+        entry: make snippets-lint
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
+        pass_filenames: false
+
+      - id: snippets-typecheck
+        name: snippets-typecheck
+        entry: make snippets-typecheck
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
+        pass_filenames: false
+
+      - id: snippets-test
+        name: snippets-test
+        entry: make snippets-test
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
+        pass_filenames: false
+
+      - id: check-examples
+        name: check-examples
+        description: format, type check, and run code examples (i.e., cookbook)
+        entry: uv run pytest -m "example" test_snippets.py
+        language: system
+        files: ^website/docs/examples.*\.md$
+        types: [markdown]
+        stages: [pre-push]
+        pass_filenames: false
+
+  - repo: local
+    hooks:
+      - id: check-md
+        name: check-md
+        entry: uv run mdsmith check website/docs --no-color
+        language: system
+        types: [markdown]
+        pass_filenames: false
+
+  # make commands
+  - repo: local
+    hooks:
+      - id: lint-website
+        name: lint-website
+        entry: make lint-website
+        language: system
+        pass_filenames: false
+
+      - id: check-orphan-docs
+        name: check-orphan-docs
+        entry: make check-orphan-docs
+        language: system
+        pass_filenames: false
+
+      - id: lint-notebooks
+        name: lint-notebooks
+        entry: make lint-notebooks
+        files: ^education/.*\.ipynb$
+        types: [jupyter]
+        language: system
+        pass_filenames: false
+
+      - id: cli-check
+        name: cli-check
+        entry: uv run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
+        language: system
+        pass_filenames: false
+
+      - id: validate-molabs
+        name: validate-molabs
+        entry: make validate-molabs
+        files: ^education/.*\.py$
+        types: [python]
+        language: system
+        pass_filenames: false
+
+  - repo: https://github.com/abravalheri/validate-pyproject
+    rev: v0.25
+    hooks:
+      - id: validate-pyproject

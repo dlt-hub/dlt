@@ -30,9 +30,9 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 2. Next, create a function to filter out columns from the data before loading it into a database as follows:
 
    ```py
-   from typing import Dict, List, Optional
+   from typing import Optional
 
-   def remove_columns(doc: Dict, remove_columns: Optional[List[str]] = None) -> Dict:
+   def remove_columns(doc: dict, remove_columns: Optional[list[str]] = None) -> dict:
        if remove_columns is None:
            remove_columns = []
 
@@ -51,7 +51,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
 
 3. Next, declare the columns to be removed from the table, and then modify the source as follows:
 
-   ```py
+   ```py notype
    # Example columns to remove:
    remove_columns_list = ["country_code"]
 
@@ -65,7 +65,7 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    ```
 4. You can optionally inspect the result:
 
-   ```py
+   ```py notype
    for row in source_instance:
        print(row)
    #{'id': 0, 'name': 'Jane Washington 0'}
@@ -86,4 +86,3 @@ Let's create a sample pipeline demonstrating the process of removing a column.
    load_info = pipeline.run(data_source)
    print(load_info)
    ```
-

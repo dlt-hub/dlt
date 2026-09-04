@@ -215,7 +215,7 @@ API token.
 
 1. Here, we create the pipeline and use the `add_yield_map` functionality (since `converted_amount` is a generator function that yields items, we use `add_yield_map` instead of `add_map`):
 
-   ```py
+   ```py notype
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_two",
@@ -234,7 +234,7 @@ API token.
    To do so, you need to add the transformer decorator at the top of the `converted_amount` function.
    For `pipeline.run`, you can use the following code:
 
-   ```py
+   ```py notype
    # using converted_amount as a transformer function
    load_info = pipeline.run(
        enriched_data_part_two | converted_amount,
@@ -269,4 +269,3 @@ API token.
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_two`; you can
    use any custom name instead.
-

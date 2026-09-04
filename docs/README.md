@@ -36,7 +36,7 @@ The `Makefile` in this folder is the main entrypoint for docs tasks. Run `make h
 
 ## Tools
 
-In the `docs_tools/` folder you can find various tools that can also be called directly via `uv run`.
+In the `tools/` folder you can find various tools that can also be called directly via `uv run`.
 
 ### `uv run lint-embedded-snippets`
 Finds all embedded snippets in our docs, extracts them and performs the following checks:
@@ -94,5 +94,5 @@ uv run fix-grammar -f ../website/docs/intro.md
 
 Prepares the examples you find at ./examples to be able to be tested with pytest. See the `test-examples` Make target in this folder.
 
-### `uv run preprocess-docs`
-Copies the markdown files for the website from ./docs to ./docs_processed and performs various tasks underway, such as embedding snippets, inserting destination info into the destination pages and various sanity checks. Is called by the npm script that previews and builds the website.
+### `uv run --script tools/preprocess_docs.py`
+Copies the markdown files for the website from ./docs to ./docs_processed and performs various tasks underway, such as embedding snippets and inserting destination info into the destination pages. Is called by the npm script that previews and builds the website, and re-run on source changes by the `preprocess-docs` Docusaurus plugin during `npm run start`. Pass `--incremental` to keep the existing ./docs_processed folder and only rewrite files whose content changed.

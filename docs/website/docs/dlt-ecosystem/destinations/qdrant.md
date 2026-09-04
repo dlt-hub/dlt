@@ -61,32 +61,20 @@ movies = [
         "year": 1999,
     }
 ]
-```
 
-4. Define the pipeline:
-
-```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="qdrant",
     dataset_name="MoviesDataset",
 )
-```
 
-5. Run the pipeline:
-
-```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
         embed="title",
     )
 )
-```
 
-6. Check the results:
-
-```py
 print(info)
 ```
 
@@ -99,6 +87,8 @@ To use vector search after the data has been loaded, you must specify which fiel
 The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
 qdrant_adapter(data, embed="title")
 ```
 
@@ -112,6 +102,8 @@ Returns: [dlt resource](../../general-usage/resource.md) object that you can pas
 Example:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
 qdrant_adapter(
     resource,
     embed=["title", "description"],
@@ -121,6 +113,9 @@ qdrant_adapter(
 When using the `qdrant_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
+from dlt.sources.sql_database import sql_database
+from dlt.destinations.adapters import qdrant_adapter
+
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
@@ -150,6 +145,9 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -165,6 +163,9 @@ The [merge](../../general-usage/incremental-loading.md) write disposition merges
 For the `merge` disposition, you need to specify a `primary_key` for the resource:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -249,4 +250,3 @@ You can find the setup instructions to run Qdrant [here](https://qdrant.tech/doc
 Qdrant destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA qdrant-->
-

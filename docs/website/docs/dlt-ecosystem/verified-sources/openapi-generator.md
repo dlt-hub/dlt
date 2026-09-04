@@ -66,7 +66,7 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
     dlt pipeline pokemon_pipeline show
     ```
 
-9. You can go to our docs at https://dlthub.com/docs to learn how to modify the generated pipeline to load to many destinations, place schema contracts on your pipeline, and many other things.
+9. You can go to our docs at [https://dlthub.com/docs](https://dlthub.com/docs) to learn how to modify the generated pipeline to load to many destinations, place schema contracts on your pipeline, and many other things.
 
 :::note
 We used the `--global-limit 2` CLI flag to limit the requests to the PokeAPI 
@@ -103,7 +103,7 @@ This file contains the [configuration dictionary](./rest_api/basic#source-config
 
 The generated dictionary will look something like this:
 
-```py
+```py notype
 {
     "client": {
         "base_url": base_url,
@@ -183,7 +183,7 @@ _The only required options are either to supply a path or a URL to a spec._
 - `--help`: Show this message and exit.
 
 ## Config options
-You can pass a path to a config file with the `--config PATH` argument. To see available config values, go to https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py and read the information below each field on the `Config` class.
+You can pass a path to a config file with the `--config PATH` argument. To see available config values, go to [https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py](https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py) and read the information below each field on the `Config` class.
 
 The config file can be supplied as a JSON or YAML dictionary. For example, to change the package name, you can create a YAML file:
 
@@ -207,4 +207,4 @@ This project started as a fork of [openapi-python-client](https://github.com/ope
 ## Implementation notes
 * OAuth Authentication currently is not natively supported. You can supply your own.
 * Per endpoint authentication currently is not supported by the generator. Only the first globally set securityScheme will be applied. You can add your own per endpoint if you need to.
-* Basic OpenAPI 2.0 support is implemented. We recommend updating your specs at https://editor.swagger.io before using `dlt-init-openapi`.
+* Basic OpenAPI 2.0 support is implemented. We recommend updating your specs at [https://editor.swagger.io](https://editor.swagger.io) before using `dlt-init-openapi`.

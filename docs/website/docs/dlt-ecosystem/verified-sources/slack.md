@@ -134,13 +134,19 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 It retrieves data from Slack's API and fetches the Slack data such as channels, messages for selected channels, users, logs.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+from dlt.common.typing import TAnyDateTime
+
+START_DATE: pendulum.DateTime = pendulum.DateTime(2024, 1, 1)
+
 @dlt.source(name="slack", max_table_nesting=2)
 def slack_source(
-    page_size: int = MAX_PAGE_SIZE,
+    page_size: int = 100,
     access_token: str = dlt.secrets.value,
-    start_date: Optional[TAnyDateTime] = START_DATE,
-    end_date: Optional[TAnyDateTime] = None,
-    selected_channels: Optional[List[str]] = dlt.config.value,
+    start_date: TAnyDateTime | None = START_DATE,
+    end_date: TAnyDateTime | None = None,
+    selected_channels: list[str] | None = dlt.config.value,
 ) -> Iterable[DltResource]:
    ...
 ```
@@ -160,6 +166,9 @@ def slack_source(
 This function yields all the channels data as a `dlt` resource.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(name="channels", primary_key="id", write_disposition="replace")
 def channels_resource() -> Iterable[TDataItem]:
    ...
@@ -170,6 +179,9 @@ def channels_resource() -> Iterable[TDataItem]:
 This function yields all the users data as a `dlt` resource.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(name="users", primary_key="id", write_disposition="replace")
 def users_resource() -> Iterable[TDataItem]:
    ...
@@ -180,8 +192,15 @@ def users_resource() -> Iterable[TDataItem]:
 This method fetches messages for a specified channel from the Slack API. It creates a resource for each channel with the channel's name.
 
 ```py
+from typing import Iterable
+from pendulum import DateTime
+from dlt.common.typing import TDataItem
+
+START_DATE: pendulum.DateTime = pendulum.DateTime(2024, 1, 1)
+END_DATE: pendulum.DateTime = pendulum.DateTime(2024, 12, 31)
+
 def get_messages_resource(
-    channel_data: Dict[str, Any],
+    channel_data: dict[str, Any],
     created_at: dlt.sources.incremental[DateTime] = dlt.sources.incremental(
         "ts",
         initial_value=START_DATE,
@@ -209,6 +228,9 @@ def get_messages_resource(
 This method retrieves access logs from the Slack API.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(
     name="access_logs",
     selected=False,
@@ -243,7 +265,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```
 1. To load Slack resources from the specified start date:
 
-   ```py
+   ```py notype
    source = slack_source(page_size=1000, start_date=datetime.datetime(2023, 9, 1), end_date=datetime.datetime(2023, 9, 8))
 
    # Enable below to load only 'access_logs', available for paid accounts only.
@@ -257,7 +279,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from selected Slack channels from the specified start date:
 
-   ```py
+   ```py notype
    # To load data from selected channels.
    selected_channels=["general", "random"] # Enter the channel names here.
 
@@ -274,7 +296,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load only messages from selected Slack resources:
 
-   ```py
+   ```py notype
    # To load data from selected channels.
    selected_channels=["general", "random"] # Enter the channel names here.
 

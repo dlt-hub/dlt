@@ -37,20 +37,77 @@ It is useful to know how to use dlt [Datasets and Relations](../../general-usage
 
 The snippets below assume that we have a simple fruitshop dataset as produced by the dlt fruitshop template:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::quick_start_example-->
+```py execute
+
+import dlt
+from dlt.destinations import duckdb
+from dlt._workspace._templates._single_file_templates.fruitshop_pipeline import (
+    fruitshop as fruitshop_source,
+)
+
+fruitshop_pipeline = dlt.pipeline(
+    "fruitshop", destination=duckdb("./test_duck.duckdb"), dev_mode=True
+)
+fruitshop_pipeline.run(fruitshop_source())
+```
 
 ### 2. Inspect the dataset
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::dataset_inspection-->
+```py notype execute
+# Show row counts for every table
+print(fruitshop_pipeline.dataset().row_counts().df())
+"""
+             table_name  row_count
+0             customers         13
+1  inventory_categories          3
+2             inventory          6
+3             purchases        100
+"""
+```
 
 ### 3. Write and run a transformation
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::basic_transformation-->
+```py execute
+from typing import Any
+
+@dlt.hub.transformation
+def copied_customers(dataset: dlt.Dataset) -> Any:
+    customers_table = dataset["customers"]
+    yield customers_table.order_by("name").limit(5)
+
+# Same pipeline & same dataset
+fruitshop_pipeline.run(copied_customers(fruitshop_pipeline.dataset()))  # ty: ignore[unresolved-reference]
+
+# show rowcounts again, we now have a new table in the schema and the destination
+print(fruitshop_pipeline.dataset().row_counts().df())  # ty: ignore[unresolved-reference]
+"""
+             table_name  row_count
+0             customers         13
+1  inventory_categories          3
+2             inventory          6
+3             purchases        100
+4      copied_customers          5
+"""
+```
 
 
 ### 3.1 Alternatively use pure SQL for the transformation
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries_short-->
+```py execute
+# Convert the transformation above that selected the first 5 customers to a sql query
+@dlt.hub.transformation
+def copied_customers(dataset: dlt.Dataset) -> Any:
+    customers_table = dataset(
+        """
+        SELECT *
+        FROM customers
+        ORDER BY name
+        LIMIT 5
+    """
+    )
+    yield customers_table
+
+```
 
 That is it — `copied_customers` is now a new table in **the same** DuckDB schema with the first 5 customers when ordered by name. `dlt` detected that we load into the same dataset,
 and ran this transformation in SQL. No data travelled to and from the machine that runs this pipeline. `dlt` also evolved the new destination table `copied_customers`
@@ -62,7 +119,16 @@ to the correct new schema. You can also set a different write disposition, and e
 Most of the following examples use the ibis expressions of the `dlt.Dataset`. The detailed [dataset docs](../../general-usage/dataset-access/dataset.md) describe how to use them.
 :::
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::orders_per_user-->
+```py execute
+
+@dlt.hub.transformation(name="orders_per_user", write_disposition="merge")
+def orders_per_user(dataset: dlt.Dataset) -> Any:
+    purchases = dataset.table("purchases").to_ibis()
+    yield purchases.group_by(purchases.customer_id).aggregate(
+        order_count=purchases.id.count()
+    )
+
+```
 
 * **Decorator arguments** mirror those accepted by `@dlt.resource`.
 * The transformation function signature must contain at least one `dlt.Dataset`. The function uses that dataset to create the transformation SQL statements and to calculate the resulting schema update.
@@ -76,13 +142,34 @@ Most of the following examples use the ibis expressions of the `dlt.Dataset`. Th
 Below we load to the same DuckDB instance with a new pipeline that points to another `dataset`. dlt detects that both datasets live on the same destination,
 and runs the transformation as pure SQL.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::loading_to_other_datasets-->
+```py execute
+import dlt
+from dlt.destinations import duckdb
+
+@dlt.hub.transformation
+def copied_customers(dataset: dlt.Dataset) -> Any:
+    customers_table = dataset["customers"]
+    yield customers_table.order_by("name").limit(5)
+
+# Same duckdb instance, different dataset
+dest_p = dlt.pipeline(
+    "fruitshop_dataset",
+    destination=duckdb("./test_duck.duckdb"),
+    dataset_name="copied_dataset",
+    dev_mode=True,
+)
+dest_p.run(copied_customers(fruitshop_pipeline.dataset()))    # ty: ignore[unresolved-reference]
+```
 
 ### Loading to another dataset at a different data location
 
 Below we load the data from our local DuckDB instance to a Postgres instance. dlt uses the query to extract the data as Parquet files, and then runs a regular dlt load to Postgres. The same transformation functions work for both scenarios. This is useful when you want to avoid warehouse compute costs. The compute then happens on the machine that runs the pipeline, over a local duckdb instance or over raw data in a bucket.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::loading_to_other_datasets_other_engine-->
+```py notype
+# different engine (DuckDB → Postgres)
+duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
+duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
+```
 
 
 ## Using transformations
@@ -92,25 +179,106 @@ Below we load the data from our local DuckDB instance to a Postgres instance. dl
 
 `dlt transformations` can be grouped like all other resources into sources and will be executed together. You can even mix regular resources and transformations in one pipeline load.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::multiple_transformations-->
+```py notype execute
+import dlt
+
+@dlt.source
+def my_transformations(dataset: dlt.Dataset) -> Any:
+    @dlt.hub.transformation(write_disposition="append")
+    def enriched_purchases(dataset: dlt.Dataset) -> Any:
+        purchases = dataset.table("purchases").to_ibis()
+        customers = dataset.table("customers").to_ibis()
+        yield purchases.join(customers, purchases.customer_id == customers.id)
+
+    @dlt.hub.transformation(write_disposition="replace")
+    def total_items_sold(dataset: dlt.Dataset) -> Any:
+        purchases = dataset.table("purchases").to_ibis()
+        yield purchases.aggregate(total_qty=purchases.quantity.sum())
+
+    return enriched_purchases(dataset), total_items_sold(dataset)
+
+fruitshop_pipeline.run(my_transformations(fruitshop_pipeline.dataset()))
+```
 
 ### Yielding multiple transformations from one transformation resource
 
 A dlt transformation can also yield more than one relation. Without further table name hints, the result is a union of the yielded relations. `dlt` runs the necessary schema migrations. Make sure that no relation marks a column as non-nullable when another relation omits that column:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::multiple_transformation_instructions-->
+```py execute
+import dlt
+
+# this transformation creates a union of the customers and purchases tables
+@dlt.hub.transformation(write_disposition="append")
+def union_of_tables(dataset: dlt.Dataset) -> Any:
+    yield dataset.table("purchases")
+    yield dataset.table("customers")
+
+```
 
 ### Supplying additional hints
 
 You can supply column and table hints the same way you do for regular resources. `dlt` derives schema hints from your query. Sometimes you must modify or extend them. Two examples are a nullable column, as above, and a change of precision or type for a target destination that differs from the source.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::supply_hints-->
+```py execute
+import dlt
+
+# change precision and scale of the price column
+@dlt.hub.transformation(
+    write_disposition="append", columns={"price": {"precision": 10, "scale": 2}}
+)
+def precision_change(dataset: dlt.Dataset) -> Any:
+    yield dataset.inventory
+
+```
 
 ### Writing your queries in SQL
 
 To write your queries in SQL, create a `Relation` from a query on your dataset. Ibis expressions are then not necessary:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_queries-->
+```py execute
+# Convert the transformation above that selected the first 5 customers to a sql query
+@dlt.hub.transformation
+def copied_customers(dataset: dlt.Dataset) -> Any:
+    customers_table = dataset(
+        """
+        SELECT *
+        FROM customers
+        ORDER BY name
+        LIMIT 5
+    """
+    )
+    yield customers_table
+
+
+# Joins and other more complex queries are also possible
+@dlt.hub.transformation
+def enriched_purchases(dataset: dlt.Dataset) -> Any:
+    enriched_purchases = dataset(
+        """
+        SELECT customers.name, purchases.quantity
+        FROM purchases
+        JOIN customers
+            ON purchases.customer_id = customers.id
+        """
+    )
+    yield enriched_purchases
+
+# you can use a different dialect than the destination with the query_dialect parameter.
+# dlt compiles the query to the right destination dialect
+@dlt.hub.transformation
+def enriched_purchases_postgres(dataset: dlt.Dataset) -> Any:
+    enriched_purchases = dataset(
+        """
+        SELECT customers.name, purchases.quantity
+        FROM purchases
+        JOIN customers
+            ON purchases.customer_id = customers.id
+        """,
+        query_dialect="duckdb",
+    )
+    yield enriched_purchases
+
+```
 
 The identifiers in these raw SQL expressions are the table and column names of your dlt schema. They are **not** the names of your destination database schema.
 
@@ -118,7 +286,45 @@ The identifiers in these raw SQL expressions are the table and column names of y
 
 Pass `query_dialect` to say which dialect you wrote. dlt parses the query in that dialect and emits it in the dialect of the destination, so a query you wrote for one warehouse runs on another.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::sql_dialect_transpilation-->
+```py execute
+from dlt.common.schema import Schema
+
+schema = Schema("shop")
+schema.update_table(
+    {
+        "name": "purchases",
+        "columns": {
+            "customer": {"name": "customer", "data_type": "text"},
+            "city": {"name": "city", "data_type": "text"},
+            "amount": {"name": "amount", "data_type": "double"},
+        },
+    }
+)
+
+# the query is duckdb SQL, but the dataset writes to mssql
+mssql_dataset = dlt.dataset(
+    dlt.destinations.mssql(credentials="mssql://user:pw@host:1433/warehouse?driver=ODBC+Driver+18+for+SQL+Server"),
+    "analytics",
+    schema=schema,
+)
+
+top_customers = mssql_dataset.query(
+    """
+    SELECT customer || ' (' || city || ')' AS label, amount
+    FROM purchases
+    ORDER BY amount DESC
+    LIMIT 10
+    """,
+    query_dialect="duckdb",
+)
+
+# dlt emits the query in the dialect of the destination. `||` becomes `+`,
+# `LIMIT` becomes `TOP`, and the identifiers take mssql quoting
+print(top_customers.to_sql())
+"""
+SELECT TOP 10 [purchases].[customer] + ' (' + [purchases].[city] + ')' AS [label], [purchases].[amount] AS [amount] FROM [analytics].[purchases] AS [purchases] ORDER BY [purchases].[amount] DESC
+"""
+```
 
 The duckdb query above is not valid mssql. `||` is a string concatenation that mssql spells `+`, and mssql has no `LIMIT` clause. dlt emits this instead:
 
@@ -141,13 +347,69 @@ A transformation receives its input datasets as arguments, so passing **more tha
 
 Pass two input datasets to the transformation. Join them into a new output table. Here `crm` and `sales` are two datasets in the same DuckDB, so the join runs in-warehouse:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_join_same_destination-->
+```py execute
+import tempfile
+import os
+
+import dlt
+
+# crm, sales, and marts are three datasets in the same duckdb file
+db_path = os.path.join(tempfile.mkdtemp(), "shop.duckdb")
+
+crm_pipeline = dlt.pipeline(
+    "crm", destination=dlt.destinations.duckdb(db_path), dataset_name="crm_data"
+)
+crm_pipeline.run(
+    [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+)
+sales_pipeline = dlt.pipeline(
+    "sales", destination=dlt.destinations.duckdb(db_path), dataset_name="sales_data"
+)
+sales_pipeline.run(
+    [
+        {"id": 10, "user_id": 1, "sku": "W-001"},
+        {"id": 11, "user_id": 2, "sku": "G-001"},
+    ],
+    table_name="orders",
+)
+marts_pipeline = dlt.pipeline(
+    "marts", destination=dlt.destinations.duckdb(db_path), dataset_name="marts_data"
+)
+
+# pass two input datasets. the transformation joins across them
+@dlt.hub.transformation(table_name="user_orders")
+def user_orders(crm: dlt.Dataset, sales: dlt.Dataset) -> Any:
+    yield crm["users"].join(sales["orders"], on="users.id = orders.user_id")
+
+# crm, sales and the marts output all live in the same duckdb, so the join
+# runs in-warehouse as a model job — no data leaves the destination
+marts_pipeline.run(user_orders(crm_pipeline.dataset(), sales_pipeline.dataset()))
+```
 
 #### Joining new input against the existing output
 
 A transformation can also read the dataset it writes to. Pass the output dataset as another argument. On the first run the output has no tables yet. Guard that reference with [`schema.is_new`](../../general-usage/dataset-access/dataset.md). Join against the output only after it exists. This pattern processes the rows you have not loaded before:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_incremental_output_join-->
+```py notype execute
+# a dedicated output pipeline/dataset for this transformation
+known_pipeline = dlt.pipeline(
+    "known", destination=dlt.destinations.duckdb(db_path), dataset_name="known_data"
+)
+
+@dlt.hub.transformation(table_name="known_users", write_disposition="append")
+def known_users(crm: dlt.Dataset, out: dlt.Dataset) -> Any:
+    users = crm["users"].to_ibis()
+    if out.schema.is_new:
+        # first run: the output has no tables yet, so build it from the source
+        yield users
+    else:
+        # later runs: append only users not already present in the output
+        existing = out["known_users"].to_ibis()
+        yield users.anti_join(existing, users.id == existing.id)
+
+# pass the output dataset as an argument so the transformation can read it
+known_pipeline.run(known_users(crm_pipeline.dataset(), known_pipeline.dataset()))
+```
 
 For richer incremental patterns — cursors, scheduler windows, load-time cursors — see [Incremental transformations](#incremental-transformations).
 
@@ -172,7 +434,49 @@ Datasets in the **same** MotherDuck account need no attach, because the query en
 
 The example below joins a `filesystem` dataset (orders) into a `duckdb` output. Because the output engine can write, it runs in-warehouse:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_cross_destination_lazy-->
+```py execute
+import tempfile
+import os
+
+import dlt
+from dlt.common.storages.configuration import FilesystemConfiguration
+
+tmp_dir = tempfile.mkdtemp()
+
+orders_pipeline = dlt.pipeline(
+    "orders",
+    destination=dlt.destinations.filesystem(
+        FilesystemConfiguration.make_file_url(os.path.join(tmp_dir, "orders"))
+    ),
+    dataset_name="orders_data",
+)
+orders_pipeline.run(
+    [
+        {"id": 10, "user_id": 1, "sku": "W-001"},
+        {"id": 11, "user_id": 2, "sku": "G-001"},
+    ],
+    table_name="orders",
+    loader_file_format="parquet",
+)
+warehouse_pipeline = dlt.pipeline(
+    "warehouse",
+    destination=dlt.destinations.duckdb(os.path.join(tmp_dir, "warehouse.duckdb")),
+    dataset_name="warehouse_data",
+)
+warehouse_pipeline.run(
+    [{"id": 1, "name": "Alice"}, {"id": 2, "name": "Bob"}], table_name="users"
+)
+
+# join a filesystem dataset (orders) into a duckdb output. duckdb can write, so dlt
+# attaches the filesystem dataset and runs the join in-warehouse as a model job.
+@dlt.hub.transformation(table_name="user_orders")
+def user_orders(warehouse: dlt.Dataset, orders: dlt.Dataset) -> Any:
+    yield warehouse["users"].join(orders["orders"], on="users.id = orders.user_id")
+
+warehouse_pipeline.run(
+    user_orders(warehouse_pipeline.dataset(), orders_pipeline.dataset())
+)
+```
 
 **Secrets.** An attached input sometimes needs credentials: a MotherDuck token, cloud-bucket keys, or a catalog password. dlt encrypts those statements inside the `.model` file of the model job. The key comes from the encryption seed of the pipeline.
 
@@ -180,13 +484,52 @@ Without a `pipeline_salt` of your own, dlt makes a new random seed for each pipe
 
 **Force eager materialization.** To run the join on your machine, yield the materialized result rather than the relation. Yield an Arrow table or a DataFrame. dlt then creates no model job and serializes no credentials:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::transformations_cross_destination_eager-->
+```py notype execute
+# to run the join locally and load plain data instead, yield the materialized
+# result (an Arrow table or DataFrame) rather than the relation
+@dlt.hub.transformation(table_name="user_orders_eager")
+def user_orders_eager(warehouse: dlt.Dataset, orders: dlt.Dataset) -> Any:
+    joined = warehouse["users"].join(
+        orders["orders"], on="users.id = orders.user_id"
+    )
+    yield joined.arrow()
+
+warehouse_pipeline.run(
+    user_orders_eager(warehouse_pipeline.dataset(), orders_pipeline.dataset())
+)
+```
 
 ## Using Pandas or Polars DataFrames and Arrow tables
 
 You can also write transformations directly with Pandas or Polars DataFrames and Arrow tables. Your transformation resource then behaves like a regular resource. `dlt` does not propagate column-level hints, and treats the yielded DataFrames or Arrow tables like data from any other resource. This behavior can change in a future release.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::arrow_dataframe_operations-->
+```py notype execute
+
+@dlt.hub.transformation
+def copied_customers(dataset: dlt.Dataset) -> Any:
+    # get full customers table as arrow table
+    customers = dataset.table("customers").arrow()
+
+    # Sort the table by 'name'
+    sorted_customers = customers.sort_by([("name", "ascending")])
+
+    # Take first 5 rows
+    yield sorted_customers.slice(0, 5)
+
+# the same join with dataframes
+@dlt.hub.transformation
+def enriched_purchases(dataset: dlt.Dataset) -> Any:
+    # get both full tables as dataframes
+    purchases = dataset.table("purchases").df()
+    customers = dataset.table("customers").df()
+
+    # Merge (JOIN) the DataFrames
+    result = purchases.merge(customers, left_on="customer_id", right_on="id")
+
+    # Select only the desired columns
+    yield result[["name", "quantity"]]
+
+```
 
 
 ## Incremental transformations
@@ -219,7 +562,24 @@ Given an `orders` table with one row per day:
 
 and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open upper bound).
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_scheduler_window_definition-->
+```py execute
+import dlt
+from dlt.common.pendulum import pendulum
+
+@dlt.hub.transformation(write_disposition="replace")
+def orders_window(
+    dataset: dlt.Dataset,
+    window: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+        "created_at",
+        initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+        allow_external_schedulers=True,
+        range_start="closed",
+        range_end="open",
+    ),
+) -> Any:
+    yield dataset.table("orders").incremental(window)
+
+```
 
 Re-running the same `[start, end)` (start is included, end is excluded) interval produces the same transformation input, which makes this pattern a good fit for partition backfills and idempotent retries.
 
@@ -233,7 +593,23 @@ The transformation below appends rows from `orders` whose `created_at` is later 
 The cursor below is declared on the decorator. The body yields a bare relation (Ibis expressions and raw SQL strings work too), and dlt applies the filter automatically. The [scheduler example above](#the-scheduler-interval) shows the alternative form, with the cursor as a function argument.
 :::
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_stateful_cursor_definition-->
+```py execute
+import dlt
+from dlt.common.pendulum import pendulum
+
+@dlt.hub.transformation(
+    write_disposition="append",
+    primary_key="id",
+    incremental=dlt.sources.incremental(
+        "created_at",
+        initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+        range_start="open",
+    ),
+)
+def recent_orders(dataset: dlt.Dataset) -> Any:
+    yield dataset.table("orders")
+
+```
 
 Now suppose `orders` is loaded in two batches:
 
@@ -254,7 +630,22 @@ When the source table has a column for creation or update order, use a domain cu
 
 When the source table has no domain timestamp, use `_dlt_loads.inserted_at`. dlt then processes the data by load time. A dotted cursor path tells dlt to follow the schema reference from the base table to `_dlt_loads`. dlt joins that table and filters on the joined column. The join is filter-only, and dlt adds no `_dlt_loads` column to the destination table.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::incremental_load_time_cursor_definition-->
+```py execute
+import dlt
+from dlt.common.pendulum import pendulum
+
+@dlt.hub.transformation(write_disposition="append")
+def orders_by_load(
+    dataset: dlt.Dataset,
+    loaded_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+        "_dlt_loads.inserted_at",
+        initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
+        range_start="open",
+    ),
+) -> Any:
+    yield dataset.table("orders").incremental(loaded_at)
+
+```
 
 :::note
 Internally, dlt modifies the source query to include the cursor filter when it runs the transformation as a model job. dlt filters during extraction in two other cases. The first case is a source and a destination at different data locations. The second case is a yield of Python objects, such as lists, Arrow tables, or DataFrames.
@@ -283,7 +674,32 @@ For example, a transformation that joins two tables and creates new columns make
 
 You can inspect the computed result schema during development. Read `Relation.columns_schema`, or print `Relation.columns` for the column names only:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::computed_schema-->
+```py notype execute
+# Show the computed schema before the transformation is executed
+dataset = fruitshop_pipeline.dataset()
+purchases = dataset.table("purchases").to_ibis()
+customers = dataset.table("customers").to_ibis()
+enriched_purchases = purchases.join(
+    customers, purchases.customer_id == customers.id
+)
+print(dataset(enriched_purchases).columns)
+"""
+[
+    'id',
+    'customer_id',
+    'inventory_id',
+    'quantity',
+    'date',
+    '_dlt_load_id',
+    '_dlt_id',
+    'id_right',
+    'name',
+    'city',
+    '_dlt_load_id_right',
+    '_dlt_id_right',
+]
+"""
+```
 
 ### Column-level hint forwarding
 
@@ -291,7 +707,30 @@ When it creates or updates tables with transformation resources, `dlt` also forw
 `x-annotation-pii` set to True for the `name` column, which indicates that this column contains PII (personally identifiable information).
 Downstream of the transformation layer, we can then find out which columns originate from columns that contain private data:
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::column_level_lineage-->
+```py notype execute
+@dlt.hub.transformation(table_name="enriched_purchases_lineage")
+def enriched_purchases_lineage(dataset: dlt.Dataset) -> Any:
+    enriched_purchases = dataset(
+        """
+        SELECT customers.name, purchases.quantity
+        FROM purchases
+        JOIN customers
+            ON purchases.customer_id = customers.id
+        """
+    )
+    yield enriched_purchases
+
+# run the transformation. the name column in the new table is also marked as PII
+fruitshop_pipeline.run(enriched_purchases_lineage(fruitshop_pipeline.dataset()))
+assert (
+    fruitshop_pipeline.dataset().schema.tables["enriched_purchases_lineage"][
+        "columns"
+    ]["name"][
+        "x-annotation-pii"  # type: ignore
+    ]
+    is True
+)
+```
 
 #### Features and limitations
 
@@ -406,7 +845,59 @@ The destination's SQL client executes the query. This materializes the transform
 
 You sometimes need aggregated or otherwise transformed data in your warehouse, but you want to reduce the cost of large warehouse queries. You can then run some or all of your transformations "in transit", while you load data from your source. The code below extracts data with our `rest_api` source to a local DuckDB instance. It then forwards the aggregated data to a warehouse destination.
 
-<!--@@@DLT_SNIPPET ./transformation-snippets.py::in_transit_transformations-->
+```py
+from dlt.sources.rest_api import (
+    rest_api_source,
+)
+
+# loads some data from our example api at https://jaffle-shop.scalevector.ai/docs
+source = rest_api_source(
+    {
+        "client": {
+            "base_url": "https://jaffle-shop.scalevector.ai/api/v1",
+        },
+        "resources": [
+            "stores",
+            {
+                "name": "orders",
+                "endpoint": {
+                    "path": "orders",
+                    "params": {
+                        "start_date": "2017-01-01",
+                        "end_date": "2017-01-31",
+                    },
+                },
+            },
+        ],
+    }
+)
+
+# load to a local DuckDB instance
+transit_pipeline = dlt.pipeline(
+    "jaffle_shop", destination="duckdb", dataset_name="in_transit"
+)
+transit_pipeline.run(source)
+
+# define the aggregation transformation
+@dlt.hub.transformation
+def orders_per_store(dataset: dlt.Dataset) -> Any:
+    orders = dataset.table("orders").to_ibis()
+    stores = dataset.table("stores").to_ibis()
+    yield (
+        orders.join(stores, orders.store_id == stores.id)
+        .group_by(stores.name)
+        .aggregate(order_count=orders.id.count())
+    )
+
+# load aggregated data to a warehouse destination
+warehouse_pipeline = dlt.pipeline(
+    "jaffle_warehouse",
+    destination="postgres",
+    dataset_name="warehouse",
+    dev_mode=True,
+)
+warehouse_pipeline.run(orders_per_store(transit_pipeline.dataset()))
+```
 
 This script:
 - fetches data from a REST API with dlt's `rest_api_source`

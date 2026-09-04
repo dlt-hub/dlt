@@ -177,7 +177,7 @@ A common base class (like `EventBase` above) is optional. When present, `dlt` ca
 
 Dispatch items to per-type tables using `dlt.mark.with_table_name` or a dynamic `table_name` function. The table names do not need to match the discriminator values:
 
-```py
+```py notype
 import dlt
 
 
@@ -189,7 +189,7 @@ TABLE_MAP = {"click": "click_events", "purchase": "purchase_events"}
     schema_contract={"data_type": "discard_row"},
 )
 def event_stream():
-    for item in items:
+    for item in iter(()):  # your data generator
         yield dlt.mark.with_table_name(item, TABLE_MAP[item["kind"]])
 ```
 
@@ -226,7 +226,7 @@ Here's how `dlt` deals with column modes:
 When a contract is violated in freeze mode, `dlt` raises a `DataValidationError` exception. This exception provides access to the full context and passes the evidence to the caller.
 As with any other exception coming from a pipeline run, it will be re-raised via a `PipelineStepFailed` exception, which you should catch in an except block:
 
-```py
+```py notype
 try:
   pipeline.run()
 except PipelineStepFailed as pip_ex:

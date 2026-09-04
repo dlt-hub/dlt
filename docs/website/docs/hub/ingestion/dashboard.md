@@ -355,7 +355,7 @@ Below is an example of a custom cell created to verify unique number of rows vs 
 ![Adding custom cell in dashboard](https://storage.googleapis.com/dlt-blog-images/dashboards-custom-cell.png)
 
 Here is the [marimo](https://docs.marimo.io/api/) code used to generate the cell above. `mo` (marimo), `dlt`, and `utils` (from `dlt._workspace.helpers.dashboard`) are already available in the ejected dashboard:
-```py
+```py notype
 @app.cell
 def _(dlt_pipeline: dlt.Pipeline, dlt_selected_schema_name):
     # Create a list to hold the data for the table

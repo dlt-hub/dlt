@@ -133,12 +133,16 @@ INCREMENTAL_ENDPOINTS = ("Event", "BalanceTransaction")
 This function retrieves data from the Stripe API for the specified endpoint:
 
 ```py
+from typing import Iterable
+from pendulum import DateTime
+from dlt.extract import DltResource
+
 @dlt.source
 def stripe_source(
-    endpoints: Tuple[str, ...] = ENDPOINTS,
+    endpoints: tuple[str, ...],
     stripe_secret_key: str = dlt.secrets.value,
-    start_date: Optional[DateTime] = None,
-    end_date: Optional[DateTime] = None,
+    start_date: DateTime | None = None,
+    end_date: DateTime | None = None,
 ) -> Iterable[DltResource]:
    ...
 ```
@@ -154,10 +158,10 @@ Datetime arguments accept ISO 8601 strings, datetime objects, or Unix timestamps
 
 This source loads data in 'append' mode from incremental endpoints.
 
-```py
+```py notype
 @dlt.source
 def incremental_stripe_source(
-    endpoints: Tuple[str, ...] = INCREMENTAL_ENDPOINTS,
+    endpoints: tuple[str, ...] = INCREMENTAL_ENDPOINTS,
     stripe_secret_key: str = dlt.secrets.value,
     initial_start_date: Optional[DateTime] = None,
     end_date: Optional[DateTime] = None,
@@ -196,7 +200,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load endpoints like "Plan" and "Charge" in replace mode, retrieve all data for the year 2022:
 
-   ```py
+   ```py notype
    source_single = stripe_source(
        endpoints=("Plan", "Charge"),
        start_date=pendulum.datetime(2022, 1, 1),
@@ -208,7 +212,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from the "BalanceTransaction" endpoint, whose records are immutable, using incremental loading:
 
-    ```py
+    ```py notype
     # Load all data on the first run that was created after initial_start_date and before end_date
     source_incremental = incremental_stripe_source(
         endpoints=("BalanceTransaction", ),
@@ -222,7 +226,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For `incremental_stripe_source`, the last loaded `created` timestamp from the previous run is used automatically.
 
-    ```py
+    ```py notype
     source_single = stripe_source(
         endpoints=("Plan", "Charge"),
         start_date=pendulum.datetime(2022, 12, 31),

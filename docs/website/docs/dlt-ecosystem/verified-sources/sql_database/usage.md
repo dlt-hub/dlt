@@ -38,7 +38,7 @@ shape you define in a view without any further customization.
 
 If creating a view is not feasible, you can fully rewrite the automatically generated query with extended version of `query_adapter_callback`:
 
-```py
+```py notype
 import sqlalchemy as sa
 
 def query_adapter_callback(
@@ -62,7 +62,7 @@ In the snippet above we do a few interesting things:
 
 We recommend that you explicitly type additional columns that you added with `table_adapter_callback`:
 
-```py
+```py notype
 from sqlalchemy.sql import sqltypes
 
 def add_new_columns(table) -> None:
@@ -77,7 +77,7 @@ def add_new_columns(table) -> None:
 Otherwise `dlt` will attempt to infer the types from the extracted data.
 
 Here's how you call `sql_table` with those adapters:
-```py
+```py notype
 import dlt
 from dlt.sources.sql_database import sql_table
 
@@ -92,7 +92,7 @@ table = sql_table(
 ## Add computed columns and custom incremental clauses
 
 You can add computed columns to the table definition by converting it into a subquery:
-```py
+```py notype
 def add_max_timestamp(table):
     computed_max_timestamp = sa.sql.type_coerce(
         sa.func.greatest(table.c.created_at, table.c.updated_at),
@@ -104,7 +104,7 @@ def add_max_timestamp(table):
 We add new `max_timestamp` column that is a MAX of `created_at` and `updated_at` columns and then we convert it into a subquery
 because we intend to use it for incremental loading which will attach a `WHERE` clause to it.
 
-```py
+```py notype
 import dlt
 from dlt.sources.sql_database import sql_table
 

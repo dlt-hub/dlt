@@ -10,10 +10,14 @@ keywords: [add_map, transform data, remove columns]
 ## Method signature
 ### `add_map` method
 ```py
+from dlt.extract import DltResource
+from dlt.extract.items_transform import ItemTransformFunc
+from dlt.common.typing import TDataItem
+
 def add_map(
     item_map: ItemTransformFunc[TDataItem],
     insert_at: int = None
-) -> TDltResourceImpl:
+) -> DltResource:
     ...
 ```
 
