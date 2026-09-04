@@ -4,55 +4,51 @@ from typing import Any, Callable, Dict, Iterator, List, Optional, Set
 
 import pytest
 
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import datetime
+
+from dlt.common.time import ensure_datetime_in_tz
 
 from tests.workspace.runner._runner import runner as runner_mod
 from tests.workspace.runner._runner.freshness_store import DuckDBJobFreshnessStore
 from tests.workspace.runner._runner.run_store import TJobRun
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TFreshnessConstraint,
     TJobDefinition,
-    TJobRef,
     TRefreshPolicy,
     TTrigger,
 )
 
+from tests.workspace.manifest_utils import make_job
 
-def _dt(s: str) -> pendulum.DateTime:
-    return ensure_pendulum_datetime_utc(s)
+
+def _dt(s: str) -> datetime:
+    return ensure_datetime_in_tz(s)
 
 
 def _job(
     ref: str,
-    refresh: Optional[TRefreshPolicy] = None,
     freshness: Optional[List[str]] = None,
+    refresh_propagation: Optional[TRefreshPolicy] = None,
 ) -> TJobDefinition:
-    job: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(
-            module="m",
-            function="f",
-            job_type="batch",
-            launcher="dlt._workspace.deployment.launchers.job",
-        ),
-        "triggers": [TTrigger(f"manual:{ref}")],
-        "execute": TExecuteSpec(),
+    optional: Dict[str, Any] = {
+        "freshness": freshness,
+        "refresh_propagation": refresh_propagation,
     }
-    if refresh is not None:
-        job["refresh"] = refresh
-    if freshness is not None:
-        job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    return job
+    return make_job(
+        ref,
+        module="m",
+        function="f",
+        triggers=[f"manual:{ref}"],
+        concurrency=None,
+        **{k: v for k, v in optional.items() if v is not None},
+    )
 
 
 def _run_record(
     job_ref: str,
-    started_at: pendulum.DateTime,
-    interval_start: Optional[pendulum.DateTime] = None,
-    interval_end: Optional[pendulum.DateTime] = None,
+    started_at: datetime,
+    interval_start: Optional[datetime] = None,
+    interval_end: Optional[datetime] = None,
 ) -> TJobRun:
     rec: TJobRun = {
         "run_id": "rid",
@@ -191,10 +187,10 @@ def test_set_prev_completed_run_is_monotonic(
 
 
 def _interval_job(ref: str) -> TJobDefinition:
-    """An interval-store-eligible job (interval + allow_external_schedulers)."""
+    """An interval-store-eligible job (parallel interval mode)."""
     job = _job(ref)
-    job["interval"] = {"start": "2024-01-01T00:00:00Z"}
-    job["allow_external_schedulers"] = True
+    job["interval"] = {"start": "2024-01-01T00:00:00Z", "mode": "parallel"}
+    job["incremental_mode"] = "interval"
     job["triggers"] = [TTrigger("schedule:0 * * * *")]
     return job
 
@@ -222,18 +218,15 @@ def test_cascade_clears_target_and_transitive_downstream(
         assert runner_mod._freshness_store.get_prev_completed_run(ref) is None, ref
 
 
-def test_cascade_severs_at_interval_store_jobs_in_downstream(
+def test_cascade_walks_through_interval_store_jobs_in_downstream(
     runner_state: Dict[str, TJobDefinition],
 ) -> None:
-    """Interval-store jobs are excluded from the walk AND sever the chain past them.
+    """The cascade walks through interval-store jobs in the downstream.
 
-    Interval-store jobs are "their own world" — they manage their watermarks
-    via `IntervalStore`, not via `prev_completed_run`. The cascade walker
-    treats them as opaque cuts: it neither clears them nor recurses into
-    their freshness-downstream via this branch.
+    Severing at interval-store jobs is not implemented on the runtime.
     """
     runner_state["jobs.a"] = _job("jobs.a")
-    # b is an interval-store job (has interval + allow_external_schedulers)
+    # b is an interval-store job (parallel interval mode)
     runner_state["jobs.b"] = _interval_job("jobs.b")
     runner_state["jobs.b"]["freshness"] = [TFreshnessConstraint("job.is_fresh:jobs.a")]
     runner_state["jobs.c"] = _job("jobs.c", freshness=["job.is_fresh:jobs.b"])
@@ -247,12 +240,9 @@ def test_cascade_severs_at_interval_store_jobs_in_downstream(
         warn=lambda _m: None,
     )
 
-    # a is non-interval → cleared
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.a") is None
-    # b is interval-store → not cleared
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.b") == seed_ts
-    # c is reachable only via b → walk severs at b, c is NOT cleared
-    assert runner_mod._freshness_store.get_prev_completed_run("jobs.c") == seed_ts
+    # the whole downstream is cleared, including the interval-store job
+    for ref in ("jobs.a", "jobs.b", "jobs.c"):
+        assert runner_mod._freshness_store.get_prev_completed_run(ref) is None, ref
 
 
 def test_cascade_skips_interval_store_seed(
@@ -277,23 +267,24 @@ def test_cascade_skips_interval_store_seed(
 
 
 @pytest.mark.parametrize(
-    "manifest_value,expected_entry_point_value",
+    "jd_patch,expected_allow,expected_mode",
     [
-        (None, False),  # not set in manifest → entry_point gets False
-        (False, False),
-        (True, True),
+        ({}, None, None),  # not set in manifest → entry_point gets neither key
+        ({"incremental_mode": "interval"}, True, "interval"),
+        ({"incremental_mode": "pipeline"}, False, "pipeline"),
+        ({"auto_refresh_pipeline_mode": "drop_sources"}, None, None),
     ],
-    ids=["unset", "explicit-false", "explicit-true"],
+    ids=["unset", "mode-interval", "mode-pipeline", "auto-refresh-mode"],
 )
-def test_allow_external_schedulers_propagates_to_entry_point(
+def test_incremental_mode_propagates_to_entry_point(
     runner_state: Dict[str, TJobDefinition],
-    manifest_value: Any,
-    expected_entry_point_value: bool,
+    jd_patch: Dict[str, Any],
+    expected_allow: bool,
+    expected_mode: Any,
 ) -> None:
-    """`_start_job` propagates `job_def["allow_external_schedulers"]` into the entry_point."""
+    """`_start_job` propagates incremental mode into the entry_point."""
     job_def = _job("jobs.a")
-    if manifest_value is not None:
-        job_def["allow_external_schedulers"] = manifest_value
+    job_def.update(jd_patch)  # type: ignore[typeddict-item]
     runner_state["jobs.a"] = job_def
 
     # call _start_job's entry_point construction logic by stubbing JobProcess so
@@ -331,7 +322,10 @@ def test_allow_external_schedulers_propagates_to_entry_point(
     import json as _json
 
     ep = _json.loads(cmd[ep_idx])
-    assert ep.get("allow_external_schedulers", "missing") == expected_entry_point_value
+    assert ep.get("allow_external_schedulers") is expected_allow
+    assert ep.get("incremental_mode") == expected_mode
+    # auto_refresh_pipeline_mode passes through verbatim when present
+    assert ep.get("auto_refresh_pipeline_mode") == jd_patch.get("auto_refresh_pipeline_mode")
     # interval should be set since this is a non-interval job dispatched manually
     assert "interval_start" in ep
     assert "interval_end" in ep
@@ -395,7 +389,7 @@ def stubbed_job_process() -> Iterator[List[List[str]]]:
 
 def _block_root_graph() -> Dict[str, TJobDefinition]:
     return {
-        "jobs.a": _job("jobs.a", refresh="block"),
+        "jobs.a": _job("jobs.a", refresh_propagation="block"),
         "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
     }
 
@@ -404,7 +398,7 @@ def _block_in_chain_graph() -> Dict[str, TJobDefinition]:
     return {
         "jobs.a": _job("jobs.a"),
         "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
-        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"], refresh="block"),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"], refresh_propagation="block"),
         "jobs.d": _job("jobs.d", freshness=["job.is_fresh:jobs.c"]),
     }
 
@@ -413,7 +407,7 @@ def _block_in_diamond_graph() -> Dict[str, TJobDefinition]:
     return {
         "jobs.a": _job("jobs.a"),
         "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
-        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.a"], refresh="block"),
+        "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.a"], refresh_propagation="block"),
         "jobs.d": _job("jobs.d", freshness=["job.is_fresh:jobs.b", "job.is_fresh:jobs.c"]),
     }
 
@@ -465,7 +459,7 @@ def test_eager_cascade_block_semantics(
 
 def _always_chain_graph() -> Dict[str, TJobDefinition]:
     return {
-        "jobs.a": _job("jobs.a", refresh="always"),
+        "jobs.a": _job("jobs.a", refresh_propagation="always"),
         "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"]),
         "jobs.c": _job("jobs.c", freshness=["job.is_fresh:jobs.b"]),
     }
@@ -473,8 +467,8 @@ def _always_chain_graph() -> Dict[str, TJobDefinition]:
 
 def _always_then_block_graph() -> Dict[str, TJobDefinition]:
     return {
-        "jobs.a": _job("jobs.a", refresh="always"),
-        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"], refresh="block"),
+        "jobs.a": _job("jobs.a", refresh_propagation="always"),
+        "jobs.b": _job("jobs.b", freshness=["job.is_fresh:jobs.a"], refresh_propagation="block"),
     }
 
 
@@ -539,7 +533,7 @@ def test_pokemon_chain_settles_after_one_cascade(
     completing job's watermark and never touches downstream — so the
     chain settles after each cascade fires.
     """
-    runner_state["jobs.backfill"] = _job("jobs.backfill", refresh="always")
+    runner_state["jobs.backfill"] = _job("jobs.backfill", refresh_propagation="always")
     runner_state["jobs.daily"] = _job("jobs.daily", freshness=["job.is_fresh:jobs.backfill"])
     runner_state["jobs.transform"] = _job("jobs.transform", freshness=["job.is_fresh:jobs.daily"])
 

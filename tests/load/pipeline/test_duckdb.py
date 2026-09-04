@@ -10,7 +10,7 @@ from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.libs.pyarrow import columns_to_arrow
 from dlt.common.libs.pydantic import DltConfig
 from dlt.common.schema.exceptions import SchemaIdentifierNormalizationCollision
-from dlt.common.time import ensure_pendulum_datetime_utc, pendulum
+from dlt.common.time import ensure_pendulum_datetime, pendulum
 
 from dlt.destinations import duckdb
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -85,9 +85,9 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     import pyarrow as pa
     import pandas as pd
 
-    now_s = ensure_pendulum_datetime_utc("2022-05-23T13:26:46+01:00")
-    now_ms = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167+01:00")
-    now_us = ensure_pendulum_datetime_utc("2022-05-23T13:26:46.167231+01:00")
+    now_s = ensure_pendulum_datetime("2022-05-23T13:26:46+01:00")
+    now_ms = ensure_pendulum_datetime("2022-05-23T13:26:46.167+01:00")
+    now_us = ensure_pendulum_datetime("2022-05-23T13:26:46.167231+01:00")
 
     # create pandas DataFrame with nanosecond precision timestamp
     df_ns = pd.DataFrame({"col4_ts": ["2022-05-23T13:26:46.167231345+01:00"]})
@@ -115,7 +115,7 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
         columns_schema = add_timezone_false_on_precision(
             TABLE_UPDATE_ALL_TIMESTAMP_PRECISIONS + TABLE_UPDATE_ALL_INT_PRECISIONS
         )
-        arrow_schema = columns_to_arrow({c["name"]: c for c in columns_schema}, caps)
+        arrow_schema = columns_to_arrow({c["name"]: c for c in columns_schema}, caps, "UTC")
 
     def _verify_schema(arrow_schema_: pa.Schema, bit128type: pa.DataType) -> None:
         # also assert the intermediate arrow_schema produced from columns
@@ -168,10 +168,10 @@ def test_duck_precision_types(destination_config: DestinationTestConfiguration) 
     _verify_schema(table.schema, pa.decimal128(38, 0))
 
     table_row = table.to_pylist()[0]
-    table_row["col1_ts"] = ensure_pendulum_datetime_utc(table_row["col1_ts"])
-    table_row["col2_ts"] = ensure_pendulum_datetime_utc(table_row["col2_ts"])
-    table_row["col3_ts"] = ensure_pendulum_datetime_utc(table_row["col3_ts"])
-    table_row["col4_ts"] = ensure_pendulum_datetime_utc(table_row["col4_ts"])
+    table_row["col1_ts"] = ensure_pendulum_datetime(table_row["col1_ts"])
+    table_row["col2_ts"] = ensure_pendulum_datetime(table_row["col2_ts"])
+    table_row["col3_ts"] = ensure_pendulum_datetime(table_row["col3_ts"])
+    table_row["col4_ts"] = ensure_pendulum_datetime(table_row["col4_ts"])
     table_row.pop("col4_ts")
     row[0].pop("col4_ts")
     assert table_row == row[0]

@@ -57,6 +57,7 @@ def test_list_tables(populated_pipeline: dlt.Pipeline):
         "items",
         "double_items",
         "orderable_in_chain",
+        "daily_items",
         "_dlt_pipeline_state",
         "items__children",
     ]

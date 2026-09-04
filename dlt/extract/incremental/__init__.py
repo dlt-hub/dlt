@@ -1,3 +1,4 @@
+from copy import copy
 from typing import (
     Generic,
     ClassVar,
@@ -16,7 +17,11 @@ from functools import wraps
 
 from dlt.common import logger
 from dlt.common.data_types.typing import TDataType
-from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.exceptions import (
+    PipelineStateNotAvailable,
+    SourceSectionNotAvailable,
+    ValueErrorWithKnownValues,
+)
 from dlt.common.libs import is_arrow_object, is_pandas_frame, is_polars_frame
 from dlt.common.jsonpath import compile_path, extract_simple_field_name
 from dlt.common.typing import (
@@ -32,6 +37,7 @@ from dlt.common.typing import (
     TColumnNames,
     TypedDict,
     resolve_single_annotation,
+    Self,
 )
 from dlt.common.configuration import configspec, ConfigurationValueError
 from dlt.common.configuration.specs import BaseConfiguration
@@ -40,6 +46,7 @@ from dlt.common.data_types.type_helpers import (
     py_type_to_sc_type,
 )
 from dlt.common.data_writers.writers import count_rows_in_items
+from dlt.common.utils import simple_repr, without_none
 from dlt.common.incremental.typing import (
     IncrementalColumnState,
     TCursorValue,
@@ -60,6 +67,11 @@ from dlt.extract.incremental.context import TimeIntervalContext, get_interval_co
 from dlt.extract.items import SupportsPipe, TTableHintTemplate
 from dlt.extract.items_transform import ItemTransform
 from dlt.extract.state import resource_state
+from dlt.extract.utils import (
+    digest_dedup_value,
+    has_legacy_dedup_hashes,
+    resolve_column_value,
+)
 from dlt.extract.incremental.transform import (
     JsonIncremental,
     ArrowIncremental,
@@ -122,6 +134,7 @@ class Incremental(
             specified range of data. Currently Airflow scheduler is detected: "data_interval_start" and "data_interval_end" are taken from the context and passed Incremental class.
             The values passed explicitly to Incremental will be ignored.
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
+            Defaults to None in which case the runtime may enable it via `TimeIntervalContext`. Set to False to opt out unconditionally.
         on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
         lag: Optional value used to define a lag or attribution window. For datetime cursors, this is interpreted as seconds. For other types, it uses the + or - operator depending on the last_value_func.
         range_start: Decide whether the incremental filtering range is `open` or `closed` on the start value side. Default is `closed`.
@@ -137,7 +150,7 @@ class Incremental(
     initial_value: Optional[Any] = None
     end_value: Optional[Any] = None
     row_order: Optional[TSortOrder] = None
-    allow_external_schedulers: bool = False
+    allow_external_schedulers: Optional[bool] = None
     on_cursor_value_missing: OnCursorValueMissing = "raise"
     lag: Optional[float] = None
     duplicate_cursor_warning_threshold: ClassVar[int] = 200
@@ -156,7 +169,7 @@ class Incremental(
         primary_key: Optional[TTableHintTemplate[TColumnNames]] = None,
         end_value: Optional[TCursorValue] = None,
         row_order: Optional[TSortOrder] = None,
-        allow_external_schedulers: bool = False,
+        allow_external_schedulers: Optional[bool] = None,
         on_cursor_value_missing: OnCursorValueMissing = "raise",
         lag: Optional[float] = None,
         range_start: TIncrementalRange = "closed",
@@ -223,6 +236,9 @@ class Incremental(
         }
         self._dedup_key_from_hints: Optional[bool] = False if primary_key is not None else None
         """Tells if dedup key was set from resource hints, to prevent overrides of directly set values"""
+        self._advanced: bool = False
+        """If true, stops processing further rows"""
+        self._current_last_value: Any = None
 
     @property
     def primary_key(self) -> Optional[TTableHintTemplate[TColumnNames]]:
@@ -298,50 +314,143 @@ class Incremental(
             merged.resource_name = other.resource_name
         if other._dedup_key_from_hints is not None:
             merged._dedup_key_from_hints = other._dedup_key_from_hints
-        # also pass if resolved
+        # _advanced and _current_last_value are per-bind, set by bind() — not copied
         merged.__is_resolved__ = other.__is_resolved__
         merged.__exception__ = other.__exception__
         return merged  # type: ignore
 
-    def copy(self) -> "Incremental[TCursorValue]":
-        # merge creates a copy
-        return self.merge(self)
+    def copy(self, with_transient_state: bool = False) -> "Incremental[TCursorValue]":
+        """Creates a copy of this incremental with the same configuration.
+
+        The copy is never bound to a pipe. By default it also carries no transient state.
+
+        Args:
+            with_transient_state (bool): When `True`, also copy the transient state (the cached
+                state, `start_value` and last value) so the copy resolves the same range. The
+                copy owns its state and evolves it independently. Defaults to `False`.
+
+        Returns:
+            Incremental[TCursorValue]: The copied instance.
+        """
+        # merge copies the configured fields (including resource_name), never the bound pipe
+        new = self.merge(self)
+        if with_transient_state:
+            try:
+                state = self._cached_state if self._cached_state is not None else self.get_state()
+                new._cached_state = copy(state)
+                new._current_last_value = self._current_last_value
+                new.start_value = self.start_value
+            except (IncrementalUnboundError, SourceSectionNotAvailable, PipelineStateNotAvailable):
+                pass
+        return new
+
+    def with_cursor(self, cursor: str) -> "Incremental[TCursorValue]":
+        """Creates a copy of this incremental that reads a different cursor.
+
+        The copy carries the runtime state (see `copy`), so it filters on `cursor` using the
+        same range and evolves its own state independently.
+
+        Args:
+            cursor (str): Cursor path (column name or JSONPath) for the copy.
+
+        Returns:
+            Incremental[TCursorValue]: The copy reading from `cursor`.
+        """
+        new = self.copy(with_transient_state=True)
+        new.cursor_path = cursor
+        return new
+
+    def advance(self, last_value: TCursorValue) -> Self:
+        """Pins the range end to `last_value` and passes rows through unfiltered.
+
+        Use when the range was already applied elsewhere, ie. pushed down to SQL. A `None`
+        value leaves the range as is and only disables filtering.
+
+        Args:
+            last_value (TCursorValue): The value to pin the range end to.
+
+        Returns:
+            Incremental[TCursorValue]: This instance, so calls can be chained.
+        """
+        if last_value is not None:
+            self._current_last_value = last_value
+            if self._cached_state is not None:
+                self._cached_state["last_value"] = last_value
+                if self.end_value is None and self.is_unique_cursor():
+                    self._cached_state["unique_hashes"] = [self.cursor_value_hash(last_value)]
+                else:
+                    self._cached_state["unique_hashes"] = []
+        self._advanced = True
+        return self
+
+    def is_unique_cursor(self) -> bool:
+        """True when the primary key is exactly the cursor column, so cursor values are unique."""
+        pk = self.primary_key
+        if not pk or callable(pk):
+            return False
+        cursor = self.get_cursor_column_name()
+        if not cursor:
+            return False
+        return ([pk] if isinstance(pk, str) else list(pk)) == [cursor]
+
+    def cursor_value_hash(self, value: Any, legacy: bool = False) -> str:
+        """Dedup hash of a cursor value, `legacy` matches hashes written before 1.29"""
+        if self.is_unique_cursor():
+            # hash the shape the row transforms hash: a sequence primary key yields a list
+            cursor = self.get_cursor_column_name()
+            value = resolve_column_value(self.primary_key, {cursor: value})
+        return digest_dedup_value(value, legacy)
+
+    def unique_boundary_consumed(self) -> bool:
+        """True when state marks the row at `last_value` as already loaded."""
+        # a non-unique cursor never records the boundary row, so it is never known-consumed
+        if not self.is_unique_cursor():
+            return False
+
+        state = self._cached_state
+        if not state or not state.get("unique_hashes"):
+            return False
+        hashes = state["unique_hashes"]
+        return (
+            self.cursor_value_hash(state["last_value"], has_legacy_dedup_hashes(hashes)) in hashes
+        )
 
     def get_cursor_column_name(self) -> Optional[str]:
         """Return the name of the cursor column if the cursor path resolves to a single column"""
         return extract_simple_field_name(self.cursor_path)
 
-    def resolve_bounds(
+    def get_current_range(
         self, apply_lag: bool = True
     ) -> Tuple[Optional[TCursorValue], Optional[TCursorValue]]:
-        """Resolve `(lower, upper)` cursor bounds. Works on bound and unbound instances.
+        """Resolve current `(start, end)` cursor range based on internal incremental state
 
         Args:
-            apply_lag (bool): When True, the returned `lower` is the lag-adjusted
+            apply_lag (bool): When True, the returned `start` is the lag-adjusted
                 `start_value` set by `bind()`. When False, the raw `start_value`
                 persisted in cached state is returned.
 
         Returns:
-            Tuple[Optional[TCursorValue], Optional[TCursorValue]]: `(lower, upper)` bounds.
+            Tuple[Optional[TCursorValue], Optional[TCursorValue]]: `(start, end)` range.
         """
-        # upper: explicit end_value beats the live cursor; on unbound, live is None
-        upper = self.end_value
-        if upper is None and self._cached_state is not None:
-            upper = self._cached_state.get("last_value")
-
-        lower: Optional[TCursorValue]
-        if self._cached_state is None:
+        # end: explicit end_value beats the last value of the cursor
+        end = self.end_value
+        # an advanced cursor sets the end via _current_last_value, even when unbound
+        if end is None and self._current_last_value is not None:
+            end = self.last_value
+        start: Optional[TCursorValue] = None
+        try:
+            s = self._cached_state or self.get_state()
+            if apply_lag:
+                # lag was applied in bind()
+                start = self.start_value
+            else:
+                # raw start as persisted into state by bind()
+                start = s.get("start_value")
+        except (IncrementalUnboundError, SourceSectionNotAvailable, PipelineStateNotAvailable):
             # unbound: no state to read from. lag needs a live last_value to step
             # back from — there is none — so it is a no-op here regardless of self.lag
-            lower = self.initial_value
-        elif apply_lag:
-            # bind() set self.start_value via `last_value` property, which calls
-            # apply_lag_with_suppression — so this is already lag-adjusted
-            lower = self.start_value
-        else:
-            # raw start as persisted into state by bind()
-            lower = self._cached_state.get("start_value")
-        return lower, upper
+            start = self.initial_value
+        return start, end
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
@@ -430,10 +539,10 @@ class Incremental(
         if not self.resource_name:
             raise IncrementalUnboundError(self.cursor_path)
 
-        self._cached_state = Incremental._get_state(self.resource_name, self.cursor_path)
-        if len(self._cached_state) == 0:
+        bound_state = Incremental._get_state(self.resource_name, self.cursor_path)
+        if len(bound_state) == 0:
             # set the default like this, setdefault evaluates the default no matter if it is needed or not. and our default is heavy
-            self._cached_state.update(
+            bound_state.update(
                 {
                     "initial_value": self.initial_value,
                     "last_value": self.initial_value,
@@ -441,7 +550,7 @@ class Incremental(
                     "start_value": self.initial_value,
                 }
             )
-        return self._cached_state
+        return bound_state
 
     @staticmethod
     def _get_state(resource_name: str, cursor_path: str) -> IncrementalColumnState:
@@ -454,7 +563,10 @@ class Incremental(
 
     @property
     def last_value(self) -> Optional[TCursorValue]:
-        s = self.get_state()
+        # if incremental advanced - return as is
+        if self._current_last_value is not None:
+            return self._current_last_value  # type: ignore[no-any-return]
+        s = self._cached_state if self._cached_state is not None else self.get_state()
         return apply_lag_with_suppression(  # type: ignore[no-any-return]
             self.lag,
             self.last_value_func,
@@ -520,7 +632,7 @@ class Incremental(
                 f" {time_coercable_types}. ",
             )
 
-        # save configured bounds before overwriting with scheduler values
+        # save configured range before overwriting with scheduler values
         configured_initial = self.initial_value
         configured_end = self.end_value
 
@@ -530,7 +642,7 @@ class Incremental(
             self.initial_value = coerce_from_date_types(data_type, start)
             self.end_value = coerce_from_date_types(data_type, end)  # end_value must be set
 
-            # adapt scheduler values tz-awareness to match configured bounds
+            # adapt scheduler values tz-awareness to match configured range
             if configured_initial is not None and isinstance(self.initial_value, datetime):
                 self.initial_value = IncrementalTransform._adapt_timezone(
                     configured_initial, self.initial_value, "initial_value", self.resource_name
@@ -540,7 +652,7 @@ class Incremental(
                     configured_end, self.end_value, "end_value", self.resource_name
                 )
 
-            # clip scheduler range against configured bounds using last_value_func
+            # clip scheduler range against configured initial/end values using last_value_func
             # same pattern as lag.apply_lag: func((a, b)) == a means a "wins"
             if configured_initial is not None:
                 if (
@@ -570,14 +682,19 @@ class Incremental(
             raise IncrementalCursorPathMissing(pipe.name, None, None)
         self.resource_name = pipe.name
         self._bound_pipe = pipe
-        # try to join external scheduler: context flag overrides per-incremental setting
+        self._current_last_value = None
+        self._cached_state = None
+        self._advanced = False
         ctx = get_interval_context()
-        should_join = self.allow_external_schedulers
-        if ctx.allow_external_schedulers is not None:
-            should_join = ctx.allow_external_schedulers
+        if self.allow_external_schedulers is not None:
+            should_join = self.allow_external_schedulers
+        else:
+            should_join = bool(ctx.allow_external_schedulers)
         if should_join:
             self._join_external_scheduler(ctx)
-        # set initial value from last value, in case of a new state those are equal
+        # cache state
+        self._cached_state = self.get_state()
+        # set start value from last value, in case of a new state those are equal
         self.start_value = self.last_value
         logger.info(
             f"Bind incremental on {self.resource_name} with initial_value: {self.initial_value},"
@@ -586,9 +703,8 @@ class Incremental(
             f" {self.on_cursor_value_missing}, range_start: {self.range_start}, range_end:"
             f" {self.range_end}"
         )
-        # cache state
-        self._cached_state = self.get_state()
-        # now cached state is available
+        # save existing last value as future start value that will be used only
+        # if last value really advances
         self._cached_state_start_value = self._cached_state["last_value"]
         # Clear transforms so we get new instances
         self._transformers.clear()
@@ -598,10 +714,10 @@ class Incremental(
         """Checks if incremental is out of range and can be closed.
 
         Returns true only when `row_order` was set and
-        1. results are ordered ascending and are above upper bound (end_value)
-        2. results are ordered descending and are below or equal lower bound (start_value)
+        1. results are ordered ascending and are above the range end (end_value)
+        2. results are ordered descending and are below or equal the range start (start_value)
         """
-        # ordered ascending, check if we cross upper bound
+        # ordered ascending, check if we cross the range end
         return (
             self.row_order == "asc"
             and self.end_out_of_range
@@ -615,12 +731,25 @@ class Incremental(
             return value
         return cls(**value)
 
+    def __repr__(self) -> str:
+        kwargs = {
+            "cursor_path": self.cursor_path,
+            "initial_value": self.initial_value,
+            "end_value": self.end_value,
+            "last_value_func": getattr(self.last_value_func, "__name__", None),
+            "primary_key": self._primary_key,
+            "lag": self.lag,
+            "range_start": None if self.range_start == "closed" else self.range_start,
+            "range_end": None if self.range_end == "open" else self.range_end,
+            "on_cursor_value_missing": (
+                None if self.on_cursor_value_missing == "raise" else self.on_cursor_value_missing
+            ),
+            "resource_name": self.resource_name,
+        }
+        return simple_repr("dlt.sources.incremental", **without_none(kwargs))
+
     def __str__(self) -> str:
-        return (
-            f"Incremental at 0x{id(self):x} for resource {self.resource_name} with cursor path:"
-            f" {self.cursor_path} initial {self.initial_value} - {self.end_value} lv_func"
-            f" {self.last_value_func}"
-        )
+        return self.__repr__()
 
     def _make_or_get_transformer(self, cls: Type[IncrementalTransform]) -> IncrementalTransform:
         if transformer := self._transformers.get(cls):
@@ -671,6 +800,9 @@ class Incremental(
         self._incremental_metrics["unfiltered_items_count"] += count_rows_in_items(rows)
         self._incremental_metrics["unfiltered_batches_count"] += 1
 
+        if self._advanced:
+            return rows
+
         transformer = self._get_transform(rows)
         if isinstance(rows, list):
             rows = [
@@ -691,7 +823,7 @@ class Incremental(
                 (transformer.last_value, cached_last_value)
             )
         # writing back state
-        cached_state["last_value"] = transformer.last_value
+        self._current_last_value = cached_state["last_value"] = transformer.last_value
         if rows is not None:
             cached_state["start_value"] = self._cached_state_start_value
 
@@ -700,7 +832,9 @@ class Incremental(
             # NOTE: object transform uses last_rows to pass rows to dedup, arrow computes
             #  hashes directly
             unique_hashes = set(
-                transformer.compute_unique_value(row, self.primary_key)
+                transformer.compute_unique_value(
+                    row, self.primary_key, transformer.unique_hashes_legacy
+                )
                 for row in transformer.last_rows
             )
             initial_hash_list = cached_state.get("unique_hashes")

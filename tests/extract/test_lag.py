@@ -4,7 +4,7 @@ from typing import Any, Callable, Union
 
 from dlt.common.incremental.typing import LastValueFunc
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_date, ensure_pendulum_datetime_non_utc
+from dlt.common.time import ensure_pendulum_date, ensure_datetime
 from dlt.extract.incremental.lag import _apply_lag_to_value
 
 
@@ -150,14 +150,13 @@ def test_apply_lag_to_value_python_date(
 def test_apply_lag_to_value_pendulum_datetime(
     lag: Union[int, float], value_str: str, last_value_func: LastValueFunc[Any], expected_str: str
 ) -> None:
-    value = ensure_pendulum_datetime_non_utc(value_str)
-    expected = ensure_pendulum_datetime_non_utc(expected_str)
+    value = ensure_datetime(value_str)
+    expected = ensure_datetime(expected_str)
 
     result = _apply_lag_to_value(lag, value, last_value_func)
 
     assert result == expected
-    assert isinstance(result, pendulum.DateTime)
-    assert result.timezone == value.timezone
+    assert result.utcoffset() == value.utcoffset()
 
 
 @pytest.mark.parametrize(
@@ -327,14 +326,14 @@ def test_apply_lag_to_value_timezone_preservation(
     assert isinstance(result, str)
 
     # Parse both original and result to check timezone info
-    parsed_original = ensure_pendulum_datetime_non_utc(value)
-    parsed_result = ensure_pendulum_datetime_non_utc(result)
+    parsed_original = ensure_datetime(value)
+    parsed_result = ensure_datetime(result)
 
     if expected_tz_preserved:
-        assert parsed_result.timezone == parsed_original.timezone
+        assert parsed_result.utcoffset() == parsed_original.utcoffset()
     else:
         # For naive datetimes, both should be naive
-        assert parsed_result.timezone is None or str(parsed_result.timezone) == "UTC"
+        assert parsed_result.utcoffset() in (None, timedelta(0))
 
 
 def test_apply_lag_to_value_edge_cases():

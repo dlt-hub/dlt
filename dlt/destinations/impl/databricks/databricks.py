@@ -52,6 +52,7 @@ from dlt.common.destination.exceptions import (
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.typing import TDataRecordBatch
 from dlt.common.schema import Schema, TColumnSchema, TTableSchema
+from dlt.common.time import get_context_timezone_name
 from dlt.common.schema.typing import TColumnType
 from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.common.storages import FilesystemConfiguration, fsspec_from_config
@@ -406,7 +407,7 @@ class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TR
             if column.get("data_type") == "time":
                 columns[column_name]["data_type"] = "text"
 
-        return columns_to_arrow(columns, self._job_client.capabilities)
+        return columns_to_arrow(columns, self._job_client.capabilities, get_context_timezone_name())
 
     def _create_stream(self) -> ZerobusArrowStream:
         table_name = self._job_client.sql_client.make_qualified_table_name(

@@ -1,0 +1,23 @@
+{
+  "engine_version": 1,
+  "version": 1,
+  "version_hash": "wWdvDPYxsgLPGkmsHkO1HtT0kXm0VFh1ZP8aKwUueXU=",
+  "created_at": "2026-01-01T00:00:00Z",
+  "deployment_module": "__deployment__",
+  "description": "v1 manifest with allow_external_schedulers but no interval (warns after migration)",
+  "jobs": [
+    {
+      "job_ref": "jobs.events.no_interval",
+      "entry_point": {
+        "module": "events",
+        "function": "no_interval",
+        "job_type": "batch",
+        "launcher": "dlt._workspace.deployment.launchers.job"
+      },
+      "triggers": ["schedule:0 0 * * *"],
+      "default_trigger": "schedule:0 0 * * *",
+      "execute": {"concurrency": 1},
+      "allow_external_schedulers": true
+    }
+  ]
+}

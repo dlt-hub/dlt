@@ -44,7 +44,7 @@ from dlt.common.schema.utils import (
     remove_compound_props,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -834,7 +834,7 @@ class DltResourceHints:
                         if wd[ts] is None:
                             continue
                         try:
-                            ensure_pendulum_datetime_utc(wd[ts])
+                            ensure_pendulum_datetime(wd[ts])
                         except Exception:
                             raise ValueError(f"could not parse `{ts}` value `{wd[ts]}`")
 

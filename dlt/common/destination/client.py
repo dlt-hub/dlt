@@ -27,7 +27,8 @@ from typing import (
     cast,
 )
 from typing_extensions import Annotated
-import datetime  # noqa: 251
+import datetime
+from datetime import timezone
 
 from dlt.common import logger, pendulum
 from dlt.common.json import json
@@ -429,8 +430,8 @@ class LoadJob(ABC):
         # NOTE: we only accept a full filepath in the constructor
         assert self._file_name != self._file_path
         self._parsed_file_name = ParsedLoadJobFileName.parse(self._file_name)
-        self._started_at: pendulum.DateTime = None
-        self._finished_at: pendulum.DateTime = None
+        self._started_at: datetime.datetime = None
+        self._finished_at: datetime.datetime = None
 
     def job_id(self) -> str:
         """The job id that is derived from the file name and does not changes during job lifecycle"""
@@ -496,7 +497,7 @@ class RunnableLoadJob(LoadJob, ABC):
         # ensure file name
         super().__init__(file_path)
         self._state: TLoadJobState = "ready"
-        self._started_at = pendulum.now()
+        self._started_at = datetime.datetime.now(timezone.utc)
         self._exception: BaseException = None
         # explicit message for restored jobs; otherwise the traceback is derived from the exception
         self._failed_message: str = None
@@ -536,7 +537,7 @@ class RunnableLoadJob(LoadJob, ABC):
         if failed_message:
             # failed state is always caused by a terminal exception
             self._exception = DestinationTerminalException(failed_message)
-        self._finished_at = pendulum.now()
+        self._finished_at = datetime.datetime.now(timezone.utc)
 
     @property
     def load_table_name(self) -> str:
@@ -591,7 +592,7 @@ class RunnableLoadJob(LoadJob, ABC):
                 # persist terminal state so resume can skip re-execution
                 if self._on_completed:
                     self._on_completed(next_state, self.failed_message())
-                self._finished_at = pendulum.now()
+                self._finished_at = datetime.datetime.now(timezone.utc)
         finally:
             # set final job state after callback and _finished_at to prevent races with completion loop
             self._state = next_state

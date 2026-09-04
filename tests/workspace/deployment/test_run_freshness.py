@@ -1,22 +1,19 @@
 """Tests for run-based upstream freshness checks (`check_all_upstream_run_fresh`)."""
 
 from datetime import datetime, timedelta, timezone  # noqa: I251
-from typing import Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple
 
 import pytest
 
 from dlt._workspace.deployment.interval import check_all_upstream_run_fresh
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TFreshnessConstraint,
     TIntervalSpec,
     TJobDefinition,
-    TJobRef,
     TJobType,
-    TRefreshPolicy,
-    TTrigger,
 )
+
+from tests.workspace.manifest_utils import make_job
 
 
 def _job(
@@ -26,31 +23,23 @@ def _job(
     default_trigger: Optional[str] = None,
     job_type: TJobType = "batch",
     freshness: Optional[List[str]] = None,
-    refresh: Optional[TRefreshPolicy] = None,
-    allow_external_schedulers: Optional[bool] = None,
+    **fields: Any,
 ) -> TJobDefinition:
-    job: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": TEntryPoint(
-            module="m",
-            function="f",
-            job_type=job_type,
-            launcher="dlt._workspace.deployment.launchers.job",
-        ),
-        "triggers": [TTrigger(t) for t in (triggers or [])],
-        "execute": TExecuteSpec(),
+    optional = {
+        "interval": interval,
+        "default_trigger": default_trigger,
+        "freshness": freshness,
+        **fields,
     }
-    if interval is not None:
-        job["interval"] = interval
-    if default_trigger is not None:
-        job["default_trigger"] = TTrigger(default_trigger)
-    if freshness is not None:
-        job["freshness"] = [TFreshnessConstraint(c) for c in freshness]
-    if refresh is not None:
-        job["refresh"] = refresh
-    if allow_external_schedulers is not None:
-        job["allow_external_schedulers"] = allow_external_schedulers
-    return job
+    return make_job(
+        ref,
+        job_type=job_type,
+        triggers=triggers,
+        module="m",
+        function="f",
+        concurrency=None,
+        **{k: v for k, v in optional.items() if v is not None},
+    )
 
 
 def _check_run_freshness(

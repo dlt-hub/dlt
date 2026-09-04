@@ -5,6 +5,7 @@ import io
 import os
 import subprocess
 import sys
+from datetime import datetime, timezone
 from contextlib import contextmanager
 from copy import copy
 from importlib import import_module
@@ -13,10 +14,10 @@ from types import ModuleType
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
+from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
 from dlt._workspace.deployment.decorators import JobFactory
@@ -31,6 +32,7 @@ from dlt._workspace.deployment.exceptions import (
     InvalidJobRef,
     InvalidManifest,
     InvalidTrigger,
+    ManifestEngineNoUpgradePath,
     JobValidationResult,
     ManifestValidationResult,
 )
@@ -53,11 +55,14 @@ from dlt._workspace.deployment.typing import (
     TJobsDeploymentManifest,
     TFreshnessConstraint,
     TJobDefinition,
+    TJobDefinitionDeprecated,
     TJobRef,
     TTrigger,
+    WORKSPACE_DEPRECATED_SINCE,
 )
 
-DEPLOYMENT_ENGINE_VERSION = MANIFEST_ENGINE_VERSION
+DEPLOYMENT_ENGINE_VERSION = 1
+"""Engine version of package files manifests (`TFilesManifest`), independent of job definitions."""
 
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
@@ -109,13 +114,57 @@ def bump_manifest_version(
     return version, new_hash, old_hash
 
 
+def migrate_job_definition(
+    job_dict: DictStrAny, from_engine: int, to_engine: int
+) -> TJobDefinition:
+    """Migrate a single job definition dict between engine versions, in place.
+
+    WARNING: if you add new migration you MUST make sure that build_runtime_entry_point has downgrade
+    path for previous dlt versions.
+    """
+    if from_engine == to_engine:
+        return job_dict  # type: ignore[return-value]
+    if from_engine == 1 and to_engine > 1:
+        # engine 2: allow_external_schedulers -> incremental_mode, refresh -> refresh_propagation
+        apply_deprecations(
+            TJobDefinitionDeprecated,
+            job_dict,
+            path="jobs",
+            since=WORKSPACE_DEPRECATED_SINCE,
+            warn=False,
+        )
+        from_engine = 2
+
+    if from_engine != to_engine:
+        raise ManifestEngineNoUpgradePath("job definition", from_engine, to_engine)
+    return job_dict  # type: ignore[return-value]
+
+
 def migrate_manifest(
     manifest_dict: DictStrAny, from_engine: int, to_engine: int
 ) -> TJobsDeploymentManifest:
-    """Migrate a manifest dict between engine versions."""
+    """Migrate a manifest dict between engine versions.
+
+    WARNING: if you add new migration you MUST make sure that build_runtime_entry_point has downgrade
+    path for previous dlt versions.
+    """
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
-    raise ValueError(f"no manifest migration path from engine {from_engine} to {to_engine}")
+    # checked before the job loop so an unreachable path is reported against the manifest
+    # rather than against whichever job happened to be migrated first
+    if not 1 <= from_engine < to_engine:
+        raise ManifestEngineNoUpgradePath("manifest", from_engine, to_engine)
+    for job in manifest_dict.get("jobs", []):
+        migrate_job_definition(job, from_engine, to_engine)
+    # manifest-level migrations per engine version
+    if from_engine == 1 and to_engine > 1:
+        # engine 2: no manifest-level changes
+        from_engine = 2
+
+    if from_engine != to_engine:
+        raise ManifestEngineNoUpgradePath("manifest", from_engine, to_engine)
+    manifest_dict["engine_version"] = to_engine
+    return manifest_dict  # type: ignore[return-value]
 
 
 def save_manifest(manifest: TJobsDeploymentManifest, f: BinaryIO) -> str:
@@ -287,7 +336,7 @@ def validate_job_definition(
         cron_expr = maybe_parse_schedule(job_def)
         if cron_expr:
             iv = job_def["interval"]
-            raw_start = ensure_datetime_utc(iv["start"])
+            raw_start = ensure_datetime_in_tz(iv["start"], timezone.utc)
             if cron_floor(cron_expr, raw_start) != raw_start:
                 warnings.append(
                     f"job {ref!r} interval start ({iv['start']}) is not a"
@@ -295,15 +344,21 @@ def validate_job_definition(
                 )
             end_str = iv.get("end")
             if end_str:
-                raw_end = ensure_datetime_utc(end_str)
+                raw_end = ensure_datetime_in_tz(end_str, timezone.utc)
                 if cron_floor(cron_expr, raw_end) != raw_end:
                     warnings.append(
                         f"job {ref!r} interval end ({end_str}) is not a"
                         f" cron tick for {cron_expr!r} — will be snapped backward"
                     )
 
-    if job_def.get("allow_external_schedulers") and not has_interval:
-        warnings.append(f"job {ref!r} has allow_external_schedulers but no interval")
+    if job_def.get("incremental_mode") == "interval" and not has_interval:
+        warnings.append(f"job {ref!r} has incremental_mode 'interval' but no interval")
+
+    if job_def.get("auto_refresh_pipeline_mode") and job_def.get("refresh_propagation") == "block":
+        warnings.append(
+            f"job {ref!r} has auto_refresh_pipeline_mode but refresh_propagation 'block'"
+            " prevents refresh runs"
+        )
 
     require = job_def.get("require") or {}
     declared_profile = require.get("profile")
@@ -570,7 +625,7 @@ def generate_manifest(
 
     manifest: TJobsDeploymentManifest = {
         "engine_version": MANIFEST_ENGINE_VERSION,
-        "created_at": pendulum.now("UTC").isoformat(),
+        "created_at": datetime.now(timezone.utc).isoformat(),
         "deployment_module": deployment_module.__name__,
         "jobs": jobs,
     }

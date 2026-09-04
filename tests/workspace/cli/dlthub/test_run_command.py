@@ -16,15 +16,13 @@ from dlt._workspace.deployment.exceptions import (
     DeploymentException,
     JobRefNotInCandidates,
 )
-from dlt._workspace.deployment.launchers import _launcher as launcher_mod
+from dlt._workspace.deployment.launchers import LAUNCHER_JOB, _launcher as launcher_mod
 from dlt._workspace.deployment.typing import (
-    TEntryPoint,
-    TExecuteSpec,
     TJobDefinition,
-    TJobRef,
     TJobsDeploymentManifest,
-    TTrigger,
 )
+
+from tests.workspace.manifest_utils import make_job, make_manifest
 
 
 NOW = datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
@@ -34,34 +32,25 @@ def _job(
     ref: str,
     *,
     triggers: Optional[List[str]] = None,
-    default_trigger: Optional[str] = None,
     job_type: str = "batch",
     function: Optional[str] = "main",
-    deliver: Optional[Dict[str, Any]] = None,
+    launcher: Optional[str] = None,
+    **fields: Any,
 ) -> TJobDefinition:
-    entry: TEntryPoint = {
-        "module": "my_mod",
-        "function": function,
-        "job_type": job_type,  # type: ignore[typeddict-item]
-        "launcher": "dlt._workspace.deployment.launchers.job",
-    }
-    if triggers is None:
-        triggers = [f"manual:{ref}"]
-    jd: TJobDefinition = {
-        "job_ref": TJobRef(ref),
-        "entry_point": entry,
-        "triggers": [TTrigger(t) for t in triggers],
-        "execute": TExecuteSpec(),
-    }
-    if default_trigger is not None:
-        jd["default_trigger"] = TTrigger(default_trigger)
-    if deliver is not None:
-        jd["deliver"] = deliver  # type: ignore[typeddict-item]
-    return jd
+    return make_job(
+        ref,
+        job_type=job_type,  # type: ignore[arg-type]
+        triggers=[f"manual:{ref}"] if triggers is None else triggers,
+        module="my_mod",
+        function=function,
+        launcher=launcher or LAUNCHER_JOB,
+        concurrency=None,
+        **{k: v for k, v in fields.items() if v is not None},
+    )
 
 
 def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
-    return {"engine_version": 1, "jobs": jobs}  # type: ignore[typeddict-item]
+    return make_manifest(jobs)
 
 
 def _patch_load_manifest(

@@ -29,7 +29,7 @@ from dlt.common.destination.client import (
     DestinationClientConfiguration,
     WithStateSync,
 )
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
 from tests.cases import table_update_and_row, assert_all_data_types_row
@@ -261,7 +261,7 @@ def test_complete_load(client: SqlJobClientBaseWithDestinationTestConfiguration)
     assert load_rows[0][2] == 0
     import datetime  # noqa: I251
 
-    assert isinstance(ensure_pendulum_datetime_utc(load_rows[0][3]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime(load_rows[0][3]), datetime.datetime)
     assert load_rows[0][4] == client.schema.version_hash
     # make sure that hash in loads exists in schema versions table
     versions_table = client.sql_client.make_qualified_table_name(version_table_name)

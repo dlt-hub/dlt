@@ -44,7 +44,9 @@ from dlt.common.storages.exceptions import (
     UnsupportedStorageVersionException,
 )
 from dlt.common.storages.fsspec_filesystem import glob_files
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import datetime, timezone
+
+from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
@@ -134,9 +136,14 @@ class FilesystemLoadJob(RunnableLoadJob):
 
     @property
     def load_package_timestamp(self) -> Optional[pendulum.DateTime]:
+        # NOTE: pendulum stays here. `path_utils.prepare_datetime_params` formats this value with
+        # pendulum tokens, so a stdlib datetime would not render the path placeholders
         # package state is optional
         try:
-            return ensure_pendulum_datetime_utc(current_load_package()["state"]["created_at"])
+            # UTC, never the context timezone: this timestamp renders into the object path
+            return ensure_pendulum_datetime(
+                current_load_package()["state"]["created_at"], timezone.utc
+            )
         except CurrentLoadPackageStateNotAvailable:
             return None
 
@@ -1139,7 +1146,7 @@ class FilesystemClient(
             C_DLT_LOADS_TABLE_LOAD_ID: load_id,
             "schema_name": self.schema.name,
             "status": 0,
-            "inserted_at": pendulum.now().isoformat(),
+            "inserted_at": datetime.now(timezone.utc).isoformat(),
             "schema_version_hash": self.schema.version_hash,
         }
         filepath = self.pathlib.join(
@@ -1279,7 +1286,8 @@ class FilesystemClient(
 
             if selected_path:
                 info = json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-                info["inserted_at"] = ensure_pendulum_datetime_utc(info["inserted_at"])
+                # UTC, never the context timezone: runs compare these across each other
+                info["inserted_at"] = ensure_datetime_in_tz(info["inserted_at"], timezone.utc)
                 return StorageSchemaInfo(**info)
         except DestinationUndefinedEntity:
             # ignore missing table
@@ -1298,7 +1306,7 @@ class FilesystemClient(
             "schema_name": schema.name,
             "version": schema.version,
             "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": pendulum.now(),
+            "inserted_at": datetime.now(timezone.utc),
             "schema": json.dumps(schema.to_dict()),
         }
 
