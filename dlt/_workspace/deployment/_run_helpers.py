@@ -7,9 +7,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable, Dict, List, Optional, Tuple, cast
 from uuid import uuid4
-from zoneinfo import ZoneInfo
 
-from dlt.common.time import UTC_NAME, ensure_datetime_in_tz
+from dlt.common.time import UTC_NAME, ensure_datetime_in_tz, to_tzinfo
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.deployment._job_ref import format_job_label, resolve_job_ref, short_name
@@ -273,7 +272,7 @@ def resolve_interval(
     tz = job_def.get("require", {}).get("timezone", "UTC")
 
     if user_start:
-        target_tz = ZoneInfo(tz)
+        target_tz = to_tzinfo(tz)
         start = ensure_datetime_in_tz(user_start, target_tz)
         end = ensure_datetime_in_tz(user_end, target_tz) if user_end else now_utc
         return start, end, tz

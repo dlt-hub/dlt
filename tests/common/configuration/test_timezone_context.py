@@ -6,8 +6,13 @@ import pytest
 from pendulum.tz import UTC as PENDULUM_UTC, fixed_timezone
 
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import InvalidTimezoneName, TimezoneContext
-from dlt.common.time import get_context_timezone, set_context_timezone, to_iana_name
+from dlt.common.configuration.specs import TimezoneContext
+from dlt.common.time import (
+    InvalidTimezoneName,
+    get_context_timezone,
+    set_context_timezone,
+    to_iana_name,
+)
 
 
 def test_default_is_utc() -> None:

@@ -1,3 +1,6 @@
+import os
+import subprocess
+import sys
 import time
 from datetime import datetime, date, timezone, timedelta, time as dt_time  # noqa: I251
 from unittest import mock
@@ -6,7 +9,7 @@ from zoneinfo import ZoneInfo
 import pytest
 from pendulum.tz import UTC, fixed_timezone
 
-from dlt.common import pendulum
+from dlt.common import known_env, pendulum
 from dlt.common.pendulum import ensure_pendulum_dt, to_pendulum_tz
 from dlt.common.storages.load_package import create_load_id
 from dlt.common.time import (
@@ -29,6 +32,8 @@ from dlt.common.time import (
     ensure_pendulum_time,
     normalize_timezone,
     set_context_timezone,
+    get_context_timezone,
+    InvalidTimezoneName,
     datetime_obj_to_str,
     to_iana_name,
 )
@@ -1185,3 +1190,52 @@ def test_zoneinfo_keeps_its_offset(zone_name: str, moment: datetime, offset_hour
     assert ensure_datetime_in_tz(value) == utc_moment
     assert datetime_to_timestamp(value) == int(utc_moment.timestamp())
     assert to_pendulum_tz(ZoneInfo(zone_name)).utcoffset(moment) == timedelta(hours=offset_hours)
+
+
+@pytest.mark.parametrize(
+    "name,expected",
+    [
+        (None, timezone.utc),
+        ("", timezone.utc),
+        ("UTC", timezone.utc),
+        ("Europe/Berlin", ZoneInfo("Europe/Berlin")),
+    ],
+    ids=["unset", "empty", "utc", "berlin"],
+)
+def test_context_timezone_from_env(
+    monkeypatch: pytest.MonkeyPatch, name: str, expected: timezone
+) -> None:
+    """`set_context_timezone(None)` re-reads `DLT_INTERVAL_TIMEZONE`, as `import dlt` does."""
+    if name is None:
+        monkeypatch.delenv(known_env.DLT_INTERVAL_TIMEZONE, raising=False)
+    else:
+        monkeypatch.setenv(known_env.DLT_INTERVAL_TIMEZONE, name)
+    set_context_timezone(None)
+    assert get_context_timezone() == expected
+
+
+@pytest.mark.parametrize("name", ["Nowhere/Bogus", "+02:00", "utc"])
+def test_context_timezone_from_env_rejects_invalid_name(
+    monkeypatch: pytest.MonkeyPatch, name: str
+) -> None:
+    """A bad env value raises like `TimezoneContext` does instead of falling back to UTC."""
+    monkeypatch.setenv(known_env.DLT_INTERVAL_TIMEZONE, name)
+    with pytest.raises(InvalidTimezoneName) as exc:
+        set_context_timezone(None)
+    assert exc.value.timezone == name
+    # the previously installed timezone stays
+    assert get_context_timezone() == timezone.utc
+
+
+def test_import_dlt_rejects_invalid_env_timezone() -> None:
+    """`import dlt` reads the env eagerly, so a bad value fails the process before any user code."""
+    result = subprocess.run(
+        [sys.executable, "-c", "import dlt"],
+        env={**os.environ, known_env.DLT_INTERVAL_TIMEZONE: "Nowhere/Bogus"},
+        capture_output=True,
+        text=True,
+        timeout=60,
+    )
+    assert result.returncode != 0
+    assert "InvalidTimezoneName" in result.stderr
+    assert "Nowhere/Bogus" in result.stderr

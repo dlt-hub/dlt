@@ -37,7 +37,7 @@ from .gcp_credentials import (
 )
 
 from .pluggable_run_context import PluggableRunContext
-from .timezone_context import TimezoneContext, InvalidTimezoneName
+from .timezone_context import TimezoneContext
 from .runtime_configuration import RuntimeConfiguration, RunConfiguration
 
 
@@ -53,7 +53,6 @@ __all__ = [
     "configspec",
     "PluggableRunContext",
     "TimezoneContext",
-    "InvalidTimezoneName",
     "ConfigSectionContext",
     "GcpServiceAccountCredentialsWithoutDefaults",
     "GcpServiceAccountCredentials",

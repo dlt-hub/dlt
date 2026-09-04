@@ -8,7 +8,7 @@ from typing import Any, ContextManager, Dict, List, Optional
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs import TimezoneContext
-from dlt.common.configuration.specs.timezone_context import to_tzinfo
+from dlt.common.time import to_tzinfo
 from dlt.common.libs import is_instance_lib
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime import signals

@@ -15,7 +15,7 @@ import pytest
 
 import dlt
 from dlt.common import known_env
-from dlt.common.configuration.specs import InvalidTimezoneName
+from dlt.common.time import InvalidTimezoneName
 from dlt._workspace.deployment._run_helpers import build_runtime_entry_point
 from dlt._workspace.deployment.launchers._launcher import (
     apply_job_configuration,

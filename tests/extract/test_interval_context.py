@@ -15,9 +15,9 @@ import pytest
 import dlt
 from dlt.common import known_env
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs import InvalidTimezoneName, TimezoneContext
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_datetime, ensure_pendulum_datetime
+from dlt.common.time import InvalidTimezoneName, ensure_datetime, ensure_pendulum_datetime
 from dlt.common.typing import TTimeInterval
 from dlt.common.utils import uniq_id
 from dlt.extract.incremental.context import (

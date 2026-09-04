@@ -1,41 +1,15 @@
 import datetime  # noqa: I251
 from typing import ClassVar, List, Optional
-from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
-from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.configuration.specs.base_configuration import (
     ContainerInjectableContext,
     configspec,
 )
-from dlt.common.time import UTC_NAME, get_context_timezone_name, set_context_timezone
-
-
-class InvalidTimezoneName(ConfigurationValueError):
-    def __init__(self, timezone: str, reason: str) -> None:
-        self.timezone = timezone
-        super().__init__(
-            f"dlt cannot use timezone `{timezone}`: {reason}. Pass a canonical IANA name, for"
-            " example `Europe/Berlin` or `UTC`."
-        )
-
-
-def to_tzinfo(timezone: str) -> datetime.tzinfo:
-    """Resolves an IANA name, rejecting anything `zoneinfo` and arrow cannot both use."""
-    if not timezone:
-        raise InvalidTimezoneName(timezone, "the name is empty")
-    if timezone[0] in "+-":
-        raise InvalidTimezoneName(timezone, "a fixed offset is not a timezone")
-    if timezone == UTC_NAME:
-        # the stdlib singleton, so `== timezone.utc` holds and offsets need no lookup
-        return datetime.timezone.utc
-    # `ZoneInfo` alone accepts `utc` where the filesystem is case-insensitive, as macOS is, while
-    # arrow keeps rejecting it. only the canonical spellings are portable
-    if timezone not in available_timezones():
-        raise InvalidTimezoneName(timezone, "no such timezone")
-    try:
-        return ZoneInfo(timezone)
-    except (ZoneInfoNotFoundError, ValueError) as ex:
-        raise InvalidTimezoneName(timezone, str(ex) or "no such timezone") from ex
+from dlt.common.time import (
+    get_context_timezone_name,
+    set_context_timezone,
+    to_tzinfo,
+)
 
 
 @configspec

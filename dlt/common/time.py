@@ -3,9 +3,8 @@ import math
 import os
 import re
 import sys
-import warnings
 from typing import Any, Dict, Optional, Tuple, Union, overload, TypeVar, Callable  # noqa
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError, available_timezones
 
 from pendulum.parsing import (
     parse_iso8601,
@@ -16,6 +15,7 @@ from pendulum.tz import UTC
 from pendulum import DateTime, Date, Time  # noqa: I251
 
 from dlt.common import known_env
+from dlt.common.exceptions import TerminalValueError
 from dlt.common.pendulum import create_dt, ensure_pendulum_dt, pendulum, timedelta
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
 from dlt.common.warnings import deprecated
@@ -31,21 +31,41 @@ UTC_NAME = "UTC"
 DEFAULT_TIMESTAMP_PRECISION = 6
 
 
+class InvalidTimezoneName(TerminalValueError):
+    def __init__(self, timezone: str, reason: str) -> None:
+        self.timezone = timezone
+        super().__init__(
+            f"dlt cannot use timezone `{timezone}`: {reason}. Pass a canonical IANA name, for"
+            " example `Europe/Berlin` or `UTC`."
+        )
+
+
+def to_tzinfo(timezone: str) -> datetime.tzinfo:
+    """Resolves an IANA name, rejecting anything `zoneinfo` and arrow cannot both use."""
+    if not timezone:
+        raise InvalidTimezoneName(timezone, "the name is empty")
+    if timezone[0] in "+-":
+        raise InvalidTimezoneName(timezone, "a fixed offset is not a timezone")
+    if timezone == UTC_NAME:
+        # the stdlib singleton, so `== timezone.utc` holds and offsets need no lookup
+        return datetime.timezone.utc
+    # `ZoneInfo` alone accepts `utc` where the filesystem is case-insensitive, as macOS is, while
+    # arrow keeps rejecting it. only the canonical spellings are portable
+    if timezone not in available_timezones():
+        raise InvalidTimezoneName(timezone, "no such timezone")
+    try:
+        return ZoneInfo(timezone)
+    except (ZoneInfoNotFoundError, ValueError) as ex:
+        raise InvalidTimezoneName(timezone, str(ex) or "no such timezone") from ex
+
+
 def _env_context_timezone() -> datetime.tzinfo:
-    """Timezone a launcher put in the environment, UTC when there is none or it is unusable."""
+    """Timezone a launcher put in the environment, UTC when there is none."""
     # read on import and on every reset, so a job takes the timezone it declared without a context
     name = os.environ.get(known_env.DLT_INTERVAL_TIMEZONE)
     if not name or name == UTC_NAME:
         return datetime.timezone.utc
-    try:
-        return ZoneInfo(name)
-    except Exception:
-        warnings.warn(
-            f"`{known_env.DLT_INTERVAL_TIMEZONE}` is `{name}`, which is not an IANA timezone name."
-            " dlt keeps storing values in UTC.",
-            stacklevel=2,
-        )
-        return datetime.timezone.utc
+    return to_tzinfo(name)
 
 
 _CONTEXT_TZ: datetime.tzinfo = _env_context_timezone()

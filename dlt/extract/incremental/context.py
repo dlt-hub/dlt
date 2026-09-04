@@ -10,7 +10,7 @@ from dlt.common.configuration.specs.base_configuration import (
 )
 from dlt.common import known_env
 from dlt.common.configuration.container import Container
-from dlt.common.configuration.specs.timezone_context import to_tzinfo
+from dlt.common.time import to_tzinfo
 from dlt.common.interval import full_days_interval, lag_interval
 from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, get_context_timezone
 from dlt.common.typing import TAnyDateTime, TTimeInterval
