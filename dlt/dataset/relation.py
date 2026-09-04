@@ -731,9 +731,9 @@ class Relation(WithSqlClient):
         Args:
             incremental (Incremental[Any]): The incremental whose cursor path and
                 range define the filter. `last_value_func` must be `min` or `max`.
-            advance (bool): When True and `incremental.end_value` is unset, compute
-                the range end via aggregate, call `incremental.advance(new_value)`
-                to mutate state and disable framework filtering, then apply the full range.
+            advance (bool): Advance the cursor state of a bound `incremental` and pin the
+                range end to `end_value`, or to `MAX`/`MIN(cursor)` when it is unset.
+                No effect on an unbound `incremental`.
 
         Returns:
             Self: A new relation with the incremental filter applied.

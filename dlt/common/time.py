@@ -11,14 +11,12 @@ from pendulum.parsing import (
     DEFAULT_OPTIONS as pendulum_options,
     _parse_common as parse_datetime_common,
 )
-from pendulum.tz import UTC
 from pendulum import DateTime, Date, Time  # noqa: I251
 
 from dlt.common import known_env
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.pendulum import create_dt, ensure_pendulum_dt, pendulum, timedelta
 from dlt.common.typing import TimedeltaSeconds, TAnyDateTime
-from dlt.common.warnings import deprecated
 
 PAST_TIMESTAMP: float = 0.0
 FUTURE_TIMESTAMP: float = 9999999999.0

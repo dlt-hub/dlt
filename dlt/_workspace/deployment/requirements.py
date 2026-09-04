@@ -9,14 +9,14 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, List, Optional, Sequence, Set
 
 import tomlkit
 from packaging.requirements import Requirement
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
-from dlt.common.typing import DictStrAny, NotRequired, TypedDict
+from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
 from dlt.version import DLT_PKG_NAME
 

@@ -17,10 +17,7 @@ DATE_STR_FORMATS = ("%Y%m%d", "%Y-%m-%d")
 
 
 def _cursor_date_type(cursor_type: Optional[Type[Any]], initial_value: Any) -> Optional[Type[Any]]:
-    """Tells if the declared cursor is a `date` or a `datetime`, None if it is neither.
-
-    `cursor_type` of `str` carries no date information so the format of a string `initial_value` decides.
-    """
+    """Tells if the declared cursor is a `date` or a `datetime`, None if it is neither."""
     if is_subclass(cursor_type, datetime):
         return datetime
     if is_subclass(cursor_type, date):
@@ -39,11 +36,7 @@ def _apply_lag_to_value(
 ) -> Any:
     """Applies lag to a value, in case of `str` types it attempts to return a string
     with the lag applied preserving original format of a datetime/date
-
-    `date_type` is the declared `date` or `datetime` type of the cursor. `value` is coerced to it,
-    also when its own format says otherwise. Without it, `value` decides.
     """
-    # Determine if the input is originally a string and capture its format
     value_format: str = None
     if isinstance(value, str):
         value_format = detect_datetime_format(value)
@@ -107,9 +100,7 @@ def apply_lag(
 ) -> TCursorValue:
     """Applies lag to `last_value` but prevents it to cross `initial_value`: observing order of last_value_func
 
-    `cursor_type` is the declared type of the cursor: `last_value` is coerced to it before the lag
-    is applied, seconds for datetime cursors and days for date cursors. Falls back to the type of
-    `initial_value` and then to the type of `last_value` when not declared.
+    Lag is in days for a `date` cursor and in seconds for a `datetime` one, as declared by `cursor_type`.
     """
     lagged_last_value = _apply_lag_to_value(
         lag, last_value, last_value_func, _cursor_date_type(cursor_type, initial_value)

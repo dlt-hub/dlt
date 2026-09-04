@@ -413,7 +413,6 @@ def test_apply_lag_to_value_date_type(
 
 @pytest.mark.parametrize("date_type", [date, datetime])
 def test_apply_lag_to_value_does_not_parse(date_type: Type[Any]) -> None:
-    """a value that does not parse to the declared cursor type fails"""
     with pytest.raises(ValueError):
         _apply_lag_to_value(1, "not a date", max, date_type)
 

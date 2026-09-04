@@ -30,7 +30,7 @@ from typing_extensions import Annotated
 import datetime
 from datetime import timezone
 
-from dlt.common import logger, pendulum
+from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.configuration.specs.base_configuration import extract_inner_hint
 from dlt.common.configuration import configspec, NotResolved
