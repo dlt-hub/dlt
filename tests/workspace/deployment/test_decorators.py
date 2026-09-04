@@ -2,15 +2,18 @@
 
 import asyncio
 import inspect
-from typing import Any, Dict, List, Literal, cast
+from typing import Annotated, Any, Dict, List, Literal, TypedDict, cast
+from unittest import mock
 
 import pytest
 
 import dlt
+from dlt.common import logger
 from dlt.common.warnings import DltDeprecationWarning
 from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
-from dlt._workspace.deployment.typing import TTrigger
+from dlt._workspace.deployment.reflection import Entity
+from dlt._workspace.deployment.typing import TJobRunContext, TTrigger
 
 
 # module-level sources and resources for deliver tests
@@ -570,6 +573,112 @@ def test_config_key_discovery() -> None:
     job_def = with_config.to_job_definition()
     assert "api_key" in job_def["config_keys"]
     assert "limit" in job_def["config_keys"]
+
+
+def test_a_job_declares_its_arguments() -> None:
+    """`inputs` is `config_keys` with the types: one list, two resolutions."""
+
+    @job
+    def typed_job(
+        run_context: TJobRunContext = None,
+        since: str = dlt.config.value,
+        depth: int = 3,
+        verbose: bool = False,
+    ):
+        """Reads what configuration gives it."""
+
+    job_def = typed_job.to_job_definition()
+    inputs = job_def["inputs"]
+
+    assert set(inputs["properties"]) == set(job_def["config_keys"]) == {"since", "depth", "verbose"}
+    # `dlt.config.value` is required with no default; a real default is optional and carries it
+    assert inputs["required"] == ["since"]
+    assert inputs["properties"]["depth"] == {"default": 3, "title": "Depth", "type": "integer"}
+    assert inputs["properties"]["verbose"]["type"] == "boolean"
+
+
+def test_the_run_context_is_not_an_argument() -> None:
+    """The launcher passes it, configuration never does, so it is in neither list."""
+
+    @job
+    def needs_context(run_context: TJobRunContext):
+        pass
+
+    @job
+    def optional_context(run_context: TJobRunContext = None):
+        pass
+
+    for job_def in (needs_context.to_job_definition(), optional_context.to_job_definition()):
+        assert "inputs" not in job_def
+        assert "config_keys" not in job_def
+
+
+def test_an_argument_configuration_cannot_fill_is_not_declared() -> None:
+    """No default means nothing can inject it, so the manifest does not offer it."""
+
+    @job
+    def positional(needed: str, optional: int = 1):
+        pass
+
+    job_def = positional.to_job_definition()
+    assert set(job_def["inputs"]["properties"]) == set(job_def["config_keys"]) == {"optional"}
+
+
+class _Report(TypedDict):
+    rows: int
+
+
+@pytest.mark.parametrize(
+    "hint,declares",
+    [(_Report, True), (Dict[str, Any], False), (str, False), (None, False)],
+    ids=["typeddict", "dict", "str", "none"],
+)
+def test_a_job_declares_an_output_only_when_it_returns_one(hint: Any, declares: bool) -> None:
+    """`output` is the result contract, and a TypedDict return type is how a job declares one."""
+
+    def returns() -> Any:
+        pass
+
+    returns.__annotations__["return"] = hint
+    job_def = job(returns).to_job_definition()
+
+    assert ("output" in job_def) is declares
+    if declares:
+        assert job_def["output"]["properties"]["rows"]["type"] == "integer"
+
+
+def test_an_unreadable_signature_warns_and_still_deploys() -> None:
+    """A job dlt cannot describe is still a job."""
+
+    @job
+    def opaque(thing: "NoSuchType" = None):  # type: ignore[name-defined] # noqa: F821
+        pass
+
+    with mock.patch.object(logger, "warning") as warned:
+        job_def = opaque.to_job_definition()
+
+    assert "inputs" not in job_def
+    assert "declares no inputs" in warned.call_args[0][0]
+
+
+def test_entity_annotation_reaches_the_schema() -> None:
+    """`Entity` on an argument is `entity_type` in the schema, and the first one is the job's object."""
+
+    @job
+    def inspect(
+        run_id: Annotated[str, Entity("job-run")] = dlt.config.value,
+        dataset: Annotated[str, Entity("dataset")] = None,
+        depth: int = 3,
+    ):
+        pass
+
+    job_def = inspect.to_job_definition()
+    properties = job_def["inputs"]["properties"]
+
+    assert properties["run_id"]["entity_type"] == "job-run"
+    assert properties["dataset"]["entity_type"] == "dataset"
+    assert "entity_type" not in properties["depth"]
+    assert job_def["expose"]["object_type"] == "job-run"
 
 
 def test_isinstance_check() -> None:

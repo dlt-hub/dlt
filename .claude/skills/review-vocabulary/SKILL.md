@@ -130,6 +130,9 @@ Groups defined so far:
 | [G3 — Transformations and materialization](#g3--transformations-and-materialization) | relations, transformations, model jobs, eager and lazy paths |
 | [G4 — Identifiers and SQL generation](#g4--identifiers-and-sql-generation) | naming conventions, case-folding, query binding |
 | [G5 — Configuration and credentials](#g5--configuration-and-credentials) | configs, credentials, secrets |
+| [G6 — Jobs, triggers and the deployment manifest](#g6--jobs-triggers-and-the-deployment-manifest) | jobs, job runs, launchers, triggers, selectors |
+| [G7 — Agents, loops and prompts](#g7--agents-loops-and-prompts) | agent specs, loops, system prompts, user turns, traces |
+| [G8 — Workspace access and tools](#g8--workspace-access-and-tools) | the `access` declaration, axes, verbs, tools, feature groups |
 
 Two rules apply across every group:
 
@@ -160,9 +163,11 @@ Two rules apply across every group:
 
 **Rulings**
 
-- **`access` is a VERB.** Do not introduce noun uses — no "data access", no "access is one-way".
-  Write "the engine accesses the data", "only one direction accesses the data". Pre-existing noun
-  uses stay.
+- **`access` is a verb for the act, and a noun for what a job may touch.** Keep the verb for the
+  act of reading data: "the engine accesses the data", not "data access is one-way". The noun is
+  legal only in the sense G8 defines — the `access` declaration, and the grant that answers it.
+  dlt's docs already write "grant access", "read access" and "denied access" 40 times over; that
+  usage was always compliant and stays.
 - **`reach` is not always `access`.** "`SET SESSION` would not reach the cloned sessions" means
   *propagate to*, not *read data from*. A literal swap changes the meaning — restructure
   (Rule 9.1).
@@ -260,10 +265,138 @@ Two rules apply across every group:
 
 ---
 
+### G6 — Jobs, triggers and the deployment manifest
+
+**Included**
+
+| Concept | Write |
+|---|---|
+| the unit a workspace deploys and runs | **job** |
+| one execution of it | **job run** |
+| its identity | **job ref** |
+| its entry in the manifest | **job definition** |
+| the dlt module that starts a job | **launcher** |
+| the machine the platform gives the job | **runner** |
+| the dltHub platform itself | **runtime** |
+| the string that starts a job | **trigger** |
+| the pattern that expands into triggers | **selector** |
+| the trigger a manual run stands in for | **default trigger** |
+| the file that describes every job | **deployment manifest** |
+
+**Excluded**
+
+| Never | Because |
+|---|---|
+| task, workload, script (for a dlt job) | one name — **job**; the runtime's `Script` model keeps its own name |
+| job execution, invocation (for one run) | **job run**, the noun the manifest and the beacon use |
+| primary trigger | **default trigger**, the name of the manifest field |
+| manifest (unqualified, for `AGENT.md`) | **deployment manifest** is the only manifest; see G7 |
+
+**Rulings**
+
+- **`run` is a verb; `job run` is the noun.** "dlt runs the job" and "the job run failed". The
+  command `dlthub local run` is a technical name (Rule 8.6) and stays.
+- **launcher, runner and runtime are three things.** The launcher is dlt code. The runner is a
+  machine. The runtime is the platform. Never swap them, and never write "the runtime launches".
+- **`task` is legal in two places only:** the work an agent must do (G7), and an Airflow task when
+  the sentence says "Airflow task". It is never a dlt job.
+
+---
+
+### G7 — Agents, loops and prompts
+
+**Included**
+
+| Concept | Write |
+|---|---|
+| the whole declaration | **agent spec** (`TAgentSpec`) |
+| the file it is read from | **`AGENT.md`**, and **agent file** for the path |
+| the block the manifest carries | **agent definition** |
+| the binding to one agent framework | **loop**, or **agent loop** |
+| the text the model gets as its role and task | **system prompt** |
+| the first message of the run | **user turn** |
+| what a person tells this run to do | **instructions** |
+| one model request | **turn** |
+| the record of what the loop ran and did | **agent trace** |
+| `{{ name }}` in a body | **placeholder** |
+
+**Excluded**
+
+| Never | Because |
+|---|---|
+| harness (for the Claude Code CLI) | the **dltHub AI Harness** owns that word; write **the Claude Code CLI** |
+| adapter (for a loop) | dlt's adapters are `bigquery_adapter` and friends; write **loop** |
+| prompt (bare) | say which one: **system prompt** or **user turn** |
+| spec (bare, for an agent) | bare `spec` is the configspec; write **agent spec** |
+| trace (bare, for an agent) | bare `trace` is the pipeline trace; write **agent trace** |
+| manifest (for `AGENT.md`) | **agent file**; the manifest is the deployment manifest (G6) |
+| framework (as a loop's name) | name it: **pydantic-ai**, **claude-agent-sdk** |
+
+**Rulings**
+
+- **`instructions` means two opposite things across the boundary.** In dlt it is the user turn. In
+  pydantic-ai, `AgentSpec.instructions` is the system prompt. Qualify every mention of the
+  framework field: "pydantic-ai's `instructions` field (its system prompt)".
+- **`turn` is one model request.** The **user turn** is the first message. A turn counter counts
+  requests. Do not let one word carry both without the qualifier.
+- **`loop` is the agent loop.** In a file that also has Python loops, write **agent loop** once,
+  then `loop`.
+- **Model names and aliases are technical nouns** (Rule 1.8): `sonnet`, `opus`, `claude-sonnet-5`.
+
+---
+
+### G8 — Workspace access and tools
+
+**Included**
+
+| Concept | Write |
+|---|---|
+| the declaration of what a job may touch | **access** (the `access` block, `TWorkspaceAccess`) |
+| one of its four keys | **access axis** |
+| a value on an axis | **verb** |
+| what the runtime or a loop does with the declaration | **grant**, **deny** (verbs) |
+| what it did grant | **granted access** |
+| what it did not grant | **denied access** |
+| what a loop supplies beyond the declaration | **over-granted** |
+| what a tool needs before it is served | **required access** |
+| what a model can call | **tool** |
+| the MCP grouping a manifest requests | **feature group** |
+
+**Excluded**
+
+| Never | Because |
+|---|---|
+| permission, entitlement, scope (for the declaration) | **access**, the word dlt's docs already use; `permission` is legal only when naming the SDK's `permission_mode` |
+| narrowed, narrowing | say the fact: **with less access** |
+| grant (as a noun) | **the declared access**; `granted` as an adjective is legal (Rule 3.3) |
+| capability (for a dlt tool) | **tool**; legal only for pydantic-ai `capabilities` |
+| ceiling, floor (as prose metaphor) | say what it does: "access is the most a loop can wire" |
+| honor, honour, honored, unhonoured (any spelling) | access is **granted** or **denied**, never honored |
+
+**Rulings**
+
+- **Grant and deny are the verbs.** A job declares access; the runtime and the loop grant what they
+  can; the rest is denied. dlt's docs already write "grant access" 13 times and "denied access"
+  twice, so this is the house pairing, not a new one. A loop that supplies more than the
+  declaration **over-grants**.
+- **The declaration is a request, not a claim.** A manifest `access` block says what the job wants.
+  Nothing in it is granted until the runtime says so. Say "the job declares", never "the job has".
+- **`access` is the noun, and no synonym joins it.** `permissions`, `scopes`, `capabilities` and
+  `entitlements` each name this concept somewhere in the industry; dlt named it `access` before this
+  feature existed — the built-in `access` profile is coarse-grained data access, and `profile_for()`
+  derives that profile from `access.data`. One concept, one word (Rule 1.11).
+- **`tools:` in an `AGENT.md` holds feature groups, not tools.** Write "feature groups" whenever the
+  sentence is about that field, or a reader counts 4 tools and gets 19.
+---
+
 ### Legal technical nouns — never replace, any group (Rules 1.5, 1.8)
 
 attach, attach alias, attach info, attach statement, catalog, config, data location, dataset,
 destination, duckdb, iceberg, materialization, model job, pipeline, relation, scanner, vended.
+
+access, access axis, agent, agent definition, agent file, agent spec, agent trace, default trigger,
+feature group, instructions, job, job definition, job ref, job run, launcher, loop, placeholder,
+runner, runtime, selector, skill, system prompt, tool, toolkit, trigger, turn, user turn, verb.
 
 ## Rules this codebase breaks most
 

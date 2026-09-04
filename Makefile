@@ -32,7 +32,7 @@ has-uv:
 	uv --version
 
 dev: has-uv ## Prepares development environment
-	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests --group agent --group agent-claude
 
 dev-airflow: has-uv ## Prepares development environment with airflow support
 	uv sync --all-extras --no-extra hub --group workspace-deps --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
@@ -278,7 +278,7 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit
+	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit --group agent --group agent-claude
 
 TEST_WORKSPACE_PATHS = tests/workspace
 

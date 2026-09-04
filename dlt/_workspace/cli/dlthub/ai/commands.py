@@ -6,15 +6,23 @@ import tomlkit.exceptions
 import yaml
 
 from dlt.common.runtime import run_context
+from dlt._workspace.access import format_access, parse_access
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES
 from dlt._workspace.cli.formatters import parse_frontmatter
 from dlt._workspace.cli.exceptions import (
     CliCommandException,
 )
-from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
+from dlt._workspace.cli.dlthub.ai.agents import (
+    AI_AGENTS,
+    COMPONENT_MARKERS,
+    TComponentType,
+    _AIAgent,
+    InstallAction,
+)
 from dlt._workspace.cli.dlthub.ai.typing import TAiStatusInfo, TToolkitInfo
 from dlt._workspace.cli.dlthub.ai.utils import (
+    mcp_stdio_args,
     build_toolkits_dependency_map,
     compute_file_hash,
     extract_toolkit_info,
@@ -78,6 +86,8 @@ def ai_mcp_run_command(
     stdio: bool = False,
     sse: bool = False,
     features: Optional[List[str]] = None,
+    no_default_features: bool = False,
+    access: Optional[str] = None,
 ) -> None:
     """Start the dlt MCP server for pipeline data inspection."""
     from dlt._workspace.mcp import WorkspaceMCP
@@ -90,13 +100,17 @@ def ai_mcp_run_command(
         transport = "streamable-http"
     from dlt._workspace.mcp.server import resolve_features
 
-    resolved = resolve_features(features)
+    resolved = resolve_features(features, set() if no_default_features else None)
     fmt.echo(
         "Starting dlt MCP server with features: %s" % ", ".join(sorted(resolved)),
         err=True,
     )
-    mcp_server = WorkspaceMCP("dlt", port=port, features=resolved)
-    mcp_server.run(transport=transport)
+    granted = parse_access(access)
+    if granted is not None:
+        fmt.echo("Access granted to the caller: %s" % (format_access(granted) or "none"), err=True)
+    mcp_server = WorkspaceMCP("dlt", port=port, features=resolved, access=granted)
+    # a stdio server has no console of its own: its banner would land in the client's terminal
+    mcp_server.run(transport=transport, show_banner=not stdio)
 
 
 @utils.track_command("ai", track_before=True, operation="mcp.install")
@@ -107,15 +121,10 @@ def ai_mcp_install_command(
     overwrite: bool = False,
 ) -> None:
     """Install dlt MCP server config into the agent's config file."""
-    from dlt._workspace.mcp.server import resolve_features
-
     project_root = Path(run_context.active().run_dir)
     variant = _resolve_agent(agent, project_root)
 
-    resolved = resolve_features(features)
-    args = ["uv", "run", fmt.get_cli_host_name(), "ai", "mcp", "run", "--stdio"]
-    if resolved != DEFAULT_MCP_FEATURES:
-        args.extend(["--features"] + sorted(resolved))
+    args = ["uv", "run", fmt.get_cli_host_name(), *mcp_stdio_args(features)]
 
     server_config: Dict[str, Any] = {"command": args[0], "args": args[1:], "type": "stdio"}
     new_servers = {name: server_config}
@@ -181,7 +190,7 @@ def _plan_toolkit_install(
     skills_dir = toolkit_dir / "skills"
     if skills_dir.is_dir():
         for skill_path in sorted(skills_dir.iterdir()):
-            if not skill_path.is_dir() or not (skill_path / "SKILL.md").exists():
+            if not skill_path.is_dir() or not (skill_path / COMPONENT_MARKERS["skill"]).exists():
                 continue
             errors = _validate_skill_dir(skill_path)
             if errors:
@@ -191,6 +200,23 @@ def _plan_toolkit_install(
             actions.extend(
                 agent.install_actions(
                     "skill", skill_path, skill_path.name, toolkit_name, project_root, overwrite
+                )
+            )
+
+    # agents (directory-based, each with AGENT.md + optional files), copied verbatim
+    agents_dir = toolkit_dir / "agents"
+    if agents_dir.is_dir():
+        for agent_path in sorted(agents_dir.iterdir()):
+            if not agent_path.is_dir() or not (agent_path / COMPONENT_MARKERS["agent"]).exists():
+                continue
+            errors = _validate_skill_dir(agent_path)
+            if errors:
+                for err in errors:
+                    warnings.append("Skipping agent %s: %s" % (agent_path.name, err))
+                continue
+            actions.extend(
+                agent.install_actions(
+                    "agent", agent_path, agent_path.name, toolkit_name, project_root, overwrite
                 )
             )
 

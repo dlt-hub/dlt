@@ -5,11 +5,17 @@ from dlt.common.pipeline import TRefreshMode
 from dlt.common.typing import Annotated, NotRequired, TypedDict
 from dlt.common.warnings import Deprecated
 
+from dlt._workspace.typing import TWorkspaceAccess
+
 
 MANIFEST_ENGINE_VERSION = 2
 WORKSPACE_DEPRECATED_SINCE = "1.29.0"
 """dlt version the job-definition field renames were introduced in."""
 REQUIREMENTS_ENGINE_VERSION = 2
+AGENT_DEFINITION_ENGINE_VERSION = 1
+JOB_RESULT_ENGINE_VERSION = 1
+JOB_RESULT_PAYLOAD_TYPE = "job_result"
+"""Beacon payload type for job results. The endpoint stores it in a 16 character column."""
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
@@ -79,10 +85,13 @@ TJobType = Literal["batch", "interactive", "stream"]
 """Execution model: batch (run to completion), interactive (long-running HTTP), stream (consumer loop)."""
 
 TInterfaceType = Literal["gui", "rest_api", "mcp"]
-"""What an interactive job exposes: web UI, programmatic API, or MCP tool server."""
+"""What a job exposes: web UI, programmatic API, or MCP tool server."""
 
-TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
+TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook", "background_agent"]
 """UI category for grouping jobs in the runtime interface."""
+
+THubEntityType = Literal["job-run", "job", "workspace", "pipeline", "dataset"]
+"""Kinds of workspace entity a job can act on. Hyphenated: the values are URI path segments."""
 
 
 class TJobExposeSpec(TypedDict, total=False):
@@ -102,9 +111,11 @@ class TExposeSpec(TJobExposeSpec):
     """Extends TJobExposeSpec will elements not directly set by users."""
 
     interface: NotRequired[TInterfaceType]
-    """What an interactive job exposes: `"gui"`, `"rest_api"`, or `"mcp"`."""
+    """What the job exposes: `"gui"`, `"rest_api"` or `"mcp"`."""
     category: NotRequired[TJobExposeCategory]
     """UI grouping category (e.g. `"pipeline"`, `"notebook"`)."""
+    object_type: NotRequired[THubEntityType]
+    """Entity type of the job's first entity-typed input. The UI offers the job from that entity."""
 
 
 class TRequireSpec(TypedDict, total=False):
@@ -182,6 +193,10 @@ class TIntervalSpec(TypedDict):
     """Interval scheduling mode. Defaults to `sequential` when not set."""
 
 
+RUN_CONTEXT_INPUT = "run_context"
+"""Argument a job declares to get the run context. The launcher fills it, config never does."""
+
+
 class TJobRunContext(TypedDict):
     """Job run context injected into job functions that declare a `run_context` argument."""
 
@@ -197,6 +212,9 @@ class TJobRunContext(TypedDict):
     """End of the interval being processed."""
     refresh: bool
     """Refresh signal with request to refresh (reload) the data"""
+    ai_loop: NotRequired[Any]
+    """Agent loop created by the agent launcher. `SupportsAgentLoop`, untyped here to keep
+    this module free of imports."""
 
 
 class TRuntimeEntryPoint(TEntryPoint):
@@ -260,6 +278,30 @@ class TDeliverSpec(TypedDict, total=False):
     """Human-readable delivery deadline, e.g. `"8am on Mondays"`."""
 
 
+class TAgentDefinition(TypedDict):
+    """Agent declaration carried in the manifest.
+
+    A subset of the toolkit's `AGENT.md`: no `defaults` (the runtime decides those), no system
+    prompt (it ships in `agent_file` with the code), and no `inputs` or `output` (the job
+    declares those, like any other job).
+    """
+
+    engine_version: int
+    agent_file: NotRequired[str]
+    """`AGENT.md` the definition was read from, or `<module>.py:<name>` for an agent a function
+    declares. Absent when the agent was given inline."""
+    name: str
+    description: NotRequired[str]
+    tools: NotRequired[List[str]]
+    """MCP feature groups requested from the dlthub MCP server."""
+    skills: NotRequired[List[str]]
+    rules: NotRequired[List[str]]
+    instructions: NotRequired[str]
+    """User prompt supplied on the decorator. Configuration may replace it at run time."""
+    model: NotRequired[str]
+    """Model supplied on the decorator."""
+
+
 class TJobDefinition(TypedDict):
     """A single job in the deployment manifest."""
 
@@ -274,6 +316,10 @@ class TJobDefinition(TypedDict):
     execute: TExecuteSpec
     config_keys: NotRequired[List[str]]
     """Config keys discovered from function signature (`dlt.config.value` defaults)."""
+    inputs: NotRequired[Dict[str, Any]]
+    """JSON Schema of `config_keys`: the same arguments, typed. Absent when the job takes none."""
+    output: NotRequired[Dict[str, Any]]
+    """JSON Schema of the job's result. Present when the job returns a `TJobResult`."""
     deliver: NotRequired[TDeliverSpec]
     interval: NotRequired[TIntervalSpec]
     """Overall time range for interval-based scheduling."""
@@ -283,12 +329,38 @@ class TJobDefinition(TypedDict):
     """How incrementals obtain their range during a run. Unset falls back to `jobs` configuration."""
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
+    access: NotRequired[TWorkspaceAccess]
+    """What the job may touch. Only background agents declare it today."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]
     """How a refresh signal cascades through the job graph. Defaults to `auto`."""
     auto_refresh_pipeline_mode: NotRequired[TRefreshMode]
     """Refresh mode applied to every pipeline in the job when a refresh run is requested."""
+    agent: NotRequired[TAgentDefinition]
+    """Agent declaration for jobs run by the agent launcher."""
+
+
+class THubEntity(TypedDict):
+    """A workspace entity, addressed relative to its workspace."""
+
+    type: THubEntityType  # noqa: A003
+    id: str  # noqa: A003
+    """`{type}/{unique id}`: `job-run/9ac2…`, `dataset/duckdb_prod/github_events`."""
+
+
+class TJobResult(TypedDict):
+    """Structured result of a job run, delivered to the dlthub beacon. The launcher builds it."""
+
+    type: str  # noqa: A003
+    """`job.{category}.{name}`: the category says which envelope this is, the name which payload."""
+    engine_version: int
+    result: NotRequired[Any]
+    """JSON-serializable payload produced by the job."""
+    object: NotRequired[List[THubEntity]]  # noqa: A003
+    """Entities the run acted on: its entity-typed inputs, overwritten by same-named outputs."""
+    job_ref: NotRequired[TJobRef]
+    """Job that produced the result. The beacon dedups on it."""
 
 
 class TDeploymentFileItem(TypedDict):

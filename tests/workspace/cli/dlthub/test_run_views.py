@@ -1,13 +1,17 @@
-"""Unit tests for the unified run/serve banner, warnings, plan, and picker."""
+"""Unit tests for the unified run/serve banner, warnings, plan, picker and agent transcript."""
 
-from typing import Tuple
+import sys
+from typing import Any, List, Optional, Tuple, cast
 
+import click
 import pytest
 
 from dlt._workspace.cli import echo as fmt
-from dlt._workspace.deployment._run_typing import TRunBannerInfo, TRunJobInfo
+from dlt._workspace.deployment._run_typing import TAgentEvent, TRunBannerInfo, TRunJobInfo
 from dlt._workspace.deployment._run_views import (
+    emit_agent_event,
     pick_one_job,
+    print_agent_event,
     print_run_banner,
     print_run_plan,
     print_run_warnings,
@@ -122,3 +126,91 @@ def test_pick_one_job(monkeypatch: pytest.MonkeyPatch, scenario: str) -> None:
     monkeypatch.setattr(fmt, "ALWAYS_CHOOSE_DEFAULT", True)
     with pytest.raises(AmbiguousJobSelector):
         pick_one_job(cands)
+
+
+def _agent_event(kind: str, **fields: Any) -> TAgentEvent:
+    return cast(TAgentEvent, {"kind": kind, "agent": "job-inspector", **fields})
+
+
+def test_print_agent_event_renders_the_transcript(capsys: pytest.CaptureFixture[str]) -> None:
+    """One assertion per kind: what a person watching the run must see."""
+    for event in [
+        _agent_event("start", model="claude-sonnet-5", limits="max 30 turns"),
+        _agent_event("prompt", text="Investigate run '89826ee6'."),
+        _agent_event("mcp", text="dlt-workspace-mcp connected"),
+        _agent_event("turn", turn=1, input_tokens=1204, output_tokens=340),
+        _agent_event("thinks", text="the run id is there"),
+        _agent_event("tool_call", tool="list_runs", server="dlt-workspace-mcp", detail={"n": 3}),
+        _agent_event("tool_result", tool="list_runs", detail="3 runs"),
+        _agent_event("says", text="The cursor produced duplicates."),
+        _agent_event(
+            "finish",
+            status="succeeded",
+            turn=3,
+            total_tokens=7955,
+            cost_usd=0.04,
+            tools=["Read"],
+            mcp_tools=["list_runs"],
+        ),
+    ]:
+        print_agent_event(event)
+    # colors are always on, so they are stripped to match the text
+    out = click.unstyle(capsys.readouterr().out)
+
+    assert "── job-inspector " in out and "claude-sonnet-5 · max 30 turns" in out
+    assert "prompt\n  Investigate run '89826ee6'." in out
+    assert "mcp  dlt-workspace-mcp connected" in out
+    assert "turn 1" in out and "1,204 in / 340 out" in out
+    assert "thinks  the run id is there" in out
+    assert "list_runs (dlt-workspace-mcp)" in out and '{"n":3}' in out
+    assert "→ 3 runs" in out
+    assert "says\n  The cursor produced duplicates." in out
+    assert "── succeeded " in out and "3 turns · 7,955 tokens · $0.04" in out
+    assert "tools: Read · mcp tools: list_runs" in out
+
+
+@pytest.mark.parametrize(
+    "verbosity,thinking,detail",
+    [(0, False, 80), (1, True, 200), (2, True, None)],
+    ids=["quiet", "default", "everything"],
+)
+def test_agent_verbosity_caps_thinking_and_detail(
+    capsys: pytest.CaptureFixture[str], verbosity: int, thinking: bool, detail: Optional[int]
+) -> None:
+    print_agent_event(_agent_event("thinks", text="t" * 500), verbosity)
+    print_agent_event(_agent_event("tool_result", tool="read", detail="r" * 500), verbosity)
+    out = capsys.readouterr().out
+
+    assert ("t" * 20 in out) is thinking
+    assert ("r" * 500 in out) is (detail is None)
+    if detail is not None:
+        assert f"{'r' * detail}…" in out
+
+
+def test_a_failing_tool_result_is_red(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)
+    print_agent_event(_agent_event("tool_result", tool="run_bash", detail="boom", error=True))
+    print_agent_event(_agent_event("tool_result", tool="run_bash", detail="fine"))
+    red, green = capsys.readouterr().out.splitlines()
+
+    assert fmt.style("→", fg="red") in red
+    assert fmt.style("→", fg="green") in green
+
+
+def test_agent_events_print_in_color_without_a_terminal(
+    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A runner has no terminal, but its log viewer renders ANSI: the transcript keeps its colors."""
+    monkeypatch.delenv("NO_COLOR", raising=False)
+    monkeypatch.setattr(sys.stdout, "isatty", lambda: False, raising=False)
+    emit_agent_event(_agent_event("finish", status="succeeded", turn=3, total_tokens=7955))
+    out = capsys.readouterr().out
+    assert "3 turns · 7,955 tokens" in out
+    assert fmt.style("succeeded", fg="green") in out
+
+    # the one standard way to say no: https://no-color.org
+    monkeypatch.setenv("NO_COLOR", "1")
+    emit_agent_event(_agent_event("finish", status="succeeded", turn=3, total_tokens=7955))
+    assert "\x1b[" not in capsys.readouterr().out

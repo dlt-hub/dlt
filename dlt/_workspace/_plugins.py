@@ -1,9 +1,10 @@
 import os
-from typing import Any, Dict, NamedTuple, Optional, Sequence, Set
+from typing import Any, Dict, NamedTuple, Optional, Sequence, Set, Type
 
 from dlt.common.configuration import plugins as _plugins
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
+from dlt._workspace.deployment.launchers import LOOP_CLAUDE_AGENT_SDK, LOOP_PYDANTIC_AI
 
 
 class McpFeatures(NamedTuple):
@@ -131,6 +132,24 @@ def plug_mcp_context(features: Set[str]) -> Optional[McpFeatures]:
     return McpFeatures(name="context", tools=list(context_tools.__tools__))
 
 
+@_plugins.hookimpl(specname="plug_agent_loop")
+@_plugins.only_loop(LOOP_PYDANTIC_AI)
+def plug_agent_loop_pydantic_ai(loop_type: str) -> Optional[Type[Any]]:
+    """Contribute the Pydantic AI agent loop."""
+    from dlt._workspace.deployment.agent.loops.pydantic_ai import PydanticAILoop
+
+    return PydanticAILoop
+
+
+@_plugins.hookimpl(specname="plug_agent_loop")
+@_plugins.only_loop(LOOP_CLAUDE_AGENT_SDK)
+def plug_agent_loop_claude_sdk(loop_type: str) -> Optional[Type[Any]]:
+    """Contribute the Claude Agent SDK loop."""
+    from dlt._workspace.deployment.agent.loops.claude_sdk import ClaudeAgentSdkLoop
+
+    return ClaudeAgentSdkLoop
+
+
 __all__ = [
     "plug_workspace_context_impl",
     "plug_mcp_pipeline",
@@ -138,4 +157,6 @@ __all__ = [
     "plug_mcp_toolkit",
     "plug_mcp_secrets",
     "plug_mcp_context",
+    "plug_agent_loop_pydantic_ai",
+    "plug_agent_loop_claude_sdk",
 ]

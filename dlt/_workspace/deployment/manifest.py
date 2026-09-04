@@ -20,7 +20,7 @@ from dlt.common.validation import validate_dict
 from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
-from dlt._workspace.deployment.decorators import JobFactory
+from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
 from dlt._workspace.deployment.detectors import (
     detect_local_module,
     detect_module_job,
@@ -40,6 +40,8 @@ from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.profile import LOCAL_PROFILES, is_local_profile
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
+    is_selector,
+    match_triggers_with_selectors,
     maybe_parse_schedule,
     parse_trigger,
 )
@@ -63,6 +65,8 @@ from dlt._workspace.deployment.typing import (
 
 DEPLOYMENT_ENGINE_VERSION = 1
 """Engine version of package files manifests (`TFilesManifest`), independent of job definitions."""
+
+_JOB_EVENT_TRIGGERS = ("job.success", "job.fail")
 
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
@@ -220,6 +224,60 @@ def _newtype_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     return False
 
 
+def selects_job(job_def: TJobDefinition, selector: str) -> bool:
+    """Whether a selector picks this job: by its type, one of its triggers, or its ref."""
+    return bool(
+        match_triggers_with_selectors(
+            job_def["entry_point"].get("job_type", "batch"),
+            expand_triggers(job_def),
+            [selector],
+            job_ref=job_def["job_ref"],
+        )
+    )
+
+
+def expand_trigger_selectors(jobs: List[TJobDefinition]) -> List[str]:
+    """Replaces selector `job.success:` / `job.fail:` triggers with one trigger per matching job.
+
+    The runtime looks a completion trigger up by exact string, so a selector has to become
+    concrete refs here. A selector never expands onto the job that declares it, and an
+    interactive job is never a target: it has no completion to report.
+
+    Returns:
+        List[str]: Warnings for selectors that matched no job.
+    """
+    warnings: List[str] = []
+    candidates = [
+        job_def for job_def in jobs if job_def["entry_point"].get("job_type") != "interactive"
+    ]
+
+    for job_def in jobs:
+        own_ref = job_def["job_ref"]
+        expanded: List[TTrigger] = []
+        changed = False
+        for trigger in job_def.get("triggers", []):
+            trigger_type, _, expr = trigger.partition(":")
+            if trigger_type not in _JOB_EVENT_TRIGGERS or not is_selector(expr):
+                if trigger not in expanded:
+                    expanded.append(trigger)
+                continue
+            changed = True
+            matched = [
+                candidate["job_ref"]
+                for candidate in candidates
+                if candidate["job_ref"] != own_ref and selects_job(candidate, expr)
+            ]
+            if not matched:
+                warnings.append(f"job {own_ref!r}: trigger {trigger!r} matched no job")
+            for ref in matched:
+                concrete = TTrigger(f"{trigger_type}:{ref}")
+                if concrete not in expanded:
+                    expanded.append(concrete)
+        if changed:
+            job_def["triggers"] = expanded
+    return warnings
+
+
 def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
     """Expand triggers with synthetic triggers from expose and deliver specs.
 
@@ -244,17 +302,22 @@ def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
     return triggers
 
 
-def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
-    """Pick the default trigger for a job: prefer schedule/every, else first eligible trigger.
+NO_DEFAULT_TRIGGER_TYPES = ("manual", "deployment", "job.success", "job.fail")
+"""Trigger types that never become a job's default.
 
-    `manual` and `deployment` triggers are never selected as the default.
-    """
+A job event names the upstream run that fired it, so standing in for a manual run would tell
+the job a job failed when none did.
+"""
+
+
+def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
+    """Pick the default trigger for a job: prefer schedule/every, else first eligible trigger."""
     default: Optional[TTrigger] = None
     for t in job_def.get("triggers", []):
         parsed = parse_trigger(t)
         if parsed.type in ("schedule", "every"):
             return t
-        if default is None and parsed.type not in ("manual", "deployment"):
+        if default is None and parsed.type not in NO_DEFAULT_TRIGGER_TYPES:
             default = t
     return default
 
@@ -298,6 +361,11 @@ def validate_job_definition(
         try:
             parsed = parse_trigger(t)
             trigger_types.add(parsed.type)
+            if parsed.type in _JOB_EVENT_TRIGGERS and parsed.expr == ref:
+                errors.append(
+                    f"job {ref!r}: trigger {t!r} makes the job trigger itself, which never"
+                    " terminates"
+                )
         except InvalidTrigger as e:
             errors.append(f"job {ref!r}: {e}")
 
@@ -583,6 +651,9 @@ def generate_manifest(
                 continue
 
             if isinstance(obj, JobFactory):
+                # a declared agent has no function to take its module and section from
+                if isinstance(obj, AgentJobFactory) and obj.is_declared:
+                    obj.declare(deployment_module.__name__, name)
                 jobs.append(obj.to_job_definition())
             elif isinstance(obj, ModuleType):
                 # __all__: trust the user; __dir__ scan: filter to local modules
@@ -613,6 +684,10 @@ def generate_manifest(
     )
     if is_workspace_deployment and not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
         jobs.append(default_dashboard_job())
+
+    # selectors are a source-level concept: a stored manifest is always fully expanded,
+    # so this must run before default_trigger and before validation
+    warnings.extend(expand_trigger_selectors(jobs))
 
     # set expose.manual default and compute default_trigger
     for job_def in jobs:

@@ -7,6 +7,38 @@ from dlt.common.typing import NotRequired, TypedDict
 
 TRunLocation = Literal["local", "remote"]
 
+TAgentEventKind = Literal[
+    "start", "prompt", "turn", "thinks", "says", "tool_call", "tool_result", "mcp", "finish"
+]
+
+
+class TAgentEvent(TypedDict):
+    """One step of an agent run, as it happens."""
+
+    kind: TAgentEventKind
+    agent: str
+    text: NotRequired[str]
+    """What the agent said, thought, or was asked."""
+    tool: NotRequired[str]
+    server: NotRequired[str]
+    """MCP server the tool belongs to."""
+    detail: NotRequired[Any]
+    """Tool arguments on a call, the returned value on a result."""
+    error: NotRequired[bool]
+    """The tool failed."""
+    turn: NotRequired[int]
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    model: NotRequired[str]
+    limits: NotRequired[str]
+    status: NotRequired[str]
+    total_tokens: NotRequired[int]
+    cost_usd: NotRequired[float]
+    tools: NotRequired[List[str]]
+    """Distinct builtin tools the run called, on `finish`."""
+    skills: NotRequired[List[str]]
+    mcp_tools: NotRequired[List[str]]
+
 
 class TRunJobInfo(TypedDict):
     """Resolved `workspace run` request — all data needed to launch the job."""

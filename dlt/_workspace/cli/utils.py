@@ -245,6 +245,20 @@ def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
             % ", ".join(defaults)
         ),
     )
+    flags.add_argument(
+        "--no-default-features",
+        action="store_true",
+        help="Serve only the features named by --features, without the defaults above",
+    )
+    flags.add_argument(
+        "--access",
+        default=None,
+        help=(
+            "Access the caller was granted, as `axis:verb,verb` pairs"
+            " (e.g. data:read,local:read). Tools requiring more are not served."
+            " Everything is served when omitted."
+        ),
+    )
     return flags
 
 

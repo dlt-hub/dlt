@@ -534,7 +534,7 @@ Launch MCP server attached to this pipeline.
 **Usage**
 ```sh
 dlt pipeline [pipeline_name] mcp [-h] [--stdio] [--sse] [--port PORT]
-    [--features [FEATURES ...]]
+    [--features [FEATURES ...]] [--no-default-features] [--access ACCESS]
 ```
 
 **Description**
@@ -553,6 +553,8 @@ Inherits arguments from [`dlt pipeline`](#dlt-pipeline).
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 43656)
 * `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
+* `--no-default-features` - Serve only the features named by --features, without the defaults above
+* `--access ACCESS` - Access the caller was granted, as `axis:verb,verb` pairs (e.g. data:read,local:read). tools requiring more are not served. everything is served when omitted.
 
 </details>
 

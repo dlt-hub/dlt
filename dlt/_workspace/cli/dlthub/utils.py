@@ -41,7 +41,7 @@ from dlt._workspace.deployment import (
     humanize_trigger,
     manifest_from_module,
 )
-from dlt._workspace.deployment._job_ref import format_job_label
+from dlt._workspace.deployment._job_ref import format_job_label, job_category
 from dlt._workspace.deployment._trigger_helpers import parse_trigger
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.manifest import expand_triggers
@@ -380,14 +380,7 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
         expose = job_def.get("expose") or {}
         deliver = job_def.get("deliver") or {}
         entry_point = job_def["entry_point"]
-        # category priority: explicit expose.category > delivers to a pipeline > job_type
-        category: str
-        if expose.get("category"):
-            category = expose["category"]
-        elif deliver.get("pipeline_name"):
-            category = "pipeline"
-        else:
-            category = entry_point["job_type"]
+        category = job_category(expose, deliver, entry_point["job_type"])
         counts[category] = counts.get(category, 0) + 1
 
         expanded = expand_triggers(job_def)

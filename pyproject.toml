@@ -228,6 +228,12 @@ dlt = "dlt._workspace.cli._dlt:_main"
 dlthub = "dlt._workspace.cli._dlt:_main_dlthub"
 
 [dependency-groups]
+agent = [
+    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0",
+]
+agent-claude = [
+    "claude-agent-sdk>=0.2.144",
+]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
 # we use those deps in common tests to make sure they work without extra dependencies so if you add them
 # here you'll break everything
@@ -453,6 +459,7 @@ exclude = [
     "tests/workspace/deployment/cases/local_workspace/*",
     "tests/workspace/cases/workspaces/launcher_flat/*",
     "tests/workspace/cases/workspaces/launcher_package/*",
+    "tests/workspace/cases/workspaces/agent_workspace/*",
 ]
 
 [[tool.mypy.overrides]]
@@ -526,6 +533,8 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "databricks.*",
+    "claude_agent_sdk",
+    "claude_agent_sdk.*",
     "mcp.*",
     "pymongo.*",
     "fastmcp.*",

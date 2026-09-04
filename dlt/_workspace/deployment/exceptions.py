@@ -3,7 +3,7 @@ from typing import TYPE_CHECKING, Dict, List, NamedTuple, Sequence, Tuple
 from dlt._workspace.exceptions import WorkspaceException
 
 if TYPE_CHECKING:
-    from dlt._workspace.deployment.typing import TJobDefinition
+    from dlt._workspace.deployment.typing import TJobDefinition, TJobResult
 
 
 class DeploymentException(WorkspaceException):
@@ -13,6 +13,12 @@ class DeploymentException(WorkspaceException):
 class JobValidationResult(NamedTuple):
     errors: List[str]
     warnings: List[str]
+
+
+class InvalidJobSchema(DeploymentException, ValueError):
+    def __init__(self, source: str, reason: str) -> None:
+        self.source = source
+        super().__init__(f"Cannot read the schema of {source!r}: {reason}")
 
 
 class InvalidJobDefinition(ValueError, DeploymentException):
@@ -116,6 +122,24 @@ class JobResolutionError(DeploymentException):
     def __init__(self, ref: str, reason: str) -> None:
         self.ref = ref
         super().__init__(f"Cannot resolve job {ref!r}: {reason}")
+
+
+class InvalidJobResultType(DeploymentException, ValueError):
+    def __init__(self, result_type: str) -> None:
+        self.result_type = result_type
+        super().__init__(
+            f"Job result type {result_type!r} is not `job.<category>.<name>`. The launcher"
+            " builds it; a job passes only the name to `run.result(..., type=)`."
+        )
+
+
+class JobAbortedException(DeploymentException):
+    """A job ended its run deliberately without completing its task."""
+
+    def __init__(self, summary: str, result: "TJobResult") -> None:
+        self.summary = summary
+        self.result = result
+        super().__init__(f"Job aborted: {summary}")
 
 
 class ManifestImportError(DeploymentException):
