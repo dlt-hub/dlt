@@ -13,6 +13,7 @@ from .doc import CustomLoaderDocProvider
 from .vault import SECRETS_TOML_KEY, VaultDocProvider
 from .google_secrets import GoogleSecretsProvider
 from .aws_secrets import AwsSecretsManagerProvider
+from .azure_key_vault import AzureKeyVaultProvider
 from .context import ContextProvider
 
 __all__ = [
@@ -31,5 +32,6 @@ __all__ = [
     "VaultDocProvider",
     "GoogleSecretsProvider",
     "AwsSecretsManagerProvider",
+    "AzureKeyVaultProvider",
     "EXPLICIT_VALUES_PROVIDER_NAME",
 ]

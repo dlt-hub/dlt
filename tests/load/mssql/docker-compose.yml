@@ -1,0 +1,18 @@
+# Local SQL Server for mssql destination integration tests.
+# Start with `docker compose up`; tests skip automatically when the server is unreachable.
+#
+# Uses SQL Server 2025, which is required because the destination maps the dlt `json` type to
+# the native `json` column type that older SQL Server versions do not support.
+# On Apple Silicon, enable Rosetta in Docker Desktop so the amd64 image runs under emulation.
+services:
+  mssql:
+    image: mcr.microsoft.com/mssql/server:2025-latest
+    container_name: dlt_test_mssql
+    restart: on-failure
+    environment:
+      ACCEPT_EULA: "Y"
+      MSSQL_SA_PASSWORD: "Strong!Passw0rd"
+      MSSQL_PID: "Developer"
+    ports:
+      - 1433:1433
+    # (this is just an example, not intended to be a production configuration)

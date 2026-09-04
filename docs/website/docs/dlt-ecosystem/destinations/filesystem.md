@@ -239,6 +239,16 @@ If you have the correct Azure credentials set up on your machine (e.g., via Azur
 you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and `dlt` will fall back to the available default.
 Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
 
+:::tip Fabric notebooks
+A Fabric notebook has no environment variables, managed identity or Azure CLI login for
+`DefaultAzureCredential` to use. When `dlt` detects the Fabric runtime it falls back to the identity
+the notebook runs under, via
+[NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials),
+so the credentials above work unchanged inside a notebook. A configured account key, SAS token or
+service principal still takes precedence, and so does a credential you pass yourself with
+`AzureCredentials.from_credential(...)`.
+:::
+
 #### Service principal credentials
 
 Supply a client ID, client secret, and a tenant ID for a service principal authorized to access your container.
