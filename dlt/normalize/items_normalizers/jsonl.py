@@ -63,6 +63,15 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
         self._null_only_columns: Dict[str, Set[str]] = {}
+        # a destination without tz support holds the context wall clock, so every timestamp is
+        # stripped like a `timezone=False` column; one without naive support keeps every instant
+        caps = self.config.destination_capabilities if self.config is not None else None
+        self._timezone_override: Optional[bool] = None
+        if caps is not None:
+            if not caps.supports_tz_aware_datetime:
+                self._timezone_override = False
+            elif not caps.supports_naive_datetime:
+                self._timezone_override = True
         self._shorten_fragments = lru_cache(maxsize=None)(self.schema.naming.shorten_fragments)
         # cache coercion interface from data item normalizer
         _item_normalizer = self.schema.data_item_normalizer
@@ -238,6 +247,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         type_map = self._type_map
         can_coerce_type = self._can_coerce_type
         coerce_type = self._coerce_type
+        tz_override = self._timezone_override
         for col_name, v in row.items():
             # skip None values, we should infer the types later
             if v is None:
@@ -253,7 +263,12 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             # happy path: complete column, type matches, no coercion needed
                             # NOTE: the timezone hint applies even when nothing is coerced
                             if col_type == "timestamp":
-                                v = normalize_timezone(v, existing_column.get("timezone", True))
+                                timezone = (
+                                    tz_override
+                                    if tz_override is not None
+                                    else existing_column.get("timezone", True)
+                                )
+                                v = normalize_timezone(v, timezone)
                             new_row[col_name] = v
                             continue
                         if py_type and can_coerce_type(col_type, py_type):
@@ -261,7 +276,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                             try:
                                 new_v = coerce_type(col_type, py_type, v)
                                 if col_type == "timestamp":
-                                    timezone = existing_column.get("timezone", True)
+                                    timezone = (
+                                        tz_override
+                                        if tz_override is not None
+                                        else existing_column.get("timezone", True)
+                                    )
                                     new_v = normalize_timezone(new_v, timezone)
                                 new_row[col_name] = new_v
                                 continue
@@ -413,7 +432,11 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
         # apply timestamp when column schema is known
         if col_type == "timestamp":
-            timezone = (existing_column or new_column).get("timezone", True)
+            timezone = (
+                self._timezone_override
+                if self._timezone_override is not None
+                else (existing_column or new_column).get("timezone", True)
+            )
             coerced_v = normalize_timezone(coerced_v, timezone)
 
         return col_name, new_column, coerced_v

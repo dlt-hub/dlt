@@ -710,8 +710,8 @@ def resolve_timestamp_cast(
 
     # naive cast when destination can't store tz-aware (dremio, athena) or its
     # tz-aware CAST rejects offset literals (clickhouse via the `_in_cast`
-    # override); sqlite emits no cast, but its literal still needs UTC-naive
-    # form to match TEXT-affinity column storage
+    # override); sqlite emits no cast, but its literal still needs the naive
+    # context wall clock to match TEXT-affinity column storage
     if timezone and caps is not None:
         cast_tz_ok = (
             caps.supports_tz_aware_datetime_in_cast

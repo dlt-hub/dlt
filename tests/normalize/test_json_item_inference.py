@@ -1095,15 +1095,42 @@ def _declare_timestamp(normalizer: JsonLItemsNormalizer, timezone_hint: bool) ->
     )
 
 
+CAPS_TZ_SUPPORT = {
+    "caps-both": (True, True),
+    "caps-no-tz": (False, True),
+    "caps-no-naive": (True, False),
+}
+
+
+def _set_tz_support(caps: DestinationCapabilitiesContext, support: str) -> None:
+    caps.supports_tz_aware_datetime, caps.supports_naive_datetime = CAPS_TZ_SUPPORT[support]
+
+
 @pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"])
 @pytest.mark.parametrize("timezone_hint", [True, False], ids=["tz-true", "tz-false"])
+@pytest.mark.parametrize("tz_support", CAPS_TZ_SUPPORT.keys())
 def test_coerce_complete_timestamp_column_ignores_value_flavour(
-    item_normalizer: JsonLItemsNormalizer, tz_name: str, timezone_hint: bool
+    request: pytest.FixtureRequest,
+    default_caps: DestinationCapabilitiesContext,
+    tz_name: str,
+    timezone_hint: bool,
+    tz_support: str,
 ) -> None:
-    """pendulum and stdlib values of one instant must coerce alike, and follow the timezone hint."""
-    _declare_timestamp(item_normalizer, timezone_hint)
+    """pendulum and stdlib values of one instant must coerce alike, and follow the timezone hint.
+
+    A destination without tz support stores the context wall clock naive, one without naive support
+    stores the instant, whatever the hint says.
+    """
+    _set_tz_support(default_caps, tz_support)
+    supports_tz, supports_naive = CAPS_TZ_SUPPORT[tz_support]
+    store_aware = (
+        timezone_hint if supports_tz and supports_naive else supports_tz and not supports_naive
+    )
 
     with Container().injectable_context(TimezoneContext(tz_name)):
+        # the normalizer settles the destination timezone rule when created, as the worker does
+        item_normalizer: JsonLItemsNormalizer = request.getfixturevalue("item_normalizer")
+        _declare_timestamp(item_normalizer, timezone_hint)
         aware = {
             name: item_normalizer._coerce_row("event_ts", None, {"ts": value})[0]["ts"]
             for name, value in AWARE_FLAVOURS.items()
@@ -1118,7 +1145,7 @@ def test_coerce_complete_timestamp_column_ignores_value_flavour(
 
     coerced_aware = aware["stdlib-utc"]
     coerced_naive = naive["stdlib-naive"]
-    if timezone_hint:
+    if store_aware:
         # an aware input keeps its instant; a naive input is read in the context timezone
         assert coerced_aware.utcoffset() is not None
         assert coerced_aware == datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
@@ -1134,13 +1161,19 @@ def test_coerce_complete_timestamp_column_ignores_value_flavour(
 
 
 @pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"])
+@pytest.mark.parametrize("tz_support", CAPS_TZ_SUPPORT.keys())
 def test_coerce_complete_and_inferred_timestamp_column_agree(
-    item_normalizer: JsonLItemsNormalizer, tz_name: str
+    request: pytest.FixtureRequest,
+    default_caps: DestinationCapabilitiesContext,
+    tz_name: str,
+    tz_support: str,
 ) -> None:
     """A declared timestamp column must store what an inferred one stores, both defaulting to aware."""
-    _declare_timestamp(item_normalizer, True)
+    _set_tz_support(default_caps, tz_support)
 
     with Container().injectable_context(TimezoneContext(tz_name)):
+        item_normalizer: JsonLItemsNormalizer = request.getfixturevalue("item_normalizer")
+        _declare_timestamp(item_normalizer, True)
         for name, value in {**AWARE_FLAVOURS, **NAIVE_FLAVOURS}.items():
             declared = item_normalizer._coerce_row("event_ts", None, {"ts": value})[0]["ts"]
             inferred = item_normalizer._coerce_row("event_inferred", None, {"ts": value})[0]["ts"]

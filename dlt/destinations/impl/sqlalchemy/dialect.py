@@ -189,6 +189,18 @@ class MysqlDialectCapabilities(DialectCapabilities):
         return MysqlVariantTypeMapper
 
 
+class SqliteDialectCapabilities(DialectCapabilities):
+    """Capabilities for SQLite."""
+
+    def adjust_capabilities(
+        self,
+        caps: DestinationCapabilitiesContext,
+        dialect: sa.engine.interfaces.Dialect,
+    ) -> None:
+        # sqlite stores `DATETIME` as text and the sqlalchemy bind drops the offset
+        caps.supports_tz_aware_datetime = False
+
+
 class TrinoDialectCapabilities(DialectCapabilities):
     """Capabilities for Trino."""
 
@@ -245,6 +257,7 @@ def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = Fal
 
 register_dialect_capabilities("mysql", MysqlDialectCapabilities)
 register_dialect_capabilities("mariadb", MysqlDialectCapabilities)
+register_dialect_capabilities("sqlite", SqliteDialectCapabilities)
 register_dialect_capabilities("trino", TrinoDialectCapabilities)
 register_dialect_capabilities("mssql", MssqlDialectCapabilities)
 register_dialect_capabilities("oracle", OracleDialectCapabilities)

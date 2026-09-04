@@ -217,9 +217,19 @@ class ArrowSchemaNormalizationResult(NamedTuple):
     columns: TTableSchemaColumns
 
 
-def get_column_timezone(column: TColumnType, tz: str) -> Optional[str]:
-    """Timezone a timestamp column is stored in, `None` when the `timezone` hint is false."""
-    return tz if column.get("timezone", True) else None
+def get_column_timezone(
+    column: TColumnType, tz: str, caps: DestinationCapabilitiesContext = None
+) -> Optional[str]:
+    """Timezone a timestamp column is stored in, `None` when the column is stored naive."""
+    store_aware = column.get("timezone", True)
+    if caps is not None:
+        # a destination without tz support holds the context wall clock, like a `timezone=False`
+        # column; one without naive support holds the instant, like a `timezone=True` column
+        if not caps.supports_tz_aware_datetime:
+            store_aware = False
+        elif not caps.supports_naive_datetime:
+            store_aware = True
+    return tz if store_aware else None
 
 
 def get_py_arrow_datatype(
@@ -235,7 +245,7 @@ def get_py_arrow_datatype(
     elif column_type == "bool":
         return pyarrow.bool_()
     elif column_type == "timestamp":
-        timezone = get_column_timezone(column, tz)
+        timezone = get_column_timezone(column, tz, caps)
         precision = column.get("precision")
         if precision is None:
             precision = caps.timestamp_precision
@@ -515,6 +525,8 @@ def should_normalize_arrow_schema(
     schema: pyarrow.Schema,
     columns: TTableSchemaColumns,
     naming: NamingConvention,
+    caps: DestinationCapabilitiesContext = None,
+    tz: str = None,
 ) -> ArrowSchemaNormalizationResult:
     """Figure out if any of the normalization steps must be executed. This prevents
     from rewriting arrow tables when no changes are needed. Refer to `normalize_py_arrow_item`
@@ -537,7 +549,7 @@ def should_normalize_arrow_schema(
             nullable_updates[norm_name] = nullable_mapping[norm_name]
         # Detect arrow columns that require to be normalized
         if norm_name in columns and should_normalize_py_arrow_item_column(
-            columns[norm_name], field.type
+            columns[norm_name], field.type, tz, caps
         ):
             column_cast[norm_name] = True
 
@@ -592,7 +604,7 @@ def normalize_py_arrow_item(
     item = remove_null_columns(item)
     schema = item.schema
     should_normalize, rename_mapping, rev_mapping, nullable_updates, columns = (
-        should_normalize_arrow_schema(schema, columns, naming)
+        should_normalize_arrow_schema(schema, columns, naming, caps, tz)
     )
     if not should_normalize:
         return item
@@ -612,7 +624,7 @@ def normalize_py_arrow_item(
 
             # coerce type
             new_type, new_arrow_column = normalize_py_arrow_item_column(
-                column, new_field.type, item.column(idx), tz
+                column, new_field.type, item.column(idx), tz, caps
             )
 
             # use renamed field
@@ -660,7 +672,10 @@ def validate_arrow_timezone(tz: str) -> None:
 
 
 def should_normalize_py_arrow_item_column(
-    column: TColumnSchema, arrow_type: pyarrow.DataType, tz: str = None
+    column: TColumnSchema,
+    arrow_type: pyarrow.DataType,
+    tz: str = None,
+    caps: DestinationCapabilitiesContext = None,
 ) -> bool:
     # Only handle timestamp columns
     if not pyarrow.types.is_timestamp(arrow_type):
@@ -668,11 +683,15 @@ def should_normalize_py_arrow_item_column(
     tz = tz or get_context_timezone_name()
 
     # normalize if tz different
-    return arrow_type.tz != get_column_timezone(column, tz)  # type: ignore[no-any-return]
+    return arrow_type.tz != get_column_timezone(column, tz, caps)  # type: ignore[no-any-return]
 
 
 def normalize_py_arrow_item_column(
-    column: TColumnSchema, arrow_type: pyarrow.Field, arrow_column: pyarrow.Array, tz: str = None
+    column: TColumnSchema,
+    arrow_type: pyarrow.Field,
+    arrow_column: pyarrow.Array,
+    tz: str = None,
+    caps: DestinationCapabilitiesContext = None,
 ) -> Tuple[pyarrow.DataType, pyarrow.Array]:
     """Normalize arrow timestamp column timezone according to dlt schema column convention.
 
@@ -681,17 +700,18 @@ def normalize_py_arrow_item_column(
         arrow_type: actual PyArrow data type
         arrow_column: actual PyArrow column data
         tz: timezone tz-aware columns are labelled with
+        caps: destination capabilities, a destination without tz support gets naive columns
 
     Returns:
         Tuple of (modified_type, modified_column) or (arrow_field, arrow_column) if no changes needed
     """
     tz = tz or get_context_timezone_name()
-    if not should_normalize_py_arrow_item_column(column, arrow_type, tz):
+    if not should_normalize_py_arrow_item_column(column, arrow_type, tz, caps):
         return arrow_type, arrow_column
 
     unit = arrow_type.unit
     current_tz = arrow_type.tz
-    target_tz = get_column_timezone(column, tz)
+    target_tz = get_column_timezone(column, tz, caps)
 
     if target_tz is not None:
         # `cast` takes any string, so the name must be checked before it reaches a schema
@@ -1134,7 +1154,11 @@ def _first_non_none_value(column_data: Any) -> Any:
 
 
 def _datetimes_to_arrow(
-    column_data: Any, column_schema: TColumnSchema, arrow_type: Any, tz: str
+    column_data: Any,
+    column_schema: TColumnSchema,
+    arrow_type: Any,
+    tz: str,
+    caps: DestinationCapabilitiesContext = None,
 ) -> Any:  # pyarrow.Array
     """Converts datetimes to a timestamp array, reading naive values in `tz`, not in UTC."""
     # pyarrow reads a naive datetime as if it were UTC, so the array is built in the zone the
@@ -1142,7 +1166,7 @@ def _datetimes_to_arrow(
     aware = getattr(_first_non_none_value(column_data), "tzinfo", None) is not None
     source_type = pyarrow.timestamp(arrow_type.unit, UTC_NAME if aware else None)
     return normalize_py_arrow_item_column(
-        column_schema, source_type, pyarrow.array(column_data, type=source_type), tz
+        column_schema, source_type, pyarrow.array(column_data, type=source_type), tz, caps
     )[1]
 
 
@@ -1186,7 +1210,7 @@ def convert_array_to_arrow(
             and pa.types.is_timestamp(inferred_arrow_type)
         ):
             inferred_array = _datetimes_to_arrow(
-                column_data, column_schema, inferred_arrow_type, tz
+                column_data, column_schema, inferred_arrow_type, tz, caps
             )
         else:
             # type=None lets pyarrow infer the type from the data
@@ -1336,6 +1360,7 @@ def cast_arrow_array_as_column_schema(
                 unit_type,
                 raw_array.cast(unit_type, safe=safe_arrow_conversion),
                 tz,
+                caps,
             )
         else:
             inferred_array = raw_array.cast(inferred_arrow_type, safe=safe_arrow_conversion)
@@ -1375,7 +1400,7 @@ def cast_arrow_array_as_column_schema(
             # cast strings to date-times
             raw_array = raw_array.cast(actual_type)
             _, inferred_array = normalize_py_arrow_item_column(
-                column_schema, actual_type, raw_array, tz
+                column_schema, actual_type, raw_array, tz, caps
             )
         elif dlt_data_type == "time" and "function cast_time" in error_msg:
             if "from string to" in error_msg:
@@ -1558,6 +1583,7 @@ def _row_tuples_to_arrow_struct(
     columns: TTableSchemaColumns,
     arrow_types: Dict[str, Optional[Any]],
     tz: str,
+    caps: DestinationCapabilitiesContext = None,
 ) -> Optional[Any]:  # Optional[pyarrow.Table]
     """Converts row tuples to an arrow table in a single pass via a `StructArray`."""
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -1587,7 +1613,7 @@ def _row_tuples_to_arrow_struct(
     if normalize_timestamps:
         arrays = [
             (
-                normalize_py_arrow_item_column(columns[field.name], field.type, array, tz)[1]
+                normalize_py_arrow_item_column(columns[field.name], field.type, array, tz, caps)[1]
                 if pa.types.is_timestamp(field.type)
                 else array
             )
@@ -1637,7 +1663,9 @@ def row_tuples_to_arrow(
         for name, column in columns.items()
     }
 
-    if (arrow_table := _row_tuples_to_arrow_struct(rows, columns, arrow_types, tz)) is not None:
+    if (
+        arrow_table := _row_tuples_to_arrow_struct(rows, columns, arrow_types, tz, caps)
+    ) is not None:
         return arrow_table
 
     transposed_rows = transpose_rows_to_columns(rows, column_names=columns.keys())

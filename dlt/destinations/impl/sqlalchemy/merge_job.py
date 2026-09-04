@@ -380,7 +380,10 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         # UTC, never the context timezone: a moved boundary stops merges retiring existing rows
         boundary_ts = ensure_datetime_in_tz(boundary_ts, timezone.utc)
 
-        boundary_literal = format_datetime_literal(boundary_ts, caps.timestamp_precision)
+        # a destination without tz support holds the context wall clock, so the literal must too
+        boundary_literal = format_datetime_literal(
+            boundary_ts, caps.timestamp_precision, no_tz=not caps.supports_tz_aware_datetime
+        )
 
         active_record_timestamp = get_active_record_timestamp(root_table)
 

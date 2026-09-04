@@ -246,7 +246,7 @@ class ClickHouseSqlClient(
     def _sanitise_dbargs(db_args: DictStrAny) -> DictStrAny:
         """For ClickHouse OSS, the DBapi driver doesn't parse datetime types.
 
-        Converts datetime values to naive UTC strings preserving microsecond precision.
+        Converts datetime values to naive strings in the context timezone, preserving microsecond precision.
         """
         for key, value in db_args.items():
             if isinstance(value, datetime.datetime):

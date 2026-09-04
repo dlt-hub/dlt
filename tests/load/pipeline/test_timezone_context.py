@@ -1,19 +1,23 @@
-"""Loads every input awareness x `timezone` hint pair under a `Europe/Berlin` context timezone.
+"""Loads every input awareness x `timezone` hint pair under a UTC and a `Europe/Berlin` context timezone.
 
 A naive value is read in the context timezone, so its instant moves. An aware value keeps its
-instant, so its wall clock moves. UTC is the default and must keep today's behavior.
+instant, so its wall clock moves. A destination without tz support stores the context wall clock.
+UTC is the default and must keep today's behavior.
 """
-from datetime import datetime, timezone  # noqa: I251
+from datetime import datetime, timezone, tzinfo  # noqa: I251
 from typing import Any, Dict, List
+from zoneinfo import ZoneInfo
 import pytest
 
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.exceptions import UnsupportedDataType
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.destination import TLoaderFileFormat
 from dlt.common.time import ensure_datetime
 from dlt.common.utils import uniq_id
+from dlt.pipeline.exceptions import PipelineStepFailed
 
 from tests.load.utils import destinations_configs, DestinationTestConfiguration
 from tests.pipeline.utils import assert_load_info, load_tables_to_dicts
@@ -81,30 +85,52 @@ def _parse_timestamps(row: Dict[str, Any]) -> Dict[str, Any]:
     }
 
 
+def _run(pipeline: dlt.Pipeline, data: Any, **run_kwargs: Any) -> None:
+    try:
+        info = pipeline.run(data, **run_kwargs)
+    except PipelineStepFailed as ex:
+        # a type this destination cannot load from this file format is not a timezone finding
+        if isinstance(ex.__cause__, UnsupportedDataType):
+            pytest.skip(str(ex.__cause__))
+        raise
+    assert_load_info(info)
+
+
 def _assert_instant(
-    value: Any, expected: datetime, caps: DestinationCapabilitiesContext, case: str
+    value: Any,
+    expected: datetime,
+    caps: DestinationCapabilitiesContext,
+    context_tz: tzinfo,
+    case: str,
 ) -> None:
     """An aware column keeps `expected`'s instant, whatever offset the destination renders.
 
-    A destination that cannot store an offset drops the label only, leaving the UTC wall clock.
+    A destination that cannot store an offset holds the context wall clock, naive.
     """
     assert value is not None, case
     if value.tzinfo is not None:
         assert (
             caps.supports_tz_aware_datetime
         ), f"{case}: destination does not support tz-aware datetime, got {value!r}"
-        assert value.astimezone(timezone.utc) == expected, case
+        assert value == expected, case
     else:
         assert (
             not caps.supports_tz_aware_datetime
         ), f"{case}: destination supports tz-aware datetime, got naive {value!r}"
-        assert value == expected.replace(tzinfo=None), case
+        assert value == expected.astimezone(context_tz).replace(tzinfo=None), case
 
 
 def _assert_wall_clock(
-    value: Any, expected: datetime, caps: DestinationCapabilitiesContext, case: str
+    value: Any,
+    expected: datetime,
+    caps: DestinationCapabilitiesContext,
+    context_tz: tzinfo,
+    case: str,
 ) -> None:
-    """A naive column keeps `expected`'s wall clock, which a destination may label UTC."""
+    """A naive column keeps `expected`'s wall clock, read in the context timezone.
+
+    A destination that cannot store a naive value holds the instant instead.
+    """
     assert value is not None, case
     if value.tzinfo is None:
         assert (
@@ -115,56 +141,75 @@ def _assert_wall_clock(
         assert (
             not caps.supports_naive_datetime
         ), f"{case}: destination supports naive datetime, got tz-aware {value!r}"
-        assert value.replace(tzinfo=None) == expected, case
+        assert value.astimezone(context_tz).replace(tzinfo=None) == expected, case
 
 
 @pytest.mark.parametrize("items_format", ["dict", "arrow"])
 @pytest.mark.parametrize("loader_file_format", ["jsonl", "parquet"])
 @pytest.mark.parametrize(
+    "context_tz", ["UTC", "Europe/Berlin"], ids=["utc-context", "berlin-context"]
+)
+@pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, local_filesystem_configs=True),
     ids=lambda x: x.name,
 )
-def test_berlin_context_timezone_matrix(
+def test_context_timezone_matrix(
     destination_config: DestinationTestConfiguration,
+    context_tz: str,
     loader_file_format: TLoaderFileFormat,
     items_format: str,
 ) -> None:
-    """All four pairs, loaded and read back under a Berlin context timezone.
+    """All four pairs, loaded and read back under the context timezone.
 
-    Both item formats and both file formats must agree: the offset travels in the value text on
-    the `jsonl` path and as a column label on the `parquet` path.
+    Both item formats and both file formats must agree. The UTC context pins today's behavior: an
+    aware UTC value written to a destination without tz support reads back naive, as written.
     """
-    supported = destination_config.raw_capabilities().supported_loader_file_formats or []
+    configured_format = destination_config.file_format
+    if destination_config.staging and configured_format and configured_format != loader_file_format:
+        # a staged config pins the format its staging path can actually load
+        pytest.skip(f"`{destination_config.name}` is pinned to `{configured_format}`")
+    caps = destination_config.raw_capabilities()
+    supported = list(caps.supported_loader_file_formats or [])
+    if destination_config.staging or not supported:
+        # athena and dremio load only through a bucket
+        supported += caps.supported_staging_file_formats or []
     if loader_file_format not in supported:
-        pytest.skip(f"`{destination_config.destination_type}` cannot load `{loader_file_format}`")
+        # the text path of other destinations is the typed variant or insert values
+        text_format = next((f for f in ("typed-jsonl", "insert_values") if f in supported), None)
+        if loader_file_format == "jsonl" and text_format:
+            loader_file_format = text_format  # type: ignore[assignment]
+        else:
+            pytest.skip(
+                f"`{destination_config.destination_type}` cannot load `{loader_file_format}`"
+            )
 
+    tz = ZoneInfo(context_tz)
     pipeline = _pipeline(destination_config)
     run_kwargs = {**destination_config.run_kwargs, "loader_file_format": loader_file_format}
 
-    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+    with Container().injectable_context(TimezoneContext(context_tz)):
         if items_format == "dict":
-            assert_load_info(pipeline.run(_events(), **run_kwargs))
+            _run(pipeline, _events(), **run_kwargs)
         else:
             pyarrow = pytest.importorskip("pyarrow")
-            assert_load_info(
-                pipeline.run(
-                    _arrow_events(pyarrow), table_name="events", columns=COLUMNS, **run_kwargs
-                )
+            _run(
+                pipeline, _arrow_events(pyarrow), table_name="events", columns=COLUMNS, **run_kwargs
             )
         rows = _rows_by_id(pipeline)
     caps = pipeline._get_destination_capabilities()
 
-    # naive input, timezone=True: read as a Berlin wall clock, so the instant is 22:30 UTC
-    _assert_instant(
-        rows[1]["ts_aware"],
-        datetime(2024, 1, 15, 22, 30, tzinfo=timezone.utc),
-        caps,
-        "naive -> aware",
-    )
+    # naive input, timezone=True: read as a context wall clock, so the instant moves with the zone
+    _assert_instant(rows[1]["ts_aware"], NAIVE_IN.replace(tzinfo=tz), caps, tz, "naive -> aware")
     # naive input, timezone=False: nothing to convert, the wall clock is untouched
-    _assert_wall_clock(rows[1]["ts_naive"], NAIVE_IN, caps, "naive -> naive")
+    _assert_wall_clock(rows[1]["ts_naive"], NAIVE_IN, caps, tz, "naive -> naive")
     # aware input, timezone=True: the instant is kept, only the rendered offset differs
-    _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, "aware -> aware")
-    # aware input, timezone=False: converted to Berlin, then stripped, so the wall clock moves
-    _assert_wall_clock(rows[2]["ts_naive"], datetime(2024, 1, 16, 0, 30), caps, "aware -> naive")
+    _assert_instant(rows[2]["ts_aware"], AWARE_IN, caps, tz, "aware -> aware")
+    # aware input, timezone=False: converted to the context zone, then stripped, so the wall clock moves
+    _assert_wall_clock(
+        rows[2]["ts_naive"],
+        AWARE_IN.astimezone(tz).replace(tzinfo=None),
+        caps,
+        tz,
+        "aware -> naive",
+    )

@@ -3,6 +3,7 @@ from __future__ import annotations
 import pathlib
 import warnings
 from typing import Any, Iterator, Literal, Optional
+from zoneinfo import ZoneInfo
 
 import pytest
 from sqlglot import expressions as sge
@@ -11,6 +12,7 @@ import dlt
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.libs.sqlglot import to_sqlglot_type
 from dlt.common.pendulum import pendulum
+from dlt.common.time import set_context_timezone
 from dlt.dataset._incremental import (
     _build_incremental_aggregate,
     _build_incremental_condition,
@@ -553,6 +555,54 @@ def test_incremental_timestamp_emission(
         incr, column_ref, sqlglot_type, destination_capabilities=caps
     )
     assert cond is not None
+    sql = cond.sql(dialect=dialect)
+    for expected in must_contain:
+        assert expected in sql, f"expected {expected!r} in {sql!r}"
+    for unexpected in must_not_contain:
+        assert unexpected not in sql, f"unexpected {unexpected!r} in {sql!r}"
+
+
+@pytest.mark.parametrize(
+    ("caps_kwargs", "dialect", "must_contain", "must_not_contain"),
+    [
+        pytest.param(
+            {"dialect": "sqlite", "timestamp_precision": 0, "supports_tz_aware_datetime": False},
+            "sqlite",
+            ["'2026-01-01 01:00:00'", "'2026-01-05 01:00:00'"],
+            ["CAST(", "+00:00"],
+            id="sqlite-naive-form-is-context-wall-clock",
+        ),
+        pytest.param(
+            {"dialect": "dremio", "timestamp_precision": 6, "supports_tz_aware_datetime": False},
+            "dremio",
+            ["'2026-01-01 01:00:00.000000'"],
+            ["TIMESTAMPTZ", "+00:00"],
+            id="dremio-athena-naive-cast-is-context-wall-clock",
+        ),
+        pytest.param(
+            {"dialect": "duckdb", "timestamp_precision": 6, "supports_tz_aware_datetime": True},
+            "duckdb",
+            ["CAST('2026-01-01 00:00:00.000000+00:00' AS TIMESTAMPTZ)"],
+            [],
+            id="tz-aware-cast-keeps-the-offset",
+        ),
+    ],
+)
+def test_incremental_timestamp_emission_in_context_timezone(
+    caps_kwargs: dict[str, Any],
+    dialect: str,
+    must_contain: list[str],
+    must_not_contain: list[str],
+) -> None:
+    """A naive literal is the context wall clock, so it matches what a no-tz destination stores."""
+    set_context_timezone(ZoneInfo("Europe/Berlin"))
+    incr = dlt.sources.incremental[pendulum.DateTime](
+        "created_at", initial_value=_TS_EPOCH, end_value=_TS_END
+    )
+    column_ref = sge.Column(this=sge.to_identifier("created_at", quoted=True))
+    cond = _build_incremental_condition(
+        incr, column_ref, _ts_sqlglot_type(), destination_capabilities=_caps(**caps_kwargs)
+    )
     sql = cond.sql(dialect=dialect)
     for expected in must_contain:
         assert expected in sql, f"expected {expected!r} in {sql!r}"
