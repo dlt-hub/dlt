@@ -33,7 +33,7 @@ def bind_state(
     }
     incr._cached_state_start_value = last_value
     # the resolved range start applies lag, exactly as bind() does
-    incr.start_value = incr.last_value
+    incr.start_value = incr._get_last_value()
     return incr
 
 

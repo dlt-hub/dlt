@@ -359,6 +359,20 @@ def test_datetime_to_timestamp_helpers(
     assert datetime_to_timestamp_us(datetime_obj) == timestamp * 1_000_000 + 738029
 
 
+@pytest.mark.parametrize("fold,timestamp", [(0, 1729989000), (1, 1729992600)])
+def test_pendulum_datetime_preserves_dst_fold(fold: int, timestamp: int) -> None:
+    value = pendulum.datetime(2024, 10, 27, 2, 30, 0, 123456, tz="Europe/Berlin", fold=fold)
+    converted = ensure_datetime(value)
+    assert type(converted) is datetime
+    assert converted.fold == fold
+    assert converted.utcoffset() == value.utcoffset()
+    expected_utc = datetime.fromtimestamp(timestamp, timezone.utc).replace(microsecond=123456)
+    assert ensure_datetime_in_tz(value, timezone.utc) == expected_utc
+    assert datetime_to_timestamp(value) == timestamp
+    assert datetime_to_timestamp_ms(value) == timestamp * 1000 + 123
+    assert datetime_to_timestamp_us(value) == timestamp * 1_000_000 + 123456
+
+
 @pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
 def test_datetime_to_timestamp_ignores_os_timezone(local_tz: str) -> None:
     """A naive datetime is read as UTC, never in the machine timezone."""

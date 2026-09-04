@@ -10,12 +10,15 @@ from typing import (
     Union,
     Literal,
     Tuple,
+    cast,
 )
 from datetime import datetime  # noqa: I251
 import inspect
 from functools import wraps
 
 from dlt.common import logger
+from dlt.common.pendulum import pendulum, ensure_pendulum_dt
+from dlt.common.time import to_py_datetime
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import (
     PipelineStateNotAvailable,
@@ -193,7 +196,7 @@ class Incremental(
         self.initial_value = initial_value
         """Initial value of last_value"""
         self.end_value = end_value
-        self.start_value: Any = initial_value
+        self._start_value: Any = initial_value
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
         # TODO: deprecate primary_key, use deduplication_key
@@ -339,7 +342,7 @@ class Incremental(
                 state = self._cached_state if self._cached_state is not None else self.get_state()
                 new._cached_state = copy(state)
                 new._current_last_value = self._current_last_value
-                new.start_value = self.start_value
+                new._start_value = self._start_value
             except (IncrementalUnboundError, SourceSectionNotAvailable, PipelineStateNotAvailable):
                 pass
         return new
@@ -431,18 +434,19 @@ class Incremental(
 
         Returns:
             Tuple[Optional[TCursorValue], Optional[TCursorValue]]: `(start, end)` range.
+                Datetime bounds respect the declared or inferred cursor type.
         """
         # end: explicit end_value beats the last value of the cursor
         end = self.end_value
         # an advanced cursor sets the end via _current_last_value, even when unbound
         if end is None and self._current_last_value is not None:
-            end = self.last_value
+            end = self._get_last_value()
         start: Optional[TCursorValue] = None
         try:
             s = self._cached_state or self.get_state()
             if apply_lag:
                 # lag was applied in bind()
-                start = self.start_value
+                start = self._start_value
             else:
                 # raw start as persisted into state by bind()
                 start = s.get("start_value")
@@ -450,7 +454,7 @@ class Incremental(
             # unbound: no state to read from. lag needs a live last_value to step
             # back from — there is none — so it is a no-op here regardless of self.lag
             start = self.initial_value
-        return start, end
+        return self._public_cursor_value(start), self._public_cursor_value(end)
 
     def on_resolved(self) -> None:
         compile_path(self.cursor_path)
@@ -561,8 +565,31 @@ class Incremental(
         # if state params is empty
         return state
 
+    def _public_cursor_value(self, value: Optional[TCursorValue]) -> Optional[TCursorValue]:
+        """Restore datetime values to the declared or inferred cursor type."""
+        if isinstance(value, datetime):
+            cursor_type = self.get_incremental_value_type()
+            if cursor_type is pendulum.DateTime:
+                return cast(TCursorValue, ensure_pendulum_dt(value))
+            if cursor_type is datetime:
+                return cast(TCursorValue, to_py_datetime(value))
+        return value
+
+    @property
+    def start_value(self) -> Any:
+        """Cursor value at binding, respecting the cursor's datetime type."""
+        return self._public_cursor_value(self._start_value)
+
+    @start_value.setter
+    def start_value(self, value: Any) -> None:
+        self._start_value = value
+
     @property
     def last_value(self) -> Optional[TCursorValue]:
+        """Current cursor value, respecting the cursor's datetime type."""
+        return self._public_cursor_value(self._get_last_value())
+
+    def _get_last_value(self) -> Optional[TCursorValue]:
         # if incremental advanced - return as is
         if self._current_last_value is not None:
             return self._current_last_value  # type: ignore[no-any-return]
@@ -696,7 +723,7 @@ class Incremental(
         # cache state
         self._cached_state = self.get_state()
         # set start value from last value, in case of a new state those are equal
-        self.start_value = self.last_value
+        self.start_value = self._get_last_value()
         logger.info(
             f"Bind incremental on {self.resource_name} with initial_value: {self.initial_value},"
             f" start_value: {self.start_value}, end_value: {self.end_value}, func:"
@@ -759,7 +786,7 @@ class Incremental(
             self.resource_name,
             self.cursor_path,
             self.initial_value,
-            self.start_value,
+            self._start_value,
             self.end_value,
             self.last_value_func,
             self._primary_key,

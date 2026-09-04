@@ -586,6 +586,7 @@ def to_py_datetime(value: datetime.datetime) -> datetime.datetime:
             value.second,
             value.microsecond,
             value.tzinfo,
+            fold=value.fold,
         )
     return value
 
