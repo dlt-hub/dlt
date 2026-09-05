@@ -29,7 +29,10 @@ from dlt.common import logger
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.exceptions import WriteDispositionNotSupported
-from dlt.common.destination.utils import resolve_replace_strategy
+from dlt.common.destination.utils import (
+    prepare_hard_delete_table_for_staging,
+    resolve_replace_strategy,
+)
 from dlt.common.json import json
 from dlt.common.schema.typing import (
     C_DLT_LOAD_ID,
@@ -979,6 +982,72 @@ WHERE """
 
 class SqlJobClientWithStagingDataset(SqlJobClientBase, WithStagingDataset):
     in_staging_dataset_mode: bool = False
+
+    def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
+        load_table = super().prepare_load_table(table_name)
+        if self.in_staging_dataset_mode:
+            has_hard_delete = any(
+                column.get("hard_delete")
+                for column in self.schema.tables[table_name]["columns"].values()
+            )
+            load_table = prepare_hard_delete_table_for_staging(
+                load_table, has_hard_delete=has_hard_delete
+            )
+        return load_table
+
+    def update_stored_schema(
+        self,
+        only_tables: Iterable[str] = None,
+        expected_update: TSchemaTables = None,
+        force: bool = False,
+    ) -> Optional[TSchemaTables]:
+        tables_to_check = (
+            tuple(only_tables) if only_tables is not None else tuple(self.schema.tables)
+        )
+        only_tables = tables_to_check if only_tables is not None else None
+        tables_to_recreate: List[str] = []
+        if self.in_staging_dataset_mode:
+            casefold_identifier = self.capabilities.casefold_identifier
+            for table_name in tables_to_check:
+                schema_table = self.schema.tables[table_name]
+                if schema_table.get("write_disposition") != "merge" or not any(
+                    column.get("hard_delete") for column in schema_table["columns"].values()
+                ):
+                    continue
+                load_table = super().prepare_load_table(table_name)
+                staging_table = prepare_hard_delete_table_for_staging(
+                    load_table, has_hard_delete=True
+                )
+                table_exists, storage_columns = self.get_storage_table(table_name)
+                if not table_exists:
+                    continue
+                folded_storage_columns = {
+                    casefold_identifier(name): column for name, column in storage_columns.items()
+                }
+                for name, column in load_table["columns"].items():
+                    staging_column = staging_table["columns"][name]
+                    storage_column = folded_storage_columns.get(casefold_identifier(name))
+                    if (
+                        not column.get("nullable", True)
+                        and staging_column.get("nullable", True)
+                        and storage_column is not None
+                        and not storage_column.get("nullable", True)
+                    ):
+                        tables_to_recreate.append(table_name)
+                        break
+
+        if tables_to_recreate:
+            self.drop_tables(*tables_to_recreate, delete_schema=False)
+            force = True
+        return super().update_stored_schema(only_tables, expected_update, force)
+
+    def _get_table_update_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> List[str]:
+        if self.in_staging_dataset_mode:
+            staging_columns = self.prepare_load_table(table_name)["columns"]
+            new_columns = [staging_columns.get(column["name"], column) for column in new_columns]
+        return super()._get_table_update_sql(table_name, new_columns, generate_alter)
 
     @contextlib.contextmanager
     def with_staging_dataset(self) -> Iterator["SqlJobClientBase"]:

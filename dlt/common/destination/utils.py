@@ -16,6 +16,7 @@ from dlt.common.schema.exceptions import (
     TableNotFound,
 )
 from dlt.common.schema.typing import (
+    DLT_NAME_PREFIX,
     TColumnSchema,
     TColumnType,
     TLoaderMergeStrategy,
@@ -236,6 +237,34 @@ def prepare_load_table(
         return prep_table  # type: ignore[return-value]
     except KeyError:
         raise TableNotFound("<>", table_name)
+
+
+def prepare_hard_delete_table_for_staging(
+    table: TTableSchema, has_hard_delete: Optional[bool] = None
+) -> TTableSchema:
+    """Clone a merge table with nullable payload columns for key-only hard deletes."""
+    if has_hard_delete is None:
+        has_hard_delete = any(column.get("hard_delete") for column in table["columns"].values())
+    if table.get("write_disposition") != "merge" or not has_hard_delete:
+        return table
+
+    staging_table = table.copy()
+    staging_table["columns"] = {name: column.copy() for name, column in table["columns"].items()}
+    for column in staging_table["columns"].values():
+        if column["name"].casefold().startswith(DLT_NAME_PREFIX) or any(
+            column.get(hint)
+            for hint in (
+                "primary_key",
+                "merge_key",
+                "row_key",
+                "parent_key",
+                "root_key",
+                "hard_delete",
+            )
+        ):
+            continue
+        column["nullable"] = True
+    return staging_table
 
 
 def resolve_replace_strategy(

@@ -4,6 +4,7 @@ from functools import lru_cache
 
 from dlt.common.data_types.typing import TDataType
 from dlt.common.destination.capabilities import adjust_column_schema_to_capabilities
+from dlt.common.destination.utils import prepare_hard_delete_table_for_staging
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.json import (
@@ -62,6 +63,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
         self._filtered_tables_columns: Dict[str, Dict[str, TSchemaEvolutionMode]] = {}
         # quick access to column schema for writers below
         self._column_schemas: Dict[str, TTableSchemaColumns] = {}
+        self._staging_column_schemas: Dict[str, TTableSchemaColumns] = {}
         self._null_only_columns: Dict[str, Set[str]] = {}
         # a destination without tz support holds the context wall clock, so every timestamp is
         # stripped like a `timezone=False` column; one without naive support keeps every instant
@@ -192,6 +194,7 @@ class JsonLItemsNormalizer(ItemsNormalizer):
 
                         # update our columns
                         column_schemas[table_name] = schema.get_table_columns(table_name)
+                        self._staging_column_schemas.pop(table_name, None)
 
                         # apply new filters
                         if filtered_columns and filters:
@@ -211,8 +214,16 @@ class JsonLItemsNormalizer(ItemsNormalizer):
                     #   will be useful if we implement bad data sending to a table
                     # we skip write when discovering schema for empty file
                     if not skip_write:
+                        staging_columns = self._staging_column_schemas.get(table_name)
+                        if staging_columns is None:
+                            staging_table = schema.tables[table_name].copy()
+                            staging_table["columns"] = columns
+                            staging_columns = prepare_hard_delete_table_for_staging(staging_table)[
+                                "columns"
+                            ]
+                            self._staging_column_schemas[table_name] = staging_columns
                         self.item_storage.write_data_item(
-                            self.load_id, schema_name, table_name, row, columns
+                            self.load_id, schema_name, table_name, row, staging_columns
                         )
                         row_counts[table_name] = row_counts.get(table_name, 0) + 1
             except StopIteration:
