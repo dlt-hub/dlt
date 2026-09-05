@@ -129,13 +129,20 @@ def _read_csv_duckdb(
 
     for item in items:
         with item.open() as f:
-            file_data = duckdb.from_csv_auto(f, **duckdb_kwargs)
+            # Use a per-file connection so that interleaved generators
+            # (from different pages) don't clobber each other's result
+            # sets on the single global default connection.
+            con = duckdb.connect()
+            try:
+                file_data = con.from_csv_auto(f, **duckdb_kwargs)
 
-            for batch in helper(file_data, chunk_size):
-                if add_filename:
-                    for record in batch:
-                        record["filename"] = item["file_name"]  # type: ignore
-                yield batch
+                for batch in helper(file_data, chunk_size):
+                    if add_filename:
+                        for record in batch:
+                            record["filename"] = item["file_name"]  # type: ignore
+                    yield batch
+            finally:
+                con.close()
 
 
 if TYPE_CHECKING:
