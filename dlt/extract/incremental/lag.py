@@ -1,4 +1,4 @@
-from datetime import datetime, timedelta, date, timezone  # noqa: I251
+from datetime import datetime, timedelta, date, time, timezone  # noqa: I251
 from typing import Any, Optional, Type, Union
 
 from dlt.common import logger
@@ -7,6 +7,7 @@ from dlt.common.time import (
     ensure_datetime,
     ensure_date,
     datetime_obj_to_str,
+    get_context_timezone,
 )
 from dlt.common.typing import is_subclass
 
@@ -34,38 +35,53 @@ def _apply_lag_to_value(
     last_value_func: LastValueFunc[TCursorValue],
     date_type: Optional[Type[Any]] = None,
 ) -> Any:
-    """Applies lag to a value, in case of `str` types it attempts to return a string
-    with the lag applied preserving original format of a datetime/date
+    """Applies lag in the unit of `date_type`: days for a `date`, seconds for a `datetime`. The result
+    keeps the shape of `value`: a `str` stays in its format, a `date` or `datetime` keeps its type.
     """
-    value_format: str = None
-    if isinstance(value, str):
-        value_format = detect_datetime_format(value)
-        if date_type is None:
-            date_type = date if value_format in DATE_STR_FORMATS else datetime
-        elif "%H" in (value_format or "") and not is_subclass(date_type, datetime):
-            # a date has no time part to render back into the original format
-            value_format = "%Y-%m-%d"
-    elif isinstance(value, date) and date_type is None:
-        date_type = datetime if isinstance(value, datetime) else date
-
-    if isinstance(value, (str, date)):
-        # stdlib types only, pendulum arithmetic drops any tzinfo that is not its own
-        value = ensure_datetime(value) if is_subclass(date_type, datetime) else ensure_date(value)
-        value = _apply_lag_to_datetime(lag, value, last_value_func)
-        # go back to string or pass exact type
-        value = datetime_obj_to_str(value, value_format) if value_format else value
-
-    elif isinstance(value, (int, float)):
-        value = _apply_lag_to_number(lag, value, last_value_func)
-
-    else:
+    if isinstance(value, (int, float)):
+        return _apply_lag_to_number(lag, value, last_value_func)
+    if not isinstance(value, (str, date)):
         raise ValueError(
             value,
             f"Lag is not supported for cursor type: {type(value)} with last_value_func:"
             f" {last_value_func}. Strings must parse to DateTime or Date.",
         )
 
-    return value
+    value_format: str = None
+    if isinstance(value, str):
+        value_format = detect_datetime_format(value)
+        datetime_shape = value_format not in DATE_STR_FORMATS
+    else:
+        datetime_shape = isinstance(value, datetime)
+    if date_type is None:
+        # nothing declared, the value decides the unit
+        date_type = datetime if datetime_shape else date
+    lag_in_days = not is_subclass(date_type, datetime)
+
+    # stdlib types only, pendulum arithmetic drops any tzinfo that is not its own
+    lagged: Union[date, datetime]
+    if lag_in_days and datetime_shape:
+        lagged = _apply_lag_in_days(lag, ensure_datetime(value), last_value_func)
+    else:
+        lagged = ensure_date(value) if lag_in_days else ensure_datetime(value)
+        lagged = _apply_lag_to_datetime(lag, lagged, last_value_func)
+    return datetime_obj_to_str(lagged, value_format) if value_format else lagged
+
+
+def _apply_lag_in_days(
+    lag: float, value: datetime, last_value_func: LastValueFunc[TCursorValue]
+) -> datetime:
+    """Lags a datetime by days like a date cursor: takes its day in the context timezone and returns
+    the start of the lagged day for a lower bound (`max`) or its end for an upper bound, in the zone
+    of `value`, so the whole day stays in range
+    """
+    tz = value.tzinfo
+    if tz is not None:
+        value = value.astimezone(get_context_timezone())
+    day = _apply_lag_to_datetime(lag, value.date(), last_value_func)
+    boundary = time.min if last_value_func is max else time.max
+    lagged = datetime.combine(day, boundary, tzinfo=value.tzinfo)
+    return lagged if tz is None else lagged.astimezone(tz)
 
 
 def _apply_lag_to_datetime(

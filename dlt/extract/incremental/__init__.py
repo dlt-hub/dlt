@@ -139,7 +139,7 @@ class Incremental(
             Note that if logical "end date" is present then also "end_value" will be set which means that resource state is not used and exactly this range of date will be loaded
             Defaults to None in which case the runtime may enable it via `TimeIntervalContext`. Set to False to opt out unconditionally.
         on_cursor_value_missing: Specify what happens when the cursor_path does not exist in a record or a record has `None` at the cursor_path: raise, include, exclude
-        lag: Optional value used to define a lag or attribution window. Interpreted as seconds for datetime cursors and as days for date cursors, as declared by the `Incremental` type argument or `initial_value`. Cursor values are coerced to the declared type. For other types, it uses the + or - operator depending on the last_value_func.
+        lag: Optional value used to define a lag or attribution window. Interpreted as seconds for datetime cursors and as days for date cursors, as declared by the `Incremental` type argument or `initial_value`. For other types, it uses the + or - operator depending on the last_value_func.
         range_start: Decide whether the incremental filtering range is `open` or `closed` on the start value side. Default is `closed`.
             Setting this to `open` means that items with the same cursor value as the last value from the previous run (or `initial_value`) are excluded from the result.
             The `open` range disables deduplication logic so it can serve as an optimization when you know cursors don't overlap between pipeline runs.
@@ -196,7 +196,7 @@ class Incremental(
         self.initial_value = initial_value
         """Initial value of last_value"""
         self.end_value = end_value
-        self._start_value: Any = initial_value
+        self._start_value: Optional[TCursorValue] = initial_value
         """Value of last_value at the beginning of current pipeline run"""
         self.resource_name: Optional[str] = None
         # TODO: deprecate primary_key, use deduplication_key
@@ -576,12 +576,12 @@ class Incremental(
         return value
 
     @property
-    def start_value(self) -> Any:
+    def start_value(self) -> Optional[TCursorValue]:
         """Cursor value at binding, respecting the cursor's datetime type."""
         return self._public_cursor_value(self._start_value)
 
     @start_value.setter
-    def start_value(self, value: Any) -> None:
+    def start_value(self, value: Optional[TCursorValue]) -> None:
         self._start_value = value
 
     @property

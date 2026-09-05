@@ -1321,7 +1321,7 @@ def test_json_path_cursor() -> None:
 def test_remove_incremental_with_explicit_none() -> None:
     @dlt.resource
     def some_data(
-        last_timestamp: Optional[dlt.sources.incremental[float]] = dlt.sources.incremental(
+        last_timestamp: Optional[dlt.sources.incremental[int]] = dlt.sources.incremental(
             "id", initial_value=9
         ),
     ):
@@ -4113,7 +4113,7 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
             "2026-08-26T23:59:32Z",
         ),
         # a date initial_value keeps the lag in days, also for datetime cursor values
-        ("2026-01-01", ["2026-08-26T00:00:00Z", "2026-08-27T00:00:00Z"], "2026-07-30"),
+        ("2026-01-01", ["2026-08-26T00:00:00Z", "2026-08-27T00:00:00Z"], "2026-07-30T00:00:00Z"),
         ("2026-01-01", ["2026-08-26", "2026-08-27"], "2026-07-30"),
     ],
     ids=[
@@ -4160,6 +4160,25 @@ def test_incremental_lag_unit_from_type_argument() -> None:
     # cursor values are dates: 28 seconds of lag still move the window a full day back
     assert _last_start_value(dlt.sources.incremental[datetime]("day", lag=28)) == "2026-08-26"
     assert _last_start_value(dlt.sources.incremental[date]("day", lag=28)) == "2026-07-30"
+
+
+def test_incremental_lag_date_cursor_min_keeps_boundary_day() -> None:
+    """with `min` the lagged start is the end of the day, so rows on that day stay in range"""
+    runs = iter([["2026-09-24T10:00:00Z"], ["2026-09-25T09:00:00Z", "2026-09-26T00:00:00Z"]])
+    start_values: List[Any] = []
+
+    @dlt.resource
+    def events(
+        day=dlt.sources.incremental("day", initial_value="2026-12-31", lag=1, last_value_func=min)
+    ):
+        start_values.append(day.start_value)
+        yield from [{"day": value} for value in next(runs)]
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        assert len(list(events())) == 1
+        # the row on the boundary day is in range, the one on the day after is not
+        assert len(list(events())) == 1
+    assert start_values == ["2026-12-31", "2026-09-25T23:59:59Z"]
 
 
 @pytest.mark.parametrize(
@@ -5515,8 +5534,6 @@ def test_public_other_cursor_types_unchanged(value: Any) -> None:
 def test_public_datetime_cursor_after_state_reload(
     seeded_pipeline: dlt.Pipeline, cursor_type: type[datetime], explicit_type: bool
 ) -> None:
-    from dlt.sources.rest_api.config_setup import expand_placeholders
-
     initial: Any = cursor_type(2024, 1, 1, tzinfo=timezone.utc)
     configured = (
         (
@@ -5536,11 +5553,7 @@ def test_public_datetime_cursor_after_state_reload(
         if seen:
             assert type(cursor._get_last_value()) is datetime
         format_spec = "YYYY-MM-DD" if cursor_type is pendulum.DateTime else "%Y-%m-%d"
-        seen.append(
-            expand_placeholders(
-                "{incremental.start_value:" + format_spec + "}", {"incremental": cursor}
-            )
-        )
+        seen.append(format(cursor.start_value, format_spec))
         yield {"ts": datetime(2024, 1, 2 + len(seen) - 1, tzinfo=timezone.utc)}
         assert type(cursor.last_value) is cursor_type
         assert type(cursor._current_last_value) is datetime

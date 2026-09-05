@@ -20,10 +20,12 @@ The unit comes from the cursor type you **declare**, not from the format of the 
 2. the type of `initial_value`: `"2024-01-01"` declares a date cursor, `"2024-01-01T00:00:00Z"` a datetime one
 3. only when neither is present, the cursor values in the data decide
 
-Cursor values are coerced to the declared type before the lag is applied: a date cursor turns
-`"2024-05-07T10:00:00Z"` into `2024-05-07` (the day in the context timezone, UTC unless configured)
-and a datetime cursor turns `"2024-05-07"` into midnight of that day. A value that does not parse to
-the declared type raises an error.
+Only the lag computation coerces the last cursor value to the declared type, rows and stored state
+are left as they are, and the lagged value keeps the shape of the data. A date cursor takes the day of
+`"2024-05-07T10:00:00Z"` in the context timezone (UTC unless configured), lags it in days and hands back
+the start of that day, `"2024-04-09T00:00:00Z"` for 28 days, or its end with `last_value_func=min`, so
+the whole day stays in range. A datetime cursor turns `"2024-05-07"` into midnight of that day. A value
+that does not parse to the declared type raises an error.
 
 
 ### Example using `datetime` incremental cursor with `merge` as `write_disposition`
