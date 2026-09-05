@@ -5,6 +5,24 @@ from dlt.common.storages.configuration import TSchemaFileFormat
 from dlt.common.typing import NotRequired, TypedDict
 
 
+TWorkspaceLocalVerb = Literal["read", "write", "execute", "network", "all"]
+TWorkspaceDataVerb = Literal["read", "write", "all"]
+TWorkspaceContextVerb = Literal["read", "write", "execute", "deploy", "all"]
+
+
+class TWorkspaceAccess(TypedDict, total=False):
+    """What may be touched in a workspace. Declared by an agent, required by a tool."""
+
+    toolkits: bool
+    """Load the agent components installed into the project."""
+    local: List[TWorkspaceLocalVerb]
+    """What may be done on the machine the workspace lives on."""
+    data: List[TWorkspaceDataVerb]
+    """Access to workspace data, governed by the dlt profile in use."""
+    context: List[TWorkspaceContextVerb]
+    """Access to the context graph: telemetry, runs and job definitions. Read-only."""
+
+
 TLocationScope = Literal["project", "global"]
 
 

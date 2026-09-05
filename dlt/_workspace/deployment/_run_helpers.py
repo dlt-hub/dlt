@@ -5,7 +5,7 @@ import os
 import os.path
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 from uuid import uuid4
 
 from dlt.common.time import UTC_NAME, ensure_datetime_in_tz, to_tzinfo
@@ -135,7 +135,9 @@ def select_candidates(
     for job_def in manifest["jobs"]:
         job_type = job_def["entry_point"]["job_type"]
         expanded = expand_triggers(job_def)
-        hits = match_triggers_with_selectors(job_type, expanded, selectors)
+        hits = match_triggers_with_selectors(
+            job_type, expanded, selectors, job_ref=job_def["job_ref"]
+        )
         trigger = pick_trigger(hits, job_def.get("default_trigger"))
         if trigger is None:
             continue
@@ -312,7 +314,7 @@ def resolve_interval(
 
 def build_runtime_entry_point(
     job_def: TJobDefinition,
-    cli_config: Dict[str, str],
+    cli_config: Dict[str, Any],
     profile: Optional[str],
     refresh: bool,
     interval_start: Optional[datetime],
@@ -394,7 +396,7 @@ def fetch_run_info(
     user_start: Optional[str] = None,
     user_end: Optional[str] = None,
     user_refresh: bool = False,
-    cli_config: Optional[Dict[str, str]] = None,
+    cli_config: Optional[Dict[str, Any]] = None,
     job_ref: Optional[str] = None,
     forbidden_job_type: Optional[str] = None,
     available_selectors: Optional[List[str]] = None,

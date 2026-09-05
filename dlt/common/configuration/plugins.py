@@ -204,3 +204,72 @@ def plug_mcp(features: Set[str]) -> Optional[SupportsMcpFeatures]:
     Args:
         features: set of feature keywords the server requests
     """
+
+
+class SupportsAgentLoop(Protocol):
+    """Protocol for an agent loop implementation returned by the plug_agent_loop hook"""
+
+    LOOP_TYPE: ClassVar[str]
+    """loop type string this class answers to"""
+
+    def init(self, agent_spec: Any) -> None:
+        """Prepares the loop from the agent declaration"""
+        ...
+
+    async def run(
+        self,
+        inputs: Dict[str, Any],
+        run_args: Optional[Dict[str, Any]] = None,
+        model: Optional[str] = None,
+        limits: Optional[Any] = None,
+        instructions: Optional[str] = None,
+    ) -> Any:
+        """Builds the native agent from the runtime arguments and runs it to completion"""
+        ...
+
+    @property
+    def native(self) -> Any:
+        """The underlying framework object, e.g. a Pydantic AI Agent"""
+        ...
+
+    @property
+    def trace(self) -> Any:
+        """Trace of the completed run"""
+        ...
+
+
+_TAgentLoopDefFunc = Callable[[str], Optional[Type[SupportsAgentLoop]]]
+
+
+def only_loop(
+    loop_types: Union[str, Iterable[str]]
+) -> Callable[[_TAgentLoopDefFunc], _TAgentLoopDefFunc]:
+    """Emits an agent loop class only if one of `loop_types` was requested via plugin hook."""
+    allowed = frozenset({loop_types} if isinstance(loop_types, str) else loop_types)
+
+    def decorator(fn: _TAgentLoopDefFunc) -> _TAgentLoopDefFunc:
+        @functools.wraps(fn)
+        def wrapper(loop_type: str) -> Optional[Type[SupportsAgentLoop]]:
+            if loop_type not in allowed:
+                return None
+            return fn(loop_type)
+
+        return wrapper
+
+    return decorator
+
+
+@hookspec()
+def plug_agent_loop(loop_type: str) -> Optional[Type[SupportsAgentLoop]]:
+    """Spec for plugin hook that returns an agent loop class for a given loop type.
+
+    The agent launcher broadcasts the loop type it needs; a plugin answers with its class
+    or `None`. `only_loop` narrows an implementation to the names it handles.
+
+    Args:
+        loop_type: Loop type requested by the launcher, e.g. `"pydantic-ai"`.
+
+    Returns:
+        Optional[Type[SupportsAgentLoop]]: Loop class to instantiate, or `None` when the
+        plugin does not implement the requested loop.
+    """

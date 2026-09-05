@@ -1,5 +1,5 @@
 from datetime import timezone
-from fnmatch import fnmatch
+from fnmatch import fnmatchcase
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import urlparse
 
@@ -9,7 +9,7 @@ from dlt.common.interval import is_cron_expression
 from dlt.common.time import ensure_datetime_in_tz, parse_period_seconds
 from dlt.common.typing import TAnyDateTime
 from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as _job_short_name
-from dlt._workspace.deployment.exceptions import InvalidTrigger
+from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
     TJobDefinition,
@@ -115,20 +115,23 @@ def _parse_manual(expr: str) -> TParsedTrigger:
     return TParsedTrigger(type="manual", expr=expr or None, raw=TTrigger(f"manual:{expr}"))
 
 
-def _parse_job_success(expr: str) -> TParsedTrigger:
+def _parse_job_event(event: TTriggerType, expr: str) -> TParsedTrigger:
+    """Parses `job.success:` / `job.fail:`, which take a `jobs.` ref or a selector."""
     if not expr:
-        raise InvalidTrigger("job.success:", "requires a job_ref")
-    if not expr.startswith("jobs."):
-        raise InvalidTrigger(f"job.success:{expr}", "expression must start with 'jobs.'")
-    return TParsedTrigger(type="job.success", expr=expr, raw=TTrigger(f"job.success:{expr}"))
+        raise InvalidTrigger(f"{event}:", "requires a job_ref or selector")
+    if not expr.startswith("jobs.") and not is_selector(expr):
+        raise InvalidTrigger(
+            f"{event}:{expr}", "expression must start with 'jobs.' or be a selector"
+        )
+    return TParsedTrigger(type=event, expr=expr, raw=TTrigger(f"{event}:{expr}"))
+
+
+def _parse_job_success(expr: str) -> TParsedTrigger:
+    return _parse_job_event("job.success", expr)
 
 
 def _parse_job_fail(expr: str) -> TParsedTrigger:
-    if not expr:
-        raise InvalidTrigger("job.fail:", "requires a job_ref")
-    if not expr.startswith("jobs."):
-        raise InvalidTrigger(f"job.fail:{expr}", "expression must start with 'jobs.'")
-    return TParsedTrigger(type="job.fail", expr=expr, raw=TTrigger(f"job.fail:{expr}"))
+    return _parse_job_event("job.fail", expr)
 
 
 def _parse_pipeline_name(expr: str) -> TParsedTrigger:
@@ -150,6 +153,22 @@ PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "job.fail": _parse_job_fail,
     "pipeline_name": _parse_pipeline_name,
 }
+
+
+_JOB_EVENT_TYPES = ("job.success", "job.fail")
+_GLOB_CHARS = "*?["
+
+
+def _normalize_job_event_ref(trigger: str, expr: str) -> str:
+    """Resolve a job event expression: a selector stands, a bare ref becomes `jobs.` form."""
+    if not expr:
+        raise InvalidTrigger(trigger, "requires a job_ref or selector")
+    if is_selector(expr):
+        return expr
+    try:
+        return resolve_job_ref(expr)
+    except InvalidJobRef as e:
+        raise InvalidTrigger(trigger, str(e)) from e
 
 
 def parse_trigger(trigger: TTrigger) -> TParsedTrigger:
@@ -180,6 +199,11 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
         trigger_type = s.split(":", 1)[0]
         if trigger_type in _SYNTHETIC_TYPES:
             raise InvalidTrigger(s, f"{trigger_type}: triggers are added automatically")
+        if trigger_type in _JOB_EVENT_TYPES:
+            expr = s.split(":", 1)[1]
+            return parse_trigger(
+                TTrigger(f"{trigger_type}:{_normalize_job_event_ref(s, expr)}")
+            ).raw
         if trigger_type in PARSERS:
             return parse_trigger(TTrigger(s)).raw
         raise InvalidTrigger(s, f"unknown type {trigger_type!r}")
@@ -225,7 +249,8 @@ _SELECTOR_KEYWORDS = _JOB_TYPE_SELECTORS | set(PARSERS.keys())
 
 def is_selector(s: str) -> bool:
     """Check if string looks like a trigger selector vs a bare job ref."""
-    if ":" in s:
+    if ":" in s or any(c in s for c in _GLOB_CHARS):
+        # a job ref never contains glob characters, so a globbed expression selects
         return True
     return s in _SELECTOR_KEYWORDS
 
@@ -243,22 +268,29 @@ def match_triggers_with_selectors(
     job_type: str,
     triggers: List[TTrigger],
     selectors: List[str],
+    job_ref: Optional[str] = None,
 ) -> List[TTrigger]:
     """Return triggers that match any selector.
 
-    Job-type selectors (batch, interactive, stream, job) match ALL triggers.
+    A selector matches a job by any of the three things a job is: its type
+    (`batch`, `interactive`, `stream`, `job`, with or without a trailing colon), one of its
+    triggers, or its `job_ref` when the caller supplies one. Job-type and ref selectors are
+    about the job rather than one trigger, so they match all of them.
     """
     matched: List[TTrigger] = []
 
     for selector in selectors:
-        if selector in _JOB_TYPE_SELECTORS:
-            if (selector == "job" and job_type == "batch") or job_type == selector:
+        if selector.rstrip(":") in _JOB_TYPE_SELECTORS:
+            job_selector = selector.rstrip(":")
+            if (job_selector == "job" and job_type == "batch") or job_type == job_selector:
                 return list(triggers)
             continue
 
         pattern = _normalize_selector(selector)
+        if job_ref and fnmatchcase(job_ref, pattern):
+            return list(triggers)
         for t in triggers:
-            if t not in matched and fnmatch(t, pattern):
+            if t not in matched and fnmatchcase(t, pattern):
                 matched.append(t)
 
     return matched

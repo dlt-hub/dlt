@@ -1,11 +1,12 @@
 """Tests for trigger parsing, normalization, and selectors."""
 
-from typing import List, Optional
+from typing import Any, List, Optional
 
 import pytest
 
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment._trigger_helpers import (
+    is_selector,
     humanize_trigger,
     match_triggers_with_selectors,
     normalize_trigger,
@@ -13,6 +14,7 @@ from dlt._workspace.deployment._trigger_helpers import (
     parse_trigger,
     pick_trigger,
 )
+from dlt._workspace.deployment.manifest import expand_trigger_selectors
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
     TEntryPoint,
@@ -183,8 +185,9 @@ def test_normalize_trigger_valid(trigger: str) -> None:
         ("http:0", "1-65535"),
         ("http:abc", "port invalid"),
         ("http://localhost:5000", "not a full URL"),
-        ("job.success:not_a_ref", "must start with"),
-        ("job.fail:bad_ref", "must start with"),
+        # a bare name cannot be resolved; `section.name` and `jobs.section.name` both can
+        ("job.success:not_a_ref", "section.name"),
+        ("job.fail:bad_ref", "section.name"),
     ],
     ids=[
         "unknown-type",
@@ -551,3 +554,166 @@ def test_pick_trigger(matched: List[str], default: Optional[str], expected: Opti
 )
 def test_humanize_trigger(trigger: str, expected: str) -> None:
     assert humanize_trigger(TTrigger(trigger)) == expected
+
+
+@pytest.mark.parametrize(
+    "trigger,expected",
+    [
+        ("job.fail:jobs.batch.daily", "job.fail:jobs.batch.daily"),
+        ("job.fail:batch.daily", "job.fail:jobs.batch.daily"),
+        # a selector stands as written; only a bare ref is resolved
+        ("job.success:batch.*", "job.success:batch.*"),
+        ("job.success:jobs.*", "job.success:jobs.*"),
+        ("job.fail:*", "job.fail:*"),
+        ("job.success:tag:ingest", "job.success:tag:ingest"),
+        ("job.success:batch:", "job.success:batch:"),
+    ],
+    ids=["qualified", "section-name", "section-glob", "qualified-glob", "bare-star", "tag", "type"],
+)
+def test_normalize_job_event_trigger_refs(trigger: str, expected: str) -> None:
+    assert normalize_trigger(trigger) == expected
+
+
+@pytest.mark.parametrize(
+    "expr,expected",
+    [
+        ("tag:ingest", True),
+        ("batch", True),
+        ("batch:", True),
+        ("jobs.batch.*", True),
+        ("jobs.a.b?", True),
+        ("*", True),
+        ("jobs.a.b", False),
+        ("ingest", False),
+    ],
+    ids=["tag", "type", "type-colon", "ref-glob", "question", "star", "ref", "name"],
+)
+def test_is_selector(expr: str, expected: bool) -> None:
+    """A job ref never carries a colon or a glob character, so either one selects."""
+    assert is_selector(expr) is expected
+
+
+def _job_def(job_ref: str, triggers: List[str], job_type: str = "batch") -> TJobDefinition:
+    return {
+        "job_ref": TJobRef(job_ref),
+        "entry_point": TEntryPoint(
+            module="m", function="f", job_type=job_type, launcher="l"  # type: ignore[typeddict-item]
+        ),
+        "triggers": [TTrigger(t) for t in triggers],
+        "execute": TExecuteSpec(),
+    }
+
+
+def test_expand_trigger_selectors() -> None:
+    """A selector expands to every other job; only the declaring job is excluded."""
+    watcher = _job_def("jobs.ops.inspector", ["job.fail:jobs.*"])
+    other_watcher = _job_def("jobs.ops.auditor", ["job.success:jobs.*"])
+    ingest = _job_def("jobs.batch.ingest", ["schedule:0 8 * * *"])
+    transform = _job_def("jobs.batch.transform", [])
+    dashboard = _job_def("jobs.workspace.dashboard", ["http:"], job_type="interactive")
+    jobs = [watcher, other_watcher, ingest, transform, dashboard]
+
+    assert expand_trigger_selectors(jobs) == []
+
+    # never itself, never the interactive job; another watcher is a legitimate target
+    assert watcher["triggers"] == [
+        "job.fail:jobs.ops.auditor",
+        "job.fail:jobs.batch.ingest",
+        "job.fail:jobs.batch.transform",
+    ]
+    assert other_watcher["triggers"] == [
+        "job.success:jobs.ops.inspector",
+        "job.success:jobs.batch.ingest",
+        "job.success:jobs.batch.transform",
+    ]
+    # non-selector triggers pass through untouched
+    assert ingest["triggers"] == ["schedule:0 8 * * *"]
+
+
+def test_expand_trigger_selectors_never_targets_the_declaring_job() -> None:
+    """Self-exclusion is the whole loop guard: a job must not trigger itself."""
+    watcher = _job_def("jobs.ops.only_job", ["job.fail:jobs.*"])
+    jobs = [watcher]
+    warnings = expand_trigger_selectors(jobs)
+    assert watcher["triggers"] == []
+    assert len(warnings) == 1
+
+
+def test_expand_trigger_selectors_keeps_other_triggers_and_warns() -> None:
+    watcher = _job_def("jobs.ops.inspector", ["schedule:0 7 * * *", "job.fail:jobs.nothing.*"])
+    warnings = expand_trigger_selectors([watcher, _job_def("jobs.batch.ingest", [])])
+    assert watcher["triggers"] == ["schedule:0 7 * * *"]
+    assert len(warnings) == 1
+    assert "matched no job" in warnings[0]
+
+
+def test_expand_trigger_selectors_is_case_sensitive() -> None:
+    """Manifests must not differ by platform, so matching never folds case."""
+    watcher = _job_def("jobs.ops.inspector", ["job.fail:jobs.Batch.*"])
+    jobs = [watcher, _job_def("jobs.batch.ingest", [])]
+    warnings = expand_trigger_selectors(jobs)
+    assert watcher["triggers"] == []
+    assert len(warnings) == 1
+
+
+def _tagged(job_ref: str, tags: List[str], job_type: str = "batch") -> TJobDefinition:
+    job_def = _job_def(job_ref, [], job_type=job_type)
+    job_def["expose"] = {"tags": tags}
+    return job_def
+
+
+def test_expand_selects_by_tag() -> None:
+    """`tag:` reaches a job through the trigger its `expose.tags` synthesizes."""
+    watcher = _job_def("jobs.ops.inspector", ["job.fail:tag:ingest"])
+    ingest = _tagged("jobs.batch.ingest", ["ingest"])
+    load = _tagged("jobs.batch.load", ["ingest", "nightly"])
+    report = _tagged("jobs.batch.report", ["nightly"])
+
+    assert expand_trigger_selectors([watcher, ingest, load, report]) == []
+    assert watcher["triggers"] == ["job.fail:jobs.batch.ingest", "job.fail:jobs.batch.load"]
+
+
+@pytest.mark.parametrize("selector", ["batch", "batch:"], ids=["keyword", "trailing-colon"])
+def test_expand_selects_by_job_type(selector: str) -> None:
+    """A job type selects the same way with or without the colon."""
+    watcher = _job_def("jobs.ops.inspector", [f"job.success:{selector}"])
+    ingest = _job_def("jobs.batch.ingest", [])
+    dashboard = _job_def("jobs.ws.dashboard", ["http:"], job_type="interactive")
+
+    assert expand_trigger_selectors([watcher, ingest, dashboard]) == []
+    assert watcher["triggers"] == ["job.success:jobs.batch.ingest"]
+
+
+@pytest.mark.parametrize(
+    "selector", ["jobs.batch.*", "manual:jobs.batch.*"], ids=["ref-glob", "trigger-glob"]
+)
+def test_expand_selects_by_ref_or_by_manual_trigger(selector: str) -> None:
+    """The ref and the synthetic `manual:` trigger reach the same jobs."""
+    watcher = _job_def("jobs.ops.inspector", [f"job.fail:{selector}"])
+    ingest = _job_def("jobs.batch.ingest", [])
+    other = _job_def("jobs.ops.audit", [])
+
+    assert expand_trigger_selectors([watcher, ingest, other]) == []
+    assert watcher["triggers"] == ["job.fail:jobs.batch.ingest"]
+
+
+def test_expand_leaves_an_exact_ref_alone() -> None:
+    """The runtime looks a completion trigger up by exact string, so a ref must survive as one."""
+    watcher = _job_def("jobs.ops.inspector", ["job.fail:jobs.batch.ingest"])
+    expand_trigger_selectors([watcher, _job_def("jobs.batch.ingest", [])])
+    assert watcher["triggers"] == ["job.fail:jobs.batch.ingest"]
+
+
+@pytest.mark.parametrize(
+    "selector,expected",
+    [("batch:", ["jobs.batch.ingest"]), ("jobs.batch.*", ["jobs.batch.ingest"])],
+    ids=["job-type-colon", "ref-glob"],
+)
+def test_cli_select_understands_the_same_selectors(selector: str, expected: List[str]) -> None:
+    """`--select` shares the matcher, so both forms work there too."""
+    from dlt._workspace.deployment._run_helpers import select_candidates
+
+    manifest: Any = {
+        "jobs": [_job_def("jobs.batch.ingest", []), _job_def("jobs.ops.audit", [], "interactive")]
+    }
+    assert [jd["job_ref"] for jd, _ in select_candidates(manifest, [selector])] == expected

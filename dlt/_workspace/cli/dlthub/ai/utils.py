@@ -2,7 +2,7 @@ import hashlib
 import os
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import TYPE_CHECKING, Any, Dict, List, Optional, Set, Tuple
 
 import tomlkit
 import yaml
@@ -15,6 +15,7 @@ from dlt.common.configuration.providers.toml import SecretsTomlProvider, Setting
 from dlt.common.pipeline import get_dlt_repos_dir
 from dlt.version import __version__ as dlt_ver
 
+from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_BRANCH  # noqa: F401
 from dlt._workspace.cli._urls import DEFAULT_AI_WORKBENCH_REPO  # noqa: F401
 from dlt._workspace.cli.dlthub.ai.typing import (
@@ -32,7 +33,11 @@ from dlt._workspace.cli.formatters import (
     render_frontmatter,
 )
 from dlt._workspace.cli.utils import get_provider_locations, make_dlt_settings_path
-from dlt._workspace.typing import TLocationInfo
+from dlt._workspace.access import format_access
+from dlt._workspace.typing import TLocationInfo, TWorkspaceAccess
+
+if TYPE_CHECKING:
+    from dlt._workspace.cli.dlthub.ai.agents import TComponentType
 
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
@@ -527,6 +532,35 @@ def fetch_workbench_toolkit_info(
     return info
 
 
+def mcp_stdio_args(
+    features: Optional[List[str]] = None,
+    with_defaults: bool = True,
+    access: Optional[TWorkspaceAccess] = None,
+) -> List[str]:
+    """CLI arguments that run the workspace MCP server on stdio with `features` enabled.
+
+    Without `with_defaults` the server serves `features` and nothing else, so an agent that
+    asks for one feature group does not also get the rest. With `access`, it serves only the
+    tools that grant covers.
+
+    The caller supplies the command: the `dlthub` script on PATH, `uv run dlthub`, or the
+    one next to the interpreter that is already running.
+    """
+    from dlt._workspace.mcp.server import resolve_features
+
+    args = ["ai", "mcp", "run", "--stdio"]
+    if access is not None:
+        args += ["--access", format_access(access)]
+    if not with_defaults:
+        args.append("--no-default-features")
+        resolved = resolve_features(features, set())
+        return args + ["--features", *sorted(resolved)] if resolved else args
+    resolved = resolve_features(features)
+    if resolved != DEFAULT_MCP_FEATURES:
+        args.extend(["--features"] + sorted(resolved))
+    return args
+
+
 def _toolkits_index_path() -> str:
     return make_dlt_settings_path(TOOLKITS_INDEX_FILE)
 
@@ -547,6 +581,41 @@ def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
         return data
     except (yaml.YAMLError, OSError):
         return {}
+
+
+def resolve_installed_component(
+    toolkit: str,
+    name: str,
+    kind: "TComponentType",
+    project_root: Path,
+) -> Optional[Path]:
+    """Absolute path of a component installed by `dlthub ai toolkit install`.
+
+    The installing agent is read from the index, and supplies the path it wrote.
+
+    Args:
+        toolkit: Toolkit the component belongs to. Empty when the ref carried no toolkit.
+        name: Component name in the toolkit.
+        kind: Component type, e.g. "skill", "rule" or "agent".
+        project_root: Workspace root the toolkit was installed into.
+
+    Returns:
+        Optional[Path]: Installed path, or `None` when nothing matches.
+    """
+    from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS
+
+    index = load_toolkits_index()
+    entry = index.get(toolkit) if toolkit else None
+    host = entry.get("agent") if entry else None
+    variants = [AI_AGENTS[host]] if host in AI_AGENTS else list(AI_AGENTS.values())
+
+    toolkits = [toolkit] if toolkit else list(index)
+    for variant_cls in variants:
+        for toolkit_name in toolkits:
+            path = variant_cls().component_path(kind, name, toolkit_name, project_root)
+            if path is not None and path.is_file():
+                return path
+    return None
 
 
 def is_toolkit_installed(name: str) -> bool:

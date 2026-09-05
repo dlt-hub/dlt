@@ -1,6 +1,7 @@
 from contextlib import contextmanager, nullcontext
 import os
 import shutil
+import sys
 from typing import Generator, Iterator
 
 import pytest
@@ -50,6 +51,25 @@ def isolated_workspace(
             # reload toml providers after patching
             Container()[PluggableRunContext].reload_providers()
         yield ctx  # type: ignore
+
+
+@contextmanager
+def importable_workspace(name: str, *modules: str) -> Iterator[WorkspaceRunContext]:
+    """`isolated_workspace` with its root on `sys.path`, as `python -m` gives a launcher.
+
+    Args:
+        name (str): Workspace under `WORKSPACE_CASES_DIR`.
+        modules (str): Workspace modules to drop from `sys.modules` on exit, so the next
+            copy of the workspace is imported afresh.
+    """
+    with isolated_workspace(name) as ctx:
+        sys.path.insert(0, ctx.run_dir)
+        try:
+            yield ctx
+        finally:
+            sys.path.remove(ctx.run_dir)
+            for module in modules:
+                sys.modules.pop(module, None)
 
 
 def restore_clean_workspace(name: str) -> str:

@@ -1,0 +1,6 @@
+dlthub-platform:
+  version: 0.2.0
+  description: Deploy dlthub workspace and pipelines
+  tags: []
+  installed_at: '2026-08-30T00:00:00+00:00'
+  agent: claude

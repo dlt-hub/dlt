@@ -299,6 +299,8 @@ class AiCommand(SupportsCliCommand):
                     stdio=getattr(args, "stdio", False),
                     sse=getattr(args, "sse", False),
                     features=getattr(args, "features", None),
+                    no_default_features=getattr(args, "no_default_features", False),
+                    access=getattr(args, "access", None),
                 )
         else:
             self.parser.print_usage()
