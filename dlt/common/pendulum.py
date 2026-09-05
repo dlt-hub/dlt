@@ -58,12 +58,12 @@ def create_dt(
 
     if pend_tz is None:
         # naive datetime
-        return pendulum.DateTime(year, month, day, hour, minute, second, microsecond)
+        return pendulum.DateTime(year, month, day, hour, minute, second, microsecond, fold=fold)
 
     if isinstance(pend_tz, FixedTimezone) or pend_tz is UTC:
         # fixed offset or UTC - no DST, no conversion needed
         return pendulum.DateTime(
-            year, month, day, hour, minute, second, microsecond, tzinfo=pend_tz
+            year, month, day, hour, minute, second, microsecond, tzinfo=pend_tz, fold=fold
         )
 
     # named timezone - need convert() for DST handling
@@ -87,7 +87,7 @@ def ensure_pendulum_dt(dt: datetime) -> pendulum.DateTime:
     tz = dt.tzinfo
     if tz is None:
         return pendulum.DateTime(
-            dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond
+            dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second, dt.microsecond, fold=dt.fold
         )
     if tz is UTC:
         return pendulum.DateTime(
@@ -99,6 +99,7 @@ def ensure_pendulum_dt(dt: datetime) -> pendulum.DateTime:
             dt.second,
             dt.microsecond,
             tzinfo=UTC,
+            fold=dt.fold,
         )
     return create_dt(
         dt.year,

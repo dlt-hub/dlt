@@ -37,6 +37,8 @@ In essence, the `dlt.sources.incremental` instance above:
 * **updated_at.last_value** a "real-time" `updated_at` value updated with each yielded item or page. Before the first yield, it equals **start_value**.
 * **updated_at.end_value** (here not used) [marking the end of the backfill range](#using-end_value-for-backfill)
 
+For datetime cursors, `start_value`, `last_value`, and the bounds returned by `get_current_range()` respect the cursor type declared in `incremental[...]` or inferred from `initial_value`: `pendulum.DateTime` cursors return Pendulum values, while `datetime.datetime` cursors return standard Python datetimes. Other cursor types and user-provided `initial_value` and `end_value` are unchanged.
+
 When paginating, you probably need the **start_value** which does not change during the execution of the resource, however, most paginators will return a **next page** link which you should use.
 
 Behind the scenes, dlt will deduplicate the results, i.e., in case the last issue is returned again (`updated_at` filter is inclusive) and skip already loaded ones.

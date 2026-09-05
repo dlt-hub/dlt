@@ -2,7 +2,7 @@ import asyncio
 import inspect
 import os
 import random
-from datetime import datetime, date, timezone  # noqa: I251
+from datetime import datetime, date, time, timezone, tzinfo  # noqa: I251
 from itertools import chain, count
 from time import sleep
 from typing import Any, Optional, Literal, Sequence, Dict, Iterable, List, Tuple
@@ -690,6 +690,24 @@ def test_legacy_unique_hashes_dedup_boundary(item_type: TestDataItemFormat) -> N
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_datetime_primary_key_dedup_preserves_dst_fold(item_type: TestDataItemFormat) -> None:
+    """The two occurrences of a repeated hour are distinct keys at the same cursor boundary."""
+
+    @dlt.resource(primary_key="id")
+    def events(fold: int, cursor=dlt.sources.incremental("v")):
+        rows = [
+            {"id": pendulum.datetime(2024, 10, 27, 2, 30, tz="Europe/Berlin", fold=fold), "v": 10}
+        ]
+        yield from data_to_item_format(item_type, rows)
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        assert data_item_length(list(events(0))) == 1
+        assert data_item_length(list(events(1))) == 1
+        assert data_item_length(list(events(0))) == 0
+        assert data_item_length(list(events(1))) == 0
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
 def test_descending_order_unique_hashes(item_type: TestDataItemFormat) -> None:
     """Resource returns items in descending order but using `max` last value function.
     Only hash matching last_value are stored.
@@ -1303,7 +1321,7 @@ def test_json_path_cursor() -> None:
 def test_remove_incremental_with_explicit_none() -> None:
     @dlt.resource
     def some_data(
-        last_timestamp: Optional[dlt.sources.incremental[float]] = dlt.sources.incremental(
+        last_timestamp: Optional[dlt.sources.incremental[int]] = dlt.sources.incremental(
             "id", initial_value=9
         ),
     ):
@@ -2098,8 +2116,8 @@ def test_pendulum_cursor_survives_state_round_trip(
 
     # rows below the start are gone and the boundary row is deduped, lag re-reads the last hour
     assert _items_count(pipeline.extract(some_data(3))) == (3 if lag else 1)
-    # state comes back as stdlib, lag arithmetic hands back pendulum
-    assert type(seen[1]) is (pendulum.DateTime if lag else datetime)
+    # State comes back as stdlib; the public value follows the declared Pendulum type.
+    assert type(seen[1]) is pendulum.DateTime
     assert seen[1] == (hours[0] if lag else hours[1])
 
 
@@ -4084,6 +4102,110 @@ def test_incremental_lag_date_datetime(lag: int, last_value_func) -> None:
         assert result == expected_results[lag]
 
 
+@pytest.mark.parametrize(
+    "initial_value,cursor_values,expected_start_value",
+    [
+        # a datetime initial_value keeps the lag in seconds, also for date cursor values
+        ("2026-01-01T00:00:00Z", ["2026-08-26", "2026-08-27"], "2026-08-26"),
+        (
+            "2026-01-01T00:00:00Z",
+            ["2026-08-26T00:00:00Z", "2026-08-27T00:00:00Z"],
+            "2026-08-26T23:59:32Z",
+        ),
+        # a date initial_value keeps the lag in days, also for datetime cursor values
+        ("2026-01-01", ["2026-08-26T00:00:00Z", "2026-08-27T00:00:00Z"], "2026-07-30T00:00:00Z"),
+        ("2026-01-01", ["2026-08-26", "2026-08-27"], "2026-07-30"),
+    ],
+    ids=[
+        "datetime_cursor_with_date_values",
+        "datetime_cursor_with_datetime_values",
+        "date_cursor_with_datetime_values",
+        "date_cursor_with_date_values",
+    ],
+)
+def test_incremental_lag_unit_follows_cursor_type(
+    initial_value: str, cursor_values: List[str], expected_start_value: str
+) -> None:
+    """lag unit comes from the type of initial_value, not from the format of the cursor values"""
+    start_values: List[Any] = []
+
+    @dlt.resource(name="events")
+    def events(day=dlt.sources.incremental("day", initial_value=initial_value, lag=28)):
+        start_values.append(day.start_value)
+        yield from [{"day": value} for value in cursor_values]
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(events())
+    p.extract(events())
+
+    assert start_values == [initial_value, expected_start_value]
+
+
+def test_incremental_lag_unit_from_type_argument() -> None:
+    """type argument of Incremental sets the lag unit when there is no initial_value"""
+
+    def _last_start_value(incremental: Incremental[Any]) -> Any:
+        start_values: List[Any] = []
+
+        @dlt.resource(name="events")
+        def events(day=incremental):
+            start_values.append(day.start_value)
+            yield from [{"day": "2026-08-26"}, {"day": "2026-08-27"}]
+
+        p = dlt.pipeline(pipeline_name="p" + uniq_id())
+        p.extract(events())
+        p.extract(events())
+        return start_values[-1]
+
+    # cursor values are dates: 28 seconds of lag still move the window a full day back
+    assert _last_start_value(dlt.sources.incremental[datetime]("day", lag=28)) == "2026-08-26"
+    assert _last_start_value(dlt.sources.incremental[date]("day", lag=28)) == "2026-07-30"
+
+
+def test_incremental_lag_date_cursor_min_keeps_boundary_day() -> None:
+    """with `min` the lagged start is the end of the day, so rows on that day stay in range"""
+    runs = iter([["2026-09-24T10:00:00Z"], ["2026-09-25T09:00:00Z", "2026-09-26T00:00:00Z"]])
+    start_values: List[Any] = []
+
+    @dlt.resource
+    def events(
+        day=dlt.sources.incremental("day", initial_value="2026-12-31", lag=1, last_value_func=min)
+    ):
+        start_values.append(day.start_value)
+        yield from [{"day": value} for value in next(runs)]
+
+    with Container().injectable_context(StateInjectableContext(state={})):
+        assert len(list(events())) == 1
+        # the row on the boundary day is in range, the one on the day after is not
+        assert len(list(events())) == 1
+    assert start_values == ["2026-12-31", "2026-09-25T23:59:59Z"]
+
+
+@pytest.mark.parametrize(
+    "tz",
+    [pendulum.timezone("Europe/Berlin"), ZoneInfo("Europe/Berlin")],
+    ids=["pendulum_tz", "zoneinfo_tz"],
+)
+def test_incremental_lag_on_pendulum_cursor_values(tz: tzinfo) -> None:
+    """lag on pendulum datetimes the user puts in initial_value and in rows keeps their timezone"""
+    initial_value = pendulum.DateTime(2026, 8, 27, 0, 0, tzinfo=tz)
+    start_values: List[Any] = []
+
+    @dlt.resource(name="events")
+    def events(ts=dlt.sources.incremental("ts", initial_value=initial_value, lag=3600)):
+        start_values.append(ts.start_value)
+        yield {"id": 1, "ts": pendulum.DateTime(2026, 8, 27, 10, 0, tzinfo=tz)}
+        yield {"id": 2, "ts": pendulum.DateTime(2026, 8, 27, 12, 0, tzinfo=tz)}
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+    p.extract(events())
+    p.extract(events())
+
+    # the first run lags the pendulum initial_value and stays at it, the second lags the state value
+    assert start_values == [initial_value, datetime(2026, 8, 27, 11, 0, tzinfo=tz)]
+    assert all(value.utcoffset() == timedelta(hours=2) for value in start_values)
+
+
 @pytest.mark.parametrize("lag", [200, 1000])
 @pytest.mark.parametrize("last_value_func", [min, max])
 def test_incremental_lag_int_with_initial_values(lag: float, last_value_func) -> None:
@@ -5334,3 +5456,131 @@ def test_decorator_incremental_type_from_typed_default() -> None:
     list(r)
     # type from typed default [str]
     assert r.incremental._incremental.get_incremental_value_type() is str
+
+
+@pytest.mark.parametrize("cursor_type", [datetime, pendulum.DateTime])
+@pytest.mark.parametrize("tz", [None, timezone.utc, ZoneInfo("Europe/Berlin")])
+@pytest.mark.parametrize("fold", [0, 1])
+def test_public_datetime_cursor_values(
+    cursor_type: type[datetime], tz: Optional[tzinfo], fold: int
+) -> None:
+    value: Any = datetime(2024, 10, 27, 2, 30, 0, 123456, tzinfo=tz, fold=fold)
+    incr = bind_state(
+        (
+            Incremental[pendulum.DateTime]
+            if cursor_type is pendulum.DateTime
+            else Incremental[datetime]
+        )("ts", value),
+        value,
+    )
+
+    def assert_public(actual: Any) -> None:
+        assert type(actual) is cursor_type
+        assert actual.isoformat() == value.isoformat()
+        assert actual.fold == fold
+        assert actual.utcoffset() == value.utcoffset()
+        if tz is not None:
+            assert actual.timestamp() == value.timestamp()
+
+    assert_public(incr.start_value)
+    assert_public(incr.last_value)
+    for use_lag in (False, True):
+        assert_public(incr.get_current_range(use_lag)[0])
+    assert type(incr._start_value) is datetime
+    assert type(incr._get_last_value()) is datetime
+    assert type(incr._make_or_get_transformer(ArrowIncremental).start_value) is datetime
+
+    clone = incr.with_cursor("other_ts")
+    clone.advance(value)
+    assert_public(clone.last_value)
+    assert_public(clone.get_current_range()[1])
+    assert type(clone._cached_state["last_value"]) is datetime
+
+    bounded = (
+        Incremental[pendulum.DateTime]
+        if cursor_type is pendulum.DateTime
+        else Incremental[datetime]
+    )("ts", value, end_value=value)
+    assert bounded.initial_value is value
+    assert bounded.end_value is value
+    for actual in bounded.get_current_range():
+        assert_public(actual)
+
+
+@pytest.mark.parametrize(
+    "value",
+    [
+        date(2024, 1, 1),
+        pendulum.date(2024, 1, 1),
+        time(12, 30),
+        pendulum.time(12, 30),
+        42,
+        "2024-01-01",
+        None,
+    ],
+)
+def test_public_other_cursor_types_unchanged(value: Any) -> None:
+    incr = bind_state(Incremental("v", value), value)
+    assert incr.start_value is value
+    assert incr.last_value is value
+    incr.advance(value)
+    for actual in incr.get_current_range():
+        if actual is not None:
+            assert actual is value
+
+
+@pytest.mark.parametrize("cursor_type", [datetime, pendulum.DateTime])
+@pytest.mark.parametrize("explicit_type", [False, True])
+def test_public_datetime_cursor_after_state_reload(
+    seeded_pipeline: dlt.Pipeline, cursor_type: type[datetime], explicit_type: bool
+) -> None:
+    initial: Any = cursor_type(2024, 1, 1, tzinfo=timezone.utc)
+    configured = (
+        (
+            Incremental[pendulum.DateTime]
+            if cursor_type is pendulum.DateTime
+            else Incremental[datetime]
+        )("ts", initial)
+        if explicit_type
+        else Incremental("ts", initial)
+    )
+    seen: List[str] = []
+
+    @dlt.resource
+    def events(cursor=configured):
+        assert type(cursor.start_value) is cursor_type
+        assert type(cursor.last_value) is cursor_type
+        if seen:
+            assert type(cursor._get_last_value()) is datetime
+        format_spec = "YYYY-MM-DD" if cursor_type is pendulum.DateTime else "%Y-%m-%d"
+        seen.append(format(cursor.start_value, format_spec))
+        yield {"ts": datetime(2024, 1, 2 + len(seen) - 1, tzinfo=timezone.utc)}
+        assert type(cursor.last_value) is cursor_type
+        assert type(cursor._current_last_value) is datetime
+
+    seeded_pipeline.extract(events())
+    seeded_pipeline.extract(events())
+    assert seen == ["2024-01-01", "2024-01-02"]
+
+
+@pytest.mark.parametrize("cursor_type", [datetime, pendulum.DateTime])
+@pytest.mark.parametrize("use_lag", [False, True])
+def test_public_lagged_datetime_range(cursor_type: type[datetime], use_lag: bool) -> None:
+    initial: Any = datetime(2024, 10, 26, tzinfo=ZoneInfo("Europe/Berlin"))
+    last = datetime(2024, 10, 27, 2, 30, tzinfo=initial.tzinfo, fold=1)
+    incr = bind_state(
+        (
+            Incremental[pendulum.DateTime]
+            if cursor_type is pendulum.DateTime
+            else Incremental[datetime]
+        )("ts", initial, lag=3600),
+        last,
+        start_value=last,
+    )
+    start, end = incr.get_current_range(apply_lag=use_lag)
+    assert type(start) is cursor_type
+    assert start.timestamp() == last.timestamp() - (3600 if use_lag else 0)
+    assert start.fold == (0 if use_lag else 1)
+    assert end is None
+    assert type(incr._start_value) is datetime
+    assert type(incr._cached_state["last_value"]) is datetime

@@ -266,7 +266,7 @@ def resolve_interval(
     now_utc: datetime,
     refresh: bool,
 ) -> Tuple[datetime, datetime, str]:
-    """Resolve `(start_utc, end_utc, tz)` for a run; user values win verbatim, otherwise clamp to declared `interval`."""
+    """Resolve `(start, end, tz)` for a run in `tz`; user values win verbatim, otherwise clamp to declared `interval`."""
     # refresh=true + declared interval -> backfill from declared start to most
     # recent schedule tick; otherwise the most recently elapsed window
     tz = job_def.get("require", {}).get("timezone", "UTC")

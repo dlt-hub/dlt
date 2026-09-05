@@ -1,7 +1,7 @@
 import re
 import base64
 from typing import Any, Dict
-from datetime import date, datetime, time, timezone  # noqa: I251
+from datetime import date, datetime, time  # noqa: I251
 
 from dlt.common.json import json
 from dlt.common.time import (
