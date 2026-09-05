@@ -541,6 +541,14 @@ class ArrowExtractor(Extractor):
                         for hint_name, hint in column.items():
                             if (src_hint := src_column.get(hint_name)) is not None:
                                 if src_hint != hint:
+                                    if (
+                                        hint_name == "nullable"
+                                        and src_column.get("primary_key") is True
+                                        and src_hint is False
+                                        and hint is True
+                                    ):
+                                        # PyArrow has no primary-key metadata, so dlt PK fields may look nullable.
+                                        continue
                                     override_warn = True
                                     logger.info(
                                         f"In resource: {resource.name}, when merging arrow schema"
