@@ -239,6 +239,18 @@ If you have the correct Azure credentials set up on your machine (e.g., via Azur
 you can omit both `azure_storage_account_key` and `azure_storage_sas_token` and `dlt` will fall back to the available default.
 Note that `azure_storage_account_name` is still required as it can't be inferred from the environment.
 
+#### Bearer token credentials
+
+For environments that already issue a short-lived Azure Storage access token (for example Microsoft Fabric notebooks via `notebookutils.credentials.getToken("storage")`), set `azure_storage_token` together with the account name:
+
+```toml
+[destination.filesystem.credentials]
+azure_storage_account_name = "onelake"  # or your storage account
+azure_storage_token = "access_token"  # please set me up!
+```
+
+The token is static and does not refresh. Prefer account key, SAS, service principal, or default credentials when you need automatic renewal. Bearer tokens are not supported with pyiceberg on Azure.
+
 #### Service principal credentials
 
 Supply a client ID, client secret, and a tenant ID for a service principal authorized to access your container.
