@@ -188,6 +188,50 @@ def test_azure_external_session_always_frozen(creds_cls: Any) -> None:
         creds.to_pyiceberg_fileio_config()
 
 
+def test_azure_storage_token_credentials(environment: Dict[str, str]) -> None:
+    """Static azure_storage_token resolves, maps to object_store/adlfs, and is rejected by pyiceberg."""
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_STORAGE_TOKEN"] = "static-bearer-token"
+
+    config = resolve_configuration(AzureCredentialsWithoutDefaults())
+    assert config.azure_storage_account_name == "fake_account_name"
+    assert config.azure_storage_token == "static-bearer-token"
+
+    os_creds = config.to_object_store_rs_credentials()
+    assert os_creds["azure_storage_token"] == "static-bearer-token"
+    assert os_creds["account_name"] == "fake_account_name"
+    assert "credential" not in os_creds
+    assert "account_key" not in os_creds
+
+    adlfs_creds = config.to_adlfs_credentials()
+    assert "credential" in adlfs_creds
+    assert adlfs_creds["credential"].get_token("https://storage.azure.com/.default").token == (
+        "static-bearer-token"
+    )
+    assert adlfs_creds["account_name"] == "fake_account_name"
+
+    with pytest.raises(UnsupportedAuthenticationMethodException):
+        config.to_pyiceberg_fileio_config()
+
+
+def test_azure_storage_token_does_not_override_key() -> None:
+    """Account key / SAS take precedence over azure_storage_token for object_store/adlfs."""
+    config = AzureCredentialsWithoutDefaults(
+        azure_storage_account_name="fake_account_name",
+        azure_storage_account_key="fake_account_key",
+        azure_storage_sas_token="sp=rwdlacx&sig=fake",
+        azure_storage_token="static-bearer-token",
+    )
+
+    os_creds = config.to_object_store_rs_credentials()
+    assert "azure_storage_token" not in os_creds
+    assert os_creds["account_key"] == "fake_account_key"
+
+    adlfs_creds = config.to_adlfs_credentials()
+    assert "credential" not in adlfs_creds
+    assert adlfs_creds["account_key"] == "fake_account_key"
+
+
 def test_azure_service_principal_credentials(environment: Dict[str, str]) -> None:
     environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
     environment["CREDENTIALS__AZURE_CLIENT_ID"] = "fake_client_id"
