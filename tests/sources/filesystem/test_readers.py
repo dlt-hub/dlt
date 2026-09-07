@@ -1,4 +1,5 @@
 import gzip
+import itertools
 import pathlib
 from typing import Any, Dict, Iterator
 
@@ -215,3 +216,27 @@ def test_read_csv_duckdb_use_pyarrow(tmp_path: pathlib.Path, data: list[dict[str
     assert isinstance(read_data[0], pyarrow.RecordBatch)  # batch of records
     assert isinstance(read_data[0][0], pyarrow.Array)  # column
     assert read_data == [pyarrow.RecordBatch.from_pylist(data)]
+
+
+DUCKDB_VECTOR_SIZE = 2048  # duckdb's STANDARD_VECTOR_SIZE
+
+
+@pytest.mark.parametrize("use_pyarrow", (False, True))
+def test_read_csv_duckdb_interleaved_readers(tmp_path: pathlib.Path, use_pyarrow: bool) -> None:
+    # fetchmany() slices out of an already-materialized DataChunk, so a reader only
+    # re-enters the execution pipeline - and only there observes that another reader
+    # invalidated its pending result - after crossing a vector boundary. rows per file
+    # must exceed DUCKDB_VECTOR_SIZE; a smaller chunk_size cannot substitute for it
+    data = [{"a": i} for i in range(2 * DUCKDB_VECTOR_SIZE)]
+    items = [_create_csv_file(data=data, tmp_path=tmp_path)]
+
+    iter_a = _read_csv_duckdb(items, chunk_size=2048, use_pyarrow=use_pyarrow)
+    iter_b = _read_csv_duckdb(items, chunk_size=2048, use_pyarrow=use_pyarrow)
+
+    size_a = size_b = 0
+    for batch_a, batch_b in itertools.zip_longest(iter_a, iter_b):
+        size_a += len(batch_a) if batch_a is not None else 0
+        size_b += len(batch_b) if batch_b is not None else 0
+
+    assert size_a == len(data)
+    assert size_b == len(data)
