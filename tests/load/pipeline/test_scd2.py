@@ -2,19 +2,26 @@
 
 from unittest import mock
 import pytest
-from typing import List, Dict, Any, Optional
+from typing import Iterator, List, Dict, Any, Optional
 from datetime import date, datetime, timezone  # noqa: I251
 from contextlib import nullcontext as does_not_raise
 
 import dlt
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.typing import TAnyDateTime
 from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
-from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.time import ensure_pendulum_datetime_utc, reduce_pendulum_datetime_precision
+from dlt.common.time import (
+    ensure_datetime,
+    ensure_datetime_in_tz,
+    ensure_pendulum_datetime,
+    normalize_timezone,
+    reduce_pendulum_datetime_precision,
+)
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
@@ -35,20 +42,28 @@ FROM, TO = DEFAULT_VALIDITY_COLUMN_NAMES
 
 
 def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> datetime:
-    """Returns `created_at` property of load package state."""
+    """Returns `created_at` property of load package state as the context wall clock."""
     load_id = load_info.asdict()["loads_ids"][0]
-    created_at = (
-        pipeline.get_load_package_state(load_id)["created_at"]
-        .in_timezone(tz="UTC")
-        .replace(tzinfo=None)
-    )
+    created_at = normalize_timezone(pipeline.get_load_package_state(load_id)["created_at"], False)
     caps = pipeline._get_destination_capabilities()
     return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
 
 
-def strip_timezone(ts: TAnyDateTime) -> pendulum.DateTime:
-    """Converts timezone of datetime object to UTC and removes timezone awareness."""
-    return ensure_pendulum_datetime_utc(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
+def strip_timezone(ts: TAnyDateTime) -> datetime:
+    """Puts a stored value on the context wall clock: an aware one is converted, a naive one already is."""
+    return normalize_timezone(ensure_datetime(ts), False)
+
+
+def boundary_wall_clock(ts: TAnyDateTime) -> datetime:
+    """A boundary timestamp is a UTC instant, stored as the context wall clock."""
+    return normalize_timezone(ensure_datetime_in_tz(ts, timezone.utc), False)
+
+
+@pytest.fixture
+def context_tz(request: pytest.FixtureRequest) -> Iterator[str]:
+    """Runs the test under the context timezone passed as the indirect parameter."""
+    with Container().injectable_context(TimezoneContext(request.param)):
+        yield request.param
 
 
 def get_table(
@@ -668,14 +683,15 @@ def test_active_record_timestamp(
             yield {"foo": "bar"}
 
         p.run(r(), **destination_config.run_kwargs)
-        actual_active_record_timestamp = ensure_pendulum_datetime_utc(
+        actual_active_record_timestamp = ensure_pendulum_datetime(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
-        assert actual_active_record_timestamp == ensure_pendulum_datetime_utc(
-            active_record_timestamp
-        )
+        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
 
 
+@pytest.mark.parametrize(
+    "context_tz", ["UTC", "Europe/Berlin"], ids=["utc-context", "berlin-context"], indirect=True
+)
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["sqlalchemy", "duckdb"]),
@@ -683,6 +699,7 @@ def test_active_record_timestamp(
 )
 def test_boundary_timestamp(
     destination_config: DestinationTestConfiguration,
+    context_tz: str,
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
@@ -704,10 +721,10 @@ def test_boundary_timestamp(
         yield data
 
     # normalize timestamps once for assertions
-    ts1_dt = strip_timezone(ts1)
-    ts2_dt = strip_timezone(ts2)
-    ts3_dt = strip_timezone(ts3)
-    ts5_dt = strip_timezone(ts5)
+    ts1_dt = boundary_wall_clock(ts1)
+    ts2_dt = boundary_wall_clock(ts2)
+    ts3_dt = boundary_wall_clock(ts3)
+    ts5_dt = boundary_wall_clock(ts5)
 
     # load 1 — initial load
     dim_snap = [

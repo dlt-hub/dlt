@@ -50,7 +50,7 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.storages.load_storage import LoadPackageInfo
-from dlt.common.time import ensure_pendulum_datetime_utc, precise_time
+from dlt.common.time import ensure_pendulum_datetime, precise_time
 from dlt.common.typing import (
     DictStrAny,
     StrAny,
@@ -457,7 +457,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
     def _step_info_update_metrics(
         self, load_id: str, metrics: TStepMetrics, immutable: bool = False
     ) -> None:
-        metrics["started_at"] = ensure_pendulum_datetime_utc(self._current_load_started)
+        metrics["started_at"] = ensure_pendulum_datetime(self._current_load_started)
         step_metrics = self._load_id_metrics[load_id]
         if immutable or len(step_metrics) == 0:
             step_metrics.append(metrics)
@@ -474,7 +474,7 @@ class WithStepInfo(ABC, Generic[TStepMetrics, TStepInfo]):
         # update finished at
         assert self._current_load_id is not None
         if finished:
-            metrics["finished_at"] = ensure_pendulum_datetime_utc(precise_time())
+            metrics["finished_at"] = ensure_pendulum_datetime(precise_time())
             self._current_load_id = None
             self._current_load_started = None
 

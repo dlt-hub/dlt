@@ -1,5 +1,6 @@
 import re
 import os
+from datetime import timezone
 from functools import lru_cache
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
@@ -8,10 +9,11 @@ from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.pendulum import pendulum
 from dlt.common.storages.load_package import ParsedLoadJobFileName
 from dlt.common.time import (
-    ensure_pendulum_datetime_utc,
+    ensure_pendulum_datetime,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
 )
+from dlt.common.typing import TAnyDateTime
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
     InvalidFilesystemLayout,
@@ -103,12 +105,13 @@ def get_unused_placeholders(
 
 def prepare_datetime_params(
     current_datetime: Optional[pendulum.DateTime] = None,
-    load_package_timestamp: Optional[pendulum.DateTime] = None,
+    load_package_timestamp: Optional[TAnyDateTime] = None,
 ) -> Dict[str, str]:
     params: Dict[str, str] = {}
     current_timestamp: pendulum.DateTime = None
     if load_package_timestamp:
-        current_timestamp = ensure_pendulum_datetime_utc(load_package_timestamp)
+        # UTC, never the context timezone: a shift would split one table across two prefixes
+        current_timestamp = ensure_pendulum_datetime(load_package_timestamp, timezone.utc)
         params["load_package_timestamp"] = str(datetime_to_timestamp(current_timestamp))
         params["load_package_timestamp_ms"] = str(datetime_to_timestamp_ms(current_timestamp))
 
@@ -125,6 +128,9 @@ def prepare_datetime_params(
     params["curr_date"] = str(current_datetime.date())
 
     for format_string in DATETIME_PLACEHOLDERS:
+        # NOTE: pendulum stays here. `DATETIME_PLACEHOLDERS` are pendulum format tokens and only
+        # `pendulum.DateTime.format` reads them. Dropping pendulum means translating every token
+        # to `strftime`, which rewrites the strings that already became object storage paths
         params[format_string] = current_datetime.format(format_string).lower()
 
     return params

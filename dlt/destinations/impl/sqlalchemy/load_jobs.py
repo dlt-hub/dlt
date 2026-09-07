@@ -13,7 +13,7 @@ from dlt.common.destination.client import (
     PreparedTableSchema,
 )
 from dlt.common.storages import FileStorage
-from dlt.common.json import json, PY_DATETIME_DECODERS
+from dlt.common.json import json
 
 from dlt.destinations._adbc_jobs import AdbcParquetCopyJob
 from dlt.destinations.sql_jobs import SqlFollowupJob
@@ -90,8 +90,8 @@ class SqlalchemyJsonLInsertJob(RunnableLoadJob, HasFollowupJobs):
         all_cols = {col.name: None for col in self.table.columns}
         with FileStorage.open_zipsafe_ro(self._file_path, "rb") as f:
             for line in f:
-                # Decode date/time to py datetime objects. Some drivers have issues with pendulum objects
-                for item in json.typed_loadb(line, decoders=PY_DATETIME_DECODERS):
+                # decodes date/time to stdlib objects: some drivers choke on pendulum ones
+                for item in json.typed_loadb(line):
                     # Fill any missing columns in item with None. Bulk insert fails when items have different keys
                     if item.keys() != all_cols.keys():
                         yield {**all_cols, **item}

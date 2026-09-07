@@ -39,7 +39,7 @@ Under the hood, `dlt` uses the [pyarrow parquet writer](https://arrow.apache.org
 - `compression`: Select the internal Parquet compression codec. Choose from `"snappy"`, `"gzip"`, `"brotli"`, `"zstd"`, `"lz4"`, or `"none"`. Defaults to `"snappy"`. Make sure that your database can decompress the codec you select here.
 - `data_page_size`: Set a target threshold for the approximate encoded size of data pages within a column chunk (in bytes). Defaults to None, which is the **pyarrow** default.
 - `row_group_size`: Set the number of rows in a row group. [See here](#row-group-size) how this can optimize parallel processing of queries on your destination over the default setting of `pyarrow`.
-- `timestamp_timezone`: A string specifying the timezone, default is UTC.
+- `timestamp_timezone`: Deprecated. Set the [context timezone](../general-usage/schema.md#context-timezone) instead, which every writer follows. When this setting is unset, the writer labels tz-aware columns with the context timezone. The empty string keeps its own use, see [below](#disable-timezones--utc-adjustment-flags).
 - `coerce_timestamps`: resolution to which to coerce timestamps, choose from **s**, **ms**, **us**, **ns**
 - `allow_truncated_timestamps` - will raise if precision is lost on truncated timestamps.
 - `write_page_index`: Boolean specifying whether a [page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md) is written. Defaults to `False`.
@@ -63,7 +63,6 @@ flavor="spark"
 version="2.4"
 compression="zstd"
 data_page_size=1048576
-timestamp_timezone="Europe/Berlin"
 ```
 
 Or using environment variables:
@@ -92,13 +91,12 @@ Find more similar examples [here](../reference/performance.md#extract)
 
 
 ### Timestamps and timezones
-`dlt` adds timezone (UTC adjustment) to all timestamps regardless of the precision (from seconds to nanoseconds). `dlt` will also create TZ-aware timestamp columns in
-the destinations. [DuckDB is an exception here](./destinations/duckdb.md#supported-file-formats).
+`dlt` adds a timezone (UTC adjustment) to a timestamp column at every precision, from seconds to nanoseconds. `dlt` also creates TZ-aware timestamp columns in the destinations. [DuckDB is an exception here](./destinations/duckdb.md#supported-file-formats). A column with the `timezone` hint set to `False` stays naive, and the [context timezone](../general-usage/schema.md#context-timezone) decides which timezone `dlt` uses.
 
 #### Disable timezones / UTC adjustment flags
 You can generate parquet files without timezone adjustment information in two ways:
 1. Set the **flavor** to spark. All timestamps will be generated via the deprecated `int96` physical data type, without the logical one.
-2. Set the **timestamp_timezone** to an empty string (i.e., `DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate a logical type without UTC adjustment.
+2. Set `timestamp_timezone` to an empty string (`DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate a logical type without UTC adjustment.
 
 To our best knowledge, Arrow will convert your timezone-aware DateTime(s) to UTC and store them in parquet without timezone information.
 
@@ -231,7 +229,7 @@ JSONL (or JSON Lines, JSON Delimited) is a file format that stores several JSON 
 
 Additional data types are stored as follows:
 
-- `datetime` and `date` are stored as ISO strings;
+- `datetime` and `date` are stored as ISO strings. A tz-aware timestamp carries a numeric offset, so UTC is written as `2024-01-15T23:30:00+00:00` and not `2024-01-15T23:30:00Z`. Both spellings are read back, so files written by older `dlt` versions still load;
 - `decimal` is stored as a text representation of a decimal number;
 - `binary` is stored as a base64 encoded string;
 - `HexBytes` is stored as a hex encoded string;

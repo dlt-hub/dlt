@@ -136,7 +136,7 @@ def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bo
             assert "x-nested-type" not in column
 
     # Convert back to Arrow schema for roundtrip test
-    roundtrip_schema = columns_to_arrow(columns, caps)
+    roundtrip_schema = columns_to_arrow(columns, caps, "UTC")
 
     # Compare original types with roundtrip types
     for field_name in schema.names:
@@ -195,7 +195,7 @@ def test_nested_type_serialization_deserialization():
     assert str(nested_type) == str(stored_type)
 
     # Complete the roundtrip by converting back to Arrow
-    roundtrip_schema = columns_to_arrow(columns, caps)
+    roundtrip_schema = columns_to_arrow(columns, caps, "UTC")
 
     # Verify the roundtrip
     assert str(schema.field("nested_column").type) == str(

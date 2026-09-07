@@ -22,8 +22,11 @@ import re
 
 import sqlglot.expressions
 
+from datetime import datetime, timezone
+
 from dlt.common.libs.sqlglot import TSqlGlotDialect
-from dlt.common import pendulum, logger
+from dlt.common import logger
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.exceptions import WriteDispositionNotSupported
 from dlt.common.destination.utils import resolve_replace_strategy
@@ -434,7 +437,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def complete_load(self, load_id: str) -> None:
         self._set_query_tags(operation="complete_load", load_id=load_id)
         name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        now_ts = pendulum.now()
+        now_ts = datetime.now(timezone.utc)
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.loads_table_schema_columns}) VALUES(%s, %s, %s, %s, %s)",
             load_id,
@@ -592,7 +595,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             engine_version=row[1],
             pipeline_name=row[2],
             state=row[3],
-            created_at=pendulum.instance(row[4]),
+            created_at=ensure_datetime_in_tz(row[4], timezone.utc),
             _dlt_load_id=row[5],
         )
 
@@ -863,7 +866,7 @@ WHERE """
             pass
 
         # make utc datetime
-        inserted_at = pendulum.instance(row[2])
+        inserted_at = ensure_datetime_in_tz(row[2], timezone.utc)
 
         return StorageSchemaInfo(row[4], row[3], row[0], row[1], inserted_at, schema_str)
 
@@ -887,7 +890,7 @@ WHERE """
         self._commit_schema_update(schema, schema_str)
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
-        now_ts = pendulum.now()
+        now_ts = datetime.now(timezone.utc)
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(

@@ -342,6 +342,147 @@ def test_job_definition_batch() -> None:
     assert job_def["description"] == "Daily ETL."
 
 
+@pytest.mark.parametrize(
+    "deco_kwargs,expected",
+    [
+        (
+            {"incremental_mode": "interval", "interval": {"start": "2024-01-01T00:00:00Z"}},
+            "interval",
+        ),
+        # explicit pipeline mode is emitted so it survives `jobs` config defaults
+        ({"incremental_mode": "pipeline"}, "pipeline"),
+        ({}, None),
+    ],
+    ids=["interval", "explicit-pipeline", "unset"],
+)
+def test_job_definition_incremental_mode(deco_kwargs: Dict[str, Any], expected: str) -> None:
+    """Engine-2 job definitions carry `incremental_mode` only; unset emits nothing."""
+
+    @job(**deco_kwargs)
+    def etl():
+        pass
+
+    job_def = etl.to_job_definition()
+    assert job_def.get("incremental_mode") == expected
+    assert "allow_external_schedulers" not in job_def
+
+    @pipeline_run("my_pipeline", **deco_kwargs)
+    def run_pipeline():
+        pass
+
+    assert run_pipeline.to_job_definition().get("incremental_mode") == expected
+
+
+def test_job_definition_auto_refresh_pipeline_mode() -> None:
+    @job(auto_refresh_pipeline_mode="drop_sources")
+    def refreshing():
+        pass
+
+    @job
+    def plain():
+        pass
+
+    assert refreshing.to_job_definition()["auto_refresh_pipeline_mode"] == "drop_sources"
+    assert "auto_refresh_pipeline_mode" not in plain.to_job_definition()
+
+
+def test_deprecated_refresh_kwarg_maps_to_refresh_propagation() -> None:
+    with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
+
+        @job(refresh="block")  # type: ignore[call-overload]
+        def etl():
+            pass
+
+    assert etl.refresh_propagation == "block"
+    assert etl.to_job_definition()["refresh_propagation"] == "block"
+
+    # explicit new arg wins: the decorator discards the converted deprecated value
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(refresh="block", refresh_propagation="always")  # type: ignore[call-overload]
+        def etl_both():
+            pass
+
+    assert etl_both.refresh_propagation == "always"
+
+    # also when the explicit value equals the default, which must not read as "unset"
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(refresh="block", refresh_propagation="auto")  # type: ignore[call-overload]
+        def etl_explicit_auto():
+            pass
+
+    assert etl_explicit_auto.refresh_propagation == "auto"
+
+
+def test_deprecated_allow_external_schedulers_maps_to_incremental_mode() -> None:
+    with pytest.warns(DltDeprecationWarning, match="incremental_mode"):
+
+        @job(allow_external_schedulers=True, interval={"start": "2024-01-01T00:00:00Z"})  # type: ignore[call-overload]
+        def etl():
+            pass
+
+    assert etl.incremental_mode == "interval"
+    assert etl.to_job_definition()["incremental_mode"] == "interval"
+
+    # False is equivalent to the replacement spelling, so it pins `pipeline`
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(allow_external_schedulers=False)  # type: ignore[call-overload]
+        def etl_off():
+            pass
+
+    assert etl_off.incremental_mode == "pipeline"
+    job_def = etl_off.to_job_definition()
+    assert job_def["incremental_mode"] == "pipeline"
+    assert "allow_external_schedulers" not in job_def
+
+
+def test_unknown_kwarg_still_raises_type_error() -> None:
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+
+        @job(refrsh="block")  # type: ignore[call-overload]
+        def etl():
+            pass
+
+
+def test_deprecated_kwarg_routed_through_pipeline_run_and_interactive() -> None:
+    # pipeline_run and interactive forward **kwargs into _job, so the same deprecation applies
+    with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
+
+        @pipeline_run("my_pipeline", refresh="always")  # type: ignore[call-arg]
+        def pr():
+            pass
+
+    assert pr.refresh_propagation == "always"
+
+    with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
+
+        @interactive(refresh="always")  # type: ignore[call-overload]
+        def it():
+            pass
+
+    assert it.refresh_propagation == "always"
+
+
+@pytest.mark.parametrize(
+    "deco,apply",
+    [
+        ("job", lambda **kw: job(**kw)),
+        ("interactive", lambda **kw: interactive(**kw)),
+        ("pipeline_run", lambda **kw: pipeline_run("my_pipeline", **kw)),
+    ],
+    ids=["job", "interactive", "pipeline_run"],
+)
+def test_messages_name_the_decorator_used(deco: str, apply: Any) -> None:
+    """`_job` serves all three, so a shared message would send users to the wrong decorator."""
+    with pytest.warns(DltDeprecationWarning, match=rf"deprecated at `@{deco}`"):
+        apply(refresh="block")(lambda: None)
+
+    with pytest.raises(TypeError, match=rf"^{deco}\(\) got an unexpected keyword argument"):
+        apply(bogus=1)(lambda: None)
+
+
 def test_job_definition_interactive() -> None:
     """to_job_definition produces correct TJobDefinition for interactive jobs."""
 
@@ -396,16 +537,17 @@ def test_require_instance_stored_on_job_definition() -> None:
 
 
 def test_require_machine_emits_deprecation_warning() -> None:
-    """Setting deprecated `require.machine` warns but is still stored (additive, no removal)."""
+    """Deprecated `require.machine` warns and migrates to `require.instance`."""
 
     with pytest.warns(DltDeprecationWarning, match="require.instance"):
 
-        @job(require={"machine": "gpu-a100"})
+        @job(require={"machine": "gpu-a100"})  # type: ignore[call-overload]
         def legacy():
             pass
 
     job_def = legacy.to_job_definition()
-    assert job_def["require"]["machine"] == "gpu-a100"
+    assert job_def["require"]["instance"] == {"size": "gpu-a100"}
+    assert "machine" not in job_def["require"]
 
 
 def test_require_instance_no_deprecation_warning(recwarn: Any) -> None:
@@ -644,53 +786,55 @@ def test_pipeline_run_with_expose_override() -> None:
     assert job_def["expose"]["tags"] == ["daily"]
 
 
-def test_job_refresh_default_auto_omitted_from_manifest() -> None:
-    """Default `refresh="auto"` is not written to the manifest dict."""
+def test_job_refresh_propagation_default_auto_omitted_from_manifest() -> None:
+    """Default `refresh_propagation="auto"` is not written to the manifest dict."""
 
     @job
     def default_job():
         pass
 
-    assert default_job.refresh == "auto"
+    assert default_job.refresh_propagation == "auto"
     job_def = default_job.to_job_definition()
     assert "refresh" not in job_def
+    assert "refresh_propagation" not in job_def
 
 
 @pytest.mark.parametrize("policy", ["always", "block"])
-def test_job_refresh_non_default_written_to_manifest(policy: str) -> None:
-    """Non-default refresh values are written to the manifest dict."""
+def test_job_refresh_propagation_non_default_written_to_manifest(policy: str) -> None:
+    """Non-default values serialize under `refresh_propagation`."""
     refresh_policy = cast(Literal["always", "auto", "block"], policy)
 
-    @job(refresh=refresh_policy)
+    @job(refresh_propagation=refresh_policy)
     def explicit_job():
         pass
 
-    assert explicit_job.refresh == policy
+    assert explicit_job.refresh_propagation == policy
     job_def = explicit_job.to_job_definition()
-    assert job_def["refresh"] == policy
+    assert job_def["refresh_propagation"] == policy
+    assert "refresh" not in job_def
 
 
-def test_job_refresh_explicit_auto_omitted() -> None:
-    """Explicitly passing `refresh="auto"` still results in no manifest field."""
+def test_job_refresh_propagation_explicit_auto_omitted() -> None:
+    """Explicitly passing `refresh_propagation="auto"` still results in no manifest field."""
 
-    @job(refresh="auto")
+    @job(refresh_propagation="auto")
     def explicit_auto():
         pass
 
     job_def = explicit_auto.to_job_definition()
-    assert "refresh" not in job_def
+    assert "refresh_propagation" not in job_def
 
 
-def test_pipeline_run_refresh() -> None:
+def test_pipeline_run_refresh_propagation() -> None:
     """`pipeline_run` accepts and propagates the refresh policy."""
 
-    @pipeline_run("analytics", refresh="always")
+    @pipeline_run("analytics", refresh_propagation="always")
     def loader():
         pass
 
-    assert loader.refresh == "always"
+    assert loader.refresh_propagation == "always"
     job_def = loader.to_job_definition()
-    assert job_def["refresh"] == "always"
+    assert job_def["refresh_propagation"] == "always"
 
 
 @pytest.mark.parametrize(

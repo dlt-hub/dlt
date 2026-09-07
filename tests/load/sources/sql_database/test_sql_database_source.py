@@ -17,7 +17,7 @@ from dlt.common.exceptions import DependencyVersionException, MissingDependencyE
 
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import assert_min_pkg_version, uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
@@ -1431,7 +1431,7 @@ def test_sql_table_incremental_datetime_ntz(
         backend=backend,
         incremental=dlt.sources.incremental(
             "datetime_ntz_col",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00Z").naive(),
+            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00Z").naive(),
             row_order="asc",
             range_start="open",
         ),
@@ -1458,7 +1458,7 @@ def test_sql_table_incremental_datetime_tz(
         backend=backend,
         incremental=dlt.sources.incremental(
             "datetime_tz_col",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            initial_value=ensure_pendulum_datetime("1999-01-01T00:00:00+00:00"),
             row_order="asc",
             range_start="open",
         ),

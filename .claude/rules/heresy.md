@@ -12,6 +12,9 @@ Heresy: issues in code that not only must be **avoided** but actively **detected
 
 ## datetime heresy
 * naive datetimes are used without a good reason. the only exception are end user requirements
+* pendulum is used in new code. use the stdlib counterparts: `datetime` with an explicit
+  `timezone`/`ZoneInfo`, and the `ensure_datetime*` helpers instead of `ensure_pendulum_datetime*`.
+  NOTE: existing pendulum usage MAY be tolerated where it is hard to change
 
 ## terms heresy
 * use of following words constitutes heresy: gate/gating, graft

@@ -18,7 +18,8 @@ import dlt
 from dlt.common.pipeline import get_dlt_pipelines_dir
 from dlt.common.schema import Schema
 from dlt.common.storages.configuration import TSchemaFileFormat
-from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.pendulum import ensure_pendulum_dt
+from dlt.common.time import ensure_datetime
 from dlt.common.typing import TAnyDateTime, TFun
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.resolve import resolve_configuration
@@ -157,7 +158,7 @@ def date_from_timestamp_with_ago(
     """Return a date with ago section"""
     if not timestamp or timestamp == 0:
         return "never"
-    timestamp = ensure_pendulum_datetime_non_utc(timestamp)
+    timestamp = ensure_pendulum_dt(ensure_datetime(timestamp))
     time_formatted = timestamp.format(datetime_format)
     ago = timestamp.diff_for_humans()
     return f"{ago} ({time_formatted})"

@@ -11,12 +11,15 @@ from typing import (
     AsyncIterator,
     Awaitable,
     Generator,
+    Iterable,
     Iterator,
 )
 from collections.abc import Mapping as C_Mapping
 from functools import wraps
 
 from dlt.common.data_writers import TDataItemFormat
+from dlt.common.json import json
+from dlt.common.time import datetime_to_timestamp_us
 from dlt.common.libs import (
     get_pandas_module,
     get_polars_module,
@@ -39,7 +42,7 @@ from dlt.common.typing import (
     TColumnNames,
     NoneType,
 )
-from dlt.common.utils import get_callable_name
+from dlt.common.utils import get_callable_name, digest128
 
 from dlt.extract.exceptions import (
     InvalidResourceDataTypeIsNone,
@@ -88,6 +91,31 @@ def resolve_column_value(
     if isinstance(columns, str):
         return item[columns]
     return [item[k] for k in columns]
+
+
+DEDUP_HASH_BYTES = 9
+"""Digest length of an incremental dedup hash, 12 characters in base64."""
+LEGACY_DEDUP_HASH_LEN = 20
+"""Length of a dedup hash written before 1.29: a 15 byte digest over the `Z` rendering of UTC."""
+
+
+def digest_dedup_value(value: Any, legacy: bool = False) -> str:
+    """Stable content hash of a JSON-serializable value used for incremental dedup.
+
+    `legacy` reproduces the hash written before 1.29, so hashes kept in older state still match.
+    """
+    if legacy:
+        return digest128(json.dumps(value, sort_keys=True, utc_z=True))
+    # rows and SQL aggregates carry one instant in different zones or naive, all must hash alike
+    return digest128(
+        json.dumps(value, sort_keys=True, datetime_encoder=datetime_to_timestamp_us),
+        DEDUP_HASH_BYTES,
+    )
+
+
+def has_legacy_dedup_hashes(hashes: Iterable[str]) -> bool:
+    """True when `hashes` were written before 1.29 and only match `legacy` digests."""
+    return any(len(h) == LEGACY_DEDUP_HASH_LEN for h in hashes)
 
 
 def ensure_table_schema_columns(columns: TAnySchemaColumns) -> TTableSchemaColumns:

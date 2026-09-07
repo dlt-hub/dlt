@@ -221,4 +221,7 @@ def test_module_require_sets_require() -> None:
         job_def = detect_module_job(mod)
 
     assert job_def is not None
-    assert job_def["require"] == {"dependency_groups": ["heavy-ml"], "machine": "gpu-a100"}
+    assert job_def["require"] == {
+        "dependency_groups": ["heavy-ml"],
+        "instance": {"size": "gpu-a100"},
+    }

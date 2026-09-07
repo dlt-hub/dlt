@@ -1,9 +1,12 @@
-import re
+from datetime import timezone
 from fnmatch import fnmatch
 from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
 from urllib.parse import urlparse
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from croniter import croniter
+
+from dlt.common.interval import is_cron_expression
+from dlt.common.time import ensure_datetime_in_tz, parse_period_seconds
 from dlt.common.typing import TAnyDateTime
 from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as _job_short_name
 from dlt._workspace.deployment.exceptions import InvalidTrigger
@@ -15,24 +18,6 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
     TTriggerType,
 )
-
-
-_PERIOD_MULTIPLIERS = {"s": 1, "m": 60, "h": 3600, "d": 86400}
-_PERIOD_RE = re.compile(r"^(\d+(?:\.\d+)?)\s*([smhd])$")
-
-
-def parse_period_seconds(value: str) -> float:
-    """Parse a human period string (e.g. '5m', '1h', '30s') into seconds.
-
-    Also accepts bare numeric strings as seconds.
-
-    Raises:
-        ValueError: If the string cannot be parsed.
-    """
-    match = _PERIOD_RE.match(value.strip())
-    if match:
-        return float(match.group(1)) * _PERIOD_MULTIPLIERS[match.group(2)]
-    return float(value)
 
 
 def normalize_timeout(value: Union[int, float, str, TTimeoutSpec]) -> TTimeoutSpec:
@@ -47,8 +32,6 @@ def normalize_timeout(value: Union[int, float, str, TTimeoutSpec]) -> TTimeoutSp
 def _parse_schedule(expr: str) -> TParsedTrigger:
     if not expr:
         raise InvalidTrigger(f"schedule:{expr}", "requires a cron expression")
-    from croniter import croniter
-
     if not croniter.is_valid(expr):
         raise InvalidTrigger(f"schedule:{expr}", "invalid cron expression")
     return TParsedTrigger(type="schedule", expr=expr, raw=TTrigger(f"schedule:{expr}"))
@@ -72,7 +55,7 @@ def _parse_once(expr: str) -> TParsedTrigger:
     if not expr:
         raise InvalidTrigger(f"once:{expr}", "requires a timestamp (ISO 8601)")
     try:
-        dt = ensure_pendulum_datetime_utc(expr)
+        dt = ensure_datetime_in_tz(expr, timezone.utc)
     except (ValueError, TypeError):
         raise InvalidTrigger(f"once:{expr}", "requires ISO 8601 timestamp")
     return TParsedTrigger(type="once", expr=dt, raw=TTrigger(f"once:{expr}"))
@@ -209,8 +192,6 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
         raise InvalidTrigger(s, "requires an expression")
 
     # detect bare cron expressions
-    from dlt._workspace.deployment.interval import is_cron_expression
-
     if is_cron_expression(s):
         return schedule(s)
 

@@ -129,6 +129,8 @@ class fabric(synapse):
         caps.type_mapper = FabricTypeMapper
         # Fabric only supports precision 0-6 for datetime2/time (not 7 like SQL Server)
         caps.max_timestamp_precision = 6
+        # no `datetimeoffset`, so `FabricTypeMapper` stores every timestamp as naive `datetime2`
+        caps.supports_tz_aware_datetime = False
         return caps
 
     @classmethod

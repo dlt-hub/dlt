@@ -15,7 +15,7 @@ Users authenticate against the dltHub platform in the following ways:
 - **GitHub OAuth.** Interactive sign-in for both the Web UI ([app.dlthub.com](https://app.dlthub.com)) and the CLI (`dlthub login`). The same identity is used everywhere. Your CLI session inherits the workspaces and roles granted to your GitHub account.
 - **Google OAuth.** Interactive sign-in to the Web UI ([app.dlthub.com](https://app.dlthub.com)) with a Google Account. As with GitHub OAuth, the same identity is used across the Web UI and CLI.
 - **Email signup.** Register for the Web UI ([app.dlthub.com](https://app.dlthub.com)) with an email address and password when you don't want to use a third-party identity provider.
-- **API keys.** Personal, long-lived tokens (prefixed `dlt_`) for non-interactive clients such as CI jobs or scripts. A key inherits the organization and workspace permissions of the user who created it. See [API keys](settings.md#api-keys) for creating, scoping, and revoking keys.
+- **API keys.** Long-lived tokens for non-interactive clients. [User API keys](settings.md#api-keys), prefixed `dlt_u_`, act on your behalf and inherit your organization and workspace permissions. [Workspace API keys](settings.md#workspace-api-keys), prefixed `dlt_sa_`, are scoped to a single workspace, hold a fixed workspace role (Developer or Viewer), and work independently of any user account.
 
 ## Inviting people to your organization and workspaces
 

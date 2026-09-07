@@ -1,8 +1,10 @@
 """Launcher for the workspace dashboard (built-in marimo notebook)."""
 
 from dlt._workspace.deployment.launchers._launcher import (
+    apply_job_configuration,
     get_run_args_port,
     parse_launcher_args,
+    prepare_run_env,
 )
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint
 from dlt._workspace.helpers.dashboard.runner import run_dashboard
@@ -10,7 +12,8 @@ from dlt._workspace.helpers.dashboard.runner import run_dashboard
 
 def run(entry_point: TRuntimeEntryPoint) -> None:
     """Launch the workspace dashboard."""
-
+    apply_job_configuration(entry_point)
+    prepare_run_env(entry_point)
     port = get_run_args_port(entry_point)
     run_dashboard(port=port, host="0.0.0.0", headless=True)
 

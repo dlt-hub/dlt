@@ -24,6 +24,7 @@ from dlt.destinations.impl.sqlalchemy.dialect import (
     DialectCapabilities,
     MysqlDialectCapabilities,
     MssqlDialectCapabilities,
+    SqliteDialectCapabilities,
     TrinoDialectCapabilities,
     OracleDialectCapabilities,
     register_dialect_capabilities,
@@ -142,7 +143,9 @@ def test_factory_caps_sqlite() -> None:
     # sqlite dialect reports max_identifier_length = 9999
     assert caps.max_identifier_length == 9999
     assert caps.supports_native_boolean is False
-    assert type(caps.dialect_capabilities) is DialectCapabilities
+    assert type(caps.dialect_capabilities) is SqliteDialectCapabilities
+    # sqlite stores DATETIME as text without an offset
+    assert caps.supports_tz_aware_datetime is False
     assert issubclass(caps.type_mapper, SqlalchemyTypeMapper)
 
 

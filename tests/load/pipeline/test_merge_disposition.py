@@ -1,14 +1,18 @@
 from copy import copy
+from datetime import date, datetime, timezone  # noqa: I251
+from decimal import Decimal
 import os
 import pytest
 import random
-from typing import List
+from typing import Any, Dict, List, NamedTuple, Tuple
 import yaml
 
 import dlt
 from dlt.common.metrics import TDataLocation
 
 from dlt.common import json, pendulum
+from dlt.common.json import SupportsJson, _orjson, _simplejson
+import dlt.common.normalizers.json.helpers as normalizer_helpers
 from dlt.common.configuration.container import Container
 from dlt.common.pipeline import StateInjectableContext
 from dlt.common.schema.utils import has_table_seen_data
@@ -26,6 +30,7 @@ from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
 from dlt.extract import DltResource
 from dlt.extract.hints import TResourceHints
+from dlt.extract.utils import digest_dedup_value
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
@@ -268,6 +273,83 @@ def test_merge_record_updates(
     )
 
 
+class _PKCase(NamedTuple):
+    """A primary key shape, the rows to load and the ids `upsert` derives from them."""
+
+    primary_key: Tuple[str, ...]
+    rows: List[Dict[str, Any]]
+    values: List[Dict[str, Any]]
+    """Expected parent columns, without the dlt system ones, in the order of `rows`."""
+    row_ids: List[str]
+    child_ids: List[str]
+    grandchild_ids: List[str]
+
+
+# NOTE: the ids below are hashed from the primary key values, they must NEVER change or already
+# loaded user data breaks. a new case gets its ids by loading it on `devel`
+MERGE_PK_CASES = {
+    "text": _PKCase(
+        primary_key=("id", "TxId"),
+        rows=[
+            {"ID": 1, "TxId": "tx1🚀3", "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+            {"ID": 1, "TxId": "tx2Ü+😎üß", "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
+        ],
+        values=[
+            {"id": 1, "tx_id": "tx1🚀3"},
+            {"id": 1, "tx_id": "tx2Ü+😎üß"},
+        ],
+        row_ids=["19GAeLNivYhDqg", "wg/EKJyC+CXo/g"],
+        child_ids=["hhWFugO13PeLBQ", "U+o+nLvOjp5DLA"],
+        grandchild_ids=["rsgPU8Q0nJ4QVg", "8anfRKWjVjQ7ag"],
+    ),
+    # a key spanning every type that the typed json encoding renders as a string
+    "typed": _PKCase(
+        primary_key=("id", "TxId", "Ts", "Dt", "Amount", "Flag"),
+        rows=[
+            {
+                "ID": 1,
+                "TxId": "tx1🚀3",
+                "Ts": datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc),
+                "Dt": date(2024, 1, 15),
+                "Amount": Decimal("10.05"),
+                "Flag": True,
+                "child": [{"bar": 1, "grandchild": [{"baz": 1}]}],
+            },
+            {
+                "ID": 1,
+                "TxId": "tx2Ü+😎üß",
+                "Ts": datetime(2024, 7, 1, 0, 0, 0, 123456, tzinfo=timezone.utc),
+                "Dt": date(2024, 12, 31),
+                "Amount": Decimal("-0.10"),
+                "Flag": False,
+                "child": [{"bar": 1, "grandchild": [{"baz": 1}]}],
+            },
+        ],
+        values=[
+            {
+                "id": 1,
+                "tx_id": "tx1🚀3",
+                "ts": pendulum.datetime(2024, 1, 15, 23, 30),
+                "dt": date(2024, 1, 15),
+                "amount": Decimal("10.05"),
+                "flag": True,
+            },
+            {
+                "id": 1,
+                "tx_id": "tx2Ü+😎üß",
+                "ts": pendulum.datetime(2024, 7, 1, 0, 0, 0, 123456),
+                "dt": date(2024, 12, 31),
+                "amount": Decimal("-0.10"),
+                "flag": False,
+            },
+        ],
+        row_ids=["QUWLSdBfS6aB2g", "NS9eWna9NpHzFw"],
+        child_ids=["zlp9QDlD5sxDhQ", "4IBkbTTIXUXZjA"],
+        grandchild_ids=["oRxaMoleNwowSA", "jrXdzCKAWhBbfw"],
+    ),
+}
+
+
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(
@@ -280,17 +362,26 @@ def test_merge_record_updates(
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
+@pytest.mark.parametrize("pk_case", MERGE_PK_CASES.values(), ids=list(MERGE_PK_CASES))
+@pytest.mark.parametrize("json_impl", (_orjson, _simplejson), ids=("orjson", "simplejson"))
 def test_merge_primary_key_normalization(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
+    pk_case: _PKCase,
+    json_impl: SupportsJson,
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+    if merge_strategy == "delete-insert" and json_impl is _simplejson:
+        pytest.skip("the json impl only reaches the row id that `upsert` derives from the key")
+    # the row id is hashed from a json dump of the key, so both impls must yield the same id
+    monkeypatch.setattr(normalizer_helpers, "json", json_impl)
     p = destination_config.setup_pipeline("test_merge_record_updates", dev_mode=True)
 
     @dlt.resource(
         table_name="parent",
         write_disposition={"disposition": "merge", "strategy": merge_strategy},
-        primary_key=("id", "TxId"),
+        primary_key=pk_case.primary_key,
     )
     def r(data):
         yield data
@@ -298,11 +389,7 @@ def test_merge_primary_key_normalization(
     # initial load, here we check a bug where normalized primary_key columns were checked against
     # not normalized source data, missing values were ignored leading to duplicate keys
     # on postgres we have PK violation
-    run_1 = [
-        {"ID": 1, "TxId": "tx1🚀3", "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
-        {"ID": 1, "TxId": "tx2Ü+😎üß", "child": [{"bar": 1, "grandchild": [{"baz": 1}]}]},
-    ]
-    info = p.run(r(run_1), **destination_config.run_kwargs)
+    info = p.run(r(pk_case.rows), **destination_config.run_kwargs)
     assert_load_info(info)
     assert load_table_counts(p, "parent", "parent__child", "parent__child__grandchild") == {
         "parent": 2,
@@ -311,13 +398,7 @@ def test_merge_primary_key_normalization(
     }
     if merge_strategy == "delete-insert":
         tables = load_tables_to_dicts(p, "parent", exclude_system_cols=True)
-        assert_records_as_set(
-            tables["parent"],
-            [
-                {"id": 1, "tx_id": "tx1🚀3"},
-                {"id": 1, "tx_id": "tx2Ü+😎üß"},
-            ],
-        )
+        assert_records_as_set(tables["parent"], pk_case.values)
     else:
         tables = load_tables_to_dicts(
             p, "parent", "parent__child", "parent__child__grandchild", exclude_system_cols=False
@@ -332,8 +413,8 @@ def test_merge_primary_key_normalization(
         assert_records_as_set(
             parent_data,
             [
-                {"_dlt_id": "19GAeLNivYhDqg", "id": 1, "tx_id": "tx1🚀3"},
-                {"_dlt_id": "wg/EKJyC+CXo/g", "id": 1, "tx_id": "tx2Ü+😎üß"},
+                {**values, "_dlt_id": row_id}
+                for values, row_id in zip(pk_case.values, pk_case.row_ids)
             ],
         )
         child_data = [
@@ -345,18 +426,12 @@ def test_merge_primary_key_normalization(
             [
                 {
                     "bar": 1,
-                    "_dlt_root_id": "19GAeLNivYhDqg",
-                    "_dlt_parent_id": "19GAeLNivYhDqg",
+                    "_dlt_root_id": row_id,
+                    "_dlt_parent_id": row_id,
                     "_dlt_list_idx": 0,
-                    "_dlt_id": "hhWFugO13PeLBQ",
-                },
-                {
-                    "bar": 1,
-                    "_dlt_root_id": "wg/EKJyC+CXo/g",
-                    "_dlt_parent_id": "wg/EKJyC+CXo/g",
-                    "_dlt_list_idx": 0,
-                    "_dlt_id": "U+o+nLvOjp5DLA",
-                },
+                    "_dlt_id": child_id,
+                }
+                for row_id, child_id in zip(pk_case.row_ids, pk_case.child_ids)
             ],
         )
         # grandchild refers to child via parent_id and to root table via root_id, all ids are deterministic for upsert
@@ -369,18 +444,14 @@ def test_merge_primary_key_normalization(
             [
                 {
                     "baz": 1,
-                    "_dlt_root_id": "19GAeLNivYhDqg",
-                    "_dlt_parent_id": "hhWFugO13PeLBQ",
+                    "_dlt_root_id": row_id,
+                    "_dlt_parent_id": child_id,
                     "_dlt_list_idx": 0,
-                    "_dlt_id": "rsgPU8Q0nJ4QVg",
-                },
-                {
-                    "baz": 1,
-                    "_dlt_root_id": "wg/EKJyC+CXo/g",
-                    "_dlt_parent_id": "U+o+nLvOjp5DLA",
-                    "_dlt_list_idx": 0,
-                    "_dlt_id": "8anfRKWjVjQ7ag",
-                },
+                    "_dlt_id": grandchild_id,
+                }
+                for row_id, child_id, grandchild_id in zip(
+                    pk_case.row_ids, pk_case.child_ids, pk_case.grandchild_ids
+                )
             ],
         )
 
@@ -1023,7 +1094,7 @@ def test_merge_with_dispatch_and_incremental(
             == newest_issue["created_at"]
         )
         assert incremental_state["incremental"]["created_at"]["unique_hashes"] == [
-            digest128(f'"{newest_issue["id"]}"')
+            digest_dedup_value(newest_issue["id"])
         ]
         # subsequent load will skip all elements
         assert len(list(_get_shuffled_events(True) | github_resource)) == 0
@@ -1034,7 +1105,7 @@ def test_merge_with_dispatch_and_incremental(
             > newest_issue["created_at"]
         )
         assert incremental_state["incremental"]["created_at"]["unique_hashes"] != [
-            digest128(str(newest_issue["id"]))
+            digest_dedup_value(newest_issue["id"])
         ]
 
     # load to destination

@@ -652,3 +652,14 @@ def assert_schema_on_data(
             set(col["name"] for col in table_columns.values() if col["nullable"])
             == columns_with_nulls
         ), "Some columns didn't receive NULLs which is required"
+
+
+def load_extracted_parquet(pipeline: dlt.Pipeline) -> Any:
+    """The single parquet file extract wrote, read back as an arrow table."""
+    import pyarrow as pa
+
+    norm_storage = pipeline._get_normalize_storage()
+    files = [fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")]
+    assert len(files) == 1
+    with norm_storage.extracted_packages.storage.open_file(files[0], "rb") as f:
+        return pa.parquet.read_table(f)

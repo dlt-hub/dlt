@@ -433,7 +433,8 @@ class IncrementingDate:
         if not self.started:
             self.started = True
             return self.current_value
-        self.current_value += timedelta(seconds=random.randrange(0, 120))
+        # never zero: equal cursor values make `range_start="open"` drop a row at a chunk boundary
+        self.current_value += timedelta(seconds=random.randrange(1, 120))
         return self.current_value
 
 

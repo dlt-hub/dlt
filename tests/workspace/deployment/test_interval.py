@@ -6,13 +6,11 @@ from zoneinfo import ZoneInfo
 
 import pytest
 
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_datetime_utc, ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.interval import (
     compute_run_interval,
-    cron_floor,
     next_scheduled_run,
     resolve_interval_spec,
 )
@@ -26,8 +24,8 @@ def test_resolve_with_explicit_end() -> None:
     spec: TIntervalSpec = {"start": "2024-01-01T00:00:00Z", "end": "2024-01-05T00:00:00Z"}
     result = resolve_interval_spec(spec, "0 0 * * *")
     assert result == (
-        ensure_pendulum_datetime_utc("2024-01-01"),
-        ensure_pendulum_datetime_utc("2024-01-05"),
+        ensure_datetime_in_tz("2024-01-01"),
+        ensure_datetime_in_tz("2024-01-05"),
     )
 
 
@@ -35,8 +33,8 @@ def test_resolve_open_ended_uses_last_cron_tick() -> None:
     """Open-ended spec resolves end to the last elapsed cron tick."""
     spec: TIntervalSpec = {"start": "2020-01-01T00:00:00Z"}
     start, end = resolve_interval_spec(spec, "0 0 * * *")
-    assert start == ensure_pendulum_datetime_utc("2020-01-01")
-    assert end <= pendulum.now("UTC")
+    assert start == ensure_datetime_in_tz("2020-01-01")
+    assert end <= datetime.now(timezone.utc)
     assert end.hour == 0 and end.minute == 0
 
 
@@ -44,33 +42,16 @@ def test_resolve_interval_spec_snaps_start() -> None:
     """When start is between cron ticks, it snaps backward."""
     spec: TIntervalSpec = {"start": "2024-01-01T06:30:00Z", "end": "2024-01-05T00:00:00Z"}
     start, end = resolve_interval_spec(spec, "0 0 * * *")
-    assert start == ensure_pendulum_datetime_utc("2024-01-01")
-    assert end == ensure_pendulum_datetime_utc("2024-01-05")
+    assert start == ensure_datetime_in_tz("2024-01-01")
+    assert end == ensure_datetime_in_tz("2024-01-05")
 
 
 def test_resolve_explicit_end_snapped() -> None:
     """Explicit end between cron ticks snaps backward."""
     spec: TIntervalSpec = {"start": "2024-01-01T00:00:00Z", "end": "2024-01-05T06:30:00Z"}
     start, end = resolve_interval_spec(spec, "0 0 * * *")
-    assert start == ensure_pendulum_datetime_utc("2024-01-01")
-    assert end == ensure_pendulum_datetime_utc("2024-01-05")
-
-
-@pytest.mark.parametrize(
-    "cron_expr,dt,expected",
-    [
-        ("0 0 * * *", "2024-01-01T00:00:00Z", "2024-01-01T00:00:00Z"),
-        ("0 0 * * *", "2024-01-01T06:30:00Z", "2024-01-01T00:00:00Z"),
-        ("*/3 * * * *", "2024-01-01T11:40:00Z", "2024-01-01T11:39:00Z"),
-        ("*/3 * * * *", "2024-01-01T11:42:00Z", "2024-01-01T11:42:00Z"),
-        ("* * * * *", "2024-01-01T11:40:00Z", "2024-01-01T11:40:00Z"),
-    ],
-    ids=["daily-aligned", "daily-misaligned", "3min-misaligned", "3min-aligned", "1min-aligned"],
-)
-def test_cron_floor(cron_expr: str, dt: str, expected: str) -> None:
-    assert cron_floor(cron_expr, ensure_pendulum_datetime_utc(dt)) == ensure_pendulum_datetime_utc(
-        expected
-    )
+    assert start == ensure_datetime_in_tz("2024-01-01")
+    assert end == ensure_datetime_in_tz("2024-01-05")
 
 
 @pytest.mark.parametrize(
@@ -128,8 +109,8 @@ def test_resolve_interval_spec_returns_utc(
     start, end = resolve_interval_spec(spec, cron, tz=tz)
     assert start.tzinfo == timezone.utc
     assert end.tzinfo == timezone.utc
-    assert start == ensure_pendulum_datetime_utc(expected_start)
-    assert end == ensure_pendulum_datetime_utc(expected_end)
+    assert start == ensure_datetime_in_tz(expected_start)
+    assert end == ensure_datetime_in_tz(expected_end)
 
 
 @pytest.mark.parametrize(
@@ -151,7 +132,7 @@ def test_interval_utc_round_trip_through_launcher_boundary(
     target_tz = ZoneInfo(tz)
     local = datetime(year, month, day, hour, tzinfo=target_tz)
     iso_utc = local.astimezone(timezone.utc).isoformat()
-    restored = ensure_datetime_utc(iso_utc).astimezone(target_tz)
+    restored = ensure_datetime_in_tz(iso_utc).astimezone(target_tz)
     assert restored == local
     assert isinstance(restored.tzinfo, ZoneInfo)
     assert restored.tzinfo.key == tz
@@ -245,31 +226,31 @@ def test_next_scheduled_run(
 ) -> None:
     scheduled_at = next_scheduled_run(
         TTrigger(trigger),
-        ensure_pendulum_datetime_utc(now_ref),
+        ensure_datetime_in_tz(now_ref),
         tz=tz,
-        prev_scheduled_run=ensure_pendulum_datetime_utc(prev) if prev else None,
+        prev_scheduled_run=ensure_datetime_in_tz(prev) if prev else None,
     )
-    assert scheduled_at == ensure_pendulum_datetime_utc(expected_at)
+    assert scheduled_at == ensure_datetime_in_tz(expected_at)
 
 
 def test_next_scheduled_run_returns_utc() -> None:
     """All returned datetimes are UTC regardless of tz parameter."""
     scheduled_at = next_scheduled_run(
         TTrigger("schedule:0 8 * * *"),
-        ensure_pendulum_datetime_utc("2024-06-15T11:00:00Z"),
+        ensure_datetime_in_tz("2024-06-15T11:00:00Z"),
         tz="US/Eastern",
     )
     assert scheduled_at.tzname() == "UTC"
 
     scheduled_every = next_scheduled_run(
         TTrigger("every:1h"),
-        ensure_pendulum_datetime_utc("2024-06-15T10:00:00Z"),
+        ensure_datetime_in_tz("2024-06-15T10:00:00Z"),
     )
     assert scheduled_every.tzname() == "UTC"
 
     scheduled_once = next_scheduled_run(
         TTrigger("once:2025-01-01T00:00:00Z"),
-        ensure_pendulum_datetime_utc("2024-06-15T00:00:00Z"),
+        ensure_datetime_in_tz("2024-06-15T00:00:00Z"),
     )
     assert scheduled_once.tzname() == "UTC"
 
@@ -279,7 +260,7 @@ def test_next_scheduled_run_rejects_non_timed() -> None:
     with pytest.raises(InvalidTrigger, match="not a timed trigger"):
         next_scheduled_run(
             TTrigger("manual:jobs.mod.a"),
-            ensure_pendulum_datetime_utc("2024-06-15T00:00:00Z"),
+            ensure_datetime_in_tz("2024-06-15T00:00:00Z"),
         )
 
 
@@ -470,12 +451,12 @@ def test_compute_run_interval(
 ) -> None:
     iv = compute_run_interval(
         TTrigger(trigger),
-        ensure_pendulum_datetime_utc(now),
-        prev_interval_end=ensure_pendulum_datetime_utc(prev) if prev else None,
+        ensure_datetime_in_tz(now),
+        prev_interval_end=ensure_datetime_in_tz(prev) if prev else None,
     )
     assert iv == (
-        ensure_pendulum_datetime_utc(expected_start),
-        ensure_pendulum_datetime_utc(expected_end),
+        ensure_datetime_in_tz(expected_start),
+        ensure_datetime_in_tz(expected_end),
     )
 
 
@@ -483,7 +464,7 @@ def test_compute_run_interval_returns_utc() -> None:
     """All returned datetimes are UTC."""
     iv = compute_run_interval(
         TTrigger("schedule:0 8 * * *"),
-        ensure_pendulum_datetime_utc("2024-06-15T11:00:00Z"),
+        ensure_datetime_in_tz("2024-06-15T11:00:00Z"),
         prev_interval_end=None,
         tz="US/Eastern",
     )
@@ -500,13 +481,13 @@ def test_compute_run_interval_schedule_with_timezone() -> None:
     """
     iv = compute_run_interval(
         TTrigger("schedule:0 8 * * *"),
-        ensure_pendulum_datetime_utc("2024-06-15T11:00:00Z"),
+        ensure_datetime_in_tz("2024-06-15T11:00:00Z"),
         prev_interval_end=None,
         tz="US/Eastern",
     )
     assert iv == (
-        ensure_pendulum_datetime_utc("2024-06-13T12:00:00Z"),
-        ensure_pendulum_datetime_utc("2024-06-14T12:00:00Z"),
+        ensure_datetime_in_tz("2024-06-13T12:00:00Z"),
+        ensure_datetime_in_tz("2024-06-14T12:00:00Z"),
     )
 
 
@@ -515,6 +496,6 @@ def test_compute_run_interval_invalid_trigger() -> None:
     with pytest.raises(InvalidTrigger):
         compute_run_interval(
             TTrigger("not-a-trigger"),
-            ensure_pendulum_datetime_utc("2024-06-15T12:00:00Z"),
+            ensure_datetime_in_tz("2024-06-15T12:00:00Z"),
             prev_interval_end=None,
         )

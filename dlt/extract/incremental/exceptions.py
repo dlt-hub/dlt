@@ -1,7 +1,25 @@
 from typing import Any
 
+from dlt.common.exceptions import DltException
 from dlt.extract.exceptions import PipeException
 from dlt.common.typing import TDataItem
+
+
+class IntervalNotAvailable(DltException):
+    def __init__(self, operation: str, context_missing: bool = False) -> None:
+        if context_missing:
+            msg = (
+                f"Cannot {operation} the interval because no `TimeIntervalContext` is active."
+                " Outside a scheduled job, inject one with"
+                " `Container().injectable_context(TimeIntervalContext())`."
+            )
+        else:
+            msg = (
+                f"Cannot {operation} the interval because none is active. Manual and event"
+                " triggers generate no interval - check `dlt.current.interval.is_empty` before"
+                " adjusting it."
+            )
+        super().__init__(msg)
 
 
 class IncrementalCursorPathMissing(PipeException):

@@ -1,6 +1,7 @@
+from datetime import timezone
 from typing import Optional, Union
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TAnyDateTime
 from dlt._workspace.deployment._job_ref import resolve_job_ref
 from dlt._workspace.deployment._trigger_helpers import (
@@ -48,7 +49,7 @@ def every(period: Union[str, float]) -> TTrigger:
 def once(at: TAnyDateTime) -> TTrigger:
     """Create a one-shot trigger. Accepts ISO string, datetime, date, or unix timestamp."""
     try:
-        dt = ensure_pendulum_datetime_utc(at)
+        dt = ensure_datetime_in_tz(at, timezone.utc)
     except (ValueError, TypeError):
         raise ValueError(f"once expects a valid date/time value, got {at!r}")
     return _parse_once(dt.isoformat()).raw

@@ -19,7 +19,7 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
+from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
 
 from tests.utils import get_test_storage_root
 from tests.load.utils import (
@@ -220,12 +220,12 @@ def test_execute_sql(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     assert len(rows) == 1
     # print(rows)
     assert rows[0][0] == "event"
-    assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))
     # ensure datetime obj to make sure it is supported by dbapi
-    inserted_at = to_py_datetime(ensure_pendulum_datetime_utc(rows[0][1]))
+    inserted_at = to_py_datetime(ensure_pendulum_datetime(rows[0][1]))
     if client.config.destination_name == "sqlalchemy_sqlite":
         # timezone aware datetime is not supported by sqlite
         inserted_at = inserted_at.replace(tzinfo=None)
@@ -299,7 +299,7 @@ def test_execute_query(client: SqlJobClientBaseWithDestinationTestConfiguration)
         rows = curr.fetchall()
         assert len(rows) == 1
         assert rows[0][0] == "event"
-        assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
+        assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
         rows[0][1],

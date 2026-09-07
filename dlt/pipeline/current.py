@@ -2,7 +2,7 @@ from __future__ import annotations
 
 """Easy access to active pipelines, state, sources and schemas"""
 
-from typing import TYPE_CHECKING, Optional
+from typing import TYPE_CHECKING
 
 from dlt.common.storages.load_package import (
     load_package_state,
@@ -22,10 +22,10 @@ from dlt.extract.state import (
     get_current_pipe_name as _get_current_pipe_name,
     get_current_pipe as _get_current_pipe,
 )
+from dlt.extract.incremental.context import interval, timezone
 
 if TYPE_CHECKING:
     from dlt._workspace._workspace_context import WorkspaceRunContext
-from dlt.common.typing import TTimeInterval
 from dlt.pipeline.pipeline import Pipeline as _Pipeline
 
 
@@ -40,14 +40,6 @@ def workspace() -> WorkspaceRunContext:
     from dlt._workspace._workspace_context import active
 
     return active()
-
-
-def interval() -> Optional[TTimeInterval]:
-    """Active time interval from external scheduler, or `None` if no interval present."""
-    from dlt.extract.incremental.context import get_interval_context
-
-    ctx = get_interval_context()
-    return ctx.interval if ctx else None
 
 
 state = source_state
@@ -72,4 +64,5 @@ __all__ = [
     "resource",
     "resource_metrics",
     "interval",
+    "timezone",
 ]

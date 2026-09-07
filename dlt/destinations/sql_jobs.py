@@ -1,7 +1,9 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import timezone
+
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TAnyDateTime, TypedDict
@@ -949,11 +951,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             if _boundary_ts is not None
             else current_load_package()["state"]["created_at"]
         )
-        boundary_ts = ensure_pendulum_datetime_utc(boundary_ts)
+        # UTC, never the context timezone: a moved boundary stops merges retiring existing rows
+        boundary_ts = ensure_datetime_in_tz(boundary_ts, timezone.utc)
 
+        # a destination without tz support holds the context wall clock, so the literal must too
         boundary_literal = format_datetime_literal(
             boundary_ts,
             caps.timestamp_precision,
+            no_tz=not caps.supports_tz_aware_datetime,
         )
 
         active_record_timestamp = get_active_record_timestamp(root_table)

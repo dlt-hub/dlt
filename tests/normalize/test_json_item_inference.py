@@ -1,6 +1,7 @@
 import os
 from pendulum import UTC
 import pytest
+from datetime import datetime, timedelta, timezone  # noqa: I251
 from copy import deepcopy
 from typing import Any, Iterator, List, Sequence
 
@@ -20,7 +21,8 @@ from dlt.common.schema.exceptions import (
 from dlt.common.storages.configuration import NormalizeStorageConfiguration
 from dlt.common.storages.normalize_storage import NormalizeStorage
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.time import ensure_pendulum_datetime_non_utc
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
+from dlt.common.time import ensure_datetime, ensure_datetime_in_tz
 from dlt.common.typing import StrAny, TDataItems
 from dlt.common.utils import uniq_id
 from dlt.normalize.items_normalizers import JsonLItemsNormalizer
@@ -207,7 +209,7 @@ def test_coerce_row_iso_timestamp(item_normalizer: JsonLItemsNormalizer) -> None
     # will generate timestamp type
     row_1 = {"timestamp": timestamp_str}
     coerced_row, new_table = item_normalizer._coerce_row("event_user", None, row_1)
-    assert coerced_row["timestamp"].tzinfo == UTC
+    assert coerced_row["timestamp"].utcoffset() == timedelta(0)
     new_columns = list(new_table["columns"].values())
     assert new_columns[0]["data_type"] == "timestamp"
     assert new_columns[0]["name"] == "timestamp"
@@ -216,7 +218,7 @@ def test_coerce_row_iso_timestamp(item_normalizer: JsonLItemsNormalizer) -> None
     # will coerce float
     row_2 = {"timestamp": 78172.128}
     coerced_row, new_table = item_normalizer._coerce_row("event_user", None, row_2)
-    assert coerced_row["timestamp"].tzinfo == UTC
+    assert coerced_row["timestamp"].utcoffset() == timedelta(0)
     # no new columns
     assert new_table is None
 
@@ -232,10 +234,8 @@ def test_coerce_tz_awareness_supports_naive(item_normalizer: JsonLItemsNormalize
     timestamp_str = "2022-05-10T00:17:15.300000+02:00"
     row_1 = {"timestamp": timestamp_str}
     coerced_row, new_table = item_normalizer._coerce_row("event_user", None, row_1)
-    assert coerced_row["timestamp"] == ensure_pendulum_datetime_non_utc(
-        "2022-05-09T22:17:15.300000+00:00"
-    )
-    assert coerced_row["timestamp"].tzinfo == UTC
+    assert coerced_row["timestamp"] == ensure_datetime("2022-05-09T22:17:15.300000+00:00")
+    assert coerced_row["timestamp"].utcoffset() == timedelta(0)
     assert "timezone" not in new_table["columns"]["timestamp"]
 
 
@@ -248,9 +248,9 @@ def test_coerce_timestamp_timezone_new_column_default(item_normalizer: JsonLItem
     coerced_row, new_table = item_normalizer._coerce_row("event_user", None, row)
 
     # Should be normalized to UTC (default timezone=True behavior)
-    expected = ensure_pendulum_datetime_non_utc("2022-05-09T19:17:15.300000+00:00")
+    expected = ensure_datetime("2022-05-09T19:17:15.300000+00:00")
     assert coerced_row["created_at"] == expected
-    assert coerced_row["created_at"].tzinfo == UTC
+    assert coerced_row["created_at"].utcoffset() == timedelta(0)
 
     # Column should be created with timestamp type
     assert new_table["columns"]["created_at"]["data_type"] == "timestamp"
@@ -277,8 +277,8 @@ def test_coerce_timestamp_timezone_existing_column_preserve(item_normalizer: Jso
 
     # Should be converted to naive datetime since existing column has timezone=False
     # The time should be converted to UTC first, then made naive
-    expected_utc = ensure_pendulum_datetime_non_utc("2022-05-10T08:30:45.500000+00:00")
-    expected_naive = expected_utc.naive()
+    expected_utc = ensure_datetime("2022-05-10T08:30:45.500000+00:00")
+    expected_naive = expected_utc.replace(tzinfo=None)
     assert coerced_row_2["event_time"] == expected_naive
     assert coerced_row_2["event_time"].tzinfo is None
 
@@ -306,9 +306,9 @@ def test_coerce_timestamp_timezone_existing_column_normalize_utc(
     coerced_row_2, new_table_2 = item_normalizer._coerce_row("events", None, row_2)
 
     # Should be normalized to UTC since existing column has timezone=True
-    expected = ensure_pendulum_datetime_non_utc("2022-05-10T10:30:45.500000+00:00")
+    expected = ensure_datetime("2022-05-10T10:30:45.500000+00:00")
     assert coerced_row_2["updated_at"] == expected
-    assert coerced_row_2["updated_at"].tzinfo == UTC
+    assert coerced_row_2["updated_at"].utcoffset() == timedelta(0)
 
     # No new table should be created
     assert new_table_2 is None
@@ -330,8 +330,8 @@ def test_coerce_timestamp_timezone_incomplete_column(item_normalizer: JsonLItems
 
     # Should be converted to naive datetime since incomplete column had timezone=False
     # First converted to UTC, then made naive
-    expected_utc = ensure_pendulum_datetime_non_utc("2022-05-10T04:00:00.000000+00:00")
-    expected_naive = expected_utc.naive()
+    expected_utc = ensure_datetime("2022-05-10T04:00:00.000000+00:00")
+    expected_naive = expected_utc.replace(tzinfo=None)
     assert coerced_row["process_time"] == expected_naive
     assert coerced_row["process_time"].tzinfo is None
 
@@ -358,7 +358,7 @@ def test_coerce_timestamp_naive_datetime_input(item_normalizer: JsonLItemsNormal
     # but it should not raise an exception
     assert coerced_row["local_time"] is not None
     # Since default is timezone=True, result should be timezone-aware UTC
-    assert coerced_row["local_time"].tzinfo == UTC
+    assert coerced_row["local_time"].utcoffset() == timedelta(0)
 
 
 def test_shorten_variant_column(item_normalizer: JsonLItemsNormalizer) -> None:
@@ -1068,6 +1068,116 @@ def test_filter_hints_no_table(
     # make sure the column order is the same when inferring from newly created table
     rows = schema.filter_row_with_hint("event_bot", "not_null", coerced_row)
     assert list(rows.keys()) == ["timestamp", "sender_id"]
+
+
+# the same instant in each flavour dlt may receive, so a coerced value must not depend on the type
+AWARE_FLAVOURS = {
+    "stdlib-utc": datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc),
+    "pendulum-utc": pendulum.DateTime(2024, 1, 15, 23, 30, tzinfo=UTC),
+    "stdlib-offset": datetime(2024, 1, 16, 0, 30, tzinfo=timezone(timedelta(hours=1))),
+    "pendulum-offset": pendulum.instance(datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)).in_tz(
+        "Europe/Berlin"
+    ),
+}
+NAIVE_FLAVOURS = {
+    "stdlib-naive": datetime(2024, 1, 15, 23, 30),
+    "pendulum-naive": pendulum.DateTime(2024, 1, 15, 23, 30),
+}
+
+
+def _declare_timestamp(normalizer: JsonLItemsNormalizer, timezone_hint: bool) -> None:
+    """Makes `ts` a complete column, which is what sends coercion down the no-coercion path."""
+    normalizer.schema.update_table(
+        utils.new_table(
+            "event_ts",
+            columns=[{"name": "ts", "data_type": "timestamp", "timezone": timezone_hint}],
+        )
+    )
+
+
+CAPS_TZ_SUPPORT = {
+    "caps-both": (True, True),
+    "caps-no-tz": (False, True),
+    "caps-no-naive": (True, False),
+}
+
+
+def _set_tz_support(caps: DestinationCapabilitiesContext, support: str) -> None:
+    caps.supports_tz_aware_datetime, caps.supports_naive_datetime = CAPS_TZ_SUPPORT[support]
+
+
+@pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"])
+@pytest.mark.parametrize("timezone_hint", [True, False], ids=["tz-true", "tz-false"])
+@pytest.mark.parametrize("tz_support", CAPS_TZ_SUPPORT.keys())
+def test_coerce_complete_timestamp_column_ignores_value_flavour(
+    request: pytest.FixtureRequest,
+    default_caps: DestinationCapabilitiesContext,
+    tz_name: str,
+    timezone_hint: bool,
+    tz_support: str,
+) -> None:
+    """pendulum and stdlib values of one instant must coerce alike, and follow the timezone hint.
+
+    A destination without tz support stores the context wall clock naive, one without naive support
+    stores the instant, whatever the hint says.
+    """
+    _set_tz_support(default_caps, tz_support)
+    supports_tz, supports_naive = CAPS_TZ_SUPPORT[tz_support]
+    store_aware = (
+        timezone_hint if supports_tz and supports_naive else supports_tz and not supports_naive
+    )
+
+    with Container().injectable_context(TimezoneContext(tz_name)):
+        # the normalizer settles the destination timezone rule when created, as the worker does
+        item_normalizer: JsonLItemsNormalizer = request.getfixturevalue("item_normalizer")
+        _declare_timestamp(item_normalizer, timezone_hint)
+        aware = {
+            name: item_normalizer._coerce_row("event_ts", None, {"ts": value})[0]["ts"]
+            for name, value in AWARE_FLAVOURS.items()
+        }
+        naive = {
+            name: item_normalizer._coerce_row("event_ts", None, {"ts": value})[0]["ts"]
+            for name, value in NAIVE_FLAVOURS.items()
+        }
+
+    assert len(set(aware.values())) == 1, f"aware flavours disagree: {aware}"
+    assert len(set(naive.values())) == 1, f"naive flavours disagree: {naive}"
+
+    coerced_aware = aware["stdlib-utc"]
+    coerced_naive = naive["stdlib-naive"]
+    if store_aware:
+        # an aware input keeps its instant; a naive input is read in the context timezone
+        assert coerced_aware.utcoffset() is not None
+        assert coerced_aware == datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+        expected_naive_utc = "2024-01-15T23:30:00+00:00" if tz_name == "UTC" else "2024-01-15T22:30"
+        assert coerced_naive == ensure_datetime_in_tz(expected_naive_utc, timezone.utc)
+    else:
+        assert coerced_aware.tzinfo is None and coerced_naive.tzinfo is None
+        # the aware input's wall clock follows the context timezone, the naive one is untouched
+        assert coerced_aware == (
+            datetime(2024, 1, 15, 23, 30) if tz_name == "UTC" else datetime(2024, 1, 16, 0, 30)
+        )
+        assert coerced_naive == datetime(2024, 1, 15, 23, 30)
+
+
+@pytest.mark.parametrize("tz_name", ["UTC", "Europe/Berlin"])
+@pytest.mark.parametrize("tz_support", CAPS_TZ_SUPPORT.keys())
+def test_coerce_complete_and_inferred_timestamp_column_agree(
+    request: pytest.FixtureRequest,
+    default_caps: DestinationCapabilitiesContext,
+    tz_name: str,
+    tz_support: str,
+) -> None:
+    """A declared timestamp column must store what an inferred one stores, both defaulting to aware."""
+    _set_tz_support(default_caps, tz_support)
+
+    with Container().injectable_context(TimezoneContext(tz_name)):
+        item_normalizer: JsonLItemsNormalizer = request.getfixturevalue("item_normalizer")
+        _declare_timestamp(item_normalizer, True)
+        for name, value in {**AWARE_FLAVOURS, **NAIVE_FLAVOURS}.items():
+            declared = item_normalizer._coerce_row("event_ts", None, {"ts": value})[0]["ts"]
+            inferred = item_normalizer._coerce_row("event_inferred", None, {"ts": value})[0]["ts"]
+            assert declared == inferred, f"declared and inferred disagree on {name}"
 
 
 def test_variant_column_has_description(item_normalizer: JsonLItemsNormalizer) -> None:

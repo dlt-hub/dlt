@@ -27,8 +27,9 @@ from http.cookies import SimpleCookie
 from typing import Any, List, Tuple, Optional, Mapping, Dict, AnyStr, Iterator
 
 import pyarrow
-import pytz
 from pyarrow import flight
+
+from dlt.common.time import normalize_timezone
 
 apilevel = "2.0"
 threadsafety = 2
@@ -60,8 +61,8 @@ def quote_string(string: str) -> str:
 
 
 def format_datetime(d: datetime) -> str:
-    if d.tzinfo is not None:
-        d = d.astimezone(pytz.UTC).replace(tzinfo=None)
+    # dremio has no tz type: an aware value is stored as the context wall clock, like loaded data
+    d = normalize_timezone(d, False)
     return d.isoformat(sep=" ", timespec="milliseconds")
 
 

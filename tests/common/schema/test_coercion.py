@@ -1,8 +1,9 @@
 from collections.abc import Mapping, MutableSequence
 from copy import copy
-from typing import Any, Type
+from typing import Any, Optional, Type, cast
 import pytest
 import datetime  # noqa: I251
+from zoneinfo import ZoneInfo
 from dlt.common.libs.hexbytes import HexBytes
 from enum import Enum
 
@@ -11,8 +12,10 @@ from pendulum.tz import UTC
 from dlt.common import Decimal, Wei, json, pendulum
 from dlt.common.json import _DATETIME, custom_pua_decode_nested
 from dlt.common.data_types import coerce_value, py_type_to_sc_type, TDataType
+from dlt.common.data_types.type_helpers import coerce_from_date_types
 
 from tests.cases import JSON_TYPED_DICT, JSON_TYPED_DICT_TYPES
+from tests.utils import LOCAL_TIMEZONES, local_timezone
 
 
 def test_coerce_same_type() -> None:
@@ -335,6 +338,26 @@ def test_coerce_type_to_time() -> None:
     # ISO datetime string fails
     with pytest.raises(ValueError):
         assert coerce_value("time", "text", "2022-05-10T03:41:31.466000+00:00")
+
+
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
+def test_coerce_from_date_types_ignores_os_timezone(local_tz: Optional[str]) -> None:
+    """A naive datetime is read as UTC, never in the machine timezone."""
+    naive = datetime.datetime(2024, 1, 15, 23, 30)
+    # the same instant, spelled in three ways
+    utc = naive.replace(tzinfo=datetime.timezone.utc)
+    berlin = utc.astimezone(ZoneInfo("Europe/Berlin"))
+
+    with local_timezone(local_tz):
+        for value in (naive, utc, berlin):
+            assert coerce_from_date_types("bigint", value) == 1705361400
+            assert coerce_from_date_types("double", value) == 1705361400.0
+
+        # branches that do not read a timestamp keep the value as written
+        assert coerce_from_date_types("text", naive) == "2024-01-15T23:30:00"
+        assert coerce_from_date_types("time", naive) == datetime.time(23, 30)
+        assert coerce_from_date_types("date", naive) == datetime.date(2024, 1, 15)
+        assert cast(datetime.datetime, coerce_from_date_types("timestamp", naive)).tzinfo is None
 
 
 def test_coerce_type_to_binary() -> None:

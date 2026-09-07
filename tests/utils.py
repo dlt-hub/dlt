@@ -7,6 +7,7 @@ import os
 import platform
 import threading
 import sys
+import time
 from functools import partial
 from os import environ
 from pathlib import Path
@@ -18,7 +19,7 @@ import requests
 from requests import Response
 
 import dlt
-from dlt.common import known_env
+from dlt.common import known_env, pendulum
 from dlt.common.runtime import telemetry
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.providers import (
@@ -42,13 +43,55 @@ from dlt.common.schema.typing import TTableFormat
 from dlt.common.storages import FileStorage
 from dlt.common.storages.versioned_storage import VersionedStorage
 from dlt.common.metrics import DataWriterMetrics
-from dlt.common.typing import StrAny, TDataItem, PathLike
+from dlt.common.time import ensure_datetime_in_tz
+from dlt.common.typing import StrAny, TDataItem, PathLike, TTimeInterval
 from dlt.common.utils import set_working_dir
 
 
 DLT_TEST_STORAGE_ROOT = "DLT_TEST_STORAGE_ROOT"
 PYTEST_XDIST_WORKER = "PYTEST_XDIST_WORKER"
 STORAGE_ROOT_PREFIX = os.path.abspath("_storage")
+
+LOCAL_TIMEZONES = [
+    None,  # do not change anything, must run on all oses and python versions
+    "UTC",
+    "Europe/Berlin",
+    "Asia/Kolkata",
+]
+"""Local timezones to parametrize over so that no result depends on the machine setting."""
+
+
+def make_interval(start: str, end: str) -> TTimeInterval:
+    """Builds a tz-aware `[start, end)` interval from two ISO strings."""
+    return TTimeInterval(ensure_datetime_in_tz(start), ensure_datetime_in_tz(end))
+
+
+@contextlib.contextmanager
+def local_timezone(tz_name: Optional[str]) -> Iterator[None]:
+    """Sets the OS and pendulum local timezone for the duration of the block."""
+    # do not change when not set
+    if not tz_name:
+        yield
+        return
+
+    if not hasattr(time, "tzset") or os.name == "nt":
+        pytest.skip("Timezone manipulation requires tzset (not available on Windows)")
+
+    old_tz = os.environ.get("TZ")
+    os.environ["TZ"] = tz_name
+    time.tzset()
+
+    try:
+        # pendulum has test utils in core library
+        with pendulum.test_local_timezone(pendulum._safe_timezone(tz_name)):  # type: ignore[arg-type]
+            yield
+    finally:
+        if old_tz is None:
+            if "TZ" in os.environ:
+                del os.environ["TZ"]
+        else:
+            os.environ["TZ"] = old_tz
+        time.tzset()
 
 
 def get_test_worker_id() -> str:
@@ -336,16 +379,50 @@ def _preserve_environ() -> Iterator[None]:
                 environ[key_] = value_
 
 
+def _restore_thread_contexts(
+    container: Container,
+    saved: Dict[int, "Container._TContext"],
+) -> None:
+    """Puts back the contexts each thread held, running the add/remove callbacks."""
+    for thread_id, saved_context in saved.items():
+        context, lock = container.thread_contexts[thread_id]
+        with lock:
+            for spec in list(context):
+                if context[spec] is not saved_context.get(spec):
+                    container._thread_delitem(context, spec)
+            for spec, ctx in saved_context.items():
+                if context.get(spec) is not ctx:
+                    container._thread_setitem(context, spec, ctx)
+    for thread_id in list(container.thread_contexts):
+        if thread_id not in saved:
+            context, lock = container.thread_contexts.pop(thread_id)
+            with lock:
+                for spec in list(context):
+                    container._thread_delitem(context, spec)
+
+
 @contextlib.contextmanager
 def preserve_container() -> Iterator[None]:
-    """Saves and restores the whole Container singleton (instance and main thread id)."""
+    """Saves and restores the whole Container singleton (instance, main thread id and contexts)."""
     saved_instance = Container._INSTANCE
     saved_main_thread_id = Container._MAIN_THREAD_ID
+    # the dicts are restored in place and the locks are kept, so anything still holding a
+    # reference to a thread context sees the restored content
+    saved_contexts = (
+        {
+            thread_id: dict(context)
+            for thread_id, (context, _) in saved_instance.thread_contexts.items()
+        }
+        if saved_instance
+        else None
+    )
     try:
         yield
     finally:
         Container._INSTANCE = saved_instance
         Container._MAIN_THREAD_ID = saved_main_thread_id
+        if saved_instance is not None:
+            _restore_thread_contexts(saved_instance, saved_contexts)
 
 
 @pytest.fixture(autouse=True)

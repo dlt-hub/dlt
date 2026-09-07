@@ -40,7 +40,7 @@ from dlt.common.storages.configuration import (
     FilesystemConfiguration,
     make_fsspec_url,
 )
-from dlt.common.time import ensure_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import without_none
 
@@ -64,23 +64,23 @@ def _http_mtime(f: DictStrAny) -> Optional[datetime]:
     if last_modified is None:
         return None
     # an http date is not iso, only the email parser reads it
-    return ensure_datetime_utc(parsedate_to_datetime(last_modified))
+    return ensure_datetime_in_tz(parsedate_to_datetime(last_modified))
 
 
 # Map of protocol to mtime resolver, returns None when the listing has no modification date
 # we only need to support a small finite set of protocols
 MTIME_DISPATCH: Dict[str, Callable[[DictStrAny], Optional[datetime]]] = {
-    "s3": lambda f: ensure_datetime_utc(f["LastModified"]),
-    "adl": lambda f: ensure_datetime_utc(f["LastModified"]),
-    "az": lambda f: ensure_datetime_utc(f["last_modified"]),
-    "gcs": lambda f: ensure_datetime_utc(f["updated"]),
-    "hf": lambda f: ensure_datetime_utc(f["last_commit"]["date"]),
+    "s3": lambda f: ensure_datetime_in_tz(f["LastModified"]),
+    "adl": lambda f: ensure_datetime_in_tz(f["LastModified"]),
+    "az": lambda f: ensure_datetime_in_tz(f["last_modified"]),
+    "gcs": lambda f: ensure_datetime_in_tz(f["updated"]),
+    "hf": lambda f: ensure_datetime_in_tz(f["last_commit"]["date"]),
     "https": _http_mtime,
     "http": _http_mtime,
-    "file": lambda f: ensure_datetime_utc(f["mtime"]),
-    "memory": lambda f: ensure_datetime_utc(f["created"]),
-    "gdrive": lambda f: ensure_datetime_utc(f["modifiedTime"]),
-    "sftp": lambda f: ensure_datetime_utc(f["mtime"]),
+    "file": lambda f: ensure_datetime_in_tz(f["mtime"]),
+    "memory": lambda f: ensure_datetime_in_tz(f["created"]),
+    "gdrive": lambda f: ensure_datetime_in_tz(f["modifiedTime"]),
+    "sftp": lambda f: ensure_datetime_in_tz(f["mtime"]),
 }
 # Support aliases
 MTIME_DISPATCH["gs"] = MTIME_DISPATCH["gcs"]

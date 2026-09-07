@@ -579,6 +579,7 @@ def incremental_stateful_cursor_snippet() -> None:
 
 def incremental_load_time_cursor_snippet() -> None:
     # @@@DLT_SNIPPET_START incremental_load_time_cursor
+    from datetime import datetime
     from typing import Any, Iterator, List
 
     import dlt
@@ -600,7 +601,7 @@ def incremental_load_time_cursor_snippet() -> None:
     @dlt.hub.transformation(write_disposition="append")
     def orders_by_load(
         dataset: dlt.Dataset,
-        loaded_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+        loaded_at: dlt.sources.incremental[datetime] = dlt.sources.incremental(
             "_dlt_loads.inserted_at",
             initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
             range_start="open",
@@ -626,6 +627,7 @@ def incremental_load_time_cursor_snippet() -> None:
 def incremental_scheduler_window_snippet() -> None:
     # @@@DLT_SNIPPET_START incremental_scheduler_window
     import os
+    from datetime import datetime
     from typing import Any, Iterator, List
 
     import dlt
@@ -654,7 +656,7 @@ def incremental_scheduler_window_snippet() -> None:
     @dlt.hub.transformation(write_disposition="replace")
     def orders_window(
         dataset: dlt.Dataset,
-        window: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+        window: dlt.sources.incremental[datetime] = dlt.sources.incremental(
             "created_at",
             initial_value=pendulum.datetime(2000, 1, 1, tz="UTC"),
             allow_external_schedulers=True,
