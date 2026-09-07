@@ -29,7 +29,6 @@ from dlt.destinations.exceptions import (
     DatabaseTerminalException,
     DatabaseTransientException,
     LoadClientNotConnected,
-    DatabaseException,
 )
 from dlt.common.destination.dataset import DBApiCursor
 from dlt.common.typing import TFun
@@ -287,15 +286,12 @@ class SqlalchemyClient(SqlClientBase[Connection]):
     def create_dataset(self) -> None:
         if self.dialect_name == "sqlite":
             return self._sqlite_create_dataset(self.dataset_name)
-        self.execute_sql(sa.schema.CreateSchema(self.dataset_name))
+        self._dialect_caps.create_dataset(self)
 
     def drop_dataset(self) -> None:
         if self.dialect_name == "sqlite":
             return self._sqlite_drop_dataset(self.dataset_name)
-        try:
-            self.execute_sql(sa.schema.DropSchema(self.dataset_name, cascade=True))
-        except DatabaseException:  # Try again in case cascade is not supported
-            self.execute_sql(sa.schema.DropSchema(self.dataset_name))
+        self._dialect_caps.drop_dataset(self)
 
     def truncate_tables(self, *tables: str) -> None:
         # TODO: alchemy doesn't have a construct for TRUNCATE TABLE
