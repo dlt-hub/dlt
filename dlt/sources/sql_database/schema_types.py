@@ -101,6 +101,12 @@ def sqla_col_to_column_schema(
     col: TColumnSchema = {
         "name": sql_col.name,
     }
+
+    # Propagate column comment as description
+    comment = getattr(sql_col, "comment", None)
+    if comment:
+        col["description"] = comment
+
     # NOTE: nullability info may not be available for subquery columns
     if hasattr(sql_col, "nullable") and sql_col.nullable is not None:
         col["nullable"] = sql_col.nullable
