@@ -9,6 +9,14 @@ from dlt.common.utils import clone_dict_nested, update_dict_nested
 from .provider import ConfigProvider, get_key_name
 
 
+def _remove_none_values(value: Any) -> Any:
+    if isinstance(value, dict):
+        return {k: _remove_none_values(v) for k, v in value.items() if v is not None}
+    if isinstance(value, (list, tuple)):
+        return [_remove_none_values(v) for v in value]
+    return value
+
+
 class BaseDocProvider(ConfigProvider):
     _config_doc: Dict[str, Any]
     """Holds a dict with config values"""
@@ -118,8 +126,7 @@ class BaseDocProvider(ConfigProvider):
             master.pop(key, None)
             return
         if isinstance(value, dict):
-            # remove none values, TODO: we need recursive None removal
-            value = {k: v for k, v in value.items() if v is not None}
+            value = _remove_none_values(value)
             # if target is also dict then merge recursively
             if isinstance(master.get(key), dict):
                 update_dict_nested(master[key], value)
