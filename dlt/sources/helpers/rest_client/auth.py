@@ -161,6 +161,7 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
     client_secret: TSecretStrValue = None
     access_token_request_data: Dict[str, Any] = None
     default_token_expiration: int = 3600
+    client_auth_method: Literal["client_secret_post", "client_secret_basic"] = "client_secret_post"
     session: Annotated[BaseSession, NotResolved()] = None
 
     def __post_init__(self) -> None:
@@ -191,16 +192,27 @@ class OAuth2ClientCredentials(OAuth2AuthBase):
         self.token_expiry = pendulum.now().add(seconds=expires_in_seconds)
 
     def build_access_token_request(self) -> Dict[str, Any]:
+        data = {
+            "grant_type": "client_credentials",
+            **self.access_token_request_data,
+        }
+        headers = {
+            "Content-Type": "application/x-www-form-urlencoded",
+        }
+
+        client_id_str = str(self.client_id)
+        client_secret_str = str(self.client_secret)
+
+        if self.client_auth_method == "client_secret_basic":
+            credentials = f"{client_id_str}:{client_secret_str}"
+            encoded_credentials = b64encode(credentials.encode("utf-8")).decode("utf-8")
+            headers["Authorization"] = f"Basic {encoded_credentials}"
+        else:
+            data["client_id"] = client_id_str
+            data["client_secret"] = client_secret_str
         return {
-            "headers": {
-                "Content-Type": "application/x-www-form-urlencoded",
-            },
-            "data": {
-                "client_id": self.client_id,
-                "client_secret": self.client_secret,
-                "grant_type": "client_credentials",
-                **self.access_token_request_data,
-            },
+            "headers": headers,
+            "data": data,
         }
 
     def parse_expiration_in_seconds(self, response_json: Any) -> int:
