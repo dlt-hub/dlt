@@ -499,7 +499,10 @@ const sidebars = {
             slug: "/hub/release-highlights",
             keywords: ["release notes", "release highlights", "dlthub"],
           },
-          items: [{ type: "doc", id: "hub/release-notes/0.26", label: "0.26" }],
+          items: [
+            { type: "doc", id: "hub/release-notes/0.27", label: "0.27" },
+            { type: "doc", id: "hub/release-notes/0.26", label: "0.26" },
+          ],
         },
       ],
     },
