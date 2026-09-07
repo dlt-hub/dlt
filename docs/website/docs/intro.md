@@ -7,7 +7,7 @@ keywords: [introduction, who, what, how]
 # Getting started
 
 :::info
-Looking for the managed dltHub platform, AI Workbench, transformations, or data quality features? See the [dltHub docs](hub/getting-started/introduction.md).
+Looking for the managed dltHub platform, AI harness, transformations, or data quality features? See the [dltHub docs](hub/getting-started/introduction.md).
 :::
 
 ![dlt pacman](/img/dlt-pacman.gif)
@@ -32,7 +32,7 @@ pip install dlt
 ```
 
 :::tip Working with the dltHub platform?
-If you want the managed platform, AI Workbench, transformations, and data quality features, get started here:
+If you want the managed platform, AI harness, transformations, and data quality features, get started here:
 ```sh
 uvx dlthub-start@latest
 ```
