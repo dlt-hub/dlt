@@ -182,7 +182,6 @@ const config = {
             type: "dropdown",
             label: "What's new?",
             position: "left",
-            className: "whats-new-navbar",
             items: [
               { to: "/release-highlights", label: "dlt" },
               // devel-scoped until this page reaches master; retarget to
