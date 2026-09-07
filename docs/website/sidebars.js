@@ -490,6 +490,17 @@ const sidebars = {
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
         "hub/getting-started/onboarding",
+        {
+          type: "category",
+          label: "Release highlights",
+          link: {
+            type: "generated-index",
+            title: "Release highlights",
+            slug: "/hub/release-highlights",
+            keywords: ["release notes", "release highlights", "dlthub"],
+          },
+          items: [{ type: "doc", id: "hub/release-notes/0.26", label: "0.26" }],
+        },
       ],
     },
     {
