@@ -20,6 +20,7 @@ from dlt.common.utils import without_none
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 _AZURE_STORAGE_SCOPE = "https://storage.azure.com/.default"
+_AZURE_KEY_VAULT_EXTRA = f"{version.DLT_PKG_NAME}[az_secrets]"
 
 
 def _object_store_will_refresh_default() -> bool:
@@ -251,6 +252,43 @@ class AzureServicePrincipalCredentials(
         self._set_default_credentials(DefaultAzureCredential())
         if self.azure_storage_account_name:
             self.resolve()
+
+
+@configspec
+class AzureKeyVaultCredentials(CredentialsConfiguration):
+    """Credentials to access secrets stored in Azure Key Vault.
+
+    Authenticates with a service principal when `azure_client_id`, `azure_client_secret`
+    and `azure_tenant_id` are provided, otherwise falls back to `DefaultAzureCredential`
+    (managed identity, environment variables, Azure CLI, ...).
+    """
+
+    azure_key_vault_url: str = None
+    """URL of the Key Vault, e.g. `https://my-vault.vault.azure.net`"""
+    azure_tenant_id: Optional[str] = None
+    azure_client_id: Optional[str] = None
+    azure_client_secret: Optional[TSecretStrValue] = None
+
+    def to_native_credentials(self) -> Any:
+        """Returns an azure-identity credential used to authenticate to Key Vault."""
+        try:
+            from azure.identity import ClientSecretCredential, DefaultAzureCredential
+        except ModuleNotFoundError:
+            raise MissingDependencyException(
+                self.__class__.__name__,
+                [_AZURE_KEY_VAULT_EXTRA],
+                "We need azure-identity to authenticate to Azure Key Vault.",
+            )
+        if self.azure_client_id and self.azure_client_secret and self.azure_tenant_id:
+            return ClientSecretCredential(
+                tenant_id=self.azure_tenant_id,
+                client_id=self.azure_client_id,
+                client_secret=self.azure_client_secret,
+            )
+        return DefaultAzureCredential()
+
+    def __str__(self) -> str:
+        return self.azure_key_vault_url or ""
 
 
 AnyAzureCredentials = Union[

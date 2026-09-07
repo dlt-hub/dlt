@@ -1,6 +1,7 @@
 ---
 title: Vault providers
-description: Learn how to configure Google Secrets, AWS Secrets Manager and Airflow providers
+description: Learn how to configure Google Secrets, AWS Secrets Manager, Azure Key Vault and Airflow providers
+keywords: [vault, secrets, google secret manager, aws secrets manager, azure key vault, airflow]
 ---
 
 ## How vault providers work
@@ -14,9 +15,10 @@ Supported providers include:
 
 * [Google Cloud Secret Manager](#configure-google-secret-provider)
 * [AWS Secrets Manager](#configure-aws-secrets-manager-provider)
+* [Azure Key Vault](#configure-azure-key-vault-provider)
 * [Airflow Variables](#configure-airflow-variables-as-provider)
 
-For other vault integrations like Azure Key Vault we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
+For other vault integrations we are happy to take contributions. There's an abstract class (look for `VaultDocProvider`) that does all the heavy lifting.
 
 ## Lookup and merge strategy
 On first access to any configuration value, the vault provider tries to populate its in-memory TOML document by fetching and merging known fragments, in the following order:
@@ -344,6 +346,79 @@ Because IAM policies match the name portion of secret ARNs, you can scope read a
 
 Note that `secretsmanager:ListSecrets` cannot be limited to particular secrets - the prefix narrows what dlt fetches and lists, not what the principal is allowed to list.
 
+
+## Configure Azure Key Vault provider
+
+Install the required dependencies with `pip install "dlt[az_secrets]"` (pulls `azure-keyvault-secrets` and `azure-identity`).
+
+Required permissions (Key Vault access policy or RBAC role):
+
+* `get` on secrets to read particular secrets (required)
+* `list` on secrets to list available secrets (required when `list_secrets=true`)
+
+The `Key Vault Secrets User` built-in role grants `get`/`list` under RBAC.
+
+### Activate Azure Key Vault provider
+To activate the provider, add the configuration to your `secrets.toml` file or to environment variables. You must always provide the vault URL. You can omit `azure_tenant_id`, `azure_client_id` and `azure_client_secret` if your environment provides default Azure credentials (managed identity, environment variables, or Azure CLI login) - in that case `DefaultAzureCredential` is used.
+
+<Tabs
+  groupId="config-provider-type"
+  defaultValue="toml"
+  values={[
+    {"label": "TOML config provider", "value": "toml"},
+    {"label": "Environment variables", "value": "env"},
+]}>
+  <TabItem value="toml">
+
+```toml
+[providers]
+enable_azure_secrets = true  # azure key vault provider is disabled by default
+
+[providers.azure_secrets]
+only_secrets = false
+only_toml_fragments = false
+list_secrets = true  # we recommend pre-listing secrets to minimize calls to the vault
+
+[providers.azure_secrets.credentials]
+azure_key_vault_url = "https://my-vault.vault.azure.net"
+azure_tenant_id = "..."
+azure_client_id = "..."
+azure_client_secret = "..."
+```
+  </TabItem>
+  <TabItem value="env">
+
+```sh
+PROVIDERS__ENABLE_AZURE_SECRETS="true"
+
+PROVIDERS__AZURE_SECRETS__ONLY_SECRETS="false"
+PROVIDERS__AZURE_SECRETS__ONLY_TOML_FRAGMENTS="false"
+PROVIDERS__AZURE_SECRETS__LIST_SECRETS="true"
+
+PROVIDERS__AZURE_SECRETS__CREDENTIALS__AZURE_KEY_VAULT_URL="https://my-vault.vault.azure.net"
+PROVIDERS__AZURE_SECRETS__CREDENTIALS__AZURE_TENANT_ID="..."
+PROVIDERS__AZURE_SECRETS__CREDENTIALS__AZURE_CLIENT_ID="..."
+PROVIDERS__AZURE_SECRETS__CREDENTIALS__AZURE_CLIENT_SECRET="..."
+```
+  </TabItem>
+</Tabs>
+
+When running on Azure with a managed identity (or after `az login` locally), drop the credentials section entirely and keep only `azure_key_vault_url`:
+
+```toml
+[providers.azure_secrets.credentials]
+azure_key_vault_url = "https://my-vault.vault.azure.net"
+```
+
+### Naming convention for Azure Key Vault
+Azure Key Vault secret names may contain only alphanumeric characters and dashes (`-`). dlt normalizes each name component (whitespace and punctuation other than `-` and `_` are removed), joins components with dashes and converts any remaining underscores to dashes:
+
+* `destination.bigquery.credentials.project_id` → `destination-bigquery-credentials-project-id`
+* `sources.pipedrive.pipedrive_api_key` → `sources-pipedrive-pipedrive-api-key`
+* `destination.bigquery` → `destination-bigquery`
+* `my_pipeline.dlt_secrets_toml` → `my-pipeline-dlt-secrets-toml`
+
+All storage types described for [Google Secrets](#naming-convention-for-google-secrets) work the same way: a whole `secrets.toml` under the `dlt-secrets-toml` name (recommended), per-section TOML fragments (for example `destination-filesystem` or `sources-mongodb`), and single values. Secret values may be TOML, YAML or JSON documents - dlt detects the format automatically.
 
 ## Configure Airflow Variables as provider
 You can use Airflow Variables to store secrets and TOML fragments.
