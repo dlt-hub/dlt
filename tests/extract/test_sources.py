@@ -539,6 +539,16 @@ def test_select_resources() -> None:
     assert list(s.with_resources()) == []
 
 
+def test_source_getattr_without_resources_raises_attribute_error() -> None:
+    source = DltSource.__new__(DltSource)
+
+    with pytest.raises(AttributeError, match="anything"):
+        source.anything
+
+    with pytest.raises(AttributeError, match="_resources"):
+        source._resources
+
+
 def test_clone_source() -> None:
     @dlt.source
     def test_source(no_resources):
