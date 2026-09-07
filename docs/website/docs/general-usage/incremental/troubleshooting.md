@@ -6,7 +6,7 @@ keywords: [incremental loading, troubleshooting]
 
 If you see that the incremental loading is not working as expected and the incremental values are not modified between pipeline runs, check the following:
 
-1. Make sure the `destination`, `pipeline_name`, and `dataset_name` are the same between pipeline runs.
+1. Make sure the `destination`, `pipeline_name`, `dataset_name`, and source name are the same between pipeline runs. The source name is derived from the `@dlt.source` function name — if the function is renamed, the incremental state will not be found and the cursor will reset. To make the source name explicit and stable, set it directly: `@dlt.source(name="my_source")`.
 
 2. Check if `dev_mode` is `False` in the pipeline configuration. Check if `refresh` for associated sources and resources is not enabled.
 
@@ -89,3 +89,24 @@ To avoid similar issues:
 - Always ensure the `initial_value` type matches the data type in the source field.
 - If the field requires transformation, apply `add_map` to convert the type before incremental tracking.
 - Use a separate column if needed to retain the original format for downstream processing or reference.
+
+
+### Source key mismatch
+
+If the bind log shows `start_value: None` but `dlt pipeline -v <pipeline_name> info` shows a valid `last_value`, the state exists but is stored under a different key than the one the current code is using.
+
+DLT stores incremental state under a source key derived from the `@dlt.source` function name. If this key changes — for example because the source function was renamed — the existing state will not be found and the cursor will reset to `initial_value`.
+
+Check the `sources` block in `pipeline info` and verify that the key there matches the name of your `@dlt.source` function. To make the source key explicit and stable, set the `name` parameter directly on the decorator:
+
+```py
+@dlt.source(name="my_source")  # state key is always "my_source", regardless of function name
+def my_source():
+    ...
+```
+
+If the key has already drifted, drop the stale state and do a full reload. For `append` resources, skipping the reload will produce duplicate rows.
+
+```sh
+dlt pipeline <pipeline_name> drop --state-only
+```
