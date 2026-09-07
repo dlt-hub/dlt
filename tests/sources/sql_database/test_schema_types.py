@@ -218,3 +218,35 @@ def test_get_table_references() -> None:
 
     refs = get_table_references(child)
     assert refs == []
+
+
+def test_timestamp_precision_reflected_full_with_precision() -> None:
+    """DateTime precision is captured at reflection_level="full_with_precision" (issue #4316)."""
+    from sqlalchemy.dialects.mssql import DATETIME2
+
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", DATETIME2(precision=3)))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full_with_precision")
+    assert col_schema is not None
+    assert col_schema["data_type"] == "timestamp"
+    assert col_schema["precision"] == 3
+
+
+def test_timestamp_precision_omitted_without_full_with_precision() -> None:
+    """No precision key at reflection_level="full" (or lower)."""
+    from sqlalchemy.dialects.mssql import DATETIME2
+
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", DATETIME2(precision=3)))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert "precision" not in col_schema
+
+
+def test_generic_datetime_has_no_precision_key() -> None:
+    """Generic sa.DateTime has no precision attribute; no precision key must be emitted."""
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sa.DateTime()))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full_with_precision")
+    assert col_schema is not None
+    assert "precision" not in col_schema
