@@ -69,7 +69,7 @@ const sidebars = {
           label: "Release highlights",
           link: {
             type: "generated-index",
-            title: "dlt release highlights",
+            title: "Release highlights",
             slug: "/release-highlights",
             keywords: ["release notes", "release highlights"],
           },
@@ -495,7 +495,7 @@ const sidebars = {
           label: "Release highlights",
           link: {
             type: "generated-index",
-            title: "dltHub release highlights",
+            title: "Release highlights",
             slug: "/hub/release-highlights",
             keywords: ["release notes", "release highlights", "dlthub"],
           },
