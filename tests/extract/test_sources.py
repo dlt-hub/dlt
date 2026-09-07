@@ -1815,6 +1815,19 @@ def test_apply_hints() -> None:
     assert "to" in table["columns"]
     assert "x-valid-to" in table["columns"]["to"]
 
+    # test cdc write disposition hint
+    empty_r.apply_hints(
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "cdc",
+            "merge_filter": "updated_at >= '2026-01-01'",
+        }
+    )
+    table = empty_r.compute_table_schema()
+    assert table["write_disposition"] == "merge"
+    assert table["x-merge-strategy"] == "cdc"
+    assert table["x-merge-filter"] == "updated_at >= '2026-01-01'"
+
     # Test table references hint
     reference_hint = [
         dict(

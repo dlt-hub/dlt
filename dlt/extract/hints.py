@@ -20,6 +20,7 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,
     TWriteDispositionConfig,
+    TCdcStrategyDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
     TAnySchemaColumns,
@@ -720,6 +721,10 @@ class DltResourceHints:
 
         if deduplicated := md_dict.get("deduplicated"):
             dict_["x-stage-data-deduplicated"] = deduplicated
+
+        if merge_strategy == "cdc":
+            if merge_filter := cast(TCdcStrategyDict, md_dict).get("merge_filter"):
+                dict_["x-merge-filter"] = merge_filter
 
         if merge_strategy == "scd2":
             md_dict = cast(TScd2StrategyDict, md_dict)

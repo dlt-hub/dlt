@@ -180,7 +180,7 @@ def verify_schema_merge_disposition(
                         " and `merge_strategy` set to `delete-insert`, but no primary or"
                         " merge keys defined."
                     )
-            elif merge_strategy in ("upsert", "insert-only"):
+            elif merge_strategy in ("upsert", "insert-only", "cdc"):
                 if not has_column_with_prop(table, "primary_key"):
                     exception_log.append(
                         SchemaCorruptedException(

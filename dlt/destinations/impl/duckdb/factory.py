@@ -139,10 +139,9 @@ def duckdb_merge_strategies_selector(
 
         if Version(_duckdb.__version__) < Version("1.4.0"):
             legacy_strategies = list(supported_merge_strategies)
-            if "upsert" in legacy_strategies:
-                legacy_strategies.remove("upsert")
-            if "insert-only" in legacy_strategies:
-                legacy_strategies.remove("insert-only")
+            for merge_strategy in ("upsert", "insert-only", "cdc"):
+                if merge_strategy in legacy_strategies:
+                    legacy_strategies.remove(merge_strategy)
             supported_merge_strategies = legacy_strategies
     except ImportError:
         # return default if duckdb not installed
@@ -191,6 +190,14 @@ class duckdb(Destination[DuckDbClientConfiguration, "DuckDbClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
         caps = _set_duckdb_raw_capabilities(caps)
+        # not supported on ducklake which shares raw capabilities: no DELETE in MERGE
+        caps.supported_merge_strategies = [
+            "delete-insert",
+            "upsert",
+            "scd2",
+            "insert-only",
+            "cdc",
+        ]
         return caps
 
     @property
