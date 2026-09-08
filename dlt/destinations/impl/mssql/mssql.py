@@ -103,6 +103,9 @@ class MssqlParquetCopyJob(AdbcParquetCopyJob):
         from adbc_driver_manager import dbapi
 
         self._config = self._job_client.config  # type: ignore[assignment]
+        # a separate connection from the mssql-python one, and go-mssqldb cannot use an Entra
+        # token: with `access_token`/`azure_credential` set this job authenticates from whatever
+        # the DSN still carries (query `uid`/`pwd`), or fails to sign in when it carries nothing
         conn_dsn = self.odbc_to_go_mssql_dsn(self._config.credentials.get_odbc_dsn_dict())
         conn_str = build_odbc_dsn(conn_dsn)
         return dbapi.connect(driver="mssql", db_kwargs={"uri": conn_str})
