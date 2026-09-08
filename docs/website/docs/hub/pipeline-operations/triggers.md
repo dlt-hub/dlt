@@ -137,6 +137,8 @@ Refresh policies:
 | `"block"` | Stop refresh propagation here |
 
 ```py
+from dlt.hub import run
+
 @run.job(expose={"tags": ["backfill"]}, refresh_propagation="always")
 def backfill():
     """Cascade a refresh; does not load data."""
