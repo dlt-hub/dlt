@@ -11,14 +11,14 @@ dev: ## Set up development environment
 	cd website && npm install
 
 start: ## Generate docs and start the docusaurus dev server
-	$(MAKE) process-docs
+	$(MAKE) preprocess-docs
 	cd website && npx docusaurus start
 
 build: ## Full production build of the docs website into `website/build/docs`
 	cd website && uv run npm run update-versions
 	cd website && npm run compile-redirects
 	$(MAKE) check-orphan-docs
-	$(MAKE) process-docs
+	$(MAKE) preprocess-docs
 	cd website && npx docusaurus build --out-dir build/docs
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
