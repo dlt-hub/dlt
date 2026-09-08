@@ -5,9 +5,10 @@
 help: ## Shows this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
-dev: ## Prepares development environment for docs tooling
+dev: ## Set up development environment
 	uv sync --all-extras --all-groups --all-packages --quiet --locked
-	uv run prek install --hook-type pre-push
+	uv run prek install --hook-type pre-commit --hook-type pre-push
+	cd website && npm install
 
 start: ## Generate docs and start the docusaurus dev server
 	$(MAKE) process-docs
@@ -16,11 +17,17 @@ start: ## Generate docs and start the docusaurus dev server
 build: ## Full production build of the docs website into `website/build/docs`
 	cd website && uv run npm run update-versions
 	cd website && npm run compile-redirects
-	cd website && npm run check-orphan-docs
+	$(MAKE) check-orphan-docs
 	$(MAKE) process-docs
 	cd website && npx docusaurus build --out-dir build/docs
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
+
+process-docs: ## Dynamically generate pages under `website/docs_processed`
+	# Order matters: preprocess-markers wipes and recreates docs_processed, so
+	# generators that write into it must run afterwards.
+	uv run --script tools/preprocess_docs.py
+	uv run --script tools/generate_api_reference.py
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -36,10 +43,7 @@ cli-generate: ## Regenerates CLI reference docs
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
-# Generated example test files (docs/examples/**/test_*.py) are gitignored and
-# created by prepare-examples-tests, so exclude them from mypy.
-# generate_api_reference.py declares its deps inline (PEP 723) and runs in its
-# own env, so they are not resolvable here
+# TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
 	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
@@ -58,18 +62,6 @@ format: ## Formats the docs tooling, website, examples, and notebooks
 	uv run black tools website
 	uv run black education/*/*.ipynb --ipynb
 
-preprocess-markers: ## Copy website/docs -> docs_processed, expanding @@@DLT_* markers (tuba/SEO links, capabilities)
-	uv run --script tools/preprocess_docs.py
-
-generate-api-ref: ## Generate the API reference into docs_processed/api_reference
-	uv run --script tools/generate_api_reference.py
-
-# Order matters: preprocess-markers wipes and recreates docs_processed, so
-# generators that write into it must run afterwards.
-process-docs: ## Build website/docs_processed from sources (markers + API reference)
-	$(MAKE) preprocess-markers
-	$(MAKE) generate-api-ref
-
 test-tools: ## Tests docs tools
 	uv run pytest tools/
 
@@ -83,13 +75,13 @@ validate-molabs: build-molabs ## Validate marimo notebooks are up-to-date
 	git diff --exit-code -- education/
 
 snippets-lint:
-	uv run pytest -m "not example" test_snippets.py::test_lint_snippets
+	uv run pytest test_snippets.py::test_lint_snippets
 
 snippets-format:
-	uv run pytest -m "not example" test_snippets.py::test_lint_snippets --update-examples
+	uv run pytest test_snippets.py::test_lint_snippets --update-examples
 
 snippets-typecheck:
-	uv run pytest -m "not example" test_snippets.py::test_typecheck_snippets
+	uv run pytest test_snippets.py::test_typecheck_snippets
 
 snippets-test:
 	uv run pytest -m "not example" test_snippets.py::test_run_snippets

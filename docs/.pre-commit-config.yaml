@@ -82,7 +82,7 @@ repos:
 
       - id: cli-check
         name: cli-check
-        entry: uv run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
+        entry: make cli-check
         language: system
         pass_filenames: false
 
