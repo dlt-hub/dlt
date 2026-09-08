@@ -342,7 +342,7 @@ def schema_to_graphviz(
     include_root_child_ref: bool = True,
     group_by_resource: bool = False,
 ) -> str:
-    """Convert a `dlt.Schema` to a a Graphviz DOT string and return its value.
+    """Convert a `dlt.Schema` to a Graphviz DOT string and return its value.
 
     Args:
         schema: dlt schema to convert
