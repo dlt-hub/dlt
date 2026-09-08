@@ -74,7 +74,7 @@ def my_job():
 The `if hook:` check skips the Slack call when no webhook is configured. The same script works in any profile, whether you've set up notifications or not.
 
 :::tip Notify on schema changes
-You can also notify Slack whenever a load surfaces new tables or columns. The [dlt chess pipeline](../../examples/chess_production.md) shows this pattern by inspecting `schema_update` on each load package and posting a message when new tables or columns appear.
+You can also notify Slack whenever a load surfaces new tables or columns. The dlt chess pipeline shows this pattern by inspecting `schema_update` on each load package and posting a message when new tables or columns appear.
 :::
 
 ## Deploy and trigger

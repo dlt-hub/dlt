@@ -61,4 +61,4 @@ load_info = pipeline.run(source_instance)
 
 For production use cases with SQL database sources, you'll want a reusable masking function that takes column names as parameters, supports multiple masking methods (replace with asterisks or nullify), and works with all `sql_database` backends (PyArrow, Pandas, SQLAlchemy).
 
-See the full [data masking example](../../examples/data_masking.md) for a production-ready implementation using closures.
+See the full data masking for a production-ready implementation using closures.
