@@ -94,6 +94,14 @@ repos:
         language: system
         pass_filenames: false
 
+      - id: test-docs-tools
+        name: test-docs-tools
+        entry: make test-tools
+        files: ^tools/.*\.py$
+        types: [python]
+        language: system
+        pass_filenames: false
+
   - repo: https://github.com/abravalheri/validate-pyproject
     rev: v0.25
     hooks:
