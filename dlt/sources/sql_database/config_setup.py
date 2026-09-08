@@ -11,10 +11,12 @@ from dlt.common.validation import validate_dict
 from dlt.extract.hints import TResourceHintsBase
 from dlt.extract.incremental import Incremental
 from dlt.extract.resource import DltResource
+from dlt.sources.sql_database.typing import (
+    SqlDatabaseConfig,
+    SqlTableResource,
+    SqlTableResourceBase,
+)
 
-from .typing import SqlDatabaseConfig, SqlTableResource, SqlTableResourceBase
-
-# arguments passed to `sql_table`
 SQL_TABLE_ARGS = frozenset(
     (
         "table",
@@ -37,29 +39,31 @@ SQL_TABLE_ARGS = frozenset(
         "merge_key",
     )
 )
+"""Arguments passed to `sql_database()` source factory."""
 
-# settings of the resource itself, applied after it is created
 RESOURCE_ARGS = frozenset(("max_table_nesting", "selected", "parallelized"))
+"""Arguments passed to an individual resource after creation."""
 
-# remaining table hints are applied with `apply_hints`
 TABLE_HINT_ARGS = frozenset(get_type_hints(TResourceHintsBase)) - SQL_TABLE_ARGS
+"""Other table hints that can be applied via `.apply_hints()`, but not `__init__()` args."""
 
 
 def validate_config(config: SqlDatabaseConfig) -> None:
-    """Validates `config` against `SqlDatabaseConfig`, raising `DictValidationException` on
-    unknown or mistyped fields. `credentials` are validated separately so they are never
-    included in an error message.
+    """Validates `config` against `SqlDatabaseConfig` config specs.
+
+    `credentials` are validated separately to ensure they are never included in an error message.
     """
     credentials = config.get("credentials")
     if credentials is not None and not isinstance(
         credentials, (str, ConnectionStringCredentials, Engine)
     ):
         raise DictValidationException(
-            "field `credentials` expects a connection string, `ConnectionStringCredentials` or"
+            msg="field `credentials` expects a connection string, `ConnectionStringCredentials` or"
             f" `Engine` instance but got `{type(credentials).__name__}`",
-            ".",
+            path=".",
             field="credentials",
         )
+
     validate_dict(
         SqlDatabaseConfig,
         exclude_keys(config, {"credentials"}),
@@ -69,6 +73,7 @@ def validate_config(config: SqlDatabaseConfig) -> None:
     for index, table in enumerate(config.get("tables") or []):
         if isinstance(table, (str, DltResource)):
             continue
+
         if not (table.get("name") or table.get("table")):
             raise DictValidationException(
                 "table must define `name` (the resource name), `table` (the name of the table in"
@@ -78,13 +83,15 @@ def validate_config(config: SqlDatabaseConfig) -> None:
 
 
 def merge_table_defaults(
-    table_defaults: SqlTableResourceBase, table: str | SqlTableResource
+    table_defaults: SqlTableResourceBase,
+    table: str | SqlTableResource,
 ) -> SqlTableResource:
     """Merges `table_defaults` into a single table config and resolves `name` and `table`,
     each defaulting to the other. Table settings take precedence over the defaults.
     """
     if isinstance(table, str):
         table = SqlTableResource(table=table)
+
     merged = SqlTableResource({**table_defaults, **table})
     merged["name"] = merged.get("name") or merged["table"]
     merged["table"] = merged.get("table") or merged["name"]
@@ -98,10 +105,12 @@ def split_table_config(
     settings of the resource itself.
     """
     table_args: dict[str, Any] = {
-        key: value for key, value in table.items() if key in SQL_TABLE_ARGS
+        key: value for key, value in table.items()
+        if key in SQL_TABLE_ARGS
     }
     if incremental := table.get("incremental"):
         table_args["incremental"] = Incremental.ensure_instance(incremental)
+
     return (
         table_args,
         {key: value for key, value in table.items() if key in TABLE_HINT_ARGS},

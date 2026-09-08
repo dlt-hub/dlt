@@ -16,9 +16,13 @@ from dlt.common.libs.sql_alchemy import Engine
 from dlt.common.typing import TypedDict
 from dlt.extract.hints import TResourceHintsBase
 from dlt.extract.resource import DltResource
-
-from .helpers import BaseTableLoader, TableBackend, TQueryAdapter, TTableAdapter
-from .schema_types import ReflectionLevel, TTypeAdapter
+from dlt.sources.sql_database.helpers import (
+    BaseTableLoader,
+    TableBackend,
+    TQueryAdapter,
+    TTableAdapter,
+)
+from dlt.sources.sql_database.schema_types import ReflectionLevel, TTypeAdapter
 
 
 class SqlTableResourceBase(TResourceHintsBase, total=False):
