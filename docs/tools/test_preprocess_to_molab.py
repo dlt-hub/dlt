@@ -1,5 +1,5 @@
 import pytest
-from docs_tools.education.preprocess_to_molab import (
+from preprocess_to_molab import (
     replace_colab_imports_in_notebook,
     process_shell_commands_in_notebook,
     add_inline_dependencies_to_content,
