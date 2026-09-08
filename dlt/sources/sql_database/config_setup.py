@@ -1,6 +1,6 @@
 """Compiles the declarative SQL database config into `sql_table` arguments and table hints."""
 
-from typing import Any, Dict, Tuple, Union, get_args
+from typing import Any, get_args
 
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.exceptions import DictValidationException
@@ -78,7 +78,7 @@ def validate_config(config: SqlDatabaseConfig) -> None:
 
 
 def merge_table_defaults(
-    table_defaults: SqlTableResourceBase, table: Union[str, SqlTableResource]
+    table_defaults: SqlTableResourceBase, table: str | SqlTableResource
 ) -> SqlTableResource:
     """Merges `table_defaults` into a single table config and resolves `name` and `table`,
     each defaulting to the other. Table settings take precedence over the defaults.
@@ -93,11 +93,11 @@ def merge_table_defaults(
 
 def split_table_config(
     table: SqlTableResource,
-) -> Tuple[Dict[str, Any], Dict[str, Any], Dict[str, Any]]:
+) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
     """Splits a table config into `sql_table` arguments, `apply_hints` arguments and
     settings of the resource itself.
     """
-    table_args: Dict[str, Any] = {
+    table_args: dict[str, Any] = {
         key: value for key, value in table.items() if key in SQL_TABLE_ARGS
     }
     if incremental := table.get("incremental"):

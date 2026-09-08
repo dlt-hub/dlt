@@ -7,7 +7,8 @@ table loaders, `Engine` instances) are accepted as escape hatches but keep the c
 non-serializable, so use them only when needed.
 """
 
-from typing import Any, Callable, Dict, List, Optional, Type, Union
+from collections.abc import Callable
+from typing import Any
 
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.incremental.typing import IncrementalArgs
@@ -28,49 +29,49 @@ class SqlTableResourceBase(TResourceHintsBase, total=False):
     corresponding `dlt.resource` arguments.
     """
 
-    schema: Optional[str]
+    schema: str | None
     """Name of the database schema the table belongs to. Defaults to the connection's default schema."""
-    incremental: Optional[IncrementalArgs]
+    incremental: IncrementalArgs | None
     """Incremental loading settings ie. `{"cursor_path": "updated_at", "initial_value": "2024-01-01"}`."""
-    chunk_size: Optional[int]
-    backend: Optional[TableBackend]
-    backend_kwargs: Optional[Dict[str, Any]]
-    reflection_level: Optional[ReflectionLevel]
-    defer_table_reflect: Optional[bool]
-    included_columns: Optional[List[str]]
-    excluded_columns: Optional[List[str]]
-    resolve_foreign_keys: Optional[bool]
-    max_table_nesting: Optional[int]
-    selected: Optional[bool]
-    parallelized: Optional[bool]
-    table_adapter_callback: Optional[TTableAdapter]
-    type_adapter_callback: Optional[TTypeAdapter]
-    query_adapter_callback: Optional[TQueryAdapter]
-    table_loader_class: Optional[Type[BaseTableLoader]]
+    chunk_size: int | None
+    backend: TableBackend | None
+    backend_kwargs: dict[str, Any] | None
+    reflection_level: ReflectionLevel | None
+    defer_table_reflect: bool | None
+    included_columns: list[str] | None
+    excluded_columns: list[str] | None
+    resolve_foreign_keys: bool | None
+    max_table_nesting: int | None
+    selected: bool | None
+    parallelized: bool | None
+    table_adapter_callback: TTableAdapter | None
+    type_adapter_callback: TTypeAdapter | None
+    query_adapter_callback: TQueryAdapter | None
+    table_loader_class: type[BaseTableLoader] | None
 
 
 class SqlTableResource(SqlTableResourceBase, total=False):
     """Settings of a single table. At least one of `name` or `table` must be present."""
 
-    name: Optional[str]
+    name: str | None
     """Name of the dlt resource. Defaults to `table`."""
-    table: Optional[str]
+    table: str | None
     """Name of the table (or view) in the database. Defaults to `name`."""
 
 
 class SqlDatabaseConfig(TypedDict, total=False):
-    tables: Optional[List[Union[str, SqlTableResource, DltResource]]]
+    tables: list[str | SqlTableResource | DltResource] | None
     """Tables to load: a table name, a table config or a ready `DltResource` ie. from `sql_table`.
     When omitted, all tables in the database schema are discovered and loaded with
     `table_defaults`, like in `sql_database`. An empty list loads no tables."""
-    include_views: Optional[bool]
+    include_views: bool | None
     """Discover views as well as tables. Declared views are always loaded."""
-    credentials: Optional[Union[ConnectionStringCredentials, Engine, str]]
+    credentials: ConnectionStringCredentials | Engine | str | None
     """Database credentials or an `Engine` instance. `sql_database_source` resolves this from
     dlt config providers (ie. `secrets.toml`) when omitted."""
-    engine_kwargs: Optional[Dict[str, Any]]
+    engine_kwargs: dict[str, Any] | None
     """Keyword arguments passed to `sqlalchemy.create_engine()`."""
-    engine_adapter_callback: Optional[Callable[[Engine], Engine]]
+    engine_adapter_callback: Callable[[Engine], Engine] | None
     """Callback to configure or replace the `Engine` shared by all tables."""
-    table_defaults: Optional[SqlTableResourceBase]
+    table_defaults: SqlTableResourceBase | None
     """Settings applied to every table in `tables`, overridden by the table's own settings."""

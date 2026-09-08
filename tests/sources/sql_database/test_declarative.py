@@ -8,12 +8,11 @@ a local sqlite database so they need no external services.
 import os
 import uuid
 from pathlib import Path
-from typing import Any, Dict
-
-import pytest
-import sqlalchemy as sa
+from typing import Any
 
 import dlt
+import pytest
+import sqlalchemy as sa
 from dlt.common.exceptions import DictValidationException
 from dlt.common.incremental.typing import IncrementalArgs
 from dlt.common.typing import get_type_hints
@@ -267,7 +266,7 @@ def test_resources_require_credentials() -> None:
         ({"table_defaults": {"name": "items"}, "tables": []}, "unexpected fields"),
     ),
 )
-def test_invalid_config(config: Dict[str, Any], error: str) -> None:
+def test_invalid_config(config: dict[str, Any], error: str) -> None:
     with pytest.raises(DictValidationException, match=error):
         sql_database_source(config)  # type: ignore[arg-type]
 
