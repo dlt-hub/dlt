@@ -1,26 +1,24 @@
 """Source that loads tables form any SQLAlchemy supported database, supports batching requests and incremental loads."""
 
-from typing import Callable, Dict, List, Optional, Tuple, Type, Union, Iterable, Any
+from typing import Callable, Dict, List, Optional, Type, Union, Iterable, Any
 
 import dlt
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import TSchemaContract, TWriteDispositionConfig
 from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
-
 from dlt.common.typing import TColumnNames
 from dlt.extract import DltResource, DltSource, Incremental, decorators
-
-from .config_setup import (
+from dlt.sources.sql_database.config_setup import (
     merge_table_defaults,
     split_table_config,
     validate_config,
 )
-from .typing import (
+from dlt.sources.sql_database.typing import (
     SqlDatabaseConfig,
     SqlTableResource,
     SqlTableResourceBase,
 )
+
 from .helpers import (
     _execute_table_adapter,
     default_engine_adapter_callback,
@@ -370,15 +368,19 @@ def sql_table(
 
 @decorators.source(name="sql_database", section="sql_database")
 def _declarative_sql_database(
-    tables: Optional[List[Union[str, SqlTableResource, DltResource]]] = None,
-    credentials: Union[ConnectionStringCredentials, Engine, str] = dlt.secrets.value,
-    table_defaults: Optional[SqlTableResourceBase] = None,
-    include_views: Optional[bool] = None,
-    engine_kwargs: Optional[Dict[str, Any]] = None,
-    engine_adapter_callback: Optional[Callable[[Engine], Engine]] = None,
-) -> List[DltResource]:
-    """Declarative SQL database source. Arguments not present in the config passed to
-    `sql_database_source` are resolved from dlt config providers, `credentials` included.
+    tables: list[str | SqlTableResource | DltResource] | None = None,
+    credentials: ConnectionStringCredentials | Engine | str = dlt.secrets.value,
+    table_defaults: SqlTableResourceBase | None = None,
+    include_views: bool | None = None,
+    engine_kwargs: dict[str, Any] | None = None,
+    engine_adapter_callback: Callable[[Engine], Engine] | None = None,
+) -> list[DltResource]:
+    """Declarative SQL database source.
+
+    Arguments not passed explicitly are resolved from dlt config providers.
+
+    NOTE. This source factory isn't meant to be used directly. It is used
+    by `sql_database_source()`
     """
     return sql_database_resources(
         SqlDatabaseConfig(
@@ -398,18 +400,17 @@ def sql_database_source(
     section: str = None,
     max_table_nesting: int = None,
     root_key: bool = None,
-    schema: Schema = None,
+    schema: dlt.Schema = None,
     schema_contract: TSchemaContract = None,
     parallelized: bool = False,
 ) -> DltSource:
     """Creates a SQL database source from a declarative configuration.
 
-    Each table in `config["tables"]` becomes a resource loading a single table or view. Table
-    settings are the arguments of `sql_table` and the table hints of `dlt.resource`, so the
-    config is a readable, JSON serializable spec that may live in Python, TOML or YAML.
-
     Tables that are not declared in `config["tables"]` are discovered from the database, like
-    in `sql_database`.
+    in the imperative `sql_database()` source.
+
+    Compared to `sql_database()`, `sql_database_source()` can be configured more extensively directly
+    from `config.toml` and other config providers.
 
     Args:
         config (SqlDatabaseConfig): Configuration of the connection and the loaded tables.
@@ -431,6 +432,8 @@ def sql_database_source(
         DltSource: A configured dlt source.
 
     Example:
+
+        ```python
         db_source = sql_database_source({
             "credentials": "postgresql://loader@localhost/dvdrental",
             "table_defaults": {"schema": "public", "reflection_level": "full"},
@@ -452,12 +455,10 @@ def sql_database_source(
                 },
             ],
         })
+        ```
+
     """
-    # validate the config as passed so a bad field is reported before anything is resolved or
-    # connected to. `sql_database_resources` validates again, then including the values that
-    # dlt config providers injected.
-    # TODO: this must be removed when TypedDicts are supported by resolve_configuration
-    #   so config values are bound BEFORE validation
+
     validate_config(config)
     decorated = _declarative_sql_database.clone(
         name=name,
@@ -471,7 +472,7 @@ def sql_database_source(
     return decorated(**config)
 
 
-def sql_database_resources(config: SqlDatabaseConfig) -> List[DltResource]:
+def sql_database_resources(config: SqlDatabaseConfig) -> list[DltResource]:
     """Creates a list of resources from a declarative SQL database configuration.
 
     Resources may be used to create a custom source or passed to `pipeline.run` directly.
@@ -489,47 +490,58 @@ def sql_database_resources(config: SqlDatabaseConfig) -> List[DltResource]:
     if credentials is None:
         raise ValueError(
             "`credentials` are required in the config passed to `sql_database_resources`. Use"
-            " `sql_database_source` to resolve them from dlt config providers ie. secrets.toml."
+            " `sql_database_source` to resolve them from dlt config providers i.e., secrets.toml."
         )
+
     # all tables share a single engine
     engine = engine_from_credentials(
-        credentials, may_dispose_after_use=False, **(config.get("engine_kwargs") or {})
+        credentials,
+        may_dispose_after_use=False,
+        **(config.get("engine_kwargs", {}) or {})
     )
     if engine_adapter_callback := config.get("engine_adapter_callback"):
         engine = engine_adapter_callback(engine)
 
     table_defaults = config.get("table_defaults") or {}
     tables = config.get("tables")
-    metadata: Optional[MetaData] = None
+    metadata: MetaData | None = None
     if tables is None:
-        # like `sql_database`, load all tables in the schema when none are declared
+        # if `tables=None`, discover tables in source (matches `sql_database())
         tables, metadata = _discover_tables(engine, table_defaults, config.get("include_views"))
 
-    resources: List[DltResource] = []
+    resources: list[DltResource] = []
     for table in tables:
         if isinstance(table, DltResource):
             resources.append(table)
             continue
+
         table_config = merge_table_defaults(table_defaults, table)
         table_args, hints, resource_args = split_table_config(table_config)
         resource = sql_table(credentials=engine, metadata=metadata, **table_args)
+
         if table_config["name"] != table_config["table"]:
             resource = resource.with_name(table_config["name"])
+
         if hints:
             resource.apply_hints(**hints)
+
         if (max_table_nesting := resource_args.get("max_table_nesting")) is not None:
             resource.max_table_nesting = max_table_nesting
+
         if (selected := resource_args.get("selected")) is not None:
             resource.selected = selected
+
         if resource_args.get("parallelized"):
             resource.parallelize()
+
         resources.append(resource)
+
     return resources
 
 
 def _discover_tables(
-    engine: Engine, table_defaults: SqlTableResourceBase, include_views: Optional[bool]
-) -> Tuple[List[Union[str, SqlTableResource, DltResource]], MetaData]:
+    engine: Engine, table_defaults: SqlTableResourceBase, include_views: bool | None
+) -> tuple[list[str | SqlTableResource | DltResource], MetaData]:
     """Reflects all tables in the database schema of `table_defaults` and returns their names
     together with the `MetaData` that `sql_table` reuses as a reflection cache.
     """
@@ -544,22 +556,22 @@ def _discover_tables(
 
 
 __all__ = [
-    "sql_database",
-    "sql_database_source",
-    "sql_database_resources",
-    "sql_table",
+    "BaseTableLoader",
+    "ReflectionLevel",
     "SqlDatabaseConfig",
     "SqlTableResource",
     "SqlTableResourceBase",
-    "BaseTableLoader",
-    "TableLoader",
-    "register_table_loader_backend",
-    "get_table_loader_class",
-    "ReflectionLevel",
-    "TTypeAdapter",
-    "engine_from_credentials",
-    "remove_nullability_adapter",
-    "TableBackend",
     "TQueryAdapter",
     "TTableAdapter",
+    "TTypeAdapter",
+    "TableBackend",
+    "TableLoader",
+    "engine_from_credentials",
+    "get_table_loader_class",
+    "register_table_loader_backend",
+    "remove_nullability_adapter",
+    "sql_database",
+    "sql_database_resources",
+    "sql_database_source",
+    "sql_table",
 ]
