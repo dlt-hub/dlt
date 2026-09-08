@@ -1,6 +1,7 @@
 import uuid
 import random
 from datetime import datetime, date, time
+from decimal import Decimal
 from typing import Any, Dict, List, TypedDict, cast
 from sqlalchemy import Column, DateTime, Integer, MetaData, String, Table, create_engine, func
 from sqlalchemy import schema as sqla_schema
@@ -71,7 +72,9 @@ class MSSQLSourceDB:
             VARBINARY,
             DATETIME2,
             DATETIMEOFFSET,
+            MONEY,
             SMALLDATETIME,
+            SMALLMONEY,
         )
 
         Table(
@@ -90,6 +93,8 @@ class MSSQLSourceDB:
             ),
             Column("some_integer", Integer(), nullable=nullable),
             Column("some_numeric", Numeric(10, 2), nullable=nullable),
+            Column("some_money", MONEY(), nullable=nullable),
+            Column("some_smallmoney", SMALLMONEY(), nullable=nullable),
             Column("some_bit", Boolean(), nullable=nullable),  # maps to BIT
             Column("some_date", Date(), nullable=nullable),
             Column("some_datetime2", DATETIME2(), nullable=nullable),
@@ -125,6 +130,8 @@ class MSSQLSourceDB:
                 updated_at=next(dt),
                 some_integer=random.randint(1, 100),
                 some_numeric=round(random.uniform(0, 9999.99), 2),
+                some_money=Decimal("1234567890123.4567"),
+                some_smallmoney=Decimal("12345.6789"),
                 some_bit=random.choice([True, False]),
                 some_date=mimesis.Datetime().date(),
                 some_datetime2=mimesis.Datetime().datetime(),
