@@ -55,10 +55,19 @@ class PyOdbcMsSqlClient(SqlClientBase[pyodbc.Connection], DBTransaction):
         self.credentials = credentials
 
     def open_connection(self) -> pyodbc.Connection:
-        self._conn = pyodbc.connect(
-            self.credentials.to_odbc_dsn(),
-            timeout=self.credentials.connect_timeout,
-        )
+        # For Entra ID token authentication, inject a fresh access token via attrs_before.
+        attrs_before = self.credentials.to_odbc_attrs_before()
+        if attrs_before:
+            self._conn = pyodbc.connect(
+                self.credentials.to_odbc_dsn(),
+                timeout=self.credentials.connect_timeout,
+                attrs_before=attrs_before,
+            )
+        else:
+            self._conn = pyodbc.connect(
+                self.credentials.to_odbc_dsn(),
+                timeout=self.credentials.connect_timeout,
+            )
         # https://github.com/mkleehammer/pyodbc/wiki/Using-an-Output-Converter-function
         self._conn.add_output_converter(-155, handle_datetimeoffset)
         self._conn.autocommit = True

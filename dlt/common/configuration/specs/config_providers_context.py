@@ -1,9 +1,12 @@
 import contextlib
 import dataclasses
 import io
-from typing import ClassVar, List
+from typing import ClassVar, List, Optional
 
-from dlt.common.configuration.exceptions import DuplicateConfigProviderException
+from dlt.common.configuration.exceptions import (
+    ConfigProviderException,
+    DuplicateConfigProviderException,
+)
 from dlt.common.configuration.providers import (
     ConfigProvider,
     ContextProvider,
@@ -34,11 +37,18 @@ class AwsSecretsProviderConfiguration(VaultProviderConfiguration):
 
 
 @configspec
+class AzureKeyVaultProviderConfiguration(VaultProviderConfiguration):
+    vault_url: Optional[str] = None
+    """Azure Key Vault URL, e.g. `https://myvault.vault.azure.net/`"""
+
+
+@configspec
 class ConfigProvidersConfiguration(BaseConfiguration):
     # TODO: set to False in 2.0
     enable_airflow_secrets: bool = True
     enable_google_secrets: bool = False
     enable_aws_secrets: bool = False
+    enable_azure_key_vault: bool = False
 
     airflow_secrets: VaultProviderConfiguration = VaultProviderConfiguration(
         only_secrets=False, only_toml_fragments=False, list_secrets=False
@@ -48,6 +58,9 @@ class ConfigProvidersConfiguration(BaseConfiguration):
     )  # None  # dataclasses.field(default_factory=lambda: dict(only_secrets=True, only_toml_fragments=True, list_secrets=False))
     # VaultProviderConfiguration(only_secrets=True, only_toml_fragments=True, list_secrets=False)
     aws_secrets: AwsSecretsProviderConfiguration = AwsSecretsProviderConfiguration(
+        only_secrets=True, only_toml_fragments=True, list_secrets=False
+    )
+    azure_key_vault: AzureKeyVaultProviderConfiguration = AzureKeyVaultProviderConfiguration(
         only_secrets=True, only_toml_fragments=True, list_secrets=False
     )
     # always look in providers
@@ -110,6 +123,8 @@ def _extra_providers() -> List[ConfigProvider]:
         extra_providers.append(_google_secrets_provider(providers_config.google_secrets))
     if providers_config.enable_aws_secrets:
         extra_providers.append(_aws_secrets_provider(providers_config.aws_secrets))
+    if providers_config.enable_azure_key_vault:
+        extra_providers.append(_azure_key_vault_provider(providers_config.azure_key_vault))
     return extra_providers
 
 
@@ -129,6 +144,18 @@ def _aws_secrets_provider(settings: AwsSecretsProviderConfiguration) -> ConfigPr
 
     c = resolve_configuration(AwsCredentials(), sections=(known_sections.PROVIDERS, "aws_secrets"))
     return AwsSecretsManagerProvider(c, **dict(settings))
+
+
+def _azure_key_vault_provider(settings: AzureKeyVaultProviderConfiguration) -> ConfigProvider:
+    from dlt.common.configuration.providers.azure_key_vault import AzureKeyVaultProvider
+
+    if not settings.vault_url:
+        raise ConfigProviderException(
+            "Azure Key Vault",
+            "vault_url is required. Set it via PROVIDERS__AZURE_KEY_VAULT__VAULT_URL"
+            " or in config.toml under [providers.azure_key_vault].",
+        )
+    return AzureKeyVaultProvider(**dict(settings))
 
 
 def _airflow_providers(settings: VaultProviderConfiguration) -> List[ConfigProvider]:
