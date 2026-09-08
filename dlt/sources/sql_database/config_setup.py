@@ -58,8 +58,10 @@ def validate_config(config: SqlDatabaseConfig) -> None:
         credentials, (str, ConnectionStringCredentials, Engine)
     ):
         raise DictValidationException(
-            msg="field `credentials` expects a connection string, `ConnectionStringCredentials` or"
-            f" `Engine` instance but got `{type(credentials).__name__}`",
+            msg=(
+                "field `credentials` expects a connection string, `ConnectionStringCredentials` or"
+                f" `Engine` instance but got `{type(credentials).__name__}`"
+            ),
             path=".",
             field="credentials",
         )
@@ -105,8 +107,7 @@ def split_table_config(
     settings of the resource itself.
     """
     table_args: dict[str, Any] = {
-        key: value for key, value in table.items()
-        if key in SQL_TABLE_ARGS
+        key: value for key, value in table.items() if key in SQL_TABLE_ARGS
     }
     if incremental := table.get("incremental"):
         table_args["incremental"] = Incremental.ensure_instance(incremental)

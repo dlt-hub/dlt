@@ -420,7 +420,7 @@ def sql_database_source(
             the remaining nodes are loaded as structs or JSON.
         root_key (bool, optional): Enables merging on all resources by propagating
             root foreign key to child tables. Defaults to False.
-        schema (Schema, optional): An explicit dlt `Schema` instance to be associated with the
+        schema (dlt.Schema, optional): An explicit dlt `Schema` instance to be associated with the
             source. Not to be confused with the database schema which is set per table or in
             `config["table_defaults"]`.
         schema_contract (TSchemaContract, optional): Schema contract settings
@@ -483,7 +483,7 @@ def sql_database_resources(config: SqlDatabaseConfig) -> list[DltResource]:
         config (SqlDatabaseConfig): Configuration of the connection and the loaded tables.
 
     Returns:
-        List[DltResource]: A resource per table, in the order the tables are declared.
+        list[DltResource]: A resource per table, in the order the tables are declared.
     """
     validate_config(config)
     credentials = config.get("credentials")
@@ -495,9 +495,7 @@ def sql_database_resources(config: SqlDatabaseConfig) -> list[DltResource]:
 
     # all tables share a single engine
     engine = engine_from_credentials(
-        credentials,
-        may_dispose_after_use=False,
-        **(config.get("engine_kwargs", {}) or {})
+        credentials, may_dispose_after_use=False, **(config.get("engine_kwargs", {}) or {})
     )
     if engine_adapter_callback := config.get("engine_adapter_callback"):
         engine = engine_adapter_callback(engine)
