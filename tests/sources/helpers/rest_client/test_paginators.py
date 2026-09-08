@@ -414,10 +414,47 @@ class TestOffsetPaginator:
                 paginator.update_state(response, data=NON_EMPTY_PAGE)
 
     def test_update_state_without_total(self):
+        # An explicitly passed `total_path` that is missing still raises ...
+        paginator = OffsetPaginator(0, 10, total_path="total")
+        response = Mock(Response, json=lambda: {})
+        with pytest.raises(ValueError, match="total_path=None"):
+            paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+    def test_update_state_with_null_total_explicit(self):
+        # ... including when the field is present but null: null means
+        # "unknown" only for the inherited default, not for an explicit path.
+        paginator = OffsetPaginator(0, 10, total_path="total")
+        response = Mock(Response, json=lambda: {"total": None})
+        with pytest.raises(ValueError, match="not found in the response"):
+            paginator.update_state(response, data=NON_EMPTY_PAGE)
+
+    def test_update_state_with_null_total_inherited(self):
+        # Issue #4429: with the default `total_path`, a null total means
+        # "unknown" and falls back to the other stop conditions.
+        paginator = OffsetPaginator(0, 10)
+        response = Mock(Response, json=lambda: {"total": None})
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is True
+        # the missing total is looked up only once
+        assert paginator.total_path is None
+
+    def test_update_state_without_total_inherited(self):
+        # Same as above when the field is absent entirely.
         paginator = OffsetPaginator(0, 10)
         response = Mock(Response, json=lambda: {})
-        with pytest.raises(ValueError):
-            paginator.update_state(response, data=NON_EMPTY_PAGE)
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is True
+
+    def test_update_state_inherited_total_empty_page_stops(self):
+        paginator = OffsetPaginator(0, 10)
+        response = Mock(Response, json=lambda: {"total": None})
+        paginator.update_state(response, data=[])
+        assert paginator.has_next_page is False
+
+    def test_init_without_stop_condition_raises(self):
+        # The inherited default is not a stop condition on its own.
+        with pytest.raises(ValueError, match="must be provided"):
+            OffsetPaginator(0, 10, stop_after_empty_page=False)
 
     def test_update_state_with_has_more(self):
         paginator = OffsetPaginator(0, 10, total_path=None, has_more_path="has_more")
@@ -663,6 +700,13 @@ class TestOffsetPaginator:
 
 @pytest.mark.usefixtures("mock_api_server")
 class TestPageNumberPaginator:
+    def test_update_state_with_null_total_inherited(self):
+        # Issue #4429: inherited default + null total falls back instead of raising.
+        paginator = PageNumberPaginator(base_page=1, page=1)
+        response = Mock(Response, json=lambda: {"total": None})
+        paginator.update_state(response, data=NON_EMPTY_PAGE)
+        assert paginator.has_next_page is True
+
     def test_update_state(self):
         paginator = PageNumberPaginator(base_page=1, page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {"total_pages": 3})
@@ -737,7 +781,7 @@ class TestPageNumberPaginator:
         assert paginator.has_next_page is True
 
     def test_update_state_with_invalid_total_pages(self):
-        paginator = PageNumberPaginator(base_page=1, page=1)
+        paginator = PageNumberPaginator(base_page=1, page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {"total_pages": "invalid"})
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)
@@ -750,7 +794,7 @@ class TestPageNumberPaginator:
                 paginator.update_state(response, data=NON_EMPTY_PAGE)
 
     def test_update_state_without_total_pages(self):
-        paginator = PageNumberPaginator(base_page=1, page=1)
+        paginator = PageNumberPaginator(base_page=1, page=1, total_path="total_pages")
         response = Mock(Response, json=lambda: {})
         with pytest.raises(ValueError):
             paginator.update_state(response, data=NON_EMPTY_PAGE)

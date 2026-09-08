@@ -6,7 +6,18 @@ from urllib.parse import urljoin, urlparse
 from requests import Request, Response
 
 from dlt.common import jsonpath
+from dlt.common import logger
 from dlt.common.utils import str2bool
+
+
+_DEFAULT_TOTAL_PATH: Any = object()
+"""Sentinel marking the default `total_path` of range paginators.
+
+Lets `RangePaginator` tell an inherited default apart from an explicitly
+passed path: a response without a total only raises in the latter case.
+The sentinel is normalized to `"total"` in `__init__` and never stored,
+so paginators stay trivially copyable.
+"""
 
 
 class BasePaginator(ABC):
@@ -133,8 +144,14 @@ class RangePaginator(BasePaginator):
                 Defaults to None.
         """
         super().__init__()
+        # An inherited default is not a reliable stop condition: the response
+        # may simply not carry a total. Only an explicitly passed `total_path`
+        # counts as one for the validation below.
+        self._total_path_explicit = total_path is not None and total_path is not _DEFAULT_TOTAL_PATH
+        if total_path is _DEFAULT_TOTAL_PATH:
+            total_path = "total"
         if (
-            total_path is None
+            (total_path is None or not self._total_path_explicit)
             and maximum_value is None
             and has_more_path is None
             and not stop_after_empty_page
@@ -174,12 +191,26 @@ class RangePaginator(BasePaginator):
                 values = jsonpath.find_values(self.total_path, response_json)
                 total = values[0] if values else None
                 if total is None:
-                    self._handle_missing_total(response_json)
-
-                try:
-                    total = int(total)
-                except (ValueError, TypeError):
-                    self._handle_invalid_total(total)
+                    if self._total_path_explicit:
+                        self._handle_missing_total(response_json)
+                    # The default `total_path` was inherited and the response
+                    # carries no total: a null total means "unknown", not
+                    # "broken". Ignore it and let the other stop conditions
+                    # end the walk. Looked up only once to avoid log spam.
+                    logger.warning(
+                        f"`{self.total_path}` not found in the response in"
+                        f" `{self.__class__.__name__}`. The total will be ignored"
+                        " and pagination will rely on the other stop conditions"
+                        " (`stop_after_empty_page`, `maximum_value` or"
+                        " `has_more_path`). If the API returns the total under a"
+                        " different key, pass it explicitly via `total_path`."
+                    )
+                    self.total_path = None
+                else:
+                    try:
+                        total = int(total)
+                    except (ValueError, TypeError):
+                        self._handle_invalid_total(total)
 
             self.current_value += self.value_step
 
@@ -211,7 +242,9 @@ class RangePaginator(BasePaginator):
         raise ValueError(
             f"Total `{self.error_message_items}` not found in the response in"
             f" `{self.__class__.__name__}` .Expected a response with a `{self.total_path}` key, got"
-            f" `{response_json}`."
+            f" `{response_json}`. If the API does not return a total, pass `total_path=None`"
+            " and use another stop condition (`stop_after_empty_page`, `maximum_value`"
+            " or `has_more_path`) instead."
         )
 
     def _handle_invalid_total(self, total: Any) -> None:
@@ -335,7 +368,7 @@ class PageNumberPaginator(RangePaginator):
         base_page: int = 0,
         page: int = None,
         page_param: Optional[str] = None,
-        total_path: Optional[jsonpath.TJsonPath] = "total",
+        total_path: Optional[jsonpath.TJsonPath] = _DEFAULT_TOTAL_PATH,
         maximum_page: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
         *,
@@ -358,7 +391,10 @@ class PageNumberPaginator(RangePaginator):
                 of `page_param` when sending the page number in the request body.
                 Defaults to `None`.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
-                the total number of pages. Defaults to 'total'.
+                the total number of pages. Defaults to 'total'. If left at the
+                default and the response carries no total, pagination falls back
+                to the other stop conditions instead of raising; an explicitly
+                passed path that is missing still raises.
             maximum_page (int): The maximum page number. If provided, pagination
                 will stop once this page is reached or exceeded, even if more
                 data is available. This allows you to limit the maximum number
@@ -377,7 +413,7 @@ class PageNumberPaginator(RangePaginator):
             raise ValueError("Either 'page_param' or 'page_body_path' must be provided, not both.")
 
         if (
-            total_path is None
+            (total_path is None or total_path is _DEFAULT_TOTAL_PATH)
             and maximum_page is None
             and has_more_path is None
             and not stop_after_empty_page
@@ -492,7 +528,7 @@ class OffsetPaginator(RangePaginator):
         offset: int = 0,
         offset_param: Optional[str] = None,
         limit_param: Optional[str] = None,
-        total_path: Optional[jsonpath.TJsonPath] = "total",
+        total_path: Optional[jsonpath.TJsonPath] = _DEFAULT_TOTAL_PATH,
         maximum_offset: Optional[int] = None,
         stop_after_empty_page: Optional[bool] = True,
         *,
@@ -519,7 +555,10 @@ class OffsetPaginator(RangePaginator):
                 If provided, the paginator will use this instead of `limit_param`
                 to send the limit in the request body. Defaults to `None`.
             total_path (jsonpath.TJsonPath): The JSONPath expression for
-                the total number of items.
+                the total number of items. Defaults to 'total'. If left at the
+                default and the response carries no total, pagination falls back
+                to the other stop conditions instead of raising; an explicitly
+                passed path that is missing still raises.
             maximum_offset (int): The maximum offset value. If provided,
                 pagination will stop once this offset is reached or exceeded,
                 even if more data is available. This allows you to limit the
@@ -548,7 +587,7 @@ class OffsetPaginator(RangePaginator):
             )
 
         if (
-            total_path is None
+            (total_path is None or total_path is _DEFAULT_TOTAL_PATH)
             and maximum_offset is None
             and has_more_path is None
             and not stop_after_empty_page
