@@ -122,7 +122,7 @@ __all__ = [
 Rules:
 
 - **Function imports** (`from github_pipeline import load_commits`) produce one job per function. The function must be decorated with `@run.pipeline`, `@run.job`, or `@run.interactive`.
-- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected — marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards.
+- **Module imports** (`import github_report_notebook`) produce one job per module. The framework is auto-detected: marimo notebooks become interactive notebook jobs, FastMCP modules become MCP servers, Streamlit modules become dashboards. A plain local module becomes a batch job. See [Jobs created from module imports](job-configuration.md#jobs-created-from-module-imports) for the detection rules and for the `__trigger__`, `__expose__`, and `__require__` dunders that configure such a job.
 - **`__all__`** lists exactly the names to deploy. Without it, the manifest generator scans `__dict__` and warns.
 - **`__doc__`** (the module docstring) becomes the workspace description in the dltHub platform dashboard.
 
