@@ -44,15 +44,13 @@ from dlt.sources.sql_database.typing import (
 
 from tests.common.configuration.utils import toml_providers
 from tests.pipeline.utils import assert_load_info, load_table_counts
-from tests.utils import get_test_storage_root
 
 
-def create_sqlite_db(items: str, orders: str) -> str:
+def create_sqlite_db(tmp_dir: Path, items: str, orders: str) -> str:
     """Creates an on-disk sqlite db with an `items` and an `orders` table filled with the given
     rows and returns its connection url."""
-    test_dir = Path(get_test_storage_root()) / f"sqlite_{uuid.uuid4().hex}"
-    test_dir.mkdir(parents=True, exist_ok=True)
-    credentials = f"sqlite:///{test_dir / 'test.db'}"
+    db_path = Path(tmp_dir) / f"{uuid.uuid4().hex}.db"
+    credentials = f"sqlite:///{db_path}"
     engine = sa.create_engine(credentials)
     try:
         with engine.begin() as conn:
@@ -71,8 +69,9 @@ def create_sqlite_db(items: str, orders: str) -> str:
 
 
 @pytest.fixture
-def credentials() -> str:
+def credentials(tmp_path: Path) -> str:
     return create_sqlite_db(
+        tmp_path,
         items="(1, 'a', 'x', '2024-01-01'), (2, 'b', 'y', '2024-06-01')",
         orders="(1, 1), (2, 2), (3, 2)",
     )
@@ -248,11 +247,15 @@ def test_engine_kwargs_reach_create_engine(credentials: str) -> None:
         )
 
 
-def test_engine_adapter_callback_replaces_shared_engine(credentials: str) -> None:
+def test_engine_adapter_callback_replaces_shared_engine(
+    credentials: str, tmp_path: Path
+) -> None:
     """The callback is called once and the engine it returns is used by all tables."""
     expected_items_ids = [3]
     expected_orders_ids = [4]
-    other_credentials = create_sqlite_db(items="(3, 'c', 'z', '2025-01-01')", orders="(4, 3)")
+    other_credentials = create_sqlite_db(
+        tmp_path, items="(3, 'c', 'z', '2025-01-01')", orders="(4, 3)"
+    )
     adapted: list[sa.engine.Engine] = []
 
     def engine_adapter_callback(engine: sa.engine.Engine) -> sa.engine.Engine:
@@ -579,7 +582,13 @@ def test_sql_database_source_runs_in_pipeline(credentials: str) -> None:
     expected_table_counts = {"items": 2, "orders": 3}
 
     source = sql_database_source(
-        {"credentials": credentials, "tables": ["items", "orders"]},
+        {
+            "credentials": credentials,
+            "tables": ["items", "orders"],
+            # a sqlite file connection is only safe to hand across threads when opened with
+            # `check_same_thread=False`; `parallelized=True` extracts tables in a thread pool.
+            "engine_kwargs": {"connect_args": {"check_same_thread": False}},
+        },
         schema_contract="evolve",
         parallelized=True,
     )
