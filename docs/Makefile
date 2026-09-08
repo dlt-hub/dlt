@@ -23,7 +23,11 @@ build: ## Full production build of the docs website into `website/build/docs`
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
 
-process-docs: ## Dynamically generate pages under `website/docs_processed`
+# NOTE the command `preprocess-docs` must exist and produce the
+# documentation and API reference for `update_versions.js` to work
+# TODO make this mechanism less brittle
+#
+preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	# Order matters: preprocess-markers wipes and recreates docs_processed, so
 	# generators that write into it must run afterwards.
 	uv run --script tools/preprocess_docs.py
