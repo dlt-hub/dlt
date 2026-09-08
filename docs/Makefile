@@ -88,4 +88,4 @@ snippets-typecheck:
 	uv run pytest test_snippets.py::test_typecheck_snippets
 
 snippets-test:
-	uv run pytest -m "not example" test_snippets.py::test_run_snippets
+	uv run pytest test_snippets.py::test_run_snippets

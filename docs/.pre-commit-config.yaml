@@ -38,15 +38,16 @@ repos:
         types: [markdown]
         pass_filenames: false
 
-      - id: check-examples
-        name: check-examples
-        description: format, type check, and run code examples (i.e., cookbook)
-        entry: uv run pytest -m "example" test_snippets.py
-        language: system
-        files: ^website/docs/examples.*\.md$
-        types: [markdown]
-        stages: [pre-push]
-        pass_filenames: false
+      # re-enable once examples can be executed locally
+      # - id: check-examples
+      #   name: check-examples
+      #   description: format, type check, and run code examples (i.e., cookbook)
+      #   entry: uv run pytest -m "example" test_snippets.py
+      #   language: system
+      #   files: ^website/docs/examples.*\.md$
+      #   types: [markdown]
+      #   stages: [pre-push]
+      #   pass_filenames: false
 
   - repo: local
     hooks:
