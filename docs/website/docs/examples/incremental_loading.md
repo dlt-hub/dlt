@@ -3,9 +3,6 @@ title: Load Zendesk tickets incrementally
 description: Learn how do incremental loading in consecutive runs
 keywords: [incremental loading, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/incremental_loading](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/incremental_loading)
-:::
 
 ## About this Example
 

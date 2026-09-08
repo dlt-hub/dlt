@@ -3,9 +3,6 @@ title: Run chess pipeline in production
 description: Learn how run chess pipeline in production
 keywords: [incremental loading, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/chess_production](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/chess_production)
-:::
 
 ## About this Example
 

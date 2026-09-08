@@ -3,9 +3,6 @@ title: Propagate primary_key from root to nested tables
 description: Learn how to propagate any column to nested tables
 keywords: [root table, nested reference, parent key]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/propagate_hints](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/propagate_hints)
-:::
 
 ## About this Example
 
@@ -23,7 +20,7 @@ Please note that dlt metadata, including `_dlt_id` and `_dlt_load_id`, will stil
 
 ### Full source code
 
-```py noexecute notype
+```py execute notype
 from typing import Any, Generator
 import dlt
 

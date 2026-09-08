@@ -3,9 +3,6 @@ title: Backfill to Filesystem with partial replace
 description: Load chess game data from Chess.com into a filesystem destination, while deleting old backfill files.
 keywords: [incremental loading, REST API, dlt, chess.com, data pipeline, backfill management, filesystem]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/partial_loading](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/partial_loading)
-:::
 
 ## About this Example
 
@@ -22,7 +19,7 @@ We'll learn:
 
 ### Full source code
 
-```py noexecute notype
+```py execute notype
 import os
 import re
 from dlt.common import pendulum as p

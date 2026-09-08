@@ -3,9 +3,6 @@ title: Backfilling in chunks
 description: Learn how to backfill in chunks of defined size
 keywords: [incremental loading, backfilling, chunks,example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/backfill_in_chunks](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/backfill_in_chunks)
-:::
 
 ## About this Example
 

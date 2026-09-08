@@ -3,9 +3,6 @@ title: Similarity searching with Qdrant
 description: Learn how to use the dlt source, Zendesk and dlt destination, Qdrant to conduct a similarity search on your tickets data.
 keywords: [similarity search, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/qdrant_zendesk](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/qdrant_zendesk)
-:::
 
 ## About this Example
 

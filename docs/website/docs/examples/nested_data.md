@@ -3,9 +3,6 @@ title: Control nested MongoDB data
 description: Learn how control nested data
 keywords: [incremental loading, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/nested_data](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/nested_data)
-:::
 
 ## About this Example
 

@@ -3,9 +3,6 @@ title: Use custom yaml file for config and secrets
 description: We show how to keep configuration in yaml file with switchable profiles and simple templates
 keywords: [config, yaml config, profiles]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_config_provider](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_config_provider)
-:::
 
 ## About this Example
 
@@ -23,7 +20,7 @@ In this example you will learn to:
 
 ### Full source code
 
-```py noexecute
+```py
 import os
 import re
 import dlt

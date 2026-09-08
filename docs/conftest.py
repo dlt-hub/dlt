@@ -7,6 +7,8 @@ from pytest_examples import CodeExample, find_examples
 WEBSITE_DOCS_DIR = pathlib.Path("website/docs").absolute()
 EXAMPLES_DIR = (WEBSITE_DOCS_DIR / "examples").absolute()
 
+# TODO refactor those files such that they don't require
+# share state
 REQUIRES_SHARED_STATE = {
     "general-usage/dataset-access/dataset.md",
     "dlt-ecosystem/transformations/dbt/dbt.md",
@@ -70,12 +72,18 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
         if path.absolute().is_relative_to(EXAMPLES_DIR):
             marks.append(pytest.mark.example)
 
-        if any("noexecute" in example.prefix_tags() for example in examples):
-            marks.append(pytest.mark.skip("Found a `noexecute` directive in one of the snippet of this page."))
+        runnable_examples = [
+            example for example in examples
+            if "noexecute" not in example.prefix_tags()
+        ]
+        if not runnable_examples:
+            marks.append(
+                pytest.mark.skip(f"All snippets on page have `noexecute`: {path}")
+            )
 
         param = pytest.param(
             path,
-            examples,
+            runnable_examples,
             str(path.absolute().relative_to(WEBSITE_DOCS_DIR)) in REQUIRES_SHARED_STATE,
             marks=marks,
             id=str(path),

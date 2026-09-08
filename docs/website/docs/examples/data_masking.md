@@ -3,9 +3,6 @@ title: Data masking for SQL database sources
 description: Learn how to mask sensitive columns using closures that work with all sql_database backends
 keywords: [data masking, pseudonymize, anonymize, sql_database, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/data_masking](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/data_masking)
-:::
 
 ## About this Example
 
@@ -40,7 +37,7 @@ load_info = pipeline.run(table)
 
 ### Full source code
 
-```py noexecute notype
+```py execute notype
 from enum import Enum
 from typing import Any, Callable, Optional, Union
 

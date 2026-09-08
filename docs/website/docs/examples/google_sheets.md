@@ -3,9 +3,6 @@ title: Google Sheets minimal example
 description: Learn how work with Google services
 keywords: [google sheets, credentials, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/google_sheets](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/google_sheets)
-:::
 
 ## About this Example
 

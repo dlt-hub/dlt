@@ -3,9 +3,6 @@ title: Create and use own naming convention
 description: We demonstrate how to create naming conventions that allow UNICODE letters and never generate collisions
 keywords: [example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_naming](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_naming)
-:::
 
 ## About this Example
 

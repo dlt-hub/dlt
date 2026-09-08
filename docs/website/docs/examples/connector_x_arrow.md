@@ -3,9 +3,6 @@ title: Load mysql table with ConnectorX & Arrow
 description: Load data from sql queries fast with connector x and arrow tables
 keywords: [connector x, pyarrow, zero copy]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/connector_x_arrow](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/connector_x_arrow)
-:::
 
 ## About this Example
 

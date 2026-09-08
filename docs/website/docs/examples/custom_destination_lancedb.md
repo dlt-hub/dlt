@@ -3,9 +3,6 @@ title: Custom destination with LanceDB
 description: Learn how use the custom destination to load to LanceDB.
 keywords: [destination, credentials, example, lancedb, custom destination, vectorstore, AI, LLM]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_destination_lancedb](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_destination_lancedb)
-:::
 
 ## About this Example
 

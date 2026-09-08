@@ -3,9 +3,6 @@ title: Export Langfuse Observability Data
 description: Export traces, evaluations, datasets, and cost data from Langfuse to your data lake
 keywords: [langfuse, llm, observability, traces, evaluations, datasets, scores, export]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/langfuse_export](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/langfuse_export)
-:::
 
 ## About this Example
 

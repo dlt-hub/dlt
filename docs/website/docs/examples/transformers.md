@@ -3,9 +3,6 @@ title: Pokemon details in parallel using transformers
 description: Learn how to use dlt transformers and how to speed up your loads with parallelism
 keywords: [transformers, parallelism, example]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/transformers](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/transformers)
-:::
 
 ## About this Example
 

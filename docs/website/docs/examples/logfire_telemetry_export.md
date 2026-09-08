@@ -3,9 +3,6 @@ title: Export Logfire Telemetry
 description: Incrementally export traces and metrics from Pydantic Logfire to your data lake
 keywords: [logfire, opentelemetry, traces, metrics, observability, telemetry, export]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/logfire_telemetry_export](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/logfire_telemetry_export)
-:::
 
 ## About this Example
 

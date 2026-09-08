@@ -3,9 +3,6 @@ title: Load PDFs to Weaviate
 description: Extract text from PDF and load it into a vector database
 keywords: [pdf, weaviate, vector store, vector database, ]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/pdf_to_weaviate](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/pdf_to_weaviate)
-:::
 
 ## About this Example
 

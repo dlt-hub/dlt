@@ -3,9 +3,6 @@ title: Custom destination with BigQuery
 description: Learn how use the custom destination to load to bigquery and use credentials
 keywords: [destination, credentials, example, bigquery, custom destination]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_destination_bigquery](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/custom_destination_bigquery)
-:::
 
 ## About this Example
 

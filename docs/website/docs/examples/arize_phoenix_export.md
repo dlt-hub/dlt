@@ -3,9 +3,6 @@ title: Export Arize Phoenix Telemetry
 description: Export traces, spans, and evaluations from Arize Phoenix to your data lake
 keywords: [arize, phoenix, opentelemetry, traces, spans, evaluations, observability, llm, export]
 ---
-:::info
-The source code for this example can be found in our repository at: [https://github.com/dlt-hub/dlt/tree/devel/docs/examples/arize_phoenix_export](https://github.com/dlt-hub/dlt/tree/devel/docs/examples/arize_phoenix_export)
-:::
 
 ## About this Example
 
