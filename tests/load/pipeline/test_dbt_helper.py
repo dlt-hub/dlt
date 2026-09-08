@@ -3,6 +3,7 @@ from typing import Iterator, Any
 import pytest
 import threading
 import tempfile
+import pathlib
 
 import dlt
 import requests
@@ -22,6 +23,9 @@ from tests.utils import ACTIVE_SQL_DESTINATIONS
 # uncomment add motherduck tests
 # NOTE: the tests are passing but we disable them due to frequent ATTACH DATABASE timeouts
 # ACTIVE_DESTINATIONS += ["motherduck"]
+
+TESTS_LOAD_DIR = pathlib.Path(__file__).parent.parent
+DBT_CHESS_PACKAGE_PATH: str = str(TESTS_LOAD_DIR / "cases/dbt_chess")
 
 
 @pytest.fixture(scope="module")
@@ -141,7 +145,7 @@ def test_run_chess_dbt(destination_config: DestinationTestConfiguration, dbt_ven
     )
     assert pipeline.default_schema_name is None
     # get the runner for the "dbt_transform" package
-    transforms = dlt.dbt.package(pipeline, "docs/examples/chess/dbt_transform", venv=dbt_venv)
+    transforms = dlt.dbt.package(pipeline, DBT_CHESS_PACKAGE_PATH, venv=dbt_venv)
     assert pipeline.default_schema_name is None
     # there's no data so the source tests will fail
     with pytest.raises(PrerequisitesException):
@@ -204,7 +208,7 @@ def test_run_chess_dbt_to_other_dataset(
     pipeline.config.use_single_dataset = False
     # assert pipeline.default_schema_name is None
     # get the runner for the "dbt_transform" package
-    transforms = dlt.dbt.package(pipeline, "docs/examples/chess/dbt_transform", venv=dbt_venv)
+    transforms = dlt.dbt.package(pipeline, DBT_CHESS_PACKAGE_PATH, venv=dbt_venv)
     # assert pipeline.default_schema_name is None
     # load data
     info = pipeline.run(chess(max_players=5, month=9), **destination_config.run_kwargs)
