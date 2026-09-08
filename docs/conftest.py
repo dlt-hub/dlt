@@ -17,25 +17,8 @@ REQUIRES_SHARED_STATE = {
 }
 
 
-def pytest_addoption(parser: pytest.Parser) -> None:
-    parser.addoption(
-        "--pages",
-        nargs="*",
-        default=None,
-        type=pathlib.Path,
-        help=(
-            "Select specific docs pages to check. Accepts multiple values, which allows"
-            " pre-commit hooks to append all the changed files after `--page`."
-        ),
-    )
-
-
 def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
-    page_paths = metafunc.config.getoption("pages")
-    if page_paths:
-        examples = [example for page_path in page_paths for example in find_examples(page_path)]
-    else:
-        examples = list(find_examples(WEBSITE_DOCS_DIR))
+    examples = list(find_examples(WEBSITE_DOCS_DIR))
 
     lint_params = []
     typecheck_params = []
@@ -80,11 +63,12 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
             marks.append(
                 pytest.mark.skip(f"All snippets on page have `noexecute`: {path}")
             )
+        requires_shared_state = str(path.absolute().relative_to(WEBSITE_DOCS_DIR)) in REQUIRES_SHARED_STATE
 
         param = pytest.param(
             path,
             runnable_examples,
-            str(path.absolute().relative_to(WEBSITE_DOCS_DIR)) in REQUIRES_SHARED_STATE,
+            requires_shared_state,
             marks=marks,
             id=str(path),
         )
@@ -98,5 +82,5 @@ def pytest_generate_tests(metafunc: pytest.Metafunc) -> None:
 
     elif metafunc.definition.get_closest_marker("run_snippets"):
         metafunc.parametrize(
-            ("page_relative_path", "page_examples", "shared_state"), run_params
+            ("page_path", "page_examples", "shared_state"), run_params
         )

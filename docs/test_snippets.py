@@ -1,3 +1,4 @@
+import pathlib
 import re
 import subprocess
 import sys
@@ -112,21 +113,16 @@ def test_typecheck_snippets(example: CodeExample, tmp_path: Path):
 
 @pytest.mark.run_snippets
 def test_run_snippets(
-    page_relative_path: str,
+    page_path: pathlib.Path,
     page_examples: list[CodeExample],
     shared_state: bool,
     eval_example: EvalExample,
 ) -> None:
     """Run docs snippets and standalone examples.
 
-    Snippets (`snippets` marker) and examples (`examples` marker) share the same
-    execution logic and can be selected independently, e.g. `pytest -m examples`.
-
     If shared_state is True, share the state between individual snippets
     of the same docs page.
     """
-    page_path = WEBSITE_DOCS_DIR / page_relative_path
-
     module_globals: dict[str, Any] = {}
     with _providers_for_page(page_path.parent):
         for example in page_examples:
