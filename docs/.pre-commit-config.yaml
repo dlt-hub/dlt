@@ -1,4 +1,7 @@
 fail_fast: false
+# by default, hooks will only run at `pre-commit` unless overriden
+# this reduces duplicate runs happening at pre-commit and pre-push
+default_stages: [pre-commit]
 repos:
   - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v6.0.0
