@@ -7,8 +7,7 @@ table loaders, `Engine` instances) are accepted as escape hatches but keep the c
 non-serializable, so use them only when needed.
 """
 
-from collections.abc import Callable
-from typing import Any
+from typing import Any, Callable, Optional, Type
 
 from dlt.common.configuration.specs import ConnectionStringCredentials
 from dlt.common.incremental.typing import IncrementalArgs
@@ -51,7 +50,14 @@ class SqlTableResourceBase(TResourceHintsBase, total=False):
     table_adapter_callback: TTableAdapter | None
     type_adapter_callback: TTypeAdapter | None
     query_adapter_callback: TQueryAdapter | None
-    table_loader_class: type[BaseTableLoader] | None
+    # NOTE: `typing.Type` (not the builtin `type[...]`) is required here: on Python 3.10,
+    # `inspect.isclass()` incorrectly returns True for parameterized builtin generics like
+    # `type[BaseTableLoader]`, which makes `dlt.common.validation.validate_dict` attempt
+    # `isinstance(value, type[BaseTableLoader])` and crash with
+    # "isinstance() argument 2 cannot be a parameterized generic" before our custom
+    # `_validate_class_type` validator gets a chance to run. `typing.Type[...]` produces a
+    # `typing._GenericAlias` instead, which doesn't trigger that bug on any supported version.
+    table_loader_class: Optional[Type[BaseTableLoader]]
 
 
 class SqlTableResource(SqlTableResourceBase, total=False):
@@ -75,6 +81,9 @@ class SqlDatabaseConfig(TypedDict, total=False):
     dlt config providers (ie. `secrets.toml`) when omitted."""
     engine_kwargs: dict[str, Any] | None
     """Keyword arguments passed to `sqlalchemy.create_engine()`."""
+    # NOTE: `typing.Callable` (not `collections.abc.Callable`) is required here for the same
+    # reason `typing.Type` is required above: on Python 3.10, a parameterized
+    # `collections.abc.Callable[...]` is also misidentified as a class by `inspect.isclass()`.
     engine_adapter_callback: Callable[[Engine], Engine] | None
     """Callback to configure or replace the `Engine` shared by all tables."""
     table_defaults: SqlTableResourceBase | None
