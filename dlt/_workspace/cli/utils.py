@@ -4,6 +4,8 @@ import os
 import platform
 import shutil
 import subprocess
+import sys
+from pathlib import Path
 from typing import (
     Any,
     Callable,
@@ -11,6 +13,7 @@ from typing import (
     FrozenSet,
     List,
     Optional,
+    Set,
     Tuple,
 )
 
@@ -41,11 +44,13 @@ from dlt.reflection.script_visitor import PipelineScriptVisitor
 from dlt._workspace.cli.exceptions import CliCommandInnerException
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.helpers.dashboard.typing import TPipelineListItem
+from dlt._workspace.access import format_access
 from dlt._workspace.typing import (
     ProviderInfo,
     ProviderLocationInfo,
     TLocationScope,
     TSchemaExport,
+    TWorkspaceAccess,
 )
 from dlt._workspace.profile import is_local_profile
 
@@ -245,7 +250,77 @@ def make_mcp_run_flags(default_port: int = 8000) -> argparse.ArgumentParser:
             % ", ".join(defaults)
         ),
     )
+    flags.add_argument(
+        "--no-default-features",
+        action="store_true",
+        help="Serve only the features named by --features, without the defaults above",
+    )
+    flags.add_argument(
+        "--access",
+        default=None,
+        help=(
+            "Access the caller was granted, as `axis:verb,verb` pairs"
+            " (e.g. data:read,local:read). Tools requiring more are not served."
+            " `axis:` alone grants nothing on that axis. Everything is served when omitted."
+        ),
+    )
     return flags
+
+
+def resolve_features(feature_tokens: Optional[List[str]], defaults: Set[str] = None) -> Set[str]:
+    """Resolve `+name`, `-name`, `name` tokens against defaults into a feature set."""
+    if defaults is None:
+        defaults = set(DEFAULT_MCP_FEATURES)
+    if not feature_tokens:
+        return set(defaults)
+
+    result = set(defaults)
+    for item in feature_tokens:
+        # tokens may be comma-separated: "--features=-secrets,+context"
+        # because argparse treats leading "-" as a flag, use "=" form for removals
+        for token in item.split(","):
+            token = token.strip()
+            if not token:
+                continue
+            if token.startswith("-"):
+                result.discard(token[1:])
+            elif token.startswith("+"):
+                result.add(token[1:])
+            else:
+                result.add(token)
+    return result
+
+
+def mcp_stdio_args(
+    features: Optional[List[str]] = None,
+    with_defaults: bool = True,
+    access: Optional[TWorkspaceAccess] = None,
+) -> List[str]:
+    """`ai mcp run --stdio` arguments serving `features`, limited to what `access` covers.
+
+    Without `with_defaults` the server serves `features` alone, not the interactive defaults.
+    Without `access` the server grants everything.
+    """
+    args = ["ai", "mcp", "run", "--stdio"]
+    if access is not None:
+        args += ["--access", format_access(access)]
+    if not with_defaults:
+        args.append("--no-default-features")
+        resolved = resolve_features(features, set())
+        return args + ["--features", *sorted(resolved)] if resolved else args
+    resolved = resolve_features(features)
+    if resolved != DEFAULT_MCP_FEATURES:
+        args.extend(["--features"] + sorted(resolved))
+    return args
+
+
+def cli_host_command() -> str:
+    """The `dlthub` script next to the running interpreter, or the bare name when there is none.
+
+    Always `dlthub`, not the active host: the `dlt` host has no `ai` command.
+    """
+    script = Path(sys.executable).parent / ("dlthub.exe" if os.name == "nt" else "dlthub")
+    return str(script) if script.is_file() else "dlthub"
 
 
 def add_mcp_arg_parser(subparsers: Any, description: str, help_str: str, default_port: int) -> None:
