@@ -468,7 +468,7 @@ class DltResourceHints:
         Args:
             table_name (TTableHintTemplate[str]): name of the table which resource will generate
 
-            parent_table_parent (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
+            parent_table_name (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
 
             incremental (Incremental, optional): Enables the incremental loading for a resource.
 
