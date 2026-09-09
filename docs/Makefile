@@ -8,7 +8,6 @@ help: ## Shows this help message
 dev: ## Set up development environment
 	uv sync --all-extras --all-groups --all-packages --quiet --locked
 	uv run prek install --hook-type pre-commit --hook-type pre-push
-	cd website && npm install
 
 start: ## Generate docs and start the docusaurus dev server
 	$(MAKE) preprocess-docs

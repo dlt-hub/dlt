@@ -45,6 +45,7 @@ dependencies = [
     "pytest-xdist>=3.8.0",
     "ty>=0.0.72",
     "mdsmith>=0.55.1",
+    "black==23.12.1",
 ]
 
 [dependency-groups]
