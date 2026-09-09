@@ -407,7 +407,8 @@ def _(Union, logging):
                 level: Union[str, int] = loguru_logger.level(record.levelname).name
             except ValueError:
                 level = record.levelno
-            frame, depth = (sys._getframe(6), 6)
+            depth = 6
+            frame = sys._getframe(depth)
             while frame and frame.f_code.co_filename == logging.__file__:
                 frame = frame.f_back
                 depth = depth + 1
