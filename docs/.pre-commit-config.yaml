@@ -93,8 +93,8 @@ repos:
       - id: validate-molabs
         name: validate-molabs
         entry: make validate-molabs
-        files: ^education/.*\.py$
-        types: [python]
+        files: ^education/.*\.(py|ipynb)$
+        types_or: [python, jupyter]
         language: system
         pass_filenames: false
 
