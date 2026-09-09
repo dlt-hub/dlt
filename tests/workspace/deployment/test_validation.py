@@ -33,7 +33,11 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
+    TEntryPoint,
+    TExecuteSpec,
     TJobDefinition,
+    TJobRef,
+    TJobsDeploymentManifest,
     TJobType,
     TTrigger,
 )
@@ -628,6 +632,7 @@ def test_load_manifest_migrates_stored_v1() -> None:
         loaded = load_manifest(f)
     assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
     jobs: Dict[str, Any] = {j["job_ref"]: j for j in loaded["jobs"]}
+    assert {j["engine_version"] for j in jobs.values()} == {MANIFEST_ENGINE_VERSION}
     assert jobs["jobs.events.hourly_events"]["incremental_mode"] == "interval"
     assert jobs["jobs.events.daily_report"]["refresh_propagation"] == "block"
     assert "refresh" not in jobs["jobs.events.daily_report"]
@@ -997,13 +1002,23 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
         ),
         # no schedule/every — first eligible trigger wins
         (
-            ["job.success:jobs.mod.up", "manual:jobs.mod.a"],
-            "job.success:jobs.mod.up",
+            ["http:8000", "manual:jobs.mod.a"],
+            "http:8000",
         ),
         # manual/deployment skipped, next eligible wins
         (
             ["manual:jobs.mod.a", "deployment:prod", "tag:daily"],
             "tag:daily",
+        ),
+        # a job event names the run that fired it, so it never stands in for a manual run
+        (
+            ["job.success:jobs.mod.up", "job.fail:jobs.mod.up", "manual:jobs.mod.a"],
+            None,
+        ),
+        # ... but a schedule alongside it still wins
+        (
+            ["job.fail:jobs.mod.up", "schedule:0 0 * * *"],
+            "schedule:0 0 * * *",
         ),
         # no triggers — None
         ([], None),
@@ -1020,6 +1035,8 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
         "schedule-over-every",
         "first-eligible-fallback",
         "skip-manual-and-deployment",
+        "job-events-only",
+        "job-event-with-schedule",
         "empty-triggers",
         "manual-only",
         "deployment-only",
@@ -1117,6 +1134,19 @@ def test_migrate_job_definition_field_mapping(
         assert migrated[key] == value  # type: ignore[literal-required]
     assert "allow_external_schedulers" not in migrated
     assert "refresh" not in migrated
+    # the definition says which engine wrote it, for a copy kept away from the manifest
+    assert migrated["engine_version"] == MANIFEST_ENGINE_VERSION
+
+
+def test_validate_manifest_rejects_a_job_from_another_engine() -> None:
+    job = _make_job("jobs.mod.a")
+    job["engine_version"] = MANIFEST_ENGINE_VERSION - 1
+    result = validate_manifest(_make_manifest([job]))
+    assert not result.is_valid
+    assert "written for engine" in result.errors[0]
+    # migrating the job alone stamps the manifest's engine on it
+    migrated = migrate_job_definition(dict(job), MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION)
+    assert validate_manifest(_make_manifest([migrated])).is_valid
 
 
 def test_validate_manifest_rejects_unmigrated_engine_1() -> None:
@@ -1171,3 +1201,68 @@ def test_migrated_manifest_round_trips_and_bumps_version() -> None:
     assert stored_hash in reloaded["previous_hashes"]
     # a migrated manifest is stable from then on
     assert generate_manifest_hash(reloaded) == generate_manifest_hash(migrated)
+
+
+def _event_job(job_ref: str, triggers: List[str]) -> TJobDefinition:
+    return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
+        "job_ref": TJobRef(job_ref),
+        "entry_point": TEntryPoint(
+            module="m",
+            function=job_ref.rsplit(".", 1)[-1],
+            job_type="batch",
+            launcher="l",
+        ),
+        "triggers": [TTrigger(t) for t in triggers],
+        "execute": TExecuteSpec(),
+    }
+
+
+def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
+    return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "deployment_module": "m",
+        "jobs": jobs,
+    }
+
+
+@pytest.mark.parametrize("event", ["job.success", "job.fail"], ids=["success", "fail"])
+def test_job_cannot_trigger_itself(event: str) -> None:
+    result = validate_manifest(_manifest([_event_job("jobs.ops.a", [f"{event}:jobs.ops.a"])]))
+    assert not result.is_valid
+    assert len(result.errors) == 1
+    assert "trigger itself" in result.errors[0]
+
+
+@pytest.mark.parametrize(
+    "jobs",
+    [
+        [
+            ("jobs.o.ingest", ["schedule:0 8 * * *"]),
+            ("jobs.o.transform", ["job.success:jobs.o.ingest"]),
+            ("jobs.o.report", ["job.success:jobs.o.transform"]),
+        ],
+        [
+            ("jobs.o.a", []),
+            ("jobs.o.b", ["job.success:jobs.o.a"]),
+            ("jobs.o.c", ["job.success:jobs.o.a"]),
+            ("jobs.o.d", ["job.success:jobs.o.b", "job.success:jobs.o.c"]),
+        ],
+    ],
+    ids=["chain", "diamond"],
+)
+def test_job_event_chains_stay_valid(jobs: List[Any]) -> None:
+    """Chains and diamonds of job events are normal, and are never inspected for cycles."""
+    result = validate_manifest(_manifest([_event_job(ref, t) for ref, t in jobs]))
+    assert result.is_valid, result.errors
+
+
+def test_cycles_between_jobs_are_allowed() -> None:
+    """Only self-triggering is rejected; jobs may trigger each other in a cycle."""
+    jobs = [
+        _event_job("jobs.o.b", ["job.fail:jobs.o.c"]),
+        _event_job("jobs.o.c", ["job.fail:jobs.o.b"]),
+    ]
+    result = validate_manifest(_manifest(jobs))
+    assert result.is_valid, result.errors

@@ -1,9 +1,21 @@
-from typing import List, Optional, Sequence, Tuple
+from typing import Any, List, Mapping, Optional, Sequence, Tuple
 
 from dlt._workspace.deployment.exceptions import AmbiguousJobRef, InvalidJobRef, JobRefNotFound
 from dlt._workspace.deployment.typing import TDeliverSpec, TExposeSpec, TJobRef
 
 JOB_REF_PREFIX = "jobs."
+
+
+def job_category(
+    expose: Optional[Mapping[str, Any]], deliver: Optional[Mapping[str, Any]], job_type: str
+) -> str:
+    """Label a job is grouped under: `expose.category`, else `pipeline` when it delivers to one,
+    else its `job_type`. The CLI summary and a run's result type use the same rule."""
+    if expose and expose.get("category"):
+        return str(expose["category"])
+    if deliver and deliver.get("pipeline_name"):
+        return "pipeline"
+    return job_type
 
 
 def make_job_ref(section: str, name: str) -> TJobRef:

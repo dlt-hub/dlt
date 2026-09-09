@@ -103,11 +103,12 @@ def test_full_deployment_job_details() -> None:
     assert daily["execute"]["timeout"]["timeout"] == 14400.0
     assert daily["default_trigger"] == TTrigger("schedule:0 8 * * *")
 
-    # batch job with chained triggers — first trigger is default
+    # batch job with chained triggers only: a job event names the run that fired it, so it
+    # never stands in for a manual run and the job has no default trigger
     transform = jobs_by_ref[TJobRef("jobs.batch_jobs.transform")]
     assert len(transform["triggers"]) == 2
     assert all("job.success:" in t for t in transform["triggers"])
-    assert transform["default_trigger"] == transform["triggers"][0]
+    assert "default_trigger" not in transform
     assert transform["description"] == "Transform ingested data."
 
     # starred job with config keys
@@ -140,6 +141,31 @@ def test_full_deployment_job_details() -> None:
     assert st_app["expose"]["interface"] == "gui"
     assert st_app["description"] == "Test dashboard."
     assert st_app.get("expose", {}).get("category") == "dashboard"
+
+
+def test_inputs_and_config_keys_are_one_list() -> None:
+    """A job declares the arguments configuration injects, twice: as names and as a schema."""
+    module = ModuleType("__deployment_inputs_test__")
+    from tests.workspace.cases.runtime_workspace import batch_jobs
+
+    names = ["backfill", "maintenance", "context_aware", "context_optional", "interval_aware"]
+    for name in names:
+        setattr(module, name, getattr(batch_jobs, name))
+    module.__all__ = names  # type: ignore[attr-defined]
+    manifest, _ = generate_manifest(module)
+
+    for job_def in manifest["jobs"]:
+        declared = set((job_def.get("inputs") or {}).get("properties") or {})
+        assert declared == set(job_def.get("config_keys") or []), job_def["job_ref"]
+        # neither is written empty: nothing to declare means no key at all
+        assert ("inputs" in job_def) == ("config_keys" in job_def), job_def["job_ref"]
+
+    jobs_by_ref = {j["job_ref"]: j for j in manifest["jobs"]}
+    maintenance = jobs_by_ref[TJobRef("jobs.batch_jobs.maintenance")]
+    assert maintenance["inputs"]["required"] == ["cleanup_days"]
+    # the run context is the launcher's to pass, in either form it is written
+    assert "inputs" not in jobs_by_ref[TJobRef("jobs.batch_jobs.context_optional")]
+    assert "config_keys" not in jobs_by_ref[TJobRef("jobs.batch_jobs.context_optional")]
 
 
 def test_batch_only_deployment() -> None:
