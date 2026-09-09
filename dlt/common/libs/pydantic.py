@@ -49,10 +49,12 @@ try:
         Field,
         ValidationError,
         Json,
+        TypeAdapter,
         create_model,
         RootModel as PydanticRootModel,
     )
     from pydantic.fields import FieldInfo
+    from pydantic.json_schema import PydanticJsonSchemaWarning
     from pydantic.warnings import PydanticDeprecationWarning
 
     warnings.filterwarnings("ignore", category=PydanticDeprecationWarning)
