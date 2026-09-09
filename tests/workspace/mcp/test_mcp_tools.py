@@ -142,9 +142,57 @@ def test_execute_sql_query(
         assert "name" in json.loads(lines[0])
 
 
-def test_execute_sql_query_rejects_dml(pokemon_pipeline_context: RunContextBase) -> None:
-    with pytest.raises(ToolError, match="modification"):
-        execute_sql_query("rest_api_pokemon", "DELETE FROM pokemon")
+@pytest.mark.parametrize(
+    "query",
+    [
+        "DELETE FROM pokemon",
+        "UPDATE pokemon SET name = 'x'",
+        "INSERT INTO pokemon VALUES (1)",
+        # a mutating statement nested in a CTE has a SELECT at the root
+        "WITH x AS (DELETE FROM pokemon RETURNING *) SELECT * FROM x",
+        "DROP TABLE pokemon",
+        "CREATE TABLE evil AS SELECT * FROM pokemon",
+        "TRUNCATE TABLE pokemon",
+        "ALTER TABLE pokemon ADD COLUMN x INT",
+        # the statement guard is not the whole story: these read the host, not the dataset
+        "SELECT * FROM read_text('/etc/passwd')",
+        "SELECT read_blob('/etc/shadow')",
+        "SELECT * FROM read_csv_auto('http://127.0.0.1:1/x.csv')",
+        "SELECT * FROM parquet_scan('s3://bucket/x.parquet')",
+        "ATTACH 'other.db'",
+        "SELECT 1; DROP TABLE pokemon",
+    ],
+    ids=[
+        "delete",
+        "update",
+        "insert",
+        "cte-delete",
+        "drop",
+        "create-as-select",
+        "truncate",
+        "alter",
+        "read-text",
+        "read-blob",
+        "read-csv-url",
+        "parquet-scan",
+        "attach",
+        "multi-statement",
+    ],
+)
+def test_execute_sql_query_is_read_only(
+    pokemon_pipeline_context: RunContextBase, query: str
+) -> None:
+    """`data: [read]` must not reach the host or write the dataset — GHSA-xxqf-4m3r-qx6c."""
+    with pytest.raises(ToolError, match="allowed"):
+        execute_sql_query("rest_api_pokemon", query)
+
+
+def test_execute_sql_query_still_runs_a_select(pokemon_pipeline_context: RunContextBase) -> None:
+    assert "pokemon" in execute_sql_query("rest_api_pokemon", "SELECT * FROM pokemon LIMIT 1")
+    # a CTE that only reads is not collateral damage
+    assert execute_sql_query(
+        "rest_api_pokemon", "WITH x AS (SELECT 1 AS a) SELECT * FROM x", output_format="jsonl"
+    )
 
 
 @pytest.mark.parametrize(
