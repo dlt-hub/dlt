@@ -1106,7 +1106,6 @@ version = "0.1.0"
 source = { virtual = "." }
 dependencies = [
     { name = "alive-progress" },
-    { name = "black" },
     { name = "connectorx" },
     { name = "dbt-core" },
     { name = "dbt-duckdb" },
@@ -1153,7 +1152,6 @@ hub = [
 [package.metadata]
 requires-dist = [
     { name = "alive-progress", specifier = "==3.2.0" },
-    { name = "black", specifier = "==23.12.1" },
     { name = "connectorx", marker = "python_full_version >= '3.10'", specifier = ">=0.4.2" },
     { name = "dbt-core", specifier = ">=1.5.0" },
     { name = "dbt-duckdb", specifier = ">=1.5.0" },
