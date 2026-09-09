@@ -28,6 +28,7 @@ from dlt.extract.extract import ExtractStorage, Extract
 from dlt.extract.hints import TResourceNestedHints, make_hints, make_nested_hints
 from dlt.extract.items_transform import ValidateItem, MetricsItem
 from dlt.extract.items import TableNameMeta, DataItemWithMeta
+from dlt.common.runtime.collector import LogCollector
 
 from tests.utils import (
     MockPipeline,
@@ -653,6 +654,26 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
     assert source.tx_clone._pipe.parent.name == "input_gen_tx_clone"
 
 
+def test_extract_starts_static_resource_counter_before_first_item(extract_step: Extract) -> None:
+    log = []
+    clock = [0.0]
+    collector = LogCollector(log_period=1.0, logger="stdout", dump_system_stats=False)
+    collector._clock = lambda: clock[0]  # type: ignore[assignment]
+    collector._log = lambda _level, message: log.append(message)  # type: ignore[method-assign]
+    extract_step.collector = collector
+
+    @dlt.resource(name="slow_resource")
+    def slow_resource():
+        clock[0] += 30.0
+        yield {"id": 1}
+
+    source = DltSource(dlt.Schema("slow"), "module", [slow_resource()])
+    load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+
+    assert any("slow_resource: 1  | Time: 30.00s" in message for message in log)
+
+
 def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = DltSource(dlt.Schema("selectables"), "module", [resource(10)])
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
@@ -713,7 +734,7 @@ def test_materialize_table_schema_with_pipe_items():
     def empty_list(
         some_id: dlt.sources.incremental[int] = dlt.sources.incremental(
             cursor_path="some_id", initial_value=0
-        )
+        ),
     ):
         yield dlt.mark.materialize_table_schema()
 

@@ -522,6 +522,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 ) as pipes:
                     left_gens = total_gens = len(pipes._sources)
                     collector.update("Resources", 0, total_gens)
+                    self._start_resource_counters(source)
                     for pipe_item in pipes:
                         curr_gens = len(pipes._sources)
                         if left_gens > curr_gens:
@@ -543,6 +544,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     if left_gens > 0:
                         # go to 100%
                         collector.update("Resources", left_gens)
+
+    def _start_resource_counters(self, source: DltSource) -> None:
+        for resource in source.selected_resources.values():
+            if resource.is_transformer or resource.has_dynamic_table_name:
+                continue
+            table_name = resource.table_name
+            if isinstance(table_name, str):
+                self.collector.update(table_name, inc=0)
 
     @contextlib.contextmanager
     def manage_writers(self, load_id: str, source: DltSource) -> Iterator[ExtractStorage]:
