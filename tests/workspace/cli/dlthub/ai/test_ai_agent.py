@@ -23,11 +23,11 @@ def no_home_dir(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 @pytest.mark.parametrize(
-    ("variant_name", "expected_skill", "expected_command", "expected_rule"),
+    ("variant_name", "expected_skill", "expected_command", "expected_rule", "expected_agent"),
     [
-        ("claude", ".claude/skills", ".claude/commands", ".claude/rules"),
-        ("cursor", ".cursor/skills", ".cursor/commands", ".cursor/rules"),
-        ("codex", ".agents/skills", None, None),
+        ("claude", ".claude/skills", ".claude/commands", ".claude/rules", ".claude/dlthub/agents"),
+        ("cursor", ".cursor/skills", ".cursor/commands", ".cursor/rules", ".cursor/dlthub/agents"),
+        ("codex", ".agents/skills", None, None, ".agents/dlthub/agents"),
     ],
     ids=["claude", "cursor", "codex"],
 )
@@ -36,11 +36,14 @@ def test_variant_component_dir(
     expected_skill: str,
     expected_command: str,
     expected_rule: str,
+    expected_agent: str,
 ) -> None:
     project = Path("project")
     project.mkdir(exist_ok=True)
     variant = AI_AGENTS[variant_name]()
     assert variant.component_dir("skill", project) == project / expected_skill
+    # dlt agents sit apart from the host's native agents, which live in `<host>/agents`
+    assert variant.component_dir("agent", project) == project / expected_agent
 
     if expected_command is not None:
         assert variant.component_dir("command", project) == project / expected_command
