@@ -71,3 +71,50 @@ def test_log_collector_respects_log_period() -> None:
 
     # _stop always emits a final log
     assert buf.getvalue().count("Extract") == 3
+
+
+def test_log_collector_counter_start_time_set_on_registration() -> None:
+    # registering a counter with inc=0 fixes its start_time so a later first
+    # increment after a long wait does not produce an astronomical rate (#3518)
+    clock = [0.0]
+    with LogCollector(dump_system_stats=False)("test") as collector:
+        collector._clock = lambda: clock[0]  # type: ignore[assignment]
+        # register counter at t=0 before any item arrives
+        collector.update("slow_table", inc=0)
+        assert collector.counter_info["slow_table"].start_time == 0.0
+        # simulate a long wait for the first (and only) response
+        clock[0] = 100.0
+        collector.update("slow_table", inc=5)
+        # start_time must still reflect registration time, not first increment
+        assert collector.counter_info["slow_table"].start_time == 0.0
+        info = collector.counter_info["slow_table"]
+        elapsed = collector._clock() - info.start_time
+        assert elapsed == 100.0
+
+
+def test_log_collector_start_time_late_without_registration() -> None:
+    # control: without the inc=0 pre-registration start_time is set on first
+    # increment, which is the buggy behavior the fix avoids
+    clock = [0.0]
+    with LogCollector(dump_system_stats=False)("test") as collector:
+        collector._clock = lambda: clock[0]  # type: ignore[assignment]
+        clock[0] = 100.0
+        collector.update("slow_table", inc=5)
+        assert collector.counter_info["slow_table"].start_time == 100.0
+
+
+def test_collector_discard_is_noop_by_default() -> None:
+    # the base Collector exposes discard() so extractors can call it on any
+    # collector implementation; only LogCollector actually removes a counter
+    with DictCollector()("test") as collector:
+        collector.update("some_table", inc=1)
+        collector.discard("some_table")
+        assert collector.counters["some_table"] == 1
+
+    with LogCollector(dump_system_stats=False)("test") as collector:
+        collector.update("some_table", inc=1)
+        collector.discard("some_table")
+        assert "some_table" not in collector.counters
+        assert "some_table" not in collector.counter_info
+        # discarding an unknown counter is a no-op, not a KeyError
+        collector.discard("never_registered")
