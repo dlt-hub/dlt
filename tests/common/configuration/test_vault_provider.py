@@ -1,5 +1,10 @@
 """Tests for VaultDocProvider using an in-memory mock vault."""
 
+from concurrent.futures import ThreadPoolExecutor, TimeoutError as FutureTimeoutError
+from threading import Event
+from typing import Optional, Tuple
+from unittest.mock import Mock
+
 import pytest
 
 from dlt.common.typing import TSecretValue, AnyType
@@ -207,3 +212,154 @@ def test_pipeline_name_flows_through_resolve() -> None:
         explicit_sections=("sources", "my_source"),
     )
     assert value2 is None
+
+
+@pytest.mark.parametrize("list_secrets", [False, True])
+@pytest.mark.parametrize(
+    "vault_key,fragment,pipeline_name,sections",
+    [
+        ("password", "dummy-secret", None, ()),
+        (SECRETS_TOML_KEY, 'password = "dummy-secret"', None, ()),
+        ("sources", '[sources.test]\npassword = "dummy-secret"', None, ("sources", "test")),
+        (
+            "pipe.dlt_secrets_toml",
+            '[pipe]\npassword = "dummy-secret"',
+            "pipe",
+            (),
+        ),
+    ],
+)
+def test_concurrent_resolution_waits_for_publication(
+    monkeypatch: pytest.MonkeyPatch,
+    list_secrets: bool,
+    vault_key: str,
+    fragment: str,
+    pipeline_name: Optional[str],
+    sections: Tuple[str, ...],
+) -> None:
+    provider = _make_provider(list_secrets=list_secrets)
+    provider.set_secret(vault_key, fragment)
+    publishing, release, reading = Event(), Event(), Event()
+    set_fragment = provider.set_fragment
+
+    def paused_fragment(*args, **kwargs):
+        publishing.set()
+        assert release.wait(5)
+        return set_fragment(*args, **kwargs)
+
+    def read():
+        reading.set()
+        return provider.get_value("password", TSecretValue, pipeline_name, *sections)
+
+    monkeypatch.setattr(provider, "set_fragment", paused_fragment)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(provider.get_value, "password", TSecretValue, pipeline_name, *sections)
+        try:
+            assert publishing.wait(5)
+            second = pool.submit(read)
+            assert reading.wait(5)
+            with pytest.raises(FutureTimeoutError):
+                second.result(timeout=0.1)
+        finally:
+            release.set()
+        assert first.result(timeout=5)[0] == "dummy-secret"
+        assert second.result(timeout=5)[0] == "dummy-secret"
+    assert provider._look_vault_calls.count(vault_key) == 1
+
+
+def test_concurrent_resolution_waits_for_specific_fragment(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _make_provider()
+    provider.set_secret("sources", SOURCE_FRAGMENT)
+    provider.set_secret("sources.my_source", SOURCE_NAMED_FRAGMENT)
+    publishing, release, reading = Event(), Event(), Event()
+    set_fragment = provider.set_fragment
+
+    def paused_fragment(key, *args):
+        if key == "my_source":
+            publishing.set()
+            assert release.wait(5)
+        return set_fragment(key, *args)
+
+    def read():
+        reading.set()
+        return provider.get_value("api_key", TSecretValue, None, "sources", "my_source")
+
+    monkeypatch.setattr(provider, "set_fragment", paused_fragment)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(read)
+        try:
+            assert publishing.wait(5)
+            reading.clear()
+            second = pool.submit(read)
+            assert reading.wait(5)
+            with pytest.raises(FutureTimeoutError):
+                second.result(timeout=0.1)
+        finally:
+            release.set()
+        assert first.result(timeout=5)[0] == "SRC_NAMED"
+        assert second.result(timeout=5)[0] == "SRC_NAMED"
+    assert provider._look_vault_calls.count("sources.my_source") == 1
+
+
+@pytest.mark.parametrize("operation", ["_list_vault", "_look_vault", "set_fragment"])
+def test_failed_lookup_can_recover(monkeypatch: pytest.MonkeyPatch, operation: str) -> None:
+    provider = _make_provider(list_secrets=True)
+    provider.set_secret(SECRETS_TOML_KEY, GLOBAL_TOML)
+    failing = Mock(side_effect=RuntimeError("temporary failure"))
+    with monkeypatch.context() as patch:
+        patch.setattr(provider, operation, failing)
+        with pytest.raises(RuntimeError, match="temporary failure"):
+            provider.get_value("api_key", TSecretValue, None, "sources", "my_source")
+    assert failing.call_count == 1
+    assert SECRETS_TOML_KEY not in provider._vault_lookups
+
+    # Resolve on another thread to also check that an exception releases the lock.
+    with ThreadPoolExecutor(max_workers=1) as pool:
+        result = pool.submit(
+            provider.get_value, "api_key", TSecretValue, None, "sources", "my_source"
+        )
+        assert result.result(timeout=5)[0] == "GLOBAL_KEY"
+
+
+@pytest.mark.parametrize("list_secrets", [False, True])
+def test_concurrent_missing_lookup_is_cached(list_secrets: bool) -> None:
+    provider = _make_provider(list_secrets=list_secrets)
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        results = list(
+            pool.map(lambda _: provider.get_value("missing", TSecretValue, None), range(8))
+        )
+    assert results == [(None, "missing")] * 8
+    assert provider._look_vault_calls.count("missing") == (0 if list_secrets else 1)
+    assert "missing" in provider._vault_lookups
+
+
+def test_clear_lookup_cache_waits_for_resolution(monkeypatch: pytest.MonkeyPatch) -> None:
+    provider = _make_provider()
+    provider.set_secret("password", "dummy-secret")
+    publishing, release, clearing = Event(), Event(), Event()
+    set_fragment = provider.set_fragment
+
+    def paused_fragment(*args, **kwargs):
+        publishing.set()
+        assert release.wait(5)
+        return set_fragment(*args, **kwargs)
+
+    def clear():
+        clearing.set()
+        provider.clear_lookup_cache()
+
+    monkeypatch.setattr(provider, "set_fragment", paused_fragment)
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        first = pool.submit(provider.get_value, "password", TSecretValue, None)
+        try:
+            assert publishing.wait(5)
+            second = pool.submit(clear)
+            assert clearing.wait(5)
+            with pytest.raises(FutureTimeoutError):
+                second.result(timeout=0.1)
+        finally:
+            release.set()
+        assert first.result(timeout=5)[0] == "dummy-secret"
+        second.result(timeout=5)
+    assert provider._vault_lookups == {}
+    assert provider.get_value("password", TSecretValue, None)[0] == "dummy-secret"
