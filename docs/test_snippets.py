@@ -56,8 +56,8 @@ def _providers_for_page(page_dir: Path):
     changes the working directory to the page's folder for the duration of the test (e.g.
     the dbt runner snippet expects `profiles.yml` next to `dbt.md`).
     """
-    secret_dir = str(WEBSITE_DOCS_DIR / ".dlt")
-    config_dir = str(page_dir / ".dlt")
+    secret_dir = str((WEBSITE_DOCS_DIR / ".dlt").resolve())
+    config_dir = str((page_dir / ".dlt").resolve())
 
     def _initial_providers(self: Any) -> list[Any]:
         return [
