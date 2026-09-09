@@ -5,7 +5,7 @@ import subprocess
 from pathlib import Path
 from typing import Dict, Any
 
-EDUCATION_NOTEBOOKS_DIR = Path(__file__).parent.parent.parent / "education"
+EDUCATION_NOTEBOOKS_DIR = Path(__file__).parent.parent / "education"
 TEMP_IPYNB_FILE_PREIFX = "tmp"
 
 MUST_INSTALL_PACKAGES = {"numpy", "pandas", "sqlalchemy"}
