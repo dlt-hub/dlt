@@ -2,8 +2,13 @@ import os
 from copy import copy
 from typing import Optional, Dict, Any, Union
 
+from dlt.common import logger
 from dlt.common.pendulum import pendulum
 from dlt.common.exceptions import MissingDependencyException
+from dlt.common.runtime.fab_notebookutils import (
+    FabNotebookUtilsCredential,
+    is_fab_notebookutils_available,
+)
 from dlt.common.typing import TSecretStrValue, Self
 from dlt.common.configuration.specs import (
     CredentialsConfiguration,
@@ -20,6 +25,31 @@ from dlt.common.utils import without_none
 
 _AZURE_STORAGE_EXTRA = f"{version.DLT_PKG_NAME}[az]"
 _AZURE_STORAGE_SCOPE = "https://storage.azure.com/.default"
+
+
+def _default_storage_credential(spec_name: str) -> Any:
+    """Credential used for blob storage when no account key, SAS token or principal is configured.
+
+    Returns:
+        Any: A NotebookUtils credential inside the Microsoft Fabric runtime,
+            `DefaultAzureCredential` everywhere else.
+
+    Raises:
+        MissingDependencyException: When azure-identity is needed but not installed.
+    """
+    # DefaultAzureCredential cannot sign in inside a Fabric notebook: there are no environment
+    # variables, managed identity or CLI login to fall back on
+    if is_fab_notebookutils_available():
+        logger.info(
+            "Authenticating with Azure blob storage through the Microsoft Fabric NotebookUtils"
+            " credential API"
+        )
+        return FabNotebookUtilsCredential("storage")
+    try:
+        from azure.identity import DefaultAzureCredential
+    except ModuleNotFoundError:
+        raise MissingDependencyException(spec_name, [_AZURE_STORAGE_EXTRA])
+    return DefaultAzureCredential()
 
 
 def _object_store_will_refresh_default() -> bool:
@@ -225,13 +255,12 @@ class AzureCredentials(
     _AzureExternalSession, AzureCredentialsWithoutDefaults, CredentialsWithDefault
 ):
     def on_partial(self) -> None:
-        try:
-            from azure.identity import DefaultAzureCredential
-        except ModuleNotFoundError:
-            raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
-
         if not self.azure_storage_account_key and not self.azure_storage_sas_token:
-            self._set_default_credentials(DefaultAzureCredential())
+            credential = _default_storage_credential(self.__class__.__name__)
+            self._set_default_credentials(credential)
+            # adlfs cannot reach the Fabric identity through its own credential chain, so the
+            # credential object itself has to be handed over
+            self._external_session = isinstance(credential, FabNotebookUtilsCredential)
             if self.azure_storage_account_name:
                 self.resolve()
         else:
