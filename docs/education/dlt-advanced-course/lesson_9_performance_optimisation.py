@@ -1677,9 +1677,11 @@ def _(dlt, os, time):
         url = f"https://api.github.com/repos/dlt-hub/dlt/issues?since={updated_at.last_value}&per_page=100sort=updated"  # Get next page
         yield pagination(url)
 
-    @dlt.resource(table_name="stargazers", write_disposition="merge", primary_key="id")
-    def get_stargazers():
-        url = "https://api.github.com/repos/dlt-hub/dlt/stargazers?per_page=100"
+    @dlt.resource(
+        table_name="issue_comments", write_disposition="merge", primary_key="id"
+    )
+    def get_issue_comments():
+        url = "https://api.github.com/repos/dlt-hub/dlt/issues/comments?per_page=100"
         yield pagination(url)
 
     @dlt.resource(
@@ -1718,10 +1720,10 @@ def _(dlt, os, time):
         get_branches,
         get_commits,
         get_contributors,
+        get_issue_comments,
         get_issues,
         get_labels,
         get_pulls,
-        get_stargazers,
         pagination,
     )
 
@@ -1738,10 +1740,10 @@ def _(
     get_branches,
     get_commits,
     get_contributors,
+    get_issue_comments,
     get_issues,
     get_labels,
     get_pulls,
-    get_stargazers,
 ):
     pipeline_11 = dlt.pipeline(
         pipeline_name="extract_pipeline_example1",
@@ -1752,7 +1754,7 @@ def _(
     pipeline_11.run(
         [
             get_issues,
-            get_stargazers,
+            get_issue_comments,
             get_pulls,
             get_branches,
             get_contributors,
@@ -1805,13 +1807,13 @@ def _(dlt, pagination):
         yield pagination(url)
 
     @dlt.resource(
-        table_name="stargazers",
+        table_name="issue_comments",
         write_disposition="merge",
         primary_key="id",
         parallelized=True,
     )
-    def get_stargazers_2():
-        url = "https://api.github.com/repos/dlt-hub/dlt/stargazers?per_page=100"
+    def get_issue_comments_2():
+        url = "https://api.github.com/repos/dlt-hub/dlt/issues/comments?per_page=100"
         yield pagination(url)
 
     @dlt.resource(
@@ -1872,7 +1874,7 @@ def _(dlt, pagination):
     def github_data():
         return (
             get_issues_2,
-            get_stargazers_2,
+            get_issue_comments_2,
             get_pulls_2,
             get_branches_2,
             get_contributors_2,

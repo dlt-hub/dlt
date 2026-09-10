@@ -699,15 +699,15 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    ## **Exercise 2: Create a pipeline for the GitHub API – stargazers endpoint**
+    ## **Exercise 2: Create a pipeline for the GitHub API – issue comments endpoint**
 
-    Create a `dlt.transformer` for the **"stargazers"** endpoint
-    `https://api.github.com/repos/OWNER/REPO/stargazers` for the `dlt-hub` organization.
+    Create a `dlt.transformer` for the **"issue comments"** endpoint
+    `https://api.github.com/repos/OWNER/REPO/issues/comments` for the `dlt-hub` organization.
 
     Use the `github_repos` resource as the main resource for the transformer:
 
     1. Get all repositories in the `dlt-hub` organization.
-    2. Feed these repository names into the `dlt` transformer and retrieve all stargazers for all `dlt-hub` repositories.
+    2. Feed these repository names into the `dlt` transformer and retrieve all issue comments for all `dlt-hub` repositories.
     """)
     return
 
@@ -722,7 +722,7 @@ def _():
 def _(mo):
     mo.md(r"""
     ### Question
-    How many columns has the `github_stargazer` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
+    How many columns has the `github_issue_comment` table? Use a `duckdb` connection, `sql_client` or `pipeline.dataset()`.
     """)
     return
 
