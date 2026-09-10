@@ -275,9 +275,9 @@ dlt also supports [Python and SQL data access](https://dlthub.com/docs/general-u
 
 For detailed usage and configuration, please refer to the [official documentation](https://dlthub.com/docs).
 
-## Examples
+### Examples
 
-You can find examples for various use cases in the [examples](docs/examples) folder, or in the [code examples section](https://dlthub.com/docs/examples) of our docs page.
+Find examples in the [cookbook section](https://dlthub.com/docs/examples) of our docs page.
 
 ## Adding as dependency
 

@@ -1,4 +1,3 @@
-import pytest
 from preprocess_to_molab import (
     replace_colab_imports_in_notebook,
     process_shell_commands_in_notebook,

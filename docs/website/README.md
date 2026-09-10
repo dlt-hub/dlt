@@ -29,7 +29,7 @@ The website build process requires Python dependencies. From the `docs/` directo
 $ make dev
 ```
 
-This calls `uv sync` and installs all Python tooling into the docs virtual environment.
+This calls `uv sync` and installs all Python tooling into the docs virtual environment. It also installs `prek` git hooks (`pre-commit` and `pre-push`), so linting/formatting checks may run automatically on commit/push.
 
 ### Are you new to Node?
 
@@ -66,34 +66,35 @@ For most authoring purposes, once you are happy with your changes running locall
 $ npm run build
 ```
 
-That command generates static content into the `build` directory, which can be served using `npm run serve`.
+That command delegates to `cd .. && make build` (see `package.json`), which drives the full pipeline from `docs/Makefile`. It generates static content into the `build` directory, which can be served using `npm run serve`.
 
 ### What `npm run build` does
 
-The full build runs these steps in order:
+The full build (the `build` target in `docs/Makefile`) runs these steps in order:
 
 1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
-2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor (`docs/tools/preprocess_docs.py`): copies `docs/` to `docs_processed/`, expands `@@@DLT_*` markers, generates the API reference, etc.
-3. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
-4. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+2. **`npm run compile-redirects`** — merges `redirects.js` (devel) and the per-version snapshots under `versioned_redirects/` into `redirects.compiled.js`. See [Redirects](#redirects) below.
+3. **`make check-orphan-docs`** (from `docs/`) — runs `tools/check_orphan_docs.js`, which fails the build if any page under `docs/` is unreachable from `sidebars.js` (directly, via a category `link`, or as a sidebar item) unless it's marked `unlisted: true` in frontmatter.
+4. **`make preprocess-docs`** (from `docs/`) — Python preprocessor (`docs/tools/preprocess_docs.py`): copies `docs/` to `docs_processed/`, expands `@@@DLT_*` markers, generates the API reference, etc.
+5. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
+6. **`npm run verify-redirects`** — loads `redirects.compiled.js`, recompiles it in memory to check it isn't stale, and checks each `to` target resolves to an existing page in `build/docs`.
+7. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+
+CI (`.github/workflows/docs_build.yml`) simply runs `make build` from `docs/`, so it exercises the exact same 7 steps — there is no separate "verify redirects" CI step.
 
 ### Running individual checks
 
-After a full build, you can re-run the verifiers standalone — useful when iterating on one concern without rebuilding everything:
+You can re-run these checks standalone — useful when iterating on one concern without rebuilding everything:
 
 ```
-$ npm run verify-llms          # llms.txt index check
-$ npm run verify-redirects     # redirect targets check
+$ npm run check-orphan-docs      # orphan-page check (fails on non-unlisted orphans)
+$ npm run check-orphan-docs:all  # same, but also fails on unlisted orphans (lists everything)
+$ npm run compile-redirects      # regenerate redirects.compiled.js from sources
+$ npm run verify-llms            # llms.txt index check
+$ npm run verify-redirects       # redirect targets check (requires a prior `npm run build`)
 ```
 
-**`verify-redirects` is no longer part of `npm run build` — CI runs it as a dedicated `Verify redirects` step in `.github/workflows/build_docs.yml`.** To reproduce CI locally:
-
-```
-$ npm run build
-$ npm run verify-redirects
-```
-
-Run this whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
+Run `verify-redirects` (or a full `npm run build`) whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
 
 ## Deployment
 
