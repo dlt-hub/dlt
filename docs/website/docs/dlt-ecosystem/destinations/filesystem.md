@@ -328,6 +328,7 @@ bucket_url = '_storage/data'  # relative POSIX style path
 ```
 
 In the examples above, we define a few named filesystem destinations:
+
 * **unc_destination** demonstrates a Windows UNC path in native form.
 * **posix_destination** demonstrates a native POSIX (Linux/Mac) absolute path.
 * **relative_destination** demonstrates a native POSIX (Linux/Mac) relative path. In this case, the `filesystem` destination will store files in the `$cwd/_storage/data` path, where **$cwd** is your current working directory.
@@ -467,6 +468,7 @@ This configuration allows flexible SFTP authentication, whether you're using pas
 ## Write disposition
 
 The filesystem destination handles the write dispositions as follows:
+
 - `append` - files belonging to such tables are added to the dataset folder
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
@@ -589,6 +591,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 ```
 
 A few things to know when specifying your filename layout:
+
 - If you want a different base path that is common to all filenames, you can suffix your `bucket_url` rather than prefix your `layout` setting.
 - If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as a separator.
 - It is best practice to have a separator between each placeholder. Dots, dashes, and forward slashes are the most common separators.
@@ -601,6 +604,7 @@ A few things to know when specifying your filename layout:
 - `dlt` warns when a layout has such a separator. To silence the warning, set `warn_unsafe_layout_separators=False` on the destination.
 
 Please note:
+
 - `dlt` will mark complete loads by creating a json file in the `./_dlt_loads` folders that corresponds to the `_dlt_loads` table. For example, if the `chess__1685299832.jsonl` file is present in the loads folder, you can be sure that all files for the load package `1685299832` are completely loaded.
 
 ### Advanced layout configuration
@@ -685,6 +689,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}"
 ```
 
 Adopting this layout offers several advantages:
+
 1. **Efficiency:** It's fast and simple to process.
 2. **Compatibility:** Supports `replace` as the write disposition method.
 3. **Flexibility:** Compatible with various destinations, including Athena.
@@ -693,6 +698,7 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
+
 * [JSONL](../file-formats.md#jsonl) is used by default
 * [Parquet](../file-formats.md#parquet) is supported
 * [CSV](../file-formats.md#csv) is supported
@@ -700,6 +706,7 @@ You can choose the following file formats:
 ## Supported table formats
 
 You can choose the following table formats:
+
 * [Delta table](./delta-iceberg)
 * [Iceberg](./iceberg)
 
@@ -748,6 +755,7 @@ pipeline = dlt.pipeline(
 ```
 
 :::note
+
 - `max_identifier_length` truncates all identifiers (tables, columns). Ensure the length maintains uniqueness to avoid collisions.
 - Adjust `max_identifier_length` based on your data structure and filesystem limits.
 :::

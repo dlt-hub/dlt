@@ -86,15 +86,15 @@ Here is the summary of the steps:
 
 9. Create and configure flows:
 
-   - Go to 'Flows', then 'Create'.
-   - Configure the flow files in the editor.
-   - Save your flows.
+  - Go to 'Flows', then 'Create'.
+  - Configure the flow files in the editor.
+  - Save your flows.
 
 10. **Understand flow components**:
 
-    - Each flow must have an `id`, `namespace`, and a list of `tasks` with their respective `id` and
+  - Each flow must have an `id`, `namespace`, and a list of `tasks` with their respective `id` and
       `type`.
-    - The main flow orchestrates tasks like loading data from a source to a destination.
+  - The main flow orchestrates tasks like loading data from a source to a destination.
 
 By following these steps, you establish a structured workflow within Kestra, leveraging its powerful
 features for efficient data pipeline orchestration.

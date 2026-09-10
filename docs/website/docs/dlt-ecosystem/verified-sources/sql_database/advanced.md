@@ -12,6 +12,7 @@ import Header from '../_source-info-header.md';
 ## Split or partition long incremental loads
 
 If you have a large table with incremental loading set up, you can partition your initial load or split it in a loop. There are two methods to do that:
+
 * **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
 * **Split** where you load data sequentially in small chunks
 
@@ -176,12 +177,14 @@ The `reflection_level` argument controls how much information is reflected:
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
 If the SQL type is unknown or not supported by `dlt`, then we'll try to infer it from the data.
+
 * `sqlalchemy` follows standard `dlt` inference rules from Python objects. This often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
 * `pyarrow` backend will try to infer types from the data using rules built into arrow (we just pass an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
 
 
 :::tip
 If you use reflection level **full** / **full_with_precision**, you may encounter a situation where the data returned by sqlalchemy or pyarrow backend does not match the reflected data types. The most common symptoms are:
+
 1. The destination complains that it cannot cast one type to another for a certain column. For example, `connector-x` returns TIME in nanoseconds
 and BigQuery sees it as bigint and fails to load.
 2. You get `SchemaCorruptedException` or another coercion error during the `normalize` step.
@@ -194,6 +197,7 @@ most of the coercion problems.
 You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type (or `None` to force the column to be inferred from the data) as output.
 
 This is useful, for example, when:
+
 - You're loading a data type that is not supported by the destination (e.g., you need JSON type columns to be coerced to string).
 - You're using a sqlalchemy dialect that uses custom types that don't inherit from standard sqlalchemy types.
 - For certain types, you prefer `dlt` to infer the data type from the data and you return `None`.
@@ -225,6 +229,7 @@ dlt.pipeline("demo").run(source)
 
 `dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
 i.e.
+
 * if you plan to use replication source that will (soft) delete rows.
 * if you expect that columns will be dropped from the source table.
 

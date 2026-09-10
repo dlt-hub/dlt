@@ -109,6 +109,7 @@ pipeline = dlt.pipeline("loads_delta", destination="delta")
 ## Write dispositions
 
 The Delta destination handles the write dispositions as follows:
+
 - `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - can be used with the `upsert` [merge strategy](../../general-usage/merge-loading.md#upsert-strategy) and the `insert-only` [merge strategy](../../general-usage/merge-loading.md#insert-only-strategy).

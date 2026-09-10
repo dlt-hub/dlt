@@ -77,12 +77,13 @@ dlt init rest_api duckdb
 [dlt init](../../../reference/command-line-interface) will initialize the pipeline examples for REST API as the [source](../../../general-usage/source) and [duckdb](../../destinations/duckdb.md) as the [destination](../../destinations).
 
 Running `dlt init` creates the following in the current folder:
+
 - `rest_api_pipeline.py` file with a sample pipelines definition:
-    - GitHub API example
-    - Pokemon API example
+  - GitHub API example
+  - Pokemon API example
 - `.dlt` folder with:
-     - `secrets.toml` file to store your access tokens and other sensitive information
-     - `config.toml` file to store the configuration settings
+  - `secrets.toml` file to store your access tokens and other sensitive information
+  - `config.toml` file to store the configuration settings
 - `requirements.txt` file with the required dependencies
 
 Change the REST API source to your needs by modifying the `rest_api_pipeline.py` file. See the detailed [source configuration](#source-configuration) section below.
@@ -198,9 +199,11 @@ The declarative resource configuration is defined in the `config` dictionary. It
 1. `client`: Defines the base URL and authentication method for the API. In this case, it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
 2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
-    - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
-    - Use the `merge` [write disposition](../../../general-usage/incremental-loading.md#choosing-a-write-disposition) to merge the data with the existing data in the destination.
-    - Send a `per_page=100` query parameter with each request to get more results per page.
+
+
+  - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
+  - Use the `merge` [write disposition](../../../general-usage/incremental-loading.md#choosing-a-write-disposition) to merge the data with the existing data in the destination.
+  - Send a `per_page=100` query parameter with each request to get more results per page.
 
 3. `resources`: A list of [resources](#resource-configuration) to be loaded. Here, we have two resources: `issues` and `issue_comments`, which correspond to the GitHub API endpoints for [repository issues](https://docs.github.com/en/rest/issues/issues?apiVersion=2022-11-28#list-repository-issues) and [issue comments](https://docs.github.com/en/rest/issues/comments?apiVersion=2022-11-28#list-issue-comments). Note that we need an issue number to fetch comments for each issue. This number is taken from the `issues` resource. More on this in the [resource relationships](#define-resource-relationships) section.
 
@@ -287,27 +290,29 @@ Both `resource1` and `resource2` will have the `per_page` parameter set to 100.
 #### `resources`
 
 This is a list of resource configurations that define the API endpoints to be loaded. Each resource configuration can be:
+
 - a dictionary with the [resource configuration](#resource-configuration).
 - a string. In this case, the string is used as both the endpoint path and the resource name, and the resource configuration is taken from the `resource_defaults` configuration if it exists.
 
 ### Resource configuration
 
 A resource configuration is used to define a [dlt resource](../../../general-usage/resource.md) for the data to be loaded from an API endpoint. When defining the resource you may specify:
+
 - dlt resource parameters, for example:
-    - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
-    - `write_disposition`: The write disposition for the resource.
-    - `primary_key`: The primary key for the resource.
-    - `table_name`: Override the table name for this resource.
-    - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
-    - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
+  - `name`: The name of the resource. This is also used as the table name in the destination unless overridden by the `table_name` parameter.
+  - `write_disposition`: The write disposition for the resource.
+  - `primary_key`: The primary key for the resource.
+  - `table_name`: Override the table name for this resource.
+  - `max_table_nesting`: Sets the maximum depth of nested table above which the remaining nodes are loaded as structs or JSON.
+  - `selected`: A flag to indicate if the resource is selected for loading. This could be useful when you want to load data only from child resources and not from the parent resource.
 
     see [dlt resource API reference](../../../api_reference/dlt/extract/decorators#resource) for more details.
 
 - `rest_api` specific parameters, such as:
-    - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
-    - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
-    - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
-    - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
+  - `endpoint`: The endpoint configuration for the resource. It can be a string or a dict representing the endpoint settings. See the [endpoint configuration](#endpoint-configuration) section for more details.
+  - `include_from_parent`: A list of fields from the parent resource to be included in the resource output. See the [resource relationships](#include-fields-from-the-parent-resource) section for more details.
+  - `processing_steps`: A list of [processing steps](#processing-steps-filter-and-transform-data) to filter and transform your data.
+  - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
 
 Example:
 
@@ -1143,6 +1148,7 @@ This is called [incremental loading](../../../general-usage/incremental-loading.
 Let's continue with our imaginary blog API example to understand incremental loading with query parameters.
 
 Imagine we have the following endpoint `https://api.example.com/posts` and it:
+
 1. Accepts a `created_since` query parameter to fetch blog posts created after a certain date.
 2. Returns a list of posts with the `created_at` field for each post.
 
@@ -1193,17 +1199,20 @@ Let's take the example from the previous section and configure it using placehol
 ```
 
 When you first run this pipeline, dlt will:
+
 1. Replace `{incremental.start_value}` with `2024-01-25T00:00:00Z` (the initial value)
 2. Make a GET request to `https://api.example.com/posts?created_since=2024-01-25T00:00:00Z`
 3. Parse the response (e.g., posts with created_at values like "2024-01-26", "2024-01-27", "2024-01-28")
 4. Track the maximum value found in the "created_at" field (in this case, "2024-01-28")
 
 On the next pipeline run, dlt will:
+
 1. Replace `{incremental.start_value}` with "2024-01-28" (the last seen maximum value)
 2. Make a GET request to `https://api.example.com/posts?created_since=2024-01-28`
 3. The API will only return posts created on or after January 28th
 
 Let's break down the configuration:
+
 1. We explicitly set `data_selector` to `"results"` to select the list of posts from the response. This is optional; if not set, dlt will try to auto-detect the data location.
 2. We define the `created_since` parameter in `params` section and use the placeholder `{incremental.start_value}` to reference the incremental value.
 

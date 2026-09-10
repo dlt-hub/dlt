@@ -50,8 +50,8 @@ Follow these steps:
 
 1. In the “Scopes” tab, grant:
 
-   - Read scopes for CMS, CRM, and Settings.
-   - Permissions for:
+  - Read scopes for CMS, CRM, and Settings.
+  - Permissions for:
 
     ```text
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
@@ -243,7 +243,7 @@ verified source.
    print(load_info)
    ```
 
-    1. `include_history` loads property change history and entities as separate tables. By default, it is set as False.
+  1. `include_history` loads property change history and entities as separate tables. By default, it is set as False.
 
 1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
     set the flag `include_custom_props=False` and add a list of properties with the `props` arg.
@@ -272,9 +272,9 @@ verified source.
    print(load_info)
    ```
 
-    1. This function uses "object_type" and "object_id" as arguments.
+  1. This function uses "object_type" and "object_id" as arguments.
 
-    1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
+  1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
 
 ### Additional info

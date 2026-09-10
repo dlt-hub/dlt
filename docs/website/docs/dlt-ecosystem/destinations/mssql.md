@@ -23,6 +23,7 @@ The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destina
 This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
 
 Supported driver versions:
+
 * `ODBC Driver 18 for SQL Server`
 * `ODBC Driver 17 for SQL Server`
 
@@ -151,6 +152,7 @@ uv tool run dbc search
 we make it a default for all input data types.
 
 Not all arrow data types are supported by the driver, see driver docs for more details:
+
 * fixed length binary
 * time with precision different than microseconds
 

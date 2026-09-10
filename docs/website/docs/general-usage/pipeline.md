@@ -154,6 +154,7 @@ pipeline.run(airtable_emojis(), refresh="drop_sources")
 The preceding example instructs `dlt` to wipe the pipeline state belonging to the `airtable_emojis` source and drop all the database tables in `duckdb` to
 which data was loaded. The `airtable_emojis` source had two resources named "📆 Schedule" and "💰 Budget" loading to tables "_schedule" and "_budget". Here's
 what `dlt` does step by step:
+
 1. Collects a list of tables to drop by looking for all the tables in the schema that are created in the destination.
 2. Removes existing pipeline state associated with the `airtable_emojis` source.
 3. Resets the schema associated with the `airtable_emojis` source.

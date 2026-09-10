@@ -51,6 +51,7 @@ print(load_info)
 ```
 
 When you look at the code above, you can see that we:
+
 1. Import the `dlt` library.
 2. Define our data to load.
 3. Create a pipeline that loads data into DuckDB. Here we also specify the `pipeline_name` and `dataset_name`. We'll use both in a moment.
@@ -144,6 +145,7 @@ pipeline.run(response.json(), table_name="issues")
 
 
 Here's what the code above does:
+
 1. It makes a request to the GitHub API endpoint and checks if the response is successful.
 2. Then, it creates a dlt pipeline with the name `github_issues` and specifies that the data should be loaded to the `duckdb` destination and the `github_data` dataset. Nothing gets loaded yet.
 3. Finally, it runs the pipeline with the data from the API response (`response.json()`) and specifies that the data should be loaded to the `issues` table. The `run` method returns a `LoadInfo` object that contains information about the loaded data.
@@ -694,18 +696,23 @@ That's it! Now you have a reusable source that can load data from any GitHub rep
 Congratulations on completing the tutorial! You've come a long way since the [getting started](../intro) guide. By now, you've mastered loading data from various GitHub API endpoints, organizing resources into sources, managing secrets securely, and creating reusable sources. You can use these skills to build your own pipelines and load data from any source.
 
 Interested in learning more? Here are some suggestions:
+
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
 2. Dive deeper into how dlt works by reading:
-    - [Set up "last value" incremental loading](../general-usage/incremental/cursor.md).
-    - Learn about data loading strategies: append, [replace](../general-usage/full-loading.md), and [merge](../general-usage/merge-loading.md).
-    - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
-    - [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).
-    - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
-    - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
-    - Employ data transformations using [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
-    - [Pass config and credentials into your sources and resources](../general-usage/credentials).
-    - [Run in production: inspecting, tracing, retry policies, and cleaning up](../running-in-production/running).
-    - [Run resources in parallel, optimize buffers, and local storage](../reference/performance.md)
-    - [Use REST API client helpers](../dlt-ecosystem/verified-sources/rest_api/advanced.md) to simplify working with REST APIs.
+
+
+  - [Set up "last value" incremental loading](../general-usage/incremental/cursor.md).
+  - Learn about data loading strategies: append, [replace](../general-usage/full-loading.md), and [merge](../general-usage/merge-loading.md).
+  - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
+  - [Customize your data schema—set primary and merge keys, define column nullability, and specify data types](../general-usage/resource#define-schema).
+  - [Create your resources dynamically from data](../general-usage/source#create-resources-dynamically).
+  - [Transform your data before loading](../general-usage/resource#customize-resources) and see some [examples of customizations like column renames and anonymization](../general-usage/customising-pipelines/renaming_columns).
+  - Employ data transformations using [SQL](../dlt-ecosystem/transformations/sql) or [Pandas](../dlt-ecosystem/transformations/sql).
+  - [Pass config and credentials into your sources and resources](../general-usage/credentials).
+  - [Run in production: inspecting, tracing, retry policies, and cleaning up](../running-in-production/running).
+  - [Run resources in parallel, optimize buffers, and local storage](../reference/performance.md)
+  - [Use REST API client helpers](../dlt-ecosystem/verified-sources/rest_api/advanced.md) to simplify working with REST APIs.
+
+
 3. Explore [destinations](../dlt-ecosystem/destinations/) and [sources](../dlt-ecosystem/verified-sources/) provided by us and the community.
 4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios.

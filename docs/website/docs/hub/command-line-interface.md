@@ -39,6 +39,7 @@ dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 <summary>Show Arguments and Options</summary>
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `-v, --verbose` - Increase verbosity. repeat for more (-v, -vv, -vvv).
 * `--non-interactive` - Use prompt defaults; fail if a prompt has none. implied when stdin is not a tty.
@@ -50,6 +51,7 @@ dlthub [-h] [-v] [--non-interactive] [-y] [--debug] [--version]
 * `--no-pwd` - Do not add current working directory to sys.path. by default $pwd is added to reproduce python behavior when running scripts.
 
 **Available subcommands**
+
 * [`dbt`](#dlthub-dbt) - Dlthub dbt transformation generator
 * [`workspace`](#dlthub-workspace) - Workspace operations: connect, list, info, show, deploy, deployment, configuration
 * [`variable`](#dlthub-variable) - Workspace variable operations: list, set, delete
@@ -90,9 +92,11 @@ dlthub dbt transformation generator.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`generate`](#dlthub-dbt-generate) - Generate dbt project
 
 </details>
@@ -119,9 +123,11 @@ Generate dbt project.
 Inherits arguments from [`dlthub dbt`](#dlthub-dbt).
 
 **Positional arguments**
+
 * `pipeline_name` - The pipeline to create a dbt project for
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--include_dlt_tables` - Do not render _dlt tables
 * `--fact [FACT]` - Create a fact table for a given table
@@ -152,10 +158,12 @@ Bind this project to a remote dltHub workspace and manage its deployments and co
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 
 **Available subcommands**
+
 * [`list`](#dlthub-workspace-list) - List all workspaces you have access to
 * [`connect`](#dlthub-workspace-connect) - Connects local to a remote workspace by name or id
 * [`info`](#dlthub-workspace-info) - Show overview of current dlthub workspace (workspace, job count, latest run, latest deployment, latest configuration)
@@ -188,6 +196,7 @@ List all workspaces you have access to.
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -213,9 +222,11 @@ Connects local and remote workspaces. Jobs, pipelines and code available locally
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Positional arguments**
+
 * `workspace` - Workspace name or id to connect to. when omitted interactive picker will allow to select existing or create a new one. required when using an api key.
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--create` - 
 * `--org-id ORG_ID` - Organization uuid to scope the connection to. required in non-interactive mode when you belong to multiple organizations and local workspace has no organization pinned.
@@ -243,6 +254,7 @@ Show workspace ID and summary of deployments, configurations and jobs.
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -268,6 +280,7 @@ Open the workspace overview for the current remote workspace in the browser.
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -293,6 +306,7 @@ Open the dltHub dashboard for the current remote workspace, deploying a default 
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -319,6 +333,7 @@ Sync workspace files, generate job manifest from \_\_deployment\_\_.py, and reco
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--dry-run` - Preview changes without applying them
@@ -347,12 +362,15 @@ Manipulate deployments in the workspace.
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Positional arguments**
+
 * `deployment_version_no` - Deployment version number. only used in the `info` subcommand
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`list`](#dlthub-workspace-deployment-list) - List all deployments in workspace
 * [`info`](#dlthub-workspace-deployment-info) - Get detailed information about a deployment
 * [`sync`](#dlthub-workspace-deployment-sync) - Create new deployment if local workspace content changed
@@ -381,6 +399,7 @@ List all deployments in workspace.
 Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -407,6 +426,7 @@ Get detailed information about a deployment.
 Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -433,6 +453,7 @@ Create new deployment if local workspace content changed.
 Inherits arguments from [`dlthub workspace deployment`](#dlthub-workspace-deployment).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--dry-run` - Compare local files to latest deployment without uploading
 * `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
@@ -461,12 +482,15 @@ Manipulate configurations in the workspace.
 Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 
 **Positional arguments**
+
 * `configuration_version_no` - Configuration version number. only used in the `info` subcommand
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`list`](#dlthub-workspace-configuration-list) - List all configuration versions
 * [`info`](#dlthub-workspace-configuration-info) - Get detailed information about a configuration
 * [`sync`](#dlthub-workspace-configuration-sync) - Create new configuration if local config content changed
@@ -495,6 +519,7 @@ List all configuration versions.
 Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -521,6 +546,7 @@ Get detailed information about a configuration.
 Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -547,6 +573,7 @@ Create new configuration if local config content changed.
 Inherits arguments from [`dlthub workspace configuration`](#dlthub-workspace-configuration).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--dry-run` - Compare local config to latest configuration without uploading
 * `-v, --verbose` - Print per-file added/updated/deleted tree alongside the summary
@@ -574,10 +601,12 @@ Manage workspace variables — plain or secret values injected into every run's 
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 
 **Available subcommands**
+
 * [`list`](#dlthub-variable-list) - List variables in every scope, or in one scope
 * [`set`](#dlthub-variable-set) - Create or update one variable
 * [`delete`](#dlthub-variable-delete) - Remove one variable
@@ -605,6 +634,7 @@ List workspace variables. Without a scope selector every scope is listed, with t
 Inherits arguments from [`dlthub variable`](#dlthub-variable).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--profile PROFILE` - Target the scope of this profile
 * `--workspace` - Target the workspace-wide scope
@@ -633,9 +663,11 @@ Create or update a variable. The value is read from stdin unless --value is give
 Inherits arguments from [`dlthub variable`](#dlthub-variable).
 
 **Positional arguments**
+
 * `name` - Variable name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--value VALUE` - Value to store. omit to read it from stdin
 * `--plain` - Store a readable value
@@ -667,9 +699,11 @@ Remove a variable from the workspace or a profile scope.
 Inherits arguments from [`dlthub variable`](#dlthub-variable).
 
 **Positional arguments**
+
 * `name` - Variable name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--allow-missing` - Treat an absent variable as success instead of an error
 * `--profile PROFILE` - Target the scope of this profile
@@ -698,6 +732,7 @@ Open the workspace overview for the current remote workspace in the browser.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -724,9 +759,11 @@ Deploy current workspace and run a notebook as a read-only web app. A plain `.py
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Positional arguments**
+
 * `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest, or a .py file path to deploy and serve as a regular script
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
@@ -757,9 +794,11 @@ Deploy current workspace and run a batch script remotely. Use -f/--follow to tai
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Positional arguments**
+
 * `selector_or_job_ref` - Selector or job ref to pick a job from the manifest, or a .py file path to deploy and run as a regular script
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
@@ -790,6 +829,7 @@ Log out from dltHub.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -815,6 +855,7 @@ Log in to dltHub. Authenticates the current user; does not connect a workspace. 
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--resume DEVICE_CODE` - Resume a previously started device flow login. the device_code is printed by `dlthub login` when no tty is attached.
 * `--device` - Force the device authorization flow instead of the default browser loopback login.
@@ -844,10 +885,12 @@ List and operate on jobs registered in the connected workspace, plus their runs.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 
 **Available subcommands**
+
 * [`list`](#dlthub-job-list) - List jobs (filter with selectors: batch, schedule:*, tag:ops, ...)
 * [`info`](#dlthub-job-info) - Show job info
 * [`show`](#dlthub-job-show) - Open the job page in the web gui
@@ -885,9 +928,11 @@ List jobs registered in the workspace. Pass selectors to filter: batch, interact
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Selector(s) or job name(s) used to filter the listing
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--archived` - Include archived jobs in the listing (hidden by default)
 
@@ -914,9 +959,11 @@ Display detailed information about the job.
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector identifying the job
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -942,9 +989,11 @@ Print the URL of the job page in the dltHub dashboard and open it in a browser w
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector identifying the job
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -971,9 +1020,11 @@ Trigger runs for jobs matching the given selectors. Can select only jobs already
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selectors` - Trigger selectors (fnmatch patterns), e.g. 'tag:backfill', 'manual:jobs.etl.*'
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--dry-run` - Preview matched jobs without creating runs
 * `--profile PROFILE` - Profile override for all triggered runs
@@ -1002,9 +1053,11 @@ Generate a public link for a notebook/app, or revoke it with --cancel.
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `script_path` - Local path to the notebook/app
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--cancel` - Revoke the public link for the notebook/app
 
@@ -1031,9 +1084,11 @@ Revoke the public link for an interactive notebook/app.
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `script_path` - Local path to the notebook/app
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1059,9 +1114,11 @@ Pause the schedule of every job matching the given names, refs or selectors (bat
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job names, script paths, job refs, or selectors.
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1087,9 +1144,11 @@ Resume the schedule of every job matching the given names, refs or selectors (ba
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job names, script paths, job refs, or selectors.
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1115,10 +1174,12 @@ Show logs for the latest run of a job or a specific run number. Use -f/--follow 
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
 * `run_number` - Run number (optional)
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `-f, --follow` - Follow logs in real-time until the run completes
 
@@ -1146,9 +1207,11 @@ Cancel active (non-terminal) runs for jobs matching selectors or names. Multiple
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector (e.g. batch, schedule:*).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--dry-run` - Show what would be cancelled without actually cancelling
 
@@ -1175,9 +1238,11 @@ Operate on runs of a job: list runs, show info, stream logs, cancel.
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`list`](#dlthub-job-runs-list) - List job runs (filter with a selector: batch, schedule:*, ...)
 * [`info`](#dlthub-job-runs-info) - Show job run info
 * [`logs`](#dlthub-job-runs-logs) - Show logs for the latest or selected job run
@@ -1207,9 +1272,11 @@ List job runs registered in the workspace. Pass a selector to filter by matching
 Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Selector or job name to filter runs by
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--running` - Show only runs that are not in a terminal state
 
@@ -1236,10 +1303,12 @@ Display detailed information about the job run.
 Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector
 * `run_number` - Run number (defaults to latest run of the given job)
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1265,10 +1334,12 @@ Show logs for the latest or selected job run. Use -f/--follow to stream logs in 
 Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector
 * `run_number` - Run number (defaults to latest run)
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `-f, --follow` - Follow logs in real-time until the run completes
 
@@ -1295,10 +1366,12 @@ Print the URL of the job run page in the dltHub dashboard and open it in a brows
 Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector
 * `run_number` - Run number (defaults to latest run of the given job)
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1324,10 +1397,12 @@ Cancel the latest or selected job run.
 Inherits arguments from [`dlthub job runs`](#dlthub-job-runs).
 
 **Positional arguments**
+
 * `selector_or_job_name` - Job name, script path, or selector
 * `run_number` - Run number (defaults to latest run)
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1354,9 +1429,11 @@ Deploy current workspace and run a notebook as a read-only web app. A plain `.py
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_ref` - Selector or job ref to pick an interactive app from the manifest, or a .py file path to deploy and serve as a regular script
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
@@ -1387,9 +1464,11 @@ Deploy current workspace and run a batch script remotely. Use -f/--follow to tai
 Inherits arguments from [`dlthub job`](#dlthub-job).
 
 **Positional arguments**
+
 * `selector_or_job_ref` - Selector or job ref to pick a job from the manifest, or a .py file path to deploy and run as a regular script
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
@@ -1421,6 +1500,7 @@ Sync workspace files, generate job manifest from \_\_deployment\_\_.py, and reco
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `--deployment DEPLOYMENT` - Python file to use as manifest source (instead of \_\_deployment\_\_)
@@ -1450,6 +1530,7 @@ Open the dltHub dashboard for the current remote workspace, deploying a default 
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1475,9 +1556,11 @@ Show and list workspace profiles.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`info`](#dlthub-profile-info) - Display the active profile (paths, providers, pinned status)
 * [`list`](#dlthub-profile-list) - List all available profiles
 
@@ -1504,6 +1587,7 @@ Display the active profile (paths, providers, pinned status).
 Inherits arguments from [`dlthub profile`](#dlthub-profile).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1529,6 +1613,7 @@ List all available profiles.
 Inherits arguments from [`dlthub profile`](#dlthub-profile).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1554,9 +1639,11 @@ Create, run, inspect and monitor pipelines at dltHub.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`init`](#dlthub-pipeline-init) - Creates a pipeline in the current folder by adding existing verified source or creating a new one from template.
 * [`show`](#dlthub-pipeline-show) - Open the pipeline observability view in the dlthub dashboard
 * [`run`](#dlthub-pipeline-run) - Run a job by pipeline name
@@ -1595,10 +1682,12 @@ version if run again with an existing `source` name. You will be warned if files
 Inherits arguments from [`dlthub pipeline`](#dlthub-pipeline).
 
 **Positional arguments**
+
 * `source` - Name of data source for which to create a pipeline. adds existing verified source or creates a new pipeline template if verified source for your data source is not yet implemented.
 * `destination` - Name of a destination i.e. bigquery or redshift
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--list-sources, -l` - Shows all available verified sources and their short descriptions. for each source, it checks if your local `dlt` version requires an update and prints the relevant warning.
 * `--list-destinations` - Shows the name of all core dlt destinations.
@@ -1629,9 +1718,11 @@ Show the URL of the pipeline observability view in the dltHub dashboard and open
 Inherits arguments from [`dlthub pipeline`](#dlthub-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Name of the pipeline to show
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1658,9 +1749,11 @@ Run a job decorated with @run.pipeline, using pipeline_name: selector.
 Inherits arguments from [`dlthub pipeline`](#dlthub-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Name of the pipeline to run
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--timestamps` - Show exact iso timestamps and precise durations (e.g. 1.291 s) instead of humanized relative times.
 * `-f, --follow` - Follow status changes and stream logs until the run completes
@@ -1691,9 +1784,11 @@ Local-only operations on the current workspace.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`info`](#dlthub-local-info) - Display detailed local workspace info
 * [`show`](#dlthub-local-show) - Show workspace dashboard
 * [`run`](#dlthub-local-run) - Run a single batch workspace job locally
@@ -1727,6 +1822,7 @@ Display detailed local workspace info.
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1752,6 +1848,7 @@ Show workspace dashboard.
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--edit` - Eject dashboard and start editable version
 
@@ -1780,9 +1877,11 @@ Run one batch job by selector or job ref. A plain `.py` path is run as a regular
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Positional arguments**
+
 * `selector_or_job_ref` - Job ref, trigger selector (tag:..., schedule:*), or a .py file to run as a script.
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment\_\_.py.
 * `--job-ref REF` - Pick this job when the selector matches multiple jobs.
@@ -1817,9 +1916,11 @@ Serve one interactive job (marimo, Streamlit, FastMCP, ...). Same selector / `--
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Positional arguments**
+
 * `selector_or_job_ref` - Job ref, trigger selector (tag:..., schedule:*), or a .py file to run as a script.
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--deployment FILE` - Path to a .py deployment module. defaults to \_\_deployment\_\_.py.
 * `--job-ref REF` - Pick this job when the selector matches multiple jobs.
@@ -1850,6 +1951,7 @@ Clean local data for the current profile. Locally loaded data and pipelines work
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--skip-local-data-dir` - Does not delete locally loaded data but removes pipeline working dirs.
 
@@ -1876,9 +1978,11 @@ Profile operations scoped to the local workspace.
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`use`](#dlthub-local-profile-use) - Pin a profile in the local workspace so subsequent local commands use it by default
 
 </details>
@@ -1904,9 +2008,11 @@ Pin a profile in the local workspace so subsequent local commands use it by defa
 Inherits arguments from [`dlthub local profile`](#dlthub-local-profile).
 
 **Positional arguments**
+
 * `profile_name` - Profile name to pin
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1933,9 +2039,11 @@ Loads, validates and prints out a dlt schema from a yaml or json file.
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Positional arguments**
+
 * `file` - Schema file name, in yaml or json format, will autodetect based on extension
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--format {json,yaml,dbml,dot,mermaid}` - Display schema in this format
 * `--remove-defaults` - Does not show default hint values
@@ -1963,6 +2071,7 @@ Shows the current status of dlt telemetry. Learn more about telemetry and what w
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -1990,10 +2099,12 @@ Local pipeline operations (info, drop, sync, load-package, etc.).
 Inherits arguments from [`dlthub local`](#dlthub-local).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--pipelines-dir PIPELINES_DIR` - Pipelines working directory
 
 **Available subcommands**
+
 * [`list`](#dlthub-local-pipeline-list) - List local pipelines
 * [`run`](#dlthub-local-pipeline-run) - Run a job by pipeline name
 * [`info`](#dlthub-local-pipeline-info) - Displays state of the pipeline, use -v or -vv for more info
@@ -2030,6 +2141,7 @@ List pipelines in the working directory.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2056,9 +2168,11 @@ Run the job whose `deliver.pipeline_name` matches. Use --job-ref when multiple j
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name to match against `deliver.pipeline_name`
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--job-ref REF` - Narrow to this job when multiple jobs deliver to the same pipeline
 * `--profile NAME` - Override require.profile and the workspace pinned profile.
@@ -2090,9 +2204,11 @@ pipeline state set by the resources during the extraction process.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2124,9 +2240,11 @@ Requires `marimo` to be installed in the current environment: `pip install marim
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--edit` - Creates editable version of workspace dashboard in current directory if it does not exist there yet and launches it in edit mode.
 
@@ -2154,9 +2272,11 @@ files that got loaded and the failure message from the destination.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2188,9 +2308,11 @@ were created. Using the `sync` sub-command is recommended if your destination su
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2221,9 +2343,11 @@ taken when the oldest pending package started and you can safely re-extract and 
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2257,9 +2381,11 @@ folder where you run it.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--destination DESTINATION` - Sync from this destination when local pipeline state is missing.
 * `--dataset-name DATASET_NAME` - Dataset name to sync from when local pipeline state is missing.
@@ -2290,9 +2416,11 @@ will display the load info instead.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2319,9 +2447,11 @@ Displays the default schema for the selected pipeline.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--format {json,yaml,dbml,dot,mermaid}` - Display schema in this format
 * `--remove-defaults` - Does not show default hint values
@@ -2422,10 +2552,12 @@ This will select the `archives` key in the `chess` source.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 * `resources` - One or more resources to drop. can be exact resource name(s) or regex pattern(s). regex patterns must start with re:
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--destination DESTINATION` - Sync from this destination when local pipeline state is missing.
 * `--dataset-name DATASET_NAME` - Dataset name to sync from when local pipeline state is missing.
@@ -2463,11 +2595,13 @@ loading of that package.
 Inherits arguments from [`dlthub local pipeline`](#dlthub-local-pipeline).
 
 **Positional arguments**
+
 * `pipeline_name` - Pipeline name
 * `load-id` - Load id of completed or normalized package. defaults to the most recent package.
 * `job` - Pattern for the `job` action, or job id / file name for `fail-job`.
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2494,6 +2628,7 @@ Creates local workspace files: config, secrets, gitignore and Python pyproject/r
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--name NAME` - Workspace name (defaults to current directory basename).
 * `--force` - Overwrite existing pyproject.toml/requirements.txt/.gitignore/config.toml.
@@ -2523,9 +2658,11 @@ Configure your LLM-enabled IDE and MCP server.
 Inherits arguments from [`dlthub`](#dlthub).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`status`](#dlthub-ai-status) - Show ai setup status: dlt version, agent, toolkits, readiness checks
 * [`init`](#dlthub-ai-init) - Install initial ai rules and skills for your ai coding agent
 * [`secrets`](#dlthub-ai-secrets) - Manage secrets files used by dlt
@@ -2555,6 +2692,7 @@ Show AI setup status: dlt version, agent, toolkits, readiness checks.
 Inherits arguments from [`dlthub ai`](#dlthub-ai).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2581,6 +2719,7 @@ Install initial AI rules and skills for your AI coding agent.
 Inherits arguments from [`dlthub ai`](#dlthub-ai).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
 * `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
@@ -2610,9 +2749,11 @@ List, view (redacted), or update secret files used by dlt providers.
 Inherits arguments from [`dlthub ai`](#dlthub-ai).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 **Available subcommands**
+
 * [`list`](#dlthub-ai-secrets-list) - List secret file locations from providers
 * [`view-redacted`](#dlthub-ai-secrets-view-redacted) - Print secrets toml with all values replaced by '***'
 * [`update-fragment`](#dlthub-ai-secrets-update-fragment) - Merge a toml fragment into the secrets file
@@ -2640,6 +2781,7 @@ List secret file locations from providers.
 Inherits arguments from [`dlthub ai secrets`](#dlthub-ai-secrets).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2665,6 +2807,7 @@ Without --path, shows the unified view merged from all project secret files. Wit
 Inherits arguments from [`dlthub ai secrets`](#dlthub-ai-secrets).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--path PATH` - Show this exact file instead of the unified provider view
 
@@ -2691,9 +2834,11 @@ Merge a TOML fragment into the secrets file.
 Inherits arguments from [`dlthub ai secrets`](#dlthub-ai-secrets).
 
 **Positional arguments**
+
 * `fragment` - Toml fragment string to merge; reads from stdin if omitted
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--path PATH` - Path to the secrets toml file to write to
 
@@ -2720,11 +2865,13 @@ Manage AI toolkit plugins (list, info, install).
 Inherits arguments from [`dlthub ai`](#dlthub-ai).
 
 **Positional arguments**
+
 * `list` - List available toolkits
 * `info` - Show toolkit contents and components
 * `install` - Install toolkit components into project
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 
 </details>
@@ -2750,6 +2897,7 @@ List available toolkits.
 Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--location LOCATION` - Advanced. git url or local path to toolkit repository.
 * `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
@@ -2777,9 +2925,11 @@ Show toolkit contents and components.
 Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
 
 **Positional arguments**
+
 * `name` - Toolkit name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--location LOCATION` - Advanced. git url or local path to toolkit repository.
 * `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
@@ -2808,9 +2958,11 @@ Install toolkit components into project.
 Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
 
 **Positional arguments**
+
 * `name` - Toolkit name
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--location LOCATION` - Advanced. git url or local path to toolkit repository.
 * `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
@@ -2842,10 +2994,12 @@ Run or install the dlt MCP server.
 Inherits arguments from [`dlthub ai`](#dlthub-ai).
 
 **Positional arguments**
+
 * `run` - Start the mcp server (default)
 * `install` - Install mcp server config into the current project
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--stdio` - Use stdio transport mode
 * `--sse` - Use legacy sse transport instead of streamable-http
@@ -2876,6 +3030,7 @@ Start the MCP server (default).
 Inherits arguments from [`dlthub ai mcp`](#dlthub-ai-mcp).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--stdio` - Use stdio transport mode
 * `--sse` - Use legacy sse transport instead of streamable-http
@@ -2906,6 +3061,7 @@ Install MCP server config into the current project.
 Inherits arguments from [`dlthub ai mcp`](#dlthub-ai-mcp).
 
 **Options**
+
 * `-h, --help` - Show this help message and exit
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
 * `--features [FEATURES ...]` - Mcp feature sets to include in the server config

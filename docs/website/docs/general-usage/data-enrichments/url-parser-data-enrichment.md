@@ -177,8 +177,8 @@ need to register to use this service nor get an API key.
 
 1. In creating the pipeline, the `url_parser` can be used in the following ways:
 
-   - Add map function
-   - Transformer function
+  - Add map function
+  - Transformer function
 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.

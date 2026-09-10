@@ -42,6 +42,7 @@ pipeline.run([1, 2, 3], table_name="items")
 ```
 
 :::tip
+
 1. You can also remove the typing information (`TDataItems` and `TTableSchema`) from this example. Typing is generally useful to know the shape of the incoming objects, though.
 2. There are a few other ways to declare custom destination functions for your pipeline described below.
 :::
@@ -222,6 +223,7 @@ Custom destinations do not have a general mechanism to restore pipeline state. T
 If you wipe the pipeline directory (i.e., by deleting a folder or running on AWS Lambda or GitHub Actions where you get a clean runner), the progress of the incremental loading is lost. On the next run, you will re-acquire the data from the beginning.
 
 While we are working on a pluggable state storage, you can fix the problem above by:
+
 1. Not wiping the pipeline directory. For example, if you run your pipeline on an EC instance periodically, the state will be preserved.
 2. By doing a restore/backup of the pipeline directory before/after it runs. This is way easier than it sounds, and [here's a script you can reuse](https://gist.github.com/rudolfix/ee6e16d8671f26ac4b9ffc915ad24b6e).
 

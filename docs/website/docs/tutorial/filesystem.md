@@ -45,8 +45,8 @@ Here’s what each file does:
 - `filesystem_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of loading data from the filesystem source.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
-    - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
-    - `config.toml`: This file contains the configuration settings for your dlt project.
+  - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
+  - `config.toml`: This file contains the configuration settings for your dlt project.
 
 :::note
 When deploying your pipeline in a production environment, managing all configurations with files might not be convenient. In this case, we recommend you use environment variables to store secrets and configs instead. Read more about [configuration providers](../general-usage/credentials/setup#choose-where-to-store-configuration) available in dlt.
@@ -89,10 +89,14 @@ A [transformer](../general-usage/resource#process-resources-with-dlttransformer)
 
 3. We create the dlt pipeline, configuring it with the name `hospital_data_pipeline` and DuckDB as the destination.
 4. We call `pipeline.run()`. This is where the underlying generators are iterated:
+
+
  - dlt retrieves remote data,
  - normalizes data,
  - creates or updates the table in the destination,
  - loads the extracted data into the destination.
+
+
 5. `print(info)` outputs the pipeline running stats we get from `pipeline.run()`.
 
 ## 3. Configuring the filesystem source
@@ -222,6 +226,7 @@ You can explore the loaded data, run queries, and see some pipeline execution de
 ## 6. Appending, replacing, and merging loaded data
 
 If you try running the pipeline again with `python filesystem_pipeline.py`, you will notice that all the tables have duplicated data. This happens because by default, dlt appends the data to the destination table. It is very useful, for example, when you have daily data updates and you want to ingest them. With dlt, you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
+
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
 - `merge`: Merges the new data with the existing data in the destination table based on the primary key.
@@ -368,6 +373,7 @@ Check out [other examples](../dlt-ecosystem/verified-sources/filesystem#create-y
 Congratulations on completing the tutorial! You've learned how to set up a filesystem source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
+
 - Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
 - [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.

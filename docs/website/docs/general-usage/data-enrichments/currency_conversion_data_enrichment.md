@@ -60,18 +60,18 @@ currency_conversion_enrichment/
 1. The last part of our data enrichment ([part one](../../general-usage/data-enrichments/user_agent_device_data_enrichment.md))
    involved enriching the data with user-agent device data. This included adding two new columns to the dataset as follows:
 
-   - `device_price_usd`: average price of the device in USD.
+  - `device_price_usd`: average price of the device in USD.
 
-   - `price_updated_at`: time at which the price was updated.
+  - `price_updated_at`: time at which the price was updated.
 
 1. The columns initially present prior to the data enrichment were:
 
-   - `user_id`: Web trackers typically assign a unique ID to users for tracking their journeys and
+  - `user_id`: Web trackers typically assign a unique ID to users for tracking their journeys and
      interactions over time.
 
-   - `device_name`: User device information helps in understanding the user base's device.
+  - `device_name`: User device information helps in understanding the user base's device.
 
-   - `page_referer`: The referer URL is tracked to analyze traffic sources and user navigation
+  - `page_referer`: The referer URL is tracked to analyze traffic sources and user navigation
      behavior.
 
 1. Here's the resource that yields the sample data as discussed above:
@@ -198,8 +198,8 @@ API token.
 
 1. In creating the pipeline, the `converted_amount` can be used in the following ways:
 
-   - Add map function
-   - Transformer function
+  - Add map function
+  - Transformer function
 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.

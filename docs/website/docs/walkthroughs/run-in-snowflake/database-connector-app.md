@@ -8,6 +8,7 @@ keywords: [snowflake, native app, dlt connector app]
 The dlt Connector App is a Snowflake Native App that lets you move data from external SQL databases (PostgreSQL, MySQL, MSSQL) into Snowflake using a simple web UI. It runs entirely within your Snowflake account — no external infrastructure required.
 
 You can: 
+
 - connect an external [SQL database](../../dlt-ecosystem/verified-sources/sql_database) to Snowflake
 - create one or more [pipelines](../../general-usage/pipeline) (each pipeline defines what to load and where)
 - run pipelines on demand
@@ -29,12 +30,17 @@ This documentation explains how to set up sources, create and manage pipelines, 
 ## Prerequisites
 
 Before creating your first pipeline, make sure you have:
+
 1. A destination database in Snowflake where the loaded data should land
 2. A role with permissions to approve External Access Integrations (`ACCOUNTADMIN`, or a role with that privilege)
 3. Connection details for your source database, including:
-    - host + port
-    - database name / schema
-    - username + password 
+
+
+  - host + port
+  - database name / schema
+  - username + password 
+
+
 4. (Optional) An S3 bucket if you plan to stage data externally
 
 ## Install and open the app
@@ -206,6 +212,7 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
 ### Destination Settings
 
 Destination settings define where in Snowflake the data is loaded and allow advanced destination tuning.
+
 - **Destination database**:
     Name of the Snowflake database to load into.
 - **Check privileges**:
@@ -228,6 +235,7 @@ Destination settings define where in Snowflake the data is loaded and allow adva
 ### Pipeline Settings
 
 This section contains optional pipeline-level defaults that affect how and where data is written.
+
 - **Dataset name**:
     Destination schema name for the pipeline output. If not set, the app derives it from the pipeline name as `<pipeline_name>_dataset`.
 - **[Dev mode](../../general-usage/pipeline#do-experiments-with-dev-mode)**:
@@ -270,6 +278,7 @@ Fields may vary depending on what the app exposes in your environment.
 Go to the **Runs** tab to see a history list of the Jobs. 
 
 Click the **view details** button to view:
+
 - pipeline name
 - Job ID
 - triggered by 
@@ -281,6 +290,7 @@ Statuses typically move through:
 `STARTING → RUNNING → SUCCESS or FAILED`.
 
 Click the **view logs** tab to see the logs of the job:
+
 - When each pipeline stage (extract, normalize, load) starts and finishes
 - Progress information for each stage 
 - Performance metrics (processing time, memory usage, CPU, ...)

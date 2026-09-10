@@ -298,12 +298,14 @@ Only values marked as secrets (with `dlt.secrets.value` or using types like `TSe
 The TOML configuration provider uses two separate files:
 
 **config.toml**:
+
 - Contains non-sensitive configuration data that defines pipeline behavior
 - Includes settings like file paths, database hosts, timeouts, API URLs, and performance options
 - Values are accessible in code through the `dlt.config` dictionary
 - Can be safely committed to version control
 
 **secrets.toml**:
+
 - Contains sensitive information that must be kept confidential
 - Includes credentials like passwords, API keys, and private keys
 - Values are accessible in code through the `dlt.secrets` dictionary

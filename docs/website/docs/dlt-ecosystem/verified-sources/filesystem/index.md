@@ -10,6 +10,7 @@ import Header from '../_source-info-header.md';
 <Header/>
 
 The filesystem source allows seamless loading of files from the following locations:
+
 * AWS S3
 * Google Cloud Storage
 * Google Drive
@@ -29,6 +30,7 @@ To load unstructured data (PDF, plain text, e-mail), please refer to the [unstru
 The Filesystem source doesn't just give you an easy way to load data from both remote and local files — it also comes with a powerful set of tools that let you customize the loading process to fit your specific needs.
 
 Filesystem source loads data in two steps:
+
 1. It [accesses the files](#1-initialize-a-filesystem-resource) in your remote or local file storage without actually reading the content yet. At this point, you can [filter files by metadata or name](#7-filter-files). You can also set up [incremental loading](#5-incremental-loading) to load only new files.
 2. [The reader](#2-choose-the-right-reader) reads the files' content and yields the records. At this step, you can filter out the actual data, enrich records with metadata from files, or [perform incremental loading](#load-new-records-based-on-a-specific-column) based on the file content.
 
@@ -512,6 +514,7 @@ print(load_info)
 
 If you have many files to process or they are large you may choose to split pipeline runs into smaller chunks (where single file is the smallest). There are
 two methods to do that:
+
 * **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
 * **Split** where you load data sequentially in small chunks
 

@@ -33,7 +33,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
 1. Create a `dlt` pipeline. For detailed instructions on creating a pipeline, please refer to the [documentation](../../tutorial/load-data-from-an-api.md).
 
 1. Add `@task` decorator to the individual functions.
-    1. Here we use the `@task` decorator for the `get_users` function: 
+  1. Here we use the `@task` decorator for the `get_users` function: 
         
         ```py notype
         @task
@@ -41,7 +41,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
             """Execute a pipeline that will load the Slack users list."""
         ```
         
-    1. Use the `@flow` function on the `slack_pipeline` function as:
+  1. Use the `@flow` function on the `slack_pipeline` function as:
         
         ```py notype
         @flow

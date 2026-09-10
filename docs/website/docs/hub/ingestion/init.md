@@ -67,6 +67,7 @@ Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://
 ### Agentic setup
 
 A collaborative AI-human workflow that integrates `dlt` with AI editors and agents like:
+
 - **Claude**
 - **Cursor**
 - **Codex**
@@ -82,6 +83,7 @@ Start with the [`/find-source` skill](./rest-api-source.md#find-source--discover
 ## Next steps: Deploy and scale
 
 Once your pipeline runs locally:
+
 * [Monitor via the workspace dashboard](../../general-usage/dataset-access/data-quality-dashboard)
 * Set up [Profiles](../pipeline-operations/profiles.md) to manage separate dev, prod, and test environments
 * [Deploy to runtime](../pipeline-operations/deployments.md)

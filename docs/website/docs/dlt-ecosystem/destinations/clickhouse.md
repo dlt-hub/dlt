@@ -77,8 +77,8 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
     Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
 
-   - If you set `http_port = 8123` (default non-secure HTTP port), then ClickHouse should be listening for HTTP requests on port 8123.
-   - If you set `http_port = 8443`, then ClickHouse should be listening for secure HTTPS requests on port 8443.
+  - If you set `http_port = 8123` (default non-secure HTTP port), then ClickHouse should be listening for HTTP requests on port 8123.
+  - If you set `http_port = 8443`, then ClickHouse should be listening for secure HTTPS requests on port 8443.
 
    If you're using external staging, you can omit the `http_port` parameter, since clickhouse-connect will not be used in this case.
 
@@ -309,6 +309,7 @@ clickhouse_adapter(
 ```
 
 `sort` and `partition` are used to generate the `ORDER BY` and `PARTITION BY` clauses of the table creation statement, and they accept either a **sequence of column names** or a **SQL expression**:
+
 1. **sequence of column names:** recommended if column transformations are not required
 2. **SQL expression:** use if column transformations are required
 
@@ -385,6 +386,7 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 ```
 
 :::note
+
 - The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
 - We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `True` in your [table settings](#mergetree-table-settings) if you insist on nullable key columns.
 :::
@@ -396,6 +398,7 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 Although it's possible to set `sort`/`partition` column hints directly, we recommend using `clickhouse_adapter` instead.
 
 If you still choose to set `sort`/`partition` column hints yourself, know that:
+
 - columns are added to the `ORDER BY`/`PARTITION BY` clause in order of appearance in the schema
 - they may be overridden/removed if you also use `clickhouse_adapter`: the adapter takes precedence, and it will set column hints in accordance with the values provided to its `sort`/`partition` parameters
 

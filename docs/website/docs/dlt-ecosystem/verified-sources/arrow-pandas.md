@@ -200,6 +200,7 @@ Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to 
 ## Loading JSON documents
 
 If you want to skip the default `dlt` JSON normalizer, you can use any available method to convert JSON documents into tabular data.
+
 * **pandas** has `read_json` and `json_normalize` methods
 * **pyarrow** can infer the table schema and convert JSON files into tables with `read_json`
 * **duckdb** can do the same with `read_json_auto`

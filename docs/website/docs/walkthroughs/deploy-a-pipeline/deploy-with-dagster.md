@@ -149,13 +149,13 @@ You can find the full example code in [this repository](https://github.com/dlt-h
      ```
 
 1. Run the web server locally:
-    1. Run the project:
+  1. Run the project:
 
        ```sh
        dg dev
        ```
 
-    2. Navigate to localhost:3000 in your web browser to access the Dagster UI.
+  2. Navigate to localhost:3000 in your web browser to access the Dagster UI.
 
        ![image](https://github.com/user-attachments/assets/97b74b86-df94-47e5-8ae2-de7cc47f56d8)
 

@@ -26,11 +26,13 @@ This destination is available starting from dltHub version 0.9.0. It fully suppo
 
 1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file.
 2. Additional configuration for Iceberg tables in Snowflake via:
-   - `external_volume`: The external volume name where Iceberg data is stored.
-   - `catalog`: The catalog name in which Iceberg tables are created. Defaults to `"SNOWFLAKE"`.
-   - `base_location`: A template string for the base path that Snowflake uses for storing the table data in external storage, supporting placeholders.
-   - `extra_placeholders`: Additional values that can be used in the `base_location` template.
-   - `catalog_sync`: The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) configured for [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview). If specified, Snowflake syncs Snowflake-managed Iceberg tables in the database with an external catalog in your Snowflake Open Catalog account.
+
+
+  - `external_volume`: The external volume name where Iceberg data is stored.
+  - `catalog`: The catalog name in which Iceberg tables are created. Defaults to `"SNOWFLAKE"`.
+  - `base_location`: A template string for the base path that Snowflake uses for storing the table data in external storage, supporting placeholders.
+  - `extra_placeholders`: Additional values that can be used in the `base_location` template.
+  - `catalog_sync`: The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) configured for [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview). If specified, Snowflake syncs Snowflake-managed Iceberg tables in the database with an external catalog in your Snowflake Open Catalog account.
 
 ## Installation
 
@@ -90,6 +92,7 @@ The `snowflake_plus` destination extends the standard Snowflake configuration wi
 ### `iceberg_mode`
 
 Controls which tables are created as Iceberg tables.
+
 - Possible values:
   - `"all"`: All tables including dlt system tables are created as Iceberg tables
   - `"data_tables"`: Only data tables (non-dlt system tables) are created as Iceberg tables
@@ -100,30 +103,35 @@ Controls which tables are created as Iceberg tables.
 ### `external_volume`
 
 The external volume to store Iceberg metadata.
+
 - Required: Yes
 - Default: None
 
 ### `catalog`
 
 The catalog to use for Iceberg tables.
+
 - Required: No
 - Default: `"SNOWFLAKE"`. This will use [Snowflake as the catalog](https://docs.snowflake.com/en/user-guide/tables-iceberg#label-tables-iceberg-snowflake-as-catalog) for the Iceberg tables.
 
 ### `base_location`
 
 Template string for the base location where Iceberg data is stored in the external volume. Supports placeholders like `{dataset_name}` and `{table_name}`.
+
 - Required: No
 - Default: `"{dataset_name}/{table_name}"`
 
 ### `extra_placeholders`
 
 Dictionary of additional values that can be used in the `base_location` template. The values can be static strings or functions that accept the dataset name and table name as arguments and return a string.
+
 - Required: No
 - Default: None
 
 ### `catalog_sync`
 
 The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) for syncing Iceberg tables to an external catalog in [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview).
+
 - Required: No
 - Default: None
 

@@ -54,11 +54,11 @@ one, follow these steps:
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the
       "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 #### Google OAuth credentials
 
@@ -419,6 +419,7 @@ headers, and data types as arguments.
 
 > Please note:
 >
+
 > 1. Empty rows are ignored.
 > 1. Empty cells are converted to None (and then to NULL by dlt).
 > 1. Data in columns without headers will be dropped.
@@ -572,6 +573,7 @@ Consider the following when using Google spreadsheets with Airflow:
 - If your execution environment (runner) is on a different machine, this might cause the data to be loaded twice, leading to inefficiencies.
 
 `Airflow helper caution`
+
 - Avoid using `scc decomposition` because it unnecessarily creates a new source instance for every specified data range. This is not efficient and can cause redundant tasks.
 
 #### Recommended Airflow deployment

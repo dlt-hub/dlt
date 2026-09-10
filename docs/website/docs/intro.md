@@ -93,6 +93,7 @@ print(pipeline.dataset().posts.df())
 
 :::tip
 LLMs are great at generating REST API pipelines!
+
 * [Follow LLM tutorial](hub/ingestion/rest-api-source.md) and start with one of [5,000+ sources](https://dlthub.com/workspace)
 * Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
 :::

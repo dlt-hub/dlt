@@ -83,6 +83,7 @@ You can also decrease the suspend time for your warehouse to 1 minute (**Admin**
 ### Authentication types
 
 Snowflake destination accepts these authentication types:
+
 - Password authentication
 - [Key pair authentication](https://docs.snowflake.com/en/user-guide/key-pair-auth)
 - OAuth authentication
@@ -440,12 +441,14 @@ pipeline.run(items(), loader_file_format="jsonl")
 #### Schema and type evolution
 
 Nested columns evolve like regular columns:
+
 - **New nested columns** are added on later loads via `ALTER TABLE ... ADD COLUMN`; rows loaded earlier get `NULL`.
 - **New fields inside an existing struct** migrate in place: `dlt` re-issues `ALTER COLUMN ... SET DATA TYPE OBJECT(...)`, which Snowflake applies as a metadata-only change (no table rewrite), and earlier rows get `NULL` for the new field.
 
 You can add fields (top-level or nested), but — as with regular columns — you cannot change an existing field's type or an `ARRAY` element type, nor convert a structured column back to `VARIANT`.
 
 Notes:
+
 - Opt-in and backward compatible: without the flag, nested columns remain `VARIANT`.
 - Works with both `parquet` and `jsonl`. For `jsonl`, every field declared in a struct must be present in each record (use `null` for missing values) — an absent key fails the load.
 - For `parquet`, `dlt` automatically enables Snowflake's **vectorized scanner**, because null fields inside structured columns only load with it.
@@ -459,6 +462,7 @@ Notes:
 * [CSV](../file-formats.md#csv) is supported.
 
 When staging is enabled:
+
 * [JSONL](../file-formats.md#jsonl) is used by default.
 * [Parquet](../file-formats.md#parquet) is supported.
 * [CSV](../file-formats.md#csv) is supported.
@@ -499,6 +503,7 @@ Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and
 ## Supported column hints
 
 Snowflake supports the following [column hints](../../general-usage/schema#tables-and-columns):
+
 * `cluster` - Makes column part of [cluster key](https://docs.snowflake.com/en/user-guide/tables-clustering-keys), can be added to many columns. The `cluster` columns are added to the cluster key in order of appearance in the table schema. Changing `cluster` hints after table creation is supported, but the changes will only be applied if/when a new column is added.
 * `unique` - Creates UNIQUE hint on a Snowflake column, can be added to many columns. ([optional](#additional-destination-options))
 * `primary_key` - Creates PRIMARY KEY on selected column(s), may be compound. ([optional](#additional-destination-options))
@@ -542,10 +547,12 @@ stage_name="PUBLIC.my_s3_stage"
 
 :::important Stage URL Path Matching
 When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+
 - Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
 - If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
 
 For example:
+
 - If your `bucket_url` is `s3://bucket` your Snowflake stage must also point to `s3://bucket`.
 - If your `bucket_url` is `s3://bucket/my_dlt_staging/` your Snowflake stage should be the same path exactly: `s3://bucket/my_dlt_staging/`.
 :::
@@ -581,10 +588,12 @@ stage_name="PUBLIC.my_gcs_stage"
 
 :::important Stage URL Path Matching
 When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+
 - Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
 - If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
 
 For example:
+
 - If your `bucket_url` is `gs://bucket` your Snowflake stage must also point to `gs://bucket`.
 - If your `bucket_url` is `gs://bucket/my_dlt_staging/` your Snowflake stage should be the same path exactly: `gs://bucket/my_dlt_staging/`.
 :::
@@ -620,11 +629,13 @@ stage_name="PUBLIC.my_azure_stage"
 
 :::important Stage URL Path Matching
 When using `stage_name` with external staging, ensure that the stage URL path configured in Snowflake exactly matches the `bucket_url` path in your filesystem configuration:
+
 - Both paths should either end with a trailing slash (`/`) or both should have no trailing slash
 - If your stage includes a subfolder path (e.g., `/my_dlt_staging/`), this must be included in the Snowflake stage definition
 - Snowflake does not normalize paths, so exact matching is required
 
 For example:
+
 - If your `bucket_url` is `az://container` your Snowflake stage must also point to `az://container`.
 - If your `bucket_url` is `az://container/my_dlt_staging/` your Snowflake stage should be the same path exactly: `az://container/my_dlt_staging/`.
 :::
@@ -691,6 +702,7 @@ You'll need these settings when [importing external files](../../general-usage/r
 ### Query tagging
 
 `dlt` [tags sessions](https://docs.snowflake.com/en/sql-reference/parameters#query-tag) used for Snowflake operations with the following properties:
+
 * **operation** - high-level dlt operation currently using the session
 * **source** - name of the source (identical with the name of the `dlt` schema)
 * **resource** - name of the resource (if known, else empty string)
@@ -708,6 +720,7 @@ query_tag='{{"operation":"{operation}", "source":"{source}", "resource":"{resour
 which contains Python named formatters corresponding to tag names i.e., `{source}` will assume the name of the dlt source.
 
 :::note
+
 1. Query tagging is off by default. The `query_tag` configuration field is `None` by default and must be set to enable tagging.
 2. `dlt` sets query tags for major Snowflake operations such as storage preparation, schema and state reads, schema updates, load jobs, and load completion.
 3. Fields such as **resource**, **table**, and **load_id** may be empty for operations where that context does not apply.

@@ -48,6 +48,7 @@ To configure Iceberg destination you need to choose and configure the catalog. T
 * generate and hand locations for newly generated tables (rest catalogs)
 
 Currently, the Iceberg destination supports two catalog types:
+
 * SQL-based catalog. Ideal for local development; stores metadata in SQLite or PostgreSQL
 * REST catalog. Used in production with systems like Lakekeeper or Polaris
 
@@ -324,6 +325,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 ##### Prerequisites
 
 Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
+
 * `warehouse` – full bucket ARN for your S3 Tables catalog.
 * `uri` – region-specific S3 Tables REST endpoint.
 * `rest.*` properties – mandatory SigV4 settings for every call.
@@ -387,6 +389,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 ##### Prerequisites
 
 Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
+
 * `warehouse` – glue catalog arn for your S3 Tables catalog.
 * `uri` – region-specific Glue REST endpoint.
 * `rest.*` properties – mandatory SigV4 settings for every call.
@@ -539,7 +542,7 @@ def my_resource():
 The `upsert` strategy is similar to delete-insert strategy but with key differences in behavior and requirements:
 
 - Supports nested data: unlike `delete-insert`, `upsert` handles nested data
-    - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
+  - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
 - Does not deduplicate records with duplicate primary keys in the incoming data
 - Upsert _does not_ support merge keys
 
@@ -600,6 +603,7 @@ aws_secret_access_key = "please set me up!"
 Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
 There are two ways to configure partitioning in dltHub Iceberg destination:
+
 * Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
 * Using column-level [`partition`](#using-column-level-partition-property) property
 

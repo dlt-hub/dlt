@@ -35,6 +35,7 @@ dlt init github postgres
 This adds a `github` verified source (it produces quite complicated datasets and that's good for testing; it does not require credentials to use) and `postgres` credentials (connection-string-like) that we'll repurpose later.
 
 Clone the [dlt](https://github.com/dlt-hub/dlt) repository to a separate folder. In the repository, look for the **dlt/destinations/impl** folder and copy one of the destinations to your project. Pick your starting point:
+
 * **postgres** - A simple destination without staging storage support and COPY jobs.
 * **redshift** - Based on postgres, adds staging storage support and remote COPY jobs.
 * **snowflake** - A destination supporting additional authentication schemes, local and remote COPY jobs, and no support for direct INSERTs.
@@ -46,6 +47,7 @@ Below, we'll use **postgres** as the starting point.
 `dbapi` based destinations use `ConnectionStringCredentials` as a credentials base, which accepts SQLAlchemy-style connection strings. Typically, you should derive from it to change the `drivername` and make desired properties (like `host` or `password`) mandatory.
 
 We keep the config and credentials in `configuration.py`. You should:
+
 - Rename the classes properly to match your destination name.
 - If you need more properties (e.g., look at `iam_role` in `redshift` credentials), then add them, remembering about typing. Behind the hood, credentials and configs are **dataclasses**.
 - Adjust the `__init__` arguments in your `Destination` class in `factory.py` to match the new credentials and config classes.
@@ -116,6 +118,7 @@ The **SQL client** is a wrapper over `dbapi` and its main role is to provide a c
 ### Fully qualified names
 
 When created, `sql_client` is bound to a particular dataset name (which typically corresponds to a database schema). Most of the database engines follow the usual rules of qualifying and quoting (**"schema"."table"."column"**), but there are exceptions like `BigQuery` or `Motherduck`. You have full control over generating identifiers via:
+
 * `fully_qualified_dataset_name` returns a fully qualified dataset name.
 * `make_qualified_table_name` does the same but for a given table name.
 
@@ -124,6 +127,7 @@ When created, `sql_client` is bound to a particular dataset name (which typicall
 `dlt` must be able to distinguish a few error cases for the loading to work properly. Unfortunately, error reporting is not very well defined by `dbapi`, and even the existing exception tree is not used consistently across implementations.
 
 `_make_database_exception` method wraps an incoming `Exception` in one of the exception types required by `dlt`:
+
 - `DatabaseUndefinedRelation`: raised when a schema or table that `dlt` tries to reference is undefined. It is important to detect this case exactly: via specific `dbapi` exceptions (like in the case of `postgres` and `duckdb`) or by detecting the proper category of exceptions and inspecting the error codes or messages (see `redshift` and `snowflake`).
 - `DatabaseTerminalException`: errors during loading that will permanently fail a job and should not retry. `IntegrityError`, `ProgrammingError`, and most of the `DataError` belong to this class. (example: decimal value out of range, insert NULL in non-NULL columns)
 - `DatabaseTransientException`: all other exceptions. We also include `SyntaxError` (if it exists in a particular `dbapi` implementation) here.
@@ -144,6 +148,7 @@ The job client is responsible for creating/starting load jobs and managing the s
 ### Database type mappings
 
 You must map `dlt` data types to destination data types. For this, you can implement a subclass of `DataTypeMapper`. You can specify there dicts to map `dlt` data types to destination data types, with or without precision. A few tricks to remember:
+
 * the database types must be exactly those as used in `INFORMATION_SCHEMA.COLUMNS`
 * decimal precision and scale are filled from the capabilities (in all our implementations)
 * until now, all destinations could handle binary types
@@ -160,10 +165,12 @@ You can also add hints (i.e., indexes, partition clauses) to tables via `_get_ta
 `dlt` supports merging and transactional replace via a **staging dataset** living alongside the destination dataset. `SqlJobClientBase` participates in this mechanism by default. In essence, each time a job is completed, `dlt` checks which table was updated and if there are no remaining jobs for that table and its nested and root tables (all together called **table chain**). If the table chain is fully loaded, `dlt` executes SQL transformations that move/merge data from the staging dataset to the destination dataset (that, as you can expect, happens also via jobs, of type `sql` that are dynamically created).
 
 The generated SQL is quite simple, and we were able to run it on all existing destinations (we may introduce `sqlglot` to handle future cases). The SQL used requires:
+
 - SELECT, INSERT, DELETE/TRUNCATE statements
 - WINDOW functions for merge.
 
 In case of destinations that do not allow data modifications, you can opt out from both replace and merge:
+
 - Override the `get_truncate_destination_table_dispositions` method and return an empty list so your tables are never truncated.
 - Override the `get_stage_dispositions` and return an empty list to opt out from any operations on the staging dataset.
 
@@ -195,6 +202,7 @@ Look at `snowflake.py` for a destination that does not use the **insert-values**
 `dlt` allows chaining two destinations to create a [storage stage (typically on a bucket)](../dlt-ecosystem/staging.md). The staging destination (currently `filesystem`) will copy new files, complete the corresponding jobs, and for each of them, it will create a **reference job** that will be passed to a destination to execute.
 
 The `postgres` destination does not implement any copy jobs.
+
 - See `RedshiftCopyFileLoadJob` in `redshift.py` for how we create and start a copy job from a bucket. It uses `CopyRemoteFileLoadJob` base to handle the references and creates a `COPY` SQL statement in the `execute()` method.
 - See `SnowflakeLoadJob` in `snowflake.py` for how to implement a job that can load local and reference files. It also forwards AWS credentials from the staging destination. At the end, the code just generates a COPY command for various loader file formats.
 

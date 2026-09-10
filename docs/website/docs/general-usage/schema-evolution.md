@@ -84,13 +84,13 @@ Let’s load the data and look at the tables:
 What happened?
 
 - Added column:
-    - A new column named `ceo` is added to the “org” table.
+  - A new column named `ceo` is added to the “org” table.
 - Variant column:
-    - A new column named `inventory_nr__v_text` is added as the datatype of the column was changed from “integer” to “string”.
+  - A new column named `inventory_nr__v_text` is added as the datatype of the column was changed from “integer” to “string”.
 - Removed column stopped loading:
-    - New data to column `room` is not loaded.
+  - New data to column `room` is not loaded.
 - Column stopped loading and new one was added:
-    - A new column `address__main_block` was added and now data will be loaded to that and stop loading in the column `address__building`.
+  - A new column `address__main_block` was added and now data will be loaded to that and stop loading in the column `address__building`.
 
 ## Alert schema changes to curate new data
 

@@ -64,8 +64,8 @@ If your needs are straightforward and focused on single-record modifications or 
 - **Removing or renaming fields:**
     If certain fields from the source are not needed or should have different names, you can modify the record dictionaries in-place. Please find the docs here:
 
-    - [Removing columns.](../../general-usage/customising-pipelines/removing_columns)
-    - [Renaming columns.](../../general-usage/customising-pipelines/renaming_columns)
+  - [Removing columns.](../../general-usage/customising-pipelines/removing_columns)
+  - [Renaming columns.](../../general-usage/customising-pipelines/renaming_columns)
 - **Incremental loading:**
     When using incremental loading, you may need to adjust records before the incremental logic runs. This includes filling in missing timestamp or ID fields used as cursors, or dropping records that don’t meet criteria. The `add_map` function with the `insert_at` parameter lets you run these transformations at the right stage in the pipeline.
 

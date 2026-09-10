@@ -193,12 +193,12 @@ To get started with your data pipeline, follow these steps:
     For data retrieval from Zendesk Support or Talk, choose one of the following verification
     methods:
 
-      - Method 1 ([subdomain](#subdomain) + email address + password)
-      - Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
-      - Method 3 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-support-oauth-token))
+  - Method 1 ([subdomain](#subdomain) + email address + password)
+  - Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
+  - Method 3 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-support-oauth-token))
 
     To load data from Zendesk Chat, use the following method for authentication:
-      - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
+  - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
 
    > Note: Use the Zendesk Support OAuth token for configuring Zendesk Support, and for
    > Chat, utilize the OAuth token specific to Zendesk Chat.

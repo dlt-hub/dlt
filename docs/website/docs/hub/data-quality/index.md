@@ -341,6 +341,7 @@ payment_checks = all_checks[
 ## Lifecycle
 
 Data quality (both metrics and checks) can be executed at different stages of the pipeline lifecycle. This impacts several aspects including:
+
 - available **input data**
 - compute resources used
 - **actions** available after a failed check (for example, prevent invalid data load)
@@ -352,6 +353,7 @@ Data quality (both metrics and checks) can be executed at different stages of th
 The post-load execution is the simplest option. The pipeline goes through `Extract -> Normalize -> Load` as usual. Then, the checks are executed on the destination.
 
 Properties:
+
 - Failed records can't be dropped or quarantined before load. All records must be written, checked, and then handled. This only works with `write_disposition="append"` or destinations supporting snapshots (for example `iceberg`, `ducklake`).
 - Checks have access to the full dataset. This includes current and past loads + internal dlt tables.
 - Computed directly on the destination. This scales well with the size of the data and the complexity of the checks.
@@ -383,11 +385,12 @@ The pre-load execution via staging dataset allows you to execute checks on the d
 :::
 
 Properties:
+
 - Failed records can be dropped or quarantined before load. This works with all `write_disposition`
 - Requires a destination that supports staging datasets.
 - Checks have access to the current load. 
-    - If the staging dataset is on the same destination, checks can access the full dataset. 
-    - If the staging dataset is on a different destination, communication between the staging dataset and the dataset.
+  - If the staging dataset is on the same destination, checks can access the full dataset. 
+  - If the staging dataset is on a different destination, communication between the staging dataset and the dataset.
 - Computed on the staging destination. This scales well with the size of the data and the complexity of the checks.
 - Data and checks results & outcome can be safely stored on the staging dataset until review. This helps human-in-the-loop workflows without reprocessing the full pipeline.
 
@@ -420,6 +423,7 @@ This is equivalent to using a staging destination that's the local filesystem. T
 :::
 
 Properties:
+
 - Failed records can be dropped or quarantined before load. This works with all `write_disposition
 - Checks only have access to the current load. Checking against the full dataset requires communication between the staging destination and the main destination.
 - Computed on the machine running the pipeline. The resource need to match the compute requirements.

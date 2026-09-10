@@ -243,6 +243,7 @@ When staging is enabled:
 
 :::warning
 **BigQuery cannot load JSON columns from Parquet files**. `dlt` will fail such jobs permanently. Instead:
+
 * Switch to JSONL to load and parse JSON properly.
 * Use schema [autodetect and nested fields](#use-bigquery-schema-autodetect-for-nested-fields)
 :::

@@ -151,7 +151,7 @@ categories:
     heading: true
     line: false
     link: true
-    list: false
+    list: true
     prose: false
     structural: false
     table: false

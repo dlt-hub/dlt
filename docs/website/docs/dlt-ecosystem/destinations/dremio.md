@@ -80,6 +80,7 @@ profile_name="dlt-ci-user"
 ## Write disposition
 
 `dremio` destination handles the write dispositions as follows:
+
 - `append`
 - `replace`
 - `merge`

@@ -27,11 +27,13 @@ On first access to any configuration value, the vault provider tries to populate
 1. Global `dlt_secrets_toml`. It first tries a special key `dlt_secrets_toml` that may contain an entire `secrets.toml` as a single secret.
 2. Pipeline-scoped `dlt_secrets_toml`. If you request a value for a specific pipeline, it also attempts to fetch a pipeline-scoped `<pipeline_name>.dlt_secrets_toml`.
 3. Known sections and names:
+
+
   * The provider knows about these top-level sections: **sources** and **destination**.
   * It will probe short-to-long paths so that more specific fragments override less specific ones:
-    * **`sources`** and **`sources.<source_name>`**
-    * **`destination`** and **`destination.<destination_name>`**
-    * The above both globally and pipeline-scoped when a pipeline name is provided.
+  * **`sources`** and **`sources.<source_name>`**
+  * **`destination`** and **`destination.<destination_name>`**
+  * The above both globally and pipeline-scoped when a pipeline name is provided.
 
 4. Single-value lookups (optional). If enabled, the provider may also fetch single values when a TOML fragment was not found. This can incur many calls because a single configuration may probe several possible locations.
 
@@ -61,6 +63,7 @@ When true, the provider lists all available secret names once and then avoids lo
 If you enable `list_secrets` while also enabling `only_secrets` and/or `only_toml_fragments`, note that some lookups may still be skipped by design.
 
 :::tip
+
 * Prefer TOML fragments (**destination**, **destination.**, **sources**, **sources.**, **dlt_secrets_toml**) to minimize the number of round trips.
 * Enable `list_secrets` whenever you can. It will radically reduce the number of calls to the vault's backend.
 * Keep `only_secrets=true` when you want to restrict vault calls to secret-typed configuration (for example credentials), and provide non-secret config via environment or files.
@@ -165,10 +168,10 @@ Secret names are normalized to contain letters, digits, hyphens (-), and undersc
 
 * Punctuation (except `-` and `_`) and whitespace are removed.
 * Sections are joined with hyphens, for example:
-   * `destination.bigquery.credentials.project_id` → `destination-bigquery-credentials-project_id`
-   * `sources.pipedrive.pipedrive_api_key` → `sources-pipedrive-pipedrive_api_key`
-   * `destination.bigquery` → `destination-bigquery`
-   * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
+  * `destination.bigquery.credentials.project_id` → `destination-bigquery-credentials-project_id`
+  * `sources.pipedrive.pipedrive_api_key` → `sources-pipedrive-pipedrive_api_key`
+  * `destination.bigquery` → `destination-bigquery`
+  * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
    
 Below you will find examples grouped by storage type, simplest first.
 

@@ -140,6 +140,7 @@ weaviate_adapter(data, vectorize, tokenization)  # ty: ignore[unresolved-referen
 ```
 
 It accepts the following arguments:
+
 - `data`: a dlt resource object or a Python data structure (e.g., a list of dictionaries).
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
 - `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word". See [Property tokenization](https://weaviate.io/developers/weaviate/config-refs/schema#property-tokenization) in Weaviate documentation for more details.
@@ -330,9 +331,9 @@ naming="dlt.destinations.impl.weaviate.ci_naming"
 - `batch_size`: (int) the number of items in the batch insert request. The default is 100.
 - `batch_workers`: (int) the maximal number of concurrent threads to run batch import. The default is 1.
 - `batch_consistency`: (str) the number of replica nodes in the cluster that must acknowledge a write or read request before it's considered successful. The available consistency levels include:
-    - `ONE`: Only one replica node needs to acknowledge.
-    - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
-    - `ALL`: All replica nodes in the cluster must send a successful response.
+  - `ONE`: Only one replica node needs to acknowledge.
+  - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
+  - `ALL`: All replica nodes in the cluster must send a successful response.
     The default is `ONE`.
 - `batch_retries`: (int) number of retries to create a batch that failed with ReadTimeout. The default is 5.
 - `dataset_separator`: (str) the separator to use when generating the class names in Weaviate.

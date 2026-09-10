@@ -39,6 +39,7 @@ python3 chess_pipeline.py
 
 `dlt` supports `duckdb` version **0.9** and later. Below are a few notes on problems with particular versions observed
 in our tests:
+
 * `1.2.0` and `1.3.2` are verified stable versions where tests consistently pass
 * `iceberg_scan` does not work on `duckdb` versions above 1.2.1 and below 1.3.3 with azure blob storage (certain functions are not implemented)
 * do not use `1.3.0`. This version has a decimal problem and it segfaults on Windows. Some azure blob storage tests also crash.
@@ -92,6 +93,7 @@ pipeline.run(events())
 ### Name normalization
 
 `dlt` uses the standard **snake_case** naming convention to keep identical table and column identifiers across all destinations. **duckdb** accepts a wide range of characters in table and column names, for example emojis. To use them, switch to the **duck_case** naming convention, which accepts almost any string as an identifier:
+
 * The **duck_case** convention translates new line (`\n`), carriage return (`\r`), and double quotes (`"`) to an underscore (`_`).
 * The convention also translates consecutive underscores to a single `_`.
 
@@ -117,6 +119,7 @@ dlt.config["schema.naming"] = "duck_case"
 ## Supported file formats
 
 You can configure the following file formats to load data into duckdb:
+
 * [insert-values](../file-formats.md#sql-insert) is used by default.
 * [Parquet](../file-formats.md#parquet) is supported.
 :::note
@@ -298,6 +301,7 @@ errors_as_json=true
 ```
 
 The config above runs these steps in order:
+
 * `LOAD spatial` — `dlt` loads the extension but does not install it.
 * the global config: `SET GLOBAL azure_transport_option_type=true`
 * the `statements`, if you set any

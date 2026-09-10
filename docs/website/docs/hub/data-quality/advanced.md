@@ -41,6 +41,7 @@ In its simplest form, a check is a function that returns an **outcome** (boolean
 For example, the check `is_in(column_name, accepted_values)` has a success outcome if all values are valid values.
 
 A more granular implementation could be:
+
 - count the number of records with valid values (**result**)
 - count the number of records
 - if the ratio of valid records is higher than `0.95` (**decision**)
@@ -53,6 +54,7 @@ Most built-in checks return the outcome directly, but they can be configured to 
 So far, we explained how a result is converted into an outcome. The check **level** describes the granularity of the **result**.
 
 For instance:
+
 - **Row-level** checks produce a result per record. It's possible to inspect which specific records pass / failed the check.
 
 - **Table-level** checks produce a result per table (for example, result is "the number of unique values" and decision is "is this greater than 5?"). 

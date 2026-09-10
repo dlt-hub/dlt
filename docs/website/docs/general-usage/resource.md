@@ -124,6 +124,7 @@ Note that we specified `purchases` with an empty list of hints. **You are requir
 are empty. Currently we are not adding missing path elements automatically**.
 
 You can use `nested_hints` primarily to set column hints and schema contract, those work exactly as in case of root tables.
+
 * `file_format` has no effect (not implemented yet)
 * `write_disposition` works as expected but leads to unintended consequences (i.e. you can set nested table to `replace`) while root table is `append`.
 * `references` will create [table references](schema.md#table-references-1) (annotations) as expected.
@@ -762,6 +763,7 @@ on_error_continue=true
 You can sniff the schema from the data, i.e., using DuckDB to infer the table schema from a CSV file. `dlt.mark.with_file_import` accepts additional arguments that you can use to pass hints at runtime.
 
 :::note
+
 * If you do not define any columns, the table will not be created in the destination. `dlt` will still attempt to load data into it, so if you create a fitting table upfront, the load process will succeed.
 * Files are imported using hard links if possible to avoid copying and duplicating the storage space needed.
 :::
