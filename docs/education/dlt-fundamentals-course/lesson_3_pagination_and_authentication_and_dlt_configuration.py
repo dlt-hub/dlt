@@ -343,7 +343,9 @@ def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
         client = RESTClient(
             base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
         )
-        for _page in client.paginate("repos/dlt-hub/dlt/issues/comments"):
+        for _page in client.paginate(
+            "repos/dlt-hub/dlt/issues/comments", params={"per_page": 100}
+        ):
             yield _page
 
     _pipeline = dlt.pipeline(destination="duckdb")
@@ -412,7 +414,9 @@ def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
 
         @dlt.resource
         def github_issue_comments() -> TDataItems:
-            for _page in client.paginate("repos/dlt-hub/dlt/issues/comments"):
+            for _page in client.paginate(
+                "repos/dlt-hub/dlt/issues/comments", params={"per_page": 100}
+            ):
                 yield _page
 
         return (github_events, github_issue_comments)
@@ -448,7 +452,9 @@ def _(BearerTokenAuth, DltResource, Iterable, RESTClient, TDataItems, dlt):
 
         @dlt.resource
         def github_issue_comments() -> TDataItems:
-            for _page in client.paginate("repos/dlt-hub/dlt/issues/comments"):
+            for _page in client.paginate(
+                "repos/dlt-hub/dlt/issues/comments", params={"per_page": 100}
+            ):
                 yield _page
 
         return (github_events, github_issue_comments)

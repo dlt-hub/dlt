@@ -1,6 +1,8 @@
 # /// script
+# requires-python = ">=3.14"
 # dependencies = [
 #     "dlt[duckdb]",
+#     "marimo>=0.24.0",
 #     "numpy",
 #     "pandas",
 #     "sqlalchemy",
@@ -9,7 +11,7 @@
 
 import marimo
 
-__generated_with = "0.17.4"
+__generated_with = "0.24.0"
 app = marimo.App()
 
 
@@ -22,9 +24,9 @@ def _(mo):
     - What is dlt?
     - How to run a simple pipeline with toy data.
     - How to explore the loaded data using:
+      - dlt datasets
       - DuckDB connection
       - dlt's sql_client
-      - dlt datasets
     """)
     return
 
@@ -49,9 +51,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""![Lesson_1_Quick_start_img1](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_1_Quick_start_img1.png)"""
-    )
+    mo.md(r"""
+    ![Lesson_1_Quick_start_img1](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_1_Quick_start_img1.png)
+    """)
     return
 
 
@@ -68,9 +70,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""Read more about DuckDB as a destination [here](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb)."""
-    )
+    mo.md(r"""
+    Read more about DuckDB as a destination [here](https://dlthub.com/docs/dlt-ecosystem/destinations/duckdb).
+    """)
     return
 
 
@@ -86,9 +88,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""1. Define a list of Python dictionaries, which will be your toy data:"""
-    )
+    mo.md(r"""
+    1. Define a list of Python dictionaries, which will be your toy data:
+    """)
     return
 
 
@@ -105,7 +107,9 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""2. Import `dlt` and create a simple pipeline:""")
+    mo.md(r"""
+    2. Import `dlt` and create a simple pipeline:
+    """)
     return
 
 
@@ -124,7 +128,9 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""3. Run your pipeline and print the load info:""")
+    mo.md(r"""
+    3. Run your pipeline and print the load info:
+    """)
     return
 
 
@@ -245,16 +251,34 @@ def _(mo):
 def _(mo):
     mo.md(r"""
     ---
-    ### **(1) DuckDB Connection**
+    ### **(1) dlt [datasets](https://dlthub.com/docs/general-usage/dataset-access/dataset)**
+
+    Here's an example of how to retrieve data from a pipeline and load it into a Pandas DataFrame or a PyArrow Table.
+    """)
+    return
+
+
+@app.cell
+def _(another_pipeline):
+    dataset = another_pipeline.dataset()
+    dataset.pokemon.df()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ---
+    ### **(2) DuckDB Connection**
     """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""Start a connection to your database using a native `duckdb` connection and see which tables were generated:"""
-    )
+    mo.md(r"""
+    Start a connection to your database using a native `duckdb` connection and see which tables were generated:
+    """)
     return
 
 
@@ -305,7 +329,7 @@ def _(conn):
 def _(mo):
     mo.md(r"""
     ---
-    ### **(2) `dlt`'s [sql_client](https://dlthub.com/docs/general-usage/dataset-access/sql-client)**
+    ### **(3) `dlt`'s [sql_client](https://dlthub.com/docs/general-usage/dataset-access/sql-client)**
     """)
     return
 
@@ -335,24 +359,6 @@ def _(another_pipeline):
 def _(mo):
     mo.md(r"""
     ---
-    ### **(3) dlt [datasets](https://dlthub.com/docs/general-usage/dataset-access/dataset)**
-
-    Here's an example of how to retrieve data from a pipeline and load it into a Pandas DataFrame or a PyArrow Table.
-    """)
-    return
-
-
-@app.cell
-def _(another_pipeline):
-    dataset = another_pipeline.dataset()
-    dataset.pokemon.df()
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ---
     # **Exercise 1**
 
     Using the code from the previous cell, fetch the data from the `pokemon` table into a dataframe and count the number of columns in the table `pokemon`.
@@ -362,31 +368,32 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""**Use this number to answer the question in the Quiz LearnWorlds Form.**"""
-    )
+    mo.md(r"""
+    **Use this number to answer the question in the Quiz LearnWorlds Form.**
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""![Lesson_1_Quick_start_img2.jpeg](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_1_Quick_start_img2.jpeg)"""
-    )
+    mo.md(r"""
+    ![Lesson_1_Quick_start_img2.jpeg](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_1_Quick_start_img2.jpeg)
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb)!"""
-    )
+    mo.md(r"""
+    ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_2_dlt_sources_and_resources_create_first_dlt_pipeline.ipynb)!
+    """)
     return
 
 
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 
