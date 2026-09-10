@@ -132,7 +132,7 @@ def plug_mcp_context(features: Set[str]) -> Optional[McpFeatures]:
 
 
 @_plugins.hookimpl(specname="plug_agent_loop")
-def plug_agent_loop_pydantic_ai(loop_type: str) -> Optional[Type[Any]]:
+def plug_agent_loop_pydantic_ai(loop_type: str) -> Optional[Type[_plugins.SupportsAgentLoop]]:
     """Contribute the Pydantic AI agent loop."""
     # the plugin module loads with the run context, so the deployment package stays out of it
     from dlt._workspace.deployment.launchers import LOOP_PYDANTIC_AI
@@ -145,7 +145,7 @@ def plug_agent_loop_pydantic_ai(loop_type: str) -> Optional[Type[Any]]:
 
 
 @_plugins.hookimpl(specname="plug_agent_loop")
-def plug_agent_loop_claude_sdk(loop_type: str) -> Optional[Type[Any]]:
+def plug_agent_loop_claude_sdk(loop_type: str) -> Optional[Type[_plugins.SupportsAgentLoop]]:
     """Contribute the Claude Agent SDK loop."""
     from dlt._workspace.deployment.launchers import LOOP_CLAUDE_AGENT_SDK
 

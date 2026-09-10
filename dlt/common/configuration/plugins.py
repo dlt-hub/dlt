@@ -218,12 +218,12 @@ class SupportsAgentLoop(Protocol):
 
     async def run(
         self,
-        inputs: Dict[str, Any],
-        run_args: Optional[Dict[str, Any]] = None,
+        instructions: Optional[str] = None,
+        inputs: Optional[Dict[str, Any]] = None,
         model: Optional[str] = None,
         limits: Optional[Any] = None,
-        instructions: Optional[str] = None,
-    ) -> Any:
+        run_args: Optional[Dict[str, Any]] = None,
+    ) -> Dict[str, Any]:
         """Builds the native agent from the runtime arguments and runs it to completion"""
         ...
 

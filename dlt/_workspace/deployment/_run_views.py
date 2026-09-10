@@ -1,6 +1,5 @@
 """CLI views for `run` / `serve` orchestration: banner, warnings, plan, picker."""
 
-import os
 import sys
 from typing import Any, Callable, Dict, List, Optional, Sequence, Tuple, cast
 
@@ -91,9 +90,8 @@ TEventLines = Callable[[TAgentEvent, int], List[str]]
 
 
 def _echo(text: str = "") -> None:
-    """Writes a line with its colors, terminal or not. `NO_COLOR` turns them off."""
-    # a runner's log viewer renders ANSI, and click would strip it for anything but a terminal
-    fmt.echo(text, color=not os.environ.get("NO_COLOR"))
+    """Writes a line, styled when the output supports color."""
+    fmt.echo(text, color=fmt.color_output())
 
 
 def _rule(label: str, tail: str = "", **label_style: Any) -> str:
@@ -198,15 +196,10 @@ EVENT_LINES: Dict[TAgentEventKind, TEventLines] = {
 }
 
 
-def print_agent_event(event: TAgentEvent, verbosity: int = 1) -> None:
-    """Render one step of an agent run as a transcript."""
+def emit_agent_event(event: TAgentEvent, verbosity: int = 1) -> None:
+    """Renders one step of an agent run as a transcript on stdout."""
     for line in EVENT_LINES[event["kind"]](event, verbosity):
         _echo(line)
-
-
-def emit_agent_event(event: TAgentEvent, verbosity: int = 1) -> None:
-    """Shows a run step on stdout, whether or not a terminal is attached."""
-    print_agent_event(event, verbosity)
 
 
 def print_run_banner(info: TRunBannerInfo) -> None:

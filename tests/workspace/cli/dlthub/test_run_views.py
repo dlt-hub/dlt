@@ -1,17 +1,18 @@
 """Unit tests for the unified run/serve banner, warnings, plan, picker and agent transcript."""
 
 import sys
-from typing import Any, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional, Tuple, cast
 
 import click
 import pytest
+
+from dlt.common import known_env
 
 from dlt._workspace.cli import echo as fmt
 from dlt._workspace.deployment._run_typing import TAgentEvent, TRunBannerInfo, TRunJobInfo
 from dlt._workspace.deployment._run_views import (
     emit_agent_event,
     pick_one_job,
-    print_agent_event,
     print_run_banner,
     print_run_plan,
     print_run_warnings,
@@ -134,7 +135,7 @@ def _agent_event(kind: str, **fields: Any) -> TAgentEvent:
     return cast(TAgentEvent, {"kind": kind, "agent": "job-inspector", **fields})
 
 
-def test_print_agent_event_renders_the_transcript(capsys: pytest.CaptureFixture[str]) -> None:
+def test_emit_agent_event_renders_the_transcript(capsys: pytest.CaptureFixture[str]) -> None:
     """One assertion per kind: what a person watching the run must see."""
     for event in [
         _agent_event("start", model="claude-sonnet-5", limits="max 30 turns"),
@@ -155,8 +156,8 @@ def test_print_agent_event_renders_the_transcript(capsys: pytest.CaptureFixture[
             mcp_tools=["list_runs"],
         ),
     ]:
-        print_agent_event(event)
-    # colors are always on, so they are stripped to match the text
+        emit_agent_event(event)
+    # unstyled so the assertions hold under DLT_ECHO_FORCE_COLOR too
     out = click.unstyle(capsys.readouterr().out)
 
     assert "── job-inspector " in out and "claude-sonnet-5 · max 30 turns" in out
@@ -179,8 +180,8 @@ def test_print_agent_event_renders_the_transcript(capsys: pytest.CaptureFixture[
 def test_agent_verbosity_caps_thinking_and_detail(
     capsys: pytest.CaptureFixture[str], verbosity: int, thinking: bool, detail: Optional[int]
 ) -> None:
-    print_agent_event(_agent_event("thinks", text="t" * 500), verbosity)
-    print_agent_event(_agent_event("tool_result", tool="read", detail="r" * 500), verbosity)
+    emit_agent_event(_agent_event("thinks", text="t" * 500), verbosity)
+    emit_agent_event(_agent_event("tool_result", tool="read", detail="r" * 500), verbosity)
     out = capsys.readouterr().out
 
     assert ("t" * 20 in out) is thinking
@@ -192,27 +193,11 @@ def test_agent_verbosity_caps_thinking_and_detail(
 def test_a_failing_tool_result_is_red(
     monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
 ) -> None:
+    monkeypatch.delenv(known_env.DLT_ECHO_NO_COLOR, raising=False)
     monkeypatch.setattr(sys.stdout, "isatty", lambda: True, raising=False)
-    print_agent_event(_agent_event("tool_result", tool="run_bash", detail="boom", error=True))
-    print_agent_event(_agent_event("tool_result", tool="run_bash", detail="fine"))
+    emit_agent_event(_agent_event("tool_result", tool="run_bash", detail="boom", error=True))
+    emit_agent_event(_agent_event("tool_result", tool="run_bash", detail="fine"))
     red, green = capsys.readouterr().out.splitlines()
 
     assert fmt.style("→", fg="red") in red
     assert fmt.style("→", fg="green") in green
-
-
-def test_agent_events_print_in_color_without_a_terminal(
-    monkeypatch: pytest.MonkeyPatch, capsys: pytest.CaptureFixture[str]
-) -> None:
-    """A runner has no terminal, but its log viewer renders ANSI: the transcript keeps its colors."""
-    monkeypatch.delenv("NO_COLOR", raising=False)
-    monkeypatch.setattr(sys.stdout, "isatty", lambda: False, raising=False)
-    emit_agent_event(_agent_event("finish", status="succeeded", turn=3, total_tokens=7955))
-    out = capsys.readouterr().out
-    assert "3 turns · 7,955 tokens" in out
-    assert fmt.style("succeeded", fg="green") in out
-
-    # the one standard way to say no: https://no-color.org
-    monkeypatch.setenv("NO_COLOR", "1")
-    emit_agent_event(_agent_event("finish", status="succeeded", turn=3, total_tokens=7955))
-    assert "\x1b[" not in capsys.readouterr().out
