@@ -12,8 +12,9 @@ the data during the normalization process. Users can affect this standard behavi
 loaded. Such hints can be passed in the code, i.e., to the `dlt.resource` decorator or `pipeline.run`
 method. Schemas can also be exported and imported as files, which can be directly modified.
 
-> 💡 `dlt` associates a schema with a [source](source.md) and a table schema with a
-> [resource](resource.md).
+:::info
+`dlt` associates a schema with a [source](source.md) and a table schema with a [resource](resource.md).
+:::
 
 ## Schema content hash and version
 
@@ -28,10 +29,12 @@ Each schema contains a numeric version which increases automatically whenever th
 saved. The numeric version is meant to be human-readable. There are cases (parallel processing) where
 the order is lost.
 
-> 💡 The schema in the destination is migrated if its hash is not stored in the `_dlt_versions` table. In
-> principle, many pipelines may send data to a single dataset. If table names clash, then a single
-> table with the union of the columns will be created. If columns clash, and they have different
-> types, etc., then the load may fail if the data cannot be coerced.
+:::info
+The schema in the destination is migrated if its hash is not stored in the `_dlt_versions` table. In
+principle, many pipelines may send data to a single dataset. If table names clash, then a single
+table with the union of the columns will be created. If columns clash, and they have different
+types, etc., then the load may fail if the data cannot be coerced.
+:::
 
 ## Naming convention
 

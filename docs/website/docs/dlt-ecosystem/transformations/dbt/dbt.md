@@ -27,7 +27,9 @@ The dbt runner:
 For an example of how to use the dbt runner, see the [jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/archive/dbt_run_jaffle.py).
 Included below is another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
 
-> 💡 Docstrings are available to read in your IDE.
+:::info
+Docstrings are available to read in your IDE.
+:::
 
 ```py
 # Load all Pipedrive endpoints to the pipedrive_raw dataset

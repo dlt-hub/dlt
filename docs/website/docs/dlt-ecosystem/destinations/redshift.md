@@ -25,7 +25,9 @@ Let's start by initializing a new dlt project as follows:
 dlt init chess redshift
 ```
 
-> 💡 This command will initialize your pipeline with chess as the source and Redshift as the destination.
+:::info
+This command will initialize your pipeline with chess as the source and Redshift as the destination.
+:::
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for Redshift. You can install the necessary dependencies specified in the requirements file by executing it as follows:
 

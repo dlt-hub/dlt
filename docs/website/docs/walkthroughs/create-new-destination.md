@@ -86,7 +86,9 @@ See how the `snowflake` destination adds additional authorization methods and co
 
 Specify which [loader file formats](../dlt-ecosystem/file-formats.md) your destination will support directly and via [storage staging](../dlt-ecosystem/staging.md). Direct support means that the destination is able to load a local file or supports the INSERT command. Loading via staging involves using `filesystem` to send the load package to a (typically) bucket storage and then load from there.
 
-> 💡 The [insert-values](../dlt-ecosystem/file-formats.md#sql-insert) data format generates large INSERT statements that are executed on the destination. If you have any other option for local loading, avoid using this format. It is typically slower and requires the use of the bullet-proof `escape_literal` function.
+:::info
+The [insert-values](../dlt-ecosystem/file-formats.md#sql-insert) data format generates large INSERT statements that are executed on the destination. If you have any other option for local loading, avoid using this format. It is typically slower and requires the use of the bullet-proof `escape_literal` function.
+:::
 
 * `preferred_loader_file_format` - a file format that will be used by default to load data from the local file system. Set to `None` if direct loading is not supported.
 * `supported_loader_file_formats` - file formats that can be loaded from the local file system to the destination. Set to `[]` if direct loading is not supported.
@@ -142,7 +144,9 @@ When created, `sql_client` is bound to a particular dataset name (which typicall
 - `DatabaseTerminalException`: errors during loading that will permanently fail a job and should not retry. `IntegrityError`, `ProgrammingError`, and most of the `DataError` belong to this class. (example: decimal value out of range, insert NULL in non-NULL columns)
 - `DatabaseTransientException`: all other exceptions. We also include `SyntaxError` (if it exists in a particular `dbapi` implementation) here.
 
-> 💡 How this works in practice: we have a set of tests for all relevant error cases in [test_sql_client.py](https://github.com/dlt-hub/dlt/blob/devel/tests/load/test_sql_client.py), this way we make sure that the new sql_client behaves correctly.
+:::info
+How this works in practice: we have a set of tests for all relevant error cases in [test_sql_client.py](https://github.com/dlt-hub/dlt/blob/devel/tests/load/test_sql_client.py), this way we make sure that the new sql_client behaves correctly.
+:::
 
 ### What the base class assumes
 
@@ -190,7 +194,9 @@ In case of destinations that do not allow data modifications, you can opt out fr
 * It is possible to SELECT data.
 * It is possible to INSERT data (in order to complete the package and store the updated schema).
 
-> 💡 Talk to us on Slack if your destination is fully read-only.
+:::info
+Talk to us on Slack if your destination is fully read-only.
+:::
 
 ## 6. Implement load jobs
 

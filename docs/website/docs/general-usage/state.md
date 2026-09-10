@@ -77,8 +77,10 @@ about the pipeline, the pipeline run (to which the state belongs), and the state
 `dlt` has a `dlt pipeline sync` command where you can
 [request the state back from that table](../reference/command-line-interface.md#dlt-pipeline-sync).
 
-> 💡 If you can keep the pipeline working directory across the runs, you can disable the state sync
-> by setting `restore_from_destination=false` in your `config.toml`.
+:::info
+If you can keep the pipeline working directory across the runs, you can disable the state sync
+by setting `restore_from_destination=false` in your `config.toml`.
+:::
 
 ## When to use pipeline state
 
