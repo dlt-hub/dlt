@@ -52,6 +52,7 @@ Follow these steps:
 
    - Read scopes for CMS, CRM, and Settings.
    - Permissions for:
+
     ```text
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
     ```
@@ -106,17 +107,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python hubspot_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `hubspot_pipeline`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -235,6 +242,7 @@ verified source.
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
+
     1. `include_history` loads property change history and entities as separate tables. By default, it is set as False.
 
 1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
@@ -263,6 +271,7 @@ verified source.
    load_info = pipeline.run([resource])
    print(load_info)
    ```
+
     1. This function uses "object_type" and "object_id" as arguments.
 
     1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
@@ -287,6 +296,7 @@ To change this, you can pass `include_custom_props=False` when initializing the 
 ```py notype
 info = p.run(hubspot(include_custom_props=False))
 ```
+
 Or, if you wish to include them, you can modify `settings.py`.
 
 <!--@@@DLT_TUBA hubspot-->

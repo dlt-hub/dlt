@@ -117,6 +117,7 @@ will create `sql_database` folder with the source code that you can import and u
         print(info)
 
     ```
+
 4. **Prefix table names using `apply_hints`**
 
    You can rename tables before loading them into the destination by applying the `apply_hints` method to each resource. This is useful for avoiding naming collisions or organizing data.
@@ -147,6 +148,7 @@ will create `sql_database` folder with the source code that you can import and u
        print(load_info)
 
    ```
+
    This renames the tables before insertion. For example, the table "family" will be loaded as "prefix__family".
    
 5. **Configuring table and column selection in `config.toml`**
@@ -154,6 +156,7 @@ will create `sql_database` folder with the source code that you can import and u
    To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
 
    Below is an example of how to define table and column selections in the `config.toml` file:
+
    ```toml
    # to select tables names
    [sources.sql_database]
@@ -168,6 +171,7 @@ will create `sql_database` folder with the source code that you can import and u
        "Column_Name_2"
    ]
    ```
+
    :::note
    *Case-Sensitivity:* 
    
@@ -230,9 +234,11 @@ If your cursor is on a timestamp/datetime column, make sure you set up your init
   ```
 
   Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+
   ```sql
   SELECT * FROM family WHERE last_modified >= '2024-01-01T00:00:00Z'
   ```
+
   In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
@@ -254,7 +260,9 @@ If your cursor is on a timestamp/datetime column, make sure you set up your init
   load_info = pipeline.run(source, write_disposition="merge")
   print(load_info)
   ```
+
 Which generates the following query:
+
   ```sql
   -- mind the exclusive comparison with > due to range being open
   SELECT * FROM family WHERE last_modified > '2024-01-01T00:00:00Z'
@@ -282,6 +290,7 @@ to the query. Note that limit works in the multiples of `chunk_size`. For exampl
 ```
 
 For example, to connect to a MySQL database using the `pymysql` dialect, you can use the following connection string:
+
 ```py
 "mysql+pymysql://rfamro:PWD@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
@@ -344,6 +353,7 @@ These settings are passed directly to `sqlalchemy.create_engine` and affect:
 - Data extraction, if SQLAlchemy backend chosen (default)
 
 Example that waits maximum 5 seconds for acquiring a lock:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
@@ -381,6 +391,7 @@ username = "ssh_user_name"
 private_key_path = "/path/to/private_key_file"
 private_key_password = "optional_key_password" # Leave empty if not needed
 ```
+
 **Step 2: Set up the SSH tunnel and create the SQLAlchemy engine**
 
 The following script demonstrates the process of establishing an SSH tunnel, creating a SQLAlchemy engine, and utilizing it to configure and run a data pipeline:
@@ -419,6 +430,7 @@ with SSHTunnelForwarder(
 
     print(pipeline.run(table_resource))
 ```
+
 Establishing an SSH tunnel and using a SQLAlchemy engine allows secure access to remote databases, ensuring compatibility with dlt pipelines. Always secure credentials and close the tunnel after use.
 
 ## Configuring the backend
@@ -440,6 +452,7 @@ The library `numpy` is a required dependency of `pandas` and `pyarrow<18.0.0`. T
 ```sh
 pip install dlt[sql_database] pyarrow numpy pandas
 ```
+
 :::
 
 ```py
@@ -468,6 +481,7 @@ sql_alchemy_source = sql_database(
 info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
+
 For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the
 [official documentation.](https://arrow.apache.org/docs/python/generated/pyarrow.timestamp.html)
 
@@ -571,6 +585,7 @@ info = pipeline.run(
 )
 print(info)
 ```
+
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
 
 ### Custom backends

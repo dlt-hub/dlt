@@ -765,17 +765,21 @@ The normalization described here applies only to SQL-based transformations. Pyth
 During normalization, `dlt` adds internal `dlt` columns to your SQL queries, based on the config:
 
 - `_dlt_load_id`, which tracks which load operation created or modified each row, is **added by default**. Even if present in your query, the `_dlt_load_id` column will be **replaced with a constant value** corresponding to the current load ID. To disable this behavior, set:
+
     ```toml
     [normalize.model_normalizer]
     add_dlt_load_id = false
     ```
+
     In this case, the column will not be added or replaced.
 
 - `_dlt_id`, a unique identifier for each row, is **not added by default**. If your query already includes a `_dlt_id` column, dlt leaves it unchanged. To generate this column when it is missing, set:
+
     ```toml
     [normalize.model_normalizer]
     add_dlt_id = true
     ```
+
     When enabled and the column is not in the query, dlt generates a `_dlt_id`. When the column is already present, dlt does **not** replace it.
 
     The `_dlt_id` column is generated using the destination's UUID function, such as `generateUUIDv4()` in ClickHouse. For dialects without native UUID support:

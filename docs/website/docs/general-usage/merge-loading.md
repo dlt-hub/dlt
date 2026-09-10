@@ -120,6 +120,7 @@ def sample_data():
     for item in data:
         yield item
 ```
+
 Output:
 | id  | metadata_modified | value |
 |-----|------------------|-------|
@@ -156,6 +157,7 @@ If the incoming data contains a record marked as deleted, then any existing reco
 Deletes are propagated to any nested table that might exist. For each record that gets deleted in the root table, all corresponding records in the nested table(s) will also be deleted. Records in parent and nested tables are linked through the `root key` that is explained in the next section.
 
 #### Example: with primary key and boolean delete column
+
 ```py
 @dlt.resource(
     primary_key="id",
@@ -179,6 +181,7 @@ def resource():
 ```
 
 #### Example: with merge key and non-boolean delete column
+
 ```py
 @dlt.resource(
     merge_key="id",
@@ -197,6 +200,7 @@ def resource():
 ```
 
 #### Example: with primary key and "dedup_sort" hint
+
 ```py
 @dlt.resource(
     primary_key="id",
@@ -251,6 +255,7 @@ In that case `dlt` will update pipeline schema but will skip database migration.
 To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
 
 For example, suppose you used the [Facebook Ads](../dlt-ecosystem/verified-sources/facebook_ads.md) verified source, where the `merge` write disposition and `root key` are not enabled by default, to load the `ads` resource:
+
 ```py
 pipeline = dlt.pipeline(
     pipeline_name='facebook_ads_pipeline',
@@ -317,6 +322,7 @@ Note that:
 :::
 
 ### Example: `scd2` merge strategy
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "scd2"}
@@ -400,6 +406,7 @@ def dim_customer():
 pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 ...
 ```
+
 *`dim_customer` destination table after the first run:*
 
 | `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
@@ -430,6 +437,7 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 If you decide to undo the previous configuration that prevented retiring absent records for an existing pipeline,
 and want to start retiring them again,
 you must explicitly unset the `merge_key`:
+
 ```py
 @dlt.resource(
     columns={"customer_key": {"merge_key": False}},
@@ -438,6 +446,7 @@ you must explicitly unset the `merge_key`:
 def dim_customer():
     ...
 ```
+
 Simply omitting `merge_key` from the decorator will not disable the behavior. Alternatively, you can disable the `merge_key` hint for the affected column in the import schema.
 :::
 
@@ -526,6 +535,7 @@ Execute all steps directly in your browser:
 
 ### Example: configure validity column names
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -541,6 +551,7 @@ def dim_customer():
 
 ### Example: configure active record timestamp
 You can configure the literal used to indicate an active record with `active_record_timestamp`. The default literal `NULL` is used if `active_record_timestamp` is omitted or set to `None`. Provide a date value if you prefer to use a high timestamp instead.
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -556,6 +567,7 @@ def dim_customer():
 
 ### Example: configure boundary timestamp
 You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted.
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -573,6 +585,7 @@ def dim_customer():
 To stop using a previously set `boundary_timestamp` and revert to the default (the current load package creation time), set `boundary_timestamp` to `None`. You can do this either at definition time or dynamically with `apply_hints` before a run.
 
 Definition-time (always use current load time):
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -594,10 +607,12 @@ dim_customer.apply_hints(
 )
 pipeline.run(dim_customer())
 ```
+
 When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
 
 ### Example: Use your own row hash
 By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_version_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as a row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
+
 ```py
 @dlt.resource(
     write_disposition={
@@ -633,6 +648,7 @@ scd2_r = dlt.resource(
     },
 ).add_map(add_row_hash_to_table("row_hash"))
 ```
+
 `add_row_hash_to_table` is the name of the transform function that will compute and create the `row_hash` column that is declared as holding the hash by `row_version_column_name`.
 
 :::tip
@@ -678,6 +694,7 @@ Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
 4. uses `MERGE` or `UPDATE` operations to process updates
 
 ### Example: `upsert` merge strategy
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -713,6 +730,7 @@ Like `upsert`, the `insert-only` strategy:
 4. generates deterministic `_dlt_id` based on primary key
 
 ### Example: `insert-only` merge strategy
+
 ```py
 @dlt.resource(
     write_disposition={"disposition": "merge", "strategy": "insert-only"},

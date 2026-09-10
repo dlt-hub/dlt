@@ -19,21 +19,26 @@ If you are looking for a managed ducklake infra, check the [Motherduck Ducklake 
 ## Quick start
 
 - Install dlt with DuckDB dependencies:
+
 ```sh
 pip install "dlt[ducklake]"
 ```
 
 - Initialize new test pipeline
+
 ```sh
 dlt init foo ducklake
 ```
+
 `dlt init` will create a sample `secrets.toml` for **postgres** catalog and **s3** bucket storage. For local automatic setup comment out catalog and storage entries:
+
 ```toml
 [destination.ducklake.credentials]
 ducklake_name="ducklake"  # we recommend explicit ducklake name
 ```
 
 - Run a test pipeline that writes to a local DuckLake:
+
 ```py
 import dlt
 
@@ -51,6 +56,7 @@ info = pipeline.run(
 print(info)
 print(pipeline.dataset().table_foo["foo"].df())
 ```
+
 The console output will point you to where `sqlite` catalog database and data store were created:
 - `lake_catalog.sqlite` catalog in current working directory
 - `lake_catalog.files` folder with `lake_schema` subfolder for the dataset.
@@ -64,26 +70,32 @@ Pick your `ducklake_name` as described above. This name is the used:
 ### Configure catalog
 You have the following options when configuring the catalog
 - **sqlite**: very fast local catalog. You can set it up as follows:
+
 ```toml
 [destination.ducklake.credentials]
 catalog="sqlite:///catalog_x.db"
 ```
+
 Snippet above stores catalog in `catalog_x.db` in cwd. Refer to [sqlite](sqlalchemy.md) configuration in `sqlalchemy` destination which reused the same configuration structure.
 Note that we are not able to setup **sqlite** to write in parallel, even with `WAL` journaling.
 Parallel writes produce conflicts on practically every catalog transactions so we had to put loader in **sequential mode**.
 
 - **duckdb**: pretty fast and working **only in sequential mode** like **sqlite**. Parallel loads generate page faults and corrupt the catalog database.
+
 ```toml
 [destination.ducklake.credentials]
 catalog="duckdb:///catalog_y.duckdb"
 ```
+
 Refer to [duckdb](duckdb.md) configuration for more options.
 
 - **postgres**: currently the only catalog that can be considered production-grade with full parallelism support.
+
 ```toml
 [destination.ducklake.credentials]
 catalog="postgres://loader:pass@localhost:5432/dlt_data"
 ```
+
 `ducklake` will use postgres schema with the name of `ducklake_name` config option and create required tables automatically.
 
 - 🧪 **mysql**: uses the same code path as for **postgres** but we never tested it
@@ -106,6 +118,7 @@ Double check that your Motherduck token is in your environment!
 - Azure ADLS Gen2: abfss://container@account.dfs.core.windows.net/prefix (**uses fsspec fallback**)
 
 Example s3 configuration:
+
 ```toml
 [destination.ducklake.credentials]
 ducklake_name="lakehouse"
@@ -121,6 +134,7 @@ aws_secret_access_key = "<configure me>" # fill this in!
 
 ### Configure additional connection options, pragmas and extensions
 You can set additional connection options, pragmas, extensions and the session timezone - `ducklake` config reuses [duckdb config](duckdb.md#additional-config)
+
 ```toml
 [destination.ducklake.credentials.global_config]
 ducklake_max_retry_count=100
@@ -139,6 +153,7 @@ metadata_schema="public"
 
 Or via environment variable
 `DESTINATION__DUCKLAKE__CREDENTIALS__METADATA_SCHEMA=public`, or in code:
+
 ```py
 import dlt
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
@@ -165,6 +180,7 @@ override_data_path=true
 ```
 
 Or via environment variable `DESTINATION__DUCKLAKE__OVERRIDE_DATA_PATH=true`, or in code:
+
 ```py
 import dlt
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
@@ -189,6 +205,7 @@ automatic_migration=true
 ```
 
 Or via environment variable `DESTINATION__DUCKLAKE__AUTOMATIC_MIGRATION=true`, or in code:
+
 ```py
 import dlt
 
@@ -201,6 +218,7 @@ Migration mutates the catalog schema irreversibly. This does not help with read-
 
 ### Configure in code
 You can create ducklake destination instance and configure it in code. In most cases you will just set additional options while still using the configuration:
+
 ```py
 import dlt
 
@@ -208,10 +226,12 @@ import dlt
 ducklake = dlt.destinations.ducklake(loader_parallelism_strategy="parallel")
 pipeline = dlt.pipeline("test_factory", destination=ducklake, dataset_name="foo")
 ```
+
 Above we force parallel loading on (default) sqlite catalog.
 
 `DuckLakeCredentials` have friendly constructor where you can pass [catalog and storage credentials](../../general-usage/credentials/complex_types.md)
 as shorthand strings and objects:
+
 ```py
 import dlt
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
@@ -240,6 +260,7 @@ credentials = DuckLakeCredentials(
 ```
 
 As mentioned above, `filesystem` and `ducklake` share the same configuration object. Configuration for the `filesystem` can be reused:
+
 ```py notype
 
 # `filesystem` below is a pipeline with configured filesystem destination
@@ -275,11 +296,13 @@ with pipeline.sql_client() as client:
     # set option on `lake_catalog` we configured above
     con.sql("CALL lake_catalog.set_option('per_thread_output', true)")
 ```
+
 Above we set `per_thread_output` (1.4.x only) before pipeline runs.
 
 ### Table maintenance
 `dlt` has a standard interface to access open tables and catalogs but this is not implemented for ducklake (yet). However in case of
 `ducklake` you just need configured and authorized connection which you can get after pipeline runs to do the maintenance.
+
 ```py
 
 # pipeline.run(...)

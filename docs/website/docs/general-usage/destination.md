@@ -14,6 +14,7 @@ We maintain a set of [built-in destinations](../dlt-ecosystem/destinations/) tha
 We recommend that you declare the destination type when creating a pipeline instance with `dlt.pipeline`. This allows the `run` method to synchronize your local pipeline state with the destination and `extract` and `normalize` to create compatible load packages and schemas. You can also pass the destination to the `run` and `load` methods.
 
 * Use destination **shorthand type**
+
 ```py
 import dlt
 
@@ -23,6 +24,7 @@ pipeline = dlt.pipeline("pipeline", destination="filesystem")
 Above, we want to use the **filesystem** built-in destination. You can use shorthand types only for built-ins.
 
 * Use a [**named destination**](#use-named-destinations) with a configured type
+
 ```py
 import os
 import dlt
@@ -35,6 +37,7 @@ pipeline = dlt.pipeline("pipeline", destination="my_destination")
 Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable. This approach is especially useful when switching between destinations without modifying the actual pipeline code. See details in the [section on using named destinations](#use-named-destinations-to-switch-destinations-without-changing-code).
 
 * Use full **destination factory type**
+
 ```py
 import dlt
 
@@ -44,6 +47,7 @@ pipeline = dlt.pipeline("pipeline", destination="dlt.destinations.filesystem")
 Above, we use the built-in **filesystem** destination by providing a factory type `filesystem` from the module `dlt.destinations`. You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass this external module as well.
 
 * Import **destination factory**
+
 ```py
 import dlt
 from dlt.destinations import filesystem
@@ -57,6 +61,7 @@ All examples above will create the same destination class with default parameter
 
 ### Pass explicit parameters and a name to a destination factory
 You can instantiate the **destination factory** yourself to configure it explicitly. When doing this, you work with destinations the same way you work with [sources](source.md)
+
 ```py
 import dlt
 from dlt.destinations import filesystem
@@ -76,6 +81,7 @@ If a destination is not named, its shorthand type (the Python factory name) serv
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
 Use the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as shown below:
+
 ```toml
 [destination.filesystem]
 bucket_url="az://dlt-azure-bucket"
@@ -85,6 +91,7 @@ azure_storage_account_key="storage key"
 ```
 
 Alternatively, you can use environment variables:
+
 ```sh
 DESTINATION__FILESYSTEM__BUCKET_URL=az://dlt-azure-bucket
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME=dltdata
@@ -92,6 +99,7 @@ DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"
 ```
 
 When using destination factories, use the destination name in the config section:
+
 ```toml
 [destination.production_az_bucket]
 bucket_url="az://dlt-azure-bucket"
@@ -101,6 +109,7 @@ azure_storage_account_key="storage key"
 ```
 
 For custom destination names passed to your pipeline (e.g., `destination="my_destination"`), dlt resolves the destination type from configuration. Add `destination_type` to specify which destination type to use:
+
 ```toml
 [destination.my_destination]
 destination_type="filesystem"
@@ -117,6 +126,7 @@ Note that when you use the `dlt init` command to create or add a data source, `d
 
 ### Pass explicit credentials
 You can pass credentials explicitly when creating a destination factory instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods, which is now deprecated. You can pass the required credentials object, its dictionary representation, or the supported native form like below:
+
 ```py
 import dlt
 from dlt.destinations import postgres
@@ -133,6 +143,7 @@ pipeline = dlt.pipeline(
 
 :::tip
 You can create and pass partial credentials, and `dlt` will fill in the missing data. Below, we pass a PostgreSQL connection string but without a password and expect that it will be present in environment variables (or any other [config provider](credentials/setup))
+
 ```py
 import dlt
 from dlt.destinations import postgres
@@ -164,6 +175,7 @@ Please read how to use [various built-in credentials types](credentials/complex_
 
 ### Inspect destination capabilities
 [Destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) tell `dlt` what a given destination can and cannot do. For example, it tells which file formats it can load, what the maximum query or identifier length is. Inspect destination capabilities as follows:
+
 ```py execute
 import dlt
 pipeline = dlt.pipeline("snowflake_test", destination="snowflake")
@@ -176,6 +188,7 @@ print(capabilities["preferred_loader_file_format"])
 
 ### Pass additional parameters and change destination capabilities
 The destination factory accepts additional parameters that will be used to pre-configure it and change destination capabilities.
+
 ```py execute
 import dlt
 destination = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
@@ -184,6 +197,7 @@ capabilities = dict(destination.capabilities())
 assert capabilities["naming_convention"] == "duck_case"
 assert capabilities["recommended_file_size"] == 120000
 ```
+
 The example above is overriding the `naming_convention` and `recommended_file_size` in the destination capabilities.
 
 
@@ -237,6 +251,7 @@ When resolving non-module destination string references (e.g., `"bigquery"` or `
 This means that, in the examples above, if the destination type was not properly configured or was not a valid destination type, dlt would have attempted to resolve `"my_destination"` as a shorthand for a built-in type and would have eventually failed.
 
 As another example, the following:
+
 ```py
 import os
 import dlt
@@ -245,6 +260,7 @@ os.environ["DESTINATION__BIGQUERY__DESTINATION_TYPE"] = "duckdb"
 
 pipeline = dlt.pipeline("pipeline", destination="bigquery")
 ```
+
 will be resolved as a DuckDB destination that is named `"bigquery"`, because a valid destination type `"duckdb"` is configured and dlt does not attempt to resolve the name `"bigquery"` as a shorthand for a built-in type!
 
 **Exception:** If `dlt.destination()` is used and the `destination_type` is explicitly provided as an argument, dlt will skip the shorthand fallback and only attempt named destination resolution.
@@ -273,6 +289,7 @@ client_email = "please set me up!"
 ```
 
 And use it in the pipeline code as follows:
+
 ```py
 import dlt
 
@@ -368,10 +385,12 @@ Each destination declares its preferred naming convention, support for case-sens
 5. BigQuery - all identifiers are case-sensitive; there's no case-insensitive mode available via case folding (but it can be enabled at the dataset level).
 
 You can change the naming convention used in [many different ways](naming-convention.md#configure-naming-convention). Below, we set the preferred naming convention on the Snowflake destination to `sql_cs` to switch Snowflake to case-sensitive mode:
+
 ```py
 import dlt
 snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
 ```
+
 Setting the naming convention will impact all new schemas being created (i.e., on the first pipeline run) and will re-normalize all existing identifiers.
 
 :::warning
@@ -390,13 +409,16 @@ If you use a case-sensitive naming convention with a case-insensitive destinatio
 
 ### Enable case-sensitive identifiers support
 Selected destinations may be configured so they start accepting case-sensitive identifiers. For example, it is possible to set case-sensitive collation on an **mssql** database and then tell `dlt` about it.
+
 ```py
 from dlt.destinations import mssql
 dest_ = mssql(has_case_sensitive_identifiers=True, naming_convention="sql_cs_v1")
 ```
+
 Above, we can safely use a case-sensitive naming convention without worrying about name collisions.
 
 You can configure the case sensitivity, **but configuring destination capabilities is not currently supported**.
+
 ```toml
 [destination.mssql]
 has_case_sensitive_identifiers=true

@@ -83,6 +83,7 @@ credentials with following access permissions:
 * **roles/secretmanager.secretViewer** to list available secrets (optional but highly recommended)
 
 Example configuration:
+
 ```toml
 [providers]
 enable_google_secrets=true
@@ -106,6 +107,7 @@ and combine them into full configuration on the fly.
 For example you can define:
 
 **destination** secret to keep credentials for destinations:
+
 ```toml
 [destination]
 postgres.credentials="postgresql://loader:***@host:5432/postgres"
@@ -117,6 +119,7 @@ postgres.credentials="postgresql://loader:***@host:5432/postgres"
 ```
 
 or **destination-filesystem** to just store filesystem credentials
+
 ```toml
 [destination.filesystem]
 bucket_url="s3://bucket/path"
@@ -128,12 +131,14 @@ aws_secret_access_key="..."
 ```
 
 same for sources i.e. **sources-mongodb** will store mongo credentials:
+
 ```toml
 [sources.mongodb]
 connection_url="mongodb+srv://temp_writer:***/dlt_data?authSource=admin&replicaSet=db-mongodb&tls=true"
 ```
 
 Note that you still can store single values, in that case google vault works similarly to environment variables provider:
+
 ```sh
 sources-pipedrive-pipedrive_api_key
 destination-bigquery-credentials-project_id
@@ -141,6 +146,7 @@ destination-bigquery-credentials-private_key
 destination-bigquery-credentials-client_email
 destination-bigquery-location
 ```
+
 This will obviously require several calls to Secrets backend.
 
 :::warning
@@ -150,6 +156,7 @@ reduces number of calls to backend (which cost money) but will also not pick up 
 
 ### Access secrets without list secrets permissions
 Following settings will skip listing secrets and still minimize number of backend calls:
+
 ```toml
 [providers.google_secrets]
 only_secrets=true

@@ -102,6 +102,7 @@ Explanation:
 To successfully connect to your SQL database, you will need to pass credentials into your pipeline. dlt automatically looks for this information inside the generated TOML files.
 
 Simply paste the [connection details](https://docs.rfam.org/en/latest/database.html) inside `secrets.toml` as follows:
+
 ```toml
 [sources.sql_database.credentials]
 drivername = "mysql+pymysql" # database+dialect
@@ -113,6 +114,7 @@ port = 4497
 ```
 
 Alternatively, you can also paste the credentials as a connection string:
+
 ```toml
 sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
@@ -124,10 +126,13 @@ For more details on the credentials format and other connection methods, read th
 
 Before running the pipeline, make sure to install all the necessary dependencies:
 1. **General dependencies**: These are the general dependencies needed by the `sql_database` source.
+
     ```sh
     pip install -r requirements.txt
     ```
+
 2. **Database-specific dependencies**: In addition to the general dependencies, you will also need to install `pymysql` to connect to the MySQL database in this tutorial:
+
     ```sh
     pip install pymysql
     ```
@@ -141,6 +146,7 @@ After performing steps 1-4, you should now be able to successfully run the pipel
 ```sh
 python sql_database_pipeline.py
 ```
+
 This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project directory, which contains the loaded data.
 
 ## 6. Explore the data

@@ -88,6 +88,7 @@ api_key = "api_key"
 region = "us-east-1"
 read_consistency_interval=2.5
 ```
+
 `read_consistency_interval` is None by default (no read consistency, `dlt` assumes that it is a single writer to particular table.)
 
 :::tip
@@ -141,6 +142,7 @@ To use **vector search** after loading, you **must specify which fields LanceDB 
 :::note
 We created `pipeline` without a dataset name. In the example above data is stored in `movies` table as expected. If dataset name is specified, `dlt` follows
 the same pattern as for other schema-less storages: it will prefix all the tables with `database_name`. For example:
+
 ```py
 pipeline = dlt.pipeline(
   pipeline_name="movies",
@@ -148,6 +150,7 @@ pipeline = dlt.pipeline(
   dataset_name="movies_db",
 )
 ```
+
 will name the table `movies_db___movies` where `___` (3 underscores) is a configurable separator.
 
 :::
@@ -212,6 +215,7 @@ If you plan to use `merge` write disposition, remember to [enable load ids](../v
 
 You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
 for loading and then use it for querying:
+
 ```py notype
 import dlt
 import lancedb
@@ -230,6 +234,7 @@ print(tbl.query("magic dog"))
 ```
 
 Alternatively you can get authenticated client from the pipeline:
+
 ```py
 import dlt
 from lancedb import DBConnection

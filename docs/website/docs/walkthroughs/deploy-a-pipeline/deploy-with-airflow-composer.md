@@ -36,11 +36,13 @@ This should successfully load data from the source to the destination once and a
 ## 3. Initialize deployment
 
 First, you need to add additional dependencies that the `deploy` command requires:
+
 ```sh
 pip install "dlt[cli]"
 ```
 
 then:
+
 ```sh
 dlt deploy {pipeline_name}_pipeline.py airflow-composer
 ```
@@ -72,9 +74,11 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 
 
 ### 1. Run the deploy command
+
 ```sh
 dlt deploy pipedrive_pipeline.py airflow-composer
 ```
+
 where `pipedrive_pipeline.py` is the pipeline script that you just ran and `airflow-composer` is a deployment method. The command will create deployment files and provide instructions to set up the credentials.
 
 ```text
@@ -102,6 +106,7 @@ The `deploy` command will use an [Airflow variable](#4-add-credentials) called `
 ```sh
 dlt deploy pipedrive_pipeline.py airflow-composer --secrets-format env
 ```
+
 which will output the environment variable names and their values.
 
 ```sh
@@ -226,6 +231,7 @@ With `decompose="parallel"` or `decompose="parallel-isolated"`, the decomposed t
       retry_policy=Retrying(stop=stop_after_attempt(3), reraise=True),
   )
   ```
+
 :::tip
 When you run the `load_data` DAG above, Airflow will call the `source` function every 30 seconds (by default) to be able to monitor the tasks. Make sure that your source function does not perform any long-lasting operations, e.g., reflecting the source database. In the case of [sql_database](../../dlt-ecosystem/verified-sources/sql_database/index.md), we added an option to delay database reflection until data is accessed by a resource.
 :::

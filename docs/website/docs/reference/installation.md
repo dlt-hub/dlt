@@ -117,11 +117,13 @@ uv pip install -U dlt
 Here are some additional installation examples:
 
 To install dlt with DuckDB support:
+
 ```sh
 uv pip install "dlt[duckdb]"
 ```
 
 To install a specific version of dlt (for example, versions before 0.5.0):
+
 ```sh
 uv pip install "dlt<0.5.0"
 ```

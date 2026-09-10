@@ -263,6 +263,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
         dataset_name="slack_data"  # Use a custom name if desired
    )
    ```
+
 1. To load Slack resources from the specified start date:
 
    ```py notype
@@ -275,6 +276,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(source)
    print(load_info)
    ```
+
    > Subsequent runs will load only items updated since the previous run.
 
 1. To load data from selected Slack channels from the specified start date:

@@ -8,16 +8,19 @@ keywords: [MotherDuck, duckdb, destination, data warehouse, DuckLake]
 
 ## Install dlt with MotherDuck
 **To install the dlt library with MotherDuck dependencies:**
+
 ```sh
 pip install "dlt[motherduck]"
 ```
 
 :::tip
 If you see a lot of retries in your logs with various timeouts, decrease the number of load workers to 3-5 depending on the quality of your internet connection. Add the following to your `config.toml`:
+
 ```toml
 [load]
 workers=3
 ```
+
 or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../reference/performance.md)
 :::
 
@@ -27,11 +30,13 @@ or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to MotherDuck by running**
+
 ```sh
 dlt init chess motherduck
 ```
 
 **2. Install the necessary dependencies for MotherDuck by running**
+
 ```sh
 pip install -r requirements.txt
 ```
@@ -39,14 +44,17 @@ pip install -r requirements.txt
 This will install dlt with the **motherduck** extra which contains **duckdb** and **pyarrow** dependencies.
 
 **3. Add your MotherDuck token to `.dlt/secrets.toml`**
+
 ```toml
 [destination.motherduck.credentials]
 database = "dlt_data_3"
 password = "<your token here>"
 ```
+
 Paste your **service token** into the password field. The `database` field is optional, but we recommend setting it. MotherDuck will create this database (in this case `dlt_data_3`) for you.
 
 Alternatively, you can use the connection string syntax.
+
 ```toml
 [destination]
 motherduck.credentials="md:dlt_data_3?motherduck_token=<my service token>"
@@ -56,9 +64,11 @@ motherduck.credentials="md:dlt_data_3?motherduck_token=<my service token>"
 Motherduck now supports configurable **access tokens**. Please refer to the [documentation](https://motherduck.com/docs/key-tasks/authenticating-to-motherduck/#authentication-using-an-access-token)
 
 You can pass token in a native Motherduck environment variable:
+
 ```sh
 export MOTHERDUCK_TOKEN='<token>'
 ```
+
 in that case you can skip **password** / **motherduck_token** secret.
 
 **database** defaults to `my_db`.
@@ -67,6 +77,7 @@ More in Motherduck [documentation](https://motherduck.com/docs/key-tasks/authent
 :::
 
 **4. Run the pipeline**
+
 ```sh
 python3 chess_pipeline.py
 ```
@@ -77,6 +88,7 @@ The steps below show how to set up a DuckLake-managed database backed by S3.
 
 **1. Create the S3-Backed DuckLake Database**
 You can create a DuckLake-managed database using the following SQL command, which should be run in the MotherDuck SQL Editor or any SQL client connected to your MotherDuck account:
+
 ```sql
 CREATE DATABASE my_ducklake (
   TYPE DUCKLAKE,
@@ -85,6 +97,7 @@ CREATE DATABASE my_ducklake (
 ```
 
 **2. Register S3 Credentials with a MotherDuck Secret**
+
 ```sql
 CREATE SECRET my_secret IN MOTHERDUCK (
   TYPE S3,
@@ -96,11 +109,13 @@ CREATE SECRET my_secret IN MOTHERDUCK (
 
 **3. Configure `secrets.toml` in your dlt project**
 Your `secrets.toml` only needs to reference the DuckLake database and your service token:
+
 ```toml
 [destination.motherduck.credentials]
 database = "my_ducklake"
 password = "<your token here>"
 ```
+
 As long as the DuckLake database and the corresponding S3 secret have been set up in MotherDuck, dlt can load data into it without requiring direct access to the S3 credentials.
 
 With this setup, you can now load data into DuckLake tables using dlt, just like with any DuckDB destination through MotherDuck.
@@ -111,10 +126,12 @@ associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_
 
 ### Additional configuration
 Query string will be passed to `duckdb` connection. Several global configs may be set using it:
+
 ```toml
 [destination]
 motherduck.credentials="md:dlt_data_3?dbinstance_inactivity_ttl=0s"
 ```
+
 will disable connection caching.
 
 Additional `duckdb` config, [where you can set up extensions, pragmas, the session timezone, and global and local config](duckdb.md#additional-config), is also supported.
@@ -145,6 +162,7 @@ Some internal component (HTTPS) requires the **HOME** env variable to be present
 ```py notype
 os.environ["HOME"] = "/tmp"
 ```
+
 before opening the connection.
 
 

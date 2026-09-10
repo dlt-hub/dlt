@@ -46,9 +46,11 @@ import_schema_path="schemas/import"
 
 :::tip
 You can pick other import/export formats using config file:
+
 ```toml
 external_schema_format="dbml"
 ```
+
 will export **dbml** schema. Other supported formats are: **yaml** (default) and **json**.
 
 Note: import from **dbml** is not yet implemented.
@@ -90,6 +92,7 @@ columns (such as altering data types or adding hints) will not take effect autom
 
 If you modify a YAML schema file, you must either delete the dataset, enable `dev_mode=True`, or use one of the Pipeline 
 [Refresh options](../general-usage/pipeline#refresh-pipeline-data-and-state) to apply the changes.
+
 ```py
 dlt.pipeline(
     import_schema_path="schemas/import",
@@ -100,6 +103,7 @@ dlt.pipeline(
     dev_mode=True,
 )
 ```
+
 :::
 
 ### Change the data type

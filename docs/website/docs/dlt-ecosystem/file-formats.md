@@ -134,6 +134,7 @@ Internally, we use two implementations, picked based on the shape of the data it
 * quoting style is "when needed"
 
 Example of NULLs:
+
 ```sh
 text1,text2,text3
 A,B,C

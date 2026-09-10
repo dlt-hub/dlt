@@ -20,10 +20,12 @@ This installs the `s3fs` and `botocore` packages.
 :::warning
 
 You may also install the dependencies independently. Try:
+
 ```sh
 pip install dlt
 pip install s3fs
 ```
+
 so pip does not fail on backtracking.
 :::
 
@@ -32,6 +34,7 @@ so pip does not fail on backtracking.
 ## Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
+
 ```sh
 dlt init chess filesystem
 ```
@@ -44,6 +47,7 @@ This command will initialize your pipeline with chess as the source and AWS S3 a
 
 ### AWS S3
 The command above creates a sample `secrets.toml` and requirements file for an AWS S3 bucket. You can install those dependencies by running:
+
 ```sh
 pip install -r requirements.txt
 ```
@@ -107,6 +111,7 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
     ]
 }
 ```
+
 5. To obtain the access and secret key for the user, go to IAM > Users and in the “Security Credentials”, click on “Create Access Key”, and preferably select “Command Line Interface” and create the access key.
 6. Obtain the “Access Key” and “Secret Access Key” created that are to be used in "secrets.toml".
 
@@ -144,12 +149,14 @@ To pass additional arguments via env variables, use **stringified dictionary**:
 `DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
 
 You can also override default `fsspec` settings used by `dlt`:
+
 ```toml
 [destination.filesystem.kwargs]
 use_listings_cache=false  # listing cache disabled by default as you typically add files
 listings_expiry_time=60.0
 skip_instance_cache=false  # instance cache enabled by default, it is thread isolated anyway
 ```
+
 There's however no good reason to do that, except debugging `fsspec` internal problems. You could try
 to enable listing cache but this cache is not shared across threads which `dlt` load steps uses to
 parallelize writes. You may get unpredictable cache invalidation behavior.
@@ -160,6 +167,7 @@ Run `pip install "dlt[gs]"` which will install the `gcfs` package.
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
 You'll see AWS credentials by default.
 Use Google cloud credentials that you may know from [BigQuery destination](bigquery)
+
 ```toml
 [destination.filesystem]
 bucket_url = "gs://[your_bucket_name]" # replace with your bucket name,
@@ -169,6 +177,7 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
+
 :::note
 Note that you can share the same credentials with BigQuery, replace the `[destination.filesystem.credentials]` section with a less specific one: `[destination.credentials]` which applies to both destinations.
 :::
@@ -186,6 +195,7 @@ Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by defau
 #### Supported schemes
 
 `dlt` supports both forms of the blob storage urls:
+
 ```toml
 [destination.filesystem]
 bucket_url = "az://<container_name>/path" # replace with your container name and path
@@ -201,11 +211,13 @@ bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.n
 You can use `az`, `abfss`, `azure` and `abfs` url schemes.
 
 If you need to use a custom host for your storage account, you can set it up like below:
+
 ```toml
 [destination.filesystem.credentials]
 # The storage account name is always required
 azure_account_host = "<storage_account_name>.<host_base>"
 ```
+
 Remember to include `storage_account_name` with your base host i.e. `dlt_ci.blob.core.usgovcloudapi.net`.
 
 `dlt` will use this host to connect to Azure Blob Storage without any modifications:
@@ -214,9 +226,11 @@ Remember to include `storage_account_name` with your base host i.e. `dlt_ci.blob
 Use the Blob endpoint (`azure_account_host = "onelake.blob.fabric.microsoft.com"`).
 
 **IMPORTANT**: OneLake bucket URLs must use **GUIDs** for workspace and lakehouse, not display names:
+
 ```toml
 bucket_url = "abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files"
 ```
+
 Find GUIDs in your browser URL when viewing workspace/lakehouse in Fabric portal.
 :::
 
@@ -254,10 +268,12 @@ azure_tenant_id = "tenant_id" # please set me up!
 :::warning
 **Concurrent blob uploads**
 `dlt` limits the number of concurrent connections for a single uploaded blob to 1. By default, `adlfs` that we use splits blobs into 4 MB chunks and uploads them concurrently, which leads to gigabytes of used memory and thousands of connections for larger load packages. You can increase the maximum concurrency as follows:
+
 ```toml
 [destination.filesystem.kwargs]
 max_concurrency=3
 ```
+
 :::
 
 ### Hugging Face
@@ -282,9 +298,11 @@ kwargs = '{"auto_mkdir": true}'
 ```
 
 Or by setting an environment variable:
+
 ```sh
 export DESTINATION__FILESYSTEM__KWARGS = '{"auto_mkdir": true/false}'
 ```
+
 :::
 
 `dlt` correctly handles the native local file paths. Indeed, using the `file://` schema may not be intuitive, especially for Windows users.
@@ -334,6 +352,7 @@ bucket_url = '\\?\C:\a\b\c'
 [destination.unc_extended]
 bucket_url='\\?\UNC\localhost\c$\a\b\c'
 ```
+
 :::
 
 ### SFTP
@@ -367,6 +386,7 @@ sftp_gss_trust_dns          # Trust DNS for GSS-API, defaults to True
 *sftp_transport_factory*    # Custom transport factory, defaults to None
 *sftp_auth_strategy*        # Authentication strategy, defaults to None
 ```
+
 :::note
 The `*` credentials indicate parameters that cannot be set through `.dlt/secrets.toml` and must be set through code instantiation.
 :::
@@ -416,6 +436,7 @@ file_glob = "*"
 sftp_username = "foo"
 sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 ```
+
 The loaded key must be one of the following types stored in ~/.ssh/: id_rsa, id_dsa, or id_ecdsa.
 
 #### 3. Username and password authentication
@@ -540,6 +561,7 @@ Both `timestamp_ms` and `load_package_timestamp_ms` are in milliseconds (e.g., 1
 * `Q` - quarters 1, 2, 3, 4
 
 You can change the file name format by providing the layout setting for the filesystem destination like so:
+
 ```toml
 [destination.filesystem]
 layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming scheme

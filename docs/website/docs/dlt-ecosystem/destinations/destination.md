@@ -15,6 +15,7 @@ It will also allow you to simply get a path to the files of your normalized data
 ## Install `dlt` for reverse ETL
 
 To install `dlt` without additional dependencies:
+
 ```sh
 pip install dlt
 ```
@@ -130,6 +131,7 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
 
   Like for [regular destinations](../../general-usage/destination.md#pass-explicit-credentials), you are allowed to pass configuration and credentials
   explicitly to the destination function.
+
   ```py
   import os
   from dlt.common.typing import TDataItems
@@ -143,6 +145,7 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
   ```
 
 - Via the `dlt.destination()` function that initializes the destination. In this case, don't use the decorator for the destination function.
+
   ```py
   # File my_destination.py
   from dlt.common.typing import TDataItems
@@ -160,7 +163,9 @@ There are multiple ways to pass the custom destination function to the `dlt` pip
       )
   )
   ```
+
 - Via a fully qualified string to function location (this can be set in `config.toml` or through environment variables). The destination function should be located in another file.
+
   ```py
   # File my_pipeline.py
 

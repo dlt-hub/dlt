@@ -12,18 +12,22 @@ The goal of staging is to bring the data closer to the database engine so that t
 ## Staging dataset
 `dlt` creates a staging dataset when the write disposition of any of the loaded resources requires it. It creates and migrates required tables exactly like for the main dataset. Data in staging tables is truncated when the load step begins and only for tables that will participate in it.
 Such a staging dataset has the same name as the dataset passed to `dlt.pipeline` but with a `_staging` suffix in the name. Alternatively, you can provide your own staging dataset pattern or use a fixed name, identical for all the configured datasets.
+
 ```toml
 [destination.postgres]
 staging_dataset_name_layout="staging_%s"
 ```
+
 The entry above switches the pattern to a `staging_` prefix and, for example, for a dataset with the name **github_data**, `dlt` will create **staging_github_data**.
 
 To configure a static staging dataset name, you can do the following (we use the destination factory):
+
 ```py
 import dlt
 
 dest_ = dlt.destinations.postgres(staging_dataset_name_layout="_dlt_staging")
 ```
+
 All pipelines using `dest_` as the destination will use the **staging_dataset** to store staging tables. Make sure that your pipelines are not overwriting each other's tables.
 
 ### Cleanup staging dataset automatically
@@ -34,6 +38,7 @@ If you prefer to truncate it, put the following line in `config.toml`:
 [load]
 truncate_staging_dataset=true
 ```
+
 > **⚠️ Important:** When configuring a custom staging dataset naming pattern, ensure that the resulting staging dataset name differs from the final dataset name. If the pattern results in identical names, dlt will raise a `ValueError` to alert you that the pattern must be adjusted. This prevents potential data loss from setup commands accidentally truncating the final dataset instead of the staging dataset.
 >
 > **Examples:**
@@ -59,6 +64,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 1. **Set up the S3 bucket and filesystem staging.**
 
     Please follow our guide in the [filesystem destination documentation](destinations/filesystem.md). Test the staging as a standalone destination to make sure that files go where you want them. In your `secrets.toml`, you should now have a working `filesystem` configuration:
+
     ```toml
     [destination.filesystem]
     bucket_url = "s3://[your_bucket_name]" # replace with your bucket name
@@ -71,6 +77,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 2. **Set up the Redshift destination.**
 
     Please follow our guide in the [redshift destination documentation](destinations/redshift.md). In your `secrets.toml`, you added:
+
     ```toml
     # Keep it at the top of your TOML file, before any section starts
     destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
@@ -83,6 +90,7 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
 4. **Chain staging to destination and request Parquet file format.**
 
     Pass the `staging` argument to `dlt.pipeline`. It works like the destination `argument`:
+
     ```py
     # Create a dlt pipeline that will load
     # chess player data to the redshift destination
@@ -94,7 +102,9 @@ In essence, you need to set up two destinations and then pass them to `dlt.pipel
         dataset_name='player_data'
     )
     ```
+
     `dlt` will automatically select an appropriate loader file format for the staging files. Below, we explicitly specify the Parquet file format (just to demonstrate how to do it):
+
     ```py
     info = pipeline.run(chess_source(), loader_file_format="parquet")
     ```

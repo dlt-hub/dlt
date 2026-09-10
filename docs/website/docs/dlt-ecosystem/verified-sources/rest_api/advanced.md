@@ -908,11 +908,13 @@ request_max_attempts = 5
 request_backoff_factor = 1
 request_max_retry_delay = 300
 ```
+
 :::
 
 ### Use custom session
 You can pass custom `requests` `Session` to `RESTClient`. `dlt` provides its own implementation where you can easily configure
 retry strategies, timeouts and other factors. For example:
+
 ```py
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient
@@ -922,6 +924,7 @@ client = RESTClient(
     session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0).session
 )
 ```
+
 will set-up the client for a short connect and read timeouts with no retries.
 
 ### URL sanitization and secret protection
@@ -949,6 +952,7 @@ http_max_error_body_length = 8192  # Maximum characters (default: 8192)
 ```
 
 Example error with response body enabled:
+
 ```text
 HTTPError: 400 Client Error: Bad Request for url: https://api.example.com/data?api_key=***
 Response body: {"error": "Invalid date format", "code": "INVALID_DATE", "field": "start_date"}
@@ -1090,6 +1094,7 @@ request_max_attempts = 5
 request_backoff_factor = 1
 request_max_retry_delay = 300
 ```
+
 :::
 
 For more control, you can create your own instance of `dlt.sources.requests.Client` and use that instead of the global client.
@@ -1422,6 +1427,7 @@ In this example, the resource will set the correct encoding for all responses. M
 
 ### Setup timeouts and retry strategies
 `rest_api` uses `dlt` custom sessions and `RESTClient` to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
+
 ```py notype
 from dlt.sources.helpers import requests
 
@@ -1431,6 +1437,7 @@ source_config: RESTAPIConfig = {
     },
 }
 ```
+
 will set-up all endpoints to use a short connect and read timeouts with no retries.
 Most settings can be configured using `toml` files or environment variables.
 

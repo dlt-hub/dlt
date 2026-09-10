@@ -97,17 +97,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python github_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `github_reactions`; you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -238,6 +244,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
+
    Here, "duckdb" is the owner of the repository and the name of the repository.
 
 1. To load only the first 100 issues, you can do the following:

@@ -265,6 +265,7 @@ To create your data pipeline using single loading and [incremental data loading]
    load_info = pipeline.run(load_data.with_resources("jobs","jobs_activities","jobs_application_form"))
    print(load_info)
    ```
+
    > Note: "load_details" parameter is set to True.
 
 1. To use incremental loading for the candidates endpoint, maintain the same pipeline and destination dataset names. The pipeline name helps retrieve the [state](../../general-usage/state) of the last run, essential for incremental data loading. Changing these names might trigger a [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting metadata tracking for [incremental data loading](../../general-usage/incremental-loading).

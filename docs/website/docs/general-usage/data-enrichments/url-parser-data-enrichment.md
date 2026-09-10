@@ -141,6 +141,7 @@ We use a free service called [URL Parse API](https://urlparse.com/), to parse th
 need to register to use this service nor get an API key.
 
 1. Create a `url_parser` function as follows:
+
    ```py
    import requests
 

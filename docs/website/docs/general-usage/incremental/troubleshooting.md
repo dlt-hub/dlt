@@ -70,6 +70,7 @@ If you encounter an `IncrementalCursorInvalidCoercion` error, it typically means
 #### Example
 
 This fails because the `initial_value` is an integer, but the `created_at` values are string-formatted timestamps:
+
 ```py
 # This fails: integer initial_value with string timestamps
 @dlt.resource
@@ -80,6 +81,7 @@ def my_data(
 ```
 
 To fix this, use a string timestamp that matches the format of the source field:
+
 ```py
 created_at = dlt.sources.incremental("created_at", initial_value="2024-01-01 00:00:00")
 ```

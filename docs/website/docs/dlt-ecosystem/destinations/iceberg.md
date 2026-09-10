@@ -26,6 +26,7 @@ You also need `sqlalchemy>=2.0.18`:
 ```sh
 pip install 'sqlalchemy>=2.0.18'
 ```
+
 ## Additional permissions for Iceberg
 
 When using Iceberg with object stores like S3, additional permissions may be required for operations like multipart uploads and tagging. Make sure your IAM role or user has the following permissions:
@@ -53,7 +54,9 @@ In the back, dlt utilizes `load_catalog`, so we try to keep the config we will p
 iceberg_catalog_name = "default"
 iceberg_catalog_type = "rest"
 ```
+
 or 
+
 ```sh
 export ICEBERG_CATALOG__ICEBERG_CATALOG_NAME=default
 export ICEBERG_CATALOG__ICEBERG_CATALOG_TYPE=rest

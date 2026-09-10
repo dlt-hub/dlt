@@ -148,12 +148,14 @@ To get started with your data pipeline, follow these steps:
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive
    information securely, like access tokens. Keep this file safe. In this file, set up the "developer
    token", "customer ID", and "impersonated_email" as follows:
+
    ```toml
    [sources.google_ads]
    dev_token = "please set me up!"
    customer_id = "please set me up!"
    impersonated_email = "please set me up"
    ```
+
    - `dev_token` is the developer token that lets you connect to the Google Ads API.
    - `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
    and helps manage individual Google Ads accounts. It is used for API access and account operations, and
@@ -194,18 +196,24 @@ To get started with your data pipeline, follow these steps:
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python google_ads_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `dlt_google_ads_pipeline`, you may also use any custom name instead.
 

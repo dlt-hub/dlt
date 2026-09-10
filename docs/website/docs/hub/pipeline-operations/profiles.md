@@ -89,9 +89,11 @@ rm .dlt/profile-name
 :::tip
 You can pin a profile with any name, not just those from the predefined list. This allows you to create as many profiles as you need.
 You can also pin a profile that doesn't yet have profile-specific TOML files and add those files later.
+
 ```sh
 dlthub -v local info
 ```
+
 This command lists all expected file locations from which `dlt` reads profile settings.
 :::
 

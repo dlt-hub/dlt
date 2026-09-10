@@ -131,6 +131,7 @@ catalog = "my_catalog"
 client_id = "XXX"
 client_secret = "XXX"
 ```
+
   </TabItem>
 
 <TabItem value="env">
@@ -142,6 +143,7 @@ export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
 export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID="XXX"
 export DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET="XXX"
 ```
+
   </TabItem>
 
 <TabItem value="code">
@@ -157,6 +159,7 @@ os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_ID"]=os.environ.get("CLIENT_ID", "")
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CLIENT_SECRET"]=os.environ.get("CLIENT_SECRET", "")
 ```
+
 </TabItem>
 </Tabs>
 
@@ -187,6 +190,7 @@ http_path = "/sql/1.0/warehouses/12345"
 catalog = "my_catalog"
 access_token = "XXX"
 ```
+
   </TabItem>
 
 <TabItem value="env">
@@ -197,6 +201,7 @@ export DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH="/sql/1.0/warehouses/1234
 export DESTINATION__DATABRICKS__CREDENTIALS__CATALOG="my_catalog"
 export DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN="XXX"
 ```
+
   </TabItem>
 
 <TabItem value="code">
@@ -211,6 +216,7 @@ os.environ["DESTINATION__DATABRICKS__CREDENTIALS__HTTP_PATH"]="/sql/1.0/warehous
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__CATALOG"]="my_catalog"
 os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get("ACCESS_TOKEN", "")
 ```
+
 </TabItem>
 </Tabs>
 
@@ -263,16 +269,19 @@ When `server_hostname` or `http_path` are not provided, `dlt` attempts to derive
 ### Session configuration
 `session_configuration` holds SQL configuration parameters that `dlt` passes to
 `databricks.sql.connect`. `dlt` applies them to every session it opens:
+
 ```toml
 [destination.databricks.credentials.session_configuration]
 ansi_mode = "true"
 ```
 
 The session timezone has its own setting, which sets `spark.sql.session.timeZone`:
+
 ```toml
 [destination.databricks.credentials]
 session_timezone = "Europe/Berlin"
 ```
+
 `None` is the default value. It keeps the timezone of the warehouse. A `spark.sql.session.timeZone`
 key set directly in `session_configuration` takes precedence.
 
@@ -350,10 +359,12 @@ To avoid these conflicts, follow the steps in the [Troubleshooting section](#tro
 
 :::tip
 You can delete staged files **immediately** after loading by setting the following config option:
+
 ```toml
 [destination.databricks]
 keep_staged_files = false
 ```
+
 :::
 
 ## Supported hints
@@ -374,20 +385,24 @@ Databricks supports the following column hints:
 
 :::note
 If you want to enforce constraints on the tables, you can set the `create_indexes` option to `true`. This will add PRIMARY KEY and FOREIGN KEY constraints to the tables if the hints primary key and references are set.
+
 ```toml
 [destination.databricks]
 # Add PRIMARY KEY and FOREIGN KEY constraints to tables
 create_indexes=true
 ```
+
 :::
 
 :::note
 Table and column comments (from `description` or the `table_comment`/`column_comment` adapter hints) are emitted by default. dlt system tables (`_dlt_*`) are never annotated. Set `create_comments` to `false` to disable all comment/description DDL.
+
 ```toml
 [destination.databricks]
 # Do not emit COMMENT clauses for tables and columns
 create_comments=false
 ```
+
 :::
 
 For additional hints specific to Databricks, see the [Databricks adapter](#databricks-adapter) section.
@@ -422,6 +437,7 @@ bucket_url = "s3://your-bucket-name"
 aws_access_key_id="XXX"
 aws_secret_access_key="XXX"
 ```
+
   </TabItem>
 
 <TabItem value="env">
@@ -431,6 +447,7 @@ export DESTINATION__FILESYSTEM__BUCKET_URL="s3://your-bucket-name"
 export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID="XXX"
 export DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="XXX"
 ```
+
   </TabItem>
 
 <TabItem value="code">
@@ -444,6 +461,7 @@ os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "s3://your-bucket-name"
 os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_ACCESS_KEY_ID"] = os.environ.get("AWS_ACCESS_KEY_ID", "")
 os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY"] = os.environ.get("AWS_SECRET_ACCESS_KEY", "")
 ```
+
 </TabItem>
 </Tabs>
 
@@ -484,6 +502,7 @@ bucket_url = "abfss://container_name@storage_account_name.dfs.core.windows.net/p
 azure_storage_account_name="XXX"
 azure_storage_account_key="XXX"
 ```
+
   </TabItem>
 
 <TabItem value="env">
@@ -493,6 +512,7 @@ export DESTINATION__FILESYSTEM__BUCKET_URL="abfss://container_name@storage_accou
 export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME="XXX"
 export DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="XXX"
 ```
+
   </TabItem>
 
 <TabItem value="code">
@@ -506,6 +526,7 @@ os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = "abfss://container_name@stor
 os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = os.environ.get("AZURE_STORAGE_ACCOUNT_NAME", "")
 os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = os.environ.get("AZURE_STORAGE_ACCOUNT_KEY", "")
 ```
+
 </TabItem>
 </Tabs>
 
@@ -517,18 +538,21 @@ In order to load from Google Cloud Storage stage, you must set up the credential
 `dlt` forwards bucket credentials to the `COPY INTO` SQL command by default. You may prefer to use [external locations or stored credentials instead](https://docs.databricks.com/en/sql/language-manual/sql-ref-external-locations.html#external-location) that are stored on the Databricks side.
 
 If you set up an external location for your staging path, you can tell `dlt` to use it:
+
 ```toml
 [destination.databricks]
 is_staging_external_location=true
 ```
 
 If you set up Databricks credentials named, for example, **credential_x**, you can tell `dlt` to use them:
+
 ```toml
 [destination.databricks]
 staging_credentials_name="credential_x"
 ```
 
 Both options are available from code:
+
 ```py
 import dlt
 
@@ -898,6 +922,7 @@ print(info)
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
 
 1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
+
 ```sh
 #! /bin/bash
 
@@ -935,6 +960,7 @@ The following locations have been confirmed for the two latest LTS runtime versi
 After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
 
 To ensure a clean environment, add the following code at the top of your notebook:
+
 ```py
 import sys
 import types
@@ -949,6 +975,7 @@ for name, module in list(sys.modules.items()):
     if getattr(module, '__file__', '').startswith('/databricks/spark/python/dlt'):
         del sys.modules[name]
 ```
+
 This ensures the dlt package from dltHub is used instead of the built-in Databricks DLT module.
 
 :::warning

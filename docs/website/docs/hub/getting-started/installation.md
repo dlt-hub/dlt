@@ -67,14 +67,17 @@ or use any Python version you have installed on your system.
 
 Working within a [virtual environment](https://docs.python.org/3/library/venv.html) is recommended when creating Python projects.
 This way, all the dependencies for your current project are isolated from packages in other projects. With `uv`, run:
+
 ```sh
 uv venv
 ```
+
 This creates a virtual environment in the `.venv` folder using the default system Python version.
 
 ```sh
 uv venv --python 3.13
 ```
+
 This uses `Python 3.13` for your virtual environment.
 
 
@@ -87,9 +90,11 @@ source .venv/bin/activate
 ## Add dltHub to an existing project
 
 To add dltHub to an existing project, run:
+
 ```sh
 uvx dlthub-init@latest
 ```
+
 This scaffolds a workspace, installs `dlt[hub]`, and sets up the AI skills your coding agent uses. The `dlt[hub]` extra pulls in two plugin packages:
 * `dlthub`—enables the `dlthub` command and features like AI toolkits and transformations
 * `dlthub-client`—enables access to the [managed dltHub platform](../pipeline-operations/overview.md) (login, deploy, run, serve, etc.)
@@ -99,18 +104,22 @@ Workspace-level dependencies (destinations like `duckdb`, plus tools like `marim
 ## Upgrade existing installation
 
 To upgrade just the `hub` extra without upgrading `dlt` itself run:
+
 ```sh
 uv pip install -U "dlt[hub]==1.27.0"
 ```
+
 This keeps the current `1.27.0` `dlt` and upgrades `dlthub` and `dlthub-client` to their newest matching versions.
 
 :::tip
 A particular `dlt` version expects `dlthub` and `dlthub-client` versions in a matching range. For example: `1.27.x` expects
 `0.27.x` of each plugin. This is enforced via dependencies in the `hub` extra and at import time. Installing a plugin directly won't change the
 installed `dlt` version (to prevent unwanted upgrades). For example, if you run:
+
 ```sh
 uv pip install dlthub
 ```
+
 and it downloads `0.28.0` of the plugin, `dlt` `1.27.0` is still installed but reports a wrong plugin version on import (with instructions
 how to install a compatible plugin version).
 :::

@@ -12,6 +12,7 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 
 ## Install dlt with Athena
 **To install the dlt library with Athena dependencies:**
+
 ```sh
 pip install "dlt[athena]"
 ```
@@ -20,29 +21,35 @@ pip install "dlt[athena]"
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new `dlt` project as follows:
+
    ```sh
    dlt init chess athena
    ```
+
    > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
 
 
 ### 2. Setup bucket storage and Athena credentials
 
 First, install dependencies by running:
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or with `pip install "dlt[athena]"`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
 
 :::warning
 
 You may also install the dependencies independently. Try
+
 ```sh
 pip install dlt
 pip install s3fs
 pip install pyarrow
 pip install pyathena
 ```
+
 so pip does not fail on backtracking.
 :::
 
@@ -68,6 +75,7 @@ region_name="please set me up!" # set your AWS region, for example "eu-central-1
 ```
 
 If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** and **[destination.athena.credentials]** sections above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
@@ -79,17 +87,20 @@ profile_name="dlt-ci-user"
 ## Additional destination configuration
 
 You can provide an Athena workgroup like so:
+
 ```toml
 [destination.athena]
 athena_work_group="my_workgroup"
 ```
 
 You can force all tables to be in iceberg format and control Iceberg tables layout in the bucket:
+
 ```toml
 [destination.athena]
 force_iceberg=true
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 where `dataset_name` and `table_name` will be replaced by actual names.
 
 :::tip
@@ -100,6 +111,7 @@ In case your table is created in location that already exists, you can add rando
 [destination.athena]
 table_location_layout="{dataset_name}/{table_name}_{location_tag}"
 ```
+
 We observed the following error message:
 **com.amazonaws.services.s3.model.AmazonS3Exception: The specified key does not exist**
 when table with given name was deleted and re-created - but not always. Adding location tag
@@ -107,18 +119,21 @@ prevents this error from showing up.
 :::
 
 You can change the default catalog name
+
 ```toml
 [destination.athena]
 aws_data_catalog="awsdatacatalog"
 ```
 
 By default, `dlt` uses the same catalog for both the staging and production (non-staging) tables. You can explicitly set the staging catalog to use separate catalogs:
+
 ```toml
 [destination.athena]
 staging_aws_data_catalog="my-staging-catalog"
 ```
 
 and provide any other `PyAthena` connection setting
+
 ```toml
 [destination.athena.conn_properties]
 poll_interval=2
@@ -128,12 +143,14 @@ When `dlt` executes SQL queries that look up table names in the `INFORMATION_SCH
 it can be more effective to filter the tables in the code instead of doing it in the query.
 The threshold for this is usually 1000 tables, but we learned that for Athena a better default is
 90. You can change this threshold with the following setting:
+
 ```toml
 [destination.athena]
 info_tables_query_threshold=90
 ```
 
 You can specify the database location using db_location:
+
 ```toml
 [destination.athena]
 db_location="s3://[your_bucket_name]" # replace with your bucket name
@@ -141,6 +158,7 @@ db_location="s3://[your_bucket_name]" # replace with your bucket name
 
 ## S3 Tables
 The `athena` destination supports storing data in an [S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables.html) bucket by setting an S3 Tables Catalog:
+
 ```toml
 [destination.athena]
 aws_data_catalog="s3tablescatalog/[your_table_bucket_name]"  # replace with your table bucket name
@@ -219,12 +237,14 @@ For every table created as an Iceberg table, the Athena destination will create 
 See [athena adapter](#athena-adapter) for partitioning and other options.
 
 You can also force all tables to be in iceberg format:
+
 ```toml
 [destination.athena]
 force_iceberg = true
 ```
 
 You can also adjust iceberg table properties:
+
 ```toml
 [destination.athena.table_properties]
 vacuum_max_snapshot_age_seconds = 86400
@@ -249,6 +269,7 @@ AWS lakeformation tags can be set on the database level when running a pipeline.
 
 
 Tags can be set on database level using the destination config
+
 ```toml
 [destination.athena.lakeformation_config]
 enabled = true
@@ -345,4 +366,5 @@ athena_adapter(
 pipeline = dlt.pipeline("athena_example")
 pipeline.run(partitioned_data)
 ```
+
 <!--@@@DLT_TUBA athena-->

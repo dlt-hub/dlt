@@ -29,6 +29,7 @@ We're going to use some ready-made components from the [sources](../dlt-ecosyste
     python -m venv venv
     source venv/bin/activate
     ```
+
 2. Install dlt with Weaviate support
 
     ```sh

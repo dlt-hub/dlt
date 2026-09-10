@@ -138,18 +138,22 @@ For more flexibility, you can also define custom placeholders using the `extra_p
 1. The default pattern `{dataset_name}/{table_name}` creates paths like `my_dataset/customers` in your external volume.
 
 2. Custom static path:
+
    ```toml
    [destination.snowflake]
    base_location = "custom/static/path"
    ```
+
    This creates all tables in the same directory `custom/static/path`.
 
 3. Using custom placeholders:
+
    ```toml
    [destination.snowflake]
    base_location = "{env}/{dataset_name}/{table_name}"
    extra_placeholders = { env = "prod" }
    ```
+
    This creates paths like `prod/my_dataset/customers`.
 
 ### How Snowflake uses the base location
@@ -166,6 +170,7 @@ For more details on how Snowflake organizes Iceberg table files in external stor
 
 ## Table format for individual tables
 You can specify table format (Iceberg/Native) for individual `dlt` resources. For example:
+
   ```py
   @dlt.resource(
     table_format="native"
@@ -175,6 +180,7 @@ You can specify table format (Iceberg/Native) for individual `dlt` resources. Fo
 
   pipeline = dlt.pipeline("loads_native", destination="snowflake_plus")
   ```
+
   Will create a native (non-iceberg) **my_resource** table, also when you set the [iceberg_mode](#iceberg_mode) to **all** or **data_tables**.
 
 ## Write dispositions

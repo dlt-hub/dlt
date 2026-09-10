@@ -226,6 +226,7 @@ aws_secret_access_key="Please set me up!"
 [sources.filesystem]
 bucket_url="s3://<bucket_name>/<path_to_files>/"
 ```
+
 </TabItem>
 
 <TabItem value="azure">
@@ -240,6 +241,7 @@ azure_storage_account_key="Please set me up!"
 [sources.filesystem]
 bucket_url="az://<container_name>/<path_to_files>/"
 ```
+
 </TabItem>
 
 <TabItem value="gcp">
@@ -261,6 +263,7 @@ bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/" # set file_glob=""
 [gstorage_pipeline_name.sources.filesystem]
 bucket_url="gs://<bucket_name>/<path_to_files>/"
 ```
+
 </TabItem>
 
 <TabItem value="sftp">
@@ -279,6 +282,7 @@ sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your privat
 [sources.filesystem]
 bucket_url = "sftp://[hostname]/[path]"
 ```
+
 </TabItem>
 
 <TabItem value="local">
@@ -329,6 +333,7 @@ If you use just the `filesystem` resource, it will only list files in the storag
 :::
 
 All parameters of the resource can be specified directly in code:
+
 ```py
 from dlt.sources.filesystem import filesystem
 
@@ -337,6 +342,7 @@ filesystem_source = filesystem(
   file_glob="*.csv"
 )
 ```
+
 or taken from the config:
 
 * python code:
@@ -348,6 +354,7 @@ or taken from the config:
   ```
 
 * configuration file:
+
   ```toml
   [sources.filesystem]
   bucket_url="file://Users/admin/Documents/csv_files"
@@ -513,6 +520,7 @@ two methods to do that:
 5. You can load each partition in a loop or in parallel (i.e. in separate process).
 6. Continue regular incremental loading with `initial_value` set to the value at the end of the range (`modification_date` or `file_url`)
 and make the start range open to avoid duplicates.
+
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem
@@ -579,6 +587,7 @@ fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=increment
 while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
     print(pipeline.last_trace.last_load_info)
 ```
+
 **Note that you must set row_order on incremental to not miss a file**:
 
 ### 7. Filter files
@@ -588,6 +597,7 @@ Within your filtering function, you'll have access to [any field](#fileitem-fiel
 
 #### Filter by name
 To filter only files that have `London` and `Berlin` in their names, you can do the following:
+
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
@@ -610,6 +620,7 @@ from dlt.sources.filesystem import filesystem
 
 filtered_files = filesystem(bucket_url="s3://bucket_name", file_glob="**/*.json")
 ```
+
 :::
 
 #### Filter by size

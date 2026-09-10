@@ -204,6 +204,7 @@ You can run your dbt project with the previously mentioned script that was gener
 ```sh
 python run_<pipeline_name>_dbt.py
 ```
+
 This script executes your dbt transformations, loads the results into a new dataset named `<original-dataset>_transformed`, and runs the dbt tests. If needed, you can adjust the dataset name directly in the script.
 
 If you want to see the `dbt run` command output, increase the logging level. For example:
@@ -213,6 +214,7 @@ RUNTIME__LOG_LEVEL=INFO python run_<pipeline_name>_dbt.py
 ```
 
 or by setting `config.toml`:
+
 ```toml
 [runtime]
 log_level="INFO"

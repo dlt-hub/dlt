@@ -47,6 +47,7 @@ The `schema_contract` argument accepts two forms:
 2. **shorthand**: a contract mode (string) that will be applied to all schema entities.
 
 For example, setting `schema_contract` to *freeze* will expand to the full form:
+
 ```py
 {"tables": "freeze", "columns": "freeze", "data_type": "freeze"}
 ```
@@ -64,6 +65,7 @@ You can change the contract on the **source** instance via the `schema_contract`
 Pydantic models can be used to [define table schemas and validate incoming data](resource.md#define-a-schema-with-pydantic). You can use any model you already have. `dlt` will internally synthesize (if necessary) new models that conform to the **schema contract** on the resource.
 
 Just passing a model in the `column` argument of the [dlt.resource](resource.md#define-a-schema-with-pydantic) sets a schema contract that conforms to the default Pydantic behavior:
+
 ```py
 {
   "tables": "evolve",
@@ -71,6 +73,7 @@ Just passing a model in the `column` argument of the [dlt.resource](resource.md#
   "data_type": "freeze"
 }
 ```
+
 New tables are allowed, extra fields are ignored, and invalid data raises an exception.
 
 If you pass a schema contract explicitly, the following happens to schema entities:
@@ -254,6 +257,7 @@ The following tables are considered new:
 3. Tables containing **incomplete** columns - columns without a data type bound to them.
 
 For example, such a table is considered new because the column **number** is incomplete (defined as primary key and NOT null but no data type):
+
 ```yaml
 blocks:
   description: Ethereum blocks

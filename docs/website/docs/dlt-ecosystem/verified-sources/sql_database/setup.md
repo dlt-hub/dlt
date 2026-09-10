@@ -28,6 +28,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
 2. Add credentials for your SQL database
 
     To connect to your SQL database, `dlt` would need to authenticate using necessary credentials. To enable this, paste your credentials in the `secrets.toml` file created inside the `.dlt/` folder in the following format:
+
     ```toml
     [sources.sql_database.credentials]
     drivername = "mysql+pymysql" # driver name for the database
@@ -38,6 +39,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
     ```
 
     Alternatively, you can also authenticate using connection strings:
+
     ```toml
     [sources.sql_database]
     credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
@@ -61,6 +63,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
     ```sh
     pip install pyarrow numpy pandas
     ```
+
     :::
 
 5. Run the pipeline  
@@ -74,6 +77,7 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
 
 
 6. Make sure everything is loaded as expected with  
+
     ```sh
     dlt pipeline <pipeline_name> show
     ```

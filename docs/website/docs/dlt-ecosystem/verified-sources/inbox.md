@@ -116,6 +116,7 @@ you may need to reduce the workers accordingly.
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
@@ -131,9 +132,11 @@ you may need to reduce the workers accordingly.
     - PyPDF2: `pip install PyPDF2`
 
 2. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `standard_inbox`, you may also use any custom name instead.
 
 For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
@@ -234,6 +237,7 @@ def get_attachments(
 ) -> Iterable[list[FileItem]]:
    ...
 ```
+
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 
 We use the document hash as a primary key to avoid duplicating them in tables.
@@ -254,6 +258,7 @@ verified source.
        dataset_name="standard_inbox_data"  # Use a custom name if desired
    )
    ```
+
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
@@ -261,6 +266,7 @@ verified source.
 
     - Set `START_DATE = pendulum.DateTime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
+
       ```py notype
       # Retrieve messages from the specified email address.
       messages = inbox_source(filter_emails=("mycreditcard@bank.com",)).messages
@@ -271,6 +277,7 @@ verified source.
       # Print the loading details.
       print(load_info)
       ```
+
       > Please refer to the inbox_source() docstring for email filtering options by sender, date, or mime type.
 3. To load messages from multiple emails, including "community@dlthub.com":
 

@@ -73,10 +73,12 @@ To get started with your data pipeline, follow these steps:
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
    securely store your access tokens and other sensitive information. It's important to handle this
    file with care and keep it safe. Here's what the file looks like:
+
    ```toml
    [sources.asana_dlt]
    access_token = "access_token"
    ```
+
 1. Replace the value of `access_token` with the one that [you copied above](asana#grab-credentials).
    This will ensure that your data pipeline can access your Asana resources securely.
 1. Finally, follow the instructions in the
@@ -89,18 +91,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python asana_dlt_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `asana`, you may also use any
    custom name instead.
 
@@ -251,4 +259,5 @@ To create your data pipeline using single loading for the "workspaces" and "proj
    # print the information on data that was loaded
    print(load_info)
    ```
+
 <!--@@@DLT_TUBA asana_dlt-->

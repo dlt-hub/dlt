@@ -109,6 +109,7 @@ could:
 ### Access data in the destination instead of pipeline state
 
 In the example below, we load recent comments made by a given `user_id`. We access the `user_comments` table to select the maximum comment id for a given user.
+
 ```py
 import dlt
 
@@ -136,6 +137,7 @@ def comments(user_id: str):
         if i > max_id
     ]
 ```
+
 When the pipeline is first run, the destination dataset and `user_comments` table do not yet exist. We skip the destination query by using the `first_run` property of the pipeline. We also handle a situation where there are no comments for a user_id by replacing None with 0 as `max_id`.
 
 ## Inspect the pipeline state

@@ -136,6 +136,7 @@ incremental_resource = create_change_tracking_table(
 
 pipeline.run(incremental_resource)
 ```
+
 When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the dlt state. In subsequent runs, you do not need to provide the initial value anymore.
 
 ### Incremental loading
@@ -308,6 +309,7 @@ ORDER BY
 Doing a full refresh will drop the destination table, i.e., delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
+
 ```py notype
 pipeline.run(initial_resource, refresh="drop_resources")
 ```

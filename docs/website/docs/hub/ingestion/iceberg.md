@@ -86,6 +86,7 @@ aws_secret_access_key = "please set me up!"
 register_new_tables=true
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -101,6 +102,7 @@ export DESTINATION__ICEBERG__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="ple
 export DESTINATION__ICEBERG__CAPABILITIES__REGISTER_NEW_TABLE=True
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -159,6 +161,7 @@ bucket_url="s3://warehouse/"
 [destination.iceberg.capabilities]
 table_location_layout="lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -173,6 +176,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__OAUTH2-SERVER-URI=https://
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}
 ```
+
 </TabItem>
 
 </Tabs>
@@ -229,6 +233,7 @@ bucket_url="s3://warehouse"
 [destination.iceberg.capabilities]
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -242,6 +247,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=PRINCIPAL_ROLE:ALL
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
+
 </TabItem>
 
 </Tabs>
@@ -293,6 +299,7 @@ region_name           = "<region>"
 "rest.signing-name"   = "s3tables"
 "rest.signing-region" = "<region>"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -310,6 +317,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
   "rest.signing-region": "<region>"
 }'
 ```
+
 </TabItem>
 
 </Tabs>
@@ -356,6 +364,7 @@ region_name           = "<region>"
 "rest.signing-name"   = "glue"
 "rest.signing-region" = "<region>"
 ```
+
 </TabItem>
 <TabItem value="env">
 
@@ -408,6 +417,7 @@ aws_access_key_id     = "<aws_access_key_id>"
 aws_secret_access_key = "<aws_secret_access_key>"
 region_name           = "<region>"
 ```
+
 </TabItem> <TabItem value="env">
 
 ```sh
@@ -437,9 +447,11 @@ Before using Unity Catalog with the Iceberg destination, ensure you have:
 1. Unity Catalog enabled in your workspace
 2. External data access enabled for your metastore
 3. EXTERNAL USE SCHEMA privilege granted to your principal:
+
    ```sql
    GRANT EXTERNAL USE SCHEMA ON CATALOG <catalog_name> TO `user@company.com`;
    ```
+
    Where `<catalog_name>` is the name of the catalog you want to grant access to.
 
 For detailed setup instructions, see Databricks guide on [accessing tables from Apache Iceberg clients](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
@@ -467,6 +479,7 @@ warehouse = "dlt_ci"
 [destination.iceberg.credentials.properties]
 token = "please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -477,6 +490,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__URI=https://<workspace-url>/api/2.1/un
 export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=dlt_ci
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__TOKEN=please set me up!
 ```
+
 </TabItem>
 
 </Tabs>

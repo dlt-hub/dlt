@@ -8,6 +8,7 @@ keywords: [postgres, destination, data warehouse]
 
 ## Install dlt with PostgreSQL
 **To install the dlt library with PostgreSQL dependencies, run:**
+
 ```sh
 pip install "dlt[postgres]"
 ```
@@ -17,17 +18,21 @@ pip install "dlt[postgres]"
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to Postgres by running:**
+
 ```sh
 dlt init chess postgres
 ```
 
 **2. Install the necessary dependencies for Postgres by running:**
+
 ```sh
 pip install -r requirements.txt
 ```
+
 This will install dlt with the `postgres` extra, which contains the `psycopg2` client.
 
 **3. After setting up a Postgres instance and `psql` or a query editor, create a new database by running:**
+
 ```sql
 CREATE DATABASE dlt_data;
 ```
@@ -35,6 +40,7 @@ CREATE DATABASE dlt_data;
 Add the `dlt_data` database to `.dlt/secrets.toml`.
 
 **4. Create a new user by running:**
+
 ```sql
 CREATE USER loader WITH PASSWORD '<password>';
 ```
@@ -42,6 +48,7 @@ CREATE USER loader WITH PASSWORD '<password>';
 Add the `loader` user and `<password>` password to `.dlt/secrets.toml`.
 
 **5. Give the `loader` user owner permissions by running:**
+
 ```sql
 ALTER DATABASE dlt_data OWNER TO loader;
 ```
@@ -50,6 +57,7 @@ You can set more restrictive permissions (e.g., give user access to a specific s
 
 **6. Enter your credentials into `.dlt/secrets.toml`.**
 It should now look like this:
+
 ```toml
 [destination.postgres.credentials]
 
@@ -63,12 +71,14 @@ session_timezone = "Europe/Paris"
 ```
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
+
 ```toml
 # Keep it at the top of your TOML file, before any section starts
 destination.postgres.credentials="postgresql://loader:<password>@localhost/dlt_data?connect_timeout=15&options=-ctimezone%3DEurope%2FParis"
 ```
 
 To pass credentials directly, use the [explicit instance of the destination](../../general-usage/destination.md#pass-explicit-credentials)
+
 ```py
 pipeline = dlt.pipeline(
   pipeline_name='chess',
@@ -94,6 +104,7 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
   - Setting `timezone=True` (or omitting the flag, which defaults to `True`) maps to `TIMESTAMP WITH TIME ZONE`.
 
 #### Example precision and timezone: TIMESTAMP (3) WITHOUT TIME ZONE
+
 ```py
 @dlt.resource(
     columns={"event_tstamp": {"data_type": "timestamp", "precision": 3, "timezone": False}},
@@ -109,23 +120,29 @@ pipeline.run(events())
 ### Fast loading with Arrow tables and CSV
 
 You can use [Arrow tables](../verified-sources/arrow-pandas.md) and [CSV](../file-formats.md#csv) to quickly load tabular data. Pick the CSV loader file format like below:
+
 ```py
 info = pipeline.run(arrow_table, loader_file_format="csv")
 ```
+
 In the example above, `arrow_table` will be converted to CSV with **pyarrow** and then streamed into **postgres** with the COPY command. This method skips the regular `dlt` normalizer used for Python objects and is several times faster.
 
 ### Fast loading with Arrow tables and parquet
 
 [parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/current/driver/postgresql.html).
 To install it you'll need `dbc` which is a tool to manage ADBC drivers:
+
 ```sh
 pip install adbc-driver-manager dbc
 dbc install postgresql
 ```
+
 Installation via Python package is supported as well:
+
 ```sh
 pip install adbc-driver-postgresql
 ```
+
 with this driver installed, you can set `parquet` as `loader_file_format` for `dlt` resources.
 
 Not all `postgres` types are supported, see driver docs for more details:
@@ -199,6 +216,7 @@ Postgres supports both case-sensitive and case-insensitive identifiers. All unqu
 
 ## Additional destination options
 The Postgres destination creates UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To disable this behavior:
+
 ```toml
 [destination.postgres]
 create_indexes=false
@@ -209,10 +227,12 @@ Postgres uses the server timezone unless you set one. `session_timezone` sets it
 setting decides how Postgres reads values without a UTC offset into `timestamp with time zone`
 columns. It also decides which timezone Postgres returns for those columns. It does not change the
 column types that `CREATE TABLE` produces.
+
 ```toml
 [destination.postgres.credentials]
 session_timezone = "Europe/Paris"
 ```
+
 `dlt` passes it as a libpq startup option, so it also survives the connection reset that `dlt` performs
 after a failed statement. Setting `query.options = "-ctimezone=Europe/Paris"` yourself still works and
 takes precedence.
@@ -236,6 +256,7 @@ csv_format = CsvFormatConfiguration(delimiter="|", include_header=False)
 
 dest_ = postgres(csv_format=csv_format)
 ```
+
 Above, we set the `CSV` file without a header, with **|** as a separator.
 
 :::tip

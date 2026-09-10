@@ -71,6 +71,7 @@ Use the `schema_contract` argument to tell dlt how to [deal with new tables, dat
 
 `dlt` creates [nested tables](schema.md#nested-references-root-and-nested-tables) to store [list of objects](destination-tables.md#nested-tables) if present in your data.
 You can define the schema of such tables with `nested_hints` argument to `@dlt.resource`:
+
 ```py
 import dlt
 
@@ -93,6 +94,7 @@ def customers():
         },
     ]
 ```
+
 Here we convert the `price` field in list of `purchases` to decimal type and set the schema contract to lock the list
 of columns in it. We use convenience function `dlt.mark.make_nested_hints` to generate nested hints dictionary. You are
 free to use it directly.
@@ -100,6 +102,7 @@ free to use it directly.
 Mind that `purchases` list will be stored as table with name `customers__purchases`. When declaring nested hints you just need
 to specify nested field(s) name(s). In case of deeper nesting i.e. let's say each `purchase` has a list of `coupons` applied,
 you can apply hints to coupons and define `customers__purchases__coupons` table schema:
+
 ```py
 import dlt
 
@@ -114,6 +117,7 @@ import dlt
 def customers():
     ...
 ```
+
 Here we use `("purchases", "coupons")` to locate list at the depth of 2 and set the data type on `registered_at` column
 to `timestamp`. We do that by directly using nested hints dict.
 Note that we specified `purchases` with an empty list of hints. **You are required to specify all parent hints, even if they 
@@ -335,10 +339,12 @@ async def pokemon(id):
 # Get Bulbasaur and Ivysaur (you need dlt 0.4.6 for the pipe operator working with lists).
 print(list([1,2] | pokemon()))
 ```
+
 :::
 
 ### Declare a standalone resource
 A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Here `dlt.resource` just wraps the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
+
 ```py
 @dlt.resource
 def fs_resource(bucket_url=dlt.config.value):
@@ -350,6 +356,7 @@ pipeline.run(fs_resource("s3://my-bucket/reports"), table_name="reports")
 ```
 
 Resource may have a dynamic name that depends on the arguments passed to the decorated function. For example:
+
 ```py
 @dlt.resource(name=lambda args: args["stream_name"])
 def kinesis(stream_name: str):
@@ -357,6 +364,7 @@ def kinesis(stream_name: str):
 
 kinesis_stream = kinesis("telemetry_stream")
 ```
+
 `kinesis_stream` resource has a name **telemetry_stream**.
 
 ### Declare parallel and async resources
@@ -526,12 +534,15 @@ def my_resource():
 
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10))
 ```
+
 The code above will extract `15*10=150` records. This is happening because in each iteration, 15 records are yielded, and we're limiting the number of iterations to 10. In this mode `add_limit` also counts empty batches/pages.
 
 If you wish to count rows instead:
+
 ```py
 dlt.pipeline(destination="duckdb").run(my_resource().add_limit(10, count_rows=True))
 ```
+
 In this mode `add_limit` skips empty pages as they contain no rows.
 Note that `dlt` will still process full pages/yields of data. They won't be trimmed even if large so your effective count will probably
 be different from limit that you set.
@@ -579,6 +590,7 @@ pipeline.run(tables)
 ```
 
 To change the name of a table to which the resource will load data, do the following:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
@@ -654,6 +666,7 @@ The load will fail if the schema marks any columns as `NOT NULL` i.e. `"nullable
 :::
 
 Example: 
+
 ```py
 @dlt.resource(
     table_name="your_table_name",
@@ -674,6 +687,7 @@ Use `dlt.mark.materialize_table_schema()` together with `dlt.mark.with_hints()` 
 Unlike the explicit schema method, this works even if the schema contains non-nullable columns, since no data is written.
 
 Example:
+
 ```py
 @dlt.resource(table_name="raw_events")
 def raw_events():
@@ -685,11 +699,13 @@ def raw_events():
         ])
     )
 ```
+
 Result: 
 Table `raw_events` is created with the defined schema and no rows.
 
 ### Import external files
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
+
 ```py
 import os
 from typing import Iterator
@@ -727,9 +743,11 @@ downloader = filesystem(
 
 info = pipeline.run(orders, destination="snowflake")
 ```
+
 In the example above, we glob all zipped csv files present on **my_bucket/csv/today** (using the `filesystem` verified source) and send file descriptors to the `orders` transformer. The transformer downloads and imports the files into the extract package. At the end, `dlt` sends them to Snowflake (the table will be created because we use `column` hints to define the schema).
 
 If imported `csv` files are not in `dlt` [default format](../dlt-ecosystem/file-formats.md#settings), you may need to pass additional configuration.
+
 ```toml
 [destination.snowflake.csv_format]
 delimiter="|"
@@ -914,6 +932,7 @@ def generate_var_rows(nr):
     for i in range(nr):
         yield {'id': i, 'example_string': 'abc'}
 ```
+
 The resource above will be saved and loaded from a Parquet file (if the destination supports it).
 
 :::note

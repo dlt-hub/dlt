@@ -51,9 +51,11 @@ dlthub ai init --agent cursor
 After running the command, manually enable the dlt-workspace-mcp server in **Cursor Settings > MCP**.
 
 Add the following to your `.cursor/rules/security.mdc` to improve safe credential handling:
+
 ```text
 CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
 ```
+
 :::
 
 </TabItem>
@@ -69,11 +71,13 @@ Codex does not support commands and rules, so the installer converts those into 
 Codex runs in a strict sandbox — enable web access to allow the assistant to research APIs:
 
 `.codex/config.toml`
+
 ```toml
 web_search = "live"
 ```
 
 Add the following to your `AGENTS.md` to improve safe credential handling:
+
 ```text
 CRITICAL: never ask for credentials in chat. Always let the user edit secrets directly and do not attempt to read them.
 ```

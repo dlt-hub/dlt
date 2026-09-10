@@ -30,10 +30,13 @@ This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
 First, you need to add additional dependencies that the `deploy` command requires:
+
 ```sh
 pip install "dlt[cli]"
 ```
+
 Then, the command below will create a GitHub workflow that runs your pipeline script every 30 minutes:
+
 ```sh
 dlt deploy chess_pipeline.py github-action --schedule "*/30 * * * *"
 ```

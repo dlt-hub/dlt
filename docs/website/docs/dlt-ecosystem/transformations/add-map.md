@@ -9,6 +9,7 @@ keywords: [add_map, transform data, remove columns]
 
 ## Method signature
 ### `add_map` method
+
 ```py
 from dlt.extract import DltResource
 from dlt.extract.items_transform import ItemTransformFunc
@@ -189,6 +190,7 @@ resource.add_yield_map(expand_hobbies)
 for row in resource():
     print(row)
 ```
+
 #### Output
 
 ```sh

@@ -44,6 +44,7 @@ When paginating, you probably need the **start_value** which does not change dur
 Behind the scenes, dlt will deduplicate the results, i.e., in case the last issue is returned again (`updated_at` filter is inclusive) and skip already loaded ones.
 
 In the example below, we incrementally load the GitHub events, where the API does not let us filter for the newest events - it always returns all of them. Nevertheless, `dlt` will load only the new items, filtering out all the duplicates and past issues.
+
 ```py notype
 # Use naming function in table name to generate separate tables for each event
 @dlt.resource(primary_key="id", table_name=lambda i: i['type'])  # type: ignore
@@ -106,6 +107,7 @@ def get_events(last_created_at = dlt.sources.incremental("$", last_value_func=by
 ## Using `end_value` for backfill
 
 You can specify both initial and end dates when defining incremental loading. Let's go back to our Github example:
+
 ```py
 @dlt.resource(primary_key="id")
 def repo_issues(
@@ -117,6 +119,7 @@ def repo_issues(
     for page in _get_issues_page(access_token, repository, since=updated_at.start_value, until=updated_at.end_value):  # ty: ignore[unresolved-reference]
         yield page
 ```
+
 Above, we use the `initial_value` and `end_value` arguments of the `incremental` to define the range of issues that we want to retrieve
 and pass this range to the Github API (`since` and `until`). As in the examples above, `dlt` will make sure that only the issues from
 the defined range are returned.
@@ -222,6 +225,7 @@ incremental and exit the yield loop when true.
 The `dlt.sources.incremental` instance provides `start_out_of_range` and `end_out_of_range`
 attributes which are set when the resource yields an element with a higher/lower cursor value than the
 initial or end values. If you do not want `dlt` to stop processing automatically and instead want to handle such events yourself, do not specify `row_order`:
+
 ```py
 @dlt.transformer(primary_key="id")
 def tickets(
@@ -241,6 +245,7 @@ def tickets(
             return
 
 ```
+
 :::
 
 
@@ -251,6 +256,7 @@ in case of loading error you are able to retry a single chunk. **This method wor
 * you use `row_order` on one of supported sources like `sql_database` or `filesystem`.
 
 Below we go for the second option and load data from messages table that we order on `created_at` column.
+
 ```py
 import dlt
 from dlt.sources.sql_database import sql_table
@@ -270,6 +276,7 @@ messages = sql_table(
 while not pipeline.run(messages.add_limit(max_time=60)).is_empty:
     pass
 ```
+
 Note how we combine `incremental` and `add_limit` to generate chunk each minute. If you create and index on `created_at`, the database
 engine will be able to stream data using the index without the need to scan the whole table.
 
@@ -488,6 +495,7 @@ def my_resource():
 Consider the example below for reading incremental loading parameters from "config.toml". We create a `generate_incremental_records` resource that yields "id", "idAfter", and "name". This resource retrieves `cursor_path` and `initial_value` from "config.toml".
 
 1. In "config.toml", define the `cursor_path` and `initial_value` as:
+
    ```toml
    # Configuration snippet for an incremental resource
    [pipeline_with_incremental.sources.id_after]
@@ -498,6 +506,7 @@ Consider the example below for reading incremental loading parameters from "conf
    `cursor_path` is assigned the value "idAfter" with an initial value of 10.
 
 1. Here's how the `generate_incremental_records` resource uses the `cursor_path` defined in "config.toml":
+
    ```py
    @dlt.resource(table_name="incremental_records")
    def generate_incremental_records(id_after: dlt.sources.incremental = dlt.config.value):
@@ -511,6 +520,7 @@ Consider the example below for reading incremental loading parameters from "conf
 
    pipeline.run(generate_incremental_records)
    ```
+
    `id_after` incrementally stores the latest `cursor_path` value for future pipeline runs.
 
 ## Loading when incremental cursor path is missing or value is None/NULL
@@ -522,6 +532,7 @@ When loading incrementally with the default settings, there are two assumptions:
 2. Each row is expected to contain a value at the cursor path that is not `None`.
 
 For example, the two following source data will raise an error:
+
 ```py
 @dlt.resource
 def some_data_without_cursor_path(updated_at=dlt.sources.incremental("updated_at")):
@@ -551,6 +562,7 @@ To process a data set where some records do not include the incremental cursor p
 4. Before the incremental processing begins: Ensure that the incremental field is present and transform the values at the incremental cursor to a value different from `None`. [See docs below](#transform-records-before-incremental-processing)
 
 Here is an example of including rows where the incremental cursor value is missing or `None`:
+
 ```py
 @dlt.resource
 def some_data(updated_at=dlt.sources.incremental("updated_at", on_cursor_value_missing="include")):

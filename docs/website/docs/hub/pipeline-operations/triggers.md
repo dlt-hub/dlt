@@ -152,6 +152,7 @@ dlthub run backfill --refresh    # explicit refresh on a single job
 ```
 
 Note that the refresh signal will not drop your data automatically, you should use one of the [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
+
 ```py notype
 @run.pipeline(
     "report_pipeline",
@@ -165,6 +166,7 @@ def build_report(run_context: TJobRunContext):
         refresh="drop_data" if run_context["refresh"] else None
     )
 ```
+
 Above we tell `dlt` to truncate all tables belonging to resources in `data_source()` if the refresh signal got passed in the `refresh` flag.
 
 ## Tags and bulk triggering

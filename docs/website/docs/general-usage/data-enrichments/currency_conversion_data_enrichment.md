@@ -189,6 +189,7 @@ API token.
             "rate_last_updated": currency_pair_state["last_update"],
         }
     ```
+
 1. Next, follow the instructions in
    [Destinations](../../dlt-ecosystem/destinations/duckdb.md) to add credentials for
    your chosen destination. This will ensure that your data is properly routed to its final

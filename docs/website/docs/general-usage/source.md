@@ -129,17 +129,21 @@ Find more on sampling data [here](resource.md#sample-from-large-data).
 ### Rename the source
 dlt allows you to rename the source i.e. to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
 my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["table_1"])
 print(my_db.name)
 ```
+
 Here we create a renamed version of the `sql_database` and then instantiate it. You can configure it using a compact layout with just the source name:
+
 ```toml
 [sources.my_db.credentials]
 password="..."
 ```
+
 The full path `sources.my_db.my_db.credentials` is also supported and takes precedence if both are present. See [how dlt looks for values](credentials/setup.md#how-dlt-looks-for-values) for details.
 
 ### Add more resources to existing source
@@ -171,6 +175,7 @@ source.deal_scores = source.deals | deal_scores
 # or
 source.resources["deal_scores"] = source.deals | deal_scores
 ```
+
 :::note
 When adding a resource to the source, dlt clones the resource so your existing instance is not affected.
 :::
@@ -212,7 +217,9 @@ You can directly configure the `max_table_nesting` parameter on the resource lev
 def my_resource():
     ...
 ```
+
 or
+
 ```py
 source.my_resource.max_table_nesting = 0
 ```

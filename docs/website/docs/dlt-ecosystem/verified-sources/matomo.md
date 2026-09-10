@@ -88,6 +88,7 @@ To get started with your data pipeline, follow these steps:
    site_id = 0 # please set me up!
    live_events_site_id = 0 # please set me up!
    ```
+
 1. Replace the value of `url` and `site_id` with the one that [you copied above](matomo.md#grab-credentials).
 
 1. To monitor live events on a website, enter the `live_event_site_id` (usually it is the same as `site_id`).
@@ -97,17 +98,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python matomo_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `matomo`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -262,6 +269,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(data_reports)
    print(load_info)
    ```
+
    > "site_id" defined in ".dlt/config.toml"
 
 1. To load custom data from reports using queries.
@@ -283,6 +291,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
+
    > You can pass queries and site_id in the ".dlt/config.toml" as well.
 
 1. To load data from reports and visits.

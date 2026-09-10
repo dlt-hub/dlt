@@ -79,6 +79,7 @@ from dlt.sources.credentials import AzureCredentials
 The `ConnectionStringCredentials` class handles connection string credentials for SQL database connections. It includes attributes for the driver name, database name, username, password, host, port, and additional query parameters. This class provides methods for parsing and generating connection strings.
 
 #### Usage
+
 ```py
 from dlt.common.configuration.specs import ConnectionStringCredentials
 
@@ -102,6 +103,7 @@ credentials.parse_native_representation(native_value)
 # Get a URL representation of the connection
 url_representation = credentials.to_url()
 ```
+
 Above, you can find an example of how to use this spec with sources and TOML files.
 
 ### OAuth2Credentials
@@ -109,6 +111,7 @@ Above, you can find an example of how to use this spec with sources and TOML fil
 The `OAuth2Credentials` class handles OAuth 2.0 credentials, including client ID, client secret, refresh token, and access token. It also allows for the addition of scopes and provides methods for client authentication.
 
 Usage:
+
 ```py
 from dlt.common.configuration.specs import OAuth2Credentials
 
@@ -168,7 +171,9 @@ gcp_credentials = GcpServiceAccountCredentials()
 gcp_native_value = {"private_key": ".."} # or "path/to/services.json"
 gcp_credentials.parse_native_representation(gcp_native_value)
 ```
+
 or more preferred use:
+
 ```py
 import dlt
 from dlt.sources.credentials import GcpServiceAccountCredentials
@@ -188,7 +193,9 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
+
 while `secrets.toml` looks as follows:
+
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -196,7 +203,9 @@ client_secret = "client_secret" # please set me up!
 refresh_token = "refresh_token" # please set me up!
 project_id = "project_id" # please set me up!
 ```
+
 and `config.toml`:
+
 ```toml
 [sources.google_analytics]
 property_id = "213025502"
@@ -219,7 +228,9 @@ oauth_credentials = GcpOAuthCredentials()
 native_value_oauth = {"client_secret": ...}
 oauth_credentials.parse_native_representation(native_value_oauth)
 ```
+
 Or more preferred use:
+
 ```py notype
 import dlt
 from dlt.sources.credentials import GcpOAuthCredentials
@@ -241,7 +252,9 @@ def google_analytics(
     credentials_str = str(credentials)
     ...
 ```
+
 While `secrets.toml` looks as follows:
+
 ```toml
 [sources.google_analytics.credentials]
 client_id = "client_id" # please set me up!
@@ -249,7 +262,9 @@ client_secret = "client_secret" # please set me up!
 refresh_token = "refresh_token" # please set me up!
 project_id = "project_id" # please set me up!
 ```
+
 And `config.toml`:
+
 ```toml
 [sources.google_analytics]
 property_id = "213025502"
@@ -296,6 +311,7 @@ gcp_credentials.parse_native_representation(native)
 The `AwsCredentials` class is responsible for handling AWS credentials, including access keys, session tokens, profile names, region names, and endpoint URLs. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a botocore session.
 
 #### Usage
+
 ```py
 from dlt.common.configuration.specs import AwsCredentials
 
@@ -305,7 +321,9 @@ aws_credentials.aws_access_key_id = "ACCESS_KEY_ID"
 aws_credentials.aws_secret_access_key = "SECRET_ACCESS_KEY"
 aws_credentials.region_name = "us-east-1"
 ```
+
 or
+
 ```py
 # Imports an external botocore session and sets the credentials properties accordingly.
 import botocore.session
@@ -316,7 +334,9 @@ session = botocore.session.get_session()
 aws_credentials.parse_native_representation(session)
 print(aws_credentials.aws_access_key_id)
 ```
+
 or more preferred use:
+
 ```py notype
 @dlt.source
 def aws_readers(
@@ -333,14 +353,18 @@ def aws_readers(
     print(aws_credentials.access_key)
     ...
 ```
+
 while `secrets.toml` looks as follows:
+
 ```toml
 [sources.aws_readers.credentials]
 aws_access_key_id = "key_id"
 aws_secret_access_key = "access_key"
 region_name = "region"
 ```
+
 and `config.toml`:
+
 ```toml
 [sources.aws_readers]
 bucket_url = "bucket_url"
@@ -385,13 +409,16 @@ This is the way to force a specific local or dev identity for consumers that wou
 The `AzureCredentials` class is responsible for handling Azure Blob Storage credentials, including account name, account key, Shared Access Signature (SAS) token, and SAS token permissions. It inherits the ability to manage default credentials and extends it with methods for handling partial credentials and converting credentials to a format suitable for interacting with Azure Blob Storage using the adlfs library.
 
 #### Usage
+
 ```py notype
 az_credentials = AzureCredentials()
 # Set the necessary attributes
 az_credentials.azure_storage_account_name = "ACCOUNT_NAME"
 az_credentials.azure_storage_account_key = "ACCOUNT_KEY"
 ```
+
 or more preferred use:
+
 ```py notype
 @dlt.source
 def azure_readers(
@@ -410,13 +437,17 @@ def azure_readers(
     # to_native_credentials() is not yet implemented
     ...
 ```
+
 while `secrets.toml` looks as follows:
+
 ```toml
 [sources.azure_readers.credentials]
 azure_storage_account_name = "account_name"
 azure_storage_account_key = "account_key"
 ```
+
 and `config.toml`:
+
 ```toml
 [sources.azure_readers]
 bucket_url = "bucket_url"

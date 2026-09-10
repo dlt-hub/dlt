@@ -82,6 +82,7 @@ To get started with your data pipeline, follow these steps:
    [sources.stripe_analytics]
    stripe_secret_key = "stripe_secret_key"# please set me up!
    ```
+
 1. Substitute "stripe_secret_key" with the value [you copied above](#grab-credentials) for secure access to your Stripe resources.
 
 1. Finally, enter credentials for your chosen destination as per the [docs](../destinations/).
@@ -126,6 +127,7 @@ ENDPOINTS = ("Subscription", "Account", "Coupon", "Customer", "Invoice", "Produc
 # The incremental endpoints default to Stripe API endpoints with uneditable data.
 INCREMENTAL_ENDPOINTS = ("Event", "BalanceTransaction")
 ```
+
 >Stripe's default API endpoints miss the "updated" key, triggering 'replace' mode. Use incremental endpoints for incremental loading.
 
 ### Source `stripe_source`
@@ -168,6 +170,7 @@ def incremental_stripe_source(
 ) -> Iterable[DltResource]:
    ...
 ```
+
 `endpoints`: Tuple containing incremental endpoint names.
 
 `initial_start_date`: Parameter for incremental loading; data after the initial_start_date is loaded on the first run (default: None).
@@ -222,6 +225,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
     load_info = pipeline.run(source_incremental)
     print(load_info)
     ```
+
     > For subsequent runs, the source remembers the `created` timestamp of the last loaded record and retrieves only newer records, in append mode.
 
 1. To load data created after December 31, 2022, adjust the data range for stripe_source to prevent redundant loading. For `incremental_stripe_source`, the last loaded `created` timestamp from the previous run is used automatically.
@@ -237,6 +241,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
     load_info = pipeline.run(data=[source_single, source_incremental])
     print(load_info)
     ```
+
     > To load data, maintain the pipeline name and destination dataset name. The pipeline name is vital for accessing the last run's [state](../../general-usage/state), which determines the incremental data load's end date. Altering these names can trigger a [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting the metadata (state) tracking for [incremental data loading](../../general-usage/incremental-loading).
 
 <!--@@@DLT_TUBA stripe_analytics-->
