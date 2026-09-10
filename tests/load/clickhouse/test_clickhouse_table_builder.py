@@ -73,6 +73,13 @@ def test_clickhouse_create_table(clickhouse_client: ClickHouseClient) -> None:
     assert "`col11_precision` String" in sql
 
 
+def test_clickhouse_create_table_is_idempotent(clickhouse_client: ClickHouseClient) -> None:
+    # every table, not just dlt's internal ones, so that pipelines loading concurrently into the
+    # same dataset don't collide with "Code: 57 ... Table already exists"
+    sql = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    assert sql.strip().startswith("CREATE TABLE IF NOT EXISTS")
+
+
 def test_clickhouse_alter_table(clickhouse_client: ClickHouseClient) -> None:
     statements = clickhouse_client._get_table_update_sql("event_test_table", TABLE_UPDATE, True)
     assert len(statements) == 1
