@@ -3,6 +3,7 @@ title: Troubleshooting incremental loading
 description: Common issues and how to fix them
 keywords: [incremental loading, troubleshooting]
 ---
+# Troubleshooting incremental loading
 
 If you see that the incremental loading is not working as expected and the incremental values are not modified between pipeline runs, check the following:
 
@@ -63,11 +64,11 @@ sources:
 
 Verify that the `last_value` is updated between pipeline runs.
 
-### Type mismatch errors
+## Type mismatch errors
 
 If you encounter an `IncrementalCursorInvalidCoercion` error, it typically means the `initial_value` type does not match the data type of the field in your source data.
 
-#### Example
+### Example
 
 This fails because the `initial_value` is an integer, but the `created_at` values are string-formatted timestamps:
 

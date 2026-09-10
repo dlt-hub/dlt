@@ -3,7 +3,6 @@ title: "Destination: Delta"
 description: Delta destination
 keywords: [delta, delta lake]
 ---
-
 # Delta
 
 :::note
@@ -160,6 +159,7 @@ Partition evolution (changing partition columns after a table has been created) 
 :::
 
 ## Table access helper functions
+
 You can use the `get_delta_tables` helper functions to access the native [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects.
 
 ```py
@@ -178,6 +178,7 @@ delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
 ```
 
 ## Table format
+
 The Delta destination automatically assigns the `delta` table format to all resources that it will load. You can still fall back to storing files by setting `table_format` to native on the resource level:
 
   ```py
@@ -191,6 +192,7 @@ The Delta destination automatically assigns the `delta` table format to all reso
   ```
 
 ## Storage options and configuration
+
 You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
 `destination.filesystem.deltalake_configuration`:
 

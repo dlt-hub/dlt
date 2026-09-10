@@ -2,6 +2,7 @@
 title: dbt model generator
 description: Generate dbt models automatically
 ---
+# dbt model generator
 
 The **dbt generator** creates scaffolding for dbt projects using data ingested by dlt. It analyzes the pipeline schema and automatically generates staging and fact dbt models. By integrating with dlt-configured destinations, it automates code creation and supports incremental loading, ensuring that only new records are processed in both the ingestion and transformation layers.
 
@@ -232,4 +233,3 @@ The generated dbt project uses these load IDs to process data incrementally. To 
 
 - `<pipeline_name>_dlt_active_load_ids`: At the start of each dbt run, this table is populated with all load IDs that were successful and have not yet been processed in previous dbt runs, referred to as active load IDs. The staging tables are then populated only with rows associated with these active load IDs.
 - `<pipeline_name>_dlt_processed_load_ids`: At the end of each dbt run, the active load IDs are recorded in this table, along with a timestamp. This allows you to track when each load ID was processed.
-

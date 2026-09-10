@@ -3,7 +3,6 @@ title: Review dlt schema
 description: View your dlt schema via files, CLI, static and interactive diagram
 keywords: [schema, dataset, view, dbml, graphviz]
 ---
-
 # Review dlt schema
 
 During the first `dlt.Pipeline` run, dlt produces a `dlt.Schema` from the data processed. This schema tells how data was stored on destination. 
@@ -21,6 +20,7 @@ For review, testing, data validation, documentation, etc. you can get a read-onl
 
 
 ## Export to `dict`
+
 Export to a Python dictionary. This is ideal for programmatic use (data validation, testing, manipulating metadata).
 
 The conversion is lossless and allows you to reconstruct the `dlt.Schema` object. This is not available via the CLI.
@@ -214,6 +214,7 @@ schema_dict = pipeline.default_schema.to_dict()
 
 
 ## Export to JSON
+
 Export to a JSON string. This is useful for passing between services, store to a file, or add to documentation. The conversion is lossless.
 
 ```py
@@ -498,6 +499,7 @@ dlt pipeline chess_pipeline schema --format json
 
 
 ## Export to YAML
+
 Export to a YAML string. It serves the same purposes a JSON export. The conversion is lossless.
 
 ```py
@@ -709,6 +711,7 @@ previous_hashes:
 </details>
 
 ## Export to DBML
+
 [DBML (Database Markup Language)](https://dbml.dbdiagram.io/home) is an open-source DSL to define and document database schemas and structures. Exporting your `dlt.Schema` to DBML, allows you to view it in a DBML frontend such as [dbdiagram.io](https://dbdiagram.io/), [chartdb.io](https://chartdb.io/), or [VSCode extensions](https://marketplace.visualstudio.com/items?itemName=bocovo.dbml-erd-visualizer).
 
 Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a DBML schema. However, this is a planned feature!
@@ -837,6 +840,7 @@ TableGroup "_dlt" {
 
 
 ## Export to Graphviz
+
 [Graphviz](https://www.graphviz.org/) is an open source graph visualization engine which uses the [DOT language](https://graphviz.org/doc/info/lang.html). dlt allows you to export your `dlt.Schema` as DOT string, which can be rendered using the Python `graphviz` library, lightweight JS libraries (e.g., [d3-graphviz](https://github.com/magjac/d3-graphviz)), or IDE extensions.
 
 Note that the conversion is lossy. You can't fully recreate `dlt.Schema` from a DOT string.

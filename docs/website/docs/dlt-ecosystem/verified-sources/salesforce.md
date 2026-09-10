@@ -3,9 +3,9 @@ title: Salesforce
 description: dlt pipeline for Salesforce API
 keywords: [salesforce api, salesforce pipeline, salesforce]
 ---
-import Header from './_source-info-header.md';
-
 # Salesforce
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -143,7 +143,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-### Source `salesforce_source`:
+### Source `salesforce_source`
 
 This function returns a list of resources to load users, user_role, opportunity,
 opportunity_line_item, account, etc., data from the Salesforce API.
@@ -167,7 +167,7 @@ def salesforce_source(
 
 - `security_token`: Token for Salesforce API authentication, configured in ".dlt/secrets.toml".
 
-### Resource `sf_user` (replace mode):
+### Resource `sf_user` (replace mode)
 
 This resource function retrieves records from the Salesforce "User" endpoint.
 
@@ -188,7 +188,7 @@ destination.
 The described functions fetch records from endpoints based on their names, e.g., user_role() accesses
 the "user_role" endpoint.
 
-### Resource `opportunity` (incremental loading):
+### Resource `opportunity` (incremental loading)
 
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.

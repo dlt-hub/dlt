@@ -3,7 +3,6 @@ title: Deploy with Prefect
 description: How to deploy a pipeline with Prefect
 keywords: [how to, deploy a pipeline, Prefect]
 ---
-
 # Deploy with Prefect
 
 ## Introduction to Prefect
@@ -29,7 +28,7 @@ Prefect is a workflow orchestration and observability platform that automates an
 
 Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Moving Slack data into BigQuery" as an example. You can find a comprehensive, step-by-step guide in the article [“Building resilient data pipelines in minutes with dlt + Prefect”,](https://www.prefect.io/blog/building-resilient-data-pipelines-in-minutes-with-dlt-prefect) and the corresponding GitHub repository [here.](https://github.com/dylanbhughes/dlt_slack_pipeline/blob/main/slack_pipeline_with_prefect.py)
 
-### Here's a summary of the steps followed:
+### Here's a summary of the steps followed
 
 1. Create a `dlt` pipeline. For detailed instructions on creating a pipeline, please refer to the [documentation](../../tutorial/load-data-from-an-api.md).
 
@@ -70,4 +69,3 @@ You can further extend the pipeline by:
 - Setting up [remote infrastructure with workers](https://docs.prefect.io/latest/tutorial/workers/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08).
 - [Adding automations](https://docs.prefect.io/latest/concepts/automations/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08) to notify the status of the pipeline run.
 - [Setting up retries](https://docs.prefect.io/latest/concepts/tasks/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08#custom-retry-behavior).
-

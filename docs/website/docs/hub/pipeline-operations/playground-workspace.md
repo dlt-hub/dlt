@@ -3,7 +3,6 @@ title: The Playground workspace
 description: What the Playground workspace is, when to use it, and when to create a dedicated workspace instead.
 keywords: [playground, workspace, onboarding, dlthub platform, profiles]
 ---
-
 # The Playground workspace
 
 ## What is the Playground workspace?

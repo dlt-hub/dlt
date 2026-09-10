@@ -3,7 +3,6 @@ title: Athena
 description: AWS Athena `dlt` destination
 keywords: [aws, athena, glue catalog]
 ---
-
 # AWS Athena
 
 The Athena destination stores data as Parquet files in S3 buckets and creates [external tables in AWS Athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with Athena SQL commands, which will scan the entire folder of Parquet files and return the results. This destination works very similarly to other SQL-based destinations, with the exception that the merge write disposition is not supported at this time. The `dlt` metadata will be stored in the same bucket as the Parquet files, but as iceberg tables. Athena also supports writing individual data tables as Iceberg tables, so they may be manipulated later. A common use case would be to strip GDPR data from them.
@@ -11,13 +10,15 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 <!--@@@DLT_DESTINATION_CAPABILITIES athena-->
 
 ## Install dlt with Athena
-**To install the dlt library with Athena dependencies:**
+
+To install the dlt library with Athena dependencies:
 
 ```sh
 pip install "dlt[athena]"
 ```
 
 ## Setup guide
+
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new `dlt` project as follows:
@@ -157,6 +158,7 @@ db_location="s3://[your_bucket_name]" # replace with your bucket name
 ```
 
 ## S3 Tables
+
 The `athena` destination supports storing data in an [S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables.html) bucket by setting an S3 Tables Catalog:
 
 ```toml
@@ -192,6 +194,7 @@ Data loading occurs by storing parquet files in an S3 bucket and defining a sche
 `dlt` internal tables are saved as Iceberg tables.
 
 ### Data types
+
 Athena tables store timestamps with millisecond precision, and with that precision, we generate parquet files. Keep in mind that Iceberg tables have microsecond precision.
 
 Athena does not support JSON fields, so JSON is stored as a string.

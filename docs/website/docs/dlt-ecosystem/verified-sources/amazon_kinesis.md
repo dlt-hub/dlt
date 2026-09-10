@@ -3,9 +3,9 @@ title: Amazon Kinesis
 description: dlt verified source for Amazon Kinesis
 keywords: [amazon kinesis, verified source]
 ---
-import Header from './_source-info-header.md';
-
 # Amazon Kinesis
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

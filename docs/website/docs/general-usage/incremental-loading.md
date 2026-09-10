@@ -3,7 +3,6 @@ title: Incremental loading
 description: Introduction to incremental loading with dlt
 keywords: [incremental loading, loading methods]
 ---
-
 # Incremental loading
 
 Incremental loading is the act of loading only new or changed data and not old records that we have already loaded. It enables low-latency and low-cost data transfer.
@@ -12,7 +11,7 @@ The challenge of incremental pipelines is that if we do not keep track of the st
 
 ## Choosing a write disposition
 
-### The 3 write dispositions:
+### The 3 write dispositions
 
 - **Full load**: replaces the destination dataset with whatever the source produced on this run. To achieve this, use `write_disposition='replace'` in your resources. Learn more in the [full loading docs](./full-loading.md).
 

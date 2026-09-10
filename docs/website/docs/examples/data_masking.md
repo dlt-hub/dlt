@@ -3,8 +3,7 @@ title: Data masking for SQL database sources
 description: Learn how to mask sensitive columns using closures that work with all sql_database backends
 keywords: [data masking, pseudonymize, anonymize, sql_database, example]
 ---
-
-## About this Example
+# Data masking for SQL database sources
 
 This example shows how to build a reusable column-masking function for the
 `sql_database` source. The function uses a closure to capture masking

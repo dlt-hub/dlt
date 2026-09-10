@@ -3,7 +3,6 @@ title: Deploy with Google Cloud Run
 description: Step-by-step guide on deploying a pipeline with Google Cloud Run.
 keywords: [how to, deploy a pipeline, Cloud Run]
 ---
-
 # Deploy a pipeline with Google Cloud Run
 
 This guide explains how to deploy a pipeline using the gcloud shell and dlt CLI commands. To deploy a pipeline using this method, you must have a working knowledge of GCP and its associated services, such as Cloud Run jobs, IAM and permissions, and GCP service accounts.
@@ -55,10 +54,11 @@ gcloud run jobs deploy notion-pipeline-job \
 > Your project has a default service account associated with the project ID. Please assign the `roles/run.invoker` role to the associated service account.
 
 ## 3. Setting up environment variables in Cloud Run
+
 Do not add secrets directly to the "secrets.toml" file, as it will be included in the deployed container for executing the job. Instead, use environment variables or Google Secrets Manager, as described below.
 Environment variables can be set in Cloud Run in two ways:
 
-#### 3a. Directly in the function:
+### 3a. Directly in the function
 
 - Go to the Google Cloud Run job and select the deployed function. Click "VIEW AND EDIT JOB CONFIGURATION".
 - In the "CONTAINERS" > "VARIABLE AND SECRETS" > "ADD VARIABLE".
@@ -68,7 +68,7 @@ Environment variables can be set in Cloud Run in two ways:
 - Enter the value for the Notion API key.
 - Click "Done" and update the function.
 
-#### 3b. Use GCP Secret Manager:
+#### 3b. Use GCP Secret Manager
 
 - Go to the Google Cloud Run job and select the deployed function. Click "VIEW AND EDIT JOB CONFIGURATION".
 - In the "Containers" > "VARIABLE AND SECRETS" > "ADD VARIABLE".
@@ -89,4 +89,3 @@ Environment variables can be set in Cloud Run in two ways:
 To manually trigger the job, click "EXECUTE". You can also set up a scheduled trigger to automate runs.
 
 That's it! Have fun using dlt in Google Cloud Run!
-

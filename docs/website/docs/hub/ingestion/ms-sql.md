@@ -3,7 +3,6 @@ title: "Source: MS SQL replication"
 description: MS SQL replication
 keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
-
 # MS SQL replication
 
 :::note

@@ -3,7 +3,6 @@ title: Transform data in Python with Arrow tables or DataFrames
 description: Transforming data loaded by a dlt pipeline with Pandas or Polars DataFrames and Arrow tables
 keywords: [transform, pandas, polars, arrow]
 ---
-
 # Transform data in Python with Arrow tables or DataFrames
 
 You can transform your data in Python using Pandas DataFrames, Arrow tables, or Polars DataFrames. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).

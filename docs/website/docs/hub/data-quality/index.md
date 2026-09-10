@@ -3,6 +3,7 @@ title: "Data quality"
 description: Validate your data and control its quality
 keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
+# Overview
 
 :::warning
 This feature is in public preview
@@ -17,6 +18,7 @@ This page covers the basics of metrics and checks. You should notice a lot of sy
 A **data quality metric** or **metric** a function applied to data that returns a scalar value describing a property of the data. A metric can take as input a column, a table, or the full dataset (i.e., all tables and historical metrics).
 
 ### Define metrics
+
 #### Static
 
 You can define metrics along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_metrics`. It's available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
@@ -189,6 +191,7 @@ latest_row_count = latest["metric_value"].iloc[0]
 ```
 
 ## Checks
+
 A **data quality check** or **check** is a function applied to data that returns a **check result** or **result** (can be boolean, integer, float, etc.). The result is converted to a success / fail **check outcome** or **outcome** (boolean) based on a **decision**.
 
 :::info
@@ -196,6 +199,7 @@ A **test** verifies that **code** behaves as expected. A **check** verifies that
 :::
 
 ### Define checks
+
 #### Static
 
 You can define checks along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_checks` available under the `dlt.hub.data_quality` module. Inside the decorator, you can set the individual checks available through `dq.checks.`.
@@ -335,6 +339,7 @@ payment_checks = all_checks[
 ```
 
 ## Lifecycle
+
 Data quality (both metrics and checks) can be executed at different stages of the pipeline lifecycle. This impacts several aspects including:
 - available **input data**
 - compute resources used
@@ -343,6 +348,7 @@ Data quality (both metrics and checks) can be executed at different stages of th
 <!--How does this affect transactions? How do we handle errors in the data quality part-->
 
 ### Post-load
+
 The post-load execution is the simplest option. The pipeline goes through `Extract -> Normalize -> Load` as usual. Then, the checks are executed on the destination.
 
 Properties:
@@ -364,6 +370,7 @@ sequenceDiagram
 ```
 
 ### Pre-load (staging)
+
 :::warning
 Work in progress. Currently unavailable.
 :::
@@ -401,6 +408,7 @@ sequenceDiagram
 
 
 ### Pre-load (in-memory)
+
 :::warning
 Work in progress. Currently unavailable.
 :::
@@ -430,6 +438,7 @@ sequenceDiagram
 ```
 
 ## Roadmap
+
 - Define checks that depend on metrics (this should reduce verbosity)
 - Support user-defined group-by metrics
 - Support completely custom checks via `@dlt.hub.transformation` (for example, SQL, SQLGlot, Ibis, Narwhals, Polars)

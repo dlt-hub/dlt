@@ -3,6 +3,7 @@ title: Schema contract
 description: Controlling schema evolution and validating data
 keywords: [data contracts, schema, dlt schema, pydantic]
 ---
+# Schema contract
 
 `dlt` will evolve the schema at the destination by following the structure and data types of the extracted data. There are several modes
 that you can use to control this automatic schema evolution, from the default modes where all changes to the schema are accepted to
@@ -18,7 +19,8 @@ def items():
 
 This resource will allow new tables (both nested tables and [tables with dynamic names](resource.md#dispatch-data-to-many-tables)) to be created, but will throw an exception if data is extracted for an existing table which contains a new column.
 
-### Setting up the contract
+## Setting up the contract
+
 You can control the following **schema entities**:
 * `tables` - the contract is applied when a new table is created
 * `columns` - the contract is applied when a new column is created on an existing table
@@ -37,7 +39,8 @@ The default mode (**evolve**) works as follows:
 3. Data that do not coerce to the existing data type of a particular column will be sent to a [variant column](schema.md#variant-columns) created for this particular type.
 :::
 
-#### Passing the schema_contract argument
+### Passing the schema_contract argument
+
 The `schema_contract` exists on the [dlt.source](source.md) decorator as a default for all resources in that source and on the
 [dlt.resource](source.md) decorator as a directive for the individual resource - and as a consequence - on all tables created by this resource.
 Additionally, it exists on the `pipeline.run()` method, which will override all existing settings.
@@ -56,6 +59,7 @@ You can change the contract on the **source** instance via the `schema_contract`
 
 
 #### Nuances of contract modes
+
 1. Contracts are applied **after names of tables and columns are normalized**.
 2. A contract defined on a resource is applied to all root tables and nested tables created by that resource.
 3. `discard_row` works on the table level. For example, if you have two tables in a nested relationship, i.e., *users* and *users__addresses*, and the contract is violated in the *users__addresses* table, the row of that table is discarded while the parent row in the *users* table will be loaded.
@@ -226,6 +230,7 @@ Here's how `dlt` deals with column modes:
 4. **freeze** an exception on a new column.
 
 ### Get context from DataValidationError in freeze mode
+
 When a contract is violated in freeze mode, `dlt` raises a `DataValidationError` exception. This exception provides access to the full context and passes the evidence to the caller.
 As with any other exception coming from a pipeline run, it will be re-raised via a `PipelineStepFailed` exception, which you should catch in an except block:
 
@@ -249,6 +254,7 @@ except PipelineStepFailed as pip_ex:
 5. `data_item` is the causing data item (Python dict, arrow table, Pydantic model, or list thereof).
 
 ### Contracts on new tables
+
 If a table is a **new table** that has not been created on the destination yet, dlt will allow the creation of new columns. For a single pipeline run, the column mode is changed (internally) to **evolve** and then reverted back to the original mode. This allows for initial schema inference to happen, and then on subsequent runs, the inferred contract will be applied to the new data.
 
 The following tables are considered new:

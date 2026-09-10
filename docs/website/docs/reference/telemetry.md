@@ -3,7 +3,6 @@ title: Telemetry
 description: Anonymous usage information with dlt telemetry
 keywords: [telemetry, usage information, opt out]
 ---
-
 # Telemetry
 
 `dlt` collects and reports **anonymous** usage information. This information is essential to figuring out how we should improve the library. Telemetry does not send any personal data. We create a random tracking cookie that is stored in your `~/.dlt` directory. You can disable telemetry at any moment or send it to your own servers instead.

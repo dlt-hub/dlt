@@ -3,7 +3,6 @@ title: How to add credentials
 description: How to add credentials locally and in production
 keywords: [credentials, secrets.toml, environment variables]
 ---
-
 # How to add credentials
 
 ## Adding credentials locally
@@ -100,6 +99,7 @@ list_secrets=true
 ```
 
 ### Allow to list secrets and use toml fragments to reduce calls to backend
+
 We recommend enabling `list_secrets` to obtain a list of possible keys and avoid calls to the backends. We also recommend
 to store configuration fragments, not single values to reduce the number of calls. Vault provider is able to fetch such fragments
 and combine them into full configuration on the fly.
@@ -155,6 +155,7 @@ reduces number of calls to backend (which cost money) but will also not pick up 
 :::
 
 ### Access secrets without list secrets permissions
+
 Following settings will skip listing secrets and still minimize number of backend calls:
 
 ```toml
@@ -174,5 +175,6 @@ to Secrets backend.
 :::
 
 ## Retrieving credentials from other vault types
+
 Subclass `VaultDocProvider` and implement methods to fetch a secret and (optionally) to list secrets then
 [register subclass as custom provider](../examples/custom_config_provider).

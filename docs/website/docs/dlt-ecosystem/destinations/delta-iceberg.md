@@ -3,11 +3,12 @@ title: Delta Lake
 description: Delta dlt destination
 keywords: [delta, destination, data warehouse]
 ---
-
 # Delta table format
+
 dlt supports writing [Delta](https://delta.io/) tables when using the [filesystem](./filesystem.md) destination.
 
 ## How it works
+
 dlt uses the [deltalake](https://pypi.org/project/deltalake/) library to write Delta tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `deltalake`.
 
 ## Delta dependencies
@@ -45,6 +46,7 @@ dlt always uses Parquet as `loader_file_format` when using the `delta` table for
 :::
 
 ## Table format partitioning
+
 Delta tables can be partitioned by specifying one or more `partition` column hints. This example partitions a Delta table by the `foo` column:
 
 ```py
@@ -65,6 +67,7 @@ Partition evolution (changing partition columns after a table has been created) 
 :::
 
 ## Table access helper functions
+
 You can use the `get_delta_tables` helper function to access native table objects. These are `deltalake` [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects.
 
 ```py
@@ -81,6 +84,7 @@ delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
 ```
 
 ## Table truncation
+
 When dlt truncates a Delta table — with [`refresh="drop_data"`](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) or for tables in a `replace` chain that receive no data — it runs a transactional delete that commits a new table version with no rows. The table, its schema, and version history stay intact, so readers are never exposed to a partially deleted table. Physical Parquet files are retained for time travel until you run `vacuum`.
 
 ## Google Cloud Storage authentication
@@ -92,6 +96,7 @@ Note that not all authentication methods are supported when using Delta table fo
 - [OAuth](../destinations/bigquery.md#oauth-20-authentication) - ❌ Not supported
 
 ## Table format `merge` support
+
 The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies are supported for `delta`.
 
 ```py
@@ -105,6 +110,7 @@ def my_upsert_resource():
 ```
 
 ### Known limitations
+
 - `hard_delete` hint not supported
 - Deleting records from nested tables not supported
   - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
@@ -117,6 +123,7 @@ deltalake_streamed_exec = false
 ```
 
 ## Delta table format storage options and configuration
+
 You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
 `destination.filesystem.deltalake_configuration`:
 

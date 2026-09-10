@@ -3,7 +3,6 @@ title: Qdrant
 description: Qdrant is a high-performance vector search engine/database that can be used as a destination in dlt.
 keywords: [qdrant, vector database, destination, dlt]
 ---
-
 # Qdrant
 
 [Qdrant](https://qdrant.tech/) is an open-source, high-performance vector search engine/database. It deploys as an API service, providing a search for the nearest high-dimensional vectors.

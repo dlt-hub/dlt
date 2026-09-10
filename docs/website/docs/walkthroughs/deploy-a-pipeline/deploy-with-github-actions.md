@@ -3,7 +3,6 @@ title: Deploy with GitHub Actions
 description: How to deploy a pipeline with GitHub Actions
 keywords: [how to, deploy a pipeline, github actions]
 ---
-
 # Deploy a pipeline with GitHub Actions
 
 Before you can deploy a pipeline, you will need to:
@@ -29,6 +28,7 @@ python3 chess_pipeline.py # replace chess_pipeline.py with your pipeline file
 This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
+
 First, you need to add additional dependencies that the `deploy` command requires:
 
 ```sh

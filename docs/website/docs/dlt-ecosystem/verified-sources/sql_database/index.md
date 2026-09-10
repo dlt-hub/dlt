@@ -3,9 +3,9 @@ title: 30+ SQL databases
 description: PostgreSQL, MySQL, MS SQL, BigQuery, Redshift, and more
 keywords: [sql connector, sql database pipeline, sql database]
 ---
-import Header from '../_source-info-header.md';
-
 # 30+ SQL databases
+
+import Header from '../_source-info-header.md';
 
 <Header/>
 
@@ -25,7 +25,7 @@ Sources and resources that can be loaded using this verified source are:
 If you prefer to skip the tutorial and see the code example right away, check out the pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py).
 :::
 
-### Supported databases
+## Supported databases
 
 :::tip dltHub Features
 For Microsoft SQL Server change tracking support, see the [MS SQL replication](../../../hub/ingestion/ms-sql.md) docs.

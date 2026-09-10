@@ -1,12 +1,10 @@
 ---
-
 title: Databricks
 description: Databricks `dlt` destination
 keywords: [Databricks, destination, data warehouse]
-
 ---
-
 # Databricks
+
 *Big thanks to Evan Phillips and [swishbi.com](https://swishbi.com/) for contributing code, time, and a test environment.*
 
 This Databricks destination will load your data into Databricks Delta tables using one of the supported [cloud storage options](#staging-support). You can access your data using Unity Catalog.
@@ -20,7 +18,7 @@ Databricks supports both **Delta** (default) and **Apache Iceberg** table format
 
 ## Install dlt with Databricks
 
-**To install the dlt library with Databricks dependencies:**
+To install the dlt library with Databricks dependencies:
 
 ```sh
 pip install "dlt[databricks]"
@@ -222,13 +220,13 @@ os.environ["DESTINATION__DATABRICKS__CREDENTIALS__ACCESS_TOKEN"]=os.environ.get(
 
 ## Loader setup guide
 
-**1. Initialize a project with a pipeline that loads to Databricks by running**
+1. Initialize a project with a pipeline that loads to Databricks by running
 
 ```sh
 dlt init chess databricks
 ```
 
-**2. Install the necessary dependencies for Databricks by running**
+2. Install the necessary dependencies for Databricks by running
 
 ```sh
 pip install -r requirements.txt
@@ -236,7 +234,7 @@ pip install -r requirements.txt
 
 This will install dlt with the `databricks` extra, which contains the Databricks Python dbapi client.
 
-**3. Enter your credentials into `.dlt/secrets.toml`.**
+3. Enter your credentials into `.dlt/secrets.toml`.
 
 This should include your connection parameters and your authentication credentials.
 
@@ -258,6 +256,7 @@ You can find other options for specifying credentials in the [Authentication sec
 See [Staging support](#staging-support) for authentication options when `dlt` copies files from buckets.
 
 ### Using default credentials
+
 If none of auth methods above is configured, `dlt` attempts to get authorization from the Databricks workspace context. The context may
 come, for example, from a Notebook (runtime) or via standard set of env variables that Databricks Python sdk recognizes (i.e. **DATABRICKS_TOKEN** or **DATABRICKS_HOST**)
 
@@ -267,6 +266,7 @@ When `server_hostname` or `http_path` are not provided, `dlt` attempts to derive
 2. **SQL warehouse discovery** (fallback): if the cluster context is not available (e.g., running outside a notebook, or on a Shared Access Mode cluster), `dlt` looks for an available SQL warehouse. We use default warehouse id (**DATABRICKS_WAREHOUSE_ID**) if set (via env variable), or the first one on the warehouse's list.
 
 ### Session configuration
+
 `session_configuration` holds SQL configuration parameters that `dlt` passes to
 `databricks.sql.connect`. `dlt` applies them to every session it opens:
 
@@ -292,9 +292,11 @@ has no effect there. Only `spark.sql.session.timeZone` changes the session timez
 :::
 
 ## Write disposition
+
 All write dispositions are supported.
 
 ## Data loading
+
 To load data into Databricks, you must set up a staging filesystem by configuring an Amazon S3 or Azure Blob Storage bucket. Parquet is the default file format used for data uploads. As an alternative to Parquet, you can switch to using JSONL.
 
 dlt will upload the data in Parquet files (or JSONL, if configured) to the bucket and then use `COPY INTO` statements to ingest the data into Databricks.
@@ -302,6 +304,7 @@ dlt will upload the data in Parquet files (or JSONL, if configured) to the bucke
 For more information on staging, see the [Staging support](#staging-support) section below.
 
 ## Supported file formats
+
 * [Parquet](../file-formats.md#parquet) supported when staging is enabled.
 * [JSONL](../file-formats.md#jsonl) supported when staging is enabled (see limitations below).
 
@@ -535,6 +538,7 @@ os.environ["DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY"] = 
 In order to load from Google Cloud Storage stage, you must set up the credentials via a **named credential**. See below. Databricks does not allow you to pass Google Credentials explicitly in SQL statements.
 
 ### Use external locations and stored credentials
+
 `dlt` forwards bucket credentials to the `COPY INTO` SQL command by default. You may prefer to use [external locations or stored credentials instead](https://docs.databricks.com/en/sql/language-manual/sql-ref-external-locations.html#external-location) that are stored on the Databricks side.
 
 If you set up an external location for your staging path, you can tell `dlt` to use it:
@@ -562,12 +566,15 @@ bricks = dlt.destinations.databricks(staging_credentials_name="credential_x")
 ## Additional destination capabilities
 
 ### dbt support
+
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-databricks](https://github.com/databricks/dbt-databricks).
 
 ### Syncing of `dlt` state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ### Databricks user agent
+
 We enable Databricks to identify that the connection is created by `dlt`.
 Databricks will use this user agent identifier to better understand the usage patterns associated with dlt integration. The connection identifier is `dltHub_dlt`.
 
@@ -662,7 +669,7 @@ The adapter updates the DltResource with metadata about the destination column a
 
 ### Supported hints
 
-**Table-level hints:**
+Table-level hints:
 - `cluster`: Column name(s) to cluster the table by, or `"AUTO"` for automatic clustering
 - `partition`: Column name(s) to partition the table by (Note: Cannot be used together with `cluster`)
 - `table_format`: Table format - `"DELTA"` (default) or `"ICEBERG"` for Apache Iceberg tables
@@ -802,7 +809,7 @@ databricks_adapter(
 
 Databricks supports Apache Iceberg table format, which provides benefits like better schema evolution and time travel capabilities.
 
-**Important notes:**
+Important notes:
 - ICEBERG tables support the same data types as Delta tables
 - Delta Lake-specific table properties (e.g., `delta.dataSkippingStatsColumns`, `delta.appendOnly`) cannot be used with ICEBERG tables - validation occurs at load time to prevent incompatible configurations
 
@@ -886,9 +893,11 @@ databricks_adapter(
 ```
 
 ## Troubleshooting
+
 Use the following steps to avoid conflicts with Databricks' built-in Delta Live Tables (DLT) module and enable dltHub integration.
 
 ### Enable dlt on serverless (16.x)
+
 Live Tables (DLT) are not available on serverless but the import machinery that is patching DLT is still there in form of import hooks. You
 can temporarily disable this machinery to import `dlt` and use it afterwards. In a notebook cell (assuming that `dlt` is already installed):
 
@@ -919,6 +928,7 @@ print(info)
 ### Enable dlt on a cluster
 
 #### 1. Add an `init` script
+
 To ensure compatibility with the dltHub's dlt package in Databricks, add an `init` script that runs at cluster startup. This script installs the dlt package from dltHub, renames Databricks’ built-in DLT module to avoid naming conflicts, and updates internal references to allow continued use under the alias `dlt_dbricks`.
 
 1. In your Databricks workspace directory, create a new file named `init.sh` and add the following content:
@@ -957,6 +967,7 @@ The following locations have been confirmed for the two latest LTS runtime versi
 :::
 
 #### 2. Remove preloaded databricks modules in the notebook
+
 After the cluster starts, Databricks may partially import its built-in Delta Live Tables (DLT) modules, which can interfere with the dlt package from dltHub.
 
 To ensure a clean environment, add the following code at the top of your notebook:

@@ -3,7 +3,7 @@ title: Run dlt in Snowflake
 description: Run dlt in Snowflake Native App
 keywords: [snowflake, native app, dlt]
 ---
-
+# Run `dlt` in Snowflake
 
 You can run dlt within Snowflake AI Data Cloud in a few different ways.
 
@@ -27,9 +27,3 @@ You can run dlt within Snowflake AI Data Cloud in a few different ways.
 - Use **Notebook** for quick experiments.  
 - Use **SPCS** for containerized runs inside Snowflake.  
 - Use an **external runner** if your pipelines already run outside Snowflake.
-
-
-
-
-
-

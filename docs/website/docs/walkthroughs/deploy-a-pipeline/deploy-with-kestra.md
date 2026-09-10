@@ -3,7 +3,6 @@ title: Deploy with Kestra
 description: How to deploy a pipeline with Kestra
 keywords: [how to, deploy a pipeline, Kestra]
 ---
-
 # Deploy with Kestra
 
 ## Introduction to Kestra
@@ -113,4 +112,3 @@ For detailed information on these steps, please consult the `README.md` in the
   [here.](https://kestra.io/blueprints/dlt-zendesk-to-duckdb)
 - Ingest Pipedrive CRM data to BigQuery using `dlt` and schedule it to run every hour:
   [here.](https://kestra.io/blueprints/dlt-pipedrive-to-bigquery)
-

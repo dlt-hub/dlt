@@ -3,7 +3,6 @@ title: Resource
 description: Explanation of what a dlt resource is
 keywords: [resource, api endpoint, dlt.resource]
 ---
-
 # Resource
 
 ## Declare a resource
@@ -65,6 +64,7 @@ You can pass dynamic hints which are functions that take the data item as input 
 :::
 
 ### Put a contract on tables, columns, and data
+
 Use the `schema_contract` argument to tell dlt how to [deal with new tables, data types, and bad data types](schema-contracts.md). For example, if you set it to **freeze**, `dlt` will not allow for any new tables, columns, or data types to be introduced to the schema - it will raise an exception. Learn more about available contract modes [here](schema-contracts.md#setting-up-the-contract).
 
 ### Define schema of nested tables
@@ -343,6 +343,7 @@ print(list([1,2] | pokemon()))
 :::
 
 ### Declare a standalone resource
+
 A standalone resource is defined on a function that is top-level in a module (not an inner function) that accepts config and secrets values. Here `dlt.resource` just wraps the decorated function, and the user must call the wrapper to get the actual resource. Below we declare a `filesystem` resource that must be called before use.
 
 ```py
@@ -368,6 +369,7 @@ kinesis_stream = kinesis("telemetry_stream")
 `kinesis_stream` resource has a name **telemetry_stream**.
 
 ### Declare parallel and async resources
+
 You can extract multiple resources in parallel threads or with async IO.
 To enable this for a sync resource, you can set the `parallelized` flag to `True` in the resource decorator:
 
@@ -650,6 +652,7 @@ dlt’s default behavior is that it creates tables only when a resource yields d
 At the resource level, there are two ways to materialize an empty schema in the destination.
 
 #### Provide schema explicitly
+
 To create an empty table, declare the schema explicitly in one of two ways:
 
 - in the resource function with `@dlt.resource`, or
@@ -704,6 +707,7 @@ Result:
 Table `raw_events` is created with the defined schema and no rows.
 
 ### Import external files
+
 You can import external files, i.e., CSV, Parquet, and JSONL, by yielding items marked with `with_file_import`, optionally passing a table schema corresponding to the imported file. dlt will not read, parse, or normalize any names (i.e., CSV or Arrow headers) and will attempt to copy the file into the destination as is.
 
 ```py
@@ -763,6 +767,7 @@ You can sniff the schema from the data, i.e., using DuckDB to infer the table sc
 :::
 
 ### Duplicate and rename resources
+
 There are cases when your resources are generic (i.e., bucket filesystem) and you want to load several instances of it (i.e., files from different folders) into separate tables. In the example below, we use the `filesystem` source to load csvs from two different folders into separate tables:
 
 ```py

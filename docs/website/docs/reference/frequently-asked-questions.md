@@ -3,8 +3,7 @@ title: Frequently asked questions
 description: Questions asked frequently by users in technical help or github issues
 keywords: [faq, usage information, technical help]
 ---
-
-## Can I configure different nesting levels for each resource?
+# Can I configure different nesting levels for each resource?
 
 Yes, [this feature is available](../general-usage/resource.md#reduce-the-nesting-level-of-generated-tables). You can also control the nesting on a level of a particular column:
 

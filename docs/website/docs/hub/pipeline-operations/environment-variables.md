@@ -3,7 +3,6 @@ title: Environment variables
 description: Set workspace-scoped and profile-scoped environment variables for dltHub platform runs from the web app or the CLI
 keywords: [environment variables, workspace variables, secrets, profiles, CLI, hub, dltHub]
 ---
-
 # Environment variables
 
 Workspace **owners** define environment variables on a dltHub workspace. A shared workspace set applies to every run. Optional per-[profile](profiles.md) values apply when that profile is in use (for example `prod` or `access`). When a job starts, the dltHub platform merges those variables into the run’s process environment (`os.environ`).

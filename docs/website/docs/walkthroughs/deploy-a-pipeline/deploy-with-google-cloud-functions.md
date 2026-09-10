@@ -3,7 +3,6 @@ title: Deploy with Google Cloud Functions
 description: How to deploy a pipeline with Google Cloud Functions
 keywords: [how to, deploy a pipeline, Cloud Function]
 ---
-
 # Deploy a pipeline with Google Cloud Functions
 
 This guide shows you how to deploy a pipeline using the gcloud shell and dlt CLI commands. To deploy a pipeline using this method, you must have a working knowledge of GCP and its associated services, such as Cloud Functions, IAM and permissions, and GCP service accounts.
@@ -56,7 +55,7 @@ gcloud functions deploy pipeline_notion --runtime python310 \
 
 Environmental variables can be declared in the Cloud Function in two ways:
 
-#### 3a. Directly in the function:
+### 3a. Directly in the function
 
 - Go to the Google Cloud Function and select the deployed function. Click "EDIT".
 - Navigate to the "BUILD" tab and click "ADD VARIABLE" under "BUILD ENVIRONMENTAL VARIABLE".
@@ -66,7 +65,7 @@ Environmental variables can be declared in the Cloud Function in two ways:
 - Enter the value for the Notion API key.
 - Click Next and deploy the function.
 
-#### 3b. Use GCP Secret Manager:
+### 3b. Use GCP Secret Manager
 
 - Go to the Google Cloud function and select the function you deployed. Click "EDIT".
 - In the "Runtime, Build, Connections and Security Settings" section, select "Security and Images

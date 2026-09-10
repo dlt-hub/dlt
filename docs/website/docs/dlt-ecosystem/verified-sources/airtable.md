@@ -3,9 +3,9 @@ title: Airtable
 description: dlt verified source for Airtable
 keywords: [airtable api, airtable verified source, airtable]
 ---
-import Header from './_source-info-header.md';
-
 # Airtable
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

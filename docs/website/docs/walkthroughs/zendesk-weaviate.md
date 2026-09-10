@@ -3,7 +3,6 @@ title: 'Import ticket data from Zendesk API to Weaviate'
 description: How to Import Ticket Data from Zendesk API to Weaviate
 keywords: [how to, zendesk, weaviate, vector database, vector search]
 ---
-
 # How to import ticket data from Zendesk API to Weaviate
 
 Zendesk is a cloud-based customer service and support platform. Zendesk Support API, also known as the Ticketing API, lets you access support tickets data. By analyzing this data, businesses can gain insights into customer needs, behavior, trends, and make data-driven decisions. The newest type of databases, vector databases, can help in advanced analysis of tickets data such as identifying common issues and sentiment analysis.
@@ -188,4 +187,3 @@ If you are interested in learning more about Weaviate support in dlt, check out 
 
 - [Loading PDF data into Weaviate](https://github.com/dlt-hub/dlt_demos/blob/main/pdf_to_weaviate.ipynb)
 - [Loading data from a SQL database into Weaviate](https://github.com/dlt-hub/dlt_demos/blob/main/sql_to_weaviate.ipynb)
-

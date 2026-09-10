@@ -3,7 +3,6 @@ title: What is a workspace
 description: A dltHub workspace bundles pipelines, configuration, and AI toolkit into a single deployable unit that runs locally and in the cloud.
 keywords: [workspace, dlthub, workspace mode, dlt project, profiles, deployment]
 ---
-
 # What is a workspace?
 
 A workspace is a Python project layout that bundles your dlt pipelines, transformations, configuration, and AI toolkit setup into a single deployable unit. The same folder runs on your local machine, in CI, and — when you deploy — on the managed dltHub platform, so what you build locally is what runs in production.

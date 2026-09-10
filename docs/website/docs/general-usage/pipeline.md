@@ -3,7 +3,6 @@ title: Pipeline
 description: Explanation of what a dlt pipeline is
 keywords: [pipeline, source, full refresh, dev mode]
 ---
-
 # Pipeline
 
 A [pipeline](glossary.md#pipeline) moves data from your Python code to a
@@ -112,6 +111,7 @@ new dataset, set the `dev_mode` argument of the `dlt.pipeline` method to True. E
 pipeline is created, `dlt` adds a datetime-based suffix to the dataset name.
 
 ## Drop destination schema / dataset to start over
+
 If you drop the destination schema / dataset to which your pipeline loads data, the pipeline fully resets its
 state and working directory and executes its first run. 
 If your pipeline doesn't share the dataset with any other pipeline and you don't keep any additional data in it - this
@@ -133,6 +133,7 @@ The `refresh` option works with all relational or SQL destinations and cloud sto
 The `refresh` argument should have one of the following string values to decide the refresh mode:
 
 ### Drop tables and pipeline state for a source with `drop_sources`
+
 All sources being processed in `pipeline.run` or `pipeline.extract` are refreshed.
 That means all tables listed in their schemas are dropped and the state belonging to those sources and all their resources is completely wiped.
 The tables are deleted both from the pipeline's schema and from the destination database.

@@ -3,6 +3,7 @@ title: dlt and dltHub
 description: A map of the dlt and dltHub ecosystem
 keywords: [dlt, dlthub, open source, source available, pricing, license, workspace, workbench, skills, ai, agent]
 ---
+# dlt and dltHub
 
 :::note
 **dltHub offers two products**: dlt (open source) and **dltHub** (commercial). This page explains both products and how they relate.

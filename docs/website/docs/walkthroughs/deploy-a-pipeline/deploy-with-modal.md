@@ -4,7 +4,6 @@ description: How to deploy a pipeline with Modal
 keywords: [how to, deploy a pipeline, Modal]
 canonical: https://modal.com/blog/analytics-stack
 ---
-
 # Deploy with Modal
 
 ## Introduction to Modal
@@ -29,6 +28,7 @@ To learn more, please refer to [Modal's documentation.](https://modal.com/docs)
 Here’s a dlt project setup to copy data from public MySQL database into DuckDB as a destination:
 
 ### Step 1: Initialize source
+
 Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
 
 ```sh
@@ -36,6 +36,7 @@ dlt init sql_database duckdb
 ```
 
 ### Step 2: Define Modal Image
+
 Open the file and define the Modal Image you want to run `dlt` in:
 
 ```py
@@ -57,6 +58,7 @@ vol = modal.Volume.from_name("duckdb-vol", create_if_missing=True)
 ```
 
 ### Step 3: Define Modal Function
+
 A Modal Function is a containerized environment that runs tasks.
 It can be scheduled (e.g., daily or on a Cron schedule), request more CPU/memory, and scale across
 multiple containers.
@@ -99,6 +101,7 @@ def load_tables() -> None:
 ```
 
 ### Step 4: Set up credentials
+
 You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
 the defined secret is automatically set as an environment variable. dlt natively supports environment variables,
 enabling seamless integration of your credentials. For example, to declare a connection string, you can define it as follows:
@@ -111,6 +114,7 @@ In the script above, the credentials specified are automatically utilized by dlt
 For more details, please refer to the [documentation.](../../general-usage/credentials/setup#environment-variables)
 
 ### Step 5: Run pipeline
+
 Execute the pipeline once.
 To run your pipeline a single time, use the following command:
 
@@ -119,6 +123,7 @@ modal run sql_pipeline.py
 ```
 
 ### Step 6: Deploy
+
 If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:
 
 ```sh
@@ -126,6 +131,7 @@ modal deploy sql_pipeline.py
 ```
 
 ## Advanced configuration
+
 * Use [Proxy IPs](https://modal.com/docs/guide/proxy-ips) to connect to resources in your private network
 * Sync tables in parallel using [map()](https://modal.com/docs/guide/scale)
 

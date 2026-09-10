@@ -3,8 +3,7 @@ title: Load from Postgres to Postgres faster
 description: Load data fast from Postgres to Postgres with ConnectorX & Arrow export as Parquet, normalizing and exporting as DuckDB, and attaching it to Postgres for bigger Postgres tables (GBs)
 keywords: [connector x, pyarrow, zero copy, duckdb, postgres, initial load]
 ---
-
-## About this Example
+# Load from Postgres to Postgres faster
 
 :::info
 Huge shout out to [Simon Späti](https://github.com/sspaeti) for this example!
@@ -51,7 +50,7 @@ As well as with installing DuckDB extension (see [issue
 here](https://github.com/duckdb/duckdb/issues/8035#issuecomment-2020803032)), that's why I manually installed the `postgres_scanner.duckdb_extension` in my Dockerfile to load the data into Postgres.
 :::
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 import argparse

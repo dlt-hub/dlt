@@ -3,7 +3,6 @@ title: Cursor-based incremental loading
 description: Track changes using cursor fields with dlt
 keywords: [incremental loading, cursor, timestamp, last_value]
 ---
-
 # Cursor-based incremental loading
 
 In most REST APIs (and other data sources, i.e., database tables), you can request new or updated data by passing a timestamp or ID of the "last" record to a query. The API/database returns just the new/updated records from which you take the maximum/minimum timestamp/ID for the next load.
@@ -147,6 +146,7 @@ august_issues = repo_issues(
 Note that dlt's incremental filtering considers the ranges half-closed. `initial_value` is inclusive, `end_value` is exclusive, so chaining ranges like above works without overlaps. This behaviour can be changed with the `range_start` (default `"closed"`) and `range_end` (default `"open"`) arguments.
 
 ### Partition large backfills
+
 You can execute a backfill on large amount of data by partitioning it into ranges. In best case you are able to
 create partitions i.e. by day or week without additionally querying your data source [as we do in sql database example](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads). Ranges will be loaded using `initial_value` and `end_value`, each in separate pipeline run.
 1. As mentioned above, each run of this kind is stateless and may be run in parallel.
@@ -250,6 +250,7 @@ def tickets(
 
 
 ## Split large loads into chunks
+
 You can split large incremental resources into smaller chunks and load them sequentially. This way you'll see the data quicker and
 in case of loading error you are able to retry a single chunk. **This method works only if your source returns data in deterministic order**, for example:
 * you can request your REST API endpoint to return data ordered by `updated_at`.
@@ -430,7 +431,7 @@ def zendesk_new_bigquery():
 Above, we switch to a daily schedule and disable catchup and end date. We also load all the support resources to the same dataset as backfill (`zendesk_support_data`).
 If you want to run this DAG parallel with the backfill DAG, change the pipeline name, for example, to `zendesk_support_new` as above.
 
-**Under the hood**
+### Under the hood
 
 When `allow_external_schedulers=True`, `dlt` looks up the active `TimeIntervalContext` while binding the resource. The context resolves an interval from, in order:
 1. An interval passed directly to its constructor (programmatic injection - see [Injecting and reading the current interval](#injecting-and-reading-the-current-interval) below).
@@ -443,7 +444,7 @@ The resolved interval is mapped onto `initial_value` and `end_value` of the `Inc
 
 When `allow_external_schedulers=True` but no interval can be resolved, `dlt` raises `ExternalSchedulerNotAvailable` instead of silently falling back to dlt state. If the cursor type is `Any` or not coercible to a timestamp, `dlt` raises `JoinSchedulerError`.
 
-**Manual runs**
+#### Manual runs
 
 When you trigger an Airflow DAG manually, the run uses whatever `data_interval` Airflow assigns it - typically `(now, now)`, which yields no data. To backfill manually, set the logical date in the past (use the Run with Config option) so Airflow sets a real interval.
 
@@ -594,6 +595,7 @@ assert len(result) == 1
 ```
 
 ## Transform records before incremental processing
+
 If you want to load data that includes `None` values, you can transform the records before the incremental processing.
 You can add steps to the pipeline that [filter, transform, or pivot your data](../resource.md#filter-transform-and-pivot-data).
 

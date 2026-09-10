@@ -3,7 +3,6 @@ title: Lance
 description: Lance is an open-source columnar format for AI/ML that can be used as a destination in dlt.
 keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, branching, catalog]
 ---
-
 # Lance
 
 [Lance](https://lance.org) is an open-source columnar data format designed for AI/ML workloads, with native support for versioning, zero-copy access, and fast vector search. The `lance` destination lets you load data into Lance datasets stored on local disk or cloud object storage (S3, Azure, GCS).

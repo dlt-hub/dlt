@@ -88,3 +88,12 @@ snippets-typecheck:
 
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
+
+md-diagnostics:  ## split the mdsmith check outputs per rule
+	rm -rf .mdsmith-diagnostics || true
+	mkdir -p .mdsmith-diagnostics
+	uv run mdsmith check website/docs --format json 2> .mdsmith-diagnostics/diagnostics.json || true && \
+	jq -r '.[] | .rule' .mdsmith-diagnostics/diagnostics.json | sort -u | while read rule; do \
+		jq "[.[] | select(.rule == \"$$rule\")]" .mdsmith-diagnostics/diagnostics.json > ".mdsmith-diagnostics/$$(echo $$rule | tr '[:upper:]' '[:lower:]').json"; \
+	done && \
+	rm .mdsmith-diagnostics/diagnostics.json

@@ -3,9 +3,9 @@ title: Stripe
 description: dlt verified source for Stripe API
 keywords: [stripe api, stripe verified source, stripe]
 ---
-import Header from './_source-info-header.md';
-
 # Stripe
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -118,6 +118,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 `dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
 ### Default endpoints
+
 You can write your own pipelines to load data to a destination using this verified source. However, it is important to note how the `ENDPOINTS` and `INCREMENTAL_ENDPOINTS` tuples are defined in `stripe_analytics/settings.py`.
 
 ```py

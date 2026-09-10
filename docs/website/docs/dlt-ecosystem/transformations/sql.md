@@ -3,7 +3,6 @@ title: Access and transform data with SQL
 description: Access and transform the data loaded by a dlt pipeline with the dlt SQL client
 keywords: [transform, sql, sql client, dml]
 ---
-
 # The `dlt` SQL client
 
 Most `dlt` destinations use an implementation of the `SqlClientBase` class to connect to the physical destination to which your data is loaded. DDL statements, data insert or update commands, as well as SQL merge and replace queries, are executed via a connection on this client. It also is used for reading data for the [dashboard app](../../hub/ingestion/dashboard.md) and [data access via `dlt` datasets](../../general-usage/dataset-access/dataset.md).
@@ -85,6 +84,7 @@ A few things to know or keep in mind when using the filesystem SQL client:
 - Multi-schema support (dlt 1.25.0+): When a dataset includes multiple schemas, the filesystem SQL client creates views that span all schemas. If the same table name exists in multiple schemas at different physical locations (e.g. when the layout includes `{schema_name}/`), views are combined. If they share the same location, columns are merged into a single view. This means queries may return rows from multiple schemas — use `pipeline.dataset(schema="name")` to restrict to one schema.
 
 ### Control data freshness
+
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
 * globbing the table files once - when view is created
 * using the newest iceberg metadata to create view

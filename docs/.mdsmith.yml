@@ -73,8 +73,8 @@ rules:
 #         max: 300
 #     max-section-length: false
 #     no-bare-urls: true
-#     no-duplicate-headings: true
-#     no-emphasis-as-heading:
+    no-duplicate-headings: false  # temp disable
+    no-emphasis-as-heading: false  # temp disable
 #         placeholders: []
 #     no-empty-alt-text: true
 #     no-hard-tabs: true
@@ -138,6 +138,8 @@ rules:
 ignore: [
   # ignored because this file is dynamically generated;
   "website/docs/reference/command-line-interface.md",
+  "website/docs/_book-onboarding-call.md",  # actually an mdx files
+  "website/docs/dlt-ecosystem/verified-sources/_source-info-header.md",  # actually an mdx files
 ]
 overrides: []
 # front-matter: true
@@ -146,7 +148,7 @@ categories:
     accessibility: true
     code: true
     directive: true
-    heading: false
+    heading: true
     line: false
     link: true
     list: false

@@ -3,9 +3,9 @@ title: Matomo
 description: dlt verified source for Matomo
 keywords: [matomo api, matomo verified source, matomo]
 ---
-import Header from './_source-info-header.md';
-
 # Matomo
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

@@ -3,7 +3,6 @@ title: Introduction
 description: Introduction to dltHub
 keywords: [dlthub, introduction, capabilities, platform, workspace]
 ---
-
 # Introduction
 
 :::info

@@ -3,14 +3,14 @@ title: Advanced usage
 description: advance configuration and usage of the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Advanced usage
 
 import Header from '../_source-info-header.md';
 
-# Advanced usage
-
 <Header/>
 
-### Split or partition long incremental loads
+## Split or partition long incremental loads
+
 If you have a large table with incremental loading set up, you can partition your initial load or split it in a loop. There are two methods to do that:
 * **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
 * **Split** where you load data sequentially in small chunks
@@ -165,6 +165,7 @@ table = sql_table().parallelize()
 ```
 
 ## Column reflection
+
 Column reflection is the automatic detection and retrieval of column metadata like column names, constraints, data types, etc. Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
 Depending on the selected backend, some of the types might require additional processing.
 
@@ -221,6 +222,7 @@ dlt.pipeline("demo").run(source)
 ```
 
 ### Remove nullability information
+
 `dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
 i.e.
 * if you plan to use replication source that will (soft) delete rows.
@@ -295,7 +297,9 @@ source = sql_database(
 ```
 
 :::
+
 ## Configuring with TOML or environment variables
+
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
 
 This is particularly useful with `sql_table()` because you can maintain a separate configuration for each table (below we show **secrets.toml** and **config.toml**; you are free to combine them into one):
@@ -355,6 +359,7 @@ SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
 ```
 
 ### Configure many sources side by side with custom sections
+
 `dlt` allows you to rename any source to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
 

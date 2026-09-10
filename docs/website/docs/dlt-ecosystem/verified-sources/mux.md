@@ -3,9 +3,9 @@ title: Mux
 description: dlt verified source for Mux
 keywords: [mux api, mux verified source, mux]
 ---
-import Header from './_source-info-header.md';
-
 # Mux
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -171,6 +171,7 @@ The arguments `mux_api_access_token`, `mux_api_secret_key`, and `limit` are the 
 
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

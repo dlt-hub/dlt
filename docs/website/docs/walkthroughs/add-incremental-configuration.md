@@ -4,6 +4,7 @@ description: Incremental SQL data loading strategies
 keywords: [how to, load data incrementally from SQL]
 slug: sql-incremental-configuration
 ---
+# Incremental loading
 
 Incremental loading is the act of loading only new or changed data and not old records that have already been loaded.
 For example, a bank loads only the latest transactions, or a company updates its database with new or modified user
@@ -14,7 +15,7 @@ Processing data incrementally, or in batches, enhances efficiency, reduces costs
 and optimizes resource utilization.
 :::
 
-### Incremental loading strategies
+## Incremental loading strategies
 
 In this guide, we will discuss various incremental loading methods using `dlt`, specifically:
 
@@ -94,9 +95,9 @@ Here’s a walkthrough:
     | 2 | 3 | Charlie | 2024-07-03 | 1721878309.021546 | eT0zheRx9ONWuQ |
     | 3 | 4 | Dave | 2024-07-04 | 1721878309.021546 | gtflF8BdL2NO/Q |
 
-**What happened?**
+#### What happened?
 
-After running the pipeline, the original data in the "contact" table (Alice and Bob) is completely replaced with the new updated table with data “Charlie” and “Dave” added and “Bob” removed. This strategy is useful for scenarios where the entire dataset needs to be refreshed or replaced with the latest information.
+After running the pipeline, the original data in the "contact" table (Alice and Bob) is completely replaced with the new updated table with data "Charlie" and "Dave" added and "Bob" removed. This strategy is useful for scenarios where the entire dataset needs to be refreshed or replaced with the latest information.
 
 ### 2. Append new records based on incremental ID
 
@@ -159,7 +160,7 @@ Here’s a walkthrough:
     | 3 | 3 | Charlie | 2024-07-03 | 1721878309.021546 | y+T4Q2JDnR33jg |
     | 4 | 4 | Dave | 2024-07-04 | 1721878309.021546 | MAXrGhNNADXAiQ |
 
-**What happened?**
+#### What happened?
 
 In this scenario, the pipeline appends new records (Charlie and Dave) to the existing data (Alice and Bob) without affecting the pre-existing entries. This strategy is ideal when only new data needs to be added, preserving the historical data.
 
@@ -227,7 +228,7 @@ Here’s a walkthrough:
     | 3 | 3 | Charlie | 2024-07-03 00:00:00 UTC | 1721878309.021546 | L/MnhG19xeMrvQ |
     | 4 | 4 | Dave | 2024-07-04 00:00:00 UTC | 1721878309.021546 | W6ZdfvTzfRXlsA |
 
-**What happened?**
+#### What happened?
 
 The pipeline adds new records (Charlie and Dave) that have a `created_at` timestamp after the specified initial value while retaining the existing data (Alice and Bob). This approach is useful for loading data incrementally based on when it was created.
 
@@ -294,7 +295,7 @@ Here’s a walkthrough:
     | 2 | 1 | Alice Updated | 2024-07-08 00:00:00 UTC | 1721878309.021546 | OeMLIPw7rwFG7g |
     | 3 | 3 | Hank | 2024-07-08 00:00:00 UTC | 1721878309.021546 | Ttp6AI2JxqffpA |
 
-**What happened?**
+#### What happened?
 
 The pipeline updates the record for Alice with the new data, including the updated `last_modified_at` timestamp, and adds a new record for Hank. This method is beneficial when you need to ensure that records are both updated and inserted based on a specific timestamp and ID.
 

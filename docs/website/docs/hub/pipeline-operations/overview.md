@@ -3,7 +3,6 @@ title: Overview
 description: Deploy and run dlt pipelines, transformations and notebooks in the cloud with the dltHub platform
 keywords: [dlthub platform, deployment, cloud, scheduling, notebooks, dashboard, jobs, triggers, manifest]
 ---
-
 # dltHub platform
 
 The dltHub platform is a managed cloud platform for running your [`dlt` pipelines](../../general-usage/pipeline.md), [transformations](../transformations/index.md), and [notebooks](../../general-usage/dataset-access/marimo.md). It mirrors your local [dltHub Workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) into the cloud (called a **workspace deployment**), so your familiar dlt pipelines, [datasets](../data-discovery/datasets.md), notebooks, and dashboards run remotely with the same code that runs on your machine.
@@ -103,7 +102,7 @@ Visit [app.dlthub.com](https://app.dlthub.com) to access the web dashboard. It p
 
 For monitoring runs, streaming logs, and diagnosing failures, see [Monitoring and debugging](monitoring.md).
 
-#### Public links for interactive jobs
+### Public links for interactive jobs
 
 Notebooks and dashboards can be shared via public links. Manage them either from the dashboard — open the job's context menu (or its detail page) and click **Manage Public Link** to toggle the link — or from the CLI:
 

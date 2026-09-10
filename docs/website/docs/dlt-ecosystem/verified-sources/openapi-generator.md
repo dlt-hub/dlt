@@ -3,9 +3,9 @@ title: OpenAPI source generator
 description: OpenAPI dlt source generator
 keywords: [openapi, rest api, swagger, source generator, cli, rest]
 ---
-import Header from './_source-info-header.md';
-
 # OpenAPI source generator
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -16,6 +16,7 @@ We also have a cool [Google Colab example](https://colab.research.google.com/dri
 :::
 
 ## Features
+
 `dlt-init-openapi` generates code from an OpenAPI spec that you can use to extract data from a `rest_api` into any [`destination`](../destinations/) (e.g., Postgres, BigQuery, Redshift...) that `dlt` supports. dlt-init-openapi additionally executes a set of heuristics to discover information not explicitly defined in OpenAPI specs.
 
 Features include:
@@ -166,13 +167,13 @@ You can edit this file to adapt the behavior of the dlt rest_api accordingly. Pl
 dlt-init-openapi <source_name> [OPTIONS]
 ```
 
-### Example:
+### Example
 
 ```sh
 dlt-init-openapi pokemon --path ./path/to/my_spec.yml --no-interactive --output-path ./my_pipeline
 ```
 
-**Options**:
+#### Options
 
 _The only required options are either to supply a path or a URL to a spec._
 
@@ -189,6 +190,7 @@ _The only required options are either to supply a path or a URL to a spec._
 - `--help`: Show this message and exit.
 
 ## Config options
+
 You can pass a path to a config file with the `--config PATH` argument. To see available config values, go to [https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py](https://github.com/dlt-hub/dlt-init-openapi/blob/devel/dlt_init_openapi/config.py) and read the information below each field on the `Config` class.
 
 The config file can be supplied as a JSON or YAML dictionary. For example, to change the package name, you can create a YAML file:
@@ -205,12 +207,15 @@ dlt-init-openapi pokemon --url ... --config config.yml
 ```
 
 ## Telemetry
+
 We track your usage of this tool similarly to how we track other commands in the dlt core library. Read more about this and how to disable it [here](../../reference/telemetry).
 
 ## Prior work
+
 This project started as a fork of [openapi-python-client](https://github.com/openapi-generators/openapi-python-client). Pretty much all parts are heavily changed or completely replaced, but some lines of code still exist, and we like to acknowledge the many good ideas we got from the original project :)
 
 ## Implementation notes
+
 * OAuth Authentication currently is not natively supported. You can supply your own.
 * Per endpoint authentication currently is not supported by the generator. Only the first globally set securityScheme will be applied. You can add your own per endpoint if you need to.
 * Basic OpenAPI 2.0 support is implemented. We recommend updating your specs at [https://editor.swagger.io](https://editor.swagger.io) before using `dlt-init-openapi`.

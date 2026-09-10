@@ -3,7 +3,6 @@ title: dlt Fundamentals Course
 description: Master the basics of dlt with this comprehensive course covering pipelines, resources, sources, configuration, schema, state, and incremental loading.
 keywords: [dlt, fundamentals, tutorial, pipeline, python, data engineering, resources, sources, pagination, authentication, configuration, schema, state, incremental loading, write disposition]
 ---
-
 # `dlt` Fundamentals Course
 
 In this course you will learn the fundamentals of `dlt` alongside some of the most important topics in the world of Pythonic data engineering.

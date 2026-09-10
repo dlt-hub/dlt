@@ -3,8 +3,7 @@ title: Propagate primary_key from root to nested tables
 description: Learn how to propagate any column to nested tables
 keywords: [root table, nested reference, parent key]
 ---
-
-## About this Example
+# Propagate primary_key from root to nested tables
 
 You learn how to propagate specific fields (e.g., primary, foreign keys) from a parent record into each child record.
 
@@ -18,7 +17,7 @@ custom logic to every record in the dataset
 Please note that dlt metadata, including `_dlt_id` and `_dlt_load_id`, will still be loaded into the tables.
 :::
 
-### Full source code
+## Full source code
 
 ```py execute notype
 from typing import Any, Generator

@@ -3,7 +3,6 @@ title: Job configuration
 description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
 keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
 ---
-
 # Job configuration
 
 This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.

@@ -3,9 +3,9 @@ title: Notion
 description: dlt pipeline for Notion API
 keywords: [notion api, notion pipeline, notion]
 ---
-import Header from './_source-info-header.md';
-
 # Notion
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -150,6 +150,7 @@ completely replaced.
 
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

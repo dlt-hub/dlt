@@ -3,8 +3,7 @@ title: Schema evolution
 description: A small guide to elaborate on how schema evolution works
 keywords: [schema evolution, schema, dlt schema]
 ---
-
-## Schema evolution with `dlt`
+# Schema evolution with `dlt`
 
 `dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes.
 

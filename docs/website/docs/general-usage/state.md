@@ -3,7 +3,6 @@ title: State
 description: Explanation of what a dlt state is
 keywords: [state, metadata, dlt.current.resource_state, dlt.current.source_state]
 ---
-
 # State
 
 The pipeline state is a Python dictionary that lives alongside your data; you can store values in
@@ -152,13 +151,13 @@ This will display the source and resource state slots for all known sources.
 
 ## Reset the pipeline state: full or partial
 
-**To fully reset the state:**
+### To fully reset the state
 
 - Drop the destination dataset to fully reset the pipeline.
 - [Set the `dev_mode` flag when creating the pipeline](pipeline.md#do-experiments-with-dev-mode).
 - Use the `dlt pipeline <pipeline_name> drop --drop-all` command to [drop the state and tables for a given schema name](../reference/command-line-interface.md#dlt-pipeline-drop).
 
-**To partially reset the state:**
+### To partially reset the state
 
 - Use the `dlt pipeline <pipeline_name> drop <resource_name>` command to [drop the state and tables for a given resource](../reference/command-line-interface.md#dlt-pipeline-drop).
 - Use the `dlt pipeline <pipeline_name> drop --state-paths` command to [reset the state at a given path without touching the tables and data](../reference/command-line-interface.md#dlt-pipeline-drop).

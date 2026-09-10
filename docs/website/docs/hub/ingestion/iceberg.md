@@ -3,7 +3,6 @@ title: "Destination: Iceberg"
 description: Iceberg destination
 keywords: [Iceberg, pyiceberg]
 ---
-
 # Iceberg
 
 :::note
@@ -23,7 +22,7 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 * Exposes data via DuckDB views using `pipeline.dataset()`
 * Supports partitioning
 
-##  Prerequisites
+## Prerequisites
 
 If you don't have a dltHub workspace yet, scaffold one with:
 
@@ -330,6 +329,7 @@ Create the S3 Table bucket first and grant the calling IAM principal s3tables:* 
 * `rest.*` properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue-rest]`
+
 Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
 
 :::note
@@ -385,6 +385,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 </Tabs>
 
 ##### Prerequisites
+
 Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
 * `warehouse` – glue catalog arn for your S3 Tables catalog.
 * `uri` – region-specific Glue REST endpoint.
@@ -431,6 +432,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 </Tabs>
 
 ##### Prerequisites
+
 An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
 
 * `bucket_url` – S3 prefix where Iceberg data and metadata files will live.
@@ -526,6 +528,7 @@ def my_resource():
 ```
 
 #### Key characteristics
+
 - Requires primary key or merge key columns
 - Supports only regular tables (nested tables not supported)
 - Automatically deduplicates data based on primary keys
@@ -569,6 +572,7 @@ The `delete-insert`, `upsert`, and `insert-only` merge strategies have been stre
 :::
 
 #### Known limitations
+
 - Orphaned nested table records: updates to nested structures that remove elements do not delete them from the destination table.
 
 ## Data access
@@ -579,6 +583,7 @@ When invoked, this creates an in-memory DuckDB database with views pointing to I
 The created views reflect the latest available snapshot. To ensure fresh data during development, use the `always_refresh_views` option. Views are materialized only on demand, based on query usage.
 
 ## Credentials for data access
+
 By default, credentials for accessing data are vended by the catalog, and per-table secrets are created automatically. This works best with cloud storage providers like AWS S3 using STS credentials.
 However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dltHub transformations.
 This approach allows for native DuckDB filesystem access, persistent secrets, and faster data access. For example, when using AWS S3 as the storage location
@@ -623,6 +628,7 @@ iceberg_adapter(
 Iceberg supports several transformation functions for partitioning. Use the `iceberg_partition` helper class to create partition specifications:
 
 #### Identity partitioning
+
 Partition by the exact value of a column (default for string columns when specified by name):
 
 ```py
@@ -634,6 +640,7 @@ iceberg_adapter(resource, partition=[iceberg_partition.identity("region")])
 ```
 
 #### Temporal transformations
+
 Extract time components from date/datetime columns:
 
 * `iceberg_partition.year(column_name)`: Partition by year
@@ -656,6 +663,7 @@ iceberg_adapter(
 ```
 
 #### Bucket partitioning
+
 Distribute data across a fixed number of buckets using a hash function:
 
 ```py
@@ -668,6 +676,7 @@ iceberg_adapter(
 ```
 
 #### Truncate partitioning
+
 Partition string values by a fixed prefix length:
 
 ```py
@@ -682,6 +691,7 @@ iceberg_adapter(
 ### Advanced partitioning examples
 
 #### Multi-column partitioning
+
 Combine multiple partition strategies:
 
 ```py
@@ -721,6 +731,7 @@ pipeline.run(sales_data)
 ```
 
 #### Custom partition field names
+
 Specify custom names for partition fields to make them more descriptive:
 
 ```py

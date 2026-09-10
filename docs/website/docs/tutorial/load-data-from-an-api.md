@@ -3,6 +3,7 @@ title: Build advanced dlt pipeline from scratch
 description: Build custom, production grade pipeline just by writing code
 keywords: [getting started, quick start, basic examples]
 ---
+# Build advanced dlt pipeline from scratch
 
 This tutorial introduces you to foundational dlt concepts, demonstrating how to build a custom data pipeline that loads data from pure Python data structures to DuckDB. It starts with a simple example and progresses to more advanced topics and usage scenarios.
 

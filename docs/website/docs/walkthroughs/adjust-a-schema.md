@@ -3,7 +3,6 @@ title: Manually edit a schema
 description: How to manually edit a schema
 keywords: [tutorial, schema]
 ---
-
 # Manually edit a schema
 
 When you [create](../tutorial/load-data-from-an-api.md) and then [run](run-a-pipeline.md) a pipeline, you may want
@@ -137,6 +136,7 @@ You can [adjust the schema](../general-usage/resource.md#set-table-name-and-adju
 :::
 
 ### Reorder columns
+
 To reorder the columns in your dataset, follow these steps:
 
 1. Initial Run: Execute the pipeline to obtain the import and export schemas.

@@ -3,10 +3,9 @@ title: Configuration
 description: configuring the pipeline script, connection, and backend settings in the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Configuration
 
 import Header from '../_source-info-header.md';
-
-# Configuration
 
 <Header/>
 
@@ -19,7 +18,7 @@ import Header from '../_source-info-header.md';
 Read more about sources and resources here: [General usage: source](../../../general-usage/source.md) and [General usage: resource](../../../general-usage/resource.md).
 
 
-### Example usage:
+### Example usage
 
 :::tip
 We intend our sources to be fully hackable. `dlt init` command allows you to eject the source code of the core source and modify it
@@ -179,12 +178,14 @@ will create `sql_database` folder with the source code that you can import and u
    :::
 
 ## Incremental loading
+
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only new or updated data. In essence, arguments that you pass
 to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need. 
 
 Read [step by step guide on how to use incremental with sql_database](../../../walkthroughs/sql-incremental-configuration).
 
 ### How to configure
+
 1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
 2. **Set an initial value(optional)**: Choose an initial value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading. After first run it will be replaced with the maximum cursor value from the selected rows.
 3. **Set the comparison direction in the query**. By default greater than or equal op (**>=**) is used to compare initial/previous value with row column value. You can change it with `last_value_func` argument (**max**/**min**).
@@ -201,6 +202,7 @@ If you hit ``KeyError: 'Cursor column `...` does not exist in table `...`'``, yo
 :::
 
 ### Configure timezone-aware and naive timestamp cursors
+
 If your cursor is on a timestamp/datetime column, make sure you set up your initial and end values correctly. This will help you avoid implicit type conversions, invalid datetime literals, or column comparisons in database queries. Note that implicit conversions may result in data loss, for example if a naive datetime has a different local timezone on the machine where Python is executing versus your DBMS.
 
 * If your datetime column is naive, use naive Python datetime. Note that `pendulum` datetime is timezone-aware by default while standard `datetime` is naive.
@@ -274,6 +276,7 @@ Which generates the following query:
   :::
 
 ## Limit number of items returned by the query
+
 If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded 
 to the query. Note that limit works in the multiples of `chunk_size`. For example if the `chunk_size` is 1000 and you set `max_items` in `add_limit` to
 2, your query will return 2000 rows.

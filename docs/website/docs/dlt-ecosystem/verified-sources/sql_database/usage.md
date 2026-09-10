@@ -3,10 +3,9 @@ title: Usage
 description: basic usage of the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Usage
 
 import Header from '../_source-info-header.md';
-
-# Usage
 
 <Header/>
 
@@ -33,6 +32,7 @@ source = sql_database(
 ```
 
 ## Write custom SQL queries
+
 We recommend that you create a SQL VIEW in your source database and extract data from it. In that case `dlt` will infer all column types and read data in
 shape you define in a view without any further customization.
 
@@ -124,6 +124,7 @@ read_table = sql_table(
 customize subquery with query adapter as in the example above.
 
 ## Transforming the data before load
+
 You have direct access to the extracted data through the resource objects (`sql_table()` or `sql_database().with_resources()`), each of which represents a single SQL table. These objects are generators that yield individual rows of the table, which can be modified by using custom Python functions. These functions can be applied to the resource using `add_map`.
 
 :::note
@@ -193,8 +194,8 @@ Examples:
 You can deploy the `sql_database` pipeline with any of the `dlt` deployment methods, such as [GitHub Actions](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions), [Airflow](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [Dagster](../../../walkthroughs/deploy-a-pipeline/deploy-with-dagster), etc. See [here](../../../walkthroughs/deploy-a-pipeline) for a full list of deployment methods.
 
 ### Running on Airflow
+
 When running on Airflow:
 1. Use the `dlt` [Airflow Helper](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from the `sql_database` source. (If you want to run table extraction in parallel, you can do this by setting `decompose = "parallel-isolated"` when doing the source->DAG conversion. See [here](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer#2-modify-dag-file) for a code example.)
 2. Reflect tables at runtime with the `defer_table_reflect` argument.
 3. Set `allow_external_schedulers` to load data using [Airflow intervals](../../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
-

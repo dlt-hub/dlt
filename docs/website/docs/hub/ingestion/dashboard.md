@@ -3,7 +3,6 @@ title: Pipeline and dataset troubleshooting
 description: Troubleshoot pipelines and inspect loaded datasets using the local dltHub dashboard, a marimo-based web app
 keywords: [pipeline, schema, data, inspect, troubleshoot, dashboard]
 ---
-
 # Pipeline and dataset troubleshooting
 
 Once you have run a [pipeline](../../general-usage/pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [marimo](https://marimo.io/) Python notebook framework. For this to work, you will need a few additional dependencies.
@@ -186,7 +185,7 @@ def example_complex_unnesting():
 
 ### 4) Do I have the right business data?
 
-**What to look for**
+#### What to look for
 
 Open the Dataset Browser and run a query to see what you actually have:
 
@@ -198,13 +197,13 @@ SELECT * FROM {your_table} LIMIT 10
 - Are key columns present (IDs, timestamps, status fields)?
 - Is the data complete or are important fields showing up as `NULL`?
 
-**Typical failure modes**
+#### Typical failure modes
 
 - The API returns a **summary view** by default; you need extra parameters (for example, `expand`, `include=changes`, `since=`) to get full details.
 - **Related data lives in separate endpoints** that you haven't added yet (for example, orders exist but order line items are a different endpoint).
 - **PII columns** (emails, phones, names) are present and need to be hashed or removed before analytics.
 
-**What to do**
+#### What to do
 
 1. Check the API docs for expansion parameters that return nested/related data.
 2. Add additional endpoints to your source if you need related entities.
@@ -214,7 +213,7 @@ Use the Dataset Browser to explore the data, or the [marimo notebook](../../gene
 
 ### 5) Are my data types correct?
 
-**What to look for**
+#### What to look for
 
 Open the Schema Explorer and check the `data_type` column for each field:
 
@@ -222,13 +221,13 @@ Open the Schema Explorer and check the `data_type` column for each field:
 - Dates should be `timestamp` or `date`, not `text`
 - Boolean fields should be `bool`, not `text`
 
-**Typical failure modes**
+#### Typical failure modes
 
 - Numbers arrive as strings (`"amount": "100.00"`) because the API returns them quoted.
 - Timestamps in non-standard formats (for example, `"12/25/2024"` or Unix epochs) aren't auto-detected.
 - Boolean values come as `"true"`/`"false"` strings or `0`/`1` integers.
 
-**What to do**
+#### What to do
 
 1. **Enable additional autodetectors** to catch more types automatically. Add to your config:
 
@@ -239,7 +238,8 @@ detections = ["iso_timestamp", "timestamp", "large_integer"]
 
 2. **Transform at extraction** using [`add_map`](../../dlt-ecosystem/transformations/add-map.md) to cast values before they hit the schema.
 
-**Docs:**
+#### Docs
+
 - [Schema → Data type autodetectors](../../general-usage/schema.md#data-type-autodetectors)
 - [`add_map` for custom record transformations](../../dlt-ecosystem/transformations/add-map.md)
 
@@ -328,6 +328,7 @@ This section provides a detailed overview of the most recent run for the selecte
     ![Last run trace](https://storage.googleapis.com/dlt-blog-images/dashboard-trace.png)
 
 ### Pipeline loads
+
 This section displays a history of all load packages found in the _dlt_loads table. It tracks every load package committed to the destination.
 
 By selecting a specific load, you can:

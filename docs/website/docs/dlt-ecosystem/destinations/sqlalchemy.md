@@ -3,7 +3,6 @@ title: SQL database via SQLAlchemy
 description: SQLAlchemy destination
 keywords: [sql, sqlalchemy, database, destination]
 ---
-
 # SQLAlchemy destination
 
 The SQLAlchemy destination allows you to use any database that has an [SQLAlchemy dialect](https://docs.sqlalchemy.org/en/20/dialects/) implemented as a destination.
@@ -30,7 +29,7 @@ Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/
 
 ### Create a pipeline
 
-**1. Initialize a project with a pipeline that loads to MS SQL by running:**
+1. Initialize a project with a pipeline that loads to MS SQL by running:
 
 ```sh
 dlt init chess sqlalchemy
@@ -105,6 +104,7 @@ The SQLAlchemy destination accepts an optional `engine_kwargs` parameter, which 
 The equivalent `engine_args` parameter is maintained for backward compatibility, but will be removed in a future release.
 
 Example enabling SQLAlchemy verbose logging:
+
 #### In `.dlt/secrets.toml`
 
 ```toml
@@ -152,6 +152,7 @@ pipeline.run(
 Here, `engine_kwargs` configures only the engine used by SQLAlchemy as a **destination**. It does not affect resource extraction (use `engine_kwargs` for sql sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
 
 ### Session timezone
+
 `sqlalchemy` has no `session_timezone` setting, unlike the other SQL destinations. The way to set one
 is dialect-specific, and SQLite has no timezone concept. On MySQL, set the timezone on each new
 connection with `connect_args`:
@@ -167,6 +168,7 @@ offset always works.
 ## Notes on SQLite
 
 ### Dataset files
+
 When using an SQLite database file, each dataset is stored in a separate file since SQLite does not support multiple schemas in a single database file.
 Under the hood, this uses [`ATTACH DATABASE`](https://www.sqlite.org/lang_attach.html).
 
@@ -178,6 +180,7 @@ is stored in `/home/me/data/chess_data__games.db`
 **Note**: If the dataset name is `main`, no additional file is created as this is the default SQLite database.
 
 ### In-memory databases
+
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
@@ -260,6 +263,7 @@ committed data appears missing. Always set `workers=1` when using `StaticPool`.
 :::
 
 ### Database locking with `ATTACH DATABASE` on Windows
+
 When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store each dataset in a separate file. On Windows, a second `ATTACH` on the same connection can lock indefinitely under concurrent access (e.g. when using the default parallel loading strategy).
 
 To work around this issue, use one of the following approaches:
@@ -282,6 +286,7 @@ To work around this issue, use one of the following approaches:
    ```
 
 ## Notes on DuckDB
+
 Install the [duckdb_engine](https://github.com/Mause/duckdb_engine) dialect to use DuckDB with the SQLAlchemy destination:
 
 ```sh
@@ -303,6 +308,7 @@ Relative database paths are placed in the pipeline's local directory, same as fo
 **Note**: Prefer the native [DuckDB destination](duckdb.md). Use SQLAlchemy when you need full control over the engine, e.g., to `ATTACH` encrypted database files with connection setup SQL.
 
 ### In-memory databases
+
 An in-memory DuckDB database is private to each connection. Pass an `Engine` that shares a single connection and load sequentially:
 
 ```py
@@ -324,12 +330,14 @@ workers=1
 ```
 
 ### DuckDB dialect limitations
+
 * `duckdb_engine` does not reflect primary key and unique constraints nor indexes: they are created when `create_primary_keys` / `create_unique_indexes` are enabled but cannot be read back with SQLAlchemy tooling.
 * JSON columns are reflected as VARCHAR.
 * VARCHAR precision is accepted in DDL but not stored by DuckDB.
 * Parquet files are loaded with batch INSERT statements: ADBC ingestion is not implemented for this dialect.
 
 ## Notes on other dialects
+
 We tested this destination on **mysql**, **sqlite**, **duckdb**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
@@ -339,18 +347,21 @@ some work to recognize those for most of the popular dialects (look for `db_api_
 Please report issues with particular dialects. We'll try to make them work.
 
 ### Trino limitations
+
 * Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
 * Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 
 ### Oracle limitations
+
 * In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
 
 ### Adapting destination for a dialect
 
 #### Quick approach: pass `type_mapper` directly
+
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
 
@@ -576,6 +587,7 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 * [Parquet](../file-formats.md#parquet) is supported.
 
 ## Supported column hints
+
 No indexes or constraints are created on the table. You can enable the following via destination configuration
 
 ```toml

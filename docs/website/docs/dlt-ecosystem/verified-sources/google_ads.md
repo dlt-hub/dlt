@@ -3,9 +3,9 @@ title: Google Ads
 description: dlt verified source for Google Ads API
 keywords: [google ads api, google ads verified source, google ads]
 ---
-import Header from './_source-info-header.md';
-
 # Google ads
+
+import Header from './_source-info-header.md';
 
 [Google Ads](https://ads.google.com/home/) is a digital advertising service by Google that allows advertisers to display ads across Google's search results, websites, and other platforms.
 
@@ -96,7 +96,7 @@ python google_ads/setup_script_gcp_oauth.py
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
 
-### Share the Google Ads account with the API:
+### Share the Google Ads account with the API
 
 :::note
 For service account authentication, use the client_email. For OAuth authentication, use the
@@ -277,6 +277,7 @@ Similarly, there are resource functions called `campaigns`, `change_events`, and
 respective dimensions.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

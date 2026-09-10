@@ -3,7 +3,6 @@ title: Source
 description: Explanation of what a dlt source is
 keywords: [source, api, dlt.source]
 ---
-
 # Source
 
 A [source](glossary.md#source) is a logical grouping of resources, i.e., endpoints of a
@@ -127,6 +126,7 @@ Note that `add_limit` **does not limit the number of rows** but rather the "numb
 Find more on sampling data [here](resource.md#sample-from-large-data).
 
 ### Rename the source
+
 dlt allows you to rename the source i.e. to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
 

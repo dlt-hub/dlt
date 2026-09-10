@@ -3,7 +3,6 @@ title: Access datasets in Python
 description: Conveniently access the data loaded to any destination in Python
 keywords: [destination, schema, data, access, retrieval]
 ---
-
 # Access loaded data in Python
 
 This guide explains how to access and change data that dlt loaded into your destination. After a pipeline run, use `pipeline.dataset()` to query the data. You can build the query with data frame expressions, Ibis, or SQL. You can read the result as records, Pandas frames, or Arrow tables.
@@ -818,6 +817,7 @@ df = joined_relation.df()
 Every SQL and filesystem destination that `dlt` supports can use this interface.
 
 ### Reading data from filesystem
+
 For filesystem destinations, `dlt` [uses **DuckDB** internally](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client) to create views on iceberg and delta tables, and on Parquet, JSONL, and csv files. You query these files with the same interface you use for SQL databases. For frequent reads, load the data into delta or iceberg tables. On those formats DuckDB reads only the parts the query needs.
 
 :::tip
@@ -946,14 +946,14 @@ If you inspect the tables in this schema, you will find the `mydata_staging.user
 
 After a pipeline run the tables can look like this:
 
-**mydata_staging.users**
+`mydata_staging.users`
 
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
 | 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
 | 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
 
-**mydata.users**
+`mydata.users`
 
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
@@ -996,6 +996,7 @@ The first run names the schema `mydata_20230912064403`, the second run names it 
 dlt automatically creates internal tables in the destination schema to track pipeline runs, support incremental loading, and manage schema versions. These tables use the `_dlt_` prefix.
 
 ### `_dlt_loads`
+
 This table records each pipeline run. Every run adds a new row with a unique `load_id`. The table tracks which loads are complete and supports chaining of transformations.
 
 
@@ -1010,6 +1011,7 @@ This table records each pipeline run. Every run adds a new row with a unique `lo
 Only rows with `status = 0` are complete. Other values mark incomplete or interrupted loads. The status column also coordinates multi-step transformations.
 
 ### `_dlt_pipeline_state`
+
 This table stores the internal state of the pipeline for each run. The state drives incremental loading. After an interrupted run, the pipeline resumes from this state.
 
 
@@ -1038,6 +1040,7 @@ With this state dlt resumes interrupted pipelines and skips data it already proc
 dlt recalculates the `version_hash` on each update. dlt uses this table for last-value incremental loading. After a failed or stopped run, the next run reads the correct checkpoint from this table.
 
 ### `_dlt_version`
+
 This table tracks the history of all schema versions the pipeline used. Every time dlt updates the schema, for example when a source adds columns or tables, dlt writes a new entry to this table.
 
 | Column name     | Type            | Description                                      |

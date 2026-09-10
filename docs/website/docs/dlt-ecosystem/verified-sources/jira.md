@@ -3,9 +3,9 @@ title: Jira
 description: dlt verified source for Atlassian Jira
 keywords: [jira api, jira verified source, jira]
 ---
-import Header from './_source-info-header.md';
-
 # Jira
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

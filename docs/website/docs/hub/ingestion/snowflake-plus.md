@@ -3,7 +3,6 @@ title: "Destination: Snowflake+ Iceberg / Open Catalog"
 description: Snowflake destination with Iceberg and Open Catalog
 keywords: [Snowflake, Iceberg, destination]
 ---
-
 # Snowflake+ Iceberg / Open Catalog
 
 :::note
@@ -89,6 +88,7 @@ def my_iceberg_table():
 The `snowflake_plus` destination extends the standard Snowflake configuration with additional options:
 
 ### `iceberg_mode`
+
 Controls which tables are created as Iceberg tables.
 - Possible values:
   - `"all"`: All tables including dlt system tables are created as Iceberg tables
@@ -98,26 +98,31 @@ Controls which tables are created as Iceberg tables.
 - Default: `"none"`
 
 ### `external_volume`
+
 The external volume to store Iceberg metadata.
 - Required: Yes
 - Default: None
 
 ### `catalog`
+
 The catalog to use for Iceberg tables.
 - Required: No
 - Default: `"SNOWFLAKE"`. This will use [Snowflake as the catalog](https://docs.snowflake.com/en/user-guide/tables-iceberg#label-tables-iceberg-snowflake-as-catalog) for the Iceberg tables.
 
 ### `base_location`
+
 Template string for the base location where Iceberg data is stored in the external volume. Supports placeholders like `{dataset_name}` and `{table_name}`.
 - Required: No
 - Default: `"{dataset_name}/{table_name}"`
 
 ### `extra_placeholders`
+
 Dictionary of additional values that can be used in the `base_location` template. The values can be static strings or functions that accept the dataset name and table name as arguments and return a string.
 - Required: No
 - Default: None
 
 ### `catalog_sync`
+
 The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) for syncing Iceberg tables to an external catalog in [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview).
 - Required: No
 - Default: None
@@ -169,6 +174,7 @@ Where `<randomId>` is a random Snowflake-generated 8-character string appended t
 For more details on how Snowflake organizes Iceberg table files in external storage, see the [Snowflake documentation on data and metadata directories](https://docs.snowflake.com/en/user-guide/tables-iceberg-storage#data-and-metadata-directories).
 
 ## Table format for individual tables
+
 You can specify table format (Iceberg/Native) for individual `dlt` resources. For example:
 
   ```py

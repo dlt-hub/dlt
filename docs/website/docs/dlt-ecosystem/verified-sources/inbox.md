@@ -3,9 +3,9 @@ title: Inbox
 description: dlt verified source for Mail Inbox
 keywords: [inbox, inbox verified source, inbox mail, email]
 ---
-import Header from './_source-info-header.md';
-
 # Inbox
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -46,7 +46,7 @@ Sources and resources that can be loaded using this verified source are:
 
 1. An app password is a 16-digit code allowing less secure apps/devices to access your Google Account, available only with 2-Step Verification activated.
 
-#### Steps to create and use app passwords:
+#### Steps to create and use app passwords
 
 1. Visit your Google Account > Security.
 2. Under "How you sign in to Google", enable 2-Step Verification.

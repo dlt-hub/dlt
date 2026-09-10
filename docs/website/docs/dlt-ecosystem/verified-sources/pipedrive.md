@@ -3,9 +3,9 @@ title: Pipedrive
 description: dlt verified source for Pipedrive API
 keywords: [pipedrive api, pipedrive verified source, pipedrive]
 ---
-import Header from './_source-info-header.md';
-
 # Pipedrive
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

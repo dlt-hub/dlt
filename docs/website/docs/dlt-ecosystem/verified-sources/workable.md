@@ -3,9 +3,9 @@ title: Workable
 description: dlt pipeline for Workable API
 keywords: [workable api, workable pipeline, workable]
 ---
-import Header from './_source-info-header.md';
-
 # Workable
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -16,7 +16,7 @@ This Workable `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/workable_pipeline.py)
 loads data using the “Workable API” to the destination of your choice.
 
-### Default endpoints
+## Default endpoints
 
 This verified source loads data from the following default endpoints:
 

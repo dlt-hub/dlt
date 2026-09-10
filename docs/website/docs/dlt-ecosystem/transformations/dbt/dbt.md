@@ -3,7 +3,6 @@ title: Transform data with dbt
 description: Transforming the data loaded by a dlt pipeline with dbt
 keywords: [transform, dbt, runner, dbt cloud]
 ---
-
 # Transform data with dbt
 
 [dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows for the simple structuring of your transformations into DAGs. The benefits of using dbt include:
@@ -78,6 +77,7 @@ for m in models:
 ```
 
 ## How to run dbt runner without pipeline
+
 You can use the dbt runner without a dlt pipeline. The example below will clone and run **jaffle shop** using a dbt profile that you supply.
 It assumes that dbt is installed in the current Python environment and the `profile.yml` is in the same folder as the Python script.
 

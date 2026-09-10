@@ -3,6 +3,7 @@ title: Load data from a REST API
 description: How to extract data from a REST API using dlt's REST API source
 keywords: [tutorial, api, github, duckdb, rest api, source, pagination, authentication]
 ---
+# Load data from a REST API
 
 This tutorial demonstrates how to extract data from a REST API using dlt's REST API source and load it into a destination. You will learn how to build a data pipeline that loads data from the [Pokemon](https://pokeapi.co/) and the [GitHub API](https://docs.github.com/en/) into a local DuckDB database.
 
@@ -174,7 +175,9 @@ config: RESTAPIConfig = {
 - The `resources` list contains the names of the resources you want to load from the API. REST API will use some conventions to determine the endpoint URL based on the resource name. For example, the resource name `pokemon` will be translated to the endpoint URL `https://pokeapi.co/api/v2/pokemon`.
 
 :::note
+
 ### Pagination
+
 You may have noticed that we didn't specify any pagination configuration in the `rest_api_source()` function. That's because for REST APIs that follow best practices, dlt can automatically detect and handle pagination. Read more about [configuring pagination](../dlt-ecosystem/verified-sources/rest_api/basic#pagination) in the REST API source documentation.
 :::
 

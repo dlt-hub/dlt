@@ -3,8 +3,6 @@ title: Command Line Interface
 description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---
-
-
 # Command Line Interface Reference
 
 <!-- this page is fully generated from the argparse object of dlt, run make update-cli-docs to update it -->
@@ -2915,4 +2913,3 @@ Inherits arguments from [`dlthub ai mcp`](#dlthub-ai-mcp).
 * `--overwrite` - Overwrite existing server config instead of skipping.
 
 </details>
-

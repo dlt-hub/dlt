@@ -3,7 +3,6 @@ title: 'Moving from local to production'
 description: Share a local dataset by moving it to BigQuery
 keywords: [how to, share a dataset]
 ---
-
 # Moving from local to production
 
 In previous how-to guides, you used the local stack to create and run your pipeline. This saved you
@@ -159,4 +158,3 @@ or
 ```
 
 you must enable billing.
-

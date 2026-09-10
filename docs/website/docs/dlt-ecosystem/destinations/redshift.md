@@ -3,11 +3,11 @@ title: Redshift
 description: Amazon Redshift `dlt` destination
 keywords: [redshift, destination, data warehouse]
 ---
-
 # Redshift
 
 ## Install dlt with Redshift
-**To install the dlt library with Redshift dependencies:**
+
+To install the dlt library with Redshift dependencies:
 
 ```sh
 pip install "dlt[redshift]"
@@ -16,6 +16,7 @@ pip install "dlt[redshift]"
 <!--@@@DLT_DESTINATION_CAPABILITIES redshift-->
 
 ## Setup guide
+
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
@@ -35,6 +36,7 @@ pip install -r requirements.txt
 or with `pip install "dlt[redshift]"`, which installs the `dlt` library and the necessary dependencies for working with Amazon Redshift as a destination.
 
 ### 2. Setup Redshift cluster
+
 To load data into Redshift, you need to create a Redshift cluster and enable access to your IP address through the VPC inbound rules associated with the cluster. While we recommend asking our GPT-4 assistant for details, we have provided a general outline of the process below:
 
 1. You can use an existing cluster or create a new one.
@@ -83,6 +85,7 @@ Use the PostgreSQL driver for PostgreSQL-based setups or the Amazon Redshift dri
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
 ## Supported file formats
+
 [SQL Insert](../file-formats.md#sql-insert) is used by default.
 
 When staging is enabled:
@@ -107,6 +110,7 @@ Amazon Redshift supports the following column hints:
 - `sort` - This hint creates a SORTKEY to order rows on disk physically. It is used to improve query and join speed in Redshift. Please read the [sort key docs](https://docs.aws.amazon.com/redshift/latest/dg/c_best-practices-sort-key.html) to learn more.
 
 ### Table and column identifiers
+
 Redshift **by default** uses case-insensitive identifiers and **will lower case all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use
 [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway, and you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
@@ -129,6 +133,7 @@ If the S3 bucket is in a different region than your Redshift cluster:
 :::
 
 ### Additional COPY Options
+
 You can append additional Redshift [COPY options/Data conversion Parameters](https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-conversion.html) to staged loads with `additional_copy_options`. For example:
 
 ```toml
@@ -137,6 +142,7 @@ additional_copy_options = ["FILLRECORD", "NULL AS 'null_string'"]
 ```
 
 ## Identifier names and case sensitivity
+
 * Up to 127 characters
 * Case insensitive
 * Stores identifiers in lower case
@@ -166,7 +172,9 @@ pipeline = dlt.pipeline(
 ```
 
 ## Additional destination options
+
 ### Session timezone
+
 Redshift uses UTC unless you set a timezone. `session_timezone` sets it per connection. The setting
 decides how Redshift reads values without a UTC offset into `timestamptz` columns. It also decides
 which timezone Redshift returns for those columns. It does not change the column types that
@@ -182,6 +190,7 @@ session_timezone = "Europe/Paris"
 - This destination [integrates with dbt](../transformations/dbt) via [dbt-redshift](https://github.com/dbt-labs/dbt-redshift). Credentials and timeout settings are shared automatically with `dbt`.
 
 ### Syncing of `dlt` state
+
 - This destination fully supports [dlt state sync.](../../general-usage/state#syncing-state-with-destination)
 
 ## Supported loader file formats

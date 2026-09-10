@@ -3,11 +3,11 @@ title: Fabric
 description: Microsoft Fabric Warehouse `dlt` destination
 keywords: [fabric, microsoft fabric, warehouse, destination, data warehouse, synapse]
 ---
-
 # Microsoft Fabric Warehouse
 
 ## Install dlt with Fabric
-**To install the dlt library with Fabric Warehouse dependencies, use:**
+
+To install the dlt library with Fabric Warehouse dependencies, use:
 
 ```sh
 pip install "dlt[fabric]"
@@ -47,13 +47,13 @@ Fabric Warehouse requires Azure Active Directory Service Principal authenticatio
 
 ### Create a pipeline
 
-**1. Initialize a project with a pipeline that loads to Fabric by running:**
+1. Initialize a project with a pipeline that loads to Fabric by running:
 
 ```sh
 dlt init chess fabric
 ```
 
-**2. Install the necessary dependencies for Fabric by running:**
+2. Install the necessary dependencies for Fabric by running:
 
 ```sh
 pip install -r requirements.txt
@@ -65,7 +65,7 @@ or run:
 pip install "dlt[fabric]"
 ```
 
-**3. Enter your credentials into `.dlt/secrets.toml`.**
+3. Enter your credentials into `.dlt/secrets.toml`.
 
 ```toml
 [destination.fabric.credentials]
@@ -79,6 +79,7 @@ connect_timeout = 30
 ```
 
 ## Write disposition
+
 All write dispositions are supported, including the [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies.
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: Fabric supports DDL transactions.
@@ -100,7 +101,7 @@ pipeline = dlt.pipeline(
 )
 ```
 
-#### `.dlt/secrets.toml` when using OneLake:
+#### `.dlt/secrets.toml` when using OneLake
 
 ```toml
 [destination.fabric.credentials]
@@ -124,7 +125,7 @@ azure_client_secret = "your-client-secret"
 3. Open your Lakehouse
 4. The lakehouse GUID is in the URL: `https://fabric.microsoft.com/.../lakehouses/<lakehouse_guid>`
 
-#### `.dlt/secrets.toml` when using Azure Blob / Data Lake Storage:
+#### `.dlt/secrets.toml` when using Azure Blob / Data Lake Storage
 
 ```toml
 [destination.fabric.credentials]
@@ -139,18 +140,23 @@ azure_storage_account_key = "your-storage-account-key"
 ```
 
 ## Data loading
+
 Data is loaded via INSERT statements by default. Fabric Warehouse has a limit of 1000 rows per INSERT, and this is what we use.
 
 ## Supported file formats
+
 * [insert-values](../file-formats.md#sql-insert) is the default and currently only supported format
 
 ## Supported column hints
+
 **fabric** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
 
 ### Table and column identifiers
+
 Fabric Warehouse (like SQL Server) uses **case-insensitive identifiers** but preserves the casing of identifiers stored in the INFORMATION SCHEMA. You can use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 ## Syncing of `dlt` state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ## Data types
@@ -158,6 +164,7 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 Fabric Warehouse differs from standard SQL Server in several important ways:
 
 ### VARCHAR vs NVARCHAR
+
 Fabric Warehouse uses `varchar` for text columns instead of `nvarchar`. Because `varchar` lengths are counted in
 bytes while `precision` counts characters, the precision is multiplied by 4 (the worst case for UTF-8):
 - `text` → `varchar(max)`
@@ -165,11 +172,13 @@ bytes while `precision` counts characters, the precision is multiplied by 4 (the
 - `text` with `precision` above 2000 → `varchar(max)`, since 8000 is the longest length Fabric accepts
 
 ### DATETIME2 vs DATETIMEOFFSET
+
 Fabric uses `datetime2` for timestamps instead of `datetimeoffset`:
 - `timestamp` → `datetime2(6)` (precision limited to 0-6, not 0-7)
 - `time` → `time(6)` (explicit precision required)
 
 ### JSON Storage
+
 Fabric does not support native JSON columns. JSON objects are stored as `varchar(max)` columns.
 
 ## Collation Support
@@ -222,6 +231,7 @@ While Fabric Warehouse is based on SQL Server, there are key differences:
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
 
 ### dbt support
+
 Integration with [dbt](../transformations/dbt/dbt.md) is supported via [dbt-fabric](https://github.com/Microsoft/dbt-fabric). Both Service Principal and default Azure credentials are supported and shared with dbt runners.
 
 ## Troubleshooting

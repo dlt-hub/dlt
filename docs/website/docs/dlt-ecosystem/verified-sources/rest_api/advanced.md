@@ -3,6 +3,7 @@ title: REST API helpers
 description: Use the dlt RESTClient to interact with RESTful APIs and paginate the results
 keywords: [api, http, rest, restful, requests, restclient, paginate, pagination, json, retry, timeout, headers, response actions, advanced configuration]
 ---
+# REST API helpers
 
 dlt has built-in support for fetching data from APIs:
 - RESTClient for interacting with RESTful APIs and paginating the results
@@ -912,6 +913,7 @@ request_max_retry_delay = 300
 :::
 
 ### Use custom session
+
 You can pass custom `requests` `Session` to `RESTClient`. `dlt` provides its own implementation where you can easily configure
 retry strategies, timeouts and other factors. For example:
 
@@ -1200,7 +1202,7 @@ Headers can be configured in two places:
 
 When both client-level and endpoint-level headers are specified, endpoint-level headers override client-level headers for the same header names.
 
-##### Client-level headers
+#### Client-level headers
 
 Client-level headers are static and applied to all requests:
 
@@ -1426,6 +1428,7 @@ In this example, the resource will set the correct encoding for all responses. M
 
 
 ### Setup timeouts and retry strategies
+
 `rest_api` uses `dlt` custom sessions and `RESTClient` to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
 
 ```py notype

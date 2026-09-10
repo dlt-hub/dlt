@@ -3,11 +3,11 @@ title: MS SQL
 description: Microsoft SQL Server `dlt` destination
 keywords: [mssql, sqlserver, destination, data warehouse]
 ---
-
 # Microsoft SQL Server
 
 ## Install dlt with MS SQL
-**To install the dlt library with MS SQL dependencies, use:**
+
+To install the dlt library with MS SQL dependencies, use:
 
 ```sh
 pip install "dlt[mssql]"
@@ -30,13 +30,13 @@ You can also [configure the driver name](#additional-destination-options) explic
 
 ### Create a pipeline
 
-**1. Initialize a project with a pipeline that loads to MS SQL by running:**
+1. Initialize a project with a pipeline that loads to MS SQL by running:
 
 ```sh
 dlt init chess mssql
 ```
 
-**2. Install the necessary dependencies for MS SQL by running:**
+2. Install the necessary dependencies for MS SQL by running:
 
 ```sh
 pip install -r requirements.txt
@@ -50,7 +50,7 @@ pip install "dlt[mssql]"
 
 This will install `dlt` with the `mssql` extra, which contains all the dependencies required by the SQL server client.
 
-**3. Enter your credentials into `.dlt/secrets.toml`.**
+3. Enter your credentials into `.dlt/secrets.toml`.
 
 For example, replace with your database connection info:
 
@@ -118,6 +118,7 @@ pipeline = dlt.pipeline(
 ```
 
 ## Write disposition
+
 All write dispositions are supported.
 
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be dropped and
@@ -189,13 +190,16 @@ dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dl
 
 
 ## Supported file formats
+
 * [insert-values](../file-formats.md#sql-insert) is used by default
 * [parquet](../file-formats.md#parquet) is used if mssql ADBC driver is installed
 
 ## Supported column hints
+
 **mssql** will create unique indexes for all columns with `unique` hints. This behavior **is disabled by default**.
 
 ### Table and column identifiers
+
 SQL Server **with the default collation** uses case-insensitive identifiers but will preserve the casing of identifiers that are stored in the INFORMATION SCHEMA. You can use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) to keep the identifier casing. Note that you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 If you change the SQL Server server/database collation to case-sensitive, this will also affect the identifiers. Configure your destination as below in order to use case-sensitive naming conventions without collisions:
@@ -206,12 +210,15 @@ has_case_sensitive_identifiers=true
 ```
 
 ## Syncing of `dlt` state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ## Data types
+
 MS SQL does not support JSON columns, so JSON objects are stored as strings in `nvarchar` columns.
 
 ## Additional destination options
+
 The **mssql** destination **does not** create UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To enable this behavior:
 
 ```toml
@@ -234,6 +241,7 @@ destination.mssql.credentials="mssql://loader:<password>@loader.database.windows
 ```
 
 ### dbt support
+
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-sqlserver](https://github.com/dbt-msft/dbt-sqlserver).
 
 <!--@@@DLT_TUBA mssql-->

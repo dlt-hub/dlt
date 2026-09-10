@@ -3,7 +3,6 @@ title:  URL-parser data enrichment
 description: Enriching the url with various parameters.
 keywords: [data enrichment, url parser, referer data enrichment]
 ---
-
 # Data enrichment part three: URL parser data enrichment
 
 URL parser data enrichment involves extracting various URL components to gain additional insights and
