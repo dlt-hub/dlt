@@ -96,4 +96,3 @@ at the exact intervals or times you specify.
 - The minimum official supported interval is 5 minutes.
 - If you set it to 5 minutes, you can expect intervals between 5 and 30 minutes.
 - From practical experience, any intervals above 30 minutes work on average as expected.
-

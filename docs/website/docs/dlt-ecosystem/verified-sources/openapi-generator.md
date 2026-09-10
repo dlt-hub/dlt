@@ -33,7 +33,6 @@ You will need Python 3.10 or higher installed, as well as pip. You can run `pip 
 
 We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.co/) in our repo. You can point to any other OpenAPI Spec instead if you prefer.
 
-
 1. Run the generator with a URL:
 
     ```sh
@@ -75,8 +74,8 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 9. You can go to our docs at [https://dlthub.com/docs](https://dlthub.com/docs) to learn how to modify the generated pipeline to load to many destinations, place schema contracts on your pipeline, and many other things.
 
 :::note
-We used the `--global-limit 2` CLI flag to limit the requests to the PokeAPI 
-for this example. This way, the Pokemon collection endpoint only gets queried 
+We used the `--global-limit 2` CLI flag to limit the requests to the PokeAPI
+for this example. This way, the Pokemon collection endpoint only gets queried
 twice, resulting in 2 x 20 Pokemon details being rendered.
 :::
 

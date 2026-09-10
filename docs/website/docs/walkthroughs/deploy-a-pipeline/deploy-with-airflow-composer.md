@@ -8,13 +8,11 @@ keywords: [how to, deploy a pipeline, airflow, gcp]
 Before you can deploy a pipeline, you will need to [install dlt](../../reference/installation.md)
 and [create a pipeline](../../tutorial/load-data-from-an-api.md).
 
-
 :::tip
 While this walkthrough deals specifically with Google Composer, it will generate DAGs and configuration files that you can use on any Airflow deployment. DAGs are generated using **dlt Airflow helper** that maps `dlt` resources into Airflow tasks, provides a clean working environment, retry mechanism, metrics, and logging via Airflow loggers.
 :::
 
 If you want to explore other ways to run dlt with Airflow, such as using `PythonOperator`, `PythonVirtualenvOperator`, `KubernetesPodOperator`, or external services like Cloud Run, check out [this guide by Francesco Mucio](https://selectstarfrom.substack.com/p/how-to-run-dlt-or-python-in-airflow). It explains the trade-offs of each approach and helps you choose the right one for your setup.
-
 
 ## 1. Add your `dlt` project directory to GitHub
 
@@ -69,8 +67,6 @@ By default, the `dlt deploy` command shows you the deployment credentials in ENV
 </aside>
 
 ## Example with the pipedrive pipeline
-
-
 
 ### 1. Run the deploy command
 

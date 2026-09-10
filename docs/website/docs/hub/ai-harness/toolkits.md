@@ -76,7 +76,6 @@ Load files (CSV, Parquet, JSONL, or custom) from local disk, S3, GCS, Azure, or 
 </details>
 </div>
 
-
 ## Validate
 
 ### `data-quality`
@@ -94,7 +93,6 @@ Inspect schema for candidates, define column-level validations and load metrics,
 
 </details>
 </div>
-
 
 ## Transform
 
@@ -116,7 +114,6 @@ Transform raw dlt pipeline data into a Canonical Data Model using Kimball dimens
 </details>
 </div>
 
-
 ## Deploy
 
 ### `dlthub-platform`
@@ -134,7 +131,6 @@ Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked e
 
 </details>
 </div>
-
 
 ## Observe
 

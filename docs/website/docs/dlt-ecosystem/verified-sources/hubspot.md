@@ -61,10 +61,8 @@ Follow these steps:
 
 1. Click "Show token" and store it for ".dlt/secrets.toml".
 
-
 > Note: The HubSpot UI, which is described here, might change.
 The full guide is available at [this link.](https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key)
-
 
 ### Initialize the verified source
 
@@ -261,7 +259,6 @@ verified source.
    load_data.contacts.bind(props=["hs_content_membership_email", "hs_content_membership_email_confirmed"])
    load_info = pipeline.run(load_data.with_resources("contacts"))
    ```
-
 
 1. To load the web analytics events of a given object type.
 

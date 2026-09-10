@@ -47,7 +47,6 @@ To get a complete list of sub-endpoints that can be loaded, see
 > Note: The Jira UI, which is described here, might change.
 The full guide is available at [this link.](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
 
-
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:

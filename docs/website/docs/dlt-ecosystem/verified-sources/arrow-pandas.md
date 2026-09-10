@@ -113,7 +113,6 @@ The output file format is chosen automatically based on the destination's capabi
 * synapse
 * lance/lancedb
 
-
 ## Handling schema mismatches across batches
 
 When a resource yields multiple Arrow tables, DataFrames, or Polars DataFrames, `dlt` concatenates them before writing to disk. By default, all batches must have **identical schemas** — any type difference (e.g., `int64` vs `float64`) raises an `ArrowInvalid` error. This is common when reading multiple source files where pandas infers slightly different types per file.
@@ -137,7 +136,7 @@ arrow_concat_promote_options = "permissive"
 DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS=permissive
 ```
 
-`dlt` will concatenate and cast batches according to promotion settings. 
+`dlt` will concatenate and cast batches according to promotion settings.
 If schema promotion is not possible - file will be rotated and incompatible batches will be split over many parquet files. A final data
 coercion will be performed by particular destination.
 
@@ -231,7 +230,6 @@ The Arrow data types are translated to dlt data types as follows:
 | `decimal`         | `decimal`   | Precision and scale are determined by the type properties. |
 | `struct`          | `json`      |                                                            |
 |                   |             |                                                            |
-
 
 ## Loading nested types
 

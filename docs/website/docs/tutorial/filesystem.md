@@ -90,12 +90,10 @@ A [transformer](../general-usage/resource#process-resources-with-dlttransformer)
 3. We create the dlt pipeline, configuring it with the name `hospital_data_pipeline` and DuckDB as the destination.
 4. We call `pipeline.run()`. This is where the underlying generators are iterated:
 
-
  - dlt retrieves remote data,
  - normalizes data,
  - creates or updates the table in the destination,
  - loads the extracted data into the destination.
-
 
 5. `print(info)` outputs the pipeline running stats we get from `pipeline.run()`.
 
@@ -293,7 +291,6 @@ Note that we applied incremental loading both for `files` and for `reader`. Ther
 If you run `dlt pipeline hospital_data_pipeline show`, you can see the pipeline now has new information in the state about the incremental variable.
 
 To learn more about incremental loading, check out the [filesystem incremental loading section](../dlt-ecosystem/verified-sources/filesystem#5-incremental-loading).
-
 
 ## 8. Enrich records with the files metadata
 

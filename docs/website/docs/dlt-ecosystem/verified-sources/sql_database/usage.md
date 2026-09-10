@@ -9,7 +9,6 @@ import Header from '../_source-info-header.md';
 
 <Header/>
 
-
 ## Applying column-wise filtering on the data being ingested
 
 By default, the existing source and resource functions, `sql_database` and `sql_table`, ingest all of the records from the source table. However, by using `query_adapter_callback`, it is possible to pass a `WHERE` clause inside the underlying `SELECT` statement using the [SQLAlchemy syntax](https://docs.sqlalchemy.org/en/14/core/selectable.html#). This enables filtering the data based on specific columns before extraction.
@@ -131,7 +130,6 @@ You have direct access to the extracted data through the resource objects (`sql_
 :::note
 The PyArrow backend does not yield individual rows but loads chunks of data as `ndarray`. In this case, the transformation function that goes into `add_map` should be configured to expect an `ndarray` input.
 :::
-
 
 Examples:
 1. Pseudonymizing data to hide personally identifiable information (PII) before loading it to the destination. (See [here](../../../general-usage/customising-pipelines/pseudonymizing_columns) for more information on pseudonymizing data with `dlt`)

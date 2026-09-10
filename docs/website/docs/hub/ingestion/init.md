@@ -7,7 +7,6 @@ keywords: [create a pipeline, verified source, workspace, rest client, how to, d
 
 This guide walks you through creating and initializing a `dlt` pipeline in dltHub Workspace—whether manually, with agentic help, or from one of the **verified sources** maintained by dltHub team.
 
-
 ## Overview
 
 A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
@@ -19,7 +18,6 @@ You can create one in two CLI-based ways:
 | Verified source | `dlthub pipeline init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
 
 Outside of a workspace (plain OSS `dlt`), the same scaffold is reachable as `dlt init <source> <destination>`. Inside a dltHub workspace, `dlthub pipeline init` is the canonical entry point—it adds the pipeline to the current workspace.
-
 
 ## Step 0: Install dlt with workspace support
 
@@ -34,7 +32,6 @@ This scaffolds a workspace with `.dlt/.workspace` already set, the AI toolkits v
 **dltHub Workspace** is a unified environment for developing, running, and maintaining data pipelines—from local development to production.
 
 [More about dlt Workspace](../getting-started/installation.md#what-is-a-dlthub-workspace)
-
 
 ## Step 1: Initialize a custom pipeline
 
@@ -63,7 +60,6 @@ It’s meant as a hands-on playground you can immediately run and then adapt int
 
 Learn how to build you own dlt pipeline with [dlt Fundamentals course.](https://dlthub.learnworlds.com/course/dlt-fundamentals)
 
-
 ### Agentic setup
 
 A collaborative AI-human workflow that integrates `dlt` with AI editors and agents like:
@@ -73,10 +69,7 @@ A collaborative AI-human workflow that integrates `dlt` with AI editors and agen
 - **Codex**
 - [the full list](./rest-api-source.md#setup)
 
-
 Start with the [`/find-source` skill](./rest-api-source.md#find-source--discover-your-data-source) to describe your data source in natural language—the assistant identifies a verified source or researches the API, then chains into pipeline scaffolding.
-
-
 
 [Read more about running a pipeline](../../walkthroughs/run-a-pipeline)
 

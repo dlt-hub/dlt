@@ -229,7 +229,6 @@ def mongodb(
 
 `write_disposition`: Writing mode: "replace", "append", or "merge".
 
-
 ### Source `mongo_collection`
 
 This function fetches a single collection from a MongoDB database using PyMongo.
@@ -249,7 +248,6 @@ def mongodb_collection(
 ```
 
 `collection`: Name of the collection to load.
-
 
 ## Customization
 

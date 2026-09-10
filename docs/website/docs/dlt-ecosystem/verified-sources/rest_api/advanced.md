@@ -831,8 +831,6 @@ client = RESTClient(base_url="https://api.zoom.us/v2", auth=oauth)
 response = client.get("/users")
 ```
 
-
-
 ### Implementing custom authentication
 
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
@@ -943,7 +941,6 @@ The RESTClient automatically sanitizes URLs in logs and error messages to preven
 - `secret`, `password`, `pwd`, `client_secret`
 
 For example, a URL like `https://api.example.com/data?api_key=secret123&page=1` will appear in logs as `https://api.example.com/data?api_key=***&page=1`.
-
 
 ## Troubleshooting
 
@@ -1145,7 +1142,6 @@ http_client = Client(
 `requests.Client` is thread safe. We recommend to share sessions across threads for better performance.
 :::
 
-
 ### Handling API Rate Limits
 
 HTTP 429 errors indicate you've hit API rate limits. The dlt requests client retries these automatically and respects `Retry-After` headers. If rate limits persist, consider additional mitigation strategies.
@@ -1341,7 +1337,6 @@ This is an experimental feature and may change in future releases.
   - a callable accepting and returning the response object.
   - a list of callables, each accepting and returning the response object.
 
-
 #### Example A
 
 ```py
@@ -1431,7 +1426,6 @@ source_config = {
 ```
 
 In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
-
 
 ### Setup timeouts and retry strategies
 

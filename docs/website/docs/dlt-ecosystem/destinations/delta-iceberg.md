@@ -138,4 +138,3 @@ dlt passes these as arguments to the `write_deltalake` method in the `deltalake`
 You don't need to specify credentials here. dlt merges the required credentials with the options you provided before passing it as `storage_options`.
 
 >❗When using `s3`, you need to specify storage options to [configure](https://delta-io.github.io/delta-rs/usage/writing/writing-to-s3-with-locking-provider/) locking behavior.
-

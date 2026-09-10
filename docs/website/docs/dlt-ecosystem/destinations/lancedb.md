@@ -8,7 +8,6 @@ keywords: [ lancedb, vector database, destination, dlt ]
 [LanceDB](https://lancedb.com/) is a multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. It allows you to store data objects and perform similarity searches over them.
 This destination helps you load data into LanceDB from [dlt resources](../../general-usage/resource.md).
 
-
 <!--@@@DLT_DESTINATION_CAPABILITIES lancedb-->
 
 ## Setup guide
@@ -213,7 +212,6 @@ Both `dlt` and `LanceDB` support Arrow and Pandas natively. You will be able to 
 
 If you plan to use `merge` write disposition, remember to [enable load ids](../verified-sources/) tracking for arrow tables.
 
-
 ## Access loaded data
 
 You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
@@ -337,7 +335,6 @@ The `merge_key`, which cannot be compound, should correspond to the canonical `d
 It must be the first element of the `primary_key`.
 This `merge_key` is crucial for document identification and orphan removal during merge operations.
 This structure ensures proper record identification and maintains consistency with vector database concepts.
-
 
 #### Orphan Removal
 

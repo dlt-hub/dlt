@@ -11,7 +11,7 @@ This feature is in public preview
 
 This page covers more in-depth details about data quality features, such as metrics and checks. It shows the full flexibility available for advanced use cases. It can also serve as an FAQ and helper for debugging.
 
-Note that these APIs are more likely to change than the basics page. 
+Note that these APIs are more likely to change than the basics page.
 
 ## Metrics and checks are `DltSource` objects
 
@@ -22,7 +22,6 @@ Internally, metrics and checks are defined as `dlt.source` objects that are exec
 - dynamically modify metrics and checks to execute via Python code
 - have a central data quality pipeline that you run for multiple pipelines / datasets
 
-
 ## Metrics and checks use a special `dlt.Schema`
 
 Currently, a `dlt.Dataset` is associated with a single `dlt.Schema`. This defines what tables are known and available to the dataset's API (for example, `dataset.table(...)`).
@@ -32,7 +31,6 @@ But a `dlt.Pipeline` can be associated with multiple `dlt.Schema`, such as when 
 The data quality metrics and checks sources have a dedicated `_dlt_data_quality` schema with internal tables for metrics and checks results. These tables are not directly visible via the `dlt.Dataset` API. (this may change in the future)
 
 The `dq.read_metric()` and `dq.read_check()` retrieve data from these internal tables.
-
 
 ## Checks anatomy: result, decision, outcome, level
 
@@ -57,7 +55,7 @@ For instance:
 
 - **Row-level** checks produce a result per record. It's possible to inspect which specific records pass / failed the check.
 
-- **Table-level** checks produce a result per table (for example, result is "the number of unique values" and decision is "is this greater than 5?"). 
+- **Table-level** checks produce a result per table (for example, result is "the number of unique values" and decision is "is this greater than 5?").
 
     These checks can often be rewritten as row-level checks (for example, "is this value unique?")
 

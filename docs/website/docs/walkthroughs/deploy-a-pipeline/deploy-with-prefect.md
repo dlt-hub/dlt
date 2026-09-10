@@ -33,16 +33,16 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
 1. Create a `dlt` pipeline. For detailed instructions on creating a pipeline, please refer to the [documentation](../../tutorial/load-data-from-an-api.md).
 
 1. Add `@task` decorator to the individual functions.
-  1. Here we use the `@task` decorator for the `get_users` function: 
-        
+  1. Here we use the `@task` decorator for the `get_users` function:
+
         ```py notype
         @task
         def get_users() -> None:
             """Execute a pipeline that will load the Slack users list."""
         ```
-        
+
   1. Use the `@flow` function on the `slack_pipeline` function as:
-        
+
         ```py notype
         @flow
         def slack_pipeline(
@@ -52,19 +52,19 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
             get_users()
         
         ```
-        
+
 2. Lastly, append `.serve` to the `if __name__ == '__main__'` block to automatically create and schedule a Prefect deployment for daily execution as:
-    
+
     ```py notype
     if __name__ == "__main__":
         slack_pipeline.serve("slack_pipeline", cron="0 0 * * *")
     ```
-    
+
 3. You can view deployment details and scheduled runs, including successes and failures, using [PrefectUI](https://app.prefect.cloud/auth/login). This will help you know when a pipeline ran or, more importantly, when it did not.
 
 ![Prefect Dashboard](images/prefect-dashboard.png)
 
-You can further extend the pipeline by: 
+You can further extend the pipeline by:
 
 - Setting up [remote infrastructure with workers](https://docs.prefect.io/latest/tutorial/workers/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08).
 - [Adding automations](https://docs.prefect.io/latest/concepts/automations/?deviceId=bb3e22c1-c2c7-4981-bd5e-c81715503e08) to notify the status of the pipeline run.

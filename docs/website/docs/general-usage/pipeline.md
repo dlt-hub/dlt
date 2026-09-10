@@ -29,7 +29,7 @@ You instantiate a pipeline by calling the `dlt.pipeline` function with the follo
 - `pipeline_name`: a name of the pipeline that is used to identify it in trace and monitoring
   events and to restore its state and data schemas on subsequent runs. If not provided, `dlt` creates a pipeline name from the filename of the currently executing Python module.
 - `destination`: a name of the [destination](../dlt-ecosystem/destinations) to which dlt
-  loads the data. It may also be provided to the `run` method of the `pipeline` and can be declared in [various ways](destination.md). 
+  loads the data. It may also be provided to the `run` method of the `pipeline` and can be declared in [various ways](destination.md).
 - `dataset_name`: a name of the dataset to which the data is loaded. A dataset is a logical
   group of tables, that is, `schema` in relational databases or a folder grouping many files. It may also be
   provided later to the `run` or `load` methods of the pipeline. If not provided, then
@@ -75,13 +75,17 @@ You can inspect stored artifacts using the command
 [dlt pipeline info](../reference/command-line-interface.md#dlt-pipeline) and
 [programmatically](../walkthroughs/run-a-pipeline.md#4-inspect-a-load-process).
 
-> 💡 A pipeline with a given name looks for its working directory in the location above - so if you have two
-> pipeline scripts that create a pipeline with the same name, they see the same working folder
-> and share all the possible state. You may override the default location using the `pipelines_dir`
-> argument when creating the pipeline.
+:::info
+A pipeline with a given name looks for its working directory in the location above - so if you have two
+pipeline scripts that create a pipeline with the same name, they see the same working folder
+and share all the possible state. You may override the default location using the `pipelines_dir`
+argument when creating the pipeline.
+:::
 
-> 💡 You can attach a `Pipeline` instance to an existing working folder, without creating a new
-> pipeline with `dlt.attach`.
+:::info
+You can attach a `Pipeline` instance to an existing working folder, without creating a new
+pipeline with `dlt.attach`.
+:::
 
 ### Separate working environments with `pipelines_dir`
 
@@ -113,7 +117,7 @@ pipeline is created, `dlt` adds a datetime-based suffix to the dataset name.
 ## Drop destination schema / dataset to start over
 
 If you drop the destination schema / dataset to which your pipeline loads data, the pipeline fully resets its
-state and working directory and executes its first run. 
+state and working directory and executes its first run.
 If your pipeline doesn't share the dataset with any other pipeline and you don't keep any additional data in it - this
 operation is also safe to be executed in production to trigger full refresh without a need to writing additional code.
 
@@ -124,7 +128,7 @@ That means when you run the pipeline, the sources/resources being processed have
 depending on which refresh mode is used.
 
 :::tip
-`dlt` modifies your destination only if extract and normalize steps of refresh run succeeded. In any other case all modifications, including 
+`dlt` modifies your destination only if extract and normalize steps of refresh run succeeded. In any other case all modifications, including
 schema and state, are discarded.
 :::
 

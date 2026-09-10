@@ -369,7 +369,7 @@ Full list of `filesystem` resource parameters:
 
 * `bucket_url` - full URL of the bucket (could be a relative path in the case of the local filesystem).
 * `credentials` - cloud storage credentials of `AbstractFilesystem` instance (should be empty for the local filesystem). We recommend not specifying this parameter in the code, but putting it in a secrets file instead.
-* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL. 
+* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL.
 
   :::info
   If the `bucket_url` is a specific file path, set `file_glob=""`.
@@ -523,7 +523,7 @@ two methods to do that:
 1. Obtain a list of files i.e. by just listing your resource `files = list(filesystem(...))`
 2. Order your list by `modification_date` or `file_url` and split it into equal chunks.
 3. For each chunk find min and max of the range
-4. Use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+4. Use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill.
 5. You can load each partition in a loop or in parallel (i.e. in separate process).
 6. Continue regular incremental loading with `initial_value` set to the value at the end of the range (`modification_date` or `file_url`)
 and make the start range open to avoid duplicates.
@@ -576,7 +576,7 @@ Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#
 
 #### Split loading works as follows
 
-1. Use `incremental` property with **row_order** set. 
+1. Use `incremental` property with **row_order** set.
 2. Limit number of files returned per page when creating `filesystem` instance to get manageable chunks
 3. Limit the resource by number of pages or time
 4. Run pipeline in a loop as long as it is not empty
@@ -848,7 +848,6 @@ print(load_info)
 print(listing)
 print(pipeline.last_trace.last_normalize_info)
 ```
-
 
 ## Troubleshoot
 

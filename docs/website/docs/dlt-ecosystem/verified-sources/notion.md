@@ -32,7 +32,6 @@ Sources that can be loaded using this verified source are:
 1. Click "New Integration" on the left and name it appropriately.
 1. Finally, click on "Submit" located at the bottom of the page.
 
-
 ### Add a connection to the database
 
 1. Open the database that you want to load to the destination.
@@ -45,7 +44,6 @@ Sources that can be loaded using this verified source are:
 
 > Note: The Notion UI, which is described here, might change.
 The full guide is available at [this link.](https://developers.notion.com/docs/authorization)
-
 
 ### Initialize the verified source
 
@@ -147,7 +145,6 @@ def notion_databases(
 
 It is important to note that the data is loaded in “replace” mode where the existing data is
 completely replaced.
-
 
 ## Customization
 

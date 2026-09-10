@@ -54,15 +54,21 @@ The default naming convention:
 1. Nesting is expressed as double `_` in names.
 1. It shortens the identifier if it exceeds the length at the destination.
 
-> 💡 The standard behavior of `dlt` is to **use the same naming convention for all destinations** so
-> users always see the same tables and columns in their databases.
+:::info
+The standard behavior of `dlt` is to **use the same naming convention for all destinations** so
+users always see the same tables and columns in their databases.
+:::
 
-> 💡 If you provide any schema elements that contain identifiers via decorators or arguments (i.e.,
-> `table_name` or `columns`), all the names used will be converted via the naming convention when
-> adding to the schema. For example, if you execute `dlt.run(... table_name="CamelCase")` the data
-> will be loaded into `camel_case`.
+:::info
+If you provide any schema elements that contain identifiers via decorators or arguments (i.e.,
+`table_name` or `columns`), all the names used will be converted via the naming convention when
+adding to the schema. For example, if you execute `dlt.run(... table_name="CamelCase")` the data
+will be loaded into `camel_case`.
+:::
 
-> 💡 Use simple, short, small caps identifiers for everything!
+:::info
+Use simple, short, small caps identifiers for everything!
+:::
 
 To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention in "config.toml" as follows:
 
@@ -433,7 +439,7 @@ assert (
 ```
 
 :::note
-This merging behavior applies to all column-level hints passed via `apply_hints`, not only to 
+This merging behavior applies to all column-level hints passed via `apply_hints`, not only to
 compound hints.
 :::
 
@@ -497,10 +503,9 @@ assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
 
 `time` data type is saved in the destination **without timezone info**; if timezone is included, time is converted to UTC and then to naive.
 
-
 ### Handling of timestamp and time zones
 
-By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set 
+By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set
 explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas/polars) and Python objects:
 
 | input timestamp | `timezone` hint | normalized timestamp  |
@@ -604,7 +609,6 @@ for a key is not present at all, nullability check is not done
 
 `dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. `dlt` does not
 evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
-
 
 :::info
 You can materialize a schema in the destination without loading data.
@@ -781,7 +785,6 @@ tables:
     write_disposition: merge
     resource: customers
 ```
-
 
 ### Table references
 

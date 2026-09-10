@@ -77,7 +77,6 @@ Above, we import and instantiate the `filesystem` destination factory. We pass t
 
 If a destination is not named, its shorthand type (the Python factory name) serves as the destination name. Name your destination explicitly if you need several separate configurations for destinations of the same type (i.e., when you wish to maintain credentials for development, staging, and production storage buckets in the same config file). The destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces, so use explicit names when you need more descriptive identifiers (rather than generic names like `filesystem`).
 
-
 ## Configure a destination
 
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
@@ -121,10 +120,7 @@ azure_storage_account_name="dltdata"
 azure_storage_account_key="storage key"
 ```
 
-
 Note that when you use the `dlt init` command to create or add a data source, `dlt` creates a sample configuration for the selected destination.
-
-
 
 ### Pass explicit credentials
 
@@ -143,7 +139,6 @@ pipeline = dlt.pipeline(
 )
 ```
 
-
 :::tip
 You can create and pass partial credentials, and `dlt` will fill in the missing data. Below, we pass a PostgreSQL connection string but without a password and expect that it will be present in environment variables (or any other [config provider](credentials/setup))
 
@@ -156,7 +151,6 @@ from dlt.destinations import postgres
 prod_postgres = postgres(credentials="postgresql://loader@localhost:5432/dlt_data")
 pipeline = dlt.pipeline("pipeline", destination=prod_postgres)
 ```
-
 
 ```py
 import dlt
@@ -171,7 +165,6 @@ pipeline = dlt.pipeline(
     destination=filesystem("az://dlt-azure-bucket", credentials=credentials),
 )
 ```
-
 
 Please read how to use [various built-in credentials types](credentials/complex_types).
 :::
@@ -204,7 +197,6 @@ assert capabilities["recommended_file_size"] == 120000
 ```
 
 The example above is overriding the `naming_convention` and `recommended_file_size` in the destination capabilities.
-
 
 ## Use named destinations
 
@@ -271,7 +263,6 @@ will be resolved as a DuckDB destination that is named `"bigquery"`, because a v
 **Exception:** If `dlt.destination()` is used and the `destination_type` is explicitly provided as an argument, dlt will skip the shorthand fallback and only attempt named destination resolution.
 
 :::
-
 
 ### Configure multiple destinations of the same type
 
@@ -346,7 +337,6 @@ client_email = "please set me up!"
 ```
 
 And keep the pipeline code intact.
-
 
 ## Access a destination
 

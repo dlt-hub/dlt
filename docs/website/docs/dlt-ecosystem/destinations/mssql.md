@@ -129,7 +129,7 @@ recreated with an `ALTER SCHEMA ... TRANSFER`. The operation is atomic: MSSQL su
 
 :::tip
 We recommend using ADBC + parquet to load data. We observed 10x - 100x increase in loading speed compared to the INSERT method. **parquet** file format
-will activate automatically if the right driver is present in the system. 
+will activate automatically if the right driver is present in the system.
 :::
 
 ### Fast loading with parquet
@@ -189,7 +189,6 @@ pyodbc.pooling = False
 ```py
 dlt.destinations.mssql("mssql://loader:<password>@loader.database.windows.net/dlt_data?connect_timeout=15", supports_multiple_statements=False)
 ```
-
 
 ## Supported file formats
 

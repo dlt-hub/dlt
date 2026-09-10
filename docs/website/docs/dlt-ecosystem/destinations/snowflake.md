@@ -5,7 +5,6 @@ keywords: [Snowflake, destination, data warehouse]
 ---
 # Snowflake
 
-
 ## Install `dlt` with Snowflake
 
 To install the `dlt` library with Snowflake dependencies, run:
@@ -129,7 +128,6 @@ If you prefer to just pass a path to a private key file (in one of the formats a
 `private_key_path` instead of `private_key` in `toml`, query string (**please URL encode it**) or environment variables. For example:
 
 `DESTINATION__SNOWFLAKE__PRIVATE_KEY_PATH=path_to_pem.pem`
-
 
 In **OAuth authentication**, you can use an OAuth provider like Snowflake, Okta, or an external browser to authenticate. In the case of Snowflake OAuth, you pass your `authenticator` and refresh `token` as below:
 
@@ -511,7 +509,6 @@ Snowflake supports the following [column hints](../../general-usage/schema#table
 `unique` and `primary_key` are not enforced and `dlt` does not instruct Snowflake to `RELY` on them when
 query planning.
 
-
 ## Table and column identifiers
 
 Snowflake supports both case-sensitive and case-insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case-insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case-sensitive (like **sql_cs_v1**) will generate
@@ -740,4 +737,3 @@ This destination fully supports [dlt state sync](../../general-usage/state#synci
 We enable Snowflake to identify that the connection is created by `dlt`. Snowflake will use this identifier to better understand the usage patterns associated with `dlt` integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA snowflake-->
-

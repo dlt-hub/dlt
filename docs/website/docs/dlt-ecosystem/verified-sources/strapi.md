@@ -145,7 +145,6 @@ def strapi_source(
 
 `domain`: Strapi API domain name, defaults to dlt secrets.
 
-
 ## Customization
 
 ### Create your own pipeline

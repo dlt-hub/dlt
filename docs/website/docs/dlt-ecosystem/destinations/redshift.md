@@ -123,7 +123,6 @@ You can [put Redshift in case-sensitive mode](https://docs.aws.amazon.com/redshi
 has_case_sensitive_identifiers=true
 ```
 
-
 ## Staging support
 
 Redshift supports s3 as a file staging destination. `dlt` will upload files in the parquet format to s3 and ask Redshift to copy their data directly into the db. Please refer to the [S3 documentation](./filesystem.md#aws-s3) to learn how to set up your s3 bucket with the bucket_url and credentials. The `dlt` Redshift loader will use the AWS credentials provided for s3 to access the s3 bucket if not specified otherwise (see config options below). Alternatively to parquet files, you can also specify jsonl as the staging file format. For this, set the `loader_file_format` argument of the `run` command of the pipeline to `jsonl`.

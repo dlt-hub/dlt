@@ -27,7 +27,6 @@ We'll learn:
 - How to use `argparse` to turn your pipeline script into a CLI.
 - How to work with `ConnectionStringCredentials` spec.
 
-
 Be aware that you need to define the database credentials in `.dlt/secrets.toml` or dlt ENVs and adjust the tables names ("customers" and "inventory").
 
 Install `dlt` with `duckdb` as extra, also `connectorx`, Postgres adapter and progress bar tool:

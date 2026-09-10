@@ -61,7 +61,6 @@ For example, setting `schema_contract` to *freeze* will expand to the full form:
 
 You can change the contract on the **source** instance via the `schema_contract` property. For **resource**, you can use [apply_hints](resource#set-table-name-and-adjust-schema).
 
-
 #### Nuances of contract modes
 
 1. Contracts are applied **after names of tables and columns are normalized**.

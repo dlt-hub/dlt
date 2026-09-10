@@ -89,8 +89,6 @@ When your source/resource yields arrow tables / pandas DataFrames / polars DataF
 Find more similar examples [here](../reference/performance.md#extract)
 :::
 
-
-
 ### Timestamps and timezones
 
 `dlt` adds a timezone (UTC adjustment) to a timestamp column at every precision, from seconds to nanoseconds. `dlt` also creates TZ-aware timestamp columns in the destinations. [DuckDB is an exception here](./destinations/duckdb.md#supported-file-formats). A column with the `timezone` hint set to `False` stays naive, and the [context timezone](../general-usage/schema.md#context-timezone) decides which timezone `dlt` uses.
@@ -104,7 +102,6 @@ You can generate parquet files without timezone adjustment information in two wa
 
 To our best knowledge, Arrow will convert your timezone-aware DateTime(s) to UTC and store them in parquet without timezone information.
 
-
 ### Row group size
 
 The `pyarrow` parquet writer writes each item, i.e., table or record batch, in a separate row group. This may lead to many small row groups, which may not be optimal for certain query engines. For example, `duckdb` parallelizes on a row group. `dlt` allows controlling the size of the row group by [buffering and concatenating tables](../reference/performance.md#controlling-in-memory-buffers) and batches before they are written. The concatenation is done as a zero-copy to save memory. You can control the size of the row group by setting the maximum number of rows kept in the buffer.
@@ -117,7 +114,6 @@ buffer_max_items=10e6
 Keep in mind that `dlt` holds the tables in memory. Thus, 10,000,000 rows in the example above may consume a significant amount of RAM.
 
 The `row_group_size` configuration setting has limited utility with the `pyarrow` writer. It may be useful when you write single very large pyarrow tables or when your in-memory buffer is really large.
-
 
 ## CSV
 

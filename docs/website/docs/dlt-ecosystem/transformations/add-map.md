@@ -7,7 +7,6 @@ keywords: [add_map, transform data, remove columns]
 
 `add_map` is a method in dlt used to apply custom logic to each data item after extraction. It is typically used to modify records **before** they continue through the pipeline or are loaded to the destination. Common examples include transforming, enriching, validating, cleaning, restructuring, or anonymizing data early in the pipeline.
 
-
 ## Method signature
 
 ### `add_map` method
@@ -69,7 +68,6 @@ If your needs are straightforward and focused on single-record modifications or 
 - **Incremental loading:**
     When using incremental loading, you may need to adjust records before the incremental logic runs. This includes filling in missing timestamp or ID fields used as cursors, or dropping records that don’t meet criteria. The `add_map` function with the `insert_at` parameter lets you run these transformations at the right stage in the pipeline.
 
-
 ## Controlling transformation order with `insert_at`
 
 dlt pipelines execute in multiple stages. For example, data is typically yielded at step index `0`, transformations like `add_map` are applied at index `1`, and incremental processing occurs in subsequent steps.
@@ -128,11 +126,9 @@ If the incremental cursor field (e.g., `updated_at`) is missing, you can provide
 
 [In this example](../../general-usage/incremental/cursor#transform-records-before-incremental-processing), the third record is made incremental-ready by assigning it a fallback `updated_at` value. This ensures it isn't skipped by the incremental loader.
 
-
 ## `add_map` vs `add_yield_map`
 
 The difference between `add_map` and `add_yield_map` matters when a transformation returns multiple records from a single input.
-
 
 ### **`add_map`**
 

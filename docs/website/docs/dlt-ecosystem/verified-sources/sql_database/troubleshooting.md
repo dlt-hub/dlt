@@ -55,7 +55,7 @@ between runs (i.e. if you have column on a **day** column and between runs, rows
 2. use high resolution cursor columns (i.e. **datetime** type) so not many rows are associated with single value.
 3. disable deduplication [explicitly](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges)
 
-### Connecting to MySQL with SSL 
+### Connecting to MySQL with SSL
 
 Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
 
@@ -127,13 +127,12 @@ This approach can help resolve connection-related issues.
 4. To preserve the original DB type semantics and avoid data loss, NUMBER is always treated as decimal, with sqlalchemy backend keeping the original DB precision and scale and pyarrow setting the default ones. pandas is generally discouraged when it comes to decimals, not only for Oracle
 5. For the `TIMESTAMP WITH TIME ZONE` columns, both `cx_Oracle` and `oracledb` truncate timezone info in select results, so it's not possible to fetch actual timezone data.
 
-  
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/oracledb#installing-and-setting-up-oracle-db) for information and code on setting up and benchmarking on Oracle.
 
 #### DB2
 
 1. Mind that `SQLAlchemy` translates DB2 identifiers into lower case! Keep the default `dlt` naming convention (`snake_case`) when loading data. We'll support more naming conventions soon.
-2. The DB2 type `DOUBLE` gets incorrectly mapped to the Python type `float` (instead of the `SQLAlchemy` type `Numeric` with default precision). This requires `dlt` to perform additional casts. The cost of the cast, however, is minuscule compared to the cost of reading rows from the database.  
+2. The DB2 type `DOUBLE` gets incorrectly mapped to the Python type `float` (instead of the `SQLAlchemy` type `Numeric` with default precision). This requires `dlt` to perform additional casts. The cost of the cast, however, is minuscule compared to the cost of reading rows from the database.
 
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/db2#installing-and-setting-up-db2) for information and code on setting up and benchmarking on DB2.
 

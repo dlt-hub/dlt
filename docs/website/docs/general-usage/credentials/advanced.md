@@ -93,7 +93,6 @@ Benefits:
 1. You'll receive a properly typed list of strings as `tab_names`.
 2. You'll receive properly configured Google credentials (see [GCP Credential Configuration](complex_types#gcp-credentials)), which users can provide in different forms:
 
-
   * `service.json` as a string or dictionary (in code or via config providers)
   * Connection string (used in SQL Alchemy)
   * Default credentials if nothing is passed (such as those available on Cloud Function runners)

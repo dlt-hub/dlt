@@ -31,7 +31,6 @@ You can also customize the dashboard and create a personalized version tailored 
 
 ![Dashboard overview](https://storage.googleapis.com/dlt-blog-images/dashboard-overview.png)
 
-
 ## Quick start
 
 Install additional dependencies:
@@ -63,8 +62,8 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 
 `dlt` will resolve your destination [credentials](../../general-usage/credentials/setup.md) from:
 
-* `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
-* `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`. 
+* `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from
+* `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`.
 * Environment variables
 
 It is best to run the dashboard from the same folder where you ran your pipeline, or to keep your credentials in the global folder.
@@ -316,7 +315,6 @@ This section provides a detailed overview of the most recent run for the selecte
 
     This table breaks down the total duration into the three phases of a dlt pipeline run: extract, normalize, and load.
 
-
   - **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
   - A long extract time suggests a slow source.
   - Long normalize or load times often point to destination performance or data complexity issues.
@@ -341,7 +339,6 @@ By selecting a specific load, you can:
 * View the full schema that resulted from this load.
 * Download the raw schema as a YAML file for historical debugging.
 
-
 ![Pipeline loads](https://storage.googleapis.com/dlt-blog-images/dashboard-loads.png)
 
 ## Creating your own workspace dashboard
@@ -354,9 +351,9 @@ dlthub local pipeline show {pipeline_name} --edit
 dlthub local show --edit
 ```
 
-This will copy the dashboard code to the local folder and start marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode. 
+This will copy the dashboard code to the local folder and start marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode.
 
-Below is an example of a custom cell created to verify unique number of rows vs total rows to ensure there are no duplicates in each table after a new run. You can also use the Generate with AI feature to easily add custom cells for your own use cases.  
+Below is an example of a custom cell created to verify unique number of rows vs total rows to ensure there are no duplicates in each table after a new run. You can also use the Generate with AI feature to easily add custom cells for your own use cases.
 
 ![Adding custom cell in dashboard](https://storage.googleapis.com/dlt-blog-images/dashboards-custom-cell.png)
 

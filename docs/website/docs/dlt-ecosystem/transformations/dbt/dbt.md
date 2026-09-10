@@ -100,7 +100,6 @@ runner = create_runner(
 models = runner.run_all()
 ```
 
-
 Here's an example **duckdb** profile:
 
 ```yaml
@@ -117,7 +116,6 @@ duckdb_dlt_dbt_test:
 ```
 
 You can run the example with dbt debug log: `RUNTIME__LOG_LEVEL=DEBUG python dbt_standalone.py`
-
 
 ## dbt Cloud
 

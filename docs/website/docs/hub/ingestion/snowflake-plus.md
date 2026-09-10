@@ -27,7 +27,6 @@ This destination is available starting from dltHub version 0.9.0. It fully suppo
 1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file.
 2. Additional configuration for Iceberg tables in Snowflake via:
 
-
   - `external_volume`: The external volume name where Iceberg data is stored.
   - `catalog`: The catalog name in which Iceberg tables are created. Defaults to `"SNOWFLAKE"`.
   - `base_location`: A template string for the base path that Snowflake uses for storing the table data in external storage, supporting placeholders.

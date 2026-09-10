@@ -101,7 +101,6 @@ The Parquet files are written with:
 
 The Hugging Face destination does **not** support [Delta](./delta-iceberg) or [Iceberg](./iceberg) table formats.
 
-
 ## Files layout
 
 The Hugging Face destination uses the same layout system as the [filesystem destination](filesystem#files-layout). The default layout is:

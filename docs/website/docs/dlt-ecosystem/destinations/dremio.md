@@ -27,7 +27,6 @@ Let's start by initializing a new dlt project as follows:
 
    > 💡 This command will initialize your pipeline with chess as the source and aws dremio as the destination using the filesystem staging destination.
 
-
 ### 2. Setup bucket storage and Dremio credentials
 
 First, install dependencies by running:

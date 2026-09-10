@@ -93,7 +93,6 @@ persists until the next, unmodified run. There may be a small performance improv
 1. In the case of a `merge`, the data in the destination is truncated and loaded fresh. Currently, we do not deduplicate data during the full refresh.
 2. In the case of `dlt.sources.incremental`, the data is truncated and loaded from scratch. The state of the incremental is reset to the initial value.
 
-
 Example:
 
 ```py

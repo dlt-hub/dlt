@@ -40,8 +40,6 @@ The resources that this verified source supports are:
 
 ## Setup guide
 
-
-
 ### Grab credentials
 
 To set up your pipeline, you'll need your Salesforce `user_name`, `password`, and `security_token`.

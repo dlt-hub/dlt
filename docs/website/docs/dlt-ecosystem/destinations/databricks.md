@@ -83,7 +83,6 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
     Create a name and paste in the resource ID of the Databricks Access Connector from the Azure portal.
     It will look something like this: `/subscriptions/<subscription_id>/resourceGroups/<resource_group>/providers/Microsoft.Databricks/accessConnectors/<connector_name>`
 
-
 6. Click "+ Add" again and select "Add external location"
 
     Set the URL of your storage container. This should be in the form: `abfss://<container_name>@<storage_account_name>.dfs.core.windows.net/<path>`

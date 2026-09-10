@@ -5,7 +5,7 @@ keywords: [schema, dataset, view, dbml, graphviz]
 ---
 # Review dlt schema
 
-During the first `dlt.Pipeline` run, dlt produces a `dlt.Schema` from the data processed. This schema tells how data was stored on destination. 
+During the first `dlt.Pipeline` run, dlt produces a `dlt.Schema` from the data processed. This schema tells how data was stored on destination.
 
 You can access the live `dlt.Schema` via the property `dlt.Pipeline.default_schema`.
 
@@ -17,7 +17,6 @@ print(pipeline.default_schema)
 ```
 
 For review, testing, data validation, documentation, etc. you can get a read-only and human-readable copy using Python code or the `dlt` CLI.
-
 
 ## Export to `dict`
 
@@ -211,8 +210,6 @@ schema_dict = pipeline.default_schema.to_dict()
 
 </details>
 
-
-
 ## Export to JSON
 
 Export to a JSON string. This is useful for passing between services, store to a file, or add to documentation. The conversion is lossless.
@@ -226,7 +223,6 @@ schema_json = pipeline.default_schema.to_pretty_json()
 # `chess_pipeline` is the name of the pipeline
 dlt pipeline chess_pipeline schema --format json
 ```
-
 
 <details>
   <summary>See JSON</summary>
@@ -496,7 +492,6 @@ dlt pipeline chess_pipeline schema --format json
   ```
 
 </details>
-
 
 ## Export to YAML
 
@@ -835,9 +830,7 @@ TableGroup "_dlt" {
 
 </details>
 
-
 ![chartdb dbml render](https://storage.googleapis.com/dlt-blog-images/chartdb_schema.png)
-
 
 ## Export to Graphviz
 
@@ -1282,7 +1275,6 @@ _dlt_version:f4:_ -> _dlt_loads:f2:_ [dir=both, penwidth=1, color="#1c1c34", arr
 </details>
 
 ![graphviz dot render](https://storage.googleapis.com/dlt-blog-images/schema_dot_export.svg)
-
 
 ## Export to Mermaid
 

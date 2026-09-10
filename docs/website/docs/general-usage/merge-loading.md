@@ -132,12 +132,10 @@ When this resource is executed, the following deduplication rules are applied:
 
 1. For records with different values in the `dedup_sort` column:
 
-
   - The record with the highest value is kept when using `desc`.
   - For example, among records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
 
 2. For records with identical values in the `dedup_sort` column:
-
 
   - The first occurrence encountered is kept.
   - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
@@ -251,7 +249,7 @@ If you plan for some of resources to do merges but your initial backfill is appe
 If you try to switch to merge after nested tables were already created you'll get a warning and NULL column violation from your
 destination. You can fix your pipeline by:
 
-1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop 
+1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop
 data from related resources and reset the schema so NOT NULL columns can be created.
 2. If you have nested tables up to 1 nesting level you may [Explicitly disable root key propagation](#disable-root-key-propagation)
 3. You can fix your nested tables in both staging and final datasets. Add `_dlt_root_id` to all nested tables and copy data
@@ -547,7 +545,6 @@ To explore how SCD Type 2 handles nested JSON structures, refer to the hands-on 
 
 Execute all steps directly in your browser:
 [Open in Colab.](https://colab.research.google.com/drive/1GpG3JKGWveB-kR7eNvlJLr6oO0nM7Fbv?usp=sharing)
-
 
 ### Example: configure validity column names
 

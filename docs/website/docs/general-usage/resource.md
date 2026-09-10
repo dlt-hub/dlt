@@ -120,7 +120,7 @@ def customers():
 
 Here we use `("purchases", "coupons")` to locate list at the depth of 2 and set the data type on `registered_at` column
 to `timestamp`. We do that by directly using nested hints dict.
-Note that we specified `purchases` with an empty list of hints. **You are required to specify all parent hints, even if they 
+Note that we specified `purchases` with an empty list of hints. **You are required to specify all parent hints, even if they
 are empty. Currently we are not adding missing path elements automatically**.
 
 You can use `nested_hints` primarily to set column hints and schema contract, those work exactly as in case of root tables.
@@ -136,7 +136,6 @@ You can use `nested_hints` primarily to set column hints and schema contract, th
 
 You can apply nested hints after the resource was created by using [apply_hints](#set-table-name-and-adjust-schema).
 :::
-
 
 ### Define a schema with Pydantic
 
@@ -669,7 +668,7 @@ Then define the resource function and yield an empty dict (`{}`). dlt creates an
 The load will fail if the schema marks any columns as `NOT NULL` i.e. `"nullable": False`. Ensure all non-metadata columns are nullable when loading an empty table.
 :::
 
-Example: 
+Example:
 
 ```py
 @dlt.resource(
@@ -704,7 +703,7 @@ def raw_events():
     )
 ```
 
-Result: 
+Result:
 Table `raw_events` is created with the defined schema and no rows.
 
 ### Import external files
@@ -797,7 +796,6 @@ pipeline.run(
 The `with_name` method returns a deep copy of the original resource, its data pipe, and the data pipes of a parent resource. A renamed clone is fully separated from the original resource (and other clones) when loading: it maintains a separate [resource state](state.md#read-and-write-pipeline-state-in-a-resource) and will load to a table.
 
 ## Collect custom metrics
-
 
 ### Using `dlt.current.resource_metrics()` within a resource
 
@@ -906,7 +904,6 @@ resource_metrics = trace.last_extract_info.metrics[load_id][0]["resource_metrics
 
 print(f"Custom metrics: {resource_metrics.custom_metrics}")
 ```
-
 
 ## Load resources
 

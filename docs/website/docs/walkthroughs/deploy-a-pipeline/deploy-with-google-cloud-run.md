@@ -24,7 +24,6 @@ Deploy the pipeline using Google Cloud Run jobs. First, navigate to the director
 
   - Detailed information about initializing a verified source and a pipeline example is available in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
 
-
 1. Create a new file named "Procfile" in the main directory and configure it as follows:
 
    ```text
@@ -32,7 +31,7 @@ Deploy the pipeline using Google Cloud Run jobs. First, navigate to the director
    ```
 
    This instructs the Cloud Run job to run "notion_pipeline.py", using python3.
-   
+
 1. If you need any additional dependencies, add them to the "requirements.txt" that was created.
 
 ## 2. Deploying GCP Cloud Run Jobs

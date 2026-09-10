@@ -173,7 +173,6 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 
    Want to see real-world examples of dlt in production? Check out how dlt is used internally at Dagster in the [Dagster Open Platform](https://github.com/dagster-io/dagster-open-platform) project.
 
-
 :::info
 For a complete picture of Dagster's integration with dlt, please refer to their [documentation](https://docs.dagster.io/integrations/libraries/dlt). This documentation offers a detailed overview and steps for ingesting GitHub data and storing it in Snowflake. You can use a similar approach to build your pipelines.
 :::
@@ -299,4 +298,3 @@ To use `bigquery_adapter` with `@dlt_assets` in Dagster for partitioned tables, 
 :::note
 Some of these are external repositories and are subject to change.
 :::
-

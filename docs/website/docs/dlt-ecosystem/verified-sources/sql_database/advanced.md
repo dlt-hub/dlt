@@ -22,7 +22,7 @@ If you have a large table with incremental loading set up, you can partition you
 2. Split it into N ranges. Here we assume that ranges are evenly populated. Obviously you can write more clever query that will give you partitions with more
 or less similar sizes.
 3. For each range find min and max cursor value and
-use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill.
 4. You can load each partition in a loop or in parallel (i.e. in separate process). Incremental resources with `end_value` set
 do not use the state.
 5. Continue regular incremental loading with `initial_value` set to the value at the end of the range
@@ -80,7 +80,7 @@ Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#
 
 **Split loading works as follows:**
 
-1. Use `incremental` property with **row_order** set. 
+1. Use `incremental` property with **row_order** set.
 2. Limit the resource by number of pages or time
 4. Run pipeline in a loop as long as it is not empty
 
@@ -180,7 +180,6 @@ If the SQL type is unknown or not supported by `dlt`, then we'll try to infer it
 
 * `sqlalchemy` follows standard `dlt` inference rules from Python objects. This often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
 * `pyarrow` backend will try to infer types from the data using rules built into arrow (we just pass an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
-
 
 :::tip
 If you use reflection level **full** / **full_with_precision**, you may encounter a situation where the data returned by sqlalchemy or pyarrow backend does not match the reflected data types. The most common symptoms are:
@@ -289,8 +288,8 @@ source = sql_database(
 ```
 
 :::note
-You can combine both `query_adapter_callback` and `table_adapter_callback`  
-to filter rows and select specific columns within the same source.  
+You can combine both `query_adapter_callback` and `table_adapter_callback`
+to filter rows and select specific columns within the same source.
 This works for one or more tables.
 
 ```py notype

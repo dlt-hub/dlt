@@ -52,7 +52,6 @@ A `Pipeline` object gives you a `Dataset`, which holds the credentials and the s
 
 **Note:** The `Dataset` and `Relation` objects defer their work. They query the destination only when you take an action that needs the data, for example a read into a DataFrame. See [Deferred query execution](#deferred-query-execution).
 
-
 ### Access the dataset
 
 ```py
@@ -562,7 +561,6 @@ df = joined.df()
 
 To write a cross-destination join into a new table, use a transformation. See [Transformations of multiple datasets](../../hub/transformations/index.md#transformations-of-multiple-datasets). That page covers read-only engines (`filesystem`, `lance`), engines that can also write (`duckdb`, `ducklake`, `motherduck`), and the credentials dlt stores for the attach.
 
-
 ### Chain operations
 
 You can combine `select`, `limit`, and other methods.
@@ -765,7 +763,6 @@ expr = customers_expression.filter(
 
 You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page.
 
-
 ### Migrating from the previous dlt / ibis implementation
 
 As described above, first get one or many `Table` objects and construct your expression. Then pass the expression to the `Dataset` to get a `Relation`. The `Relation` executes the full query and reads the data.
@@ -810,7 +807,6 @@ joined_relation = dataset(joined_expression)
 # execute as before
 df = joined_relation.df()
 ```
-
 
 ## Supported destinations
 
@@ -915,7 +911,6 @@ ds = pipeline.dataset(schema=pipeline.default_schema_name)
 
 :::
 
-
 ## Staging dataset
 
 The example pipeline above uses the `append` write disposition, so every run adds data to the existing tables. With the [merge write disposition](../incremental-loading.md), dlt creates a staging database schema instead. This schema is named `<dataset_name>_staging` [by default](../../dlt-ecosystem/staging#staging-dataset) and holds the same tables as the destination schema. Each run then loads the staging tables into the destination tables in a single atomic transaction.
@@ -999,7 +994,6 @@ dlt automatically creates internal tables in the destination schema to track pip
 
 This table records each pipeline run. Every run adds a new row with a unique `load_id`. The table tracks which loads are complete and supports chaining of transformations.
 
-
 | Column name           | Type      | Description                             |
 | --------------------- | --------- | --------------------------------------- |
 | `load_id`             | STRING    | Unique identifier for the load job      |
@@ -1014,7 +1008,6 @@ Only rows with `status = 0` are complete. Other values mark incomplete or interr
 
 This table stores the internal state of the pipeline for each run. The state drives incremental loading. After an interrupted run, the pipeline resumes from this state.
 
-
 | Column name      | Type           | Description                                    |
 | ---------------- | -------------- | ---------------------------------------------- |
 | `version`        | INTEGER        | Version of this state entry                    |
@@ -1025,7 +1018,6 @@ This table stores the internal state of the pipeline for each run. The state dri
 | `version_hash`   | STRING         | Hash to detect changes in the state            |
 | `_dlt_load_id`   | STRING         | Reference to related load in `_dlt_loads`      |
 | `_dlt_id`        | STRING         | Unique identifier for the pipeline state row   |
-
 
 The state column contains a serialized Python dictionary that includes:
 
@@ -1136,7 +1128,6 @@ The interface looks like this:
 
 ![empty marimo notebook](./static/marimo_notebook.png)
 
-
 ### Features
 
 #### Use custom dlt widgets
@@ -1160,7 +1151,6 @@ Available widgets: `pipeline_selector`, `load_package_viewer`, `schema_viewer`.
 
 ![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
 
-
 #### View dataset tables and columns
 
 After loading data with dlt, you can access it via the dataset interface, including a [native ibis connection](#ibis).
@@ -1179,7 +1169,6 @@ The **Datasources** panel displays a limited range of data types.
 
 ![marimo SQL editor with ibis](./static/marimo_sql.png)
 
-
 #### Access data with Python
 
 You can also read Ibis tables (deferred expressions) with Python. Under **Python**, the **Datasources** panel shows the output schema of your Ibis query. The cell output displays the query plan.
@@ -1195,7 +1184,6 @@ The **Datasources** panel displays a limited range of data types.
 #### Create a dashboard and data apps
 
 You can [deploy marimo notebooks as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/), with the code hidden. Add [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), markdown, and charts from matplotlib, plotly, or altair. Together, dlt, marimo, and ibis build a dashboard on top of fresh data.
-
 
 ### Further reading
 

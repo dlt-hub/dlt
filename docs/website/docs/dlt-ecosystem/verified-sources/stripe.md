@@ -49,7 +49,6 @@ The source is compatible with `stripe-python` versions 5.x through 15.x and requ
 > Note: The Stripe UI, which is described here, might change.
 The full guide is available at [this link.](https://stripe.com/docs/keys)
 
-
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:

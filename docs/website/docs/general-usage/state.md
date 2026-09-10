@@ -60,7 +60,6 @@ pipeline does. With such a structure, you will still be able to run some of your
 parallel.
 :::
 
-
 ## Syncing state with destination
 
 What if you run your pipeline on, for example, Airflow, where every task gets a clean filesystem and

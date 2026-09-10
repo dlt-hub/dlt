@@ -160,7 +160,6 @@ the content of the **toml** file from your `.dlt` folder into it. We support `co
 content of the variables above.
 :::
 
-
 ## Troubleshooting
 
 What happens if something goes wrong? In most cases, the `dlt` `run` command raises exceptions. We put a

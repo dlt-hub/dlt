@@ -18,9 +18,8 @@ Resources that can be loaded using this verified source are:
 | replication_resource | Load published messages from a replication slot                                           |
 | init_replication     | Initialize replication and optionally return snapshot resources for the initial data load |
 
-
 :::info
-The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy). 
+The Postgres replication source currently **does not** support the [scd2 merge strategy](../../general-usage/merge-loading.md#scd2-strategy).
 :::
 
 ## Setup guide
@@ -30,19 +29,19 @@ The Postgres replication source currently **does not** support the [scd2 merge s
 To set up a Postgres user for replication, follow these steps:
 
 1. Create a user with the `LOGIN` and `REPLICATION` attributes:
-    
+
     ```sql
     CREATE ROLE replication_user WITH LOGIN REPLICATION;
     ```
 
 2. Grant the `CREATE` privilege on the database:
-    
+
     ```sql
     GRANT CREATE ON DATABASE dlt_data TO replication_user;
     ```
 
 3. Grant ownership of the tables you want to replicate:
-    
+
     ```sql
     ALTER TABLE your_table OWNER TO replication_user;  
     ```
@@ -51,7 +50,6 @@ To set up a Postgres user for replication, follow these steps:
 The minimum required privileges may differ depending on your replication configuration. For example, replicating entire schemas requires superuser privileges. Check the [Sources and resources](#sources-and-resources) section for more detailed information.
 :::
 
-
 ### Set up RDS
 
 To set up a Postgres user on RDS, follow these steps:
@@ -59,13 +57,13 @@ To set up a Postgres user on RDS, follow these steps:
 1. Enable replication for your RDS Postgres instance via a [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).
 
 2. `WITH LOGIN REPLICATION;` does not work on RDS; instead, do:
-    
+
     ```sql
     GRANT rds_replication TO replication_user;
     ```
-    
+
 3. Use the following connection parameters to enforce SSL:
-    
+
    ```toml
    sources.pg_replication.credentials="postgresql://loader:password@host.rds.amazonaws.com:5432/dlt_data?sslmode=require&connect_timeout=300"
    ```
@@ -75,27 +73,27 @@ To set up a Postgres user on RDS, follow these steps:
 To get started with your data pipeline, follow these steps:
 
 1. Run the following command:
-    
+
    ```sh
    dlt init pg_replication duckdb
    ```
-    
+
    This command initializes [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
-    
+
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
 
    ```sh
    dlt init pg_replication bigquery
    ```
-       
+
 3. After running the command, a new directory will be created with the necessary files and configuration settings to get started.
 
 ### Add credentials
 
 1. In the `.dlt` folder, there's a file called `secrets.toml`. It's where you store sensitive information securely, like access tokens. Keep this file safe.
-    
+
    Here's what the `secrets.toml` looks like:
-    
+
    ```toml
    [sources.pg_replication.credentials]
    drivername = "postgresql" # please set me up!
@@ -105,15 +103,14 @@ To get started with your data pipeline, follow these steps:
    host = "host" # please set me up!
    port = 0 # please set me up! 
    ```
-    
+
 2. Credentials can be set as shown above. Alternatively, you can provide credentials in the `secrets.toml` file as follows:
-    
+
    ```toml
    sources.pg_replication.credentials="postgresql://username@password.host:port/database"
    ```
 
 3. Finally, follow the instructions in the [Destinations section](../../dlt-ecosystem/destinations/) to add credentials for your chosen destination.
-
 
 For more information, read the [Configuration section.](../../general-usage/credentials)
 
@@ -139,12 +136,9 @@ For more information, read the [Configuration section.](../../general-usage/cred
 
    For example, the `pipeline_name` for the above pipeline example is `pg_replication_pipeline`, you may also use any custom name instead.
 
-
    For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
-    
 
 ## Sources and resources
-
 
 ### Snapshot resources from `init_replication`
 
@@ -240,7 +234,7 @@ In production, you don’t need a simulation pipeline. Replication runs against 
 The general workflow for setting up replication is:
 
 1. Define the replication pipeline that will load replicated data in your chosen destination:
-    
+
    ```py
    repl_pl = dlt.pipeline(
        pipeline_name="pg_replication_pipeline",
@@ -249,9 +243,9 @@ The general workflow for setting up replication is:
        dev_mode=True,
    )
    ```
-    
+
 2. Initialize replication (if needed) with `init_replication`, and capture a snapshot of the source:
-      
+
       ```py notype
       snapshot = init_replication(  
          slot_name="my_slot",
@@ -264,13 +258,13 @@ The general workflow for setting up replication is:
       ```
 
 3. Load the initial snapshot, so the destination contains all existing data before replication begins:
-    
+
    ```py notype
    repl_pl.run(snapshot)
    ```
-    
+
 4. Apply ongoing changes by creating a `replication_resource` to capture updates and keep the destination in sync:
-      
+
    ```py notype
    # Create a resource that generates items for each change in the source table
    changes = replication_resource("my_slot", "my_pub")

@@ -142,11 +142,9 @@ be read. When passed, `dlt` asks the Kafka cluster for an offset,
 which is actual for the given timestamp, and starts to read messages from
 this offset.
 
-
 ## Customization
 
 ### Create your own pipeline
-
 
 1. Configure the pipeline by specifying the pipeline name, destination, and dataset as follows:
 

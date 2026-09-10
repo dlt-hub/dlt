@@ -29,7 +29,6 @@ Let's start by initializing a new `dlt` project as follows:
 
    > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
 
-
 ### 2. Setup bucket storage and Athena credentials
 
 First, install dependencies by running:
@@ -171,7 +170,7 @@ aws_data_catalog="s3tablescatalog/[your_table_bucket_name]"  # replace with your
 Using S3 Tables with Athena implies that:
 
 - data is stored in Iceberg tables
-- table locations are managed by the S3 Tables Catalog 
+- table locations are managed by the S3 Tables Catalog
 - the `table_location_layout` setting is ignored
 - the `s3_tables` [naming convention](../../general-usage/naming-convention.md#available-naming-conventions) is used
 - **production (non-staging)** and **staging tables** are registered in separate catalogs:
@@ -179,7 +178,6 @@ Using S3 Tables with Athena implies that:
   - *staging:* regular catalog
 
 When `staging_aws_data_catalog` is not specified, `dlt` normally uses the same catalog for both staging and production tables. However, when using an S3 Tables Catalog, the staging catalog defaults to `awsdatacatalog` because staging tables are not Iceberg tables and cannot be registered in the S3 Tables Catalog.
-
 
 ## Write disposition
 
@@ -257,7 +255,6 @@ You can also adjust iceberg table properties:
 vacuum_max_snapshot_age_seconds = 86400
 ```
 
-
 ### LakeFormation tags
 
 AWS lakeformation tags can be set on the database level when running a pipeline. Resources/tables will inherit the same tags as their parent database. It will not affect data in staging.
@@ -273,7 +270,6 @@ AWS lakeformation tags can be set on the database level when running a pipeline.
   - ALL on Table
 
 [See full Lake Formation permission reference](https://docs.aws.amazon.com/lake-formation/latest/dg/lf-permissions-reference.html)
-
 
 Tags can be set on database level using the destination config
 

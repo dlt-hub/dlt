@@ -358,7 +358,6 @@ Please report issues with particular dialects. We'll try to make them work.
 
 * In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
-
 ### Adapting destination for a dialect
 
 #### Quick approach: pass `type_mapper` directly
@@ -522,7 +521,6 @@ The `DialectCapabilities` class supports four extension points:
 :::tip
 Passing `type_mapper=` directly to `dlt.destinations.sqlalchemy()` always takes precedence over the registered dialect capabilities. Use direct passing for one-off overrides and registration for reusable dialect support.
 :::
-
 
 ## Write dispositions
 

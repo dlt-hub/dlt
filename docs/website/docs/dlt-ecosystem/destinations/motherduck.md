@@ -24,7 +24,6 @@ workers=3
 or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../reference/performance.md)
 :::
 
-
 <!--@@@DLT_DESTINATION_CAPABILITIES motherduck-->
 
 ## Setup guide
@@ -172,6 +171,5 @@ os.environ["HOME"] = "/tmp"
 ```
 
 before opening the connection.
-
 
 <!--@@@DLT_TUBA motherduck-->

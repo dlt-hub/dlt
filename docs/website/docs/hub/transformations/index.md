@@ -24,7 +24,6 @@ A few real-world scenarios where dlt transformations can be useful:
 - **Run transformations during ingestion pre-warehouse** – Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.
 - **…and more** – Any scenario where reshaping, enriching, or aggregating existing data unlocks faster insight or cleaner downstream pipelines.
 
-
 ## Quick start
 
 Copy the example below into one script. Then run the script.
@@ -90,7 +89,6 @@ print(fruitshop_pipeline.dataset().row_counts().df())  # ty: ignore[unresolved-r
 """
 ```
 
-
 ### 3.1 Alternatively use pure SQL for the transformation
 
 ```py execute
@@ -136,7 +134,6 @@ def orders_per_user(dataset: dlt.Dataset) -> Any:
 
 ## Loading to other datasets
 
-
 ### Loading to another dataset at the same data location
 
 Below we load to the same DuckDB instance with a new pipeline that points to another `dataset`. dlt detects that both datasets live on the same destination,
@@ -171,9 +168,7 @@ duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
 duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
 ```
 
-
 ## Using transformations
-
 
 ### Grouping multiple transformations in a source
 
@@ -531,7 +526,6 @@ def enriched_purchases(dataset: dlt.Dataset) -> Any:
 
 ```
 
-
 ## Incremental transformations
 
 When source data keeps growing, rerunning the same full transformation every time is slow and expensive.
@@ -664,7 +658,6 @@ Internally, dlt modifies the source query to include the cursor filter when it r
 
 For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../general-usage/incremental/cursor.md).
 
-
 ## Schema evolution and hint lineage
 
 `dlt` computes the resulting schema before it executes the transformation. This computation lets `dlt`:
@@ -742,7 +735,6 @@ assert (
 * `dlt` forwards only certain hint types to the resulting tables: custom hints that start with `x-annotation...`, and the type hints `nullable`, `data_type`, `precision`, `scale`, and `timezone`. Set other hints, such as `primary_key` or `merge_keys`, with the `columns` argument on the transformation decorator. `dlt` does not know how you will use the transformed tables.
 * `dlt` cannot forward hints for columns that result from combining multiple origin columns, such as when they are concatenated or produced through other SQL operations.
 
-
 ## Lifecycle of a SQL transformation
 
 This section covers the lifecycle of transformations that yield a `Relation` object. We call these SQL transformations. Python-based transformations yield dataframes, arrow tables, or polars frames. They go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
@@ -785,7 +777,6 @@ During normalization, `dlt` adds internal `dlt` columns to your SQL queries, bas
     The `_dlt_id` column is generated using the destination's UUID function, such as `generateUUIDv4()` in ClickHouse. For dialects without native UUID support:
   - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
   - In **SQLite**, `_dlt_id` is simulated using `lower(hex(randomblob(16)))`.
-
 
 #### Query transformations
 

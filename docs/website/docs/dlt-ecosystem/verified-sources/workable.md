@@ -49,8 +49,6 @@ Besides the main endpoints, for the "candidate" and "jobs" endpoints, the follow
 
 ## Setup guide
 
-
-
 ### Grab API credentials
 
 1. Log into Workable.
@@ -61,7 +59,6 @@ Besides the main endpoints, for the "candidate" and "jobs" endpoints, the follow
 
 > Note: The Workable UI, which is described here, might change.
 The full guide is available at [this link.](https://help.workable.com/hc/en-us/articles/115015785428-How-do-I-generate-an-API-key-access-token-Pro-)
-
 
 ### Initialize the verified source
 
@@ -245,7 +242,9 @@ To create your data pipeline using single loading and [incremental data loading]
 
    > For instance, the above loads data from January 1, 2022, with corresponding details.
 
-   > Note: Set the "load_details" parameter to True to load dependent endpoints. Otherwise, use False.
+  :::info
+  Note: Set the "load_details" parameter to True to load dependent endpoints. Otherwise, use False.
+  :::
 
 1. To load custom endpoints “candidates” and “members”:
 

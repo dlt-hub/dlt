@@ -19,7 +19,6 @@ We use SerpAPI to retrieve device prices using Google Shopping, but alternative 
 SerpAPI's free tier offers 100 free calls monthly. For production, consider upgrading to a higher plan.
 :::
 
-
 ## Creating a data enrichment pipeline
 
 You can either follow the example in the linked Colab notebook or follow this documentation to create the user-agent device data enrichment pipeline.
@@ -215,7 +214,6 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 
 1. In creating the pipeline, the `fetch_average_price` can be used in the following ways:
 
-
   - Add map function
   - Transformer function
 
@@ -231,7 +229,6 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    can be found under
    [Customize resources](../../general-usage/resource#customize-resources) in the
    documentation.
-
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 

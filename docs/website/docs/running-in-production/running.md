@@ -648,7 +648,6 @@ Here's what you can do to deal with partially loaded packages:
 
 :::
 
-
 ### What `run` does inside
 
 Before adding retry to pipeline steps, note how the `run` method actually works:
@@ -788,7 +787,6 @@ and then killing the process if it does not stop. Below are examples for common 
 
 - GitHub Actions:
   - Choose a `timeout-minutes` large enough for graceful draining.
-  
 
 We recommend increasing those timeouts to a few minutes so that load jobs can be drained properly. Note that in this case **you can still end up with
 a partially loaded package that should be retried without wiping out the pipeline working directory**. In that case, make sure the pipeline working directory (.dlt) is on persistent storage.

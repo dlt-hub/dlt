@@ -17,7 +17,7 @@ You can leverage [Orchestra's Free Tier here](https://app.getorchestra.io?utm_ca
 
 **`dlt`** is an open-source Python library that allows you to declaratively load data sources
 into well-structured tables or datasets. It does this through automatic schema inference and evolution.
-The library simplifies building data pipelines by providing functionality to support the entire extract 
+The library simplifies building data pipelines by providing functionality to support the entire extract
 and load process.
 
 ### How does `dlt` integrate with Orchestra?
@@ -212,12 +212,9 @@ pipeline:
 
 Next, run the Pipeline in Orchestra. After running the Pipeline in Orchestra, you will be able to view the status of the dlt job alongside other Tasks in the end-to-end Data Pipeline.
 
-
 ![Visualising dlt in Orchestra](images/dlt_orchestra_node.png)
 
 _Left to right: the dlt Task Node, the raw logs from the dlt task, the Task parameters panel_.
-
-
 
 ## Additional resources
 

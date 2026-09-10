@@ -149,7 +149,6 @@ Zendesk Talk fetches the data using the Zendesk Talk API.
    [Zendesk support](#zendesk-support).
 1. Use existing Zendesk support credentials or create new ones.
 
-
 > Note: The Zendesk UI, which is described here, might change.
 The full guide is available at [this link.](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/)
 

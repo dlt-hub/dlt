@@ -99,7 +99,6 @@ sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your privat
 
 </Tabs>
 
-
 The Delta destination can also be defined in Python as follows:
 
 ```py

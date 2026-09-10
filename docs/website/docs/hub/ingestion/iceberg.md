@@ -265,7 +265,6 @@ Their names correspond to the `catalog_type` value you pass in your destination 
 | **`glue-rest`**     | Uses the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
 | **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets                                  |
 
-
 #### Catalog `[s3tables-rest]`
 
 Configure this catalog when you want to publish Iceberg tables directly into an S3 Table bucket via the Amazon S3 Tables Iceberg REST API endpoint.
@@ -440,7 +439,6 @@ An S3 bucket and an IAM principal allowed to read/write that bucket and access t
 
 * `bucket_url` – S3 prefix where Iceberg data and metadata files will live.
 
-
 ### Unity Catalog
 
 [Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Databricks tables.
@@ -610,7 +608,6 @@ There are two ways to configure partitioning in dltHub Iceberg destination:
 ### Using the `iceberg_adapter` function
 
 The `iceberg_adapter` function allows you to configure partitioning for your Iceberg tables. This adapter supports various partition transformations that can be applied to your data columns.
-
 
 ```py
 import dlt

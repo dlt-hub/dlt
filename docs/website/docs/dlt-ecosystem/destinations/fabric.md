@@ -90,7 +90,6 @@ If you set the [`replace` strategy](../../general-usage/full-loading.md) to `sta
 
 Fabric Warehouse supports staging data via **OneLake Lakehouse** or **Azure Blob / Data Lake Storage** using the `COPY INTO` command for efficient bulk loading. This is the recommended approach for large datasets.
 
-
 ### Examples
 
 ```py
@@ -258,7 +257,7 @@ sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 Ensure your Service Principal has:
 
 - Proper permissions on the Fabric workspace
-- Access to the target database/warehouse  
+- Access to the target database/warehouse
 - Correct tenant ID (your Azure AD tenant, not the workspace/capacity ID)
 
 ### UTF-8 Character Issues
