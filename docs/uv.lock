@@ -861,7 +861,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.30.0"
+version = "1.30.1a0"
 source = { editable = "../" }
 dependencies = [
     { name = "click" },
@@ -912,6 +912,7 @@ duckdb = [
 hub = [
     { name = "dlthub" },
     { name = "dlthub-client" },
+    { name = "pydantic" },
 ]
 lancedb = [
     { name = "duckdb" },
@@ -958,8 +959,8 @@ requires-dist = [
     { name = "db-dtypes", marker = "extra == 'bigquery'", specifier = ">=1.2.0" },
     { name = "db-dtypes", marker = "extra == 'gcp'", specifier = ">=1.2.0" },
     { name = "deltalake", marker = "extra == 'deltalake'", specifier = ">=0.25.1" },
-    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.30.0a1,<0.31" },
-    { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.1" },
+    { name = "dlthub", marker = "extra == 'hub'", specifier = ">=0.30.0a1,<0.32" },
+    { name = "dlthub-client", marker = "extra == 'hub'", specifier = ">=0.28.3" },
     { name = "duckdb", marker = "extra == 'duckdb'", specifier = ">=0.9" },
     { name = "duckdb", marker = "extra == 'ducklake'", specifier = ">=1.2.0" },
     { name = "duckdb", marker = "extra == 'lance'", specifier = ">=1.4.3" },
@@ -1013,6 +1014,7 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'pyiceberg'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'synapse'", specifier = ">=16.0.0" },
     { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
+    { name = "pydantic", marker = "extra == 'hub'", specifier = ">=2.10" },
     { name = "pydbml", marker = "extra == 'dbml'" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
@@ -1055,15 +1057,19 @@ adbc = [
     { name = "adbc-driver-manager", specifier = ">=1.8.0" },
     { name = "dbc", specifier = ">=0.1.0" },
 ]
+agent = [
+    { name = "aiohttp", specifier = ">=3.14.3" },
+    { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google", "mcp", "spec"], specifier = ">=2.35.0" },
+]
+agent-claude = [{ name = "claude-agent-sdk", specifier = ">=0.2.144" }]
 airflow = [{ name = "apache-airflow", marker = "python_full_version < '3.13'", specifier = ">=2.8.0,<3" }]
 dashboard-tests = [
     { name = "playwright", specifier = ">=1.58.0,<2" },
     { name = "pytest-playwright", specifier = ">=0.7.1,<1" },
 ]
 dbt = [
-    { name = "dbt-athena-community", marker = "python_full_version < '3.14'", specifier = ">=1.7.0" },
     { name = "dbt-bigquery", specifier = ">=1.7.0" },
-    { name = "dbt-core", specifier = ">=1.7.0" },
+    { name = "dbt-core", specifier = ">=1.12.0" },
     { name = "dbt-duckdb", specifier = ">=1.7.0" },
     { name = "dbt-fabric", marker = "python_full_version < '3.13'", specifier = ">=1.7.0" },
     { name = "dbt-redshift", marker = "python_full_version < '3.14'", specifier = ">=1.7.0" },
@@ -1151,7 +1157,7 @@ sources = [
 streamlit = [{ name = "streamlit", specifier = ">1.50" }]
 workspace-deps = [
     { name = "duckdb", specifier = ">=0.9" },
-    { name = "fastmcp", specifier = ">=3.0.0" },
+    { name = "fastmcp", specifier = ">=3.1.0" },
     { name = "ibis-framework", specifier = ">=12.0.0" },
     { name = "marimo", specifier = ">=0.14.5" },
     { name = "mowidgets", marker = "python_full_version >= '3.11'", specifier = ">=0.2.1" },
@@ -1266,7 +1272,7 @@ wheels = [
 
 [[package]]
 name = "dlthub-client"
-version = "0.28.2"
+version = "0.28.4"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "attrs" },
@@ -1275,11 +1281,13 @@ dependencies = [
     { name = "httpx" },
     { name = "pathspec" },
     { name = "pyjwt" },
+    { name = "regex" },
     { name = "tabulate" },
+    { name = "typing-extensions" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/c7/02/97cac28340139106ba4b15f4402152d96ac2b3e30a70b0b903d1f4d3c90e/dlthub_client-0.28.2.tar.gz", hash = "sha256:2505c2f598e0528923d1275520df4a69a48825276b3e1be151568d992340c82c", size = 172345, upload-time = "2026-08-07T20:21:55.998Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/e3/ce/e8822974df965645a159fce5a4abca37164ef9ca6d5cc2fbd697978b1bc0/dlthub_client-0.28.4.tar.gz", hash = "sha256:f0a38268cc8690bb97d733ee5e1981c60521d14bc737472287e01d2c18b1666a", size = 303781, upload-time = "2026-09-10T12:19:38.372Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/38/34/ed305801559f7927abde53fe39d1fa3f72c262e96466907c602d3e12f550/dlthub_client-0.28.2-py3-none-any.whl", hash = "sha256:fd1a2fb1f44b50ad7aeb0167b27c7a1ada61ab142b298cc4bec00c790b4f9a72", size = 415388, upload-time = "2026-08-07T20:21:54.652Z" },
+    { url = "https://files.pythonhosted.org/packages/80/05/409b5539a5e46cd3e32e2f3d037ae7457f5c60a1f294ff68fae9553dec70/dlthub_client-0.28.4-py3-none-any.whl", hash = "sha256:2bab5cb34d9ff692f0789be639aa2d5f21ffd80139109440db2a04f17ce9bb31", size = 678866, upload-time = "2026-09-10T12:19:36.98Z" },
 ]
 
 [[package]]
