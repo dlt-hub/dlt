@@ -474,7 +474,7 @@ dlt.config["destination.filesystem.bucket_url"] = "s3://[your_bucket_name]"
 dlt.config["normalize.data_writer.disable_compression"] = "true"
 
 # For secrets, avoid hardcoding - use existing environment variables
-os.environ["SOURCES__NOTION__API_KEY"] = os.environ.get("NOTION_KEY")
+os.environ["SOURCES__NOTION__API_KEY"] = os.environ.get("NOTION_KEY", "")
 
 # Or use credentials from third-party providers
 credentials = AwsCredentials()
@@ -537,9 +537,9 @@ import os
 
 # Avoid setting secrets directly in code
 # Instead, use existing environment variables
-os.environ["CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("GOOGLE_CLIENT_EMAIL")
-os.environ["CREDENTIALS__PRIVATE_KEY"] = os.environ.get("GOOGLE_PRIVATE_KEY")
-os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID")
+os.environ["CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("GOOGLE_CLIENT_EMAIL", "")
+os.environ["CREDENTIALS__PRIVATE_KEY"] = os.environ.get("GOOGLE_PRIVATE_KEY", "")
+os.environ["CREDENTIALS__PROJECT_ID"] = os.environ.get("GOOGLE_PROJECT_ID", "")
 ```
 
   </TabItem>
@@ -600,14 +600,14 @@ import dlt
 import os
 
 # For destination credentials, use existing environment variables
-os.environ["DESTINATION__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL")
-os.environ["DESTINATION__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY")
-os.environ["DESTINATION__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID")
+os.environ["DESTINATION__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL", "")
+os.environ["DESTINATION__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY", "")
+os.environ["DESTINATION__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID", "")
 
 # For source credentials, set values in dlt.secrets
-dlt.secrets["sources.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL")
-dlt.secrets["sources.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY")
-dlt.secrets["sources.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID")
+dlt.secrets["sources.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL", "")
+dlt.secrets["sources.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY", "")
+dlt.secrets["sources.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID", "")
 ```
 
   </TabItem>
@@ -692,19 +692,19 @@ import os
 import dlt
 
 # For Analytics credentials
-os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("ANALYTICS_CLIENT_EMAIL")
-os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("ANALYTICS_PRIVATE_KEY")
-os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PROJECT_ID"] = os.environ.get("ANALYTICS_PROJECT_ID")
+os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("ANALYTICS_CLIENT_EMAIL", "")
+os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("ANALYTICS_PRIVATE_KEY", "")
+os.environ["SOURCES__GOOGLE_ANALYTICS__CREDENTIALS__PROJECT_ID"] = os.environ.get("ANALYTICS_PROJECT_ID", "")
 
 # For BigQuery credentials
-os.environ["DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL")
-os.environ["DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY")
-os.environ["DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID")
+os.environ["DESTINATION__BIGQUERY__CREDENTIALS__CLIENT_EMAIL"] = os.environ.get("BIGQUERY_CLIENT_EMAIL", "")
+os.environ["DESTINATION__BIGQUERY__CREDENTIALS__PRIVATE_KEY"] = os.environ.get("BIGQUERY_PRIVATE_KEY", "")
+os.environ["DESTINATION__BIGQUERY__CREDENTIALS__PROJECT_ID"] = os.environ.get("BIGQUERY_PROJECT_ID", "")
 
 # For Google Sheets credentials
-dlt.secrets["sources.google_sheets.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL")
-dlt.secrets["sources.google_sheets.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY")
-dlt.secrets["sources.google_sheets.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID")
+dlt.secrets["sources.google_sheets.credentials.client_email"] = os.environ.get("SHEETS_CLIENT_EMAIL", "")
+dlt.secrets["sources.google_sheets.credentials.private_key"] = os.environ.get("SHEETS_PRIVATE_KEY", "")
+dlt.secrets["sources.google_sheets.credentials.project_id"] = os.environ.get("SHEETS_PROJECT_ID", "")
 ```
 
   </TabItem>
@@ -752,10 +752,10 @@ import os
 import dlt
 
 # Use existing environment variables to set credentials
-os.environ["PIPELINE_NAME_1__SOURCES__SQL_DATABASE__CREDENTIALS"] = os.environ.get("SQL_CREDENTIAL_STRING_1")
+os.environ["PIPELINE_NAME_1__SOURCES__SQL_DATABASE__CREDENTIALS"] = os.environ.get("SQL_CREDENTIAL_STRING_1", "")
 
 # Or set values directly in dlt.secrets
-dlt.secrets["pipeline_name_2.sources.sql_database.credentials"] = os.environ.get("SQL_CREDENTIAL_STRING_2")
+dlt.secrets["pipeline_name_2.sources.sql_database.credentials"] = os.environ.get("SQL_CREDENTIAL_STRING_2", "")
 ```
 
   </TabItem>

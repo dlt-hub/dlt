@@ -14,7 +14,7 @@ Copyright 2026 ScaleVector, GmbH. All rights reserved.
 "Agreement" means the agreement between ScaleVector, GmbH and its affiliates
 (collectively, "dltHub") and you governing the use of dltHub Services, including
 dltHub Platform, as those terms are defined in the applicable dltHub Terms of Use
-available at: https://dlthub.com/terms.
+available at: [https://dlthub.com/terms](https://dlthub.com/terms).
 
 "dltHub Services" means dltHub Platform and any other products or services offered
 by dltHub, as defined in the Agreement.

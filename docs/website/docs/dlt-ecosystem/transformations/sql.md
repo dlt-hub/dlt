@@ -20,7 +20,7 @@ You can access the SQL client of your destination via the `sql_client` method on
 
 ```py
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     with client.execute_query(
         "SELECT id, name, email FROM customers WHERE id = %s",
         10
@@ -37,13 +37,14 @@ The code below shows how to retrieve the data as a Pandas DataFrame and then man
 
 ```py
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     with client.execute_query(
         'SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues'
     ) as cursor:
         # calling `df` on a cursor, returns the data as a pandas DataFrame
         reactions = cursor.df()
-counts = reactions.sum(0).sort_values(0, ascending=False)
+
+counts = reactions.sum(0).sort_values(0, ascending=False)  # ty: ignore
 ```
 
 ## Supported methods on the cursor
@@ -69,7 +70,7 @@ The code below shows how to use the filesystem SQL client to query the data:
 
 ```py
 pipeline = dlt.pipeline(destination="filesystem", dataset_name="my_dataset")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:   # ty: ignore
     with client.execute_query("SELECT * FROM my_table") as cursor:
         print(cursor.fetchall())
 ```
@@ -95,7 +96,7 @@ when you need fresh data. Alternatively you can enable autorefresh mode which wi
 from dlt.destination import filesystem
 
 pipeline = dlt.pipeline(destination=filesystem(always_refresh_views=True), dataset_name="my_dataset")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:   # ty: ignore
     with client.execute_query("SELECT * FROM my_table") as cursor:
         print(cursor.fetchall())
         # pipeline.run() here and get updated data
@@ -125,7 +126,7 @@ The example below creates a new table `aggregated_sales` that contains the total
 pipeline = dlt.pipeline(destination="duckdb", dataset_name="crm")
 
 # NOTE: this is the duckdb sql dialect, other destinations may use different expressions
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     client.execute_sql(
         """ CREATE OR REPLACE TABLE aggregated_sales AS
             SELECT
@@ -146,13 +147,13 @@ corresponding to selected columns. A more convenient way to extract data is to u
 
 ```py
 try:
-    with pipeline.sql_client() as client:
+    with pipeline.sql_client() as client:    # ty: ignore
         res = client.execute_sql(
             "SELECT id, name, email FROM customers WHERE id = %s",
             10
         )
         # Prints column values of the first row
-        print(res[0])
+        print(res[0])  # ty: ignore
 except Exception:
     ...
 ```

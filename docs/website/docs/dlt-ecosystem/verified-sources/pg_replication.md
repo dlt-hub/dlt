@@ -144,7 +144,7 @@ The `init_replication` function serves two main purposes:
 1. Sets up Postgres replication by creating the necessary replication slot and publication if they don't already exist.
 2. Optionally captures an initial snapshot when `persist_snapshots=True` and returns snapshot resources for loading existing data.
 
-```py
+```py notype
 def init_replication(
     slot_name: str = dlt.config.value,
     pub_name: str = dlt.config.value,
@@ -156,7 +156,7 @@ def init_replication(
     include_columns: Optional[Mapping[str, Sequence[str]]] = None,
     columns: Optional[Mapping[str, TTableSchemaColumns]] = None,
     reset: bool = False,
-) -> Optional[Union[DltResource, List[DltResource]]]:
+) -> Optional[Union[DltResource, list[DltResource]]]:
     ...
 ```
 
@@ -177,6 +177,13 @@ For detailed information about all arguments, see the [source code](https://gith
 This resource yields data items for changes in one or more Postgres tables. It consumes messages from an existing replication slot and publication that must be set up beforehand (e.g., using `init_replication`).
 
 ```py
+from collections.abc import Sequence
+from typing import Iterable
+from dlt.common.typing import TDataItem
+from dlt.common.configuration.specs import ConnectionStringCredentials
+from dlt.common.schema.typing import TTableSchemaColumns
+from dlt.extract.items import DataItemWithMeta
+
 @dlt.resource(
     name=lambda args: args["slot_name"] + "_" + args["pub_name"],
 )
@@ -184,11 +191,11 @@ def replication_resource(
     slot_name: str,
     pub_name: str,
     credentials: ConnectionStringCredentials = dlt.secrets.value,
-    include_columns: Optional[Dict[str, Sequence[str]]] = None,
-    columns: Optional[Dict[str, TTableSchemaColumns]] = None,
+    include_columns: dict[str, Sequence[str]] | None = None,
+    columns: dict[str, TTableSchemaColumns] | None = None,
     target_batch_size: int = 1000,
     flush_slot: bool = True,
-) -> Iterable[Union[TDataItem, DataItemWithMeta]]:
+) -> Iterable[TDataItem | DataItemWithMeta]:
     ...
 ```
 
@@ -235,7 +242,7 @@ The general workflow for setting up replication is:
     
 2. Initialize replication (if needed) with `init_replication`, and capture a snapshot of the source:
       
-      ```py
+      ```py notype
       snapshot = init_replication(  
          slot_name="my_slot",
          pub_name="my_pub",
@@ -248,13 +255,13 @@ The general workflow for setting up replication is:
 
 3. Load the initial snapshot, so the destination contains all existing data before replication begins:
     
-   ```py
+   ```py notype
    repl_pl.run(snapshot)
    ```
     
 4. Apply ongoing changes by creating a `replication_resource` to capture updates and keep the destination in sync:
       
-   ```py
+   ```py notype
    # Create a resource that generates items for each change in the source table
    changes = replication_resource("my_slot", "my_pub")
  
@@ -268,6 +275,8 @@ If logical replication doesn't fit your needs, you can use the built-in `xmin` s
 To do this, define a `query_adapter_callback` that extracts the `xmin` value from the source table and filters based on an incremental cursor:
 
 ```py
+import sqlalchemy as sa
+
 def query_adapter_callback(query, table, incremental=None, _engine=None) -> sa.TextClause:
     """Generate a SQLAlchemy text clause for querying a table with optional incremental filtering."""
     select_clause = (

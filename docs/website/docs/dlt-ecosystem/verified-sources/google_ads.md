@@ -222,14 +222,15 @@ This function returns a list of resources including metadata, fields, and metric
 the Google Ads API.
 
 ```py
+from dlt.extract import DltResource
+from dlt.common.configuration.specs import GcpOAuthCredentials, GcpServiceAccountCredentials
+
 @dlt.source()
 def google_ads(
-    credentials: Union[
-        GcpOAuthCredentials, GcpServiceAccountCredentials
-    ] = dlt.secrets.value,
+    credentials: GcpOAuthCredentials | GcpServiceAccountCredentials = dlt.secrets.value,
     impersonated_email: str = dlt.secrets.value,
     dev_token: str = dlt.secrets.value,
-)  -> List[DltResource]:
+)  -> list[DltResource]:
    """
    Initializes a client with the provided credentials and development token to
    load default tables from Google Ads into the database. This function returns
@@ -249,7 +250,7 @@ while leveraging the permissions of a specific user within the Ads platform.
 
 This function retrieves all dimensions for a report from a Google Ads project.
 
-```py
+```py notype
 @dlt.resource(write_disposition="replace")
 def customers(
     client: Resource, customer_id: str = dlt.secrets.value
@@ -288,7 +289,7 @@ verified source.
 
 1. To load all the dimensions from Google Ads:
 
-   ```py
+   ```py notype
    data_default = google_ads()
    info = pipeline.run(data=[data_default])
    print(info)
@@ -296,7 +297,7 @@ verified source.
 
 1. To load the data from `customers` and `campaigns`:
 
-   ```py
+   ```py notype
    data_selected = google_ads().with_resources("customers", "campaigns")
    info = pipeline.run(data=[data_default])
    print(info)

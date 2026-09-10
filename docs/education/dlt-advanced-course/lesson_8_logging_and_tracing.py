@@ -383,6 +383,18 @@ def _(dlt):
     return
 
 
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    In the next cell, we create a custom log handler with `loguru`.
+
+    It uses the `@loguru_logger.catch` decorator to log all exceptions produced by the decorated function.
+
+    Then, we go through the stacktrace frames to retrieve the caller that produced the exception and log this context.
+    """)
+    return
+
+
 @app.cell
 def _(Union, logging):
     import sys
@@ -391,17 +403,12 @@ def _(Union, logging):
     class InterceptHandler(logging.Handler):
         @loguru_logger.catch(default=True, onerror=lambda _: sys.exit(1))
         def emit(self, record: logging.LogRecord) -> None:
-            # parent class logging.Handler processes log messages
             try:
-                level: Union[str, int] = loguru_logger.level(
-                    record.levelname
-                ).name  # decorator provided by loguru that catches any exceptions in the decorated function and logs them
+                level: Union[str, int] = loguru_logger.level(record.levelname).name
             except ValueError:
                 level = record.levelno
-            frame, depth = (
-                sys._getframe(6),
-                6,
-            )  # Get corresponding Loguru level if it exists.
+            depth = 6
+            frame = sys._getframe(depth)
             while frame and frame.f_code.co_filename == logging.__file__:
                 frame = frame.f_back
                 depth = depth + 1
@@ -410,13 +417,9 @@ def _(Union, logging):
             )
 
     logger_dlt = logging.getLogger("dlt")
-    logger_dlt.addHandler(
-        InterceptHandler()
-    )  # Find caller (call frame) from where originated the logged message.
+    logger_dlt.addHandler(InterceptHandler())
     # all logs will be written to dlt_loguru.log
-    loguru_logger.add(
-        "dlt_loguru.log"
-    )  # logs the message using loguru, with the level, exception information, and depth
+    loguru_logger.add("dlt_loguru.log")
     return
 
 

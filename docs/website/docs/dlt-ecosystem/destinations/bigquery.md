@@ -387,6 +387,8 @@ At the time of writing, table level options aren't supported for `ALTER` operati
 Note that `bigquery_adapter` updates the resource *in place*, but returns the resource for convenience, i.e., both the following are valid:
 
 ```py
+from dlt.destinations.adapters import bigquery_adapter
+
 bigquery_adapter(my_resource, partition="partition_column_name")
 my_resource = bigquery_adapter(my_resource, partition="partition_column_name")
 ```

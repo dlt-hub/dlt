@@ -245,14 +245,18 @@ This function returns a list of resources including metadata, metrics, and dimen
 the Google Analytics API.
 
 ```py
+from dlt.extract import DltResource
+from dlt.common.typing import DictStrAny
+from dlt.common.configuration.specs import GcpOAuthCredentials, GcpServiceAccountCredentials
+
 @dlt.source(max_table_nesting=2)
 def google_analytics(
-    credentials: Union[ GcpOAuthCredentials, GcpServiceAccountCredentials ] = dlt.secrets.value,
+    credentials: GcpOAuthCredentials | GcpServiceAccountCredentials = dlt.secrets.value,
     property_id: int = dlt.config.value,
-    queries: List[DictStrAny] = dlt.config.value,
-    start_date: Optional[str] = START_DATE_STRING,
+    queries: list[DictStrAny] = dlt.config.value,
+    start_date: str | None = "2026-01-31",
     rows_per_page: int = 1000,
-) -> List[DltResource]:
+) -> list[DltResource]:
    ...
 ```
 
@@ -273,7 +277,7 @@ set to 1000.
 
 This function retrieves all the metrics and dimensions for a report from a Google Analytics project.
 
-```py
+```py notype
 @dlt.resource(selected=False)
 def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
    ...
@@ -288,7 +292,7 @@ def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
 
 This transformer function extracts data using metadata and populates a table called "metrics" with the data from each metric.
 
-```py
+```py notype
 @dlt.transformer(data_from=get_metadata, write_disposition="replace", name="metrics")
 def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
     for metric in metadata.metrics:
@@ -318,7 +322,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the data from metrics and dimensions:
 
-   ```py
+   ```py notype
    load_data = google_analytics()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -328,7 +332,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from a specific start date:
 
-   ```py
+   ```py notype
    load_data = google_analytics(start_date='2023-01-01')
    load_info = pipeline.run(load_data)
    print(load_info)

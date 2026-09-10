@@ -120,7 +120,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This `dlt.source` function uses GraphQL to fetch DltResource objects: issues and pull requests along with associated reactions, comments, and reactions to comments.
 
-```py
+```py notype
 @dlt.source
 def github_reactions(
     owner: str,
@@ -169,6 +169,8 @@ This `dlt.source` fetches repository events incrementally, dispatching them to s
 > Note: GitHub allows retrieving up to 300 events for public repositories, so frequent updates are recommended for active repos.
 
 ```py
+from dlt.extract import DltResource
+
 @dlt.source(max_table_nesting=2)
 def github_repo_events(
     owner: str, name: str, access_token: str = None
@@ -191,6 +193,9 @@ Read more about [nesting levels](../../general-usage/source#reduce-the-nesting-l
 This `dlt.resource` function serves as the resource for the `github_repo_events` source. It yields repository events as data items.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItems
+
 dlt.resource(primary_key="id", table_name=lambda i: i["type"])  # type: ignore
 def repo_events(
     last_created_at: dlt.sources.incremental[str] = dlt.sources.incremental(
@@ -228,7 +233,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the data from the repo on issues, pull requests, their comments, and reactions, you can do the following:
 
-   ```py
+   ```py notype
    load_data = github_reactions("duckdb", "duckdb")
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -237,7 +242,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load only the first 100 issues, you can do the following:
 
-   ```py
+   ```py notype
    load_data = github_reactions("duckdb", "duckdb", max_items=100)
    load_info = pipeline.run(load_data.with_resources("issues"))
    print(load_info)
@@ -245,7 +250,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. You can fetch and process repo events data incrementally. It loads all data during the first run and incrementally in subsequent runs.
 
-   ```py
+   ```py notype
    load_data = github_repo_events(
        "duckdb", "duckdb", access_token=os.getenv("ACCESS_TOKEN_ENV_VAR")
    )

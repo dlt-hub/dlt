@@ -36,7 +36,23 @@ dlt init sql_database duckdb
 
 ### Step 2: Define Modal Image
 Open the file and define the Modal Image you want to run `dlt` in:
-<!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_image-->
+```py
+import modal
+
+# Define the Modal Image
+image = modal.Image.debian_slim().pip_install(
+    "dlt>=1.1.0",
+    "dlt[duckdb]",  # destination
+    "dlt[sql_database]",  # source (MySQL)
+    "dlt[parquet]",  # file format dependency
+    "pymysql",  # database driver for MySQL source
+)
+
+app = modal.App("example-dlt", image=image)
+
+# Modal Volume used to store the duckdb database file
+vol = modal.Volume.from_name("duckdb-vol", create_if_missing=True)
+```
 
 ### Step 3: Define Modal Function
 A Modal Function is a containerized environment that runs tasks.
@@ -45,7 +61,40 @@ multiple containers.
 
 Here’s how to include your SQL pipeline in the Modal Function:
 
-<!--@@@DLT_SNIPPET ./deploy_snippets/deploy-with-modal-snippets.py::modal_function-->
+```py notype
+@app.function(
+    volumes={"/data/": vol}, schedule=modal.Period(days=1), serialized=True
+)
+def load_tables() -> None:
+    import dlt
+    import os
+    from dlt.sources.sql_database import sql_database
+
+    # Define the source database credentials; in production, you would save this as a Modal Secret which can be referenced here as an environment variable
+    os.environ[
+        "SOURCES__SQL_DATABASE__CREDENTIALS"
+    ] = "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
+    # Load tables "family" and "genome" with minimal reflection to avoid column constraint error
+    source = sql_database(reflection_level="minimal").with_resources(
+        "family", "genome"
+    )
+
+    # Create dlt pipeline object
+    pipeline = dlt.pipeline(
+        pipeline_name="sql_to_duckdb_pipeline",
+        destination=dlt.destinations.duckdb(
+            "/data/rfam.duckdb"
+        ),  # write the duckdb database file to this file location, which will get mounted to the Modal Volume
+        dataset_name="sql_to_duckdb_pipeline_data",
+        progress="log",  # output progress of the pipeline
+    )
+
+    # Run the pipeline
+    load_info = pipeline.run(source, write_disposition="replace")
+
+    # Print run statistics
+    print(load_info)
+```
 
 ### Step 4: Set up credentials
 You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,

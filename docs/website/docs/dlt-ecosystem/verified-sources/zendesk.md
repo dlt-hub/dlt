@@ -54,7 +54,7 @@ tokens or OAuth tokens.
 
 #### Grab subdomain
 
-1. Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+1. Log into Zendesk to find your subdomain in the URL. E.g., for [https://www.dlthub.zendesk.com](https://www.dlthub.zendesk.com), the
    subdomain is "dlthub".
 
 #### Grab Zendesk support API token
@@ -111,7 +111,7 @@ Zendesk chat can be authenticated using this method:
 
 #### Subdomain
 
-Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+Log into Zendesk to find your subdomain in the URL. E.g., for [https://www.dlthub.zendesk.com](https://www.dlthub.zendesk.com), the
 subdomain is "dlthub".
 
 #### Grab Zendesk chat OAuth token
@@ -122,7 +122,7 @@ To generate a Zendesk chat OAuth token, please refer to this
 
 1. Access Zendesk Chat directly or through the top right "Chat" option in Zendesk product.
 1. Navigate to "Settings" > "Account" > "API" > "Add API client".
-1. Fill in the client name, company, and redirect URLs (default: http://localhost:8080).
+1. Fill in the client name, company, and redirect URLs (default: [http://localhost:8080](http://localhost:8080)).
 1. Record the "CLIENT_ID" and "SUBDOMAIN".
 1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
    press Enter.
@@ -241,7 +241,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function retrieves data from Zendesk Talk for phone calls and voicemails.
 
-```py
+```py notype
 @dlt.source(max_table_nesting=2)
 def zendesk_talk(
     credentials: TZendeskCredentials = dlt.secrets.value,
@@ -262,7 +262,7 @@ run.
 
 This function loads data from the Zendesk Talk endpoint.
 
-```py
+```py notype
 def talk_resource(
     zendesk_client: ZendeskAPIClient,
     talk_endpoint_name: str,
@@ -312,7 +312,7 @@ verified source.
 
 1. To load data related to support, talk, and chat:
 
-   ```py
+   ```py notype
     # Zendesk support source function
     data_support = zendesk_support(load_all=True)
     # Zendesk chat source function
@@ -326,7 +326,7 @@ verified source.
 
 1. To load data related to support, chat, and talk in incremental mode:
 
-   ```py
+   ```py notype
    pipeline = dlt.pipeline(
         pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -347,7 +347,7 @@ verified source.
 1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
    for new tickets.
 
-   ```py
+   ```py notype
     # Load ranges of dates between January 1st, 2023, and today
     min_start_date = pendulum.DateTime(year=2023, month=1, day=1).in_timezone("UTC")
     max_end_date = pendulum.today()

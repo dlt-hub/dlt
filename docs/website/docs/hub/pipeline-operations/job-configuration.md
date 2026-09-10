@@ -14,7 +14,7 @@ All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.in
 
 `execute={"timeout": "6h"}` overrides the default 120-minute job timeout. Use the dict form to also customize the grace period — the window for the job to finish in-flight work before the dltHub platform hard-kills the process:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
     execute={"timeout": {"timeout": 7200, "grace_period": 60}},
@@ -36,7 +36,7 @@ ibis = ["ibis-framework[duckdb]"]
 
 Then opt into it in the decorator:
 
-```py
+```py notype
 @run.pipeline(my_pipeline, require={"dependency_groups": ["ibis"]})
 def transform(run_context: TJobRunContext):
     ...
@@ -52,7 +52,7 @@ This feature is in public preview
 
 Pick how much CPU and memory the job’s runner gets. Pass it under `require.instance`:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
     require={"instance": {"size": "medium"}},
@@ -76,7 +76,7 @@ Pipeline-level tuning (chunking, parallelism, memory settings) often lowers the 
 
 Use this when you must whitelist outbound IP addresses so external systems can grant your jobs access to private resources. Opt in per job so outbound requests use your workspace's static egress IPs:
 
-```py
+```py notype
 @run.pipeline(my_pipeline, require={"static_egress_ips": True})
 def sync_from_vendor():
     ...
@@ -117,7 +117,7 @@ For inline jobs in `__deployment__.py`, pass `section="my_job"` to the decorator
 
 `expose={...}` controls how the job appears in the dashboard and to selectors:
 
-```py
+```py notype
 @run.pipeline(
     "github_pipeline",
     expose={

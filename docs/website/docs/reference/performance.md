@@ -17,11 +17,39 @@ This page contains a collection of tips and tricks to optimize dlt pipelines for
 If possible, yield pages when producing data. This approach makes some processes more effective by reducing
 the number of necessary function calls (each chunk of data that you yield goes through the extract pipeline once, so if you yield a chunk of 10,000 items, you will gain significant savings).
 For example:
-<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::performance_chunking-->
+```py execute
+import dlt
+
+def get_rows(limit):
+    yield from map(lambda n: {"row": n}, range(limit))
+
+@dlt.resource
+def database_cursor():
+    # here we yield each row returned from database separately
+    yield from get_rows(10000)
+
+```
 
 can be replaced with:
 
-<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::performance_chunking_chunk-->
+```py execute
+import dlt
+from itertools import islice
+
+def get_rows(limit):
+    yield from map(lambda n: {"row": n}, range(limit))
+
+@dlt.resource
+def database_cursor_chunked():
+    # here we yield chunks of size 1000
+    rows = get_rows(10000)
+    item_slice = list(islice(rows, 1000))
+    while item_slice:
+        print(f"got chunk of length {len(item_slice)}")
+        yield item_slice
+        item_slice = list(islice(rows, 1000))
+
+```
 
 
 ### Resources extraction, `fifo` vs. `round robin`
@@ -41,7 +69,13 @@ and transformers until completion before starting with a new one.
 
 You can change this setting in your `config.toml` as follows:
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::item_mode_toml-->
+```toml
+[extract] # global setting
+next_item_mode="round_robin"
+
+[sources.my_pipeline.extract] # setting for the "my_pipeline" pipeline
+next_item_mode="fifo"
+```
 
 
 ### Use the built-in requests wrapper or RESTClient for API calls
@@ -99,7 +133,23 @@ DLT_USE_JSON=simplejson
 * set extract buffers separately from normalize buffers
 * set extract buffers for a particular source or resource
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::buffer_toml-->
+```toml
+# set buffer size for extract and normalize stages
+[data_writer]
+buffer_max_items=100
+
+# set buffers only in extract stage - for all sources
+[sources.data_writer]
+buffer_max_items=100
+
+# set buffers only for a source with name zendesk_support
+[sources.zendesk_support.data_writer]
+buffer_max_items=100
+
+# set buffers in normalize stage
+[normalize.data_writer]
+buffer_max_items=100
+```
 
 
 The default buffer is actually set to a moderately low value (**5000 items**), so unless you are trying to run `dlt`
@@ -120,11 +170,34 @@ Some file formats (e.g., Parquet) do not support schema changes when writing a s
 
 Below, we set files to rotate after 100,000 items written or when the filesize exceeds 1MiB.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::file_size_toml-->
+```toml
+# extract and normalize stages
+[data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+
+# only for the extract stage - for all sources
+[sources.data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+
+# only for the extract stage of a source with name zendesk_support
+[sources.zendesk_support.data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+
+# only for the normalize stage
+[normalize.data_writer]
+file_max_items=100000
+file_max_bytes=1000000
+```
 
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats.md) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::compression_toml-->
+```toml
+[normalize.data_writer]
+disable_compression=true
+```
 
 :::note
 **Filesystem destination**: Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatically include a `.gz` extension to reflect their gzip-compressed format. In versions prior to 1.15.0, compressed files were saved without the `.gz` extension. If you have a dataset created with an earlier version (e.g., 1.14.0 or below), dlt will automatically detect the older format and preserve the original naming (without `.gz`) for that dataset. New datasets created with 1.15.0 or later will include the `.gz` extension by default.
@@ -158,7 +231,110 @@ Consider an example source that consists of 2 resources fetching pages of items 
 
 The `parallelized=True` argument wraps the resources in a generator that yields callables to evaluate each generator step. These callables are executed in the thread pool. Transformers that are not generators (as shown in the example) are internally wrapped in a generator that yields once.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::parallel_extract_callables-->
+```py execute
+import dlt
+import time
+
+@dlt.resource(parallelized=True)
+def list_users(n_users):
+    for i in range(1, 1 + n_users):
+        # Simulate network delay of a rest API call fetching a page of items
+        if i % 10 == 0:
+            time.sleep(0.1)
+        yield i
+
+@dlt.transformer(parallelized=True)
+def get_user_details(user_id):
+    # Transformer that fetches details for users in a page
+    time.sleep(0.1)  # Simulate latency of a rest API call
+    # print(f"user_id {user_id} in thread {threading.current_thread().name}")
+    return {"entity": "user", "id": user_id}
+
+@dlt.resource(parallelized=True)
+def list_products(n_products):
+    for i in range(1, 1 + n_products):
+        if i % 10 == 0:
+            time.sleep(0.1)
+        yield i
+    
+@dlt.transformer(parallelized=True)
+def get_product_details(product_id):
+    time.sleep(0.1)
+    # print(f"product_id {product_id} in thread {threading.current_thread().name}")
+    return {"entity": "product", "id": product_id}
+
+@dlt.source
+def api_data():
+    return [
+        list_users(24) | get_user_details,
+        list_products(32) | get_product_details,
+    ]
+
+# evaluate the pipeline and print all the items
+# sources are iterators and they are evaluated in the same way in the pipeline.run
+# NOTE the order is not deterministic
+# print(list(api_data()))
+"""
+[
+    {'entity': 'user', 'id': 3},
+    {'entity': 'product', 'id': 2},
+    {'entity': 'user', 'id': 2},
+    {'entity': 'product', 'id': 1},
+    {'entity': 'user', 'id': 1},
+    {'entity': 'product', 'id': 5},
+    {'entity': 'product', 'id': 4},
+    {'entity': 'product', 'id': 3},
+    {'entity': 'user', 'id': 4},
+    {'entity': 'user', 'id': 5},
+    {'entity': 'user', 'id': 7},
+    {'entity': 'product', 'id': 6},
+    {'entity': 'user', 'id': 6},
+    {'entity': 'product', 'id': 7},
+    {'entity': 'product', 'id': 8},
+    {'entity': 'product', 'id': 9},
+    {'entity': 'user', 'id': 8},
+    {'entity': 'user', 'id': 9},
+    {'entity': 'product', 'id': 11},
+    {'entity': 'user', 'id': 10},
+    {'entity': 'product', 'id': 10},
+    {'entity': 'user', 'id': 11},
+    {'entity': 'product', 'id': 12},
+    {'entity': 'product', 'id': 13},
+    {'entity': 'user', 'id': 12},
+    {'entity': 'product', 'id': 14},
+    {'entity': 'user', 'id': 13},
+    {'entity': 'product', 'id': 15},
+    {'entity': 'product', 'id': 16},
+    {'entity': 'product', 'id': 17},
+    {'entity': 'user', 'id': 14},
+    {'entity': 'product', 'id': 18},
+    {'entity': 'user', 'id': 15},
+    {'entity': 'user', 'id': 16},
+    {'entity': 'product', 'id': 19},
+    {'entity': 'user', 'id': 18},
+    {'entity': 'user', 'id': 17},
+    {'entity': 'user', 'id': 19},
+    {'entity': 'product', 'id': 20},
+    {'entity': 'product', 'id': 21},
+    {'entity': 'product', 'id': 22},
+    {'entity': 'product', 'id': 23},
+    {'entity': 'product', 'id': 24},
+    {'entity': 'product', 'id': 25},
+    {'entity': 'user', 'id': 20},
+    {'entity': 'product', 'id': 26},
+    {'entity': 'user', 'id': 21},
+    {'entity': 'product', 'id': 27},
+    {'entity': 'product', 'id': 28},
+    {'entity': 'user', 'id': 22},
+    {'entity': 'user', 'id': 23},
+    {'entity': 'product', 'id': 29},
+    {'entity': 'user', 'id': 24},
+    {'entity': 'product', 'id': 30},
+    {'entity': 'product', 'id': 31},
+    {'entity': 'product', 'id': 32},
+]
+"""
+```
 
 
 The `parallelized` flag in the `resource` and `transformer` decorators is supported for:
@@ -168,17 +344,78 @@ The `parallelized` flag in the `resource` and `transformer` decorators is suppor
 * `dlt.transformer` decorated functions. These can be either generator functions or regular functions that return one value
 
 You can control the number of workers in the thread pool with the **workers** setting. The default number of workers is **5**. Below, you see a few ways to do that with different granularity.
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::extract_workers_toml-->
+```toml
+# for all sources and resources being extracted
+[extract]
+workers=1
+
+# for all resources in the zendesk_support source
+[sources.zendesk_support.extract]
+workers=2
+
+# for the tickets resource in the zendesk_support source
+[sources.zendesk_support.tickets.extract]
+workers=4
+```
 
 
 
 The example below does the same but using an async generator as the main resource and async/await and futures pool for the transformer.
 The `parallelized` flag is not supported or needed for async generators; these are wrapped and evaluated concurrently by default:
-<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::parallel_extract_awaitables-->
+```py execute
+import asyncio
+
+import dlt
+
+@dlt.resource
+async def a_list_items(start, limit):
+    # simulate a slow REST API where you wait 0.3 sec for each item
+    index = start
+    while index < start + limit:
+        await asyncio.sleep(0.3)
+        yield index
+        index += 1
+
+@dlt.transformer
+async def a_get_details(item_id):
+    # simulate a slow REST API where you wait 0.3 sec for each item
+    await asyncio.sleep(0.3)
+    # print(f"item_id {item_id} in thread {threading.current_thread().name}")
+    # just return the results, if you yield, generator will be evaluated in main thread
+    return {"row": item_id}
+
+print(list(a_list_items(0, 10) | a_get_details))
+"""
+[
+    {'row': 0},
+    {'row': 1},
+    {'row': 2},
+    {'row': 3},
+    {'row': 4},
+    {'row': 5},
+    {'row': 6},
+    {'row': 7},
+    {'row': 8},
+    {'row': 9},
+]
+"""
+```
 
 
 You can control the number of async functions/awaitables being evaluated in parallel by setting **max_parallel_items**. The default number is **20**. Below, you see a few ways to do that with different granularity.
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::extract_parallel_items_toml-->
+```toml
+# for all sources and resources being extracted
+[extract]
+max_parallel_items=10
+
+# for all resources in the zendesk_support source
+[sources.zendesk_support.extract]
+max_parallel_items=10
+
+# for the tickets resource in the zendesk_support source
+[sources.zendesk_support.tickets.extract]
+max_parallel_items=10
+```
 
 
 :::note
@@ -193,7 +430,15 @@ in parallel, instead yield functions or async functions that will be evaluated i
 
 ### Normalize
 The **normalize** stage uses a process pool to create load packages concurrently. Each file created by the **extract** stage is sent to a process pool. **If you have just a single resource with a lot of data, you should enable [extract file rotation](#controlling-intermediary-file-size-and-rotation)**. The number of processes in the pool is controlled by the `workers` config value:
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_toml-->
+```toml
+[normalize.data_writer]
+# force extract file rotation if size exceeds 1MiB
+file_max_bytes=1000000
+
+[normalize]
+# use 3 worker processes to process 3 files in parallel
+workers=3
+```
 
 
 :::note
@@ -220,7 +465,15 @@ The **load** stage uses a thread pool for parallelization. Loading is input/outp
 
 As before, **if you have just a single table with millions of records, you should enable [file rotation in the normalizer](#controlling-intermediary-file-size-and-rotation)**. Then the number of parallel load jobs is controlled by the `workers` config setting.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/toml-snippets.toml::normalize_workers_2_toml-->
+```toml
+[normalize.data_writer]
+# force normalize file rotation if it exceeds 1MiB
+file_max_bytes=1000000
+
+[load]
+# have 50 concurrent load jobs
+workers=50
+```
 
 The **normalize** stage in `dlt` uses a process pool to create load packages concurrently, and the settings for `file_max_items` and `file_max_bytes` play a crucial role in determining the size of data chunks. Lower values for these settings reduce the size of each chunk sent to the destination database, which is particularly helpful for managing memory constraints on the database server. By default, `dlt` writes all data rows into one large intermediary file, attempting to load all data at once. Configuring these settings enables file rotation, splitting the data into smaller, more manageable chunks. This not only improves performance but also minimizes memory-related issues when working with large tables containing millions of records.
 
@@ -228,17 +481,71 @@ The **normalize** stage in `dlt` uses a process pool to create load packages con
 The intermediary files generated during the **normalize** stage are also used in the **load** stage. Therefore, adjusting `file_max_items` and `file_max_bytes` in the **normalize** stage directly impacts the size and number of data chunks sent to the destination, influencing loading behavior and performance.
 
 ### Parallel pipeline config example
-The example below simulates the loading of a large database table with 1,000,000 records. The **config.toml** below sets the parallelization as follows:
-* During extraction, files are rotated each 100,000 items, so there are 10 files with data for the same table.
+The example below simulates the loading of a database table with 100,000 records. The **config.toml** below sets the parallelization as follows:
+* During extraction, files are rotated each 10,000 items, so there are 10 files with data for the same table.
 * The normalizer will process the data in 3 processes.
-* We use JSONL to load data to duckdb. We rotate JSONL files each 100,000 items so 10 files will be created.
+* We use JSONL to load data to duckdb. We rotate JSONL files each 10,000 items so 10 files will be created.
 * We use 11 threads to load the data (10 JSON files + state file).
 
-<!--@@@DLT_SNIPPET ./performance_snippets/.dlt/config.toml::parallel_config_toml-->
+```toml
+# `performance-snippets` is the module name and thus config section 
+[sources.performance-snippets.data_writer]
+file_max_items=10000
+
+[normalize]
+workers=3
+
+[normalize.data_writer]
+file_max_items=10000
+
+[load]
+workers=11
+
+```
 
 
 
-<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::parallel_config-->
+```py execute
+import os
+import dlt
+from itertools import islice
+from dlt.common import pendulum
+
+@dlt.resource(name="table")
+def read_table(limit):
+    rows = iter(range(limit))
+    item_slice = list(islice(rows, 1000))
+    while item_slice:
+        now = pendulum.now().isoformat()
+        yield [
+            {
+                "row": _id,
+                "description": "this is row with id {_id}",
+                "timestamp": now,
+            }
+            for _id in item_slice
+        ]
+        item_slice = list(islice(rows, 1000))
+
+
+pipeline = dlt.pipeline("parallel_load", destination="duckdb", dev_mode=True)
+pipeline.extract(read_table(100000), loader_file_format="jsonl")
+
+load_id = pipeline.list_extracted_load_packages()[0]
+extracted_package = pipeline.get_load_package_info(load_id)
+# we should have 2 jobs and 11 files (10 pieces for `table` and 1 for state)
+extracted_jobs = extracted_package.jobs["new_jobs"]
+print(len(extracted_jobs))
+#> 2
+# normalize and print counts
+pipeline.normalize()
+# print jobs in load package (10 + 1 as above)
+load_id = pipeline.list_normalized_load_packages()[0]
+jobs = pipeline.get_load_package_info(load_id)
+print(len(jobs))
+#> 11
+pipeline.load()
+```
 
 
 
@@ -284,7 +591,77 @@ the schema. That should not be a problem, though, as long as your data does not 
 You can run several pipeline instances in parallel from a single process by placing them in
 separate threads. The most straightforward way is to use `ThreadPoolExecutor` and `asyncio` to execute pipeline methods.
 
-<!--@@@DLT_SNIPPET ./performance_snippets/performance-snippets.py::parallel_pipelines-->
+```py execute
+import asyncio
+from time import sleep
+from concurrent.futures import ThreadPoolExecutor
+import dlt
+from dlt.common.runtime import signals
+
+# create both asyncio and thread parallel resources
+@dlt.resource
+async def async_table():
+    for idx_ in range(10):
+        await asyncio.sleep(0.1)
+        yield {"async_gen": idx_}
+
+@dlt.resource(parallelized=True)
+def defer_table():
+    for idx_ in range(5):
+        sleep(0.1)
+        yield idx_
+
+def _run_pipeline(pipeline, gen_):
+    # run the pipeline in a thread, also instantiate generators here!
+    # Python does not let you use generators across threads
+    return pipeline.run(gen_())
+
+# declare pipelines in main thread then run them "async"
+pipeline_1 = dlt.pipeline("pipeline_1", destination="duckdb", dev_mode=True)
+pipeline_2 = dlt.pipeline("pipeline_2", destination="duckdb", dev_mode=True)
+
+async def _run_async():
+    loop = asyncio.get_running_loop()
+    # from Python 3.9 you do not need explicit pool. loop.to_thread will suffice
+    with ThreadPoolExecutor() as executor:
+        results = await asyncio.gather(
+            loop.run_in_executor(executor, _run_pipeline, pipeline_1, async_table),
+            loop.run_in_executor(executor, _run_pipeline, pipeline_2, defer_table),
+        )
+    # results contains two LoadInfo instances
+    # print("pipeline_1", results[0])
+    """
+    pipeline_1
+    Pipeline pipeline_1 load step finished in 0.03 seconds
+    1 load package(s) were loaded to destination duckdb and into dataset pipeline_1_dataset_20260819074903
+    The duckdb destination used duckdb:///pipeline_1.duckdb location to store data
+    Load package 1787168943.507533 is LOADED and contains no failed jobs
+    """
+    # print("pipeline_2", results[1])
+    """
+    pipeline_2
+    Pipeline pipeline_2 load step finished in 0.04 seconds
+    1 load package(s) were loaded to destination duckdb and into dataset pipeline_2_dataset_20260819074903
+    The duckdb destination used duckdb:///pipeline_2.duckdb location to store data
+    Load package 1787168943.508945 is LOADED and contains no failed jobs
+    """
+
+# enable signal handling for graceful shutdowns - it is disabled for pipelines running
+# in threads
+with signals.intercepted_signals():
+    # load data
+    asyncio.run(_run_async())
+# activate pipelines before they are used
+pipeline_1.activate()
+pipeline_1_count = pipeline_1.last_trace.last_normalize_info.row_counts["async_table"]  # ty: ignore
+print(pipeline_1_count)
+#> 10
+
+pipeline_2.activate()
+pipeline_2_count = pipeline_2.last_trace.last_normalize_info.row_counts["defer_table"]  # ty: ignore
+print(pipeline_2_count)
+#> 5
+```
 
 :::tip
 Please note the following:

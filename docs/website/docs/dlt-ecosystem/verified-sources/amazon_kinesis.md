@@ -115,7 +115,7 @@ This resource reads a Kinesis stream and yields messages. It supports
 [incremental loading](../../general-usage/incremental-loading) and parses messages as JSON by
 default.
 
-```py
+```py notype
 @dlt.resource(
     name=lambda args: args["stream_name"],
     primary_key="_kinesis_msg_id",
@@ -199,7 +199,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load messages from a stream from the last one hour:
 
-   ```py
+   ```py notype
    # The resource below will take its name from the stream name,
    # it can be used multiple times. By default, it assumes that data is JSON and parses it,
    # here we disable that to just get bytes in data elements of the message.
@@ -214,7 +214,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. For incremental Kinesis streams, to fetch only new messages:
 
-   ```py
+   ```py notype
    # Running pipeline will get only new messages.
    info = pipeline.run(kinesis_stream_data)
    message_counts = pipeline.last_trace.last_normalize_info.row_counts
@@ -226,7 +226,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To parse JSON with a simple decoder:
 
-   ```py
+   ```py notype
    def _maybe_parse_json(item: TDataItem) -> TDataItem:
        try:
            item.update(json.loadb(item["data"]))
@@ -240,7 +240,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To read Kinesis messages and send them somewhere without using a pipeline:
 
-   ```py
+   ```py notype
    from dlt.common.configuration.container import Container
    from dlt.common.pipeline import StateInjectableContext
 

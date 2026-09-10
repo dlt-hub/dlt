@@ -214,7 +214,7 @@ Above we force parallel loading on (default) sqlite catalog.
 as shorthand strings and objects:
 ```py
 import dlt
-from dlt.destinations.impl.ducklake.configuration import DuckDbBaseCredentials
+from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
 
 # set ducklake credentials using shorthands, s3 bucket requires secrets in config
 credentials = DuckLakeCredentials(
@@ -225,7 +225,7 @@ credentials = DuckLakeCredentials(
 destination = dlt.destinations.ducklake(credentials=credentials)
 ```
 
-```py
+```py notype
 import dlt
 from dlt.sources.credentials import ConnectionStringCredentials
 
@@ -240,7 +240,7 @@ credentials = DuckLakeCredentials(
 ```
 
 As mentioned above, `filesystem` and `ducklake` share the same configuration object. Configuration for the `filesystem` can be reused:
-```py
+```py notype
 
 # `filesystem` below is a pipeline with configured filesystem destination
 
@@ -263,7 +263,7 @@ storage using `sql_client`. This is demonstrated in examples below.
 ### Set catalog options
 Certain **ducklake** options are persisted in the catalog and are set differently than [connection options](#configure-additional-connection-options-pragmas-and-extensions). You can do that from code:
 
-```py
+```py notype
 import dlt
 import duckdb
 
@@ -284,7 +284,7 @@ Above we set `per_thread_output` (1.4.x only) before pipeline runs.
 
 # pipeline.run(...)
 
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     print(client.execute_sql("CALL bucket_cat.merge_adjacent_files()"))
 ```
 

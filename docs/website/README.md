@@ -7,7 +7,7 @@ Docusaurus consumes content from the `./docs` folder (at `./docs/website/docs` i
 
 - markdown files
 - code snippets
-- API documentation, which pydoc generates into `./docs/api_reference` when the Node package is run.
+- API documentation, which `docs/tools/generate_api_reference.py` generates into `./docs_processed/api_reference` when the Node package is run.
 
 On the production website the documentation appears at https://dlthub.com/docs and the default documentation page is https://dlthub.com/docs/intro.
 
@@ -23,13 +23,13 @@ That command installs our Node.js package defined in `package.json`.
 
 ### Python Dependencies
 
-The website build process requires Python dependencies, including `pydoc-markdown` for generating API documentation. From the `docs/` directory run:
+The website build process requires Python dependencies. From the `docs/` directory run:
 
 ```
 $ make dev
 ```
 
-This calls `uv sync` and installs all Python tooling into the docs virtual environment.
+This calls `uv sync` and installs all Python tooling into the docs virtual environment. It also installs `prek` git hooks (`pre-commit` and `pre-push`), so linting/formatting checks may run automatically on commit/push.
 
 ### Are you new to Node?
 
@@ -54,6 +54,8 @@ $ npm run start
 ```
 
 That command starts a local development web server and opens a browser window. It then takes a few seconds for Docusaurus to generate pages before the website displays.
+
+You edit the sources in `docs/`, but Docusaurus renders `docs_processed/`, which the Python preprocessor generates from them. The `preprocess-docs` Docusaurus plugin (`plugins/preprocess-docs.js`) watches `docs/` and re-runs the preprocessor on change, so there is a single file watcher and saving a source file refreshes the browser as usual.
 You may get a "Page Not Found" error when browsing at `/docs/`. This does not happen on the production website, whose default page is the "Ïntroduction" page at `/docs/intro`.
 
 For most authoring purposes, once you are happy with your changes running locally, you can create a Github PR, without needing to do the following build and deployment steps.
@@ -64,34 +66,35 @@ For most authoring purposes, once you are happy with your changes running locall
 $ npm run build
 ```
 
-That command generates static content into the `build` directory, which can be served using `npm run serve`.
+That command delegates to `cd .. && make build` (see `package.json`), which drives the full pipeline from `docs/Makefile`. It generates static content into the `build` directory, which can be served using `npm run serve`.
 
 ### What `npm run build` does
 
-The full build runs these steps in order:
+The full build (the `build` target in `docs/Makefile`) runs these steps in order:
 
 1. **`npm run update-versions`** — clones `dlt`, checks out the `master` branch, freezes the content into `versioned_docs/version-master/`. This is the **master snapshot** (served at `/docs/`); your branch is served at `/docs/devel/`. See [Docs versions](#docs-versions) below.
-2. **`make preprocess-docs`** (from `docs/`) — Python preprocessor: expands `<!--@@@DLT_SNIPPET-->` markers, generates the API reference, etc.
-3. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
-4. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+2. **`npm run compile-redirects`** — merges `redirects.js` (devel) and the per-version snapshots under `versioned_redirects/` into `redirects.compiled.js`. See [Redirects](#redirects) below.
+3. **`make check-orphan-docs`** (from `docs/`) — runs `tools/check_orphan_docs.js`, which fails the build if any page under `docs/` is unreachable from `sidebars.js` (directly, via a category `link`, or as a sidebar item) unless it's marked `unlisted: true` in frontmatter.
+4. **`make preprocess-docs`** (from `docs/`) — Python preprocessor (`docs/tools/preprocess_docs.py`): copies `docs/` to `docs_processed/`, expands `@@@DLT_*` markers, generates the API reference, etc.
+5. **`docusaurus build --out-dir build/docs`** — the static site build itself. Fails on broken internal markdown links.
+6. **`npm run verify-redirects`** — loads `redirects.compiled.js`, recompiles it in memory to check it isn't stale, and checks each `to` target resolves to an existing page in `build/docs`.
+7. **`node scripts/verify-llms-txt.js`** — checks the generated `llms.txt` index against the sidebar.
+
+CI (`.github/workflows/docs_build.yml`) simply runs `make build` from `docs/`, so it exercises the exact same 7 steps — there is no separate "verify redirects" CI step.
 
 ### Running individual checks
 
-After a full build, you can re-run the verifiers standalone — useful when iterating on one concern without rebuilding everything:
+You can re-run these checks standalone — useful when iterating on one concern without rebuilding everything:
 
 ```
-$ npm run verify-llms          # llms.txt index check
-$ npm run verify-redirects     # redirect targets check
+$ npm run check-orphan-docs      # orphan-page check (fails on non-unlisted orphans)
+$ npm run check-orphan-docs:all  # same, but also fails on unlisted orphans (lists everything)
+$ npm run compile-redirects      # regenerate redirects.compiled.js from sources
+$ npm run verify-llms            # llms.txt index check
+$ npm run verify-redirects       # redirect targets check (requires a prior `npm run build`)
 ```
 
-**`verify-redirects` is no longer part of `npm run build` — CI runs it as a dedicated `Verify redirects` step in `.github/workflows/build_docs.yml`.** To reproduce CI locally:
-
-```
-$ npm run build
-$ npm run verify-redirects
-```
-
-Run this whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
+Run `verify-redirects` (or a full `npm run build`) whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
 
 ## Deployment
 
@@ -205,7 +208,7 @@ The site has two sidebars defined in `sidebars.js`:
 
 - **`docsSidebar`** — The primary sidebar for all open-source dlt documentation. Items are manually curated and do not mirror the file-system layout (e.g., "Core concepts" pulls docs from `reference/`, `general-usage/`, etc.). Two sections are injected dynamically at build time:
   - **Code examples** — all `.md`/`.mdx` files under `docs_processed/examples/` are auto-appended.
-  - **API reference** — if `docs_processed/api_reference/sidebar.json` exists (generated by pydoc), it is spliced into the "Reference" category.
+  - **API reference** — if `docs_processed/api_reference/sidebar.json` exists (generated by `make generate-api-ref`), it is spliced into the "Reference" category.
 
 - **`hubSidebar`** — A secondary sidebar for dltHub-specific pages (under `docs/hub/`). It cross-references open-source docs using `{ type: 'ref', id: '...' }` items, so users can navigate between the two sidebars seamlessly.
 
