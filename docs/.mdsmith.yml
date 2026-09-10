@@ -142,9 +142,10 @@ ignore: [
 overrides: []
 # front-matter: true
 categories:
+    # categories are defined here: https://mdsmith.dev/rules/
     accessibility: true
     code: true
-    directive: false
+    directive: true
     heading: false
     line: false
     link: true
