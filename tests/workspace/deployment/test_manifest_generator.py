@@ -9,7 +9,7 @@ from typing import List
 import pytest
 
 from dlt._workspace.deployment.decorators import job
-from dlt._workspace.deployment.exceptions import InvalidManifest
+from dlt._workspace.deployment.exceptions import InvalidManifest, InvalidTrigger
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
     generate_manifest,
@@ -524,6 +524,16 @@ def test_manifest_from_module_invalid_module(isolated: bool) -> None:
     """Both modes raise ModuleNotFoundError for a bad module name."""
     with pytest.raises(ModuleNotFoundError, match="nonexistent_module_xyz_123"):
         manifest_from_module("nonexistent_module_xyz_123", isolated=isolated)
+
+
+@pytest.mark.parametrize("isolated", [False, True], ids=["inprocess", "isolated"])
+def test_manifest_from_module_invalid_trigger(isolated: bool) -> None:
+    """A definition error in the module comes back as itself from both modes."""
+    with pytest.raises(InvalidTrigger, match="period must be like") as exc_info:
+        manifest_from_module(f"{WORKSPACE}.invalid_trigger_jobs", isolated=isolated)
+    exc = exc_info.value
+    # only the message crosses the worker boundary, so the rebuilt error carries it whole
+    assert exc.errors == ([str(exc)] if isolated else ["period must be like '5m', '1h', '1d'"])
 
 
 def test_manifest_from_module_isolated_no_pollution() -> None:

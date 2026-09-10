@@ -1,6 +1,6 @@
 from typing import List, Optional, Sequence
 
-from dlt._workspace.deployment.exceptions import DeploymentException
+from dlt._workspace.deployment.exceptions import DeploymentException, DeploymentValidationError
 
 
 class AgentException(DeploymentException):
@@ -20,13 +20,13 @@ class UnknownAgentLoop(AgentException, KeyError):
         )
 
 
-class InvalidAgentSpec(AgentException, ValueError):
+class InvalidAgentSpec(AgentException, DeploymentValidationError):
     def __init__(self, path: str, reason: str) -> None:
         self.path = path
-        super().__init__(f"Invalid agent file {path!r}: {reason}")
+        super().__init__(f"Invalid agent file {path!r}: {reason}", errors=[reason], subject=path)
 
 
-class AgentComponentNotFound(AgentException, FileNotFoundError):
+class AgentComponentNotFound(AgentException, DeploymentValidationError):
     def __init__(
         self,
         ref: str,
@@ -72,7 +72,7 @@ class AgentComponentNotFound(AgentException, FileNotFoundError):
             lines.append("`dlthub ai toolkit list` shows what is available.")
         if toolkit is not None and searched:
             lines.append(f"It must leave {searched[0]} in place.")
-        super().__init__("\n".join(line for line in lines if line))
+        super().__init__("\n".join(line for line in lines if line), subject=ref)
 
 
 class UnsupportedAgentModel(AgentException, ValueError):

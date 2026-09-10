@@ -12,9 +12,20 @@ import pytest
 
 from dlt._workspace.deployment import interval as interval_mod
 from dlt._workspace.deployment.decorators import job
+from dlt._workspace.deployment.agent.exceptions import AgentComponentNotFound, InvalidAgentSpec
 from dlt._workspace.deployment.exceptions import (
+    DeploymentValidationError,
+    InvalidFreshnessConstraint,
     InvalidJobDefinition,
+    InvalidJobName,
+    InvalidJobRef,
+    InvalidJobSchema,
+    InvalidJobSection,
+    InvalidManifest,
+    InvalidTrigger,
+    JobValidationResult,
     ManifestEngineNoUpgradePath,
+    ManifestValidationResult,
 )
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
@@ -980,6 +991,118 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
     job = _make_job("jobs.mod.ok", triggers=["schedule:0 8 * * *"])
     result = validate_job_definition(job, raise_on_error=True)
     assert result.errors == []
+
+
+def test_validate_job_definition_checks_the_structure_first() -> None:
+    """With `validate_dict` a malformed definition reports its shape and nothing else."""
+    job = _make_job("jobs.mod.ok", triggers=["schedule:0 8 * * *"])
+    assert validate_job_definition(job, validate_dict=True).errors == []
+
+    # a missing required key would break every later check
+    missing: Any = dict(job)
+    del missing["entry_point"]
+    result = validate_job_definition(missing, validate_dict=True)
+    assert len(result.errors) == 1
+    assert "entry_point" in result.errors[0]
+    with pytest.raises(InvalidJobDefinition) as exc_info:
+        validate_job_definition(missing, validate_dict=True, raise_on_error=True)
+    assert exc_info.value.job_ref == "jobs.mod.ok"
+    assert "entry_point" in str(exc_info.value)
+
+    # a wrong type is a structural error, not a trigger error
+    mistyped: Any = dict(job)
+    mistyped["triggers"] = "schedule:0 8 * * *"
+    result = validate_job_definition(mistyped, validate_dict=True)
+    assert len(result.errors) == 1
+    assert "triggers" in result.errors[0]
+
+
+def test_validate_manifest_raises_on_request() -> None:
+    """`raise_on_error` turns an invalid result into `InvalidManifest`, a valid one comes back."""
+    ok = make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    result = validate_manifest(make_manifest([ok]), raise_on_error=True)
+    assert result.is_valid
+
+    duplicated = make_manifest([ok, make_job("jobs.mod.a")])
+    assert not validate_manifest(duplicated).is_valid
+    with pytest.raises(InvalidManifest) as exc_info:
+        validate_manifest(duplicated, raise_on_error=True)
+    assert any("duplicate" in e for e in exc_info.value.validation.errors)
+    assert exc_info.value.errors == exc_info.value.validation.errors
+
+    # a structural failure raises too, and the dict error is its cause
+    broken: Any = make_manifest([ok])
+    del broken["jobs"]
+    with pytest.raises(InvalidManifest, match="jobs") as exc_info:
+        validate_manifest(broken, raise_on_error=True)
+    assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.parametrize(
+    "exc,subject",
+    [
+        pytest.param(
+            InvalidManifest(
+                ManifestValidationResult(
+                    is_valid=False, errors=["duplicate a"], warnings=["w"], unresolved_triggers={}
+                )
+            ),
+            None,
+            id="InvalidManifest",
+        ),
+        pytest.param(
+            InvalidJobDefinition("jobs.mod.a", JobValidationResult(["bad trigger"], ["w"])),
+            "jobs.mod.a",
+            id="InvalidJobDefinition",
+        ),
+        pytest.param(InvalidJobSchema("mod.f", "no signature"), "mod.f", id="InvalidJobSchema"),
+        pytest.param(InvalidJobRef("x", "must start with 'jobs.'"), "x", id="InvalidJobRef"),
+        pytest.param(InvalidJobName("1bad"), "1bad", id="InvalidJobName"),
+        pytest.param(InvalidJobSection("1bad"), "1bad", id="InvalidJobSection"),
+        pytest.param(
+            InvalidTrigger("every:5x", "period must be like '5m'"), "every:5x", id="InvalidTrigger"
+        ),
+        pytest.param(
+            InvalidFreshnessConstraint("odd", "not a constraint"),
+            "odd",
+            id="InvalidFreshnessConstraint",
+        ),
+        pytest.param(
+            ManifestEngineNoUpgradePath("manifest", 99, 2),
+            "manifest",
+            id="ManifestEngineNoUpgradePath",
+        ),
+        pytest.param(
+            InvalidAgentSpec("AGENT.md", "body is empty"), "AGENT.md", id="InvalidAgentSpec"
+        ),
+        pytest.param(
+            AgentComponentNotFound(
+                "tk:skill", "skill", ["a/SKILL.md"], toolkit="tk", installed=True
+            ),
+            "tk:skill",
+            id="AgentComponentNotFound",
+        ),
+    ],
+)
+def test_validation_errors_share_one_contract(
+    exc: DeploymentValidationError, subject: Optional[str]
+) -> None:
+    """Every validation error reports through `errors`, `warnings` and `subject`."""
+    assert isinstance(exc, DeploymentValidationError)
+    assert isinstance(exc, ValueError)
+    assert exc.errors and all(isinstance(e, str) for e in exc.errors)
+    assert isinstance(exc.warnings, list)
+    assert exc.subject == subject
+    # the message carries every error, so `str()` alone still tells what was wrong
+    assert all(e in str(exc) for e in exc.errors)
+
+    # only the message crosses the worker boundary
+    rebuilt = type(exc).from_message(str(exc))
+    assert type(rebuilt) is type(exc)
+    assert str(rebuilt) == str(exc)
+    assert rebuilt.errors == [str(exc)] and rebuilt.warnings == [] and rebuilt.subject is None
+    if isinstance(rebuilt, InvalidManifest):
+        assert rebuilt.validation.errors == [str(exc)]
 
 
 @pytest.mark.parametrize(

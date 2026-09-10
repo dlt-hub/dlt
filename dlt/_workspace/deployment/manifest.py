@@ -9,14 +9,14 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from copy import copy
 from importlib import import_module
-from typing import Any, BinaryIO, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
+from typing import Any, BinaryIO, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, Type
 from types import ModuleType
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import DictStrAny
-from dlt.common.validation import validate_dict
+from dlt.common import validation
 from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
@@ -27,6 +27,7 @@ from dlt._workspace.deployment.detectors import (
     is_local_module,
 )
 from dlt._workspace.deployment.exceptions import (
+    DeploymentValidationError,
     InvalidFreshnessConstraint,
     InvalidJobDefinition,
     InvalidJobRef,
@@ -188,11 +189,7 @@ def load_manifest(f: BinaryIO) -> TJobsDeploymentManifest:
     manifest_dict: DictStrAny = json.loadb(data)
     engine_version = manifest_dict.get("engine_version", 1)
     manifest = migrate_manifest(manifest_dict, engine_version, MANIFEST_ENGINE_VERSION)
-
-    result = validate_manifest(manifest)
-    if not result.is_valid:
-        raise InvalidManifest(result)
-
+    validate_manifest(manifest, raise_on_error=True)
     return manifest
 
 
@@ -324,6 +321,7 @@ def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
 def validate_job_definition(
     job_def: TJobDefinition,
     raise_on_error: bool = False,
+    validate_dict: bool = False,
 ) -> JobValidationResult:
     """Validate a single job definition (self-contained checks only).
 
@@ -333,10 +331,21 @@ def validate_job_definition(
     Args:
         job_def: The job definition to validate.
         raise_on_error: If True, raise InvalidJobDefinition when errors found.
+        validate_dict: If True, check that `job_def` conforms to `TJobDefinition` before
+            anything else. A structural error is then the only error reported.
 
     Raises:
         InvalidJobDefinition: When raise_on_error is True and validation fails.
     """
+    if validate_dict:
+        try:
+            validation.validate_dict(TJobDefinition, job_def, ".", validator_f=_newtype_validator)
+        except DictValidationException as e:
+            result = JobValidationResult(errors=[str(e)], warnings=[])
+            if raise_on_error:
+                raise InvalidJobDefinition(job_def.get("job_ref", ""), result) from e
+            return result
+
     errors: List[str] = []
     warnings: List[str] = []
     ref = job_def["job_ref"]
@@ -457,27 +466,42 @@ def validate_job_definition(
     return result
 
 
-def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationResult:
-    """Validate a deployment manifest structurally and for consistency."""
+def validate_manifest(
+    manifest: TJobsDeploymentManifest, raise_on_error: bool = False
+) -> ManifestValidationResult:
+    """Validate a deployment manifest structurally and for consistency.
+
+    Args:
+        manifest: The manifest to validate.
+        raise_on_error: If True, raise InvalidManifest when errors found.
+
+    Raises:
+        InvalidManifest: When raise_on_error is True and validation fails.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     unresolved: Dict[str, List[str]] = {}
 
     try:
-        validate_dict(TJobsDeploymentManifest, manifest, ".", validator_f=_newtype_validator)
+        validation.validate_dict(
+            TJobsDeploymentManifest, manifest, ".", validator_f=_newtype_validator
+        )
     except DictValidationException as e:
         errors.append(str(e))
-        return ManifestValidationResult(
+        result = ManifestValidationResult(
             is_valid=False, errors=errors, warnings=warnings, unresolved_triggers=unresolved
         )
+        if raise_on_error:
+            raise InvalidManifest(result) from e
+        return result
 
     jobs = manifest.get("jobs", [])
 
     # per-job validation
     for job_def in jobs:
-        result = validate_job_definition(job_def)
-        errors.extend(result.errors)
-        warnings.extend(result.warnings)
+        job_result = validate_job_definition(job_def)
+        errors.extend(job_result.errors)
+        warnings.extend(job_result.warnings)
         if job_def["engine_version"] != manifest["engine_version"]:
             errors.append(
                 f"job {job_def['job_ref']!r} is written for engine {job_def['engine_version']},"
@@ -556,12 +580,15 @@ def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationRe
                         " but upstream is an interactive job"
                     )
 
-    return ManifestValidationResult(
+    result = ManifestValidationResult(
         is_valid=len(errors) == 0,
         errors=errors,
         warnings=warnings,
         unresolved_triggers=unresolved,
     )
+    if raise_on_error and not result.is_valid:
+        raise InvalidManifest(result)
+    return result
 
 
 @contextmanager
@@ -771,20 +798,29 @@ _WORKER_ERROR_TYPES: Dict[str, type] = {
     "ModuleNotFoundError": ModuleNotFoundError,
     "ImportError": ImportError,
     "SyntaxError": SyntaxError,
-    "InvalidManifest": InvalidManifest,
-    "InvalidTrigger": InvalidTrigger,
-    "InvalidFreshnessConstraint": InvalidFreshnessConstraint,
-    "InvalidJobDefinition": InvalidJobDefinition,
-    "InvalidJobRef": InvalidJobRef,
 }
+"""Import failures the worker reports, rebuilt from the message alone."""
+
+
+def _validation_error_types() -> Dict[str, Type[DeploymentValidationError]]:
+    """Every `DeploymentValidationError` subclass loaded so far, by name."""
+    found: Dict[str, Type[DeploymentValidationError]] = {}
+    pending = [DeploymentValidationError]
+    while pending:
+        cls = pending.pop()
+        for sub in cls.__subclasses__():
+            if sub.__name__ not in found:
+                found[sub.__name__] = sub
+                pending.append(sub)
+    return found
 
 
 def _raise_from_worker_payload(payload: Dict[str, Any]) -> None:
     msg = payload.get("error", "unknown error")
-    exc_cls = _WORKER_ERROR_TYPES.get(payload.get("error_type", ""))
-    if exc_cls is InvalidManifest:
-        raise InvalidManifest.from_message(msg)
-    if exc_cls is not None:
+    error_type = payload.get("error_type", "")
+    if validation_cls := _validation_error_types().get(error_type):
+        raise validation_cls.from_message(msg)
+    if exc_cls := _WORKER_ERROR_TYPES.get(error_type):
         raise exc_cls(msg)
     raise InvalidManifest.from_message(msg)
 
@@ -793,10 +829,13 @@ def _parse_worker_result(
     stdout: str, stderr: str, returncode: int
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
     if returncode != 0:
+        # only a decode failure means the worker died without a payload
         try:
-            _raise_from_worker_payload(json.typed_loads(stdout.strip()))
-        except (ValueError, KeyError):
-            pass
+            payload = json.typed_loads(stdout.strip())
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict) and "error" in payload:
+            _raise_from_worker_payload(payload)
         raise InvalidManifest.from_message(
             stderr.strip() or stdout.strip() or f"worker exited with code {returncode}"
         )
@@ -823,10 +862,5 @@ def _manifest_from_module_inprocess(
             sys.path.insert(0, cwd)
         mod = import_deployment_module(module_name)
     manifest, gen_warnings = generate_manifest(mod, use_all=use_all)
-
-    result = validate_manifest(manifest)
-    all_warnings = gen_warnings + result.warnings
-    if not result.is_valid:
-        raise InvalidManifest(result)
-
-    return manifest, all_warnings
+    result = validate_manifest(manifest, raise_on_error=True)
+    return manifest, gen_warnings + result.warnings
