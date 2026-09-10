@@ -120,11 +120,11 @@ When a resource yields multiple Arrow tables, DataFrames, or Polars DataFrames, 
 
 The `arrow_concat_promote_options` setting controls how type differences are resolved:
 
-| Value | Behavior |
-|-------|----------|
-| `"none"` (default) | Requires identical schemas (zero-copy concatenation). Any schema difference — type **or** nullability — fails with a clear error and the file is **not** rotated. |
-| `"default"` | Reconciles nullability but allows **no** type differences: a parquet file is rotated on any type change. Lossless. |
-| `"permissive"` | If a unified schema exists (a common type exists for every column across all schemas), performs an **unsafe** cast of each batch into the first encountered schema — which may lose data/precision. Rotates only when no unified schema exists (e.g. cross-family types such as `timestamp` vs `int`). |
+| Value              | Behavior                                                                                                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `"none"` (default) | Requires identical schemas (zero-copy concatenation). Any schema difference — type **or** nullability — fails with a clear error and the file is **not** rotated.                                                                                                                                      |
+| `"default"`        | Reconciles nullability but allows **no** type differences: a parquet file is rotated on any type change. Lossless.                                                                                                                                                                                     |
+| `"permissive"`     | If a unified schema exists (a common type exists for every column across all schemas), performs an **unsafe** cast of each batch into the first encountered schema — which may lose data/precision. Rotates only when no unified schema exists (e.g. cross-family types such as `timestamp` vs `int`). |
 
 In every mode the **first schema written to a file wins** — later batches are cast into it (or rotated to a new file) — and that first schema's metadata is preserved.
 
@@ -219,7 +219,7 @@ Note that **duckdb** and **pyarrow** methods will generate [nested types](#loadi
 The Arrow data types are translated to dlt data types as follows:
 
 | Arrow type        | dlt type    | Notes                                                      |
-|-------------------|-------------|------------------------------------------------------------|
+| ----------------- | ----------- | ---------------------------------------------------------- |
 | `string`          | `text`      |                                                            |
 | `float`/`double`  | `double`    |                                                            |
 | `boolean`         | `bool`      |                                                            |

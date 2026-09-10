@@ -17,10 +17,10 @@ This Mux `dlt` verified source and
 loads data using the “Mux API” to the destination of your choice.
 
 
-| Name        | Description                                                                                         |
-|-------------|-----------------------------------------------------------------------------------------------------|
-| asset       | Refers to the video content that you want to upload, encode, store, and stream using their platform |
-| video view  | Represents a single instance of a video being watched or streamed                                   |
+| Name       | Description                                                                                         |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| asset      | Refers to the video content that you want to upload, encode, store, and stream using their platform |
+| video view | Represents a single instance of a video being watched or streamed                                   |
 
 > Note: The source `mux_source` loads all video assets, but each video view is for yesterday only!
 

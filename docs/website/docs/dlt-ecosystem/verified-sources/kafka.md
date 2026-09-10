@@ -16,9 +16,9 @@ See a [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master
 
 The resource that can be loaded:
 
-| Name              | Description                                |
-| ----------------- |--------------------------------------------|
-| kafka_consumer    | Extracts messages from Kafka topics        |
+| Name           | Description                         |
+| -------------- | ----------------------------------- |
+| kafka_consumer | Extracts messages from Kafka topics |
 
 ## Setup guide
 

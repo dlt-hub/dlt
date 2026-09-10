@@ -512,12 +512,12 @@ After registration, any pipeline using a `my_dialect://` connection URL will aut
 
 The `DialectCapabilities` class supports four extension points:
 
-| Method | Description |
-| --- | --- |
-| `adjust_capabilities` | Modify destination capabilities (identifier lengths, timestamp precision, sqlglot dialect, etc.) |
-| `type_mapper_class` | Return a custom `DataTypeMapper` subclass for the dialect |
-| `adapt_table` | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
-| `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect |
+| Method                  | Description                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `adjust_capabilities`   | Modify destination capabilities (identifier lengths, timestamp precision, sqlglot dialect, etc.)           |
+| `type_mapper_class`     | Return a custom `DataTypeMapper` subclass for the dialect                                                  |
+| `adapt_table`           | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
+| `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect                                     |
 
 :::tip
 Passing `type_mapper=` directly to `dlt.destinations.sqlalchemy()` always takes precedence over the registered dialect capabilities. Use direct passing for one-off overrides and registration for reusable dialect support.

@@ -21,7 +21,7 @@ loads data using the 'Shopify API' or 'Shopify Partner API' to the destination o
 The resources that this verified source supports are:
 
 | Name                  | Description                                                                         |
-|-----------------------|-------------------------------------------------------------------------------------|
+| --------------------- | ----------------------------------------------------------------------------------- |
 | customers             | Individuals or entities who have created accounts on a Shopify-powered online store |
 | orders                | Transactions made by customers on an online store                                   |
 | products              | The individual items or goods that are available for sale                           |

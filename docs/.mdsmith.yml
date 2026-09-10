@@ -154,7 +154,7 @@ categories:
     list: true
     prose: false
     structural: false
-    table: false
+    table: true
     whitespace: false
 files:
     - '**/website/docs*.md'

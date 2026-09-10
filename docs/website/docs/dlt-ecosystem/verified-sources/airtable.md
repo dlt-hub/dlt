@@ -18,9 +18,9 @@ loads data using the “Airtable API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name              | Description                                |
-| ----------------- |--------------------------------------------|
-| airtable_source   | Retrieves tables from an Airtable base     |
+| Name              | Description                                 |
+| ----------------- | ------------------------------------------- |
+| airtable_source   | Retrieves tables from an Airtable base      |
 | airtable_resource | Retrieves data from a single Airtable table |
 
 ## Setup guide

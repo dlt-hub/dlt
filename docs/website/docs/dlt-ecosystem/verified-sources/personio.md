@@ -21,16 +21,16 @@ You can check out our pipeline example [here](https://github.com/dlt-hub/verifie
 
 Resources that can be loaded using this verified source are:
 
-| Name                       | Description                                                                       | Endpoint                                          |
-|----------------------------|-----------------------------------------------------------------------------------|---------------------------------------------------|
-| employees                  | Retrieves company employees' details                                              | /company/employees                                |
-| absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                |
-| absences_types             | Retrieves a list of various types of employee absences                            | /company/time-off-types                           |
-| attendances                | Retrieves attendance records for each employee                                    | /company/attendances                              |
-| projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                     |
-| document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                      |
+| Name                       | Description                                                                       | Endpoint                                            |
+| -------------------------- | --------------------------------------------------------------------------------- | --------------------------------------------------- |
+| employees                  | Retrieves company employees' details                                              | /company/employees                                  |
+| absences                   | Retrieves absence periods for absences tracked in days                            | /company/time-offs                                  |
+| absences_types             | Retrieves a list of various types of employee absences                            | /company/time-off-types                             |
+| attendances                | Retrieves attendance records for each employee                                    | /company/attendances                                |
+| projects                   | Retrieves a list of all company projects                                          | /company/attendances/projects                       |
+| document_categories        | Retrieves all document categories of the company                                  | /company/document-categories                        |
 | employees_absences_balance | The transformer retrieves the absence balance for a specific employee             | /company/employees/\{employee_id\}/absences/balance |
-| custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                   |
+| custom_reports_list        | Retrieves metadata about existing custom reports (name, report type, report date) | /company/custom-reports/reports                     |
 | custom_reports             | The transformer for custom reports                                                | /company/custom-reports/reports/\{report_id\}       |
 
 ## Setup guide

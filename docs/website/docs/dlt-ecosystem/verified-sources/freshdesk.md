@@ -22,12 +22,12 @@ Resources that can be loaded using this verified source are:
 
 | S.No. | Name      | Description                                                                               |
 | ----- | --------- | ----------------------------------------------------------------------------------------- |
-| 1.    | agents    | Users responsible for managing and resolving customer inquiries and support tickets.       |
-| 2.    | companies | Customer organizations or groups that agents support.                                      |
-| 3.    | contacts  | Individuals or customers who reach out for support.                                        |
-| 4.    | groups    | Agents organized based on specific criteria.                                               |
-| 5.    | roles     | Predefined sets of permissions that determine what actions an agent can perform.           |
-| 6.    | tickets   | Customer inquiries or issues submitted via various channels like email, chat, phone, etc.  |
+| 1.    | agents    | Users responsible for managing and resolving customer inquiries and support tickets.      |
+| 2.    | companies | Customer organizations or groups that agents support.                                     |
+| 3.    | contacts  | Individuals or customers who reach out for support.                                       |
+| 4.    | groups    | Agents organized based on specific criteria.                                              |
+| 5.    | roles     | Predefined sets of permissions that determine what actions an agent can perform.          |
+| 6.    | tickets   | Customer inquiries or issues submitted via various channels like email, chat, phone, etc. |
 
 ## Setup guide
 

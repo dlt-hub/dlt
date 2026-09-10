@@ -20,7 +20,7 @@ load data using the “Pipedrive API” to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name         | Description                                                                                |
-|--------------|--------------------------------------------------------------------------------------------|
+| ------------ | ------------------------------------------------------------------------------------------ |
 | activity     | Refers to scheduled events or tasks associated with deals, contacts, or organizations      |
 | organization | Company or entity with which you have potential or existing business dealings              |
 | person       | Individual contact or lead with whom sales deals can be associated                         |

@@ -553,12 +553,12 @@ Here is an example. The transformation below reads the `orders` table and writes
 
 Given an `orders` table with one row per day:
 
-| id | created_at |
-| --- | --- |
-| 1  | 2026-01-01 |
-| 2  | 2026-01-02 |
-| …  | … |
-| 10 | 2026-01-10 |
+| id  | created_at |
+| --- | ---------- |
+| 1   | 2026-01-01 |
+| 2   | 2026-01-02 |
+| …   | …          |
+| 10  | 2026-01-10 |
 
 and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open range end).
 
@@ -613,10 +613,10 @@ def recent_orders(dataset: dlt.Dataset) -> Any:
 
 Now suppose `orders` is loaded in two batches:
 
-| batch   | ids    | `created_at`              |
-| ---     | ---    | ---                       |
-| initial | 1..3   | 2026-01-01 .. 2026-01-03  |
-| later   | 4..5   | 2026-01-04 .. 2026-01-05  |
+| batch   | ids  | `created_at`             |
+| ------- | ---- | ------------------------ |
+| initial | 1..3 | 2026-01-01 .. 2026-01-03 |
+| later   | 4..5 | 2026-01-04 .. 2026-01-05 |
 
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 

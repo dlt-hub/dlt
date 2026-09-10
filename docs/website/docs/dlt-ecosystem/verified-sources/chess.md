@@ -14,10 +14,10 @@ enthusiasts. It includes online chess games, tournaments, lessons, and more.
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                            |
-| ---------------- | ---------------------------------------------------------------------- |
-| players_profiles | retrieves player profiles for a list of player usernames                |
-| players_archives | retrieves URL to game archives for specified players                    |
+| Name             | Description                                                              |
+| ---------------- | ------------------------------------------------------------------------ |
+| players_profiles | retrieves player profiles for a list of player usernames                 |
+| players_archives | retrieves URL to game archives for specified players                     |
 | players_games    | retrieves players' games that happened between start_month and end_month |
 
 ## Setup guide

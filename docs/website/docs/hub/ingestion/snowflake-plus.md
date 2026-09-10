@@ -205,18 +205,18 @@ All standard write dispositions (`append`, `replace`, and `merge`) are supported
 
 The Snowflake Plus destination supports all standard Snowflake destination data types, with additional type mappings for Iceberg tables:
 
-| dlt Type | Iceberg Type |
-|----------|--------------|
-| `text` | `string` |
-| `bigint` | `long`, `int` |
-| `double` | `double` |
-| `bool` | `boolean` |
-| `timestamp` | `timestamp` |
-| `date` | `date` |
-| `time` | `time` |
-| `decimal` | `decimal` |
-| `binary` | `binary` |
-| `json` | `string` |
+| dlt Type    | Iceberg Type  |
+| ----------- | ------------- |
+| `text`      | `string`      |
+| `bigint`    | `long`, `int` |
+| `double`    | `double`      |
+| `bool`      | `boolean`     |
+| `timestamp` | `timestamp`   |
+| `date`      | `date`        |
+| `time`      | `time`        |
+| `decimal`   | `decimal`     |
+| `binary`    | `binary`      |
+| `json`      | `string`      |
 
 ## Syncing Snowflake-managed Iceberg tables to Snowflake Open Catalog
 

@@ -13,10 +13,10 @@ import Header from './_source-info-header.md';
 
 Resources that can be loaded using this verified source are:
 
-| Name                 | Description                                     |
-| -------------------- | ----------------------------------------------- |
-| replication_resource | Load published messages from a replication slot |
-| init_replication     | Initialize replication and optionally return snapshot resources for the initial data load  |
+| Name                 | Description                                                                               |
+| -------------------- | ----------------------------------------------------------------------------------------- |
+| replication_resource | Load published messages from a replication slot                                           |
+| init_replication     | Initialize replication and optionally return snapshot resources for the initial data load |
 
 
 :::info
@@ -171,13 +171,13 @@ def init_replication(
 
 Depending on how you configure `init_replication`, the minimum required privileges for the Postgres user may differ:
 
-| Configuration | Description | Minimum required privileges |
-|----------|---------------|----------------------------|
-| `table_names=None` | Replicates the entire schema. The publication includes all current and future tables in the schema. | Superuser |
-| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=False` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table) |
-| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=True` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table),<br />CREATE privilege in the schema (for snapshot tables) |
-| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=False` | Replicates specific tables. Drops existing publication/slot before recreating. No snapshot tables are created. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist |
-| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=True` | Replicates specific tables. Drops existing publication/slot before recreating. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist,<br />CREATE privilege in the schema (for snapshot tables) |
+| Configuration                                                         | Description                                                                                                                                     | Minimum required privileges                                                                                                                                                                                                                              |
+| --------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `table_names=None`                                                    | Replicates the entire schema. The publication includes all current and future tables in the schema.                                             | Superuser                                                                                                                                                                                                                                                |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=False` | Replicates specific tables. Creates or updates an existing publication/slot without dropping. No snapshot tables are created.                   | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table)                                                            |
+| `table_names=[...]`<br />`reset=False`<br />`persist_snapshots=True`  | Replicates specific tables. Creates or updates an existing publication/slot without dropping. Snapshot tables are created for the initial load. | REPLICATION attribute,<br />CREATE on the database if the publication does not yet exist,<br />Publication ownership if the publication already exists,<br />Table ownership (for each table),<br />CREATE privilege in the schema (for snapshot tables) |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=False`  | Replicates specific tables. Drops existing publication/slot before recreating. No snapshot tables are created.                                  | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist                                                                                                         |
+| `table_names=[...]`<br />`reset=True`<br />`persist_snapshots=True`   | Replicates specific tables. Drops existing publication/slot before recreating. Snapshot tables are created for the initial load.                | REPLICATION attribute,<br />CREATE on the database,<br />Table ownership (for each table),<br />Slot/publication ownership if they already exist,<br />CREATE privilege in the schema (for snapshot tables)                                              |
 
 For detailed information about all arguments, see the [source code](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication/helpers.py).
 

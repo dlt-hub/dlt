@@ -46,12 +46,12 @@ Once your workspace is scaffolded, you'll have two familiar `toml` files in `.dl
 
 **dltHub Workspace** predefines several profiles. `dev` and `tests` are local-only and never uploaded; `prod`, `access`, and any custom profile referenced in a job decorator are synchronized to the cloud configuration on every `dlthub deploy`.
 
-| Profile      | Scope            | Description                                                                                                                          |
-| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **`dev`**    | Local only       | Default profile for local development.                                                                                               |
-| **`tests`**  | Local only       | Profile for automated test runs and CI/CD.                                                                                           |
-| **`prod`**   | Synced to cloud  | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).         |
-| **`access`** | Synced to cloud  | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
+| Profile      | Scope           | Description                                                                                                                             |
+| ------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **`dev`**    | Local only      | Default profile for local development.                                                                                                  |
+| **`tests`**  | Local only      | Profile for automated test runs and CI/CD.                                                                                              |
+| **`prod`**   | Synced to cloud | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).        |
+| **`access`** | Synced to cloud | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
 
 :::note
 The `dev` profile is active by default when you create a workspace. The others become active when pinned locally or automatically selected by the dltHub platform (`prod` for batch jobs, `access` for interactive ones).

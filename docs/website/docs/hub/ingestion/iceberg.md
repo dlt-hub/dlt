@@ -120,10 +120,10 @@ It supports two modes:
 
 The SQL catalog stores one table of the following schema:
 
-| catalog_name | table_namespace     | table_name  | metadata_location                                 | previous_metadata_location                                                          |
-|--------------|---------------------|-------------|---------------------------------------------------|---------------------------------------------------------------------------------------|
-| default      | jaffle_shop_dataset | orders | path/to/files                                     | path/to/files |
-| default      | jaffle_shop_dataset | _dlt_loads  | path/to/files  | path/to/files |
+| catalog_name | table_namespace     | table_name | metadata_location | previous_metadata_location |
+| ------------ | ------------------- | ---------- | ----------------- | -------------------------- |
+| default      | jaffle_shop_dataset | orders     | path/to/files     | path/to/files              |
+| default      | jaffle_shop_dataset | _dlt_loads | path/to/files     | path/to/files              |
 
 ### Lakekeeper catalog
 
@@ -259,11 +259,11 @@ For more information, refer to the [Lakekeeper section above](#lakekeeper-catalo
 dlt supports three AWS-backed Iceberg catalogs.
 Their names correspond to the `catalog_type` value you pass in your destination block:
 
-| `catalog_type`      | What it talks to under the hood |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets |
+| `catalog_type`      | What it talks to under the hood                                                   |
+| ------------------- | --------------------------------------------------------------------------------- |
+| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets            |
 | **`glue-rest`**     | Uses the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
-| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets |
+| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets                                  |
 
 
 #### Catalog `[s3tables-rest]`

@@ -211,11 +211,11 @@ Each destination table receives only the columns defined by its variant model. F
 
 When an item's discriminator value does not match any variant in the union (e.g., a `"debug"` event when only `"click"` and `"purchase"` are defined), the **data_type** contract controls what happens:
 
-| data_type mode | behavior                                               |
-| -------------- | ------------------------------------------------------ |
-| evolve         | Validation is bypassed; the item passes through as-is  |
-| discard_row    | The item is silently dropped                           |
-| freeze         | Raises an exception                                    |
+| data_type mode | behavior                                              |
+| -------------- | ----------------------------------------------------- |
+| evolve         | Validation is bypassed; the item passes through as-is |
+| discard_row    | The item is silently dropped                          |
+| freeze         | Raises an exception                                   |
 
 :::note
 `data_type: discard_value` is not supported with Pydantic models. Use `discard_row` instead.

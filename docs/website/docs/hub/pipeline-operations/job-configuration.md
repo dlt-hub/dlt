@@ -60,12 +60,12 @@ def heavy_sync():
     ...
 ```
 
-| `size` | vCPU | Memory | Disk | Multiplier |
-|--------|------|--------|------|------------|
-| `small` | 2 | 4 GiB | 500 GB | 1× |
-| `medium` | 4 | 8 GiB | 500 GB | 2× |
-| `large` | 8 | 16 GiB | 500 GB | 4× |
-| `xlarge` | 16 | 32 GiB | 500 GB | 8× |
+| `size`   | vCPU | Memory | Disk   | Multiplier |
+| -------- | ---- | ------ | ------ | ---------- |
+| `small`  | 2    | 4 GiB  | 500 GB | 1×         |
+| `medium` | 4    | 8 GiB  | 500 GB | 2×         |
+| `large`  | 8    | 16 GiB | 500 GB | 4×         |
+| `xlarge` | 16   | 32 GiB | 500 GB | 8×         |
 
 If you omit `instance`, jobs default to `small`. Larger sizes use a higher `multiplier` against your organization's run time budget. For example, a one-hour `large` run consumes four hours of budget.
 
@@ -130,10 +130,10 @@ def load_commits():
     ...
 ```
 
-| Key | Purpose |
-|-----|---------|
-| `tags` | List of labels for grouping in the dashboard and matching CLI selectors (`tag:ingest`) |
-| `display_name` | Human-readable label shown in the dashboard |
+| Key            | Purpose                                                                                |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `tags`         | List of labels for grouping in the dashboard and matching CLI selectors (`tag:ingest`) |
+| `display_name` | Human-readable label shown in the dashboard                                            |
 
 See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tags drive `dlthub job trigger` selectors.
 

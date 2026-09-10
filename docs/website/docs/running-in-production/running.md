@@ -371,12 +371,12 @@ of the load package, with the first line indicating `retry: terminal` or `retry:
 
 The full behavior matrix:
 
-| `auto_abort_on_terminal_error` | `raise_on_failed_jobs` | job | package | exception |
-|---|---|---|---|---|
-| `false` | `true` | queued for retry | stays pending | `LoadClientJobTerminalRetry` raised (default) |
-| `false` | `false` | moved to `failed_jobs` | completed as loaded | none |
-| `true` | `true` | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | `LoadClientJobFailed` raised |
-| `true` | `false` | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | none |
+| `auto_abort_on_terminal_error` | `raise_on_failed_jobs` | job                    | package                                                                 | exception                                     |
+| ------------------------------ | ---------------------- | ---------------------- | ----------------------------------------------------------------------- | --------------------------------------------- |
+| `false`                        | `true`                 | queued for retry       | stays pending                                                           | `LoadClientJobTerminalRetry` raised (default) |
+| `false`                        | `false`                | moved to `failed_jobs` | completed as loaded                                                     | none                                          |
+| `true`                         | `true`                 | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | `LoadClientJobFailed` raised                  |
+| `true`                         | `false`                | moved to `failed_jobs` | [aborted](#abort-the-package), pending packages deleted, state restored | none                                          |
 
 If you prefer that packages with terminally failed jobs complete as loaded (the failed jobs move
 to `failed_jobs` and no exception is raised):

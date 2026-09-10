@@ -19,7 +19,7 @@ loads data using the “Notion API” to the destination of your choice.
 Sources that can be loaded using this verified source are:
 
 | Name             | Description                           |
-|------------------|---------------------------------------|
+| ---------------- | ------------------------------------- |
 | notion_databases | Retrieves data from Notion databases. |
 
 ## Setup guide

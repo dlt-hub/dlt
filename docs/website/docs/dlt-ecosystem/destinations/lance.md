@@ -111,10 +111,10 @@ You can pass storage-specific options via the `options` dict. These are forwarde
 
 For cloud storage, the following defaults are set automatically to prevent connection hangs:
 
-| Option | Default | Description |
-|---|---|---|
-| `connect_timeout` | `30s` | TCP connection timeout |
-| `timeout` | `120s` | Overall request timeout |
+| Option            | Default | Description             |
+| ----------------- | ------- | ----------------------- |
+| `connect_timeout` | `30s`   | TCP connection timeout  |
+| `timeout`         | `120s`  | Overall request timeout |
 
 You can override these or add additional options:
 

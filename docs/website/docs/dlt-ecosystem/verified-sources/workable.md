@@ -25,7 +25,7 @@ This verified source loads data from the following default endpoints:
 | members           | Individuals who have access to your Workable account                                  |
 | recruiters        | Individuals who are responsible for managing the hiring and recruitment processes     |
 | stages            | Represent the different steps or phases in the hiring process for a job position      |
-| requisitions      | Formal requests made by an organization to fill a specific job opening or position     |
+| requisitions      | Formal requests made by an organization to fill a specific job opening or position    |
 | jobs              | Individual job postings or job listings created by employers or recruiters            |
 | custom_attributes | Additional fields or data points that you can define and assign to candidates or jobs |
 | events            | Specific occurrences or actions related to the hiring and recruitment process         |
