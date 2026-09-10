@@ -69,8 +69,7 @@ rules:
 #         ul-single: 1
 #     list-marker-style: false
 #     markdown-flavor: false
-#     max-file-length:
-#         max: 300
+    max-file-length: false  # could enable
 #     max-section-length: false
 #     no-bare-urls: true
     no-duplicate-headings: false  # temp disable
@@ -158,7 +157,7 @@ categories:
     link: true
     list: true
     prose: false
-    structural: false
+    structural: true
     table: true
     whitespace: true
 files:
