@@ -15,9 +15,9 @@ Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tr
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                                              |
-|------------------|------------------------------------------------------------------------------------------|
-| kinesis_stream   | Load messages from the specified stream                                                  |
+| Name           | Description                             |
+| -------------- | --------------------------------------- |
+| kinesis_stream | Load messages from the specified stream |
 
 
 :::tip

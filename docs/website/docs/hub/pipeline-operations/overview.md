@@ -11,15 +11,15 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 
 ## Where to start
 
-| If you want to... | Go to |
-|-------------------|-------|
-| Convert a Python project into a dltHub workspace and set up credentials | [Workspace setup](workspace-setup.md) |
-| Push code to the cloud — ad-hoc runs or full manifest deploys | [Deployments](deployments.md) |
-| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md) |
-| Configure timeouts, dependencies, timezone, and per-job TOML sections | [Job configuration](job-configuration.md) |
-| Set workspace or profile environment variables for cloud runs | [Environment variables](environment-variables.md) |
-| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs | [Monitoring and debugging](monitoring.md) |
-| Pick a deployment region | [Regions](../platform-capabilities/regions.md) |
+| If you want to...                                                                                                                                            | Go to                                             |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------- |
+| Convert a Python project into a dltHub workspace and set up credentials                                                                                      | [Workspace setup](workspace-setup.md)             |
+| Push code to the cloud — ad-hoc runs or full manifest deploys                                                                                                | [Deployments](deployments.md)                     |
+| Schedule with cron/intervals, chain follow-ups, backfill with scheduler-driven intervals, gate on freshness, cascade refreshes, tag jobs for bulk operations | [Triggers and scheduling](triggers.md)            |
+| Configure timeouts, dependencies, timezone, and per-job TOML sections                                                                                        | [Job configuration](job-configuration.md)         |
+| Set workspace or profile environment variables for cloud runs                                                                                                | [Environment variables](environment-variables.md) |
+| Stream logs in real time, inspect run states, view metric dashboards, diagnose failures, cancel runs                                                         | [Monitoring and debugging](monitoring.md)         |
+| Pick a deployment region                                                                                                                                     | [Regions](../platform-capabilities/regions.md)    |
 
 ## Key concepts
 
@@ -35,11 +35,11 @@ For a high-level summary of platform capabilities, see [Pipeline operations](../
 
 ### Interactive application types
 
-| Type | Description |
-|------|-------------|
-| Notebooks | [Marimo notebooks](../../general-usage/dataset-access/marimo.md) for the pipeline dashboard, exploration, and analysis |
-| Streamlit apps | Interactive [Streamlit dashboards](../ingestion/dashboard.md) |
-| MCP servers | Model Context Protocol servers that provide tool and data access for AI assistants and agents |
+| Type           | Description                                                                                                            |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| Notebooks      | [Marimo notebooks](../../general-usage/dataset-access/marimo.md) for the pipeline dashboard, exploration, and analysis |
+| Streamlit apps | Interactive [Streamlit dashboards](../ingestion/dashboard.md)                                                          |
+| MCP servers    | Model Context Protocol servers that provide tool and data access for AI assistants and agents                          |
 
 Each interactive application is exposed via a unique public URL tied to its run.
 
@@ -71,28 +71,28 @@ Most actions and entities exist in both scopes: running a job, serving an intera
 
 Verbs have consistent meaning regardless of the scope or the entity they operate on:
 
-| Verb | Meaning |
-|------|---------|
-| `info` | Print structured information about the entity (workspace, job, run, deployment, configuration) |
-| `list` | Enumerate entities |
-| `run` | Execute a batch job or pipeline |
-| `serve` | Start an interactive job (notebook, dashboard, MCP server, REST app) |
-| `show` | Open the GUI / human-readable interface (web dashboard remotely, marimo view locally) for the entity |
-| `clean` | Remove local artefacts (e.g. wipe pipeline working dirs and locally loaded data) |
-| `sync` | Push local changes to the cloud counterpart |
-| `cancel` | Cancel an in-flight job or run |
-| `connect` | Bind a local entity to a remote one |
-| `deploy` | Push the deployment manifest to the cloud |
+| Verb      | Meaning                                                                                              |
+| --------- | ---------------------------------------------------------------------------------------------------- |
+| `info`    | Print structured information about the entity (workspace, job, run, deployment, configuration)       |
+| `list`    | Enumerate entities                                                                                   |
+| `run`     | Execute a batch job or pipeline                                                                      |
+| `serve`   | Start an interactive job (notebook, dashboard, MCP server, REST app)                                 |
+| `show`    | Open the GUI / human-readable interface (web dashboard remotely, marimo view locally) for the entity |
+| `clean`   | Remove local artefacts (e.g. wipe pipeline working dirs and locally loaded data)                     |
+| `sync`    | Push local changes to the cloud counterpart                                                          |
+| `cancel`  | Cancel an in-flight job or run                                                                       |
+| `connect` | Bind a local entity to a remote one                                                                  |
+| `deploy`  | Push the deployment manifest to the cloud                                                            |
 
 The local/remote split makes most pages of this guide read in pairs:
 
-| Local | Remote |
-|-------|--------|
-| `dlthub local run [<selector_or_job>]` | `dlthub run [<selector_or_job>]` |
-| `dlthub local serve [<selector_or_job>]` | `dlthub serve [<selector_or_job>]` |
+| Local                                       | Remote                                |
+| ------------------------------------------- | ------------------------------------- |
+| `dlthub local run [<selector_or_job>]`      | `dlthub run [<selector_or_job>]`      |
+| `dlthub local serve [<selector_or_job>]`    | `dlthub serve [<selector_or_job>]`    |
 | `dlthub local pipeline run <pipeline_name>` | `dlthub pipeline run <pipeline_name>` |
-| `dlthub local info` | `dlthub workspace info` |
-| `dlthub local show` | `dlthub show` |
+| `dlthub local info`                         | `dlthub workspace info`               |
+| `dlthub local show`                         | `dlthub show`                         |
 
 Run the local form first to catch missing dependencies, misconfigured destinations, or broken decorators without burning a remote slot.
 
@@ -122,26 +122,26 @@ For detailed CLI documentation, see [CLI](../command-line-interface.md).
 
 ### Common commands
 
-| Command | Description |
-|---------|-------------|
-| `dlthub login` | Authenticate with GitHub OAuth (interactive workspace selection) |
-| `dlthub logout` | Clear local credentials |
-| `dlthub workspace list` | List all accessible workspaces |
-| `dlthub workspace connect [name_or_id]` | Connect project to a workspace (interactive picker if no arg) |
-| `dlthub local info` | Show local workspace info |
-| `dlthub show` | Open the dltHub dashboard |
-| `dlthub local run <script_or_job>` | Run a batch job on the local machine (recommended before deploying) |
-| `dlthub local serve <script_or_job>` | Serve an interactive app on the local machine |
-| `dlthub run [<script_or_selector>] [-f] [--refresh]` | Deploy and run a batch script or named job |
-| `dlthub serve [<script_or_selector>] [-f]` | Deploy and serve an interactive application |
-| `dlthub deploy [--dry-run] [--show-manifest]` | Deploy jobs from `__deployment__.py` |
+| Command                                                                      | Description                                                               |
+| ---------------------------------------------------------------------------- | ------------------------------------------------------------------------- |
+| `dlthub login`                                                               | Authenticate with GitHub OAuth (interactive workspace selection)          |
+| `dlthub logout`                                                              | Clear local credentials                                                   |
+| `dlthub workspace list`                                                      | List all accessible workspaces                                            |
+| `dlthub workspace connect [name_or_id]`                                      | Connect project to a workspace (interactive picker if no arg)             |
+| `dlthub local info`                                                          | Show local workspace info                                                 |
+| `dlthub show`                                                                | Open the dltHub dashboard                                                 |
+| `dlthub local run <script_or_job>`                                           | Run a batch job on the local machine (recommended before deploying)       |
+| `dlthub local serve <script_or_job>`                                         | Serve an interactive app on the local machine                             |
+| `dlthub run [<script_or_selector>] [-f] [--refresh]`                         | Deploy and run a batch script or named job                                |
+| `dlthub serve [<script_or_selector>] [-f]`                                   | Deploy and serve an interactive application                               |
+| `dlthub deploy [--dry-run] [--show-manifest]`                                | Deploy jobs from `__deployment__.py`                                      |
 | `dlthub job trigger <selectors...> [--refresh] [--dry-run] [--profile NAME]` | Trigger runs for matching jobs (for example `tag:backfill`, `schedule:*`) |
-| `dlthub pipeline run <pipeline_name> [-f] [--refresh]` | Run a job by pipeline name |
-| `dlthub job cancel <selector_or_name>...` | Cancel active runs for matching jobs |
-| `dlthub job runs cancel <selector_or_name> [run_number]` | Cancel a specific run (defaults to latest) |
-| `dlthub job logs <selector_or_name> [run_number] [-f]` | View or stream logs for a run |
-| `dlthub job publish <script_path>` | Generate a public link for an interactive notebook/app |
-| `dlthub job unpublish <script_path>` | Revoke a public link |
+| `dlthub pipeline run <pipeline_name> [-f] [--refresh]`                       | Run a job by pipeline name                                                |
+| `dlthub job cancel <selector_or_name>...`                                    | Cancel active runs for matching jobs                                      |
+| `dlthub job runs cancel <selector_or_name> [run_number]`                     | Cancel a specific run (defaults to latest)                                |
+| `dlthub job logs <selector_or_name> [run_number] [-f]`                       | View or stream logs for a run                                             |
+| `dlthub job publish <script_path>`                                           | Generate a public link for an interactive notebook/app                    |
+| `dlthub job unpublish <script_path>`                                         | Revoke a public link                                                      |
 
 ## Platform limits
 

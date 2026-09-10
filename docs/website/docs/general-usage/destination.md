@@ -525,18 +525,18 @@ Running this pipeline will create two tables in the destination, `users` (**root
 
 **mydata.users**
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
-| 2 | Bob | rX8ybgTeEmAmmA | 1234562350.98417 |
+| id  | name  | _dlt_id        | _dlt_load_id     |
+| --- | ----- | -------------- | ---------------- |
+| 1   | Alice | wX3f5vn801W16A | 1234562350.98417 |
+| 2   | Bob   | rX8ybgTeEmAmmA | 1234562350.98417 |
 
 **mydata.users__pets**
 
-| id | name | type | _dlt_id | _dlt_parent_id | _dlt_list_idx |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Fluffy | cat | w1n0PEDzuP3grw | wX3f5vn801W16A | 0 |
-| 2 | Spot | dog | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1 |
-| 3 | Fido | dog | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0 |
+| id  | name   | type | _dlt_id        | _dlt_parent_id | _dlt_list_idx |
+| --- | ------ | ---- | -------------- | -------------- | ------------- |
+| 1   | Fluffy | cat  | w1n0PEDzuP3grw | wX3f5vn801W16A | 0             |
+| 2   | Spot   | dog  | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1             |
+| 3   | Fido   | dog  | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0             |
 
 When inferring a database schema, dlt maps the structure of Python objects (i.e., from parsed JSON files) into nested tables and creates references between them.
 
@@ -578,20 +578,20 @@ The rest of the pipeline definition remains the same. Running this pipeline will
 
 **mydata.users**
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
-| 2 | Bob | rX8ybgTeEmAmmA | 1234562350.98417 |
-| 3 | Charlie | h8lehZEvT3fASQ | **1234563456.12345** |
+| id  | name    | _dlt_id        | _dlt_load_id         |
+| --- | ------- | -------------- | -------------------- |
+| 1   | Alice   | wX3f5vn801W16A | 1234562350.98417     |
+| 2   | Bob     | rX8ybgTeEmAmmA | 1234562350.98417     |
+| 3   | Charlie | h8lehZEvT3fASQ | **1234563456.12345** |
 
 The `_dlt_loads` table will look like this:
 
 **mydata._dlt_loads**
 
-| load_id | schema_name | status | inserted_at | schema_version_hash |
-| --- | --- | --- | --- | --- |
-| 1234562350.98417 | quick_start | 0 | 2023-09-12 16:45:51.17865+00 | aOEb...Qekd/58= |
-| **1234563456.12345** | quick_start | 0 | 2023-09-12 16:46:03.10662+00 | aOEb...Qekd/58= |
+| load_id              | schema_name | status | inserted_at                  | schema_version_hash |
+| -------------------- | ----------- | ------ | ---------------------------- | ------------------- |
+| 1234562350.98417     | quick_start | 0      | 2023-09-12 16:45:51.17865+00 | aOEb...Qekd/58=     |
+| **1234563456.12345** | quick_start | 0      | 2023-09-12 16:46:03.10662+00 | aOEb...Qekd/58=     |
 
 The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them. Many destinations do not support distributed and long-running transactions (e.g., Amazon Redshift). In that case, the user may see the partially loaded data. It is possible to filter such data out: any row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify and delete data for packages that never got completed.
 
@@ -730,17 +730,17 @@ make them `nullable`, then fill in values for the existing rows. Some databases 
 that is `non-nullable` and take a default value for existing rows in the same command. The columns you will need to
 create are:
 
-| name | type |
-| --- | --- |
+| name         | type                |
+| ------------ | ------------------- |
 | _dlt_load_id | text/string/varchar |
-| _dlt_id | text/string/varchar |
+| _dlt_id      | text/string/varchar |
 
 For nested tables, you may also need to create:
 
-| name | type |
-| --- | --- |
+| name           | type                |
+| -------------- | ------------------- |
 | _dlt_parent_id | text/string/varchar |
-| _dlt_root_id | text/string/varchar |
+| _dlt_root_id   | text/string/varchar |
 
 ## Create a new destination
 

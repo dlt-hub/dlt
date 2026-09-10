@@ -11,10 +11,10 @@ Variables are managed on the platform — in the **web app** or with the **CLI**
 
 ## Scopes and precedence
 
-| Scope | Meaning |
-| ----- | ------- |
+| Scope         | Meaning                                                |
+| ------------- | ------------------------------------------------------ |
 | **Workspace** | Shared variables applied to every run in the workspace |
-| **Profile** | Variables applied when the run uses that profile |
+| **Profile**   | Variables applied when the run uses that profile       |
 
 When the same name exists in both scopes, the **profile value** is used.
 
@@ -22,9 +22,9 @@ On the dltHub platform, [batch jobs](overview.md#batch-vs-interactive) use the `
 
 ## Plain and secret variables
 
-| Kind | Behavior |
-| ---- | -------- |
-| **Plain** | Values are readable when you list variables. An empty value is allowed. |
+| Kind       | Behavior                                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Plain**  | Values are readable when you list variables. An empty value is allowed.                                                                                        |
 | **Secret** | Values are write-only. After save, the UI keeps them hidden and the CLI lists them masked. Secrets require a non-empty value. Update a secret by replacing it. |
 
 ## Manage variables in the web app

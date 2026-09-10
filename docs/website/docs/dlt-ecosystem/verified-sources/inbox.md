@@ -18,7 +18,7 @@ load data using the “Inbox” verified source to the destination of your choic
 Sources and resources that can be loaded using this verified source are:
 
 | Name              | Type                 | Description                                        |
-|-------------------|----------------------|----------------------------------------------------|
+| ----------------- | -------------------- | -------------------------------------------------- |
 | inbox_source      | source               | Gathers inbox emails and saves attachments locally |
 | get_messages_uids | resource             | Retrieves messages UUIDs from the mailbox          |
 | get_messages      | resource-transformer | Retrieves emails from the mailbox using given UIDs |

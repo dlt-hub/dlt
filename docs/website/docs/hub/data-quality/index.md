@@ -302,10 +302,10 @@ suite.get_successes("orders", "payment_method__is_in").df()
 
 `CheckSuite` does not write to `_dlt_checks`, so dashboards and `read_check` won't see its results. Pick the pattern that matches your goal:
 
-| Pattern | Persists to `_dlt_checks` | Best for |
-|---|---|---|
-| `dq.run_checks(pipeline, checks={...})` | Yes | Scheduled jobs, monitoring history, dashboards |
-| `dq.CheckSuite(dataset, checks={...}).get_failures(...)` | No | Interactive notebooks, debugging row-level failures |
+| Pattern                                                  | Persists to `_dlt_checks` | Best for                                            |
+| -------------------------------------------------------- | ------------------------- | --------------------------------------------------- |
+| `dq.run_checks(pipeline, checks={...})`                  | Yes                       | Scheduled jobs, monitoring history, dashboards      |
+| `dq.CheckSuite(dataset, checks={...}).get_failures(...)` | No                        | Interactive notebooks, debugging row-level failures |
 
 Both APIs accept the same check objects, so you can register checks once and use either path.
 

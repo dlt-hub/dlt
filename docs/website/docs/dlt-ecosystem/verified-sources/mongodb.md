@@ -19,7 +19,7 @@ loads data using the "MongoDB" source to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name               | Description                                |
-|--------------------|--------------------------------------------|
+| ------------------ | ------------------------------------------ |
 | mongodb            | Loads a specific MongoDB database          |
 | mongodb_collection | Loads a collection from a MongoDB database |
 
@@ -41,7 +41,7 @@ For details on connecting to MongoDB and obtaining the connection URL, see
 Here are the typical ways to configure MongoDB and their connection URLs:
 
 | Name                | Description                                                                           | Connection URL Example                            |
-|---------------------|---------------------------------------------------------------------------------------|---------------------------------------------------|
+| ------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | Local installation  | Install on Windows, macOS, Linux using official packages.                             | "mongodb://dbuser:passwd@host.or.ip:27017"        |
 | Docker              | Deploy using the MongoDB Docker image.                                                | "mongodb://dbuser:passwd@docker.host:27017"       |
 | MongoDB Atlas       | MongoDB’s managed service on AWS, Azure, and Google Cloud.                            | "mongodb+srv://dbuser:passwd@cluster.mongodb.net" |

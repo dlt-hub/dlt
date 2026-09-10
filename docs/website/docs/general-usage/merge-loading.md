@@ -122,10 +122,11 @@ def sample_data():
 ```
 
 Output:
+
 | id  | metadata_modified | value |
-|-----|------------------|-------|
-|  1  | 2024-01-02       | B     |
-|  2  | 2024-01-01       | C     |
+| --- | ----------------- | ----- |
+| 1   | 2024-01-02        | B     |
+| 2   | 2024-01-01        | C     |
 
 When this resource is executed, the following deduplication rules are applied:
 
@@ -353,10 +354,10 @@ pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 
 *`dim_customer` destination table after the first run—two records from the initial load are present, with validity columns added:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| `_dlt_valid_from`          | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -------------------------- | --------------- | -------------- | ---- | ---- |
+| 2024-04-09 18:27:53.734235 | NULL            | 1              | foo  | 1    |
+| 2024-04-09 18:27:53.734235 | NULL            | 2              | bar  | 2    |
 
 ```py
 ...
@@ -372,11 +373,11 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 
 *`dim_customer` destination table after the second run—new record inserted for `customer_key` 1, and the old record retired by updating `_dlt_valid_to`:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
-| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
+| `_dlt_valid_from`              | `_dlt_valid_to`                | `customer_key` | `c1`            | `c2`  |
+| ------------------------------ | ------------------------------ | -------------- | --------------- | ----- |
+| 2024-04-09 18:27:53.734235     | **2024-04-09 22:13:07.943703** | 1              | foo             | 1     |
+| 2024-04-09 18:27:53.734235     | NULL                           | 2              | bar             | 2     |
+| **2024-04-09 22:13:07.943703** | **NULL**                       | **1**          | **foo_updated** | **1** |
 
 ```py
 ...
@@ -391,11 +392,11 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 
 *`dim_customer` destination table after the third run—the deleted record is retired by updating `_dlt_valid_to`:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703 | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2 | bar | 2 |
-| 2024-04-09 22:13:07.943703 | NULL | 1 | foo_updated | 1 |
+| `_dlt_valid_from`          | `_dlt_valid_to`                | `customer_key` | `c1`        | `c2` |
+| -------------------------- | ------------------------------ | -------------- | ----------- | ---- |
+| 2024-04-09 18:27:53.734235 | 2024-04-09 22:13:07.943703     | 1              | foo         | 1    |
+| 2024-04-09 18:27:53.734235 | **2024-04-10 06:45:22.847403** | 2              | bar         | 2    |
+| 2024-04-09 22:13:07.943703 | NULL                           | 1              | foo_updated | 1    |
 
 ### Example: incremental `scd2`
 
@@ -423,10 +424,10 @@ pipeline.run(dim_customer())  # first run — 2024-04-09 18:27:53.734235
 
 *`dim_customer` destination table after the first run:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | NULL | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
+| `_dlt_valid_from`          | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
+| -------------------------- | --------------- | -------------- | ---- | ---- |
+| 2024-04-09 18:27:53.734235 | NULL            | 1              | foo  | 1    |
+| 2024-04-09 18:27:53.734235 | NULL            | 2              | bar  | 2    |
 
 ```py
 ...
@@ -441,11 +442,11 @@ pipeline.run(dim_customer())  # second run — 2024-04-09 22:13:07.943703
 
 *`dim_customer` destination table after the second run—customer key 2 was not retired:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `customer_key` | `c1` | `c2` |
-| -- | -- | -- | -- | -- |
-| 2024-04-09 18:27:53.734235 | **2024-04-09 22:13:07.943703** | 1 | foo | 1 |
-| 2024-04-09 18:27:53.734235 | NULL | 2 | bar | 2 |
-| **2024-04-09 22:13:07.943703** | **NULL** | **1** | **foo_updated** | **1** |
+| `_dlt_valid_from`              | `_dlt_valid_to`                | `customer_key` | `c1`            | `c2`  |
+| ------------------------------ | ------------------------------ | -------------- | --------------- | ----- |
+| 2024-04-09 18:27:53.734235     | **2024-04-09 22:13:07.943703** | 1              | foo             | 1     |
+| 2024-04-09 18:27:53.734235     | NULL                           | 2              | bar             | 2     |
+| **2024-04-09 22:13:07.943703** | **NULL**                       | **1**          | **foo_updated** | **1** |
 
 :::tip
 If you decide to undo the previous configuration that prevented retiring absent records for an existing pipeline,
@@ -490,10 +491,10 @@ pipeline.run(some_data())  # first run — 2024-01-02 03:03:35.854305
 
 *`some_data` destination table after the first run:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
-| -- | -- | -- | -- |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
+| `_dlt_valid_from`          | `_dlt_valid_to` | `date`     | `name` |
+| -------------------------- | --------------- | ---------- | ------ |
+| 2024-01-02 03:03:35.854305 | NULL            | 2024-01-01 | a      |
+| 2024-01-02 03:03:35.854305 | NULL            | 2024-01-01 | b      |
 
 ```py
 ...
@@ -510,12 +511,12 @@ pipeline.run(some_data())  # second run — 2024-01-03 03:01:11.943703
 
 *`some_data` destination table after the second run—2024-01-02 records were added, and 2024-01-01 records were left unchanged:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
-| -- | -- | -- | -- |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | b |
-| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **c** |
-| **2024-01-03 03:01:11.943703** | **NULL** | **2024-01-02** | **d** |
+| `_dlt_valid_from`              | `_dlt_valid_to` | `date`         | `name` |
+| ------------------------------ | --------------- | -------------- | ------ |
+| 2024-01-02 03:03:35.854305     | NULL            | 2024-01-01     | a      |
+| 2024-01-02 03:03:35.854305     | NULL            | 2024-01-01     | b      |
+| **2024-01-03 03:01:11.943703** | **NULL**        | **2024-01-02** | **c**  |
+| **2024-01-03 03:01:11.943703** | **NULL**        | **2024-01-02** | **d**  |
 
 ```py
 ...
@@ -532,13 +533,13 @@ pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
 
 *`some_data` destination table after the third run—b was retired, bb was added, and the 2024-01-02 partition was left unchanged:*
 
-| `_dlt_valid_from` | `_dlt_valid_to` | `date` | `name` |
-| -- | -- | -- | -- |
-| 2024-01-02 03:03:35.854305 | NULL | 2024-01-01 | a |
-| 2024-01-02 03:03:35.854305 | **2024-01-03 10:30:05.750356** | 2024-01-01 | b |
-| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | c |
-| 2024-01-03 03:01:11.943703 | NULL | 2024-01-02 | d |
-| **2024-01-03 10:30:05.750356** | **NULL** | **2024-01-01** | **bb** |
+| `_dlt_valid_from`              | `_dlt_valid_to`                | `date`         | `name` |
+| ------------------------------ | ------------------------------ | -------------- | ------ |
+| 2024-01-02 03:03:35.854305     | NULL                           | 2024-01-01     | a      |
+| 2024-01-02 03:03:35.854305     | **2024-01-03 10:30:05.750356** | 2024-01-01     | b      |
+| 2024-01-03 03:01:11.943703     | NULL                           | 2024-01-02     | c      |
+| 2024-01-03 03:01:11.943703     | NULL                           | 2024-01-02     | d      |
+| **2024-01-03 10:30:05.750356** | **NULL**                       | **2024-01-01** | **bb** |
 
 ### Handling nested structures with SCD type 2
 

@@ -52,11 +52,11 @@ A dltHub platform workspace can contain many jobs scheduled on different cadence
 
 The `dlt.hub.run` module provides three decorators:
 
-| Decorator | Used for |
-|-----------|----------|
-| `@run.pipeline` | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking) |
-| `@run.job` | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts) |
-| `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API) |
+| Decorator          | Used for                                                                                         |
+| ------------------ | ------------------------------------------------------------------------------------------------ |
+| `@run.pipeline`    | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking)    |
+| `@run.job`         | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts) |
+| `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API)                      |
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
 
@@ -146,12 +146,12 @@ The deploy command:
 
 The dltHub platform compares the new manifest against the currently deployed jobs:
 
-| Status | Meaning |
-|--------|---------|
-| **added** | New job — will be created |
-| **updated** | Job definition changed — will be updated |
-| **unchanged** | No changes — left as-is |
-| **archived** | Job was in the previous manifest but not in this one — triggers disabled, history preserved |
+| Status        | Meaning                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| **added**     | New job — will be created                                                                   |
+| **updated**   | Job definition changed — will be updated                                                    |
+| **unchanged** | No changes — left as-is                                                                     |
+| **archived**  | Job was in the previous manifest but not in this one — triggers disabled, history preserved |
 
 Removing a job from `__deployment__.py` does not delete it — it archives it, preserving run history and logs.
 
@@ -238,12 +238,12 @@ uv run dlthub ai toolkit install dlthub-platform
 
 ### The skills
 
-| Skill | When it runs | What it does |
-| --- | --- | --- |
-| `setup-runtime` | Once, before your first deploy | Verifies the workspace is ready: `pyproject.toml` present, `dlt[hub]` installed, `.dlt/.workspace` exists, and you're logged in and connected to a workspace on the platform. |
+| Skill                | When it runs                                  | What it does                                                                                                                                                                                         |
+| -------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup-runtime`      | Once, before your first deploy                | Verifies the workspace is ready: `pyproject.toml` present, `dlt[hub]` installed, `.dlt/.workspace` exists, and you're logged in and connected to a workspace on the platform.                        |
 | `prepare-deployment` | Every time you add or change a deployable job | Splits dev and prod credentials into profile-scoped files, sets up a production destination, and helps you edit `__deployment__.py` so pipelines and notebooks are exported and triggered correctly. |
-| `deploy-workspace` | After `prepare-deployment` finishes cleanly | Runs `dlthub deploy`, streams progress, and confirms which jobs registered on the platform. |
-| `debug-deployment` | After a deploy or a scheduled run fails | Reads platform logs, inspects the manifest, checks credentials, and proposes a fix. |
+| `deploy-workspace`   | After `prepare-deployment` finishes cleanly   | Runs `dlthub deploy`, streams progress, and confirms which jobs registered on the platform.                                                                                                          |
+| `debug-deployment`   | After a deploy or a scheduled run fails       | Reads platform logs, inspects the manifest, checks credentials, and proposes a fix.                                                                                                                  |
 
 The four skills chain naturally, so you usually don't invoke them by name. The workflow rule shipped with the toolkit tells the agent which one to run next.
 

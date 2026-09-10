@@ -61,11 +61,11 @@ pipeline = dlt.pipeline(
 )
 ```
 
-| Profile | `destination_type` | Where data lives |
-|---|---|---|
-| `dev` | `duckdb` | `.dlt/data/dev/warehouse.duckdb` (local file) |
-| `prod` | `motherduck` | MotherDuck (cloud) |
-| `access` | `motherduck`, read-only credentials | MotherDuck (cloud), read-only |
+| Profile  | `destination_type`                  | Where data lives                              |
+| -------- | ----------------------------------- | --------------------------------------------- |
+| `dev`    | `duckdb`                            | `.dlt/data/dev/warehouse.duckdb` (local file) |
+| `prod`   | `motherduck`                        | MotherDuck (cloud)                            |
+| `access` | `motherduck`, read-only credentials | MotherDuck (cloud), read-only                 |
 
 See [Profiles in dltHub](../pipeline-operations/profiles.md) for the full profile model and [Workspace setup](../pipeline-operations/workspace-setup.md) for the configuration file layout.
 
@@ -82,13 +82,13 @@ No additional configuration is needed; landing data into a workspace-configured 
 
 Alongside your tables, dlt writes a small set of system tables. They're present in every dataset and are the substrate for the dashboard, data quality, and downstream tooling.
 
-| Table | Source | Purpose |
-|---|---|---|
-| `_dlt_loads` | OSS | One row per load package — load_id, schema name, status, timestamp. |
-| `_dlt_pipeline_state` | OSS | Pipeline state across runs (incremental cursors, source state). |
-| `_dlt_version` | OSS | Schema versions over time. |
-| `_dlt_dq_metrics` | Hub | Per-call metric snapshots written by `dq.run_metrics()`. |
-| `_dlt_checks` | Hub | Per-call check pass/fail summaries written by `dq.run_checks()`. |
+| Table                 | Source | Purpose                                                             |
+| --------------------- | ------ | ------------------------------------------------------------------- |
+| `_dlt_loads`          | OSS    | One row per load package — load_id, schema name, status, timestamp. |
+| `_dlt_pipeline_state` | OSS    | Pipeline state across runs (incremental cursors, source state).     |
+| `_dlt_version`        | OSS    | Schema versions over time.                                          |
+| `_dlt_dq_metrics`     | Hub    | Per-call metric snapshots written by `dq.run_metrics()`.            |
+| `_dlt_checks`         | Hub    | Per-call check pass/fail summaries written by `dq.run_checks()`.    |
 
 The first three are documented in the [OSS internal tables](../../general-usage/dataset-access/dataset.md#internal-dlt-tables) reference; the last two are written by the [Data Quality](../data-quality/index.md) runners.
 

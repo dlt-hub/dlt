@@ -287,12 +287,12 @@ If configuration values are missing, `dlt` uses **Application Default Credential
 
 On default (ADC) credentials `dlt` hands over to the consumer so it resolves and refreshes via ADC itself; explicit service-account credentials are passed as-is.
 
-| consumer | default credentials (ADC) | explicit service account |
-| --- | --- | --- |
-| `fsspec` / gcsfs | gcsfs resolves & refreshes via Google ADC | service account credentials |
-| DuckDB | no native GCS credential chain — `dlt` reads via `fsspec`/gcsfs (which refreshes), or via HMAC keys on the S3-compatibility layer | HMAC keys (S3-compatibility layer) |
-| `object_store` (delta, lance) | handed over (empty options) → the crate resolves & refreshes via ADC. OAuth user credentials are not supported with `delta` | service-account JSON |
-| `pyarrow` / pyiceberg | `project-id` only → pyarrow `GcsFileSystem` resolves & refreshes via ADC | service-account JSON / OAuth token |
+| consumer                      | default credentials (ADC)                                                                                                         | explicit service account           |
+| ----------------------------- | --------------------------------------------------------------------------------------------------------------------------------- | ---------------------------------- |
+| `fsspec` / gcsfs              | gcsfs resolves & refreshes via Google ADC                                                                                         | service account credentials        |
+| DuckDB                        | no native GCS credential chain — `dlt` reads via `fsspec`/gcsfs (which refreshes), or via HMAC keys on the S3-compatibility layer | HMAC keys (S3-compatibility layer) |
+| `object_store` (delta, lance) | handed over (empty options) → the crate resolves & refreshes via ADC. OAuth user credentials are not supported with `delta`       | service-account JSON               |
+| `pyarrow` / pyiceberg         | `project-id` only → pyarrow `GcsFileSystem` resolves & refreshes via ADC                                                          | service-account JSON / OAuth token |
 
 #### External sessions
 
@@ -385,12 +385,12 @@ These default credentials are **refreshable**: temporary tokens (for example an 
 
 On default credentials `dlt` hands over so the consumer resolves and **refreshes** the credentials itself; static and external-session credentials are frozen.
 
-| consumer | default credentials | static / external session |
-| --- | --- | --- |
-| `fsspec` / s3fs | static key/secret/token omitted → s3fs resolves & refreshes via its own aiobotocore chain | frozen key/secret/token |
-| DuckDB | `PROVIDER credential_chain` + `REFRESH auto` (re-runs the full AWS chain on token expiry) | frozen `KEY_ID` / `SECRET` / `SESSION_TOKEN` |
-| `object_store` (delta, lance) | handed over **only** for self-refreshing creds (EC2 IMDS / ECS); deferred creds (IRSA / SSO / assume-role) are frozen because the crate cannot resolve them | frozen key/secret/token |
-| `pyarrow` / pyiceberg | static keys omitted → pyarrow `S3FileSystem` resolves & refreshes via the AWS chain (region/endpoint preserved) | frozen key/secret/token |
+| consumer                      | default credentials                                                                                                                                         | static / external session                    |
+| ----------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `fsspec` / s3fs               | static key/secret/token omitted → s3fs resolves & refreshes via its own aiobotocore chain                                                                   | frozen key/secret/token                      |
+| DuckDB                        | `PROVIDER credential_chain` + `REFRESH auto` (re-runs the full AWS chain on token expiry)                                                                   | frozen `KEY_ID` / `SECRET` / `SESSION_TOKEN` |
+| `object_store` (delta, lance) | handed over **only** for self-refreshing creds (EC2 IMDS / ECS); deferred creds (IRSA / SSO / assume-role) are frozen because the crate cannot resolve them | frozen key/secret/token                      |
+| `pyarrow` / pyiceberg         | static keys omitted → pyarrow `S3FileSystem` resolves & refreshes via the AWS chain (region/endpoint preserved)                                             | frozen key/secret/token                      |
 
 #### External sessions
 
@@ -463,12 +463,12 @@ If configuration is not provided, `dlt` uses `DefaultAzureCredential`, which res
 
 On default credentials `dlt` hands over so the consumer resolves and **refreshes** the credentials itself; static credentials and external sessions are frozen.
 
-| consumer | default credentials | static (account key / SAS / service principal) | external session |
-| --- | --- | --- | --- |
-| `fsspec` / adlfs | `anon=False` → adlfs resolves & refreshes via its own `DefaultAzureCredential` | account key / SAS / service principal | the live credential object is passed to adlfs (refreshes in-process) |
-| DuckDB | `PROVIDER credential_chain` (env / workload / managed identity / `az` CLI, refreshes) | connection string / `PROVIDER service_principal` | frozen bearer token via `PROVIDER access_token` |
-| `object_store` (delta, lance) | handed over — the crate resolves & refreshes env service principal / workload identity / managed identity | account key / SAS / service principal | frozen bearer token |
-| `pyarrow` / pyiceberg | handed over → adlfs resolves & refreshes via its own `DefaultAzureCredential`, **but only when `AZURE_STORAGE_ANON=false`** is set (pyiceberg passes no `anon` flag, so adlfs is anonymous by default) | account key / SAS / service principal (service principal auto-refreshes) | **not supported — raises** |
+| consumer                      | default credentials                                                                                                                                                                                    | static (account key / SAS / service principal)                           | external session                                                     |
+| ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------ | -------------------------------------------------------------------- |
+| `fsspec` / adlfs              | `anon=False` → adlfs resolves & refreshes via its own `DefaultAzureCredential`                                                                                                                         | account key / SAS / service principal                                    | the live credential object is passed to adlfs (refreshes in-process) |
+| DuckDB                        | `PROVIDER credential_chain` (env / workload / managed identity / `az` CLI, refreshes)                                                                                                                  | connection string / `PROVIDER service_principal`                         | frozen bearer token via `PROVIDER access_token`                      |
+| `object_store` (delta, lance) | handed over — the crate resolves & refreshes env service principal / workload identity / managed identity                                                                                              | account key / SAS / service principal                                    | frozen bearer token                                                  |
+| `pyarrow` / pyiceberg         | handed over → adlfs resolves & refreshes via its own `DefaultAzureCredential`, **but only when `AZURE_STORAGE_ANON=false`** is set (pyiceberg passes no `anon` flag, so adlfs is anonymous by default) | account key / SAS / service principal (service principal auto-refreshes) | **not supported — raises**                                           |
 
 #### External sessions
 

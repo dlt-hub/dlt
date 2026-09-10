@@ -17,8 +17,8 @@ load data using the “Slack API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name                  | Description                                                                        |
-|-----------------------|------------------------------------------------------------------------------------|
+| Name                  | Description                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------- |
 | slack                 | Retrieves all the Slack data: channels, messages for selected channels, users, logs |
 | channels              | Retrieves all the channels data                                                     |
 | users                 | Retrieves all the users info                                                        |
@@ -41,7 +41,7 @@ To set up the pipeline, create a Slack app in your workspace to obtain a user to
 1. Assign the following scopes:
 
    | Name             | Description                                                                       |
-   |------------------|-----------------------------------------------------------------------------------|
+   | ---------------- | --------------------------------------------------------------------------------- |
    | admin            | Administer a workspace                                                            |
    | channels:history | View messages and other content in public channels                                |
    | groups:history   | View messages and other content in private channels (where the app is added)      |
@@ -52,6 +52,7 @@ To set up the pipeline, create a Slack app in your workspace to obtain a user to
    | im:read          | View basic information about direct messages (where the app is added)             |
    | mpim:read        | View basic information about group direct messages (where the app is added)       |
    | users:read       | View people in a workspace                                                        |
+
    > Note: These scopes are adjustable; tailor them to your needs.
 
 1. From "OAuth & Permissions" on the left, add the scopes and copy the User OAuth Token.

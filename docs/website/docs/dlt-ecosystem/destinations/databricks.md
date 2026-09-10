@@ -645,10 +645,10 @@ In our internal benchmarking, a batch size of 25_000 with `ZSTD` compression per
 
 Both `parquet` and `jsonl` are supported. We strongly recommend `parquet` for best performance and the broadest data type support.
 
-| File format | Unsupported with `zerobus` |
-| --- | --- |
-| `parquet` | `decimal`, `wei` |
-| `jsonl` | `decimal`, `wei`, `binary`, `json` |
+| File format | Unsupported with `zerobus`         |
+| ----------- | ---------------------------------- |
+| `parquet`   | `decimal`, `wei`                   |
+| `jsonl`     | `decimal`, `wei`, `binary`, `json` |
 
 ### Concurrent Zerobus streams
 

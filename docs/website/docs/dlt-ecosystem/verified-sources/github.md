@@ -13,10 +13,10 @@ This verified source can be used to load data on issues or pull requests from an
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                                      |
-| ---------------- |----------------------------------------------------------------------------------|
-| github_reactions | Retrieves all issues, pull requests, comments, and reactions associated with them |
-| github_repo_events      | Gets all the repo events associated with the repository                   |
+| Name               | Description                                                                       |
+| ------------------ | --------------------------------------------------------------------------------- |
+| github_reactions   | Retrieves all issues, pull requests, comments, and reactions associated with them |
+| github_repo_events | Gets all the repo events associated with the repository                           |
 
 ## Setup guide
 

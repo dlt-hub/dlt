@@ -18,7 +18,7 @@ loads data using the Stripe API to the destination of your choice.
 This verified source loads data from the following endpoints:
 
 | Name               | Description                                |
-|--------------------|--------------------------------------------|
+| ------------------ | ------------------------------------------ |
 | Subscription       | Recurring payment on Stripe                |
 | Account            | User profile on Stripe                     |
 | Coupon             | Discount codes offered by businesses       |

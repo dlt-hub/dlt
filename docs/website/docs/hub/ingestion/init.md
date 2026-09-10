@@ -13,9 +13,9 @@ This guide walks you through creating and initializing a `dlt` pipeline in dltHu
 A `dlt` pipeline moves data from a source (like an API or database) into a destination (like DuckDB, Snowflake, or Iceberg). Initializing a pipeline is the first step in the data workflow.
 You can create one in two CLI-based ways:
 
-| Method          | Command | Best for |
-|-----------------|----------|----------|
-| Manual          | `dlthub pipeline init <source> <destination>` | Developers who prefer manual setup |
+| Method          | Command                                                | Best for                                                       |
+| --------------- | ------------------------------------------------------ | -------------------------------------------------------------- |
+| Manual          | `dlthub pipeline init <source> <destination>`          | Developers who prefer manual setup                             |
 | Verified source | `dlthub pipeline init <verified_source> <destination>` | Prebuilt, tested connectors from the community and dltHub team |
 
 Outside of a workspace (plain OSS `dlt`), the same scaffold is reachable as `dlt init <source> <destination>`. Inside a dltHub workspace, `dlthub pipeline init` is the canonical entry point—it adds the pipeline to the current workspace.

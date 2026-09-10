@@ -18,7 +18,7 @@ This Google Ads `dlt` verified source and [pipeline example](https://github.com/
 Resources that can be loaded using this verified source are:
 
 | Name             | Description                                                             |
-|------------------|-------------------------------------------------------------------------|
+| ---------------- | ----------------------------------------------------------------------- |
 | customers        | Businesses or individuals who pay to advertise their products           |
 | campaigns        | Structured sets of ad groups and advertisements                         |
 | change_events    | Modifications made to an account's ads, campaigns, and related settings |

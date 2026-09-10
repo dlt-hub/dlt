@@ -15,11 +15,11 @@ The SQL Database verified source loads data to your specified destination using 
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name         | Description                                                          |
-| ------------ | -------------------------------------------------------------------- |
+| Name         | Description                                                             |
+| ------------ | ----------------------------------------------------------------------- |
 | sql_database | Reflects the tables and views in an SQL database and retrieves the data |
-| sql_table    | Retrieves data from a particular SQL database table                  |
-|              |                                                                      |
+| sql_table    | Retrieves data from a particular SQL database table                     |
+|              |                                                                         |
 
 :::tip
 If you prefer to skip the tutorial and see the code example right away, check out the pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/sql_database_pipeline.py).

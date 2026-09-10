@@ -19,12 +19,12 @@ and optimizes resource utilization.
 
 In this guide, we will discuss various incremental loading methods using `dlt`, specifically:
 
-| S.No. | Strategy | Description |
-| --- | --- | --- |
-| 1. | Full load (replace) | It completely overwrites the existing data with the new/updated dataset. |
-| 2. | Append new records based on Incremental ID | Appends only new records to the table based on an incremental ID.  |
-| 3. | Append new records based on date ("created_at") | Appends only new records to the table based on a date field.  |
-| 4. | Merge (Update/Insert) records based on timestamp ("last_modified_at") and ID | Merges records based on a composite ID key and a timestamp field. Updates existing records and inserts new ones as necessary. |
+| S.No. | Strategy                                                                     | Description                                                                                                                   |
+| ----- | ---------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
+| 1.    | Full load (replace)                                                          | It completely overwrites the existing data with the new/updated dataset.                                                      |
+| 2.    | Append new records based on Incremental ID                                   | Appends only new records to the table based on an incremental ID.                                                             |
+| 3.    | Append new records based on date ("created_at")                              | Appends only new records to the table based on a date field.                                                                  |
+| 4.    | Merge (Update/Insert) records based on timestamp ("last_modified_at") and ID | Merges records based on a composite ID key and a timestamp field. Updates existing records and inserts new ones as necessary. |
 
 ## Code examples
 
@@ -42,10 +42,10 @@ Here’s a walkthrough:
 
 1. The initial table, named "contact," in the SQL source looks like this:
 
-    | id | name | created_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 |
-    | 2 | Bob | 2024-07-02 |
+    | id  | name  | created_at |
+    | --- | ----- | ---------- |
+    | 1   | Alice | 2024-07-01 |
+    | 2   | Bob   | 2024-07-02 |
 
 2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "replace"` used below.
 
@@ -74,26 +74,26 @@ Here’s a walkthrough:
 
 3. After running the `dlt` pipeline, the data loaded into the BigQuery "contact" table looks like:
 
-    | Row | id | name | created_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 | 1721878309.021546 | tgyMM73iMz0cQg |
-    | 2 | 2 | Bob | 2024-07-02 | 1721878309.021546 | 88P0bD796pXo/Q |
+    | Row | id  | name  | created_at | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ----- | ---------- | ----------------- | -------------- |
+    | 1   | 1   | Alice | 2024-07-01 | 1721878309.021546 | tgyMM73iMz0cQg |
+    | 2   | 2   | Bob   | 2024-07-02 | 1721878309.021546 | 88P0bD796pXo/Q |
 
 4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed. The updated data source ("contact" table) now presents itself as follows:
 
-    | id | name | created_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 |
-    | 3 | Charlie | 2024-07-03 |
-    | 4 | Dave | 2024-07-04 |
+    | id  | name    | created_at |
+    | --- | ------- | ---------- |
+    | 1   | Alice   | 2024-07-01 |
+    | 3   | Charlie | 2024-07-03 |
+    | 4   | Dave    | 2024-07-04 |
 
 5. The "contact" table created in BigQuery after running the pipeline again:
 
-    | Row | id | name | created_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 | 1721878309.021546 | S5ye6fMhYECZA |
-    | 2 | 3 | Charlie | 2024-07-03 | 1721878309.021546 | eT0zheRx9ONWuQ |
-    | 3 | 4 | Dave | 2024-07-04 | 1721878309.021546 | gtflF8BdL2NO/Q |
+    | Row | id  | name    | created_at | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ------- | ---------- | ----------------- | -------------- |
+    | 1   | 1   | Alice   | 2024-07-01 | 1721878309.021546 | S5ye6fMhYECZA  |
+    | 2   | 3   | Charlie | 2024-07-03 | 1721878309.021546 | eT0zheRx9ONWuQ |
+    | 3   | 4   | Dave    | 2024-07-04 | 1721878309.021546 | gtflF8BdL2NO/Q |
 
 #### What happened?
 
@@ -107,10 +107,10 @@ Here’s a walkthrough:
 
 1. The initial table, named "contact," in the SQL source looks like this:
 
-    | id | name | created_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 |
-    | 2 | Bob | 2024-07-02 |
+    | id  | name  | created_at |
+    | --- | ----- | ---------- |
+    | 1   | Alice | 2024-07-01 |
+    | 2   | Bob   | 2024-07-02 |
 
 2. The Python code demonstrates loading data from an SQL source into BigQuery using an incremental variable, `id`. This variable tracks new or updated records in the `dlt` pipeline. Please note the `write_disposition = "append"` used below.
 
@@ -138,27 +138,27 @@ Here’s a walkthrough:
 
 3. After running the `dlt` pipeline, the data loaded into the BigQuery "contact" table looks like:
 
-    | Row | id | name | created_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 | 1721878309.021546 | YQfmAu8xysqWmA |
-    | 2 | 2 | Bob | 2024-07-02 | 1721878309.021546 | Vcb5KKah/RpmQw |
+    | Row | id  | name  | created_at | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ----- | ---------- | ----------------- | -------------- |
+    | 1   | 1   | Alice | 2024-07-01 | 1721878309.021546 | YQfmAu8xysqWmA |
+    | 2   | 2   | Bob   | 2024-07-02 | 1721878309.021546 | Vcb5KKah/RpmQw |
 
 4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed. The updated data source now presents itself as follows:
 
-    | id | name | created_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 |
-    | 3 | Charlie | 2024-07-03 |
-    | 4 | Dave | 2024-07-04 |
+    | id  | name    | created_at |
+    | --- | ------- | ---------- |
+    | 1   | Alice   | 2024-07-01 |
+    | 3   | Charlie | 2024-07-03 |
+    | 4   | Dave    | 2024-07-04 |
 
 5. The "contact" table created in BigQuery after running the pipeline again:
 
-    | Row | id | name | created_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 | 1721878309.021546 | OW9ZyAzkXg4D4w |
-    | 2 | 2 | Bob | 2024-07-02 | 1721878309.021546 | skVYZ/ppQuztUg |
-    | 3 | 3 | Charlie | 2024-07-03 | 1721878309.021546 | y+T4Q2JDnR33jg |
-    | 4 | 4 | Dave | 2024-07-04 | 1721878309.021546 | MAXrGhNNADXAiQ |
+    | Row | id  | name    | created_at | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ------- | ---------- | ----------------- | -------------- |
+    | 1   | 1   | Alice   | 2024-07-01 | 1721878309.021546 | OW9ZyAzkXg4D4w |
+    | 2   | 2   | Bob     | 2024-07-02 | 1721878309.021546 | skVYZ/ppQuztUg |
+    | 3   | 3   | Charlie | 2024-07-03 | 1721878309.021546 | y+T4Q2JDnR33jg |
+    | 4   | 4   | Dave    | 2024-07-04 | 1721878309.021546 | MAXrGhNNADXAiQ |
 
 #### What happened?
 
@@ -172,10 +172,10 @@ Here’s a walkthrough:
 
 1. The initial dataset, named "contact," in the SQL source looks like this:
 
-    | id | name | created_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 00:00:00 |
-    | 2 | Bob | 2024-07-02 00:00:00 |
+    | id  | name  | created_at          |
+    | --- | ----- | ------------------- |
+    | 1   | Alice | 2024-07-01 00:00:00 |
+    | 2   | Bob   | 2024-07-02 00:00:00 |
 
 2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "append"`, with `created_at` being used as the incremental parameter.
 
@@ -206,27 +206,27 @@ Here’s a walkthrough:
 
 3. After running the `dlt` pipeline, the data loaded into the BigQuery "contact" table looks like:
 
-    | Row | id | name | created_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 00:00:00 UTC | 1721878309.021546 | 5H8ca6C89umxHA |
-    | 2 | 2 | Bob | 2024-07-02 00:00:00 UTC | 1721878309.021546 | M61j4aOSqs4k2w |
+    | Row | id  | name  | created_at              | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ----- | ----------------------- | ----------------- | -------------- |
+    | 1   | 1   | Alice | 2024-07-01 00:00:00 UTC | 1721878309.021546 | 5H8ca6C89umxHA |
+    | 2   | 2   | Bob   | 2024-07-02 00:00:00 UTC | 1721878309.021546 | M61j4aOSqs4k2w |
 
 4. Next, the "contact" table in the SQL source is updated—two new rows are added, and the row with `id = 2` is removed. The updated data source now presents itself as follows:
 
-    | id | name | created_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 00:00:00 |
-    | 3 | Charlie | 2024-07-03 00:00:00 |
-    | 4 | Dave | 2024-07-04 00:00:00 |
+    | id  | name    | created_at          |
+    | --- | ------- | ------------------- |
+    | 1   | Alice   | 2024-07-01 00:00:00 |
+    | 3   | Charlie | 2024-07-03 00:00:00 |
+    | 4   | Dave    | 2024-07-04 00:00:00 |
 
 5. The "contact" table created in BigQuery after running the pipeline again:
 
-    | Row | id | name | created_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 00:00:00 UTC | 1721878309.021546 | Petj6R+B/63sWA |
-    | 2 | 2 | Bob | 2024-07-02 00:00:00 UTC | 1721878309.021546 | 3Rr3VmY+av+Amw |
-    | 3 | 3 | Charlie | 2024-07-03 00:00:00 UTC | 1721878309.021546 | L/MnhG19xeMrvQ |
-    | 4 | 4 | Dave | 2024-07-04 00:00:00 UTC | 1721878309.021546 | W6ZdfvTzfRXlsA |
+    | Row | id  | name    | created_at              | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ------- | ----------------------- | ----------------- | -------------- |
+    | 1   | 1   | Alice   | 2024-07-01 00:00:00 UTC | 1721878309.021546 | Petj6R+B/63sWA |
+    | 2   | 2   | Bob     | 2024-07-02 00:00:00 UTC | 1721878309.021546 | 3Rr3VmY+av+Amw |
+    | 3   | 3   | Charlie | 2024-07-03 00:00:00 UTC | 1721878309.021546 | L/MnhG19xeMrvQ |
+    | 4   | 4   | Dave    | 2024-07-04 00:00:00 UTC | 1721878309.021546 | W6ZdfvTzfRXlsA |
 
 #### What happened?
 
@@ -240,10 +240,10 @@ Here’s a walkthrough:
 
 1. The initial dataset, named ‘contact’, in the SQL source looks like this:
 
-    | id | name | last_modified_at |
-    | --- | --- | --- |
-    | 1 | Alice | 2024-07-01 00:00:00 |
-    | 2 | Bob | 2024-07-02 00:00:00 |
+    | id  | name  | last_modified_at    |
+    | --- | ----- | ------------------- |
+    | 1   | Alice | 2024-07-01 00:00:00 |
+    | 2   | Bob   | 2024-07-02 00:00:00 |
 
 2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "merge"`, with `last_modified_at` being used as the incremental parameter.
 
@@ -275,25 +275,25 @@ Here’s a walkthrough:
 
 3. After running the `dlt` pipeline, the data loaded into BigQuery ‘contact’ table looks like:
 
-    | Row | id | name | last_modified_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 1 | Alice | 2024-07-01 00:00:00 UTC | 1721878309.021546 | ObbVlxcly3VknQ |
-    | 2 | 2 | Bob | 2024-07-02 00:00:00 UTC | 1721878309.021546 | Vrlkus/haaKlEg |
+    | Row | id  | name  | last_modified_at        | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ----- | ----------------------- | ----------------- | -------------- |
+    | 1   | 1   | Alice | 2024-07-01 00:00:00 UTC | 1721878309.021546 | ObbVlxcly3VknQ |
+    | 2   | 2   | Bob   | 2024-07-02 00:00:00 UTC | 1721878309.021546 | Vrlkus/haaKlEg |
 
 4. Next, the "contact" table in the SQL source is updated— “Alice” is updated to “Alice Updated”, and a new row “Hank” is added:
 
-    | id | name | last_modified_at |
-    | --- | --- | --- |
-    | 1 | Alice Updated | 2024-07-08 00:00:00 |
-    | 3 | Hank | 2024-07-08 00:00:00 |
+    | id  | name          | last_modified_at    |
+    | --- | ------------- | ------------------- |
+    | 1   | Alice Updated | 2024-07-08 00:00:00 |
+    | 3   | Hank          | 2024-07-08 00:00:00 |
 
 5. The "contact" table created in BigQuery after running the pipeline again:
 
-    | Row | id | name | last_modified_at | _dlt_load_id | _dlt_id |
-    | --- | --- | --- | --- | --- | --- |
-    | 1 | 2 | Bob | 2024-07-02 00:00:00 UTC | 1721878309.021546 | Cm+AcDZLqXSDHQ |
-    | 2 | 1 | Alice Updated | 2024-07-08 00:00:00 UTC | 1721878309.021546 | OeMLIPw7rwFG7g |
-    | 3 | 3 | Hank | 2024-07-08 00:00:00 UTC | 1721878309.021546 | Ttp6AI2JxqffpA |
+    | Row | id  | name          | last_modified_at        | _dlt_load_id      | _dlt_id        |
+    | --- | --- | ------------- | ----------------------- | ----------------- | -------------- |
+    | 1   | 2   | Bob           | 2024-07-02 00:00:00 UTC | 1721878309.021546 | Cm+AcDZLqXSDHQ |
+    | 2   | 1   | Alice Updated | 2024-07-08 00:00:00 UTC | 1721878309.021546 | OeMLIPw7rwFG7g |
+    | 3   | 3   | Hank          | 2024-07-08 00:00:00 UTC | 1721878309.021546 | Ttp6AI2JxqffpA |
 
 #### What happened?
 

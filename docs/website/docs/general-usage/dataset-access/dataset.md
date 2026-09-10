@@ -948,18 +948,18 @@ After a pipeline run the tables can look like this:
 
 `mydata_staging.users`
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
-| 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
+| id  | name    | _dlt_id        | _dlt_load_id     |
+| --- | ------- | -------------- | ---------------- |
+| 1   | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
+| 2   | Bob 2   | rX8ybgTeEmAmmA | 2345672350.98417 |
 
 `mydata.users`
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
-| 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
-| 3 | Charlie | h8lehZEvT3fASQ | 1234563456.12345 |
+| id  | name    | _dlt_id        | _dlt_load_id     |
+| --- | ------- | -------------- | ---------------- |
+| 1   | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
+| 2   | Bob 2   | rX8ybgTeEmAmmA | 2345672350.98417 |
+| 3   | Charlie | h8lehZEvT3fASQ | 1234563456.12345 |
 
 The `mydata.users` table now contains the data from both pipeline runs.
 
@@ -1000,13 +1000,13 @@ dlt automatically creates internal tables in the destination schema to track pip
 This table records each pipeline run. Every run adds a new row with a unique `load_id`. The table tracks which loads are complete and supports chaining of transformations.
 
 
-| Column name          | Type      | Description                               |
-|----------------------|-----------|-------------------------------------------|
-| `load_id`            | STRING    | Unique identifier for the load job        |
-| `schema_name`        | STRING    | Name of the schema used during the load   |
-| `schema_version_hash`| STRING    | Hash of the schema version                |
-| `status`             | INTEGER   | Load status. Value `0` means completed    |
-| `inserted_at`        | TIMESTAMP | When the load was recorded                |
+| Column name           | Type      | Description                             |
+| --------------------- | --------- | --------------------------------------- |
+| `load_id`             | STRING    | Unique identifier for the load job      |
+| `schema_name`         | STRING    | Name of the schema used during the load |
+| `schema_version_hash` | STRING    | Hash of the schema version              |
+| `status`              | INTEGER   | Load status. Value `0` means completed  |
+| `inserted_at`         | TIMESTAMP | When the load was recorded              |
 
 Only rows with `status = 0` are complete. Other values mark incomplete or interrupted loads. The status column also coordinates multi-step transformations.
 
@@ -1015,16 +1015,16 @@ Only rows with `status = 0` are complete. Other values mark incomplete or interr
 This table stores the internal state of the pipeline for each run. The state drives incremental loading. After an interrupted run, the pipeline resumes from this state.
 
 
-| Column name       | Type            | Description                                          |
-|-------------------|------------------|------------------------------------------------------|
-| `version`         | INTEGER          | Version of this state entry                         |
-| `engine_version`  | INTEGER          | Version of the dlt engine used                      |
-| `pipeline_name`   | STRING           | Name of the pipeline                                |
-| `state`           | STRING or BLOB   | Serialized Python dictionary of pipeline state      |
-| `created_at`      | TIMESTAMP        | When this state entry was created                   |
-| `version_hash`    | STRING           | Hash to detect changes in the state                 |
-| `_dlt_load_id`    | STRING           | Reference to related load in `_dlt_loads`           |
-| `_dlt_id`         | STRING           | Unique identifier for the pipeline state row        |
+| Column name      | Type           | Description                                    |
+| ---------------- | -------------- | ---------------------------------------------- |
+| `version`        | INTEGER        | Version of this state entry                    |
+| `engine_version` | INTEGER        | Version of the dlt engine used                 |
+| `pipeline_name`  | STRING         | Name of the pipeline                           |
+| `state`          | STRING or BLOB | Serialized Python dictionary of pipeline state |
+| `created_at`     | TIMESTAMP      | When this state entry was created              |
+| `version_hash`   | STRING         | Hash to detect changes in the state            |
+| `_dlt_load_id`   | STRING         | Reference to related load in `_dlt_loads`      |
+| `_dlt_id`        | STRING         | Unique identifier for the pipeline state row   |
 
 
 The state column contains a serialized Python dictionary that includes:
@@ -1043,14 +1043,14 @@ dlt recalculates the `version_hash` on each update. dlt uses this table for last
 
 This table tracks the history of all schema versions the pipeline used. Every time dlt updates the schema, for example when a source adds columns or tables, dlt writes a new entry to this table.
 
-| Column name     | Type            | Description                                      |
-|------------------|------------------|--------------------------------------------------|
-| `version`        | INTEGER          | Numeric version of the schema                   |
-| `engine_version` | INTEGER          | Version of the dlt engine used                  |
-| `inserted_at`    | TIMESTAMP        | Time the schema version entry was created       |
-| `schema_name`    | STRING           | Name of the schema                              |
-| `version_hash`   | STRING           | Unique hash representing the schema content     |
-| `schema`         | STRING or JSON   | Full schema in JSON format                      |
+| Column name      | Type           | Description                                 |
+| ---------------- | -------------- | ------------------------------------------- |
+| `version`        | INTEGER        | Numeric version of the schema               |
+| `engine_version` | INTEGER        | Version of the dlt engine used              |
+| `inserted_at`    | TIMESTAMP      | Time the schema version entry was created   |
+| `schema_name`    | STRING         | Name of the schema                          |
+| `version_hash`   | STRING         | Unique hash representing the schema content |
+| `schema`         | STRING or JSON | Full schema in JSON format                  |
 
 `_dlt_version` keeps previous schema definitions, so that:
 

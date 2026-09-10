@@ -24,12 +24,12 @@ Each prompt maps to a toolkit, whose skills guide the agent through the workflow
 
 The AI Harness bundles four kinds of artifacts into installable units called [**toolkits**](toolkits.md):
 
-| Artifact | What it is | Example |
-| --- | --- | --- |
-| Skill | Step-by-step procedure the agent follows for a specific task | `find-source`, `debug-pipeline`, `prepare-deployment` |
-| Rule | Always-on context the agent loads every session | Coding conventions, security constraints |
-| Workflow | Ordered sequence of skills with a fixed entry point, loaded as a rule so it's always active | REST API pipeline workflow, Deploy workflow |
-| MCP server | Tools the agent can call from inside a session | `dlt-workspace-mcp` exposes pipeline, schema, and secrets tools |
+| Artifact   | What it is                                                                                  | Example                                                         |
+| ---------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Skill      | Step-by-step procedure the agent follows for a specific task                                | `find-source`, `debug-pipeline`, `prepare-deployment`           |
+| Rule       | Always-on context the agent loads every session                                             | Coding conventions, security constraints                        |
+| Workflow   | Ordered sequence of skills with a fixed entry point, loaded as a rule so it's always active | REST API pipeline workflow, Deploy workflow                     |
+| MCP server | Tools the agent can call from inside a session                                              | `dlt-workspace-mcp` exposes pipeline, schema, and secrets tools |
 
 Every [dltHub workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) starts with one toolkit, `init`, which ships an MCP server (`dlt-workspace-mcp`) and a router skill called `dlthub-router`. From there, [feature toolkits](toolkits.md) are added as you need them.
 

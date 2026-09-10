@@ -87,9 +87,9 @@ The data normalizer is configurable, and users can plug in their own normalizers
 
 `dlt` ships with two JSON normalizer variants:
 
-| Normalizer module | Behavior |
-| --- | --- |
-| `dlt.common.normalizers.json.relational` | **Default.** Flattens nested data into relational tables. Coerces values across compatible types (e.g., `"123"` → `int`, `int` → `str`). |
+| Normalizer module                                    | Behavior                                                                                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dlt.common.normalizers.json.relational`             | **Default.** Flattens nested data into relational tables. Coerces values across compatible types (e.g., `"123"` → `int`, `int` → `str`).   |
 | `dlt.common.normalizers.json.relational_no_coercion` | Same relational flattening, but **never coerces across types**. Every type mismatch produces a [variant column](#variant-columns) instead. |
 
 To switch the normalizer, set it in `config.toml` using the shorthand name:
@@ -176,10 +176,10 @@ data = [
 
 Once the pipeline runs, we will have the following schema:
 
-| name          | data_type     | nullable |
-| ------------- | ------------- | -------- |
-| id            | bigint        | true     |
-| human_name    | text          | true     |
+| name       | data_type | nullable |
+| ---------- | --------- | -------- |
+| id         | bigint    | true     |
+| human_name | text      | true     |
 
 Now imagine the data has changed and the `id` field also contains strings:
 
@@ -192,11 +192,11 @@ data = [
 
 The value `"idx-nr-456"` cannot be parsed as an integer, so `dlt` creates a variant column `id__v_text`:
 
-| name          | data_type     | nullable |
-| ------------- | ------------- | -------- |
-| id            | bigint        | true     |
-| human_name    | text          | true     |
-| id__v_text    | text          | true     |
+| name       | data_type | nullable |
+| ---------- | --------- | -------- |
+| id         | bigint    | true     |
+| human_name | text      | true     |
+| id__v_text | text      | true     |
 
 On the other hand, if the `id` field was already a string, then introducing new data with `id` containing other types will not change the schema because they can be coerced to string.
 
@@ -566,13 +566,13 @@ with Container().injectable_context(TimezoneContext("Europe/Berlin")):
 
 Reading the same four cases as the table above, under a `Europe/Berlin` context timezone:
 
-| input timestamp | `timezone` hint | stored value                                    |
-| --------------- | --------------- | ----------------------------------------------- |
-| naive           | `None`, `True`  | read as Berlin, so the instant moves            |
-| naive           | `False`         | untouched, nothing to convert                   |
+| input timestamp | `timezone` hint | stored value                                                                     |
+| --------------- | --------------- | -------------------------------------------------------------------------------- |
+| naive           | `None`, `True`  | read as Berlin, so the instant moves                                             |
+| naive           | `False`         | untouched, nothing to convert                                                    |
 | tz-aware        | `None`, `True`  | `Europe/Berlin` in load package, but destination can change the storage timezone |
-| tz-aware        | `False`         | converted to Berlin, then naive |
-|                 |                 |                                                 |
+| tz-aware        | `False`         | converted to Berlin, then naive                                                  |
+|                 |                 |                                                                                  |
 
 :::note
 This is not the destination's **session timezone**, which decides how a destination renders stored

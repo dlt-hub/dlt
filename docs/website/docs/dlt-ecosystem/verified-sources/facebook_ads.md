@@ -22,7 +22,7 @@ The endpoints that this verified source supports are:
 | ----------------- | ------------------------------------------------------------------------------ |
 | campaigns         | A structured marketing initiative that focuses on a specific objective or goal |
 | ad_sets           | A subset or group of ads within a campaign                                     |
-| ads               | An individual advertisement that is created and displayed within an ad set      |
+| ads               | An individual advertisement that is created and displayed within an ad set     |
 | creatives         | Visual and textual elements that make up an advertisement                      |
 | ad_leads          | Information collected from users who have interacted with lead generation ads  |
 | facebook_insights | Data on audience demographics, post reach, and engagement metrics              |

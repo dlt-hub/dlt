@@ -196,13 +196,13 @@ You can open [Workspace Dashboard](./dashboard.md) to apply your own judgement:
 dlthub local pipeline show github_pipeline
 ```
 
-| Question | What to check |
-|----------|---------------|
-| 1) Am I grabbing data correctly? | Row counts match expected volume (not just page 1) |
-| 2) Am I loading data correctly? | Incremental cursor advances between runs |
-| 3) Is my schema correct? | No unexpected child tables or missing columns |
-| 4) Do I have the right business data? | Required entities and attributes are present |
-| 5) Are my data types correct? | Numbers, dates, booleans are not stored as strings |
+| Question                              | What to check                                      |
+| ------------------------------------- | -------------------------------------------------- |
+| 1) Am I grabbing data correctly?      | Row counts match expected volume (not just page 1) |
+| 2) Am I loading data correctly?       | Incremental cursor advances between runs           |
+| 3) Is my schema correct?              | No unexpected child tables or missing columns      |
+| 4) Do I have the right business data? | Required entities and attributes are present       |
+| 5) Are my data types correct?         | Numbers, dates, booleans are not stored as strings |
 
 See the [full checklist](./dashboard.md#using-the-dashboard) for detailed steps.
 
@@ -259,12 +259,12 @@ stateDiagram-v2
 
 A toolkit contains skills, rules, and an MCP server — tied together by a workflow that tells the assistant which skill to run at each step and how to leverage the MCP.
 
-| Component | What it is | When it runs |
-|-----------|------------|--------------|
-| **Skill** | Step-by-step procedure the assistant follows | Triggered by user intent or explicitly with `/skill-name` |
-| **Rule** | Always-on context (conventions, constraints) | Every session, automatically |
-| **Workflow** | Ordered sequence of skills with a fixed entry point | Loaded as a rule — always active |
-| **MCP server** | Exposes pipelines, tables, and secrets as tools | During a session, via MCP protocol |
+| Component      | What it is                                          | When it runs                                              |
+| -------------- | --------------------------------------------------- | --------------------------------------------------------- |
+| **Skill**      | Step-by-step procedure the assistant follows        | Triggered by user intent or explicitly with `/skill-name` |
+| **Rule**       | Always-on context (conventions, constraints)        | Every session, automatically                              |
+| **Workflow**   | Ordered sequence of skills with a fixed entry point | Loaded as a rule — always active                          |
+| **MCP server** | Exposes pipelines, tables, and secrets as tools     | During a session, via MCP protocol                        |
 
 ### How the components interact
 

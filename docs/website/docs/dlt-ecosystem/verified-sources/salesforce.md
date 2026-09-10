@@ -18,23 +18,23 @@ loads data using the “Salesforce API” to the destination of your choice.
 
 The resources that this verified source supports are:
 
-| Name           | Mode    | Description                                                                                       |
-|----------------|---------|---------------------------------------------------------------------------------------------------|
-| User           | replace | Refers to an individual who has access to a Salesforce org or instance                            |
-| UserRole       | replace | A standard object that represents a role within the organization's hierarchy                      |
-| Lead           | replace | Prospective customer/individual/org. that has shown interest in a company's products/services     |
-| Contact        | replace | An individual person associated with an account or organization                                   |
-| Campaign       | replace | Marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
-| Product2       | replace | For managing and organizing your product-related data within the Salesforce ecosystem             |
-| Pricebook2     | replace | Used to manage product pricing and create price books                                             |
-| PricebookEntry | replace | An object that represents a specific price for a product in a price book                          |
-| Opportunity            | merge | Represents a sales opportunity for a specific account or contact                                                            |
-| OpportunityLineItem    | merge | Represents individual line items or products associated with an opportunity                                                 |
-| OpportunityContactRole | merge | Represents the association between an Opportunity and a contact                                                             |
-| Account                | merge | Individual or organization that interacts with your business                                                                |
-| CampaignMember         | merge | Association between a contact or lead and a campaign                                                                        |
-| Task                   | merge | Used to track and manage various activities and tasks within the Salesforce platform                                        |
-| Event                  | merge | Used to track and manage calendar-based events, such as meetings, appointments, calls, or any other time-specific activities |
+| Name                   | Mode    | Description                                                                                                                  |
+| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| User                   | replace | Refers to an individual who has access to a Salesforce org or instance                                                       |
+| UserRole               | replace | A standard object that represents a role within the organization's hierarchy                                                 |
+| Lead                   | replace | Prospective customer/individual/org. that has shown interest in a company's products/services                                |
+| Contact                | replace | An individual person associated with an account or organization                                                              |
+| Campaign               | replace | Marketing initiative or project designed to achieve specific goals, such as generating leads etc.                            |
+| Product2               | replace | For managing and organizing your product-related data within the Salesforce ecosystem                                        |
+| Pricebook2             | replace | Used to manage product pricing and create price books                                                                        |
+| PricebookEntry         | replace | An object that represents a specific price for a product in a price book                                                     |
+| Opportunity            | merge   | Represents a sales opportunity for a specific account or contact                                                             |
+| OpportunityLineItem    | merge   | Represents individual line items or products associated with an opportunity                                                  |
+| OpportunityContactRole | merge   | Represents the association between an Opportunity and a contact                                                              |
+| Account                | merge   | Individual or organization that interacts with your business                                                                 |
+| CampaignMember         | merge   | Association between a contact or lead and a campaign                                                                         |
+| Task                   | merge   | Used to track and manage various activities and tasks within the Salesforce platform                                         |
+| Event                  | merge   | Used to track and manage calendar-based events, such as meetings, appointments, calls, or any other time-specific activities |
 
 * Note that formula fields are included - these function like views in Salesforce and will not be back-updated when their definitions change in Salesforce! The recommended handling is to ignore these fields and reproduce yourself any calculations from the base data fields.
 
@@ -183,7 +183,7 @@ Besides "sf_user", there are several resources that use replace mode for data wr
 destination.
 
 | user_role() | contact() | lead() | campaign() | product_2() | pricebook_2() | pricebook_entry() |
-|-------------|-----------|--------|------------|-------------|---------------|-------------------|
+| ----------- | --------- | ------ | ---------- | ----------- | ------------- | ----------------- |
 
 The described functions fetch records from endpoints based on their names, e.g., user_role() accesses
 the "user_role" endpoint.
@@ -214,7 +214,7 @@ Besides "opportunity", there are several resources that use replace mode for dat
 destination.
 
 | opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() | event() |
-|-------------------------|----------------------------|-----------|-------------------|--------|---------|
+| ----------------------- | -------------------------- | --------- | ----------------- | ------ | ------- |
 
 The described functions fetch records from endpoints based on their names, e.g.,
 opportunity_line_item() accesses the "opportunity_line_item" endpoint.

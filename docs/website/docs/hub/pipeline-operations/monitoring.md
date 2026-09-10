@@ -72,14 +72,14 @@ Select any run on the Jobs page to open its **run detail page**, which provides:
 
 ## Understand run states
 
-| Status         | Meaning                                              |
-|----------------|------------------------------------------------------|
-| **Pending**    | Run is queued, waiting to start                      |
-| **Starting**   | Run is being initialized                             |
-| **Running**    | Actively executing                                   |
-| **Completed**  | Finished without errors                              |
-| **Failed**     | Encountered an error — check logs for details        |
-| **Cancelled**  | Manually stopped via CLI or Web UI                   |
+| Status        | Meaning                                       |
+| ------------- | --------------------------------------------- |
+| **Pending**   | Run is queued, waiting to start               |
+| **Starting**  | Run is being initialized                      |
+| **Running**   | Actively executing                            |
+| **Completed** | Finished without errors                       |
+| **Failed**    | Encountered an error — check logs for details |
+| **Cancelled** | Manually stopped via CLI or Web UI            |
 
 ## Diagnose a failed run
 
