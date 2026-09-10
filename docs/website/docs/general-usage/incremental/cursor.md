@@ -31,6 +31,7 @@ def repo_issues(
 Here we add an `updated_at` argument that will receive incremental state, initialized to `1970-01-01T00:00:00Z`. It is configured to track the `updated_at` field in issues yielded by the `repo_issues` resource. It will store the newest `updated_at` value in `dlt` [state](../state.md) and make it available in `updated_at.start_value` on the next pipeline run. This value is inserted in the `_get_issues_page` function into the request query param **since** to the [GitHub API](https://docs.github.com/en/rest/issues/issues?#list-repository-issues).
 
 In essence, the `dlt.sources.incremental` instance above:
+
 * **updated_at.initial_value** which is always equal to "1970-01-01T00:00:00Z" passed in the constructor
 * **updated_at.start_value** a maximum `updated_at` value from the previous run or the **initial_value** on the first run
 * **updated_at.last_value** a "real-time" `updated_at` value updated with each yielded item or page. Before the first yield, it equals **start_value**.
@@ -61,6 +62,7 @@ GitHub returns events ordered from newest to oldest. So we declare the `rows_ord
 
 :::note
 `dlt.sources.incremental` is implemented as a [filter function](../resource.md#filter-transform-and-pivot-data) that is executed **after** all other transforms you add with `add_map` or  `add_filter`. This means that you can manipulate the data item before the incremental filter sees it. For example:
+
 * You can create a surrogate primary key from other columns
 * You can modify the cursor value or create a new field composed of other fields
 * Dump Pydantic models to Python dicts to allow incremental to find custom values
@@ -71,6 +73,7 @@ GitHub returns events ordered from newest to oldest. So we declare the `rows_ord
 ## Max, min, or custom `last_value_func`
 
 `dlt.sources.incremental` allows you to choose a function that orders (compares) cursor values to the current `last_value`.
+
 * The default function is the built-in `max`, which returns the larger value of the two.
 * Another built-in, `min`, returns the smaller value.
 
@@ -124,6 +127,7 @@ and pass this range to the Github API (`since` and `until`). As in the examples 
 the defined range are returned.
 
 Please note that when `end_date` is specified, `dlt` **will not modify the existing incremental state**. The backfill is **stateless** and:
+
 1. You can run backfill and incremental load in parallel (i.e., in an Airflow DAG) in a single pipeline.
 2. You can partition your backfill into several smaller chunks and run them in parallel as well.
 
@@ -149,6 +153,7 @@ Note that dlt's incremental filtering considers the ranges half-closed. `initial
 
 You can execute a backfill on large amount of data by partitioning it into ranges. In best case you are able to
 create partitions i.e. by day or week without additionally querying your data source [as we do in sql database example](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads). Ranges will be loaded using `initial_value` and `end_value`, each in separate pipeline run.
+
 1. As mentioned above, each run of this kind is stateless and may be run in parallel.
 2. However, we recommend that you load a single partition first (pick a small one) so `dlt` creates dataset and schema without risk of races and a need to retry
 i.e. when two runs created new dataset at the same time.
@@ -164,6 +169,7 @@ Also check [filesystem](../../dlt-ecosystem/verified-sources/filesystem#6-split-
 With the `row_order` argument set, dlt will stop retrieving data from the data source (e.g., GitHub API) if it detects that the values of the cursor field are out of the range of **start** and **end** values.
 
 In particular:
+
 * dlt stops processing when the resource yields any item with a cursor value _equal to or greater than_ the `end_value` and `row_order` is set to **asc**. (`end_value` is not included)
 * dlt stops processing when the resource yields any item with a cursor value _lower_ than the `last_value` and `row_order` is set to **desc**. (`last_value` is included)
 
@@ -177,6 +183,7 @@ If you use `row_order`, **make sure that the data source returns ordered records
 e.g., if an API returns results both higher and lower
 than the given `end_value` in no particular order, data reading stops and you'll miss the data items that were out of order.
 The following commonly used sources apply row order to returned rows:
+
 1. [sql_database](../../dlt-ecosystem/verified-sources/sql_database/)
 2. [filesystem](../../dlt-ecosystem/verified-sources/filesystem/)
 3. [mongodb](../../dlt-ecosystem/verified-sources/mongodb.md)
@@ -253,6 +260,7 @@ def tickets(
 
 You can split large incremental resources into smaller chunks and load them sequentially. This way you'll see the data quicker and
 in case of loading error you are able to retry a single chunk. **This method works only if your source returns data in deterministic order**, for example:
+
 * you can request your REST API endpoint to return data ordered by `updated_at`.
 * you use `row_order` on one of supported sources like `sql_database` or `filesystem`.
 
@@ -361,6 +369,7 @@ def tickets(
 ```
 
 We opt-in to the Airflow scheduler by setting `allow_external_schedulers` to `True`:
+
 1. When running on Airflow, the start and end values are controlled by Airflow and the dlt [state](../state.md) is not used.
 2. In all other environments, the `incremental` behaves as usual, maintaining the dlt state.
 
@@ -398,6 +407,7 @@ zendesk_backfill_bigquery()
 ```
 
 What got customized:
+
 1. We use a weekly schedule and want to get the data from February 2023 (`start_date`) until the end of July (`end_date`).
 2. We make Airflow generate all weekly runs (`catchup` is True).
 3. We create `zendesk_support` resources where we select only the incremental resources we want to backfill.
@@ -434,11 +444,13 @@ If you want to run this DAG parallel with the backfill DAG, change the pipeline 
 ### Under the hood
 
 When `allow_external_schedulers=True`, `dlt` looks up the active `TimeIntervalContext` while binding the resource. The context resolves an interval from, in order:
+
 1. An interval passed directly to its constructor (programmatic injection - see [Injecting and reading the current interval](#injecting-and-reading-the-current-interval) below).
 2. `DLT_INTERVAL_START` / `DLT_INTERVAL_END` environment variables (UTC ISO 8601). An optional `DLT_INTERVAL_TIMEZONE` (IANA name) is applied after string parsing. This variable also sets the [context timezone](../schema.md#context-timezone) for the whole process. `dlt` then uses that timezone for every value the run loads, not only for the interval.
 3. Airflow's `data_interval_start` / `data_interval_end` from the current task context (both the modern `airflow.sdk.get_current_context()` and the older `airflow.operators.python.get_current_context()` are supported).
 
 The resolved interval is mapped onto `initial_value` and `end_value` of the `Incremental` class:
+
 - `dlt` converts the datetimes to your cursor type. In the example above we instantiate `dlt.sources.incremental[int]`, so `dlt` converts the interval to Unix timestamps. Other supported cursor types are `timestamp`, `date`, `double`, and `bigint`. String cursors are rejected - convert them on the resource with `add_map` first.
 - If you also configured `initial_value` / `end_value` directly on the `Incremental`, the scheduler interval is **clipped** against your range using `last_value_func`, so your configured limits always win.
 
@@ -529,6 +541,7 @@ Consider the example below for reading incremental loading parameters from "conf
 You can customize the incremental processing of dlt by setting the parameter `on_cursor_value_missing`.
 
 When loading incrementally with the default settings, there are two assumptions:
+
 1. Each row contains the cursor path.
 2. Each row is expected to contain a value at the cursor path that is not `None`.
 

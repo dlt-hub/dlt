@@ -351,6 +351,7 @@ And keep the pipeline code intact.
 ## Access a destination
 
 When loading data, `dlt` will access the destination in two cases:
+
 1. At the beginning of the `run` method to sync the pipeline state with the destination (or if you call `pipeline.sync_destination` explicitly).
 2. In the `pipeline.load` method - to migrate the schema and load the load package.
 
@@ -385,6 +386,7 @@ pipeline.load(destination=filesystem(bucket_url=bucket_url))
 character set, identifier length, and other properties fit into what the given destination can handle. For example, our [default naming convention (**snake case**)](./naming-convention.md#use-default-naming-convention-snake_case) converts all names in the source (i.e., JSON document fields) into snake case, case-insensitive identifiers.
 
 Each destination declares its preferred naming convention, support for case-sensitive identifiers, and case folding function that case-insensitive identifiers follow. For example:
+
 1. Redshift - by default, does not support case-sensitive identifiers and converts all of them to lower case.
 2. Snowflake - supports case-sensitive identifiers and considers upper-cased identifiers as case-insensitive (which is the default case folding).
 3. DuckDb - does not support case-sensitive identifiers but does not case fold them, so it preserves the original casing in the information schema.
@@ -410,6 +412,7 @@ Destinations that support case-sensitive identifiers but use a case folding conv
 
 :::warning
 If you use a case-sensitive naming convention with a case-insensitive destination, `dlt` will:
+
 1. Fail the load if it detects an identifier collision due to case folding.
 2. Warn if any case folding is applied by the destination.
 :::
@@ -685,6 +688,7 @@ A few things to know or keep in mind when using the filesystem SQL client:
 #### Refresh SQL client data view
 
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
+
 * globbing the table files once - when view is created
 * using the newest iceberg metadata to create view
 
@@ -741,5 +745,6 @@ For nested tables, you may also need to create:
 ## Create a new destination
 
 You have two ways to implement a new destination:
+
 1. You can use the `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is a perfect way to implement reverse ETL destinations that push data back to REST APIs.
 2. You can implement [a full destination](../walkthroughs/create-new-destination.md) where you have full control over load jobs and schema migration.

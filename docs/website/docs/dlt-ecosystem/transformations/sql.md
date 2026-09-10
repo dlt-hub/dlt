@@ -86,6 +86,7 @@ A few things to know or keep in mind when using the filesystem SQL client:
 ### Control data freshness
 
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
+
 * globbing the table files once - when view is created
 * using the newest iceberg metadata to create view
 

@@ -214,8 +214,10 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 ### 3. Create your pipeline
 
 1. In creating the pipeline, the `fetch_average_price` can be used in the following ways:
-   - Add map function
-   - Transformer function
+
+
+  - Add map function
+  - Transformer function
 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.

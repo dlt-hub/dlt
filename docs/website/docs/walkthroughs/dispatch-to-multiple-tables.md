@@ -95,4 +95,5 @@ Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_
 :::
 
 Learn more:
+
 * [Change the nesting of the tables](../general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.

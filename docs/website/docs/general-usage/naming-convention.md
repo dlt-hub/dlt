@@ -32,6 +32,7 @@ Uses `__` as a nesting separator for tables and flattened column names.
 
 :::tip
 If you do not like **snake_case**, your next safe option is **sql_ci**, which generates SQL-safe, lowercase, case-insensitive identifiers without any other transformations. To permanently change the default naming convention on a given machine:
+
 1. Set an environment variable `SCHEMA__NAMING` to `sql_ci_v1` OR
 2. Add the following line to your global `config.toml` (the one in your home dir, i.e., `~/.dlt/config.toml`):
 
@@ -47,6 +48,7 @@ naming="sql_ci_v1"
 ### Pick the right identifier form when defining resources
 
 `dlt` keeps source (not normalized) identifiers during data [extraction](../reference/explainers/how-dlt-works.md#extract) and translates them during [normalization](../reference/explainers/how-dlt-works.md#normalize). For you, it means:
+
 1. If you write a [transformer](resource.md#process-resources-with-dlttransformer) or a [mapping/filtering function](resource.md#filter-transform-and-pivot-data), you will see the original data, without any normalization. Use the source identifiers to access the dicts!
 2. If you define a `primary_key` or `cursor` that participates in [cursor field incremental loading](incremental/cursor.md), use the source identifiers (`dlt` uses them to inspect source data, `Incremental` class is just a filtering function).
 3. When defining any other hints, i.e., `columns` or `merge_key`, you can pick source or destination identifiers. `dlt` normalizes all hints together with your data.
@@ -132,6 +134,7 @@ use_break_path_on_normalize=true
 ### Configure naming convention
 
 You can use `config.toml`, environment variables, or any other configuration provider to set the naming convention name. The configured naming convention **overrides all other settings**:
+
 - Changes the naming convention stored in the already created schema.
 - Overrides the destination capabilities preference.
 
@@ -210,6 +213,7 @@ Depending on the destination, certain names may not be allowed. To ensure your d
 ## Avoid identifier collisions
 
 `dlt` detects various types of identifier collisions and ignores the others.
+
 1. dlt detects collisions if a case-sensitive naming convention is used on a case-insensitive destination.
 2. dlt detects collisions if a change of naming convention changes the identifiers of tables already created in the destination.
 3. dlt detects collisions when the naming convention is applied to column names of arrow tables.
@@ -220,6 +224,7 @@ You can create a custom naming convention that does not generate collisions on d
 ## Write your own naming convention
 
 Custom naming conventions are classes that derive from `NamingConvention`, which you can import from `dlt.common.normalizers.naming`. We recommend the following module layout:
+
 1. Each naming convention resides in a separate Python module (file).
 2. The class is always named `NamingConvention`.
 

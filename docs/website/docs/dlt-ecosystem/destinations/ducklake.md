@@ -8,6 +8,7 @@ keywords: [ducklake, duckdb, destination, data lake, lakehouse]
 [DuckLake](https://ducklake.select/) is a lakehouse-style destination that builds on the DuckDB engine with the [ducklake extension](https://ducklake.select/docs/stable/duckdb/introduction). It stores your `dlt` tables as files on a filesystem or object store while keeping table metadata in a separate SQL catalog.
 
 In order to use ducklake you must provide the following infrastructure:
+
 - **catalog**: a SQL database that stores table/partition metadata (sqlite, duckdb, postgres, mysql are supported)
 - **storage**: a filesystem or object store holding table files (local files, s3, gcs, abfss, etc.)
 
@@ -57,12 +58,14 @@ print(pipeline.dataset().table_foo["foo"].df())
 ```
 
 The console output will point you to where `sqlite` catalog database and data store were created:
+
 - `lake_catalog.sqlite` catalog in current working directory
 - `lake_catalog.files` folder with `lake_schema` subfolder for the dataset.
 
 ## Configure Ducklake
 
 Pick your `ducklake_name` as described above. This name is the used:
+
 - as attach name for the ducklake - each ducklake connection starts with **:memory:** connection to which we `ATTACH` the ducklake
 - to set default folder name of the local filesystem storage and database file name for `sqlite` and `duckdb` (if no explicit configuration is provided)
 - as **postgres** schema name where catalog tables will be created (if postgres configured)
@@ -70,6 +73,7 @@ Pick your `ducklake_name` as described above. This name is the used:
 ### Configure catalog
 
 You have the following options when configuring the catalog
+
 - **sqlite**: very fast local catalog. You can set it up as follows:
 
 ```toml
@@ -176,6 +180,7 @@ destination = dlt.destinations.ducklake(
 DuckLake stores file paths in the catalog relative to a base `DATA_PATH` that is set at creation time. When `override_data_path` is set to `True`, the `DATA_PATH` provided in the current connection replaces the stored one for both reads and writes. The stored value in the catalog is not modified.
 
 Typical use cases:
+
 - Populating a ducklake locally and then uploading the catalog and data files to remote storage together
 - Accessing the same catalog from different environments where the storage is at a different path (e.g., data replicated to another bucket)
 

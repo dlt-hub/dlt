@@ -58,8 +58,8 @@ Here's what each file and directory contains:
 - `rest_api_pipeline.py`: This is the main script where you'll define your data pipeline. It contains two basic pipeline examples for Pokemon and GitHub APIs. You can modify or rename this file as needed.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
-    - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
-    - `config.toml`: This file contains the configuration settings for your dlt project.
+  - `secrets.toml`: This file stores your API keys, tokens, and other sensitive information.
+  - `config.toml`: This file contains the configuration settings for your dlt project.
 
 ## Installing dependencies
 
@@ -184,6 +184,7 @@ You may have noticed that we didn't specify any pagination configuration in the 
 ## Appending, replacing, and merging loaded data
 
 Try running the pipeline again with `python rest_api_pipeline.py`. You will notice that all the tables have duplicated data. This happens because, by default, dlt appends the data to the destination table. In dlt, you can control how the data is loaded into the destination table by setting the `write_disposition` parameter in the resource configuration. The possible values are:
+
 - `append`: Appends the data to the destination table. This is the default.
 - `replace`: Replaces the data in the destination table with the new data.
 - `merge`: Merges the new data with the existing data in the destination table based on the primary key.
@@ -328,6 +329,7 @@ Read more about [incremental loading](../dlt-ecosystem/verified-sources/rest_api
 Congratulations on completing the tutorial! You've learned how to set up a REST API source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
+
 - Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
 - [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.

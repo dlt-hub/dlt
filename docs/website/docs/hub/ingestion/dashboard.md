@@ -62,6 +62,7 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 ## Credentials
 
 `dlt` will resolve your destination [credentials](../../general-usage/credentials/setup.md) from:
+
 * `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
 * `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`. 
 * Environment variables
@@ -75,6 +76,7 @@ It is best to run the dashboard from the same folder where you ran your pipeline
 This section is a development checklist for validating a new REST API pipeline using the dashboard.
 
 :::tip Quick checklist
+
 1. **Row counts look right?** → Dataset Browser
 2. **Incremental cursor advancing?** → Pipeline State
 3. **Schema structure correct?** → Schema Explorer
@@ -112,11 +114,11 @@ Using `replace` write disposition is slower but simpler. If you are using it to 
 
 - Run **multiple increments** and check that each run only brings the delta.
 - Validate in two places:
-    - **Pipeline State**: the resource's cursor (for example, `last_extracted_at` / `last_value`) should advance to the end of the previous run. This is how it looks in the raw pipeline state:
+  - **Pipeline State**: the resource's cursor (for example, `last_extracted_at` / `last_value`) should advance to the end of the previous run. This is how it looks in the raw pipeline state:
 
     ![Pipeline state cursor](https://storage.googleapis.com/dlt-blog-images/docs-dashboard-dq2.png)
 
-    - **Pipeline Loads row counts**: Check how many rows each run loaded by running a query in the Dataset Browser:
+  - **Pipeline Loads row counts**: Check how many rows each run loaded by running a query in the Dataset Browser:
 
     ```sql
     SELECT _dlt_load_id, COUNT(*) FROM items GROUP BY 1
@@ -313,9 +315,11 @@ This section provides a detailed overview of the most recent run for the selecte
 3. **Steps Overview**
 
     This table breaks down the total duration into the three phases of a dlt pipeline run: extract, normalize, and load.
-    - **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
-        - A long extract time suggests a slow source.
-        - Long normalize or load times often point to destination performance or data complexity issues.
+
+
+  - **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
+  - A long extract time suggests a slow source.
+  - Long normalize or load times often point to destination performance or data complexity issues.
 
     **Deep Dive:** you can click on each step to see more specific details like table names, item counts, file sizes, and timestamps for that specific phase.
 

@@ -130,12 +130,16 @@ Output:
 When this resource is executed, the following deduplication rules are applied:
 
 1. For records with different values in the `dedup_sort` column:
-   - The record with the highest value is kept when using `desc`.
-   - For example, among records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
+
+
+  - The record with the highest value is kept when using `desc`.
+  - For example, among records with id=1, the one with `"metadata_modified"="2024-01-02"` is kept.
 
 2. For records with identical values in the `dedup_sort` column:
-   - The first occurrence encountered is kept.
-   - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
+
+
+  - The first occurrence encountered is kept.
+  - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
 
 ### Disable deduplication
 
@@ -151,6 +155,7 @@ def github_repo_events():
 ### Delete records
 
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
+
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded.
 2) Other types: each `not None` value leads to a delete.
 
@@ -238,11 +243,13 @@ this chapter.
 Merge write disposition requires that the `_dlt_id` (`row_key`) of the root table be propagated to nested tables. This concept is similar to a foreign key but always references the root (top level) table, skipping any intermediate parents. We call it `root key`. The root key is automatically propagated for all tables that have the `merge` write disposition set. We do not enable it elsewhere because it takes up storage space.
 
 If you plan for some of resources to do merges but your initial backfill is append (or replace / full refresh) you should:
+
 1. [Enable root key propagation right away](#forcing-root-key-propagation)
 2. or, if you are sure that nested tables are max 1 level deep: [Explicitly disable root key propagation](#disable-root-key-propagation)
 
 If you try to switch to merge after nested tables were already created you'll get a warning and NULL column violation from your
 destination. You can fix your pipeline by:
+
 1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop 
 data from related resources and reset the schema so NOT NULL columns can be created.
 2. If you have nested tables up to 1 nesting level you may [Explicitly disable root key propagation](#disable-root-key-propagation)
@@ -314,6 +321,7 @@ existing `parent_key` will be used.
 
 :::note
 The `unique` hint for `_dlt_id` in the root table is set to `false` when using `scd2`. This differs from [the default behavior](./destination-tables.md#nested-tables). The reason is that the surrogate key stored in `_dlt_id` contains duplicates after an _insert-delete-reinsert_ pattern:
+
 1. A record with surrogate key X is inserted in a load at `t1`.
 2. The record with surrogate key X is deleted in a later load at `t2`.
 3. The record with surrogate key X is reinserted in an even later load at `t3`.
@@ -321,6 +329,7 @@ The `unique` hint for `_dlt_id` in the root table is set to `false` when using `
 After this pattern, the `scd2` table in the destination has two records for surrogate key X: one with the validity window `[t1, t2]`, and one with `[t3, NULL]`. As a result, `_dlt_id` contains duplicate values because both records share the same surrogate key.
 
 Note that:
+
 - The composite key `(_dlt_id, _dlt_valid_from)` is unique.
 - `_dlt_id` remains unique for nested tables—`scd2` does not affect this.
 :::
@@ -683,6 +692,7 @@ column in the root table to stamp changes in nested data.
 
 :::warning
 The `upsert` merge strategy is currently supported for these destinations:
+
 - `athena`
 - `bigquery`
 - `databricks`
@@ -693,6 +703,7 @@ The `upsert` merge strategy is currently supported for these destinations:
 :::
 
 The `upsert` merge strategy does primary-key based *upserts*:
+
 - *update* a record if the key exists in the target table
 - *insert* a record if the key does not exist in the target table
 
@@ -701,6 +712,7 @@ You can [delete records](#delete-records) with the `hard_delete` hint.
 ### `upsert` versus `delete-insert`
 
 Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
+
 1. needs a `primary_key`
 2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
 3. does not support `merge_key`
@@ -723,6 +735,7 @@ def my_upsert_resource():
 The `insert-only` merge strategy is supported for all destinations that support `upsert` (see [above](#upsert-strategy)), including `filesystem` with `delta` and `iceberg` table formats and `lancedb`.
 
 The `insert-only` merge strategy does primary-key based *inserts* without updating existing records:
+
 - *insert* a record if the key does not exist in the target table
 - *skip* a record if the key already exists in the target table (no update happens)
 
@@ -733,10 +746,12 @@ You can use the `hard_delete` hint to filter out records marked for deletion bef
 ### `insert-only` versus `upsert`
 
 Unlike the `upsert` strategy, the `insert-only` strategy:
+
 1. **does not update** existing records
 2. provides better **performance** by skipping `UPDATE` operations
 
 Like `upsert`, the `insert-only` strategy:
+
 1. needs a `primary_key`
 2. expects this `primary_key` to be unique
 3. does not support `merge_key`

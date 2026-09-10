@@ -55,6 +55,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, such as Ollama, you don't need to supply this key.
 
 :::info Available model providers
+
 - "gemini-text"
 - "bedrock-text"
 - "cohere"
@@ -73,6 +74,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 Local database name and location:
 
 `lancedb` databases follow the same naming rules as `duckdb`:
+
 1. By default, the database file name is `<pipeline_name>.lancedb` and is placed in current working directory.
 2. For a named destination, database file name is `<destination name>.lancedb`
 3. The `:pipeline:` `lance_uri` will place database file in pipeline working folder

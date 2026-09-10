@@ -47,6 +47,7 @@ dlt provides several approaches to incremental loading:
 ## Doing a full or partial refresh
 
 You may force a refresh of `merge` and `append` resources by setting the `refresh` option on the `dlt.pipeline` constructor or in the `run` method:
+
 * `drop_data` truncates all tables belonging to the selected resources and resets their state (including incremental). The schema is not changed.
 * `drop_resources` drops all tables belonging to the selected resources, from both the schema and the destination, and wipes their state. The tables are recreated with new data, and the stored schema history is erased (only the latest version is kept).
 * `drop_sources` drops all tables belonging to the sources being loaded and fully resets their schema and state.

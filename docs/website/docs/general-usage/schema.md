@@ -142,6 +142,7 @@ A column schema contains the following basic hints:
 3. `merge_key` marks a column as part of the merge key used by [merge load](./merge-loading.md).
 
 Hints below are used to create [nested references](#nested-references-root-and-nested-tables):
+
 1. `row_key` is a special form of primary key created by `dlt` to uniquely identify rows of data.
 2. `parent_key` is a special form of foreign key used by nested tables to refer to parent tables.
 3. `root_key` marks a column as part of the root key, which is a type of foreign key always referring to the root table.
@@ -519,6 +520,7 @@ naive timestamps are **read as UTC**, system timezone settings are ignored by `d
 `dlt` stores values in UTC by default. `dlt` can also store them in another timezone, called the [context timezone](#context-timezone). That timezone then takes UTC's place in the table above.
 
 Ultimately, the destination will interpret the timestamp values. Some destinations:
+
 - do not support naive timestamps (i.e. BigQuery) and will interpret them as naive UTC by attaching UTC timezone
 - do not support tz-aware timestamps (i.e. Dremio, Athena) and will strip timezones from timestamps being loaded
 - do not store timezone at all and all timestamps are converted to UTC
@@ -586,6 +588,7 @@ The precision for **bigint** is mapped to available integer types, i.e., TINYINT
 
 Selected destinations honor precision hint on **timestamp**. Precision is a numeric value in range of 0 (seconds) to 9 (nanoseconds) and sets the fractional
 number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow setting precision. Additionally, `duckdb` and `filesystem` (via parquet) allow for nanosecond precision if:
+
 * you configure [parquet version](../dlt-ecosystem/file-formats.md#writer-settings) to **2.6**
 * you yield tabular data (arrow tables/pandas/polars). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
@@ -611,6 +614,7 @@ See [Materialize schema without loading data](resource.md#materialize-schema-wit
 ## Table references
 
 `dlt` tables refer to other tables. It supports two types of such references:
+
 1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).
 2. **Table references** are optional, user-defined annotations that are not verified and enforced but may be used by downstream tools, for example, to generate automatic tests or models for the loaded data.
 
@@ -625,6 +629,7 @@ When `dlt` normalizes nested data into a relational schema, it automatically cre
 `parent` + `row_key` + `parent_key` form a **nested reference**: from the nested table to the `parent` table and are extensively used when loading data. Both `replace` and `merge` write dispositions.
 
 `row_key` is created as follows:
+
 1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy), [`insert-only`](merge-loading.md#insert-only-strategy), and
 [`scd2`](merge-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of the `primary_key` (or whole row, so-called `content_hash`, if PK is not defined).
 2. A deterministic hash of `parent_key`, `parent` table name, and position in the list (`_dlt_list_idx`)
@@ -706,6 +711,7 @@ print(dict(row_count))
 ```
 
 In the above example we effectively convert `customers__purchases` table into a top level table that is linked to `customers` table `id` column with `customer_id` foreign key.
+
 1. we declare compound primary key on `purchases` on (customer_id, id) columns
 2. we add a mapping function that will push the customer `id` to `purchases` as `customer_id`
 3. we declare table reference from `purchases` to `customers` (this is optional)

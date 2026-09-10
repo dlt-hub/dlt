@@ -49,10 +49,10 @@ You need to create a GCP service account to get API credentials if you don't hav
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the "Actions" column next to it.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 ### Grab Google OAuth credentials
 
@@ -156,11 +156,11 @@ To get started with your data pipeline, follow these steps:
    impersonated_email = "please set me up"
    ```
 
-   - `dev_token` is the developer token that lets you connect to the Google Ads API.
-   - `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
+  - `dev_token` is the developer token that lets you connect to the Google Ads API.
+  - `customer_id` in Google Ads is a unique three-part number (formatted as XXX-XXX-XXXX) that identifies
    and helps manage individual Google Ads accounts. It is used for API access and account operations, and
    is visible in the top right corner of your Google Ads dashboard.
-   - `impersonated_email` enables secure access to Google Ads accounts through the API using a service account,
+  - `impersonated_email` enables secure access to Google Ads accounts through the API using a service account,
    while leveraging the permissions of a specific user within the Ads platform.
 
 1. Next, for service account authentication:

@@ -55,11 +55,11 @@ one, follow these steps:
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the
       "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 ### Grab Google OAuth credentials
 

@@ -14,15 +14,19 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
 1. In this guide, we'll be setting up the dlt
    [Notion verified source](../../dlt-ecosystem/verified-sources/notion). However, you can use any verified source or create a custom one to suit your needs.
 1. In the terminal:
-   - Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
+
+
+  - Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
 
      ```sh
      dlt init notion bigquery
      ```
 
-   - After the command executes, new files and folders with the necessary configurations are created in the main directory where the command was executed.
+  - After the command executes, new files and folders with the necessary configurations are created in the main directory where the command was executed.
 
-   - Detailed information about initializing a verified source and a pipeline example can be found in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
+  - Detailed information about initializing a verified source and a pipeline example can be found in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
+
+
 1. Create a new Python file called "main.py" in the main directory. The file can be configured as follows:
 
    ```py

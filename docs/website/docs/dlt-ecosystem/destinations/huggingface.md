@@ -93,6 +93,7 @@ The Hugging Face destination supports two write dispositions:
 The Hugging Face destination **always uses [Parquet](../file-formats.md#parquet)** as the file format, regardless of other configuration. This is required because the [Hugging Face dataset viewer](https://huggingface.co/docs/dataset-viewer/index) needs Parquet files to preview datasets on the Hub.
 
 The Parquet files are written with:
+
 - **Page index** ([Apache Parquet page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md)) for efficient column statistics and skipping
 - **[Content-defined chunking](https://huggingface.co/blog/parquet-cdc)** for efficient versioned storage on the Hub
 

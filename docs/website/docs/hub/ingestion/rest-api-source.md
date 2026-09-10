@@ -294,10 +294,12 @@ uv run dlthub ai toolkit install dlthub-platform
 ## Results
 
 By the end of this guide, you should have:
+
 - A workspace with coding assistant rules and MCP tools configured
 - A working REST API source with validated endpoints
 - A local dataset you have inspected and verified
 
 Next steps:
+
 - [Explore the dataset and build a data product](../../general-usage/dataset-access/dataset.md)
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

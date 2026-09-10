@@ -149,6 +149,7 @@ pip install adbc-driver-postgresql
 with this driver installed, you can set `parquet` as `loader_file_format` for `dlt` resources.
 
 Not all `postgres` types are supported, see driver docs for more details:
+
 * `JSONB` is not supported so we use `JSON` instead if the resource was explicitly decorated.
 * `INT8` (128 bit) not supported and `TIME(3)` (millisecond precision) are not supported
 * We observed problems with some decimal precision/scale i.e. `decimal128(6, 2)` is not properly decoded.

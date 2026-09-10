@@ -783,8 +783,8 @@ During normalization, `dlt` adds internal `dlt` columns to your SQL queries, bas
     When enabled and the column is not in the query, dlt generates a `_dlt_id`. When the column is already present, dlt does **not** replace it.
 
     The `_dlt_id` column is generated using the destination's UUID function, such as `generateUUIDv4()` in ClickHouse. For dialects without native UUID support:
-     - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
-     - In **SQLite**, `_dlt_id` is simulated using `lower(hex(randomblob(16)))`.
+  - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
+  - In **SQLite**, `_dlt_id` is simulated using `lower(hex(randomblob(16)))`.
 
 
 #### Query transformations
@@ -909,6 +909,7 @@ warehouse_pipeline.run(orders_per_store(transit_pipeline.dataset()))
 ```
 
 This script:
+
 - fetches data from a REST API with dlt's `rest_api_source`
 - loads the raw data into a local DuckDB instance as an intermediate step
 - joins orders with stores and aggregates order counts on the local DuckDB instance, not in the destination warehouse

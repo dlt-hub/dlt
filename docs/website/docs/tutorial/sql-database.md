@@ -46,8 +46,8 @@ Here’s what each file does:
 - `sql_database_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of how you can configure your SQL Database pipeline.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
-    - `secrets.toml`: This file stores your credentials, API keys, tokens, and other sensitive information.
-    - `config.toml`: This file contains the configuration settings for your `dlt` project.
+  - `secrets.toml`: This file stores your credentials, API keys, tokens, and other sensitive information.
+  - `config.toml`: This file contains the configuration settings for your `dlt` project.
 
 :::note
 When deploying your pipeline in a production environment, managing all configurations with the TOML files might not be convenient. In this case, we highly recommend using environment variables or other [configuration providers](../general-usage/credentials/setup) available in dlt to store secrets and configs instead.
@@ -92,9 +92,10 @@ if __name__ == '__main__':
 ```
 
 Explanation:
+
 - The `sql_database` source has two built-in helper functions: `sql_database()` and `sql_table()`:
-    - `sql_database()` is a [dlt source function](../general-usage/source) that iteratively loads the tables (in this example, `"family"` and `"genome"`) passed inside the `with_resources()` method.
-    - `sql_table()` is a [dlt resource function](../general-usage/resource) that loads standalone tables. For example, if we wanted to only load the table `"family"`, then we could have done it using `sql_table(table="family")`.
+  - `sql_database()` is a [dlt source function](../general-usage/source) that iteratively loads the tables (in this example, `"family"` and `"genome"`) passed inside the `with_resources()` method.
+  - `sql_table()` is a [dlt resource function](../general-usage/resource) that loads standalone tables. For example, if we wanted to only load the table `"family"`, then we could have done it using `sql_table(table="family")`.
 - `dlt.pipeline()` creates a `dlt` pipeline with the name `"sql_to_duckdb_pipeline"` with the destination DuckDB.
 - `pipeline.run()` method loads the data into the destination.
 
@@ -126,6 +127,7 @@ For more details on the credentials format and other connection methods, read th
 ## 4. Install dependencies
 
 Before running the pipeline, make sure to install all the necessary dependencies:
+
 1. **General dependencies**: These are the general dependencies needed by the `sql_database` source.
 
     ```sh
@@ -275,11 +277,13 @@ In the first run of the pipeline `python sql_database_pipeline.py`, the entire t
 Congratulations on completing the tutorial! You learned how to set up a SQL Database source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
+
 - Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
 - [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 
 Interested in learning more about dlt? Here are some suggestions:
+
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)
 - Learn how to extract [single tables and use fast `arrow` and `connectorx` backends](../dlt-ecosystem/verified-sources/sql_database/configuration.md)
 - Learn how to [rewrite table schemas and queries](../dlt-ecosystem/verified-sources/sql_database/usage.md)

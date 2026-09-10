@@ -25,7 +25,7 @@ pip install "dlt[synapse]"
     This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
 
     Supported driver versions:
-    * `ODBC Driver 18 for SQL Server`
+  * `ODBC Driver 18 for SQL Server`
 
     > 💡 Older driver versions do not work properly because they do not support the `LongAsMax` keyword that was [introduced](https://learn.microsoft.com/en-us/sql/connect/odbc/windows/features-of-the-microsoft-odbc-driver-for-sql-server-on-windows?view=sql-server-ver15#microsoft-odbc-driver-180-for-sql-server-on-windows) in `ODBC Driver 18 for SQL Server`. Synapse does not support the legacy ["long data types"](https://learn.microsoft.com/en-us/sql/t-sql/data-types/ntext-text-and-image-transact-sql), and requires "max data types" instead. `dlt` uses the `LongAsMax` keyword to automatically do the conversion.
 * **Azure Synapse Workspace and dedicated SQL pool**
@@ -175,11 +175,13 @@ info = pipeline.run(
 ```
 
 Possible values:
+
 * `heap`: create [HEAP](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#heap-tables) tables that do not have an index **(default)**
 * `clustered_columnstore_index`: create [CLUSTERED COLUMNSTORE INDEX](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql-data-warehouse/sql-data-warehouse-tables-index#clustered-columnstore-indexes) tables
 
 
 > ❗ Important:
+
 >* **Set `default_table_index_type` to `"clustered_columnstore_index"` if you want to change the default** (see [additional destination options](#additional-destination-options)).
 >* **CLUSTERED COLUMNSTORE INDEX tables do not support the `varchar(max)`, `nvarchar(max)`, and `varbinary(max)` data types.** If you don't specify the `precision` for columns that map to any of these types, `dlt` will use the maximum lengths `varchar(4000)`, `nvarchar(4000)`, and `varbinary(8000)`.
 >* **While Synapse creates CLUSTERED COLUMNSTORE INDEXES by default, `dlt` creates HEAP tables by default.** HEAP is a more robust choice because it supports all data types and doesn't require conversions.
@@ -239,6 +241,7 @@ destination.synapse.credentials = "synapse://loader:your_loader_password@your_sy
 ```
 
 Descriptions:
+
 - `default_table_index_type` sets the [table index type](#table-index-type) that is used if no table index type is specified on the resource.
 - `create_indexes` determines if `primary_key` and `unique` [column hints](#supported-column-hints) are applied.
 - `staging_use_msi` determines if the Managed Identity of the Synapse workspace is used to authorize access to the [staging](#staging-support) Storage Account. Ensure the Managed Identity has the [Storage Blob Data Reader](https://learn.microsoft.com/en-us/azure/role-based-access-control/built-in-roles#storage-blob-data-reader) role (or a higher-privileged role) assigned on the blob container if you set this option to `"true"`.

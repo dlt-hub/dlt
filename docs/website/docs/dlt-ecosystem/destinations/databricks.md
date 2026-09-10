@@ -97,6 +97,7 @@ If you already have your Databricks workspace set up, you can skip to the [Loade
 ## Authentication
 
 `dlt` currently supports two options for authentication:
+
 1. [OAuth2](#using-oauth2) (recommended) allows you to authenticate to Databricks using a service principal via OAuth2 M2M.
 2. [Access token](#using-access-token) approach using a developer access token. This method may be deprecated in the future by Databricks.
 
@@ -670,6 +671,7 @@ The adapter updates the DltResource with metadata about the destination column a
 ### Supported hints
 
 Table-level hints:
+
 - `cluster`: Column name(s) to cluster the table by, or `"AUTO"` for automatic clustering
 - `partition`: Column name(s) to partition the table by (Note: Cannot be used together with `cluster`)
 - `table_format`: Table format - `"DELTA"` (default) or `"ICEBERG"` for Apache Iceberg tables
@@ -679,6 +681,7 @@ Table-level hints:
 - `insert_api`: Ingestion backend for `append` write disposition. Can be `"copy_into"` or `"zerobus"`. Overrides the destination-wide `insert_api` setting for the resource.
 
 **Column-level hints:**
+
 - `column_hints`: Dictionary of column-specific hints
   - `column_comment`: Adds a comment to the column. Supports basic markdown format [basic-syntax](https://www.markdownguide.org/cheat-sheet/#basic-syntax)
   - `column_tags`: Adds tags to the column. Supports a list of strings and/or key-value pairs
@@ -810,6 +813,7 @@ databricks_adapter(
 Databricks supports Apache Iceberg table format, which provides benefits like better schema evolution and time travel capabilities.
 
 Important notes:
+
 - ICEBERG tables support the same data types as Delta tables
 - Delta Lake-specific table properties (e.g., `delta.dataSkippingStatsColumns`, `delta.appendOnly`) cannot be used with ICEBERG tables - validation occurs at load time to prevent incompatible configurations
 
@@ -962,6 +966,7 @@ pip install dlt
 The location of `DeltaLiveTablesHook.py` might change when a new Databricks runtime version is released.
 
 The following locations have been confirmed for the two latest LTS runtime versions:
+
 - 16.4 LTS: /databricks/python_shell/lib/dbruntime/dlt/hook.py
 - 15.4 LTS: /databricks/python_shell/lib/dbruntime/DeltaLiveTablesHook.py
 :::

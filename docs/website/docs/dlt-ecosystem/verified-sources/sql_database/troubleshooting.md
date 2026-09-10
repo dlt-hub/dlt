@@ -49,6 +49,7 @@ Copy the column name from that output, case included, and pass it to `dlt.source
 
 If you set incremental column on low resolution column (i.e. of type **date**) then `dlt` will [deduplicate](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges) such data by default. For low resolution column you may have many rows associated with a single
 cursor value and since hashes of such rows are stored in state - you will get large pipeline state. You can avoid that in many ways:
+
 1. [set the comparison to exclusive](advanced.md#inclusive-and-exclusive-filtering) but make sure that rows are not added with the last cursor column value
 between runs (i.e. if you have column on a **day** column and between runs, rows are added to that day - with open range those rows will be skipped)
 2. use high resolution cursor columns (i.e. **datetime** type) so not many rows are associated with single value.

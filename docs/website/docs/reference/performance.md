@@ -86,6 +86,7 @@ Instead of using Python Requests directly, you can use the built-in [requests wr
 ### Use built-in JSON parser
 
 `dlt` uses **orjson** if available. If not, it falls back to **simplejson**. The built-in parsers serialize several Python types:
+
 - Decimal
 - DateTime, Date
 - Dataclasses
@@ -115,6 +116,7 @@ json.set_custom_encoder(my_custom_encoder)
 
 :::tip
 **orjson** is fast and available on most platforms. It uses binary streams, not strings, to load data natively.
+
 - Open files as binary, not string, to use `load` and `dump`.
 - Use `loadb` and `dumpb` methods to work with bytes without decoding strings.
 
@@ -134,6 +136,7 @@ DLT_USE_JSON=simplejson
 ### Controlling in-memory buffers
 
 `dlt` maintains in-memory buffers when writing intermediary files in the **extract** and **normalize** stages. The size of the buffers is controlled by specifying the number of data items held in them. Data is appended to open files when the item buffer is full, after which the buffer is cleared. You can specify the buffer size via environment variables or in `config.toml` to be more or less granular:
+
 * set all buffers (both extract and normalize)
 * set extract buffers separately from normalize buffers
 * set extract buffers for a particular source or resource
@@ -164,6 +167,7 @@ processing.
 ### Controlling intermediary file size and rotation
 
 `dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. Keep in mind that the file size is computed after compression has been performed.
+
 * `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats.md#jsonl) between the **extract** and **normalize** stages.
 * Files created between the **normalize** and **load** stages are the same files that will be loaded to the destination.
 
@@ -506,6 +510,7 @@ The intermediary files generated during the **normalize** stage are also used in
 ### Parallel pipeline config example
 
 The example below simulates the loading of a database table with 100,000 records. The **config.toml** below sets the parallelization as follows:
+
 * During extraction, files are rotated each 10,000 items, so there are 10 files with data for the same table.
 * The normalizer will process the data in 3 processes.
 * We use JSONL to load data to duckdb. We rotate JSONL files each 10,000 items so 10 files will be created.
@@ -709,8 +714,10 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 1. Do not run pipelines with the same name and working dir in parallel on the same machine. dlt will not be able to manage state and temporary files properly if you do this.
 
 2. If you're running multiple pipelines in parallel that write to the same destination dataset and use a staging area, make sure to do one of the following:
-    - Assign a unique subfolder in the staging destination bucket for each pipeline, or
-    - [Disable automatic cleanup of the staging area](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) after each load for all pipelines.
+
+
+  - Assign a unique subfolder in the staging destination bucket for each pipeline, or
+  - [Disable automatic cleanup of the staging area](../dlt-ecosystem/staging#how-to-prevent-staging-files-truncation) after each load for all pipelines.
 
     If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 

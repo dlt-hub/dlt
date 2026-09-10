@@ -25,6 +25,7 @@ The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destina
 This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
 
 Supported driver versions:
+
 * `ODBC Driver 18 for SQL Server` (recommended)
 * `ODBC Driver 17 for SQL Server`
 
@@ -41,6 +42,7 @@ Fabric Warehouse requires Azure Active Directory Service Principal authenticatio
 5. **Database**: The database name within your warehouse
 
 **Finding your SQL endpoint:**
+
 - In the Fabric portal, go to your warehouse **Settings**
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
@@ -120,6 +122,7 @@ azure_client_secret = "your-client-secret"
 ```
 
 **Finding your GUIDs**:
+
 1. Navigate to your Fabric workspace in the browser
 2. The workspace GUID is in the URL: `https://fabric.microsoft.com/groups/<workspace_guid>/...`
 3. Open your Lakehouse
@@ -167,6 +170,7 @@ Fabric Warehouse differs from standard SQL Server in several important ways:
 
 Fabric Warehouse uses `varchar` for text columns instead of `nvarchar`. Because `varchar` lengths are counted in
 bytes while `precision` counts characters, the precision is multiplied by 4 (the worst case for UTF-8):
+
 - `text` → `varchar(max)`
 - `text` with `precision` → `varchar(precision * 4)`, for example `precision=25` → `varchar(100)`
 - `text` with `precision` above 2000 → `varchar(max)`, since 8000 is the longest length Fabric accepts
@@ -174,6 +178,7 @@ bytes while `precision` counts characters, the precision is multiplied by 4 (the
 ### DATETIME2 vs DATETIMEOFFSET
 
 Fabric uses `datetime2` for timestamps instead of `datetimeoffset`:
+
 - `timestamp` → `datetime2(6)` (precision limited to 0-6, not 0-7)
 - `time` → `time(6)` (explicit precision required)
 
@@ -251,6 +256,7 @@ sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
 ### Authentication Failures
 
 Ensure your Service Principal has:
+
 - Proper permissions on the Fabric workspace
 - Access to the target database/warehouse  
 - Correct tenant ID (your Azure AD tenant, not the workspace/capacity ID)
@@ -258,6 +264,7 @@ Ensure your Service Principal has:
 ### UTF-8 Character Issues
 
 If you experience character encoding issues:
+
 1. Verify your warehouse uses a UTF-8 collation
 2. Check that `LongAsMax=yes` is in the connection (automatically added by this destination)
 3. Consider using the case-insensitive UTF-8 collation if needed

@@ -20,9 +20,11 @@ Deploy the pipeline using Google Cloud Run jobs. First, navigate to the director
      dlt init notion bigquery
      ```
 
-   - After the command executes, new files and folders with the necessary configurations are created in the main directory.
+  - After the command executes, new files and folders with the necessary configurations are created in the main directory.
 
-   - Detailed information about initializing a verified source and a pipeline example is available in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
+  - Detailed information about initializing a verified source and a pipeline example is available in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
+
+
 1. Create a new file named "Procfile" in the main directory and configure it as follows:
 
    ```text

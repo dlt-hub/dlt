@@ -12,6 +12,7 @@ import Header from '../_source-info-header.md';
 ## Select tables to load
 
 `dlt` sources are Python scripts made up of source and resource functions that can be easily customized. The SQL Database verified source has the following built-in source and resource:
+
 1. `sql_database`: a `dlt` source that can be used to load multiple tables and views from a SQL database.
 2. `sql_table`: a `dlt` resource that loads a single table from the SQL database.
 
@@ -493,6 +494,7 @@ For more information on the `tz` parameter within `backend_kwargs` supported by 
 The `pandas` backend yields data as DataFrames using the `pandas.io.sql` module. `dlt` uses `PyArrow` dtypes by default as they generate more stable typing.
 
 With the default settings, several data types will be coerced to dtypes in the yielded data frame:
+
 * **decimal** is mapped to double, so it is possible to lose precision
 * **date** and **time** are mapped to strings
 * all types are nullable
@@ -540,7 +542,7 @@ There are certain limitations when using this backend:
 * Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`. We also observe that timestamps are not properly returned: tz-aware timestamps are passed without timezone, naive timestamps are passed as date64 which we internally cast back to naive timestamps.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
 * For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
-    * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
+  * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
 * Nullability of the columns is ignored (always true).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
 * JSON fields (at least those coming from PostgreSQL) are double-wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):

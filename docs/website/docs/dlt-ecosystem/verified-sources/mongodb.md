@@ -75,13 +75,13 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 1. View collections in a database:
 
-   1. Switch to the database:
+  1. Switch to the database:
 
       ```sh
       use your_database_name
       ```
 
-   1. Display its collections:
+  1. Display its collections:
 
       ```sh
       show collections

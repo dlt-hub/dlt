@@ -78,6 +78,7 @@ DESTINATION__BIGQUERY__LOCATION
 
 `dlt` supports reading credentials from Google Cloud Secret Manager. To enable this functionality you must provide
 credentials with following access permissions:
+
 * **roles/secretmanager.secretAccessor** to read particular secret
 * **roles/secretmanager.secretViewer** to list available secrets (optional but highly recommended)
 

@@ -68,6 +68,7 @@ If we don't provide these variables they will default to `iceberg_catalog_name =
 
 
 On top of this we will always require to provide a catalog configuration, either through dlt or through `pyiceberg`, dlt attempts to load your catalog in the following priority order:
+
 1. **Explicit config from `secrets.toml`** (highest priority) - If you provide `iceberg_catalog.iceberg_catalog_config` in your `secrets.toml`, dlt will use this configuration
 2. **PyIceberg's standard mechanisms** - If no explicit config is found, dlt delegates to `pyiceberg`'s `load_catalog`, which searches for `.pyiceberg.yaml` or `PYICEBERG_CATALOG_*` environment variables
 3. **Ephemeral SQLite catalog** (fallback) - If no configuration is found, dlt creates an in-memory SQLite catalog for backward compatibility and creates the configuration

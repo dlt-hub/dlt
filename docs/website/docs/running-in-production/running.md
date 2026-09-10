@@ -328,6 +328,7 @@ def check(ex: Exception):
 
 If pipeline fails, your best course of action is to retry as described [below](#retry-helpers-and-tenacity). You also have tools to
 investigate the incident, fix it or start from scratch.
+
 * in `extract` and `normalize` steps you can just abort the package and start from scratch - `dlt` will rollback state and schema changes. Read the section below for details (`load` step abort procedure applies).
 * in `load` step you have more options - read the section below to understand how `dlt` deals with partial loads and inconsistent data.
 
@@ -634,10 +635,12 @@ print(len(dataset["my_table__items"].fetchall()))
 :::tip
 Here's how to lower the chances of having your destination dataset in
 inconsistent state.
+
 1. `replace` write disposition with the default `truncate-and-insert` [strategy](../general-usage/full-loading.md) will truncate tables before loading.
 2. `merge` write disposition will merge staging dataset tables into the destination dataset. This will happen only when all data for this table (and nested tables) got loaded.
 
 Here's what you can do to deal with partially loaded packages:
+
 1. Retry the load step in case of transient errors.
 2. Use replace strategy with staging dataset so replace happens only when data for the table (and all nested tables) was fully loaded and is an atomic operation (if possible).
 3. Use only "append" write disposition. When your load package fails, you are able to use `_dlt_load_id` to remove all unprocessed data.
@@ -767,6 +770,7 @@ if __name__ == "__main__":
 
 `dlt` attempts a graceful shutdown of a running pipeline by installing custom signal handlers. In those handlers SIGINT (Ctrl-C) and SIGTERM
 are intercepted. Handlers are activated when pipeline runs and have the following effect:
+
 - `normalize` step: raises `SignalReceivedException` at certain checkpoints, typically immediately.
 - `load` step: on the first received signal, it attempts to drain the job pool by not accepting new load jobs and waiting for executing jobs to complete.
    On a second signal, the default handler is called, resulting in a `KeyboardInterrupt` or immediate process termination (SIGTERM).
@@ -815,6 +819,7 @@ with signals.intercepted_signals():
 ```
 
 Signal interception works in orchestrators that run your code in a separate process and propagate SIGTERM/SIGINT:
+
 - Dagster: default multiprocess and Kubernetes executors start a process per op/run; Kubernetes will send SIGTERM, respect the Pod grace period. Avoid thread-based executors for the pipeline step or wrap with `intercepted_signals` as shown above.
 - Airflow: task runners execute each task in its own process (Local/Celery/Kubernetes executors). On cancel/timeout, the task process receives SIGTERM then SIGKILL; if using KubernetesExecutor, rely on the Pod grace period.
 - Prefect: Subprocess flow/task runners and Kubernetes jobs deliver SIGTERM to your process; if you use thread-based concurrency inside a task, wrap the outermost entrypoint with intercepted_signals.

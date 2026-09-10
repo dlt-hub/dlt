@@ -130,6 +130,7 @@ timeout = "300s"
 ## Catalog and storage
 
 The `lance` destination uses a [Lance Namespace](https://lance.org/format/namespace/) as catalog. Two different namespace specs are currently supported:
+
 - [Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) — used by default
 - [REST Namespace](https://lance.org/format/namespace/rest/catalog-spec/)  — experimental support only
 

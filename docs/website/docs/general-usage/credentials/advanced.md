@@ -89,11 +89,14 @@ def google_sheets(
 ```
 
 Benefits:
+
 1. You'll receive a properly typed list of strings as `tab_names`.
 2. You'll receive properly configured Google credentials (see [GCP Credential Configuration](complex_types#gcp-credentials)), which users can provide in different forms:
-   * `service.json` as a string or dictionary (in code or via config providers)
-   * Connection string (used in SQL Alchemy)
-   * Default credentials if nothing is passed (such as those available on Cloud Function runners)
+
+
+  * `service.json` as a string or dictionary (in code or via config providers)
+  * Connection string (used in SQL Alchemy)
+  * Default credentials if nothing is passed (such as those available on Cloud Function runners)
 
 ## Organize configuration and secrets with sections
 
@@ -237,6 +240,7 @@ def google_sheets(
 The `@dlt.source` decorator makes all arguments in the function configurable. The special defaults `dlt.secrets.value` and `dlt.config.value` indicate to `dlt` that these arguments are required and must either be passed explicitly or exist in the configuration. Additionally, `dlt.secrets.value` designates an argument as a secret.
 
 In this example:
+
 - `spreadsheet_id` is a **required config** argument
 - `tab_names` is a **required config** argument
 - `credentials` is a **required secret** argument (Google Sheets credentials as a dictionary)

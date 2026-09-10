@@ -89,10 +89,12 @@ All [write dispositions](../../general-usage/incremental-loading#choosing-a-writ
 [SQL Insert](../file-formats.md#sql-insert) is used by default.
 
 When staging is enabled:
+
 * [JSONL](../file-formats.md#jsonl) is used by default.
 * [Parquet](../file-formats.md#parquet) is supported.
 
 :::warning
+
 - **Redshift cannot load `VARBYTE` columns from JSON files**. `dlt` will fail such jobs permanently. Switch to Parquet to load binaries.
 
 - **Redshift cannot load `TIME` columns from JSON or Parquet files**. `dlt` will fail such jobs permanently. Switch to direct `insert_values` to load time columns.
@@ -128,6 +130,7 @@ Redshift supports s3 as a file staging destination. `dlt` will upload files in t
 
 :::note
 If the S3 bucket is in a different region than your Redshift cluster:
+
 - You must set `region_name` in `[destination.filesystem.credentials]` in your `config.toml` file to ensure proper access
 - For Parquet files, cross-region COPY operations are not supported by Redshift, so the region setting will be ignored
 :::

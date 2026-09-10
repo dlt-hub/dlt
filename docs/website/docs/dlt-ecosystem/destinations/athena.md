@@ -169,13 +169,14 @@ aws_data_catalog="s3tablescatalog/[your_table_bucket_name]"  # replace with your
 `dlt` assumes you already have a table bucket that's integrated with AWS analytics services. If that's not the case, look at these [instructions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-getting-started.html#s1-tables-tutorial-create-bucket).
 
 Using S3 Tables with Athena implies that:
+
 - data is stored in Iceberg tables
 - table locations are managed by the S3 Tables Catalog 
 - the `table_location_layout` setting is ignored
 - the `s3_tables` [naming convention](../../general-usage/naming-convention.md#available-naming-conventions) is used
 - **production (non-staging)** and **staging tables** are registered in separate catalogs:
-    - *production:* S3 Tables Catalog
-    - *staging:* regular catalog
+  - *production:* S3 Tables Catalog
+  - *staging:* regular catalog
 
 When `staging_aws_data_catalog` is not specified, `dlt` normally uses the same catalog for both staging and production tables. However, when using an S3 Tables Catalog, the staging catalog defaults to `awsdatacatalog` because staging tables are not Iceberg tables and cannot be registered in the S3 Tables Catalog.
 
@@ -183,6 +184,7 @@ When `staging_aws_data_catalog` is not specified, `dlt` normally uses the same c
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
+
 - `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append` (unless you're using [iceberg](#iceberg-data-tables) tables).
@@ -208,6 +210,7 @@ Athena does not support JSON fields, so JSON is stored as a string.
 Athena uses case-insensitive identifiers and **will lowercase all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway, and you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 Under the hood, Athena uses different SQL engines for DDL (catalog) and DML/Queries:
+
 * DDL uses HIVE escaping with ``````
 * Other queries use PRESTO and regular SQL escaping.
 
@@ -216,6 +219,7 @@ Under the hood, Athena uses different SQL engines for DDL (catalog) and DML/Quer
 Using a staging destination is mandatory when using the Athena destination. If you do not set staging to `filesystem`, `dlt` will automatically do this for you.
 
 If you decide to change the [filename layout](./filesystem#files-layout) from the default value, keep the following in mind so that Athena can reliably build your tables:
+
  - You need to provide the `{table_name}` placeholder, and this placeholder needs to be followed by a forward slash.
  - You need to provide the `{file_id}` placeholder, and it needs to be somewhere after the `{table_name}` placeholder.
  - `{table_name}` must be the first placeholder in the layout.
@@ -293,6 +297,7 @@ enabled = false
 The `merge` write disposition is supported for Athena when using Iceberg tables.
 
 :::note
+
 1. There is a risk of tables ending up in an inconsistent state in case a pipeline run fails mid-flight because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`.
 2. `dlt` creates additional helper tables called `insert_<table name>` and `delete_<table name>` in the staging schema to work around Athena's lack of temporary tables.
 :::

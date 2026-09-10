@@ -107,6 +107,7 @@ The workspace automatically uses the active profile's configuration, secrets, an
 :::tip
 Profiles isolate not only configuration but also pipeline runs. Each profile has a separate working directory (`.dlt/state/<profile>/`) and
 local data directory (`.dlt/data/<profile>/`). This makes it easy to:
+
 1. Clean up your workspace and start over (`dlthub local clean`)
 2. Switch to the `tests` profile when running `pytest` (for example, using a fixture) so you can develop on the `dev` profile interactively while running tests in parallel in isolation
 :::

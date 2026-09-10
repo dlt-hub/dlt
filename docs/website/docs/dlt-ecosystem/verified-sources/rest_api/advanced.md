@@ -6,10 +6,12 @@ keywords: [api, http, rest, restful, requests, restclient, paginate, pagination,
 # REST API helpers
 
 dlt has built-in support for fetching data from APIs:
+
 - RESTClient for interacting with RESTful APIs and paginating the results
 - Requests wrapper for making simple HTTP requests with automatic retries and timeouts
 
 Additionally, dlt provides tools to simplify working with APIs:
+
 - [REST API generic source](./basic) integrates APIs using a declarative configuration to minimize custom code.
 - [OpenAPI source generator](../openapi-generator) automatically creates declarative API configurations from [OpenAPI specifications](https://swagger.io/specification/).
 
@@ -46,6 +48,7 @@ print(load_info)
 ```
 
 Here's what the code does:
+
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the GitHub API ([https://api.github.com](https://api.github.com)).
 2. The issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
 3. Here we specify the address of the endpoint we want to read from: `/repos/dlt-hub/dlt/issues`.
@@ -87,6 +90,7 @@ print(load_info)
 ```
 
 In the example above:
+
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONLinkPaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
 2. In `data_selector`, we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
 3. By default, the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.
@@ -94,6 +98,7 @@ In the example above:
 ## RESTClient
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
+
 - automatic pagination,
 - various authentication mechanisms,
 - customizable request/response handling.
@@ -781,6 +786,7 @@ The REST client acts as the OAuth client, which obtains a temporary access token
 Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to subclass `OAuth2ClientCredentials` and implement `build_access_token_request()` to suit the requirements of the specific authorization server you want to interact with.
 
 **Parameters:**
+
 - `access_token_url`: The URL to obtain the temporary access token.
 - `client_id`: Client identifier to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.

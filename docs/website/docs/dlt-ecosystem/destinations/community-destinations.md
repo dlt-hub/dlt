@@ -17,6 +17,7 @@ We've got several destinations contributed by our community. [They are not part 
 by: [phaethon](https://github.com/phaethon)
 
 Implementation of Starrocks support as a separate destination. Starrocks is an MPP (Massively Parallel Processing) database designed for real-time analytics. This adapter implements two loading methods:
+
 - **Stream Load**: Direct streaming of data into Starrocks
 - **INSERT INTO SELECT FROM FILES**: Loading data from S3-compatible staging storage for improved performance with large datasets
 
@@ -32,6 +33,7 @@ PR with discussion:
 by: [zstipanicev](https://github.com/zstipanicev)
 
 When Clickhouse is deployed with replicas and distributed tables, standard DDL & DML statements need to be modified to work across the cluster. This implementation adds:
+
 - **ON CLUSTER** clauses to DDL statements to execute across all nodes
 - Creation of **base table and distributed table pairs** (base tables use ReplicatedMergeTree, distributed tables use Distributed engine)
 - Modified ALTER, DROP, DELETE, UPDATE, and TRUNCATE operations to work with both table types
@@ -53,6 +55,7 @@ PR with discussion:
 by: [CrateDB](https://github.com/crate)
 
 CrateDB is a distributed SQL database built on top of Lucene, designed for real-time analytics on large datasets. This destination adapter wraps the PostgreSQL adapter with CrateDB-specific adjustments:
+
 - Compatibility with CrateDB's PostgreSQL wire protocol
 - Workarounds for system column naming restrictions (underscore-prefixed columns)
 - Support for CrateDB's **REFRESH TABLE** statements for consistency
