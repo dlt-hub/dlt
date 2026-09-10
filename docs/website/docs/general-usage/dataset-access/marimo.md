@@ -35,7 +35,7 @@ marimo edit my_notebook.py
 
 Here's a screenshot of the interface you should see:
 
-![](./static/marimo_notebook.png)
+![empty marimo notebook](./static/marimo_notebook.png)
 
 To run an existing local marimo notebook:
 ```sh
@@ -72,7 +72,7 @@ After loading data with dlt, you can access it via the [dataset interface](./dat
 
 In marimo, the **Datasources** panel provides a GUI to explore data tables and columns. When a cell contains a variable that's an ibis connection, it is automatically registered.
 
-![](./static/marimo_dataset.png)
+![marimo dataset viewer with ibis](./static/marimo_dataset.png)
 
 ### Accessing data with SQL
 
@@ -82,7 +82,7 @@ Clicking on the **Add table to notebook** button will create a new SQL cell that
 The **Datasources** displays a limited range of data types.
 :::
 
-![](./static/marimo_sql.png)
+![marimo SQL editor with ibis](./static/marimo_sql.png)
 
 
 ### Accessing data with Python
@@ -95,7 +95,7 @@ Use `.execute()`, `.to_pandas()`, `.to_polars()`, or `.to_pyarrow()` to execute 
 The **Datasources** displays a limited range of data types.
 :::
 
-![](./static/marimo_python.png)
+![marimo Python cell using the dlt dataset interface](./static/marimo_python.png)
 
 ### Create a dashboard and data apps
 

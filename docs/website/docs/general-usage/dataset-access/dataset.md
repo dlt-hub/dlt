@@ -1128,7 +1128,7 @@ marimo edit my_notebook.py
 
 The interface looks like this:
 
-![](./static/marimo_notebook.png)
+![empty marimo notebook](./static/marimo_notebook.png)
 
 
 ### Features
@@ -1161,7 +1161,7 @@ After loading data with dlt, you can access it via the dataset interface, includ
 
 In marimo, the **Datasources** panel provides a GUI to explore data tables and columns. marimo registers any cell variable that holds an ibis connection.
 
-![](./static/marimo_dataset.png)
+![marimo dataset viewer with ibis](./static/marimo_dataset.png)
 
 #### Access data with SQL
 
@@ -1171,7 +1171,7 @@ The **Add table to notebook** button creates a new SQL cell that you can use to 
 The **Datasources** panel displays a limited range of data types.
 :::
 
-![](./static/marimo_sql.png)
+![marimo SQL editor with ibis](./static/marimo_sql.png)
 
 
 #### Access data with Python
@@ -1184,7 +1184,7 @@ Use `.execute()`, `.to_pandas()`, `.to_polars()`, or `.to_pyarrow()` to run the 
 The **Datasources** panel displays a limited range of data types.
 :::
 
-![](./static/marimo_python.png)
+![marimo dataset viewer with ibis](./static/marimo_python.png)
 
 #### Create a dashboard and data apps
 

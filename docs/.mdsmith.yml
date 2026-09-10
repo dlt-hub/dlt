@@ -136,12 +136,13 @@ rules:
 #         field: ""
 #         include: []
 ignore: [
+  # ignored because this file is dynamically generated;
   "website/docs/reference/command-line-interface.md",
 ]
 overrides: []
 # front-matter: true
 categories:
-    accessibility: false
+    accessibility: true
     code: false
     directive: false
     heading: false
@@ -155,5 +156,5 @@ categories:
 files:
     - '**/website/docs*.md'
     - '**/website/docs*.markdown'
-# follow-symlinks: false
+follow-symlinks: false
 # max-input-size: ""
