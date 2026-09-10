@@ -20,7 +20,7 @@ In this example you will learn to:
 
 ### Full source code
 
-```py
+```py execute
 import os
 import re
 import dlt
