@@ -19,7 +19,7 @@ A **data quality metric** or **metric** a function applied to data that returns 
 
 ### Define metrics
 
-#### Static
+#### Static metrics
 
 You can define metrics along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_metrics`. It's available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
 
@@ -67,7 +67,7 @@ def crm():
     return [customers]
 ```
 
-#### Dynamic
+#### Dynamic metrics
 
 Similar to the static approach, you can add metrics to an instantiated resource or source object using `with_metrics`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
 
@@ -198,7 +198,7 @@ A **test** verifies that **code** behaves as expected. A **check** verifies that
 
 ### Define checks
 
-#### Static
+#### Static checks
 
 You can define checks along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_checks` available under the `dlt.hub.data_quality` module. Inside the decorator, you can set the individual checks available through `dq.checks.`.
 
@@ -216,7 +216,7 @@ def orders():
     yield from [...]
 ```
 
-#### Dynamic
+#### Dynamic checks
 
 Similar to the static approach, you can add checks to an instantiated resource or source object using `with_checks`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
 

@@ -179,7 +179,7 @@ is stored in `/home/me/data/chess_data__games.db`
 
 **Note**: If the dataset name is `main`, no additional file is created as this is the default SQLite database.
 
-### In-memory databases
+### In-memory SQLite
 
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
@@ -307,7 +307,7 @@ Relative database paths are placed in the pipeline's local directory, same as fo
 
 **Note**: Prefer the native [DuckDB destination](duckdb.md). Use SQLAlchemy when you need full control over the engine, e.g., to `ATTACH` encrypted database files with connection setup SQL.
 
-### In-memory databases
+### In-memory DuckDB
 
 An in-memory DuckDB database is private to each connection. Pass an `Engine` that shares a single connection and load sequentially:
 

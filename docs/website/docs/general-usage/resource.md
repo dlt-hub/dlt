@@ -127,7 +127,7 @@ You can use `nested_hints` primarily to set column hints and schema contract, th
 
 * `file_format` has no effect (not implemented yet)
 * `write_disposition` works as expected but leads to unintended consequences (i.e. you can set nested table to `replace`) while root table is `append`.
-* `references` will create [table references](schema.md#table-references-1) (annotations) as expected.
+* `references` will create [table references](schema.md#table-reference-hints) (annotations) as expected.
 * `primary_key` and `merge_key`: **setting those will convert nested table into a regular table, with a separate write disposition, file format etc.**
 [It allows you to create custom table relationships i.e. using natural primary and foreign keys present in the data.](schema.md#generate-custom-linking-for-nested-tables)
 

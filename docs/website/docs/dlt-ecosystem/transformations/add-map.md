@@ -137,8 +137,6 @@ The difference between `add_map` and `add_yield_map` matters when a transformati
 - You use a regular function that returns one modified item.
 - Great for adding fields or changing structure.
 
-#### Example
-
 ```py
 import dlt
 
@@ -156,7 +154,7 @@ for row in resource():
     print(row)
 ```
 
-#### Output
+Output
 
 ```sh
 {'name': 'Alice', 'greeting': 'Hello, Alice!'}
@@ -169,7 +167,7 @@ for row in resource():
 - Your function is a generator that uses yield.
 - Great for pivoting nested data, flattening lists, or filtering rows.
 
-#### Example
+Example
 
 ```py
 import dlt
@@ -191,7 +189,7 @@ for row in resource():
     print(row)
 ```
 
-#### Output
+Output
 
 ```sh
 {'name': 'Alice', 'hobby': 'reading'}

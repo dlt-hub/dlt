@@ -667,7 +667,7 @@ You can use the `databricks_adapter` function to add Databricks-specific hints t
 
 The adapter updates the DltResource with metadata about the destination column and table DDL options.
 
-### Supported hints
+### Supported hints (adapter)
 
 Table-level hints:
 
