@@ -3,7 +3,6 @@ title: LanceDB
 description: LanceDB is a multimodal lakehouse for AI that can be used as a destination in dlt.
 keywords: [ lancedb, vector database, destination, dlt ]
 ---
-
 # LanceDB
 
 [LanceDB](https://lancedb.com/) is a multimodal lakehouse for AI, built on top of [Lance](https://lance.org), an open-source lakehouse format. It allows you to store data objects and perform similarity searches over them.
@@ -80,6 +79,7 @@ Local database name and location:
 :::
 
 ### Configure cloud destination
+
 `lance_uri` starting with **db://** schema is interpreted as location on LandeDB cloud. In that case you need to pass `api_key` in order to connect. `dlt` uses [the same names as LanceDB connect() function](https://lancedb.github.io/lancedb/python/python/#connections-synchronous):
 
 ```toml
@@ -206,6 +206,7 @@ info = pipeline.run(products_tables)
 ```
 
 ## Load data with Arrow or Pandas
+
 Both `dlt` and `LanceDB` support Arrow and Pandas natively. You will be able to [ingest data with high performance](../verified-sources/arrow-pandas.md) and without unnecessary rewrites and copies.
 
 If you plan to use `merge` write disposition, remember to [enable load ids](../verified-sources/) tracking for arrow tables.
@@ -254,6 +255,7 @@ with pipeline.destination_client() as job_client:  # type: ignore
 ```
 
 ## Bring your own vectors
+
 By default `dlt` will add a vector column automatically using the embeddings indicated in `lancedb_adapter`. You can also choose to pass vector data explicitly. Currently this function is available only if
 you yield Arrow tables with properly created schema. Remember to declare your vector as fixed length:
 

@@ -3,7 +3,6 @@ title: Explore and Transform your data with dltHub AI Harness
 description: Explore loaded pipeline data, build interactive dashboards, and transform data into a Canonical Data Model using dltHub AI Harness toolkits
 keywords: [cursor, claude, codex, llm, data exploration, transformations, marimo, dashboard, cdm, kimball, ai, workbench, toolkit]
 ---
-
 # Explore and Transform your data with dltHub AI Harness
 
 :::info

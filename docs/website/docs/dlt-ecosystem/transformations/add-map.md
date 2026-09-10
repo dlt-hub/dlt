@@ -3,11 +3,13 @@ title: Transform data with `add_map`
 description: Apply lightweight python transformations to your data inline using `add_map`.
 keywords: [add_map, transform data, remove columns]
 ---
+# Transform data with `add_map`
 
 `add_map` is a method in dlt used to apply custom logic to each data item after extraction. It is typically used to modify records **before** they continue through the pipeline or are loaded to the destination. Common examples include transforming, enriching, validating, cleaning, restructuring, or anonymizing data early in the pipeline.
 
 
 ## Method signature
+
 ### `add_map` method
 
 ```py
@@ -105,7 +107,7 @@ for user in transformed_users:
     print(user)
 ```
 
-**Expected output**
+Expected output
 
 ```py
 {'id': 1, 'first_name': 'John', 'last_name': 'Doe', 'email': '<hashed_value>', 'full_name': 'John Doe'}
@@ -133,6 +135,7 @@ The difference between `add_map` and `add_yield_map` matters when a transformati
 
 
 ### **`add_map`**
+
 - Use `add_map` when you want to transform each item into exactly one item.
 - Think of it like modifying or enriching a row.
 - You use a regular function that returns one modified item.
@@ -165,6 +168,7 @@ for row in resource():
 ```
 
 ### **`add_yield_map`**
+
 - Use `add_yield_map` when you want to turn one item into multiple items, or possibly no items.
 - Your function is a generator that uses yield.
 - Great for pivoting nested data, flattening lists, or filtering rows.

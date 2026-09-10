@@ -3,9 +3,9 @@ title: Dataframe (pandas, pyarrow, polars)
 description: dlt source for Arrow tables, Pandas dataframes, and Polars DataFrames
 keywords: [arrow, pandas, polars, parquet, source, schema mismatch]
 ---
-import Header from './_source-info-header.md';
-
 # Arrow table / Pandas / Polars
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -101,6 +101,7 @@ as it requires processing the table row by row and rewriting data to disk.
 The output file format is chosen automatically based on the destination's capabilities, so you can load arrow, pandas, or polars frames to any destination, but performance will vary.
 
 ### Destinations that support parquet natively for direct loading
+
 * duckdb / motherduck / ducklake
 * redshift
 * bigquery
@@ -197,6 +198,7 @@ Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to 
 :::
 
 ## Loading JSON documents
+
 If you want to skip the default `dlt` JSON normalizer, you can use any available method to convert JSON documents into tabular data.
 * **pandas** has `read_json` and `json_normalize` methods
 * **pyarrow** can infer the table schema and convert JSON files into tables with `read_json`
@@ -231,6 +233,7 @@ The Arrow data types are translated to dlt data types as follows:
 
 
 ## Loading nested types
+
 All struct types are represented as `json` and will be loaded as JSON (if the destination permits) or a string. Currently, we do not support **struct** types,
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 

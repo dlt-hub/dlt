@@ -3,9 +3,9 @@ title: Zendesk
 description: dlt pipeline for Zendesk API
 keywords: [zendesk api, zendesk pipeline, zendesk]
 ---
-import Header from './_source-info-header.md';
-
 # Zendesk
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

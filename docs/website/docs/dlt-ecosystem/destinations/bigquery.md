@@ -3,12 +3,11 @@ title: BigQuery
 description: Google BigQuery `dlt` destination
 keywords: [bigquery, destination, data warehouse]
 ---
-
 # Google BigQuery
 
 ## Install dlt with BigQuery
 
-**To install the dlt library with BigQuery dependencies:**
+To install the dlt library with BigQuery dependencies:
 
 ```sh
 pip install "dlt[bigquery]"
@@ -18,13 +17,13 @@ pip install "dlt[bigquery]"
 
 ## Setup guide
 
-**1. Initialize a project with a pipeline that loads to BigQuery by running:**
+1. Initialize a project with a pipeline that loads to BigQuery by running:
 
 ```sh
 dlt init chess bigquery
 ```
 
-**2. Install the necessary dependencies for BigQuery by running:**
+2. Install the necessary dependencies for BigQuery by running:
 
 ```sh
 pip install -r requirements.txt
@@ -32,15 +31,15 @@ pip install -r requirements.txt
 
 This will install dlt with the `bigquery` extra, which contains all the dependencies required by the BigQuery client.
 
-**3. Log in to or create a Google Cloud account**
+3. Log in to or create a Google Cloud account
 
 Sign up for or log in to the [Google Cloud Platform](https://console.cloud.google.com/) in your web browser.
 
-**4. Create a new Google Cloud project**
+4. Create a new Google Cloud project
 
 After arriving at the [Google Cloud console welcome page](https://console.cloud.google.com/welcome), click the project selector in the top left, then click the `New Project` button, and finally click the `Create` button after naming the project whatever you would like.
 
-**5. Create a service account and grant BigQuery permissions**
+5. Create a service account and grant BigQuery permissions
 
 You will then need to [create a service account](https://cloud.google.com/iam/docs/creating-managing-service-accounts#creating). After clicking the `Go to Create service account` button on the linked docs page, select the project you created and name the service account whatever you would like.
 
@@ -52,7 +51,7 @@ Click the `Continue` button and grant the following roles, so that `dlt` can cre
 
 You don't need to grant users access to this service account now, so click the `Done` button.
 
-**6. Download the service account JSON**
+6. Download the service account JSON
 
 In the service accounts table page that you're redirected to after clicking `Done` as instructed above, select the three dots under the `Actions` column for the service account you created and select `Manage keys`.
 
@@ -60,7 +59,7 @@ This will take you to a page where you can click the `Add key` button, then the 
 
 A `JSON` file that includes your service account private key will then be downloaded.
 
-**7. Update your `dlt` credentials file with your service account info**
+7. Update your `dlt` credentials file with your service account info
 
 Open your `dlt` credentials file:
 
@@ -174,6 +173,7 @@ streamed_resource.apply_hints(additional_table_hints={"x-insert-api": "streaming
 ```
 
 ### Use BigQuery schema autodetect for nested fields
+
 You can let BigQuery infer schemas and create destination tables instead of `dlt`. As a consequence, nested fields (i.e., `RECORD`), which `dlt` does not support at
 this moment (they are stored as JSON), may be created. You can select certain resources with the [BigQuery Adapter](#bigquery-adapter) or all of them with the following config option:
 
@@ -272,6 +272,7 @@ See the [example below](#use-an-adapter-to-apply-hints-to-a-resource) for how to
 :::
 
 ### Table and column identifiers
+
 BigQuery uses case-sensitive identifiers by default, and this is what `dlt` assumes. If the dataset you use has case-insensitive identifiers (you have such an option
 when you create it), make sure that you use a case-insensitive [naming convention](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) or you tell `dlt` about it so identifier collisions are properly detected.
 

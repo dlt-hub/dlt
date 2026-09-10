@@ -3,20 +3,21 @@ title: Troubleshoot
 description: common troubleshooting use-cases for the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Troubleshoot
 
 import Header from '../_source-info-header.md';
-
-# Troubleshoot
 
 <Header/>
 
 ## Timezone-aware and Non-aware Data Types
 
 ### I see a UTC datetime column in my destination, but my data source has a naive datetime column
+
 Use `full` or `full_with_precision` reflection level to get an explicit `timezone` hint in reflected table schemas. Without that
 hint, `dlt` will coerce all timestamps into timezone-aware UTC ones.
 
 ### I have an incremental cursor on a datetime column and I see query errors
+
 Queries used to query data in the `sql_database` are created from an `Incremental` instance attached to the table resource. [Initial end and last values
 must match timezone-awareness of the cursor column](setup.md) because they will be used as parameters in the `WHERE` clause.
 
@@ -26,6 +27,7 @@ modify the local pipeline state (after syncing with destination) to add/remove t
 ## Troubleshooting incremental loading
 
 ### I get a KeyError saying the cursor column doesn't exist
+
 If `dlt` raises ``KeyError: 'Cursor column `...` does not exist in table `...`'``, the name you passed to `dlt.sources.incremental(...)` isn't present in the schema that SQLAlchemy reflected. Reflection returns whatever the database itself stores, and dialects normalize identifiers differently: PostgreSQL lowercases unquoted identifiers, Oracle uppercases them, MySQL, MSSQL, and SQLite preserve the case you declared.
 
 Inspect the reflected column names first:
@@ -44,6 +46,7 @@ Copy the column name from that output, case included, and pass it to `dlt.source
 ## Troubleshooting connection
 
 ### Pipeline state grows extremely large or I get deduplication state warnings when using incremental
+
 If you set incremental column on low resolution column (i.e. of type **date**) then `dlt` will [deduplicate](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges) such data by default. For low resolution column you may have many rows associated with a single
 cursor value and since hashes of such rows are stored in state - you will get large pipeline state. You can avoid that in many ways:
 1. [set the comparison to exclusive](advanced.md#inclusive-and-exclusive-filtering) but make sure that rows are not added with the last cursor column value
@@ -52,6 +55,7 @@ between runs (i.e. if you have column on a **day** column and between runs, rows
 3. disable deduplication [explicitly](../../../general-usage/incremental/cursor.md#deduplicate-overlapping-ranges)
 
 ### Connecting to MySQL with SSL 
+
 Here, we use the `mysql` and `pymysql` dialects to set up an SSL connection to a server, with all information taken from the [SQLAlchemy docs](https://docs.sqlalchemy.org/en/14/dialects/mysql.html#ssl-connections).
 
 1. To enforce SSL on the client without a client certificate, you may pass the following DSN:
@@ -115,6 +119,7 @@ This approach can help resolve connection-related issues.
 ### Notes on specific databases
 
 #### Oracle
+
 1. We recommend to use the `oracledb` dialect in thin mode instead of the `cx_oracle` (old) client. It is the setup that we test and support. Note that `oracledb` is not supported in `SQLAlchemy` below 2.0.
 2. Mind that `SQLAlchemy` translates Oracle identifiers into lower case! Keep the default `dlt` naming convention (`snake_case`) when loading data. We'll support more naming conventions soon.
 3. `Connectorx` is not compatible with `oracledb` in thin mode. In thick mode with `cx_oracle` it is for some reason slower for Oracle than the `PyArrow` backend, so it is not recommended for Oracle.
@@ -125,15 +130,18 @@ This approach can help resolve connection-related issues.
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/oracledb#installing-and-setting-up-oracle-db) for information and code on setting up and benchmarking on Oracle.
 
 #### DB2
+
 1. Mind that `SQLAlchemy` translates DB2 identifiers into lower case! Keep the default `dlt` naming convention (`snake_case`) when loading data. We'll support more naming conventions soon.
 2. The DB2 type `DOUBLE` gets incorrectly mapped to the Python type `float` (instead of the `SQLAlchemy` type `Numeric` with default precision). This requires `dlt` to perform additional casts. The cost of the cast, however, is minuscule compared to the cost of reading rows from the database.  
 
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/db2#installing-and-setting-up-db2) for information and code on setting up and benchmarking on DB2.
 
 #### MySQL
+
 1. The `SQLAlchemy` dialect converts doubles to decimals. (This can be disabled via the table adapter argument as shown in the code example [here](./configuration#pyarrow))
 
 #### Postgres / MSSQL
+
 No issues were found for these databases. Postgres is the only backend where we observed a 2x speedup with `ConnectorX` (see [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/postgres) for the benchmarking code). On other db systems, it performs the same as (or sometimes worse than) the `PyArrow` backend.
 
 ### Notes on specific data types
@@ -143,6 +151,7 @@ No issues were found for these databases. Postgres is the only backend where we 
 In the `SQLAlchemy` backend, the JSON data type is represented as a Python object, and in the `PyArrow` backend, it is represented as a JSON string. At present, it does not work correctly with `pandas` and `ConnectorX`, which cast Python objects to `str`, generating invalid JSON strings that cannot be loaded into the destination.
 
 #### UUID
+
 UUID columns (PostgreSQL `UUID`, MSSQL `UNIQUEIDENTIFIER`, and SQLAlchemy 2.0 generic `Uuid`) are
 mapped to `dlt` data type `text` and always yielded as strings. This ensures consistent
 casing across initial and incremental loads regardless of the backend used.

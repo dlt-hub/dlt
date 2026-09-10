@@ -3,8 +3,7 @@ title: Backfilling in chunks
 description: Learn how to backfill in chunks of defined size
 keywords: [incremental loading, backfilling, chunks,example]
 ---
-
-## About this Example
+# Backfilling in chunks
 
 In this example, you'll find a Python script that will load from a sql_database source in chunks of defined size. This is useful for backfilling in multiple pipeline runs as
 opposed to backfilling in one very large pipeline run which may fail due to memory issues on ephemeral storage or just take a very long time to complete without seeing any
@@ -18,7 +17,7 @@ We'll learn how to:
 - Create a pipeline and backfill the table in the defined chunks
 - Use the datasets accessor to inspect and assert the load progress
 
-### Full source code
+## Full source code
 
 ```py noexecute
 import pandas as pd

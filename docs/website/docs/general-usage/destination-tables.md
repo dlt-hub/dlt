@@ -3,7 +3,6 @@ title: Destination tables & lineage
 description: Understanding the tables created in the destination database
 keywords: [destination tables, loaded data, data structure, schema, table, nested table, load package, load id, lineage, staging dataset, versioned dataset]
 ---
-
 # Destination tables
 
 When you run a [pipeline](pipeline.md), dlt creates tables in the destination database and loads the data
@@ -119,14 +118,14 @@ load_info = pipeline.run(data, table_name="users")
 
 Running this pipeline will create two tables in the destination, `users` (**root table**) and `users__pets` (**nested table**). The `users` table will contain the top-level data, and the `users__pets` table will contain the data nested in the Python lists. Here is what the tables may look like:
 
-**mydata.users**
+`mydata.users`
 
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
 | 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
 | 2 | Bob | rX8ybgTeEmAmmA | 1234562350.98417 |
 
-**mydata.users__pets**
+`mydata.users__pets`
 
 | id | name | type | _dlt_id | _dlt_parent_id | _dlt_list_idx |
 | --- | --- | --- | --- | --- | --- |
@@ -150,6 +149,7 @@ This is how it works:
 During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ### Variant columns
+
 If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., a JSON file) with a field named `answer` and your data contains boolean values, you will get a column named `answer` of type `BOOLEAN` in your destination. If, for some reason, on the next load, you get integer and string values in `answer`, the inconsistent data will go to `answer__v_bigint` and `answer__v_text` columns respectively.
 The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of the data type stored in the variant.
 
@@ -171,7 +171,7 @@ data = [
 
 The rest of the pipeline definition remains the same. Running this pipeline will create a new load package with a new `load_id` and add the data to the existing tables. The `users` table will now look like this:
 
-**mydata.users**
+`mydata.users`
 
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
@@ -181,7 +181,7 @@ The rest of the pipeline definition remains the same. Running this pipeline will
 
 The `_dlt_loads` table will look like this:
 
-**mydata._dlt_loads**
+`mydata._dlt_loads`
 
 | load_id | schema_name | status | inserted_at | schema_version_hash |
 | --- | --- | --- | --- | --- |
@@ -230,14 +230,14 @@ If you inspect the tables in this schema, you will find the `mydata_staging.user
 
 Here is what the tables may look like after running the pipeline:
 
-**mydata_staging.users**
+`mydata_staging.users`
 
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
 | 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
 | 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
 
-**mydata.users**
+`mydata.users`
 
 | id | name | _dlt_id | _dlt_load_id |
 | --- | --- | --- | --- |
@@ -280,6 +280,7 @@ For example, the first time you run the pipeline, the schema will be named `myda
 dlt automatically creates internal tables in the destination schema to track pipeline runs, support incremental loading, and manage schema versions. These tables use the `_dlt_` prefix.
 
 ### `_dlt_loads`: Load history tracking
+
 This table records each pipeline run. Every time you execute a pipeline, a new row is added to this table with a unique `load_id`. This table tracks which loads have been completed and supports chaining of transformations.
 
 
@@ -294,6 +295,7 @@ This table records each pipeline run. Every time you execute a pipeline, a new r
 Only rows with `status = 0` are considered complete. Other values represent incomplete or interrupted loads. The status column can also be used to coordinate multi-step transformations.
 
 ### `_dlt_pipeline_state`: Pipeline state and checkpoints
+
 This table stores the internal state of the pipeline for each run. This state enables incremental loading and allows the pipeline to resume from where it left off if a previous run was interrupted.
 
 
@@ -322,6 +324,7 @@ This allows dlt to resume interrupted pipelines, avoid reloading already process
 The `version_hash` is recalculated on each update. dlt uses this table to implement last-value incremental loading. If a run fails or stops, this table ensures the next run picks up from the correct checkpoint.
 
 ### `_dlt_version`: Schema version tracking
+
 This table tracks the history of all schema versions used by the pipeline. Every time dlt updates the schema. For example, when new columns or tables are added, a new entry is written to this table.
 
 | Column name     | Type            | Description                                      |

@@ -3,7 +3,6 @@ title: Send Slack notifications
 description: Notify Slack when a dltHub job succeeds or fails.
 keywords: [slack, notifications, alerting, hub, dltHub]
 ---
-
 # Send Slack notifications
 
 dlt ships a small helper, `send_slack_message`, that posts to a Slack [incoming webhook](https://api.slack.com/messaging/webhooks). Combined with `pipeline.runtime_config.slack_incoming_hook`, it gives you a one-line way to alert a channel when a job finishes or fails.

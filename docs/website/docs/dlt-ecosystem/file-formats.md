@@ -3,7 +3,6 @@ title: Loader file format
 description: Loader file format determines how data is prepared and written to the destination by the pipeline
 keywords: [loader file format, jsonl, parquet, csv, insert-values, insert]
 ---
-
 # Loader file format
 
 ## Configure
@@ -25,6 +24,7 @@ pip install "dlt[parquet]"
 ```
 
 ### Destination autoconfig
+
 `dlt` uses [destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure the parquet writer:
 * It uses decimal and wei precision to pick the right **decimal type** and sets precision and scale.
 * It uses timestamp precision to pick the right **timestamp type** resolution (seconds, microseconds, or nanoseconds).
@@ -91,9 +91,11 @@ Find more similar examples [here](../reference/performance.md#extract)
 
 
 ### Timestamps and timezones
+
 `dlt` adds a timezone (UTC adjustment) to a timestamp column at every precision, from seconds to nanoseconds. `dlt` also creates TZ-aware timestamp columns in the destinations. [DuckDB is an exception here](./destinations/duckdb.md#supported-file-formats). A column with the `timezone` hint set to `False` stays naive, and the [context timezone](../general-usage/schema.md#context-timezone) decides which timezone `dlt` uses.
 
 #### Disable timezones / UTC adjustment flags
+
 You can generate parquet files without timezone adjustment information in two ways:
 1. Set the **flavor** to spark. All timestamps will be generated via the deprecated `int96` physical data type, without the logical one.
 2. Set `timestamp_timezone` to an empty string (`DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate a logical type without UTC adjustment.
@@ -125,6 +127,7 @@ Internally, we use two implementations, picked based on the shape of the data it
 - PyArrow CSV writer - a very fast, multithreaded writer, used when resources yield [Arrow tables, pandas DataFrames, or polars DataFrames](./verified-sources/arrow-pandas.md)
 
 ### Settings
+
 `dlt` attempts to make both writers generate similarly looking files:
 * separators are commas
 * quotes are **"** and are escaped as **""**
@@ -147,6 +150,7 @@ is not able to write unquoted `None` values, so we had to settle for `""`.
 Note: all destinations that support the `csv` format accept files written with the standard settings above.
 
 #### Write settings
+
 The settings below control how `dlt` writes `csv` files during **normalize** and are configured in the `[normalize.data_writer]` section. Changing them may be handy when working with the `filesystem` destination. Other destinations are tested
 with standard settings:
 
@@ -190,6 +194,7 @@ NORMALIZE__DATA_WRITER__ENCODING=latin-1
 Note the `"$"` prefix before `"\r\n"` to escape the newline character when using environment variables.
 
 #### Read settings
+
 Destinations that copy `csv` files into tables (**postgres** and **snowflake**) read them according to their own `csv_format` configuration. These settings do not change how `dlt` writes files - they describe the file the destination is loading and are set on the destination, e.g.:
 
 ```toml
@@ -214,12 +219,14 @@ If you nevertheless combine a custom write encoding with a database destination,
 :::
 
 ### Limitations
-**arrow writer**
+
+#### arrow writer
 
 * binary columns are supported only if they contain valid UTF-8 characters
 * json (nested, struct) types are not supported
 
-**csv writer**
+#### csv writer
+
 * binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)
 * json columns dumped with json.dumps
 * **None** values are always quoted

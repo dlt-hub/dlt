@@ -3,12 +3,11 @@ title: Data security and encryption
 description: Transforming the data for encryption in transit, client-side encryption, and encryption at rest.
 keywords: [transform, data security, encryption]
 ---
-
 # Data security and encryption
 
 The modern data landscape requires robust security measures to protect sensitive information throughout its lifecycle. Organizations must implement comprehensive encryption strategies to safeguard data against increasingly sophisticated threats
 
-### Encryption throughout the lifecycle
+## Encryption throughout the lifecycle
 
 Data is vulnerable both while moving between systems (in transit) and when stored at rest. dlt addresses both needs:
 

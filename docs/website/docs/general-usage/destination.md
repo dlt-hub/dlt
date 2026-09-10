@@ -3,7 +3,6 @@ title: Destination
 description: Declare and configure destinations to which to load data
 keywords: [destination, load data, configure destination, name destination]
 ---
-
 # Destination
 
 [Destination](glossary.md#destination) is a location in which `dlt` creates and maintains the current version of the schema and loads your data. Destinations come in various forms: databases, datalakes, vector stores, or files. `dlt` deals with this variety via destination type modules which you declare when creating a pipeline.
@@ -11,6 +10,7 @@ keywords: [destination, load data, configure destination, name destination]
 We maintain a set of [built-in destinations](../dlt-ecosystem/destinations/) that you can use right away.
 
 ## Declare the destination type
+
 We recommend that you declare the destination type when creating a pipeline instance with `dlt.pipeline`. This allows the `run` method to synchronize your local pipeline state with the destination and `extract` and `normalize` to create compatible load packages and schemas. You can also pass the destination to the `run` and `load` methods.
 
 * Use destination **shorthand type**
@@ -60,6 +60,7 @@ Above, we import the destination factory for **filesystem** and pass it to the p
 All examples above will create the same destination class with default parameters and pull required config and secret values from [configuration](credentials/index.md) - they are equivalent.
 
 ### Pass explicit parameters and a name to a destination factory
+
 You can instantiate the **destination factory** yourself to configure it explicitly. When doing this, you work with destinations the same way you work with [sources](source.md)
 
 ```py
@@ -78,6 +79,7 @@ If a destination is not named, its shorthand type (the Python factory name) serv
 
 
 ## Configure a destination
+
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
 Use the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as shown below:
@@ -125,6 +127,7 @@ Note that when you use the `dlt init` command to create or add a data source, `d
 
 
 ### Pass explicit credentials
+
 You can pass credentials explicitly when creating a destination factory instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods, which is now deprecated. You can pass the required credentials object, its dictionary representation, or the supported native form like below:
 
 ```py
@@ -174,6 +177,7 @@ Please read how to use [various built-in credentials types](credentials/complex_
 :::
 
 ### Inspect destination capabilities
+
 [Destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) tell `dlt` what a given destination can and cannot do. For example, it tells which file formats it can load, what the maximum query or identifier length is. Inspect destination capabilities as follows:
 
 ```py execute
@@ -187,6 +191,7 @@ print(capabilities["preferred_loader_file_format"])
 ```
 
 ### Pass additional parameters and change destination capabilities
+
 The destination factory accepts additional parameters that will be used to pre-configure it and change destination capabilities.
 
 ```py execute
@@ -344,6 +349,7 @@ And keep the pipeline code intact.
 
 
 ## Access a destination
+
 When loading data, `dlt` will access the destination in two cases:
 1. At the beginning of the `run` method to sync the pipeline state with the destination (or if you call `pipeline.sync_destination` explicitly).
 2. In the `pipeline.load` method - to migrate the schema and load the load package.
@@ -374,6 +380,7 @@ pipeline.load(destination=filesystem(bucket_url=bucket_url))
 :::
 
 ## Control how `dlt` creates table, column, and other identifiers
+
 `dlt` maps identifiers found in the source data into destination identifiers (i.e., table and column names) using [naming conventions](naming-convention.md) which ensure that
 character set, identifier length, and other properties fit into what the given destination can handle. For example, our [default naming convention (**snake case**)](./naming-convention.md#use-default-naming-convention-snake_case) converts all names in the source (i.e., JSON document fields) into snake case, case-insensitive identifiers.
 
@@ -408,6 +415,7 @@ If you use a case-sensitive naming convention with a case-insensitive destinatio
 :::
 
 ### Enable case-sensitive identifiers support
+
 Selected destinations may be configured so they start accepting case-sensitive identifiers. For example, it is possible to set case-sensitive collation on an **mssql** database and then tell `dlt` about it.
 
 ```py
@@ -429,6 +437,7 @@ In most cases, setting the flag above just indicates to `dlt` that you switched 
 :::
 
 ## Writing to the destination
+
 ### Destination schema
 
 The destination schema (i.e., database schema) is a collection of tables that represent the data you loaded into the database.
@@ -542,6 +551,7 @@ This is how it works:
 During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ## Variant columns
+
 If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., a JSON file) with a field named `answer` and your data contains boolean values, you will get a column named `answer` of type `BOOLEAN` in your destination. If, for some reason, on the next load, you get integer and string values in `answer`, the inconsistent data will go to `answer__v_bigint` and `answer__v_text` columns respectively.
 The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of the data type stored in the variant.
 
@@ -673,6 +683,7 @@ A few things to know or keep in mind when using the filesystem SQL client:
 - Multi-schema support (dlt 1.25.0+): When a dataset includes multiple schemas, the filesystem SQL client creates views that span all schemas. If the same table name exists in multiple schemas at different physical locations (e.g. when the layout includes `{schema_name}/`), views are combined. If they share the same location, columns are merged into a single view. This means queries may return rows from multiple schemas — use `pipeline.dataset(schema="name")` to restrict to one schema.
 
 #### Refresh SQL client data view
+
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
 * globbing the table files once - when view is created
 * using the newest iceberg metadata to create view
@@ -728,6 +739,7 @@ For nested tables, you may also need to create:
 | _dlt_root_id | text/string/varchar |
 
 ## Create a new destination
+
 You have two ways to implement a new destination:
 1. You can use the `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is a perfect way to implement reverse ETL destinations that push data back to REST APIs.
 2. You can implement [a full destination](../walkthroughs/create-new-destination.md) where you have full control over load jobs and schema migration.

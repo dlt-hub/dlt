@@ -3,6 +3,7 @@ title: Installation
 description: Install dlt[hub], create a workspace, and license paid features
 keywords: [installation, dlthub, dlthub-init, dlthub-start, workspace mode, license]
 ---
+# Installation
 
 :::info Supported Python versions
 

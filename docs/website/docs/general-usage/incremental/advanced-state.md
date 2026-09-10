@@ -3,7 +3,6 @@ title: Advanced state management for incremental loading
 description: Custom state tracking and lag/attribution windows
 keywords: [incremental loading, state management, lag, attribution]
 ---
-
 # Advanced state management for incremental loading
 
 ## Custom incremental loading with pipeline state

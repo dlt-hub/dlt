@@ -3,9 +3,9 @@ title: Chess.com
 description: dlt verified source for Chess.com API
 keywords: [chess.com api, chess.com verified source, verified source, chess.com, chess]
 ---
-import Header from './_source-info-header.md';
-
 # Chess.com
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

@@ -3,9 +3,9 @@ title: Postgres replication
 description: dlt verified source for Postgres replication
 keywords: [postgres, postgres replication, database replication]
 ---
-import Header from './_source-info-header.md';
-
 # Postgres replication
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -53,6 +53,7 @@ The minimum required privileges may differ depending on your replication configu
 
 
 ### Set up RDS
+
 To set up a Postgres user on RDS, follow these steps:
 
 1. Enable replication for your RDS Postgres instance via a [Parameter Group](https://docs.aws.amazon.com/AmazonRDS/latest/UserGuide/USER_PostgreSQL.Replication.ReadReplicas.html).

@@ -3,7 +3,6 @@ title: Deploy a pipeline with dltHub
 description: Run, deploy, and schedule dlt pipelines with dltHub's managed orchestrator
 keywords: [orchestrator, scheduling, cron, dlthub, platform, deploy]
 ---
-
 # Deploy a pipeline with dltHub
 
 dltHub ships a managed orchestrator built around the `@dlt.hub.run` decorators. The schedule and the data dependencies live in your Python code, not in a separate DAG (directed acyclic graph) file or YAML.

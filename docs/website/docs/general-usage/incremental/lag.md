@@ -3,12 +3,13 @@ title: Lag / Attribution window
 description: Use lag to refresh data within a specific time window
 keywords: [incremental loading, lag, attribution window]
 ---
+# Lag / Attribution window
 
 In many cases, certain data should be reacquired during incremental loading. For example, you may want to always capture the last 7 days of data when fetching daily analytics reports, or refresh Slack message replies with a moving window of 7 days. This is where the concept of "lag" or "attribution window" comes into play.
 
 The `lag` parameter is a float that supports several types of incremental cursors: `datetime`, `date`, `integer`, and `float`. It can only be used with `last_value_func` set to `min` or `max` (default is `max`).
 
-### How `lag` works
+## How `lag` works
 
 - **Datetime cursors**: `lag` is the number of seconds added or subtracted from the `last_value` loaded.
 - **Date cursors**: `lag` represents days.

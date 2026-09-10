@@ -3,7 +3,6 @@ title: Scrapy
 description: dlt verified source for Scraping using scrapy
 keywords: [scraping, scraping verified source, scrapy]
 ---
-
 # Scrapy
 
 This verified source utilizes Scrapy, an open-source and collaborative framework for web scraping.

@@ -3,8 +3,8 @@ title: Object store & filesystem
 description: Store data in remote file systems and object store services like AWS S3, Google Cloud Storage, or Azure Blob Storage
 keywords: [filesystem, s3, gcs, azure, blob storage, sftp, cloud storage, data lake, staging]
 ---
-
 # Object store & filesystem
+
 The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging area for other destinations, but you can also quickly build a data lake with it.
 
 ## Install dlt with filesystem
@@ -46,6 +46,7 @@ This command will initialize your pipeline with chess as the source and AWS S3 a
 ## Set up the destination and credentials
 
 ### AWS S3
+
 The command above creates a sample `secrets.toml` and requirements file for an AWS S3 bucket. You can install those dependencies by running:
 
 ```sh
@@ -162,6 +163,7 @@ to enable listing cache but this cache is not shared across threads which `dlt` 
 parallelize writes. You may get unpredictable cache invalidation behavior.
 
 ### Google storage
+
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
@@ -356,6 +358,7 @@ bucket_url='\\?\UNC\localhost\c$\a\b\c'
 :::
 
 ### SFTP
+
 Run `pip install "dlt[sftp]"` which will install the `paramiko` package alongside `dlt`, enabling secure SFTP transfers.
 
 Configure your SFTP credentials by editing the `.dlt/secrets.toml` file. By default, the file contains placeholders for AWS credentials. You should replace these with your SFTP credentials.
@@ -454,13 +457,15 @@ sftp_password = "pass"                   # Replace "pass" with your SFTP passwor
 ```
 
 
-### Notes:
+### Notes
+
 - **Key-based authentication**: Make sure your private key has the correct permissions (`chmod 600`), or SSH will refuse to use it.
 - **Timeouts**: It's important to adjust timeout values based on your network conditions to avoid connection issues.
 
 This configuration allows flexible SFTP authentication, whether you're using passwords, keys, or agents, and ensures secure communication between your local environment and the SFTP server.
 
 ## Write disposition
+
 The filesystem destination handles the write dispositions as follows:
 - `append` - files belonging to such tables are added to the dataset folder
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
@@ -488,6 +493,7 @@ Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatical
 For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and enabling file compression](../../reference/performance#disabling-and-enabling-file-compression).
 
 ## Files layout
+
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of the `pipeline`. In our example chess pipeline, it is **chess_players_games_data**.
 
 :::note
@@ -515,6 +521,7 @@ The default layout format has changed from `{schema_name}.{table_name}.{load_id}
 * `ext` - the format of the file, i.e., `jsonl` or `parquet`
 
 #### Date and time placeholders
+
 :::tip
 Keep in mind all values are lowercased.
 :::
@@ -697,6 +704,7 @@ You can choose the following table formats:
 * [Iceberg](./iceberg)
 
 ## Syncing of dlt state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
 
 You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
@@ -706,6 +714,7 @@ When a load generates a new state, for example when using incremental loads, a n
 :::
 
 ## Data access
+
 `filesystem` implements [`sql_client`](../transformations/sql.md#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
@@ -719,7 +728,9 @@ always_refresh_views=true
 
 
 ## Troubleshooting
+
 ### File Name Too Long Error
+
 When running your pipeline, you might encounter an error like `[Errno 36] File name too long Error`. This error occurs because the generated file name exceeds the maximum allowed length on your filesystem.
 
 To prevent the file name length error, set the `max_identifier_length` parameter for your destination. This truncates all identifiers (including filenames) to a specified maximum length.

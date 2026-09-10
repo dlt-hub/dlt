@@ -3,8 +3,7 @@ title: Backfill to Filesystem with partial replace
 description: Load chess game data from Chess.com into a filesystem destination, while deleting old backfill files.
 keywords: [incremental loading, REST API, dlt, chess.com, data pipeline, backfill management, filesystem]
 ---
-
-## About this Example
+# Backfill to Filesystem with partial replace
 
 This script interacts with the Chess.com REST API to extract game data for a specific user on a monthly basis.
 The script retrieves game data for a specified time range, and when additional data is loaded for a different time range,
@@ -17,7 +16,7 @@ We'll learn:
 - How to manage and delete old backfill files for de-duplication.
 - How to use [Filesystem](../dlt-ecosystem/destinations/filesystem.md) as a destination for storing extracted data.
 
-### Full source code
+## Full source code
 
 ```py execute notype
 import os

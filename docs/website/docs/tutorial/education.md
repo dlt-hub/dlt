@@ -3,8 +3,7 @@ title: Education
 description: Learn the fundamentals and advanced concepts of dlt with self-paced courses. Start with pipelines, resources, sources, pagination, schema, and state, then move on to custom sources, complex APIs, destinations, transformations, data contracts, performance optimization, and production deployment.
 keywords: [dlt, fundamentals, advanced, tutorial, pipeline, python, data engineering, resources, sources, pagination, authentication, configuration, schema, state, incremental loading, write disposition, custom sources, custom destinations, transformations, data contracts, logging, tracing, performance optimization, deployment, airflow, lambda, github actions, dagster, duckdb]
 ---
-
-# Welcome to self-paced `dlt` courses!
+# Welcome to self-paced `dlt` courses
 
 Here you'll find self-paced `dlt` courses designed to help you grow from beginner to advanced data engineer. Each course is structured with hands-on lessons that you can complete at your own pace.
 

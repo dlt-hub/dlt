@@ -3,8 +3,7 @@ title: Google Sheets minimal example
 description: Learn how work with Google services
 keywords: [google sheets, credentials, example]
 ---
-
-## About this Example
+# Google Sheets minimal example
 
 In this example, you'll find a Python script that demonstrates how to load Google Sheets data using the `dlt` library.
 
@@ -18,7 +17,7 @@ We'll learn how to:
 This example is for educational purposes. For best practices, we recommend using [Google Sheets verified source](../dlt-ecosystem/verified-sources/google_sheets.md).
 :::
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example

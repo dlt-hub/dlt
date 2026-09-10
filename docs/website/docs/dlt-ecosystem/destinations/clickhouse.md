@@ -3,12 +3,11 @@ title: ClickHouse
 description: ClickHouse `dlt` destination
 keywords: [ clickhouse, destination, data warehouse ]
 ---
-
 # ClickHouse
 
 ## Install dlt with ClickHouse
 
-**To install the DLT library with ClickHouse dependencies:**
+To install the dlt library with ClickHouse dependencies:
 
 ```sh
 pip install "dlt[clickhouse]"
@@ -109,6 +108,7 @@ select_sequential_consistency = 1                       # Ensures read-after-wri
 ```
 
 ### Session timezone
+
 ClickHouse uses the server timezone unless you set one. `session_timezone` sets it per connection. It
 does not change the column types that `CREATE TABLE` produces: `dlt` writes the zone into the type
 itself, as `DateTime64(6, 'UTC')`.
@@ -291,6 +291,7 @@ This is different from dlt's `merge` write disposition, which deduplicates immed
 :::
 
 ## Sorting and partitioning
+
 You can use the `clickhouse_adapter` to specify a [sorting](https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree#order_by) and/or [partition](https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key) key:
 
 ```py
@@ -389,6 +390,7 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 :::
 
 ### `sort` and `partition` column hints
+
 `dlt` automatically creates `sort`/`partition` [column hints](../../general-usage/schema.md#tables-and-columns) for columns present in the `sort`/`partition` value provided to `clickhouse_adapter` (when this value is a SQL expression, we parse it to extract the column names).
 
 Although it's possible to set `sort`/`partition` column hints directly, we recommend using `clickhouse_adapter` instead.
@@ -398,6 +400,7 @@ If you still choose to set `sort`/`partition` column hints yourself, know that:
 - they may be overridden/removed if you also use `clickhouse_adapter`: the adapter takes precedence, and it will set column hints in accordance with the values provided to its `sort`/`partition` parameters
 
 ## MergeTree table settings
+
 Use the `settings` parameter of the `clickhouse_adapter` to specify [MergeTree settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) for the table:
 
 ```py
@@ -426,6 +429,7 @@ SETTINGS allow_nullable_key = true, max_suspicious_broken_parts = 500, deduplica
 ```
 
 ## Column codecs
+
 Use the `codecs` parameter of the `clickhouse_adapter` to specify [codecs](https://clickhouse.com/docs/sql-reference/statements/create/table#column_compression_codec) for the table's columns:
 
 ```py

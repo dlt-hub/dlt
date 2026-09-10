@@ -3,7 +3,6 @@ title: Community Destinations
 description: Community-contributed destinations for dlt
 keywords: [community, destination, contributions]
 ---
-
 # Community Destinations
 
 We've got several destinations contributed by our community. [They are not part of the `dlt` library](https://github.com/dlt-hub/dlt/blob/devel/CONTRIBUTING.md#before-you-begin), instead we list them below.

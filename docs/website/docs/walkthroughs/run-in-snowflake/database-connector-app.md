@@ -3,7 +3,6 @@ title: dlt Connector App
 description: How to use the dlt Connector App
 keywords: [snowflake, native app, dlt connector app]
 ---
-
 # dlt Connector App
 
 The dlt Connector App is a Snowflake Native App that lets you move data from external SQL databases (PostgreSQL, MySQL, MSSQL) into Snowflake using a simple web UI. It runs entirely within your Snowflake account — no external infrastructure required.
@@ -26,7 +25,9 @@ This documentation explains how to set up sources, create and manage pipelines, 
 ---
 
 # How to use the Snowflake Native App
+
 ## Prerequisites
+
 Before creating your first pipeline, make sure you have:
 1. A destination database in Snowflake where the loaded data should land
 2. A role with permissions to approve External Access Integrations (`ACCOUNTADMIN`, or a role with that privilege)
@@ -37,6 +38,7 @@ Before creating your first pipeline, make sure you have:
 4. (Optional) An S3 bucket if you plan to stage data externally
 
 ## Install and open the app
+
 Find and install the app via the [dlt Connector App listing on the Snowflake Marketplace](https://app.snowflake.com/marketplace/listing/GZ1MMZ1IPICU/dlthub-dlt-connector-app).
 
 
@@ -73,16 +75,19 @@ For a database connection, fill in:
 Click **Create connection**. This creates a Network Rule (specifying the allowed host and port), a Secret (storing the credentials), and an External Access Integration — all without requiring admin involvement. Finally, it submits an approval request that an `ACCOUNTADMIN` must review before the connection becomes active.
 
 ### Approve a connection
+
 Once a connection is awaiting approval, an `ACCOUNTADMIN` must approve it. In the **Connections → Approve tab**, click Review pending connections to open Snowflake's native approval UI.
 
 After approval, the connection status automatically changes to `ACTIVE` and it becomes available for use in pipelines.
 
 ### Manage connections
+
 The **Connections → Manage** tab shows all your connections and their current status.
 You can delete a connection from here. This removes all associated objects (Network Rule, Secret, External Access Integration, and Specification).
 
 
 ## Create a pipeline
+
 1. Go to the pipeline tab in the UI
 2. Enter a pipeline name
 3. Click the **+** button to create the pipeline
@@ -93,6 +98,7 @@ You can delete a connection from here. This removes all associated objects (Netw
 
 
 ## Fill in the configuration
+
 - **[Pipeline](../../general-usage/pipeline) name**  
   A unique ID for this pipeline. It is used to store configuration and to identify runs.
 
@@ -148,11 +154,13 @@ Source settings define **what to ingest** from your external SQL database and **
     ```
 
 ### Table Settings
+
 Table settings control **which tables are ingested** and allow **per-table configuration**.
 
 ![tables setting](https://storage.googleapis.com/dlt-blog-images/sna_table_setting_new.png)
 
 #### Tables to ingest
+
 Choose whether to ingest:
 
 - **All** tables from the selected schema, or  
@@ -196,6 +204,7 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
     ```
 
 ### Destination Settings
+
 Destination settings define where in Snowflake the data is loaded and allow advanced destination tuning.
 - **Destination database**:
     Name of the Snowflake database to load into.
@@ -217,6 +226,7 @@ Destination settings define where in Snowflake the data is loaded and allow adva
     ```
 
 ### Pipeline Settings
+
 This section contains optional pipeline-level defaults that affect how and where data is written.
 - **Dataset name**:
     Destination schema name for the pipeline output. If not set, the app derives it from the pipeline name as `<pipeline_name>_dataset`.
@@ -248,6 +258,7 @@ Fields may vary depending on what the app exposes in your environment.
 
 
 ## Edit a pipeline
+
 1. Open pipeline tab 
 2. Click **edit** button
 3. Fill in the configurations
@@ -303,6 +314,3 @@ ALTER TASK [ IF EXISTS ] <name> RESUME | SUSPEND
 or directly in the Snowflake UI by changing the task’s status:
 
 ![change task status](https://storage.googleapis.com/dlt-blog-images/sna_suspend.png)
-
-
-

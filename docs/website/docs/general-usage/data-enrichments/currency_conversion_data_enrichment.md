@@ -3,7 +3,6 @@ title:  Currency-conversion data enrichment
 description: Converting the monetary value in one currency to another using the latest market rates.
 keywords: [data enrichment, currency conversion, latest market rates]
 ---
-
 # Data enrichment part two: Currency conversion data enrichment
 
 Currency conversion data enrichment means adding additional information to currency-related data.

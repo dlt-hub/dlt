@@ -138,6 +138,7 @@ When this resource is executed, the following deduplication rules are applied:
    - For example, among records with id=2 and identical `"metadata_modified"="2024-01-01"`, the first record (value="C") is kept.
 
 ### Disable deduplication
+
 If staging data is already deduplicated (or was always clean) you can disable it. Deduplication is performed by the database backend so you
 may save some costs:
 
@@ -148,6 +149,7 @@ def github_repo_events():
 ```
 
 ### Delete records
+
 The `hard_delete` column hint can be used to delete records from the destination dataset. The behavior of the delete mechanism depends on the data type of the column marked with the hint:
 1) `bool` type: only `True` leads to a delete—`None` and `False` values are disregarded.
 2) Other types: each `not None` value leads to a delete.
@@ -296,6 +298,7 @@ In this example, enabling `my_facebook_ads.root_key = True` and running the pipe
 If you have defined your own source with the `@dlt.source` decorator, you can also enable `root key` propagation by adding `@dlt.source(root_key=True)`.
 
 #### Disable root key propagation
+
 If your source generates single level of nested table (nested tables do not have nested tables) i.e. with `max_table_nesting=1` you can disable root key propagation
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
@@ -306,6 +309,7 @@ existing `parent_key` will be used.
 :::
 
 ## `scd2` strategy
+
 `dlt` can create [Slowly Changing Dimension Type 2](https://en.wikipedia.org/wiki/Slowly_changing_dimension#Type_2:_add_new_row) (SCD2) destination tables for dimension tables that change in the source. By default, the resource is expected to provide a full extract of the source table each run, though [incremental extracts](#example-incremental-scd2) are also possible. A row hash is stored in `_dlt_id` and used as a surrogate key to identify source records that have been inserted, updated, or deleted. A `NULL` value is used by default to indicate an active record, but a configurable high timestamp (for example, 9999-12-31 00:00:00.000000) can be used instead.
 
 :::note
@@ -385,6 +389,7 @@ pipeline.run(dim_customer())  # third run — 2024-04-10 06:45:22.847403
 | 2024-04-09 22:13:07.943703 | NULL | 1 | foo_updated | 1 |
 
 ### Example: incremental `scd2`
+
 A `merge_key` can be provided to work with incremental extracts instead of full extracts. The `merge_key` lets you define which absent rows are considered "deleted". Compound natural keys are allowed and can be specified by providing a list of column names as `merge_key`.
 
 *Case 1: do not retire absent records*
@@ -527,6 +532,7 @@ pipeline.run(some_data())  # third run — 2024-01-03 10:30:05.750356
 | **2024-01-03 10:30:05.750356** | **NULL** | **2024-01-01** | **bb** |
 
 ### Handling nested structures with SCD type 2
+
 To explore how SCD Type 2 handles nested JSON structures, refer to the hands-on demonstration provided in the Colab Notebook linked below.
 
 Execute all steps directly in your browser:
@@ -534,6 +540,7 @@ Execute all steps directly in your browser:
 
 
 ### Example: configure validity column names
+
 `_dlt_valid_from` and `_dlt_valid_to` are used by default as validity column names. Other names can be configured as follows:
 
 ```py
@@ -550,6 +557,7 @@ def dim_customer():
 ```
 
 ### Example: configure active record timestamp
+
 You can configure the literal used to indicate an active record with `active_record_timestamp`. The default literal `NULL` is used if `active_record_timestamp` is omitted or set to `None`. Provide a date value if you prefer to use a high timestamp instead.
 
 ```py
@@ -566,6 +574,7 @@ def dim_customer():
 ```
 
 ### Example: configure boundary timestamp
+
 You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted.
 
 ```py
@@ -582,6 +591,7 @@ def dim_customer():
 ```
 
 #### Reset boundary timestamp to the current load time
+
 To stop using a previously set `boundary_timestamp` and revert to the default (the current load package creation time), set `boundary_timestamp` to `None`. You can do this either at definition time or dynamically with `apply_hints` before a run.
 
 Definition-time (always use current load time):
@@ -611,6 +621,7 @@ pipeline.run(dim_customer())
 When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
 
 ### Example: Use your own row hash
+
 By default, `dlt` generates a row hash based on all columns provided by the resource and stores it in `_dlt_id`. You can use your own hash instead by specifying `row_version_column_name` in the `write_disposition` dictionary. You might already have a column present in your resource that can naturally serve as a row hash, in which case it's more efficient to use those pre-existing hash values than to generate new artificial ones. This option also allows you to use hashes based on a subset of columns, in case you want to ignore changes in some of the columns. When using your own hash, values for `_dlt_id` are randomly generated.
 
 ```py
@@ -631,6 +642,7 @@ If your source data contains nested fields (like lists or arrays) that may retur
 :::
 
 ### 🧪 Use scd2 with Arrow tables, Pandas or Polars DataFrames
+
 `dlt` will not add a **row hash** column to the tabular data automatically (we are working on it).
 You need to do that yourself by adding a transform function to the `scd2` resource that computes row hashes (using pandas.util, should be fairly fast).
 
@@ -657,6 +669,7 @@ adding the transform with `add_map`.
 :::
 
 ### Nested tables
+
 Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in nested tables can be obtained by joining the root table using `_dlt_root_id` (`root_key`).
 
 ### Limitations

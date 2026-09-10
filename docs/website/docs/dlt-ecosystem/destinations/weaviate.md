@@ -3,7 +3,6 @@ title: Weaviate
 description: Weaviate is an open source vector database that can be used as a destination in dlt.
 keywords: [weaviate, vector database, destination, dlt]
 ---
-
 # Weaviate
 
 [Weaviate](https://weaviate.io/) is an open-source vector database. It allows you to store data objects and perform similarity searches over them.
@@ -304,6 +303,7 @@ Here's a summary of the naming normalization approach:
 Reserved property names like `id` or `additional` are prefixed with underscores for differentiation. Therefore, `id` becomes `__id` and `_id` is rendered as `___id`.
 
 ### Case insensitive naming convention
+
 The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice classes in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitively (i.e., `caseName` == `casename`). In such cases, Weaviate destination will fail to create classes and report a conflict.
 
 You can configure an alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still, if you have a document where clashing properties like:

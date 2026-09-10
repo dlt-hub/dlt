@@ -3,11 +3,11 @@ title: MotherDuck
 description: MotherDuck `dlt` destination for hosted DuckDB and DuckLake.
 keywords: [MotherDuck, duckdb, destination, data warehouse, DuckLake]
 ---
-
 # MotherDuck
 
 ## Install dlt with MotherDuck
-**To install the dlt library with MotherDuck dependencies:**
+
+To install the dlt library with MotherDuck dependencies:
 
 ```sh
 pip install "dlt[motherduck]"
@@ -29,13 +29,13 @@ or export the **LOAD__WORKERS=3** env variable. See more in [performance](../../
 
 ## Setup guide
 
-**1. Initialize a project with a pipeline that loads to MotherDuck by running**
+1. Initialize a project with a pipeline that loads to MotherDuck by running
 
 ```sh
 dlt init chess motherduck
 ```
 
-**2. Install the necessary dependencies for MotherDuck by running**
+2. Install the necessary dependencies for MotherDuck by running
 
 ```sh
 pip install -r requirements.txt
@@ -43,7 +43,7 @@ pip install -r requirements.txt
 
 This will install dlt with the **motherduck** extra which contains **duckdb** and **pyarrow** dependencies.
 
-**3. Add your MotherDuck token to `.dlt/secrets.toml`**
+3. Add your MotherDuck token to `.dlt/secrets.toml`
 
 ```toml
 [destination.motherduck.credentials]
@@ -76,17 +76,18 @@ in that case you can skip **password** / **motherduck_token** secret.
 More in Motherduck [documentation](https://motherduck.com/docs/key-tasks/authenticating-and-connecting-to-motherduck/authenticating-to-motherduck/#storing-the-access-token-as-an-environment-variable)
 :::
 
-**4. Run the pipeline**
+4. Run the pipeline
 
 ```sh
 python3 chess_pipeline.py
 ```
 
 ### DuckLake setup
+
 DuckLake can be used to manage and persist your MotherDuck databases on external object storage like S3. This is especially useful if you want more control over where your data is stored or if you’re integrating with your own cloud infrastructure.
 The steps below show how to set up a DuckLake-managed database backed by S3.
 
-**1. Create the S3-Backed DuckLake Database**
+1. Create the S3-Backed DuckLake Database
 You can create a DuckLake-managed database using the following SQL command, which should be run in the MotherDuck SQL Editor or any SQL client connected to your MotherDuck account:
 
 ```sql
@@ -96,7 +97,7 @@ CREATE DATABASE my_ducklake (
 );
 ```
 
-**2. Register S3 Credentials with a MotherDuck Secret**
+2. Register S3 Credentials with a MotherDuck Secret
 
 ```sql
 CREATE SECRET my_secret IN MOTHERDUCK (
@@ -107,7 +108,7 @@ CREATE SECRET my_secret IN MOTHERDUCK (
 );
 ```
 
-**3. Configure `secrets.toml` in your dlt project**
+3. Configure `secrets.toml` in your dlt project
 Your `secrets.toml` only needs to reference the DuckLake database and your service token:
 
 ```toml
@@ -121,10 +122,12 @@ As long as the DuckLake database and the corresponding S3 secret have been set u
 With this setup, you can now load data into DuckLake tables using dlt, just like with any DuckDB destination through MotherDuck.
 
 ### Motherduck connection identifier
+
 We enable Motherduck to identify that the connection is created by `dlt`. Motherduck will use this identifier to better understand the usage patterns
 associated with `dlt` integration. The connection identifier is `dltHub_dlt/DLT_VERSION(OS_NAME)`.
 
 ### Additional configuration
+
 Query string will be passed to `duckdb` connection. Several global configs may be set using it:
 
 ```toml
@@ -137,25 +140,30 @@ will disable connection caching.
 Additional `duckdb` config, [where you can set up extensions, pragmas, the session timezone, and global and local config](duckdb.md#additional-config), is also supported.
 
 ## Write disposition
+
 All write dispositions are supported.
 
 ## Data loading
+
 By default, Parquet files and the `COPY` command are used to move files to the remote duckdb database. All write dispositions are supported.
 
 The **INSERT** format is also supported and will execute large INSERT queries directly into the remote database. This method is significantly slower and may exceed the maximum query size, so it is not advised.
 
 ## dbt support
+
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. `dbt` version >= 1.7 is required.
 
 ## Multi-statement transaction support
+
 Motherduck supports multi-statement transactions. This change happened with `duckdb 0.10.2`.
 
 ## Syncing of `dlt` state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ## Troubleshooting
 
-### I see some exception with home_dir missing when opening `md:` connection.
+### I see some exception with home_dir missing when opening `md:` connection
 
 Some internal component (HTTPS) requires the **HOME** env variable to be present. Export such a variable to the command line. Here is what we do in our tests:
 

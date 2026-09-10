@@ -3,9 +3,9 @@ title: Google Analytics
 description: dlt verified source for Google Analytics API
 keywords: [google analytics api, google analytics verified source, google analytics]
 ---
-import Header from './_source-info-header.md';
-
 # Google analytics
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -310,6 +310,7 @@ def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
 Similarly, there is a transformer function called `dimensions_table` that populates a table called "dimensions" with the data from each dimension.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.

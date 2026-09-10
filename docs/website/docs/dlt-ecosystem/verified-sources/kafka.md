@@ -3,9 +3,9 @@ title: Kafka
 description: dlt verified source for Confluent Kafka
 keywords: [kafka api, kafka verified source, kafka]
 ---
-import Header from './_source-info-header.md';
-
 # Kafka
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

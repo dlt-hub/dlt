@@ -3,7 +3,6 @@ title: Installation
 description: How to install dlt
 keywords: [installation, environment, pip install]
 ---
-
 # Installation
 
 ## Setting up your environment
@@ -142,7 +141,7 @@ To install dlt using `conda`:
 conda install -c conda-forge dlt
 ```
 
-### 4. Done!
+### 4. Done
 
 You are now ready to build your first pipeline with `dlt`. Check out these tutorials to get started:
 

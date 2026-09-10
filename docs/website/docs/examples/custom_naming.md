@@ -3,8 +3,7 @@ title: Create and use own naming convention
 description: We demonstrate how to create naming conventions that allow UNICODE letters and never generate collisions
 keywords: [example]
 ---
-
-## About this Example
+# Create and use own naming convention
 
 This example shows how to add and use custom naming convention. Naming conventions translate identifiers found in source data into identifiers in
 destination, where rules for a valid identifier are constrained.
@@ -27,7 +26,7 @@ With this example you will learn to:
 * Changing the declared case sensitivity by overriding `is_case_sensitive` property
 * Providing custom normalization logic by overriding `normalize_identifier` method
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 import dlt

@@ -3,14 +3,16 @@ title: Iceberg
 description: Iceberg dlt destination
 keywords: [iceberg, destination, data warehouse]
 ---
-
 # Iceberg table format
+
 dlt supports writing [Iceberg](https://iceberg.apache.org/) tables when using the [filesystem](./filesystem.md) destination.
 
 ## How it works
+
 dlt uses the [PyIceberg](https://py.iceberg.apache.org/) library to write Iceberg tables. One or multiple Parquet files are prepared during the extract and normalize steps. In the load step, these Parquet files are exposed as an Arrow data structure and fed into `pyiceberg`.
 
 ## Iceberg catalogs support
+
 dlt leverages `pyiceberg`'s `load_catalog` function to be able to work with the same catalogs that `pyiceberg` would support, including `REST` and `SQL` catalogs. This includes using single-table, ephemeral, in-memory, SQLite-based catalogs. For more information on how `pyiceberg` works with catalogs, reference [their documentation](https://py.iceberg.apache.org/). To enable this, dlt either translates the configuration in the `secrets.toml` and `config.toml` into a valid `pyiceberg` config, or it delegates `pyiceberg` the task of resolving the needed configuration. 
 
 ## Iceberg dependencies
@@ -41,7 +43,7 @@ When using Iceberg with object stores like S3, additional permissions may be req
 ]
 ```
 
-## Set the config for your catalog and, if required, your storage config.
+## Set the config for your catalog and, if required, your storage config
 
 This is applicable only if you already have a catalog set-up. If you want to use ephemeral catalogs, you can skip this section, dlt will default to it. 
 
@@ -99,6 +101,7 @@ s3.region = "eu-fr-1"                                 # DLT_ICEBERG_CATALOG__ICE
 That's it!
 
 ## Table truncation and drop
+
 How dlt empties or drops Iceberg tables depends on the catalog:
 
 - **Persistent catalog** (configured as above): truncation — with [`refresh="drop_data"`](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) or for tables in a `replace` chain that receive no data — is a transactional delete that keeps the table registered and its snapshot history intact. Dropping a table (e.g. with `refresh="drop_sources"`) removes it from the catalog and dlt deletes the table files itself. Set `destination.filesystem.iceberg_use_catalog_purge` to `true` to delegate file deletion to the catalog's `purge_table` instead — note that catalogs may then leave files in place (Polaris rejects purge unless `DROP_WITH_PURGE_ENABLED` is set, Nessie defers file cleanup to its GC, others purge asynchronously).
@@ -274,6 +277,7 @@ def multi_partition_data():
 You can set [Iceberg table properties](https://iceberg.apache.org/docs/latest/configuration/) at two levels. Properties are applied when the table is first created and are not updated on subsequent loads.
 
 ### Destination-level defaults
+
 Set default properties for all Iceberg tables via configuration:
 
 ```toml
@@ -282,6 +286,7 @@ iceberg_table_properties = '{"write.format.default": "parquet", "write.target-fi
 ```
 
 ### Per-table properties with `iceberg_adapter`
+
 Use `iceberg_adapter` to set or override properties on individual resources:
 
 ```py
@@ -321,6 +326,7 @@ iceberg_adapter(
 ```
 
 ### Merge behavior
+
 When both destination-level and per-table properties are set, they are merged. Per-table adapter properties take precedence over destination-level defaults on any conflicting keys.
 
 :::note
@@ -341,6 +347,7 @@ Namespace properties are only applied at namespace creation time. If the namespa
 :::
 
 ## Table access helper functions
+
 You can use the `get_iceberg_tables` helper function to access native table objects. These are `pyiceberg` [Table](https://py.iceberg.apache.org/reference/pyiceberg/table/#pyiceberg.table.Table) objects.
 
 ```py
@@ -366,9 +373,11 @@ The [S3-compatible](./filesystem.md#using-s3-compatible-storage) interface for G
 :::
 
 ## Iceberg Azure scheme
+
 The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using the `iceberg` table format. Please use the `abfss` scheme. This is because `pyiceberg`, which dlt used under the hood, currently does not support `az`.
 
 ## Table format `merge` support
+
 The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies are supported for `iceberg`. These strategies require that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys.
 
 :::warning

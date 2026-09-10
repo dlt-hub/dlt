@@ -3,9 +3,9 @@ title: Google Sheets
 description: dlt verified source for Google Sheets API
 keywords: [google sheets api, google sheets verified source, google sheets]
 ---
-import Header from './_source-info-header.md';
-
 # Google Sheets
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

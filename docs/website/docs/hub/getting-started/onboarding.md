@@ -3,7 +3,6 @@ title: Deploy your first pipeline
 description: Create a dltHub workspace, deploy a sample pipeline, and view the loaded data in a few minutes
 keywords: [dlthub, deploy, first pipeline, getting started, workspace, dlthub-start, onboarding]
 ---
-
 # Deploy your first pipeline with dltHub
 
 New to dltHub and just want to try or learn it? This guide takes you from an empty directory to a sample pipeline running on the managed [dltHub platform](https://app.dlthub.com/). 

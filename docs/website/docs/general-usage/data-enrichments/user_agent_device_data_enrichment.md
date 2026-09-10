@@ -3,7 +3,6 @@ title:  User-agent device data enrichment
 description: Enriching the user-agent device data with average device price.
 keywords: [data enrichment, user-agent data, device enrichment]
 ---
-
 # Data enrichment part one: User-agent device data enrichment
 
 Data enrichment enhances raw data with valuable information from multiple sources, increasing its analytical and decision-making value.
@@ -22,15 +21,18 @@ SerpAPI's free tier offers 100 free calls monthly. For production, consider upgr
 
 
 ## Creating a data enrichment pipeline
+
 You can either follow the example in the linked Colab notebook or follow this documentation to create the user-agent device data enrichment pipeline.
 
 ### A. Colab notebook
+
 The Colab notebook combines three data enrichment processes for a sample dataset, starting with "Data enrichment part one: User-agent device data".
 
 Here's the link to the notebook:
 **[Colab Notebook](https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).**
 
 ### B. Create a pipeline
+
 Alternatively, to create a data enrichment pipeline, you can start by creating the following directory structure:
 
 ```text

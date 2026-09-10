@@ -3,7 +3,6 @@ title: Explore data with marimo
 description: Explore your data with marimo
 keywords: [data, dataset, sql, ibis, marimo]
 ---
-
 # Explore your data with marimo
 
 :::tip

@@ -3,7 +3,6 @@ title: Removing columns
 description: Removing columns by passing a list of column names
 keywords: [deleting, removing, columns, drop]
 ---
-
 # Removing columns
 
 Removing columns before loading data into a database is a reliable method to eliminate sensitive or unnecessary fields. For example, in the given scenario, a source is created with a "country_id" column, which is then excluded from the database before loading.

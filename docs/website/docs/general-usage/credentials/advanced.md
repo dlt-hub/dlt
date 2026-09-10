@@ -3,7 +3,7 @@ title: Access to configuration in code
 description: Access configuration via dlt function arguments or explicitly
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
-
+# Access to configuration in code
 
 ## Access to configuration in dlt decorated functions
 
@@ -272,6 +272,7 @@ class GoogleSheetsConfiguration(BaseConfiguration):
 ```
 
 ### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
+
 This class serves as a foundation for creating configuration objects with specific characteristics:
 
 - It provides methods to parse and represent the configuration in native form (`parse_native_representation` and `to_native_representation`).

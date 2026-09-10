@@ -3,9 +3,9 @@ title: Facebook Ads
 description: dlt verified source for Facebook Ads
 keywords: [facebook ads api, verified source, facebook ads]
 ---
-import Header from './_source-info-header.md';
-
 # Facebook ads
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

@@ -3,13 +3,14 @@ title: REST API source
 description: Learn how to set up and configure
 keywords: [rest api, restful api]
 ---
+# Quick example
+
 import Header from '../_source-info-header.md';
 
 <Header/>
 
 This is a dlt source you can use to extract data from any REST API. It uses [declarative configuration](#source-configuration) to define the API endpoints, their [relationships](#define-resource-relationships), how to handle [pagination](#pagination), and [authentication](#authentication).
 
-### Quick example
 
 Here's an example of how to configure the REST API source to load posts and related comments from a hypothetical blog API:
 
@@ -1125,7 +1126,9 @@ You can combine multiple processing steps to achieve complex transformations:
 ```
 
 :::tip
+
 #### Best practices
+
 1. Order matters: Processing steps are applied in the order they are listed. Be mindful of the sequence, especially when combining `map` and `filter`.
 2. Function definition: Define your filter and map functions separately for clarity and reuse.
 3. Use `filter` to exclude records early in the process to reduce the amount of data that needs to be processed.

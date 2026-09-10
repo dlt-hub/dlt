@@ -3,8 +3,7 @@ title: Pokemon details in parallel using transformers
 description: Learn how to use dlt transformers and how to speed up your loads with parallelism
 keywords: [transformers, parallelism, example]
 ---
-
-## About this Example
+# Pokemon details in parallel using transformers
 
 For this example, we will be loading Pokemon data from the [PokeAPI](https://pokeapi.co/) with the help of transformers to load
 Pokemon details in parallel.
@@ -17,7 +16,7 @@ We'll learn how to:
 - deselect the main resource, so it will not be loaded into the database;
 - importing and using a pre-configured `requests` library with automatic retries (`from dlt.sources.helpers import requests`).
 
-### Full source code
+## Full source code
 
 ```py execute
 import dlt

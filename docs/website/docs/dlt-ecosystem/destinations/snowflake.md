@@ -3,12 +3,12 @@ title: Snowflake
 description: Snowflake `dlt` destination
 keywords: [Snowflake, destination, data warehouse]
 ---
-
 # Snowflake
 
 
 ## Install `dlt` with Snowflake
-**To install the `dlt` library with Snowflake dependencies, run:**
+
+To install the `dlt` library with Snowflake dependencies, run:
 
 ```sh
 pip install "dlt[snowflake]"
@@ -18,13 +18,13 @@ pip install "dlt[snowflake]"
 
 ## Setup guide
 
-**1. Initialize a project with a pipeline that loads to Snowflake by running:**
+1. Initialize a project with a pipeline that loads to Snowflake by running:
 
 ```sh
 dlt init chess snowflake
 ```
 
-**2. Install the necessary dependencies for Snowflake by running:**
+2. Install the necessary dependencies for Snowflake by running:
 
 ```sh
 pip install -r requirements.txt
@@ -32,11 +32,11 @@ pip install -r requirements.txt
 
 This will install `dlt` with the `snowflake` extra, which contains the Snowflake Python dbapi client.
 
-**3. Create a new database, user, and give `dlt` access.**
+3. Create a new database, user, and give `dlt` access.
 
 Read the next chapter below.
 
-**4. Enter your credentials into `.dlt/secrets.toml`.**
+4. Enter your credentials into `.dlt/secrets.toml`.
 It should now look like this:
 
 ```toml
@@ -54,6 +54,7 @@ In the case of Snowflake, the **host** is your [Account Identifier](https://docs
 The **warehouse** and **role** are optional if you assign defaults to your user. In the example below, we do not do that, so we set them explicitly.
 
 ### Set up the database user and permissions
+
 The instructions below assume that you use the default account setup that you get after creating a Snowflake account. You should have a default warehouse named **COMPUTE_WH** and a Snowflake account. Below, we create a new database, user, and assign permissions. The permissions are very generous. A more experienced user can easily reduce `dlt` permissions to just one schema in the database.
 
 ```sql
@@ -190,6 +191,7 @@ This will set the timezone and session keep alive. Mind that if you use TOML, yo
 will pass `client_session_keep_alive` as a string to the connect method (which we didn't verify if it works).
 
 ### Session timezone
+
 `dlt` sets the session `TIMEZONE` to `UTC`, so a load does not take the timezone of the account. It
 does not change the column types that `CREATE TABLE` produces.
 [`TIMESTAMP_LTZ` columns](#timestamp_ltz-or-timestamp_tz) render in this timezone.
@@ -252,6 +254,7 @@ keep_staged_files = false
 :::
 
 ### Data types
+
 `snowflake` supports various timestamp types, which can be configured using the column flags `timezone` and `precision` in the `dlt.resource` decorator or the `pipeline.run` method.
 
 - **Precision**: Allows you to specify the number of decimal places for fractional seconds, ranging from 0 to 9. It can be used in combination with the `timezone` flag.
@@ -449,6 +452,7 @@ Notes:
 - **Warning:** struct field names — like keys inside a `VARIANT` — are **not** normalized. They are stored exactly as they appear in the Arrow type (case-sensitive, no snake_case conversion) and must match the keys in your data verbatim.
 
 ## Supported file formats
+
 * [insert-values](../file-formats.md#sql-insert) is used by default.
 * [Parquet](../file-formats.md#parquet) is supported.
 * [JSONL](../file-formats.md#jsonl) is supported.
@@ -476,6 +480,7 @@ The  **vectorized scanner** explicitly displays `NULL` values in the output and 
 :::
 
 ### Custom CSV formats
+
 By default, we support the CSV format [produced by our writers](../file-formats.md#settings), which is comma-delimited, with a header, and optionally quoted.
 
 You can configure your own formatting, i.e., when [importing](../../general-usage/resource.md#import-external-files) external `csv` files.
@@ -492,6 +497,7 @@ This will read a `|` delimited file, without a header, and will continue on erro
 Note that we ignore missing columns `ERROR_ON_COLUMN_COUNT_MISMATCH = FALSE` and we will insert NULL into them.
 
 ## Supported column hints
+
 Snowflake supports the following [column hints](../../general-usage/schema#tables-and-columns):
 * `cluster` - Makes column part of [cluster key](https://docs.snowflake.com/en/user-guide/tables-clustering-keys), can be added to many columns. The `cluster` columns are added to the cluster key in order of appearance in the table schema. Changing `cluster` hints after table creation is supported, but the changes will only be applied if/when a new column is added.
 * `unique` - Creates UNIQUE hint on a Snowflake column, can be added to many columns. ([optional](#additional-destination-options))
@@ -502,6 +508,7 @@ query planning.
 
 
 ## Table and column identifiers
+
 Snowflake supports both case-sensitive and case-insensitive identifiers. All unquoted and uppercase identifiers resolve case-insensitively in SQL statements. Case-insensitive [naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations) like the default **snake_case** will generate case-insensitive identifiers. Case-sensitive (like **sql_cs_v1**) will generate
 case-sensitive identifiers that must be quoted in SQL statements.
 
@@ -708,12 +715,15 @@ which contains Python named formatters corresponding to tag names i.e., `{source
 :::
 
 ### dbt support
+
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-snowflake](https://github.com/dbt-labs/dbt-snowflake). Both password and key pair authentication are supported and shared with dbt runners.
 
 ### Syncing of `dlt` state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 ### Snowflake connection identifier
+
 We enable Snowflake to identify that the connection is created by `dlt`. Snowflake will use this identifier to better understand the usage patterns associated with `dlt` integration. The connection identifier is `dltHub_dlt`.
 
 <!--@@@DLT_TUBA snowflake-->

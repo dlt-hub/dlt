@@ -3,10 +3,9 @@ title: Setup
 description: basic steps for setting up a dlt pipeline for SQL Database
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Setup
 
 import Header from '../_source-info-header.md';
-
-# Setup
 
 <Header/>
 
@@ -85,5 +84,4 @@ If you'd like to use a different destination, simply replace `duckdb` with the n
    :::note
    The pipeline_name for the above example is `rfam`, you may also use any
    custom name instead. 
-   :::  
-
+   :::

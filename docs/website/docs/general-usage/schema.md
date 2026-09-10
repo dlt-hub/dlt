@@ -3,7 +3,6 @@ title: Schema
 description: Schema
 keywords: [schema, dlt schema, yaml]
 ---
-
 # Schema
 
 The schema describes the structure of normalized data (e.g., tables, columns, data types, etc.) and
@@ -499,6 +498,7 @@ assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
 
 
 ### Handling of timestamp and time zones
+
 By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set 
 explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas/polars) and Python objects:
 
@@ -528,6 +528,7 @@ Ultimately, the destination will interpret the timestamp values. Some destinatio
 `dlt` sets sessions to UTC timezone to minimize chances of erroneous conversion.
 
 ### Handling dates
+
 * `date` carries no timezone. `dlt` passes dates to the destination as calendar days.
 * `dlt` takes the day of a **timestamp** in UTC, or in the [context timezone](#context-timezone) when you set one. `dlt` shifts a tz-aware timestamp to that timezone first, and reads a naive timestamp in it. Two timestamps that are the same instant always give the same day.
 * `dlt` converts a `date` into a **timestamp** as midnight without a timezone. The timestamp rules above then apply, so a `date` becomes midnight UTC.
@@ -578,6 +579,7 @@ section on your destination's page.
 :::
 
 ### Handling precision
+
 The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.
 
 The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
@@ -588,6 +590,7 @@ number of seconds stored in a column. The default value is 6 (microseconds) whic
 * you yield tabular data (arrow tables/pandas/polars). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
 ### Handling nulls
+
 In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:
 
 * there's an exception to that rule if a Python object (`dict`) contains explicit `None` for a non-nullable key. This check will be eliminated. Note that if a value
@@ -595,6 +598,7 @@ for a key is not present at all, nullability check is not done
 * nullability is checked by Arrow when saving parquet files. This is a new behavior and `dlt` normalizes it for older arrow versions.
 
 ### Structured types
+
 `dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. `dlt` does not
 evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
 
@@ -603,12 +607,15 @@ evolve nested types and will not migrate destination schemas to match. Nested ty
 You can materialize a schema in the destination without loading data.
 See [Materialize schema without loading data](resource.md#materialize-schema-without-loading-data).
 :::
+
 ## Table references
+
 `dlt` tables refer to other tables. It supports two types of such references:
 1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).
 2. **Table references** are optional, user-defined annotations that are not verified and enforced but may be used by downstream tools, for example, to generate automatic tests or models for the loaded data.
 
 ### Nested references: root and nested tables
+
 When `dlt` normalizes nested data into a relational schema, it automatically creates [**root** and **nested** tables](destination-tables.md) and links them using **nested references**.
 
 1. All tables receive a column with the `row_key` hint (named `_dlt_id` by default) to uniquely identify each row of data.
@@ -628,6 +635,7 @@ You are able to bring your own `row_key` by adding a `_dlt_id` column/field to y
 `merge` write disposition requires an additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with a hint](merge-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
 
 ### Generate custom linking for nested tables
+
 Using `nested_hints` in `@dlt.resource` you can model your own relations between root and nested tables. You do that by specifying `primary_key` or `merge_key` on
 a nested table.
 
@@ -770,6 +778,7 @@ tables:
 
 
 ### Table references
+
 You can annotate tables with table references. `@dlt.resource` implements `references` argument that declares table references. Those references
 are not enforced by `dlt`. See [example](#generate-custom-linking-for-nested-tables) above.
 
@@ -884,9 +893,11 @@ source.schema.update_preferred_types(
 ```
 
 ### Applying data types directly with `@dlt.resource` and `apply_hints`
+
 `dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
 
 ### Direct specification in `@dlt.resource`
+
 Directly define data types and their properties, such as nullability, within the `@dlt.resource` decorator. This eliminates the dependency on external schema files. For example:
 
 ```py
@@ -900,6 +911,7 @@ def my_resource():
 This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
 
 #### Using `apply_hints`
+
 When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
 
 For example, to apply a `json` data type across all collections from a MongoDB source:
@@ -922,6 +934,7 @@ load_info = pipeline.run(source_data)
 This example iterates through MongoDB collections, applying the **json** [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## View and print the schema
+
 To view and print the default schema in a clear YAML format, use the command:
 
 ```py

@@ -3,7 +3,6 @@ title: License
 description: dltHub License governing the use of dltHub Software and toolkits
 keywords: [license, eula, dlthub license, terms]
 ---
-
 # dltHub License
 
 Copyright 2026 ScaleVector, GmbH. All rights reserved.

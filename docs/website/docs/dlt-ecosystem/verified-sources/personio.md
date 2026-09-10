@@ -3,9 +3,9 @@ title: Personio
 description: dlt verified source for Personio API
 keywords: [personio api, personio verified source, personio]
 ---
-import Header from './_source-info-header.md';
-
 # Personio
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

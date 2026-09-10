@@ -3,7 +3,6 @@ title: "Destination: Playground"
 description: Zero-config Playground destination for non-production example pipelines on the dltHub platform
 keywords: [playground, destination, delta, testing, experiments]
 ---
-
 # Playground
 
 :::note

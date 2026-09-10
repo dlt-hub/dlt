@@ -3,7 +3,6 @@ title: Profiles
 description: Manage environment-specific configurations and secrets in dltHub Workspace
 keywords: [dltHub, profiles, workspace, configuration, secrets, environments]
 ---
-
 # Profiles
 
 Profiles in `dlt` define **environment-specific configurations and secrets**.
@@ -222,23 +221,23 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 
 ## Inspecting and managing profiles
 
-* **List profiles**
+### List profiles
 
-  ```sh
-  dlthub profile list
-  ```
+```sh
+dlthub profile list
+```
 
-* **Show the current profile**
+### Show the current profile
 
-  ```sh
-  dlthub profile info
-  ```
+```sh
+dlthub profile info
+```
 
-* **Clean the workspace (useful in dev)**
+### Clean the workspace (useful in dev)
 
-  ```sh
-  dlthub local clean
-  ```
+```sh
+dlthub local clean
+```
 
 ## Best practices
 

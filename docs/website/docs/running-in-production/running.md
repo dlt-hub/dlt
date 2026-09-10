@@ -3,7 +3,6 @@ title: Running
 description: Running a dlt pipeline in production
 keywords: [running, production, tips]
 ---
-
 # Adjust a pipeline to run in production
 
 When running the pipeline in production, you may consider a few additions to your script. We'll use the script below as a starting point.
@@ -131,6 +130,7 @@ send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 ```
 
 ### Send schema migration info to Slack
+
 The code snippet below demonstrates automated Slack notifications for database table updates using the `send_slack_message` function.
 
 ```py
@@ -764,6 +764,7 @@ if __name__ == "__main__":
 ```
 
 ### Allow a graceful shutdown
+
 `dlt` attempts a graceful shutdown of a running pipeline by installing custom signal handlers. In those handlers SIGINT (Ctrl-C) and SIGTERM
 are intercepted. Handlers are activated when pipeline runs and have the following effect:
 - `normalize` step: raises `SignalReceivedException` at certain checkpoints, typically immediately.
@@ -821,6 +822,7 @@ Signal interception works in orchestrators that run your code in a separate proc
 :::
 
 #### Write custom signal handler
+
 You can disable dlt signal handlers and prevent interception of SIGINT and SIGTERM: for all or for a selected pipeline:
 
 ```toml

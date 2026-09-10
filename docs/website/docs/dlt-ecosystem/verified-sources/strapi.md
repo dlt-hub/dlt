@@ -3,9 +3,9 @@ title: Strapi
 description: dlt verified source for Strapi API
 keywords: [strapi api, strapi verified source, strapi]
 ---
-import Header from './_source-info-header.md';
-
 # Strapi
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -147,6 +147,7 @@ def strapi_source(
 
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this

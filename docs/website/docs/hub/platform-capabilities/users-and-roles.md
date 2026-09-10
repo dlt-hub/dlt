@@ -3,7 +3,6 @@ title: Users and roles
 description: How users, organizations, and workspaces relate on the dltHub platform, how to invite people, and what each role can do.
 keywords: [users, roles, permissions, organization, workspace, access control, RBAC, invite, members, dltHub platform]
 ---
-
 # Users and roles
 
 The dltHub platform uses a two-level access model. Every user belongs to an **organization**, and within that organization users are granted access to one or more **workspaces**. A user's effective permissions are determined by the combination of their organization role and their per-workspace role.

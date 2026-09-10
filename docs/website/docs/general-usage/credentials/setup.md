@@ -3,8 +3,7 @@ title: Overview
 description: Learn where configs are stored and how to write them
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
-
-## Key features
+# Key features
 
 1. **Separation of secrets and configs from code** - The main role of the configuration system is to keep sensitive information out of your source code.
 
@@ -423,7 +422,7 @@ sales_database = notion_databases(  # type: ignore
 
   <TabItem value="toml">
 
-**config.toml**
+#### config.toml
 
 ```toml
 [runtime]
@@ -438,7 +437,7 @@ disable_compression=true
 bucket_url = "s3://[your_bucket_name]"
 ```
 
-**secrets.toml**
+#### secrets.toml
 
 ```toml
 # Recommended sections for sources (sources.module)

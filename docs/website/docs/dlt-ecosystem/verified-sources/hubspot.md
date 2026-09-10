@@ -3,9 +3,9 @@ title: Hubspot
 description: dlt verified source for Hubspot API
 keywords: [hubspot api, hubspot verified source, hubspot]
 ---
-import Header from './_source-info-header.md';
-
 # HubSpot
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -278,6 +278,7 @@ verified source.
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
 
 ### Additional info
+
 If you encounter the following error while processing your request:
 :::warning ERROR
 Your request to HubSpot is too long to process. The maximum allowed query length is 2000 symbols, while your list is

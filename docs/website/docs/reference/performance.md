@@ -3,7 +3,6 @@ title: Optimizing dlt
 description: Scale-up, parallelize and finetune dlt pipelines
 keywords: [scaling, parallelism, finetuning]
 ---
-
 # Optimizing dlt
 
 This page contains a collection of tips and tricks to optimize dlt pipelines for speed, scalability and memory footprint. Keep in mind that dlt works in [three discrete stages](./explainers/how-dlt-works) that all have their own performance characteristics.
@@ -85,6 +84,7 @@ Instead of using Python Requests directly, you can use the built-in [requests wr
 
 
 ### Use built-in JSON parser
+
 `dlt` uses **orjson** if available. If not, it falls back to **simplejson**. The built-in parsers serialize several Python types:
 - Decimal
 - DateTime, Date
@@ -128,9 +128,11 @@ DLT_USE_JSON=simplejson
 
 
 ## Overall Memory and disk management
+
 `dlt` buffers data in memory to speed up processing and uses the file system to pass data between the **extract** and **normalize** stages. You can control the size of the buffers and the size and number of the files to fine-tune memory and CPU usage. These settings also impact parallelism, which is explained in the next chapter.
 
 ### Controlling in-memory buffers
+
 `dlt` maintains in-memory buffers when writing intermediary files in the **extract** and **normalize** stages. The size of the buffers is controlled by specifying the number of data items held in them. Data is appended to open files when the item buffer is full, after which the buffer is cleared. You can specify the buffer size via environment variables or in `config.toml` to be more or less granular:
 * set all buffers (both extract and normalize)
 * set extract buffers separately from normalize buffers
@@ -160,6 +162,7 @@ on IoT sensors or other tiny infrastructures, you might actually want to increas
 processing.
 
 ### Controlling intermediary file size and rotation
+
 `dlt` writes data to intermediary files. You can control the file size and the number of created files by setting the maximum number of data items stored in a single file or the maximum single file size. Keep in mind that the file size is computed after compression has been performed.
 * `dlt` uses a custom version of the [JSON file format](../dlt-ecosystem/file-formats.md#jsonl) between the **extract** and **normalize** stages.
 * Files created between the **normalize** and **load** stages are the same files that will be loaded to the destination.
@@ -196,6 +199,7 @@ file_max_bytes=1000000
 ```
 
 ### Disabling and enabling file compression
+
 Several [text file formats](../dlt-ecosystem/file-formats.md) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
 
 ```toml
@@ -213,6 +217,7 @@ disable_compression=true
 Keep in mind that load packages are buffered to disk and are left for any troubleshooting, so you can [clear disk space by setting the `delete_completed_jobs` option](../running-in-production/running.md#data-left-behind).
 
 ### Observing CPU and memory usage
+
 Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then, you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#monitor-the-loading-progress) to `log` in `config.toml`:
 
 ```toml
@@ -226,9 +231,11 @@ PROGRESS=log python pipeline_script.py
 ```
 
 ## Parallelism within a pipeline
+
 You can create pipelines that extract, normalize, and load data in parallel.
 
 ### Extract
+
 You can extract data concurrently if you write your pipelines to yield callables or awaitables, or use async generators for your resources that can then be evaluated in a thread or futures pool respectively.
 
 This is easily accomplished by using the `parallelized` argument in the resource decorator.
@@ -439,6 +446,7 @@ in parallel, instead yield functions or async functions that will be evaluated i
 :::
 
 ### Normalize
+
 The **normalize** stage uses a process pool to create load packages concurrently. Each file created by the **extract** stage is sent to a process pool. **If you have just a single resource with a lot of data, you should enable [extract file rotation](#controlling-intermediary-file-size-and-rotation)**. The number of processes in the pool is controlled by the `workers` config value:
 
 ```toml
@@ -474,6 +482,7 @@ start_method="spawn"
 :::
 
 ### Load
+
 The **load** stage uses a thread pool for parallelization. Loading is input/output-bound. `dlt` avoids any processing of the content of the load package produced by the normalizer. By default, loading happens in 20 threads, each loading a single file.
 
 As before, **if you have just a single table with millions of records, you should enable [file rotation in the normalizer](#controlling-intermediary-file-size-and-rotation)**. Then the number of parallel load jobs is controlled by the `workers` config setting.
@@ -491,9 +500,11 @@ workers=50
 The **normalize** stage in `dlt` uses a process pool to create load packages concurrently, and the settings for `file_max_items` and `file_max_bytes` play a crucial role in determining the size of data chunks. Lower values for these settings reduce the size of each chunk sent to the destination database, which is particularly helpful for managing memory constraints on the database server. By default, `dlt` writes all data rows into one large intermediary file, attempting to load all data at once. Configuring these settings enables file rotation, splitting the data into smaller, more manageable chunks. This not only improves performance but also minimizes memory-related issues when working with large tables containing millions of records.
 
 #### Controlling destination items size
+
 The intermediary files generated during the **normalize** stage are also used in the **load** stage. Therefore, adjusting `file_max_items` and `file_max_bytes` in the **normalize** stage directly impacts the size and number of data chunks sent to the destination, influencing loading behavior and performance.
 
 ### Parallel pipeline config example
+
 The example below simulates the loading of a database table with 100,000 records. The **config.toml** below sets the parallelization as follows:
 * During extraction, files are rotated each 10,000 items, so there are 10 files with data for the same table.
 * The normalizer will process the data in 3 processes.
@@ -569,13 +580,13 @@ You can decompose a pipeline into strongly connected components with
 `source().decompose(strategy="scc")`. The method returns a list of dlt sources, each containing a
 single component. The method ensures that no resource is executed twice.
 
-**Serial decomposition:**
+### Serial decomposition
 
 You can load such sources as tasks serially in the order presented in the list. Such a DAG is safe for
 pipelines that use the state internally.
 [It is used internally by our Airflow mapper to construct DAGs.](https://github.com/dlt-hub/dlt/blob/devel/dlt/helpers/airflow_helper.py)
 
-**Parallel decomposition**
+### Parallel decomposition
 
 If you are using only the resource state (which most of the pipelines really should!), you can run
 your tasks in parallel.
@@ -588,7 +599,7 @@ Each pipeline will have its private state in the destination, and there won't be
 the components write to the same schema, you may observe that the loader stage is attempting to migrate
 the schema. That should not be a problem, though, as long as your data does not create variant columns.
 
-**Custom decomposition**
+### Custom decomposition
 
 - When decomposing pipelines into tasks, be mindful of shared state.
 - Dependent resources pass data to each other via generators - so they need to run on the same
@@ -706,7 +717,8 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unique staging dataset name for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
 [`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
 
-## Keep pipeline working folder in a bucket on constrained environments.
+## Keep pipeline working folder in a bucket on constrained environments
+
 `dlt` stores extracted data in load packages in order to load them atomically. In case you extract a lot of data at once (i.e. backfill) or
 your runtime env has constrained local storage (i.e. cloud functions) you can keep your data on a bucket by using [FUSE](https://github.com/libfuse/libfuse) or
 any other option which your cloud provider supplies.

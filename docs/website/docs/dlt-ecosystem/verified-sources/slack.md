@@ -3,9 +3,9 @@ title: Slack
 description: dlt verified source for Slack API
 keywords: [slack api, slack verified source, slack]
 ---
-import Header from './_source-info-header.md';
-
 # Slack
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -250,6 +250,7 @@ def logs_resource() -> Iterable[TDataItem]:
 > Note: This resource may not function in the pipeline or tests due to its paid status. An error arises for non-paying accounts.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.

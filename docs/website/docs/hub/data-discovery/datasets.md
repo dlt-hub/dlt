@@ -3,7 +3,6 @@ title: Datasets
 description: Datasets in dltHub — the serving layer for loaded data.
 keywords: [dataset, datasets, hub, governance, profile, catalog, dlthub]
 ---
-
 # Datasets
 
 A **dataset** is a physical collection of data and dlt metadata at a destination — including the schema, load history, traces, and quality results. In dltHub, datasets are the **serving layer**: schemas, annotations, and run metadata propagate from sources through transformations and end up inside the dataset, so notebooks, dashboards, and downstream agents read from a single source of truth.

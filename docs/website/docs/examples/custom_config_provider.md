@@ -3,8 +3,7 @@ title: Use custom yaml file for config and secrets
 description: We show how to keep configuration in yaml file with switchable profiles and simple templates
 keywords: [config, yaml config, profiles]
 ---
-
-## About this Example
+# Use custom yaml file for config and secrets
 
 This example shows how to replace secrets/config toml files with a yaml file that contains several profiles (prod and dev) and jinja-like
 placeholders that are replaced with corresponding env variables.
@@ -18,7 +17,7 @@ In this example you will learn to:
 * Instantiate custom provider (CustomLoaderDocProvider) from the loader
 * Register provider instance to be queried
 
-### Full source code
+## Full source code
 
 ```py execute
 import os

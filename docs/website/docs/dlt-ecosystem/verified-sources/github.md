@@ -3,9 +3,9 @@ title: GitHub
 description: dlt verified source for GitHub API
 keywords: [github api, github verified source, github]
 ---
-import Header from './_source-info-header.md';
-
 # GitHub
+
+import Header from './_source-info-header.md';
 
 <Header/>
 

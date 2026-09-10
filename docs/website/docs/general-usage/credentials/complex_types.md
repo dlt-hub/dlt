@@ -4,6 +4,7 @@ description: Configure access to AWS, Azure, Google Cloud and other systems
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment
       variables, specs]
 ---
+# Built-in credentials
 
 ## Overview
 
@@ -143,6 +144,7 @@ The **Credential handover** table in each section below shows what each library 
 ### GCP credentials
 
 #### Examples
+
 * [Google Analytics verified source](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/__init__.py): an example of how to use GCP Credentials.
 * [Google Analytics example](https://github.com/dlt-hub/verified-sources/blob/master/sources/google_analytics/setup_script_gcp_oauth.py): how you can get the refresh token using `dlt.secrets.value`.
 

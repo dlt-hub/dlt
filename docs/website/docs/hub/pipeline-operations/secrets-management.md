@@ -3,7 +3,6 @@ title: Secrets management
 description: How dltHub handles your secrets, and how to manage them safely in production with vaults and access controls.
 keywords: [secrets, secrets management, vault, encryption, google secret manager, credentials, hub, dltHub]
 ---
-
 # Secrets management
 
 Pipelines deployed to dltHub need access to credentials (warehouse passwords, API keys, tokens) at run time. This page explains how dltHub handles those secrets for you, and the options you have for managing them yourself in production.

@@ -3,11 +3,11 @@ title: Dremio
 description: Dremio `dlt` destination
 keywords: [dremio, iceberg, aws, glue catalog]
 ---
-
 # Dremio
 
 ## Install dlt with Dremio
-**To install the dlt library with Dremio and s3 dependencies:**
+
+To install the dlt library with Dremio and s3 dependencies:
 
 ```sh
 pip install "dlt[dremio,s3]"
@@ -16,6 +16,7 @@ pip install "dlt[dremio,s3]"
 <!--@@@DLT_DESTINATION_CAPABILITIES dremio-->
 
 ## Setup guide
+
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
@@ -108,6 +109,7 @@ Therefore, "Metastore" data sources, such as Hive or Glue, require that the data
 Using a staging destination is mandatory when using the Dremio destination. If you do not set staging to `filesystem`, dlt will automatically do this for you.
 
 ## Table partitioning and local sort
+
 Apache Iceberg table partitions and local sort properties can be configured as shown below:
 
 ```py
@@ -131,6 +133,7 @@ This will result in `PARTITION BY ("foo","bar")` and `LOCALSORT BY ("baz")` clau
 > ***Note:*** Table partition migration is not implemented. The table will need to be dropped and recreated to alter partitions or localsort.
 
 ### Syncing of `dlt` state
+
 - This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA dremio-->

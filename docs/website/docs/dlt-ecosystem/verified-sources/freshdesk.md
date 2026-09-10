@@ -3,10 +3,9 @@ title: Freshdesk
 description: dlt verified source for Freshdesk API
 keywords: [freshdesk api, freshdesk verified source, freshdesk]
 ---
-import Header from './_source-info-header.md';
-
-
 # Freshdesk
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -176,7 +175,9 @@ def freshdesk_source(
 `primary_key`: Specifies "id" as the primary key of the resource.
 
 ## Customization
+
 ### Create your own pipeline
+
 If you wish to create your own pipelines, you can leverage source and resource methods from this
 verified source.
 

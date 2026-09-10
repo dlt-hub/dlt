@@ -3,6 +3,7 @@ title: Load data from a SQL database
 description: How to extract data from a SQL Database using dlt's SQL Database core source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Load data from a SQL database
 
 This tutorial will show you how you can use dlt to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any dlt-compatible destination (Postgres, BigQuery, Snowflake, DuckDB, etc.).
 

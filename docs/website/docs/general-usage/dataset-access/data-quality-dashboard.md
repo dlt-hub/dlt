@@ -3,7 +3,6 @@ title: Monitoring
 description: Monitoring and testing data quality
 keywords: [destination, schema, data, monitoring, testing, quality]
 ---
-
 # Data monitoring
 
 Data quality monitoring is concerned with ensuring that quality data arrives at the data warehouse
@@ -18,6 +17,7 @@ For example, to monitor data loading, consider plotting "count of records by `lo
 "created at", "modified at", or other recency markers.
 
 ## Rows count
+
 To find the number of rows loaded per table, use the following command:
 
 ```sh
@@ -61,6 +61,7 @@ representation of the rows loaded with `load_id` for different tables:
 ![image](https://storage.googleapis.com/dlt-blog-images/docs_monitoring_count_of_rows_vs_load_id.jpg)
 
 ## Data load time
+
 Data loading time for each table can be obtained by using the following command:
 
 ```sh
