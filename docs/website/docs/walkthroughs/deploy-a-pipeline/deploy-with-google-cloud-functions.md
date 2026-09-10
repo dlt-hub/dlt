@@ -25,6 +25,7 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
 
    - Detailed information about initializing a verified source and a pipeline example can be found in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
 1. Create a new Python file called "main.py" in the main directory. The file can be configured as follows:
+
    ```py
    from notion_pipeline import load_databases
 
@@ -32,6 +33,7 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
      load_databases()
      return "Pipeline run successfully!"
    ```
+
    By default, Google Cloud Functions looks for the "main.py" file in the directory.
    
 1. If you need any additional dependencies, add them to the "requirements.txt" that was created.

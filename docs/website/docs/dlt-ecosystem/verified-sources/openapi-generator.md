@@ -34,11 +34,13 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 
 
 1. Run the generator with a URL:
+
     ```sh
     dlt-init-openapi pokemon --url https://raw.githubusercontent.com/dlt-hub/dlt-init-openapi/devel/tests/cases/e2e_specs/pokeapi.yml --global-limit 2
     ```
 
 2. Alternatively, if you have a local file, you can use the --path flag:
+
     ```sh
     dlt-init-openapi pokemon --path ./my_specs/pokeapi.yml
     ```
@@ -50,17 +52,20 @@ We will create a simple example pipeline from a [PokeAPI spec](https://pokeapi.c
 5. If you have any kind of authentication on your pipeline (this example does not), open the `.dlt/secrets.toml` and provide the credentials. You can find further settings in the `.dlt/config.toml`.
 
 6. Go to the created pipeline folder and run your pipeline.
+
     ```sh
     cd pokemon-pipeline
     PROGRESS=enlighten python pipeline.py # we use enlighten for a nice progress bar :)
     ```
 
 7. Print the pipeline info to the console to see what got loaded.
+
     ```sh
     dlt pipeline pokemon_pipeline info
     ```
 
 8. You can now also install marimo to see a preview of the data in the workspace dashboard; you should have loaded 40 Pokemons and their details.
+
     ```sh
     pip install pandas marimo
     dlt pipeline pokemon_pipeline show
@@ -162,6 +167,7 @@ dlt-init-openapi <source_name> [OPTIONS]
 ```
 
 ### Example:
+
 ```sh
 dlt-init-openapi pokemon --path ./path/to/my_spec.yml --no-interactive --output-path ./my_pipeline
 ```
@@ -195,7 +201,7 @@ package_name: "other_package_name"
 And use it with the config argument:
 
 ```sh
-$ dlt-init-openapi pokemon --url ... --config config.yml
+dlt-init-openapi pokemon --url ... --config config.yml
 ```
 
 ## Telemetry

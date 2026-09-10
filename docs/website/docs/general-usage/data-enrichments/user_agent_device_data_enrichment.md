@@ -110,6 +110,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Replace the value of the `api_key`.
 
 1. Create the `fetch_average_price()` function as follows:
+
    ```py
    import datetime
 

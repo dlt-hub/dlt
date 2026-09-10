@@ -56,22 +56,26 @@ You can find the full example code in [this repository](https://github.com/dlt-h
 **The steps are as follows:**
 
 1. Install Dagster and the embedded ELT package using pip:
+
     ```sh
     pip install dagster dagster-webserver dagster-dg-cli
     pip install dagster-dlt
     ```
 
 1. Set up a Dagster project:
+
       ```sh
       mkdir dagster_github_issues
       cd dagster_github_issues
       create-dagster project github-issues
       ```
+
       ![image](https://github.com/user-attachments/assets/f9002de1-bcdf-49f4-941b-abd59ea7968d)
 
 1. In your Dagster project, define the dlt pipeline in the `github_source` folder.
 
    **Note**: The dlt Dagster helper works only with dlt sources. Your resources should always be grouped in a source.
+
      ```py notype
      import dlt
      ...
@@ -93,6 +97,7 @@ You can find the full example code in [this repository](https://github.com/dlt-h
      def github_source():
          return get_issues()
      ```
+
  1. Create a `dlt_assets` definition.
 
     The `@dlt_assets` decorator takes a `dlt_source` and `dlt_pipeline` parameter.

@@ -912,6 +912,7 @@ ds = pipeline.dataset()
 # After (explicit single schema, equivalent to the old behavior):
 ds = pipeline.dataset(schema=pipeline.default_schema_name)
 ```
+
 :::
 
 
@@ -1026,9 +1027,11 @@ This table stores the internal state of the pipeline for each run. The state dri
 
 The state column contains a serialized Python dictionary that includes:
 
-    - Incremental progress, for example the last item or timestamp processed.
-    - Checkpoints for transformations.
-    - Source-specific metadata and config.
+```text
+- Incremental progress, for example the last item or timestamp processed.
+- Checkpoints for transformations.
+- Source-specific metadata and config.
+```
 
 With this state dlt resumes interrupted pipelines and skips data it already processed. A rerun of the same pipeline therefore produces the same result.
 

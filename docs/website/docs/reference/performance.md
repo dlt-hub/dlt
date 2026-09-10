@@ -17,6 +17,7 @@ This page contains a collection of tips and tricks to optimize dlt pipelines for
 If possible, yield pages when producing data. This approach makes some processes more effective by reducing
 the number of necessary function calls (each chunk of data that you yield goes through the extract pipeline once, so if you yield a chunk of 10,000 items, you will gain significant savings).
 For example:
+
 ```py execute
 import dlt
 
@@ -118,9 +119,11 @@ json.set_custom_encoder(my_custom_encoder)
 - Use `loadb` and `dumpb` methods to work with bytes without decoding strings.
 
 You can switch to **simplejson** at any moment by (1) removing the **orjson** dependency or (2) setting the following env variable:
+
 ```sh
 DLT_USE_JSON=simplejson
 ```
+
 :::
 
 
@@ -194,6 +197,7 @@ file_max_bytes=1000000
 
 ### Disabling and enabling file compression
 Several [text file formats](../dlt-ecosystem/file-formats.md) have `gzip` compression enabled by default. If you wish that your load packages have uncompressed files (e.g., to debug the content easily), change `data_writer.disable_compression` in config.toml. The entry below will disable the compression of the files processed in the `normalize` stage.
+
 ```toml
 [normalize.data_writer]
 disable_compression=true
@@ -210,10 +214,13 @@ Keep in mind that load packages are buffered to disk and are left for any troubl
 
 ### Observing CPU and memory usage
 Please make sure that you have the `psutil` package installed (note that Airflow installs it by default). Then, you can dump the stats periodically by setting the [progress](../general-usage/pipeline.md#monitor-the-loading-progress) to `log` in `config.toml`:
+
 ```toml
 progress="log"
 ```
+
 or when running the pipeline:
+
 ```sh
 PROGRESS=log python pipeline_script.py
 ```
@@ -344,6 +351,7 @@ The `parallelized` flag in the `resource` and `transformer` decorators is suppor
 * `dlt.transformer` decorated functions. These can be either generator functions or regular functions that return one value
 
 You can control the number of workers in the thread pool with the **workers** setting. The default number of workers is **5**. Below, you see a few ways to do that with different granularity.
+
 ```toml
 # for all sources and resources being extracted
 [extract]
@@ -362,6 +370,7 @@ workers=4
 
 The example below does the same but using an async generator as the main resource and async/await and futures pool for the transformer.
 The `parallelized` flag is not supported or needed for async generators; these are wrapped and evaluated concurrently by default:
+
 ```py execute
 import asyncio
 
@@ -403,6 +412,7 @@ print(list(a_list_items(0, 10) | a_get_details))
 
 
 You can control the number of async functions/awaitables being evaluated in parallel by setting **max_parallel_items**. The default number is **20**. Below, you see a few ways to do that with different granularity.
+
 ```toml
 # for all sources and resources being extracted
 [extract]
@@ -430,6 +440,7 @@ in parallel, instead yield functions or async functions that will be evaluated i
 
 ### Normalize
 The **normalize** stage uses a process pool to create load packages concurrently. Each file created by the **extract** stage is sent to a process pool. **If you have just a single resource with a lot of data, you should enable [extract file rotation](#controlling-intermediary-file-size-and-rotation)**. The number of processes in the pool is controlled by the `workers` config value:
+
 ```toml
 [normalize.data_writer]
 # force extract file rotation if size exceeds 1MiB
@@ -453,11 +464,13 @@ Normalization is CPU-bound and can easily saturate all your cores. Never allow `
 The default method of spawning a process pool on Linux is **fork**. If you are using threads in your code (or libraries that use threads),
 you should switch to **spawn**. Process forking does not respawn the threads and may destroy the critical sections in your code. Even logging
 with Python loggers from multiple threads may lock the `normalize` step. Here's how you switch to **spawn**:
+
 ```toml
 [normalize]
 workers=3
 start_method="spawn"
 ```
+
 :::
 
 ### Load
@@ -702,6 +715,7 @@ any other option which your cloud provider supplies.
 `rename` is translated into `copy` automatically. In other cases `dlt` will fallback to copy itself.
 
 In case of cloud function and gs bucket mounts, increasing the rename limit for folders is possible:
+
 ```hcl
 volume_mounts {
     mount_path = "/usr/src/ingestion/pipeline_storage"
@@ -718,6 +732,7 @@ volumes {
   }
 }
 ```
+
 ## Handling storage limits
 
 If your storage reaches its limit, you are likely running dlt in a cloud environment with restricted disk space. To prevent issues, mount an external cloud storage location and set the `DLT_DATA_DIR` environment variable to point to it. This ensures that dlt uses the mounted storage as its data directory instead of local disk space.
@@ -738,4 +753,5 @@ os.environ["DLT_DATA_DIR"] = data_dir
 
 # Rest of your pipeline code
 ```
+
 This directs dlt to use the specified external storage for all data operations, preventing local storage constraints.

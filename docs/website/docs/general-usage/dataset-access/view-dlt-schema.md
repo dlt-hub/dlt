@@ -1346,6 +1346,7 @@ dlt pipeline chess_pipeline schema --format mermaid
       purchases ||--|{ customers : ""
       _dlt_pipeline_state }|--|| _dlt_loads : _dlt_load
   ```
+
 </details>
 
 ![mermaid render](https://storage.googleapis.com/dlt-blog-images/schema_mermaid_export.png)

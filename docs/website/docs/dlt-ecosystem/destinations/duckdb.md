@@ -8,6 +8,7 @@ keywords: [duckdb, destination, data warehouse]
 
 ## Install dlt with DuckDB
 **Install the dlt library with DuckDB dependencies:**
+
 ```sh
 pip install "dlt[duckdb]"
 ```
@@ -17,16 +18,19 @@ pip install "dlt[duckdb]"
 ## Setup guide
 
 **1. Initialize a project with a pipeline that loads to DuckDB:**
+
 ```sh
 dlt init chess duckdb
 ```
 
 **2. Install the dependencies for DuckDB:**
+
 ```sh
 pip install -r requirements.txt
 ```
 
 **3. Run the pipeline:**
+
 ```sh
 python3 chess_pipeline.py
 ```
@@ -87,15 +91,18 @@ pipeline.run(events())
 * The convention also translates consecutive underscores to a single `_`.
 
 Switch the naming convention in `config.toml`:
+
 ```toml
 [schema]
 naming="duck_case"
 ```
 
 Or set the env variable `SCHEMA__NAMING`, or set the value in code:
+
 ```py
 dlt.config["schema.naming"] = "duck_case"
 ```
+
 :::warning
 **duckdb** identifiers are **case-insensitive**, but display names preserve case. If you load JSON with
 `{"Column": 1, "column": 2}`, duckdb maps both keys to a single column. This creates a name collision.
@@ -116,9 +123,11 @@ You can configure the following file formats to load data into duckdb:
 only the microseconds resolution (the most commonly used) is time-zone-aware. By default, `dlt` generates timestamps with a time zone.
 Parquet loads then fail, because `duckdb` does not coerce time-zone-aware timestamps to naive timestamps.
 To disable the time zones, change the `dlt` [Parquet writer settings](../file-formats.md#writer-settings):
+
 ```sh
 DATA_WRITER__TIMESTAMP_TIMEZONE=""
 ```
+
 Timestamps written this way carry no offset, so `duckdb` reads them in the
 [session timezone](#session-timezone), which `dlt` keeps at UTC.
 :::
@@ -132,6 +141,7 @@ Timestamps written this way carry no offset, so `duckdb` reads them in the
 By default, `dlt` creates a DuckDB database in the current working directory. The name is `<pipeline_name>.duckdb` (`chess.duckdb` in the example above).
 
 The `duckdb` credentials do not require any secret values. [You can pass the credentials and config explicitly](../../general-usage/destination.md#pass-explicit-credentials). For example:
+
 ```py
 # will load data to files/data.db (relative path) database file
 p = dlt.pipeline(
@@ -149,7 +159,9 @@ p = dlt.pipeline(
   dev_mode=False
 )
 ```
+
 Named `duckdb` destinations create a database file in the current working directory as `<destination_name>.duckdb`. For example:
+
 ```py
 # will load data to files/data.db (relative path) database file
 p = dlt.pipeline(
@@ -158,11 +170,13 @@ p = dlt.pipeline(
   dataset_name='chess_data',
 )
 ```
+
 This code creates the database `chessdb.duckdb`.
 
 :::warning
 Do not give the dataset the same name as the database. The `duckdb` binder cannot tell the catalog and the schema apart. For
 example:
+
 ```py
 pipeline = dlt.pipeline(
         pipeline_name="dummy",
@@ -170,6 +184,7 @@ pipeline = dlt.pipeline(
         dataset_name="dummy",
     )
 ```
+
 This code creates the database `dummy.duckdb` and the schema (dataset) `dummy`. `duckdb` cannot tell them apart and raises a Binder Error.
 :::
 
@@ -222,12 +237,15 @@ dataset and applies the settings from [Additional config](#additional-config) be
 This destination accepts database connection strings in the format used by [duckdb-engine](https://github.com/Mause/duckdb_engine#configuration).
 
 You can configure a DuckDB destination with [secret / config values](../../general-usage/credentials), for example in a `secrets.toml` file:
+
 ```toml
 destination.duckdb.credentials="duckdb:///_storage/test_quack.duckdb"
 ```
+
 The **duckdb://** URL above creates a **relative** path to `_storage/test_quack.duckdb`. To define an **absolute** path, use four slashes: `duckdb:////_storage/test_quack.duckdb`.
 
 You can also skip the schema and pass the path directly:
+
 ```toml
 destination.duckdb.credentials="_storage/test_quack.duckdb"
 ```
@@ -236,11 +254,13 @@ To place the database in the working directory of the pipeline, pass **:pipeline
 `<pipeline_name>.duckdb`, or `<destination_name>.duckdb` for a named destination.
 
 1. Via `config.toml`
+
 ```toml
 destination.duckdb.credentials=":pipeline:"
 ```
 
 2. In Python code
+
 ```py
 p = dlt.pipeline(
   pipeline_name="my_pipeline",
@@ -250,12 +270,14 @@ p = dlt.pipeline(
 
 ### Additional config
 If you set the following config value, `dlt` creates unique indexes during loading:
+
 ```toml
 [destination.duckdb]
 create_indexes=true
 ```
 
 Add extensions, pragmas, and [local and global config](https://duckdb.org/docs/stable/configuration/overview.html#global-configuration-options) options to the config:
+
 ```toml
 [destination.duckdb.credentials]
 extensions=["spatial"]
@@ -267,6 +289,7 @@ azure_transport_option_type=true
 [destination.duckdb.credentials.local_config]
 errors_as_json=true
 ```
+
 The config above runs these steps in order:
 * `LOAD spatial` — `dlt` loads the extension but does not install it.
 * the global config: `SET GLOBAL azure_transport_option_type=true`
@@ -284,6 +307,7 @@ columns. It does not change the column types that `CREATE TABLE` produces.
 
 Set `session_timezone` to a different timezone. To keep the `duckdb` default, which is the machine
 timezone, set it to an empty string:
+
 ```toml
 [destination.duckdb.credentials]
 session_timezone="Europe/Berlin"
@@ -294,10 +318,12 @@ default for the sessions you open from it as well. A session that set its own `T
 
 #### SQL statements on each connection
 The `statements` option takes plain SQL for anything the options above cannot express, such as `INSTALL`, `ATTACH` and `CREATE SECRET`:
+
 ```toml
 [destination.duckdb.credentials]
 statements=["INSTALL lance", "LOAD lance"]
 ```
+
 The example pairs `INSTALL` with `LOAD` to keep both steps together. You can also load the extension with
 the `extensions` option instead.
 
@@ -315,6 +341,7 @@ Such statements often carry credentials, so `dlt` treats `statements` as a secre
 You can pass dictionaries and lists in environment variables. Write these values as Python literals, not as JSON.
 
 You can also pass additional options in code:
+
 ```py
 import os
 import duckdb
@@ -330,6 +357,7 @@ dest_ = dlt.destinations.duckdb(
     DuckDbCredentials("duck.db", extensions=["spatial"], local_config={"errors_as_json": True})
 )
 ```
+
 The code above installs **spatial** with `duckdb` directly, because `dlt` only loads an extension. The code then passes duckdb credentials to the destination constructor. The database file is **duck.db**, and the code enables logging and `json` error messages.
 
 ## Data access after loading

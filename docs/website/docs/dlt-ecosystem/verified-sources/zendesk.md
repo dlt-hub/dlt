@@ -126,9 +126,11 @@ To generate a Zendesk chat OAuth token, please refer to this
 1. Record the "CLIENT_ID" and "SUBDOMAIN".
 1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
    press Enter.
+
    ```sh
    https://www.zopim.com/oauth2/authorizations/new?response_type=token&client_id=CLIENT_ID&scope=read%20write&subdomain=SUBDOMAIN
    ```
+
 1. The call will be made, possibly asking you to log in and select 'Allow' to generate the token.
 1. If the call succeeds, your browser's address field will contain your new OAuth token (returned as
    the access_token value).

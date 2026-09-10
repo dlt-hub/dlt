@@ -77,6 +77,7 @@ To get started with your data pipeline, follow these steps:
    domain = "please set me up!" # Enter the Freshdesk domain here
    api_secret_key = "please set me up!" # Enter the Freshdesk API key here
    ```
+
 1. In the `domain`, enter the domain of your Freshdesk account.
 
 1. In `api_secret_key`, enter the API key you [copied above.](#grab-credentials)
@@ -85,18 +86,24 @@ To get started with your data pipeline, follow these steps:
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python freshdesk_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `freshdesk_pipeline`. You may also use any custom name instead.
 
@@ -124,6 +131,7 @@ def freshdesk_source(
 ) -> Iterable[DltResource]:
     ...
 ```
+
 > This source supports pagination and incremental data loading. It fetches data from a list of
 > specified endpoints, or defaults to predefined endpoints in
 > ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
@@ -186,6 +194,7 @@ verified source.
    [documentation](../../general-usage/pipeline).
 
 2. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
+
    ```py notype
    load_data = freshdesk_source()
    # Run the pipeline
@@ -195,6 +204,7 @@ verified source.
    ```
 
 3. To load the data from "agents", "contacts", and "tickets":
+
    ```py notype
    load_data = freshdesk_source().with_resources("agents", "contacts", "tickets")
    # Run the pipeline
@@ -202,4 +212,5 @@ verified source.
    # Print the pipeline run information
    print(load_info)
    ```
+
 <!--@@@DLT_TUBA github-->

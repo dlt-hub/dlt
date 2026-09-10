@@ -66,10 +66,12 @@ The default naming convention:
 > 💡 Use simple, short, small caps identifiers for everything!
 
 To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention in "config.toml" as follows:
+
 ```toml
 [schema]
 naming="direct"
 ```
+
 :::warning
 Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
 :::
@@ -628,6 +630,7 @@ You are able to bring your own `row_key` by adding a `_dlt_id` column/field to y
 ### Generate custom linking for nested tables
 Using `nested_hints` in `@dlt.resource` you can model your own relations between root and nested tables. You do that by specifying `primary_key` or `merge_key` on
 a nested table.
+
 ```py execute
 import dlt
 from dlt.common import Decimal
@@ -794,6 +797,7 @@ settings:
 ```
 
 Alternatively, you can add and remove detections from code:
+
 ```py
   source = data_source()
   # remove iso time detector
@@ -801,6 +805,7 @@ Alternatively, you can add and remove detections from code:
   # convert UNIX timestamp (float, within a year from NOW) into timestamp
   source.schema.add_type_detection("timestamp")
 ```
+
 Above, we modify a schema that comes with a source to detect UNIX timestamps with the **timestamp** detector.
 
 ### Column hint rules
@@ -827,13 +832,17 @@ settings:
     root_key:
       - _dlt_root_id
 ```
+
 Above, we require an exact column name match for a hint to apply. You can also use a regular expression (which we call `SimpleRegex`) as follows:
+
 ```yaml
 settings:
     partition:
       - re:_timestamp$
 ```
+
 Above, we add a `partition` hint to all columns ending with `_timestamp`. You can do the same thing in the code:
+
 ```py
   from dlt.common.schema.typing import TSimpleRegex
   
@@ -859,6 +868,7 @@ settings:
 
 Above, we prefer the `timestamp` data type for all columns containing the **timestamp** substring and define a few exact matches, i.e., **created_at**.
 Here's the same thing in code:
+
 ```py
 from dlt.common.schema.typing import TSimpleRegex
 
@@ -872,6 +882,7 @@ source.schema.update_preferred_types(
 }
 )
 ```
+
 ### Applying data types directly with `@dlt.resource` and `apply_hints`
 `dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
 
@@ -885,6 +896,7 @@ def my_resource():
     for i in range(10):
         yield {'my_column': i % 2 == 0}
 ```
+
 This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
 
 #### Using `apply_hints`
@@ -906,6 +918,7 @@ pipeline = dlt.pipeline(
 )
 load_info = pipeline.run(source_data)
 ```
+
 This example iterates through MongoDB collections, applying the **json** [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## View and print the schema
@@ -914,6 +927,7 @@ To view and print the default schema in a clear YAML format, use the command:
 ```py
 pipeline.default_schema.to_pretty_yaml()
 ```
+
 This can be used in a pipeline as:
 
 ```py
@@ -929,6 +943,7 @@ load_info = pipeline.run(source)
 # Print the default schema in a pretty YAML format
 print(pipeline.default_schema.to_pretty_yaml())
 ```
+
 This will display a structured YAML representation of your schema, showing details like tables, columns, data types, and metadata, including version, version_hash, and engine_version.
 
 ## Export and import schema files

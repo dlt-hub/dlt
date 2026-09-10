@@ -330,11 +330,13 @@ for resource in resources:
         "date": {"data_type": "timestamp"},
     })
 ```
+
 In this example, the `total_amount` column is enforced to be of type double, and `date` is enforced to be of type timestamp.
 This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
 And the `date` column will be represented as dates, not integers.
 
 For a single resource (e.g., `Sheet1`), you can simply use:
+
 ```py
 source.Sheet1.apply_hints(columns={
     "total_amount": {"data_type": "double"},
@@ -343,6 +345,7 @@ source.Sheet1.apply_hints(columns={
 ```
 
 To get the name of resources, you can use:
+
 ```py
 print(source.resources.keys())
 ```

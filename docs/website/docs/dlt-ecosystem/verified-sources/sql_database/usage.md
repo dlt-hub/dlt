@@ -55,6 +55,7 @@ def query_adapter_callback(
 
       return t_query
 ```
+
 In the snippet above we do a few interesting things:
 1. We create a text query with `sa.text`
 2. We change the condition on selecting incremental column from the default `ge` to `greater` (f" \{incremental.cursor_path\} > :start_value")
@@ -74,9 +75,11 @@ def add_new_columns(table) -> None:
         if col_name not in table.c:
             table.append_column(sa.Column(col_name, col_type, **col_kwargs)) # type: ignore[arg-type]
 ```
+
 Otherwise `dlt` will attempt to infer the types from the extracted data.
 
 Here's how you call `sql_table` with those adapters:
+
 ```py notype
 import dlt
 from dlt.sources.sql_database import sql_table
@@ -92,6 +95,7 @@ table = sql_table(
 ## Add computed columns and custom incremental clauses
 
 You can add computed columns to the table definition by converting it into a subquery:
+
 ```py notype
 def add_max_timestamp(table):
     computed_max_timestamp = sa.sql.type_coerce(
@@ -101,6 +105,7 @@ def add_max_timestamp(table):
     subquery = sa.select(*table.c, computed_max_timestamp).subquery()
     return subquery
 ```
+
 We add new `max_timestamp` column that is a MAX of `created_at` and `updated_at` columns and then we convert it into a subquery
 because we intend to use it for incremental loading which will attach a `WHERE` clause to it.
 
@@ -114,6 +119,7 @@ read_table = sql_table(
     incremental=dlt.sources.incremental("max_timestamp"),
 )
 ```
+
 `dlt` will use your subquery instead of original `chat_message` table to generate incremental query. Note that you can further
 customize subquery with query adapter as in the example above.
 

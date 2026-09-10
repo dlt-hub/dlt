@@ -95,6 +95,7 @@ project_id = "<project_id>"
 private_key = "-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
 client_email = "....gserviceaccount.com"
 ```
+
   </TabItem>
   <TabItem value="env">
 
@@ -109,6 +110,7 @@ PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__PROJECT_ID="<project_id>"
 PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__PRIVATE_KEY="-----BEGIN PRIVATE KEY-----\n....\n-----END PRIVATE KEY-----\n"
 PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__CLIENT_EMAIL="....gserviceaccount.com"
 ```
+
   </TabItem>
 </Tabs>
 
@@ -133,6 +135,7 @@ only_secrets = false
 only_toml_fragments = false
 list_secrets = false  # listing not available: dlt does direct lookups, needs only secretAccessor
 ```
+
   </TabItem>
   <TabItem value="env">
 
@@ -143,6 +146,7 @@ PROVIDERS__GOOGLE_SECRETS__ONLY_SECRETS="false"
 PROVIDERS__GOOGLE_SECRETS__ONLY_TOML_FRAGMENTS="false"
 PROVIDERS__GOOGLE_SECRETS__LIST_SECRETS="false"
 ```
+
   </TabItem>
 </Tabs>
 
@@ -273,6 +277,7 @@ aws_access_key_id = "..."
 aws_secret_access_key = "..."
 region_name = "eu-central-1"
 ```
+
   </TabItem>
   <TabItem value="env">
 
@@ -287,6 +292,7 @@ PROVIDERS__AWS_SECRETS__CREDENTIALS__AWS_ACCESS_KEY_ID="..."
 PROVIDERS__AWS_SECRETS__CREDENTIALS__AWS_SECRET_ACCESS_KEY="..."
 PROVIDERS__AWS_SECRETS__CREDENTIALS__REGION_NAME="eu-central-1"
 ```
+
   </TabItem>
 </Tabs>
 
@@ -379,6 +385,7 @@ Examples of values stored in Airflow Variables with following names:
 **variable name: `my_pipeline.dlt_secrets_toml`**
 
 (entire secrets TOML scoped for a pipeline):
+
 ```toml
 [destination.bigquery]
 location = "US"
@@ -393,12 +400,14 @@ pipedrive_api_key = "..."
 ```
 
 **variable name: `destination`**
+
 ```toml
 [destination]
 postgres.credentials = "postgresql://loader:***@host:5432/postgres"
 ```
 
 **variable name: `sources.mongodb`**
+
 ```toml
 [sources.mongodb]
 connection_url = "mongodb+srv://user:***@host/db?authSource=admin&tls=true"

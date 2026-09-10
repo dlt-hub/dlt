@@ -8,6 +8,7 @@ keywords: [redshift, destination, data warehouse]
 
 ## Install dlt with Redshift
 **To install the dlt library with Redshift dependencies:**
+
 ```sh
 pip install "dlt[redshift]"
 ```
@@ -22,12 +23,15 @@ Let's start by initializing a new dlt project as follows:
 ```sh
 dlt init chess redshift
 ```
+
 > 💡 This command will initialize your pipeline with chess as the source and Redshift as the destination.
 
 The above command generates several files and directories, including `.dlt/secrets.toml` and a requirements file for Redshift. You can install the necessary dependencies specified in the requirements file by executing it as follows:
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or with `pip install "dlt[redshift]"`, which installs the `dlt` library and the necessary dependencies for working with Amazon Redshift as a destination.
 
 ### 2. Setup Redshift cluster
@@ -64,6 +68,7 @@ To load data into Redshift, you need to create a Redshift cluster and enable acc
 3. The `connect_timeout` is the number of minutes the pipeline will wait before timing out.
 
 You can also pass a database connection string similar to the one used by the `psycopg2` library or [SQLAlchemy](https://docs.sqlalchemy.org/en/20/core/engines.html#postgresql). The credentials above will look like this:
+
 ```toml
 # Keep it at the top of your TOML file, before any section starts
 destination.redshift.credentials="redshift://loader:<password>@localhost/dlt_data?connect_timeout=15"
@@ -106,6 +111,7 @@ Redshift **by default** uses case-insensitive identifiers and **will lower case 
 [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway, and you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 You can [put Redshift in case-sensitive mode](https://docs.aws.amazon.com/redshift/latest/dg/r_enable_case_sensitive_identifier.html). Configure your destination as below in order to use case-sensitive naming conventions:
+
 ```toml
 [destination.redshift]
 has_case_sensitive_identifiers=true
@@ -124,6 +130,7 @@ If the S3 bucket is in a different region than your Redshift cluster:
 
 ### Additional COPY Options
 You can append additional Redshift [COPY options/Data conversion Parameters](https://docs.aws.amazon.com/redshift/latest/dg/copy-parameters-data-conversion.html) to staged loads with `additional_copy_options`. For example:
+
 ```toml
 [destination.redshift]
 additional_copy_options = ["FILLRECORD", "NULL AS 'null_string'"]
@@ -164,6 +171,7 @@ Redshift uses UTC unless you set a timezone. `session_timezone` sets it per conn
 decides how Redshift reads values without a UTC offset into `timestamptz` columns. It also decides
 which timezone Redshift returns for those columns. It does not change the column types that
 `CREATE TABLE` produces.
+
 ```toml
 [destination.redshift.credentials]
 session_timezone = "Europe/Paris"

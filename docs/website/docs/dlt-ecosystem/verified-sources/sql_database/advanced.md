@@ -28,6 +28,7 @@ do not use the state.
 and make the start range open to avoid duplicates.
 
 In example below we partition a table with chat messages by day using `updated_at` timestamp column as cursor.
+
 ```py
 import dlt
 from dlt.sources.sql_database import sql_table
@@ -73,6 +74,7 @@ incremental_table = sql_table(
 )
 pipeline.run(incremental_table)
 ```
+
 Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#partition-large-backfills)
 
 **Split loading works as follows:**
@@ -102,6 +104,7 @@ incremental_table = sql_table(
 while not pipeline.run(incremental_table.add_limit(2)).is_empty:
     pass
 ```
+
 Note: if you have a table that receives data all the time, `is_empty` may never be false (there's always new data).
 Use `pipeline.last_trace.last_normalize_info.row_counts` for more granular exit conditions
 
@@ -153,6 +156,7 @@ It's a good option if:
 ## Parallelized extraction
 
 You can extract each table in a separate thread (no multiprocessing at this point). This will decrease loading time if your queries take time to execute or your network latency/speed is low. To enable this, declare your sources/resources as follows:
+
 ```py
 from dlt.sources.sql_database import sql_database, sql_table
 
@@ -262,6 +266,7 @@ source = sql_database(
 
 You can use `query_adapter_callback` to filter rows using SQL conditions.
 This allows you to include only the data that matches specific criteria.
+
 ```py
 from dlt.sources.sql_database import sql_database
 
@@ -275,6 +280,7 @@ source = sql_database(
     query_adapter_callback=query_adapter_callback,
 )
 ```
+
 :::note
 You can combine both `query_adapter_callback` and `table_adapter_callback`  
 to filter rows and select specific columns within the same source.  
@@ -287,6 +293,7 @@ source = sql_database(
     table_adapter_callback=table_adapter_callback,
 )
 ```
+
 :::
 ## Configuring with TOML or environment variables
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
@@ -295,11 +302,14 @@ This is particularly useful with `sql_table()` because you can maintain a separa
 
 The examples below show how you can set arguments in any of the TOML files (`secrets.toml` or `config.toml`):
 1. Specifying connection string:
+
     ```toml
     [sources.sql_database]
     credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
     ```
+
 2. Setting parameters like backend, `chunk_size`, and incremental column for the table `chat_message`:
+
     ```toml
     [sources.sql_database.chat_message]
     backend="pandas"
@@ -308,10 +318,12 @@ The examples below show how you can set arguments in any of the TOML files (`sec
     [sources.sql_database.chat_message.incremental]
     cursor_path="updated_at"
     ```
+
     This is especially useful with `sql_table()` in a situation where you may want to run this resource for multiple tables. Setting parameters like this would then give you a clean way of maintaining separate configurations for each table.
 
 3. Handling separate configurations for database and individual tables
     When using the `sql_database()` source, you can separately configure the parameters for the database and for the individual tables.
+
     ```toml
     [sources.sql_database]
     credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
@@ -334,6 +346,7 @@ The examples below show how you can set arguments in any of the TOML files (`sec
 You'll be able to configure all the arguments this way (except the adapter callback function). [Standard dlt rules apply](../../../general-usage/credentials/setup).
 
 It is also possible to set these arguments as environment variables [using configuration sections](../../../general-usage/credentials/setup#recommended-section-layout):
+
 ```sh
 SOURCES__SQL_DATABASE__CREDENTIALS="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 SOURCES__SQL_DATABASE__BACKEND=pandas
@@ -344,14 +357,17 @@ SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
 ### Configure many sources side by side with custom sections
 `dlt` allows you to rename any source to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
 my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["chat_message"])
 print(my_db.name)
 ```
+
 Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read
 credentials from:
+
 ```toml
 [sources.my_db]
 credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"

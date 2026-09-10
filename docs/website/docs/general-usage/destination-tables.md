@@ -311,9 +311,11 @@ This table stores the internal state of the pipeline for each run. This state en
 
 The state column contains a serialized Python dictionary that includes:
 
-    - Incremental progress (e.g. last item or timestamp processed).
-    - Checkpoints for transformations.
-    - Source-specific metadata and settings.
+```text
+- Incremental progress (e.g. last item or timestamp processed).
+- Checkpoints for transformations.
+- Source-specific metadata and settings.
+```
 
 This allows dlt to resume interrupted pipelines, avoid reloading already processed data, and ensure pipelines are idempotent and efficient.
 

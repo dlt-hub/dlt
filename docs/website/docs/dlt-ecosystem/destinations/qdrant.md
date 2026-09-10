@@ -34,10 +34,12 @@ In this setup guide, we are using the [Qdrant Cloud](https://cloud.qdrant.io/) t
 If no configuration options are provided, the default fallback will be `http://localhost:6333` with no API key.
 
 You can use Qdrant without a backend, where the database is stored in a file:
+
 ```toml
 [destination.qdrant]
 qd_path = "db.qdrant"
 ```
+
 Data will be stored in `db.qdrant` file placed in current working directory.
 
 

@@ -213,6 +213,7 @@ Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hi
 ```py
 from dlt.sources.rest_api import RESTAPIConfig
 ```
+
 :::
 
 The configuration object passed to the REST API Generic Source has three main elements:
@@ -308,6 +309,7 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
     - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
 
 Example:
+
 ```py notype
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
@@ -334,6 +336,7 @@ config = {
     # ...
 }
 ```
+
 This would use `Bearer` auth as defined in the `client` for `resource-using-bearer-auth` and `Http Basic` auth for `my-resource-with-special-auth`.
 
 ### Endpoint configuration
@@ -493,6 +496,7 @@ To change this behavior for a specific endpoint, explicitly set the `paginator` 
     }
 }
 ```
+
 :::
 
 #### Custom paginators
@@ -782,6 +786,7 @@ In the example below we reference the `posts` resource's `id` field in the JSON 
 When your API requires literal curly braces in parameters (e.g., for JSON filters or GraphQL queries), escape them by doubling: `{{` and `}}`.
 
 Example with GraphQL query:
+
 ```py
 {
     "json": {
@@ -1102,6 +1107,7 @@ config: RESTAPIConfig = {
     ],
 }
 ```
+
 #### Combining `filter` and `map`
 
 You can combine multiple processing steps to achieve complex transformations:
@@ -1330,6 +1336,7 @@ Let's take the same example as above and configure it using the `incremental` fi
     },
 }
 ```
+
 The full available configuration for the `incremental` field is:
 
 ```py
@@ -1365,6 +1372,7 @@ If you need to transform the values in the cursor field before passing them to t
 In the following examples, `1704067200` is returned from the API in the field `updated_at`, but the API will be called with `?created_since=2024-01-01`.
 
 Incremental loading using the `params` field:
+
 ```py
 {
     "created_since": {
@@ -1377,6 +1385,7 @@ Incremental loading using the `params` field:
 ```
 
 Incremental loading using the `incremental` field:
+
 ```py
 {
     "path": "posts",
@@ -1413,6 +1422,7 @@ http_show_error_body = true
 ```
 
 Or set via environment variables:
+
 ```sh
 export RUNTIME__HTTP_SHOW_ERROR_BODY=true
 ```
@@ -1473,6 +1483,7 @@ Import the `RESTAPIConfig` type from the `rest_api` module to have convenient hi
 ```py
 from dlt.sources.rest_api import RESTAPIConfig
 ```
+
 :::
 
 #### Getting wrong data or no data

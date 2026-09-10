@@ -39,6 +39,7 @@ Normalized data for the following tables:
 ```
 
 To load this information back to the destination, you can use the following:
+
 ```py
 # Create a pipeline with the specified name, destination, and dataset
 # Run the pipeline
@@ -50,6 +51,7 @@ trace = pipeline.last_trace
 # Load the trace information into a table named "_trace" in the destination
 pipeline.run([trace], table_name="_trace")
 ```
+
 This process loads several additional tables to the destination, which provide insights into
 the extract, normalize, and load steps. Information on the number of rows loaded for each table,
 along with the `load_id`, can be found in the `_trace__steps__extract_info__table_metrics` table.
@@ -72,6 +74,7 @@ info = pipeline.run(source, table_name="table_name", write_disposition='append')
 
 print(info.load_packages[0])
 ```
+
 > `load_packages[0]` will print the information of the first load package in the list of load packages.
 
 ## Tools to create dashboards

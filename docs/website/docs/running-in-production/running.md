@@ -157,6 +157,7 @@ for package in load_info.load_packages:
                 )
             )
 ```
+
 Refer to this [example](../examples/chess_production/) for a practical application of the method in a production environment.
 
 ## Enable Sentry tracing
@@ -245,6 +246,7 @@ As with any other configuration, you can use environment variables instead of th
 `dlt` logs to a logger named **dlt**. `dlt` logger uses a regular Python logger, so you can configure the handlers as per your requirement.
 
 For example, to put logs to the file:
+
 ```py
 import logging
 
@@ -260,6 +262,7 @@ handler = logging.FileHandler('dlt.log')
 # Add the handler to the logger
 logger.addHandler(handler)
 ```
+
 You can intercept logs by using [loguru](https://loguru.readthedocs.io/en/stable/api/logger.html). To do so, follow the instructions below:
 
 ```py
@@ -540,6 +543,7 @@ state inconsistent with the destination, while now they are cleaned up and resto
 [load]
 auto_abort_on_terminal_error=true
 ```
+
 :::
 
 The `drop-pending-packages` CLI command and `Pipeline.drop_pending_packages` are deprecated aliases
@@ -558,9 +562,11 @@ dlt pipeline <pipeline_name> load-package <load_id> row-counts
 :::tip
 Load package does not need to be present locally - if you are investigating remore pipeline ie. running on Airflow, sync the newest
 destination state with
+
 ```sh
 dlt pipeline <name> sync
 ```
+
 first.
 :::
 
@@ -784,6 +790,7 @@ a partially loaded package that should be retried without wiping out the pipelin
 
 You can also opt to run the load step until completion after a signal is received. This gives `dlt` a chance to complete the current load package and then
 terminate:
+
 ```toml
 [load]
 start_new_jobs_on_signal=true
@@ -795,6 +802,7 @@ Obviously, this requires a very long grace period to be defined in your producti
 
 :::warning
 Note that signal interception is possible only in the main Python thread. If you offload pipeline runs to a thread pool ([or async pool with thread executors](../reference/performance.md#parallelism-within-a-single-process)), intercept signal handling before any pipeline runs in the pool:
+
 ```py notype
 import asyncio
 
@@ -814,15 +822,19 @@ Signal interception works in orchestrators that run your code in a separate proc
 
 #### Write custom signal handler
 You can disable dlt signal handlers and prevent interception of SIGINT and SIGTERM: for all or for a selected pipeline:
+
 ```toml
 [runtime]
 intercept_signals=false
 ```
+
 or
+
 ```toml
 [pipelines.my_pipeline.runtime]
 intercept_signals=false
 ```
+
 and then install your own handlers.
 
 Note that `signals.py` is a pretty simple module and you can call its methods from your own handler to plug into `dlt` signal handling machinery. We are working on making the `signals.py` pluggable to make it straightforward.

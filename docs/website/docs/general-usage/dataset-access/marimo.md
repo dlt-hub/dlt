@@ -38,6 +38,7 @@ Here's a screenshot of the interface you should see:
 ![empty marimo notebook](./static/marimo_notebook.png)
 
 To run an existing local marimo notebook:
+
 ```sh
 marimo run my_notebook.py
 ```

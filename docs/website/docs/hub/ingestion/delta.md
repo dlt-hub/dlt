@@ -15,6 +15,7 @@ The Delta destination is based on the [filesystem destination](../../dlt-ecosyst
 ## Setup
 
 Make sure you have installed the necessary dependencies:
+
 ```sh
 pip install deltalake
 ```
@@ -52,6 +53,7 @@ The credentials can be defined in the `secrets.toml`:
 aws_access_key_id="Please set me up!"
 aws_secret_access_key="Please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="azure">
@@ -62,6 +64,7 @@ aws_secret_access_key="Please set me up!"
 azure_storage_account_name="Please set me up!"
 azure_storage_account_key="Please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="gcp">
@@ -77,6 +80,7 @@ client_email="Please set me up!"
 private_key="Please set me up!"
 project_id="Please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="sftp">
@@ -91,6 +95,7 @@ sftp_username = "foo"
 sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
 sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 ```
+
 </TabItem>
 
 </Tabs>

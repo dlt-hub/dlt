@@ -94,18 +94,24 @@ For more information, read the [General usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python notion_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
    custom name instead.
 

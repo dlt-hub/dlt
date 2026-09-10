@@ -112,6 +112,7 @@ select_sequential_consistency = 1                       # Ensures read-after-wri
 ClickHouse uses the server timezone unless you set one. `session_timezone` sets it per connection. It
 does not change the column types that `CREATE TABLE` produces: `dlt` writes the zone into the type
 itself, as `DateTime64(6, 'UTC')`.
+
 ```toml
 [destination.clickhouse.credentials]
 session_timezone = "Europe/Berlin"
@@ -516,6 +517,7 @@ dlt's staging mechanisms for ClickHouse.
 
 When using S3 for a staging area you can alternatively have ClickHouse authenticate using Role-based access with the
 [supported](https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud) `extra_credentials` argument by setting this with the destination credentials:
+
 ```py
 import dlt
 from dlt.destinations import clickhouse

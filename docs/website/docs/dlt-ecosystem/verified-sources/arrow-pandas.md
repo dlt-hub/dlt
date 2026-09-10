@@ -39,6 +39,7 @@ pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")
 
 pipeline.run(df, table_name="orders")
 ```
+
 Note that Pandas indexes are not saved by default (up from `dlt` version 1.4.1). If for some reason you need the destination,
 use `Table.from_pandas` with `preserve_index` set to True to explicitly convert the dataframe into arrow table.
 
@@ -134,6 +135,7 @@ arrow_concat_promote_options = "permissive"
 ```sh
 DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS=permissive
 ```
+
 `dlt` will concatenate and cast batches according to promotion settings. 
 If schema promotion is not possible - file will be rotated and incompatible batches will be split over many parquet files. A final data
 coercion will be performed by particular destination.
@@ -233,6 +235,7 @@ All struct types are represented as `json` and will be loaded as JSON (if the de
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
 If you want to represent nested data as separate tables, you must yield DataFrames and Arrow tables as records. In the examples above:
+
 ```py notype
 # yield pandas DataFrame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
@@ -243,4 +246,5 @@ pipeline.run(table.to_pylist(), table_name="orders")
 # yield polars DataFrame as records
 pipeline.run(df.to_dicts(), table_name="orders")
 ```
+
 Pandas, Arrow and Polars all allow streaming records in batches.

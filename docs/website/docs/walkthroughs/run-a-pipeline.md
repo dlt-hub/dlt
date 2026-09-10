@@ -114,14 +114,19 @@ dlt pipeline chess_pipeline info
 You can inspect the package, get a list of jobs, and in the case of failed ones, get the associated error
 messages.
 - See the most recent load package info:
+
   ```sh
   dlt pipeline chess_pipeline load-package
   ```
+
 - See package info with a given load id:
+
   ```sh
   dlt pipeline chess_pipeline load-package 1679931001.985323
   ```
+
 - Also, see the schema changes introduced in the package:
+
   ```sh
   dlt pipeline -v chess_pipeline load-package
   ```
@@ -142,6 +147,7 @@ for more details.
 
 ### Colab
 You'll need to install `dlt` like any other dependency:
+
 ```sh
 !pip install dlt
 ```

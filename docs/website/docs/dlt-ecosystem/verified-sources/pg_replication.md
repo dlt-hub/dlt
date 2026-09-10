@@ -68,6 +68,7 @@ To set up a Postgres user on RDS, follow these steps:
    ```toml
    sources.pg_replication.credentials="postgresql://loader:password@host.rds.amazonaws.com:5432/dlt_data?sslmode=require&connect_timeout=300"
    ```
+
 ### Initialize the verified source
 
 To get started with your data pipeline, follow these steps:
@@ -81,6 +82,7 @@ To get started with your data pipeline, follow these steps:
    This command initializes [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/sources/pg_replication_pipeline.py) with Postgres replication as the [source](../../general-usage/source) and [DuckDB](../../dlt-ecosystem/destinations/duckdb) as the [destination](../../dlt-ecosystem/destinations).
     
 2. If you'd like to use a different destination, simply replace `duckdb` with the name of your preferred [destination](../../dlt-ecosystem/destinations). For example:
+
    ```sh
    dlt init pg_replication bigquery
    ```
@@ -117,17 +119,23 @@ For more information, read the [Configuration section.](../../general-usage/cred
 ## Run the pipeline
 
 1. Ensure that you have installed all the necessary dependencies by running:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. After carrying out the necessary customization to your pipeline script, you can run the pipeline with the following command:
+
    ```sh
    python pg_replication_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly with:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `pg_replication_pipeline`, you may also use any custom name instead.
 
 
@@ -220,6 +228,7 @@ The [pipeline examples](https://github.com/dlt-hub/verified-sources/blob/master/
        dev_mode=True,
    )
    ```
+
 This pipeline is configured in the `get_postgres_pipeline()` function.
 It’s meant for local testing, so you can freely modify it to simulate different replication scenarios.
 

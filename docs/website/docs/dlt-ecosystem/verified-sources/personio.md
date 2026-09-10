@@ -97,18 +97,24 @@ For more information, read [Credentials](../../general-usage/credentials).
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python personio_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `personio`, you may also use
    any custom name instead.
 
@@ -122,6 +128,7 @@ For more information, read [Run a pipeline.](../../walkthroughs/run-a-pipeline)
 ### Source `personio_source`
 
 This `dlt` source returns data resources like `employees`, `absences`, `absence_types`, etc.
+
 ```py notype
 @dlt.source(name="personio")
 def personio_source(
@@ -182,6 +189,7 @@ data incrementally from the Personio API to your preferred destination.
 ### Resource `absence_types`
 
 Simple resource, which retrieves a list of various types of employee absences.
+
 ```py
 from typing import Iterable
 from dlt.common.typing import TDataItem
@@ -220,6 +228,7 @@ It fetches and returns a list of the absence balances for each employee.
 def employees_absences_balance(employees_item: TDataItem) -> Iterable[TDataItem]:
     ...
 ```
+
 `employees_item`: The data item from the 'employees' resource.
 
 It uses the `@dlt.defer` decorator to enable parallel run in thread pool.

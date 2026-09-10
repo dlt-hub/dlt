@@ -33,10 +33,12 @@ Uses `__` as a nesting separator for tables and flattened column names.
 If you do not like **snake_case**, your next safe option is **sql_ci**, which generates SQL-safe, lowercase, case-insensitive identifiers without any other transformations. To permanently change the default naming convention on a given machine:
 1. Set an environment variable `SCHEMA__NAMING` to `sql_ci_v1` OR
 2. Add the following line to your global `config.toml` (the one in your home dir, i.e., `~/.dlt/config.toml`):
+
 ```toml
 [schema]
 naming="sql_ci_v1"
 ```
+
 :::
 
 ## Source identifiers vs destination identifiers
@@ -71,6 +73,7 @@ Identifier shortening happens during normalization. `dlt` takes the maximum leng
 
 ### Compound (flattened) identifiers
 `dlt` combines several identifiers in order to name nested tables and flattened columns. For example:
+
 ```json
 {
   "column":
@@ -79,6 +82,7 @@ Identifier shortening happens during normalization. `dlt` takes the maximum leng
     }
 }
 ```
+
 generates flattened column name `column__value`. Where `__` is a path separator (in **snake case**). Each component in the combined identifier is normalized
 separately and shortened as a whole.
 
@@ -93,6 +97,7 @@ Previously double underscores were contracted into single underscore. That
 prevented using data loaded by `dlt` as a data source without identifier modifications. `dlt` maintains backward compatibility for version >1.4.0 as follows:
 
 * All schemas stored locally or at destination will be migrated to backward compatible mode by setting a flag `use_break_path_on_normalize` i.e.:
+
 ```yaml
 normalizers:
   names: dlt.common.normalizers.names.snake_case
@@ -100,12 +105,15 @@ normalizers:
   json:
     module: dlt.common.normalizers.json.relational
 ```
+
 * Backward compatible behavior may be explicitly enabled by setting
 `SCHEMA__USE_BREAK_PATH_ON_NORMALIZE` to `TRUE` or via `config.toml`:
+
 ```toml
 [schema]
 use_break_path_on_normalize=true
 ```
+
 :::
 
 ### 🚧 [WIP] Name convention changes are lossy
@@ -117,13 +125,16 @@ use_break_path_on_normalize=true
 You can use `config.toml`, environment variables, or any other configuration provider to set the naming convention name. The configured naming convention **overrides all other settings**:
 - Changes the naming convention stored in the already created schema.
 - Overrides the destination capabilities preference.
+
 ```toml
 [schema]
 naming="sql_ci_v1"
 ```
+
 The configuration above will request **sql_ci_v1** for all pipelines (schemas). An environment variable `SCHEMA__NAMING` set to `sql_ci_v1` has the same effect.
 
 You have the option to set the naming convention per source:
+
 ```toml
 [sources.zendesk]
 config="prop"
@@ -132,6 +143,7 @@ naming="sql_cs_v1"
 [sources.zendesk.credentials]
 password="pass"
 ```
+
 The snippet above demonstrates how to apply a certain naming for an example `zendesk` source.
 
 You can set the naming convention in your code via destination factory. This will overwrite destination's preferred convention and make it
@@ -168,6 +180,7 @@ enable_dataset_name_normalization=false
 ```
 
 In that case, the `dataset_name` would be preserved the same as it was set in the pipeline:
+
 ```py
 import dlt
 
@@ -204,10 +217,12 @@ In that case, you can use a fully qualified module name in [schema configuration
 [schema]
 naming="tests.common.cases.normalizers.sql_upper"
 ```
+
 `dlt` will import `tests.common.cases.normalizers.sql_upper` and use the `NamingConvention` class found in it as the naming convention.
 
 :::tip
 Do not pass custom naming convention as modules if you do it explicitly. We recommend pattern below:
+
 ```py
 import dlt
 
@@ -215,6 +230,7 @@ dest_ = dlt.destinations.postgres(naming_convention="my_package.sql_cs_latin2")
 ```
 
 ⛔ avoid this or you may get pickle errors i.e. when using parallel normalization:
+
 ```py
 import dlt
 
@@ -222,6 +238,7 @@ import my_package.sql_cs_latin2  # type: ignore[import-not-found]
 
 dest_ = dlt.destinations.postgres(naming_convention=my_package.sql_cs_latin2)
 ```
+
 :::
 
 

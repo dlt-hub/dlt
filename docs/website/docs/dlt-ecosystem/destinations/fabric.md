@@ -8,6 +8,7 @@ keywords: [fabric, microsoft fabric, warehouse, destination, data warehouse, syn
 
 ## Install dlt with Fabric
 **To install the dlt library with Fabric Warehouse dependencies, use:**
+
 ```sh
 pip install "dlt[fabric]"
 ```
@@ -47,15 +48,19 @@ Fabric Warehouse requires Azure Active Directory Service Principal authenticatio
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to Fabric by running:**
+
 ```sh
 dlt init chess fabric
 ```
 
 **2. Install the necessary dependencies for Fabric by running:**
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or run:
+
 ```sh
 pip install "dlt[fabric]"
 ```
@@ -174,12 +179,14 @@ Fabric Warehouse supports UTF-8 collations. The destination automatically config
 **Default collation**: `Latin1_General_100_BIN2_UTF8` (case-sensitive, UTF-8)
 
 You can specify a different collation:
+
 ```toml
 [destination.fabric]
 collation = "Latin1_General_100_CI_AS_KS_WS_SC_UTF8"  # case-insensitive
 ```
 
 Or in code:
+
 ```py
 pipeline = dlt.pipeline(
     destination=dlt.destinations.fabric(
@@ -192,12 +199,14 @@ pipeline = dlt.pipeline(
 ## Additional destination options
 
 The **fabric** destination **does not** create UNIQUE indexes by default on columns with the `unique` hint (i.e., `_dlt_id`). To enable this behavior:
+
 ```toml
 [destination.fabric]
 create_indexes=true
 ```
 
 You can explicitly set the ODBC driver name:
+
 ```toml
 [destination.fabric.credentials]
 driver="ODBC Driver 18 for SQL Server"

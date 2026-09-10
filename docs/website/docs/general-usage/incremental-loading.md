@@ -55,6 +55,7 @@ You may force a refresh of `merge` and `append` resources by setting the `refres
 Table truncation/drop happens when the load step starts, so a failed extract or normalization does not affect destination data.
 
 Example:
+
 ```py
 import dlt
 from dlt.sources.sql_database import sql_database
@@ -62,13 +63,16 @@ from dlt.sources.sql_database import sql_database
 pipeline = dlt.pipeline("airtable_demo", destination="duckdb")
 pipeline.run(sql_database().with_resources("users"), refresh="drop_data")
 ```
+
 Above, we refresh the `users` table (a partial refresh) by truncating it, loading data from scratch, and leaving the other tables intact.
 
 :::tip
 The `refresh` option is part of the pipeline configuration and may be set without changing the code. For example:
+
 ```sh
 PIPELINES__GITHUB_PIPELINE__REFRESH=drop_data python github_pipeline.py
 ```
+
 sets the refresh option for a single pipeline script execution.
 :::
 

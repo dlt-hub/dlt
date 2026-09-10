@@ -122,10 +122,13 @@ Finally, the agent opens the `onboarding_success` notebook. This Marimo notebook
 
 After the first successful run, you can rerun the pipeline or open your workspace in the dltHub UI.
 To rerun the pipeline on the managed platform and follow its logs until it finishes, run:
+
 ```sh
 uv run dlthub run load_sample_shop -f
 ``` 
+
 To open the connected workspace in your browser, run:
+
 ```sh
 uv run dlthub show
 ```
@@ -177,6 +180,7 @@ The name `warehouse` is an alias. Configure what it points to for each profile i
 For example, use DuckDB for local development:
 
 `.dlt/dev.config.toml`
+
 ```toml
 [destination.warehouse]
 destination_type = "duckdb"
@@ -185,12 +189,14 @@ destination_type = "duckdb"
 Then configure a cloud destination for production:
 
 `.dlt/prod.config.toml`
+
 ```toml
 [destination.warehouse]
 destination_type = "snowflake"
 ```
 
 Add the corresponding Snowflake credentials to `.dlt/prod.secrets.toml`:
+
 ```toml
 [destination.warehouse.credentials]
 database = "your_database"
@@ -200,6 +206,7 @@ host = "your_account_identifier"
 warehouse = "your_warehouse"
 role = "your_role"
 ```
+
 Local runs, via `dlthub run local`, use the `dev` profile, while batch jobs on the dltHub platform use the `prod` profile. The pipeline code therefore remains unchanged while the destination changes between environments.
 
 Supported destinations include

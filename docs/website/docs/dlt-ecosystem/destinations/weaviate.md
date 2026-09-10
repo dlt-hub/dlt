@@ -45,6 +45,7 @@ You can host your own Weaviate instance using Docker Compose, Kubernetes, or emb
 [destination.weaviate.credentials.additional_headers]
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
+
 The `url` will default to **[http://localhost:8080](http://localhost:8080)** and `api_key` is not defined - which are the defaults for the Weaviate container.
 
 ### Connection types
@@ -157,6 +158,7 @@ weaviate_adapter(
     tokenization={"title": "word", "description": "whitespace"},
 )
 ```
+
 When using the `weaviate_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
@@ -305,14 +307,19 @@ Reserved property names like `id` or `additional` are prefixed with underscores 
 The default naming convention described above will preserve the casing of the properties (besides the first letter which is lowercased). This generates nice classes in Weaviate but also requires that your input data does not have clashing property names when comparing case insensitively (i.e., `caseName` == `casename`). In such cases, Weaviate destination will fail to create classes and report a conflict.
 
 You can configure an alternative naming convention which will lowercase all properties. The clashing properties will be merged and the classes created. Still, if you have a document where clashing properties like:
+
 ```json
 {"camelCase": 1, "CamelCase": 2}
 ```
+
 it will be normalized to:
+
 ```json
 {"camelcase": 2}
 ```
+
 so your best course of action is to clean up the data yourself before loading and use the default naming convention. Nevertheless, you can configure the alternative in `config.toml`:
+
 ```toml
 [schema]
 naming="dlt.destinations.impl.weaviate.ci_naming"
@@ -351,12 +358,14 @@ This ensures the `generative-openai` module is used for generative queries.
 You can run Weaviate locally using Docker. See the [Weaviate Local Quickstart](https://weaviate.io/developers/weaviate/quickstart/local) for details.
 
 Below is an example that configures the **contextionary** vectorizer in `config.toml`. This does not require external APIs and can run fully offline:
+
 ```toml
 [destination.weaviate]
 connection_type = "local"
 vectorizer = "text2vec-contextionary"
 module_config = {text2vec-contextionary = {vectorizeClassName = false, vectorizePropertyName = true}}
 ```
+
 You can find the Docker Compose file and setup instructions in our [README](https://github.com/dlt-hub/dlt/tree/devel/dlt/destinations/impl/weaviate/README.md).
 
 ### dbt support

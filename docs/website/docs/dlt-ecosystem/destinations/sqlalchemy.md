@@ -31,15 +31,19 @@ Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/
 ### Create a pipeline
 
 **1. Initialize a project with a pipeline that loads to MS SQL by running:**
+
 ```sh
 dlt init chess sqlalchemy
 ```
 
 **2. Install the necessary dependencies for SQLAlchemy by running:**
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or run:
+
 ```sh
 pip install "dlt[sqlalchemy]"
 ```
@@ -47,6 +51,7 @@ pip install "dlt[sqlalchemy]"
 **3. Install your database client library.**
 
 E.g., for MySQL:
+
 ```sh
 pip install mysqlclient
 ```
@@ -54,6 +59,7 @@ pip install mysqlclient
 **4. Enter your credentials into `.dlt/secrets.toml`.**
 
 For example, replace with your database connection info:
+
 ```toml
 [destination.sqlalchemy.credentials]
 database = "dlt_data"
@@ -100,12 +106,14 @@ The equivalent `engine_args` parameter is maintained for backward compatibility,
 
 Example enabling SQLAlchemy verbose logging:
 #### In `.dlt/secrets.toml`
+
 ```toml
 [destination.sqlalchemy]
 credentials = "sqlite:///logger.db"
 ```
 
 #### In `.dlt/config.toml`
+
 ```toml
 [destination.sqlalchemy.engine_kwargs]
 echo = true
@@ -257,6 +265,7 @@ When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store 
 To work around this issue, use one of the following approaches:
 
 1. **Set `dataset_name` to `main`** so that no `ATTACH` is needed:
+
    ```py
    pipeline = dlt.pipeline(
        pipeline_name='my_pipeline',
@@ -266,6 +275,7 @@ To work around this issue, use one of the following approaches:
    ```
 
 2. **Use sequential loading** to avoid concurrent `ATTACH` calls:
+
    ```toml
    [load]
    workers=1
@@ -343,6 +353,7 @@ Please report issues with particular dialects. We'll try to make them work.
 #### Quick approach: pass `type_mapper` directly
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
+
 ```py
 from dlt.common import json
 
@@ -390,6 +401,7 @@ The `SqlalchemyTypeMapper` dispatches to per-type visitor methods (`db_type_from
 
 Custom type mapper is also useful when you want to limit the length of the string. Below we are adding variant
 for `mssql` dialect:
+
 ```py
 import sqlalchemy as sa
 from dlt.common.schema.typing import PreparedTableSchema
@@ -514,12 +526,14 @@ The following write dispositions are supported:
 
 [parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
 The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
+
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
 ```
 
 with `uv` you can run `dbc` directly:
+
 ```sh
 uv tool run dbc install mysql
 ```
@@ -563,10 +577,12 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 
 ## Supported column hints
 No indexes or constraints are created on the table. You can enable the following via destination configuration
+
 ```toml
 [destination.sqlalchemy]
 create_unique_indexes=true
 create_primary_keys=true
 ```
+
 * `unique` hints are translated to `UNIQUE` constraints via SQLAlchemy.
 * `primary_key` hints are translated to `PRIMARY KEY` constraints via SQLAlchemy.

@@ -180,6 +180,7 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
 
 
     Example:
+
     ```json
     {
         "merge_key": "id",
@@ -193,6 +194,7 @@ If you choose **Subset**, add the tables you want to ingest. If you choose **All
         }
     }
     ```
+
 ### Destination Settings
 Destination settings define where in Snowflake the data is loaded and allow advanced destination tuning.
 - **Destination database**:
@@ -206,6 +208,7 @@ Destination settings define where in Snowflake the data is loaded and allow adva
     Provide additional destination options not exposed in the UI. Values override UI settings when the same option is set in both places. These are passed as keyword arguments to dlt’s Snowflake destination [factory](../../api_reference/dlt/destinations/impl/snowflake/factory).
     
     Example:
+
     ```json
     {
         "create_indexes": true,

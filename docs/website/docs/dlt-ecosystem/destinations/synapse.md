@@ -8,6 +8,7 @@ keywords: [synapse, destination, data warehouse]
 
 ## Install dlt with Synapse
 **To install the dlt library with Synapse dependencies:**
+
 ```sh
 pip install "dlt[synapse]"
 ```
@@ -34,19 +35,23 @@ pip install "dlt[synapse]"
 ### Steps
 
 **1. Initialize a project with a pipeline that loads to Synapse by running**
+
 ```sh
 dlt init chess synapse
 ```
 
 **2. Install the necessary dependencies for Synapse by running**
+
 ```sh
 pip install -r requirements.txt
 ```
+
 This will install `dlt` with the **synapse** extra that contains all dependencies required for the Synapse destination.
 
 **3. Create a loader user**
 
 Execute the following SQL statements to set up the [loader](https://learn.microsoft.com/en-us/azure/synapse-analytics/sql/data-loading-best-practices#create-a-loading-user) user. Change the password and replace `yourpool` with the name of your dedicated SQL pool:
+
 ```sql
 -- on master database, using a SQL admin account
 
@@ -72,6 +77,7 @@ Optionally, you can create a `WORKLOAD GROUP` and add the `loader` user as a mem
 **4. Enter your credentials into `.dlt/secrets.toml`.**
 
 Example, replace with your database connection info:
+
 ```toml
 [destination.synapse.credentials]
 database = "yourpool"
@@ -88,6 +94,7 @@ destination.synapse.credentials = "synapse://loader:your_loader_password@your_sy
 ```
 
 To pass credentials directly you can use the `credentials` argument of `dlt.destinations.synapse(...)`:
+
 ```py
 pipeline = dlt.pipeline(
     pipeline_name='chess',
@@ -97,7 +104,9 @@ pipeline = dlt.pipeline(
     dataset_name='chess_data'
 )
 ```
+
 To use **Active Directory Principal**, you can use the `sqlalchemy.engine.URL.create` method to create the connection URL using your Active Directory Service Principal credentials. First, create the connection string as:
+
 ```py
 conn_str = (
     "DRIVER={ODBC Driver 18 for SQL Server};"
@@ -110,6 +119,7 @@ conn_str = (
 ```
 
 Create the connection URL, which you can use directly in your pipeline configuration or convert to a string.
+
 ```py
 from sqlalchemy.engine import URL
 
@@ -202,6 +212,7 @@ pipeline = dlt.pipeline(
 
 ## Additional destination options
 The following settings can optionally be configured:
+
 ```toml
 [destination.synapse]
 default_table_index_type = "heap"

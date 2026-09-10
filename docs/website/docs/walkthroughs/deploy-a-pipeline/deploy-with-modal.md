@@ -30,12 +30,14 @@ Here’s a dlt project setup to copy data from public MySQL database into DuckDB
 
 ### Step 1: Initialize source
 Run the `dlt init` CLI command to initialize the SQL database source and set up the `sql_database_pipeline.py` template.
+
 ```sh
 dlt init sql_database duckdb
 ```
 
 ### Step 2: Define Modal Image
 Open the file and define the Modal Image you want to run `dlt` in:
+
 ```py
 import modal
 
@@ -100,21 +102,25 @@ def load_tables() -> None:
 You can securely store your credentials using Modal secrets. When you reference secrets within a Modal script,
 the defined secret is automatically set as an environment variable. dlt natively supports environment variables,
 enabling seamless integration of your credentials. For example, to declare a connection string, you can define it as follows:
+
 ```text
 SOURCES__SQL_DATABASE__CREDENTIALS=mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam
 ```
+
 In the script above, the credentials specified are automatically utilized by dlt.
 For more details, please refer to the [documentation.](../../general-usage/credentials/setup#environment-variables)
 
 ### Step 5: Run pipeline
 Execute the pipeline once.
 To run your pipeline a single time, use the following command:
+
 ```sh
 modal run sql_pipeline.py
 ```
 
 ### Step 6: Deploy
 If you want to deploy your pipeline on Modal for continuous execution or scheduling, use this command:
+
 ```sh
 modal deploy sql_pipeline.py
 ```

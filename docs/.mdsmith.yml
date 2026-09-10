@@ -143,7 +143,7 @@ overrides: []
 # front-matter: true
 categories:
     accessibility: true
-    code: false
+    code: true
     directive: false
     heading: false
     line: false

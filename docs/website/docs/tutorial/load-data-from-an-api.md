@@ -294,6 +294,7 @@ Peek into that state, the tables loaded, and get other information with:
 ```sh
 dlt pipeline -v github_issues_incremental info
 ```
+
 :::
 
 Learn more:
