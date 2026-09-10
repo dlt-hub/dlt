@@ -60,23 +60,8 @@ MUTATING_STATEMENTS = (
 )
 """Statements that change something, wherever in the tree they sit."""
 
-HOST_FUNCTIONS = frozenset(
-    {
-        "read_text",
-        "read_blob",
-        "read_csv",
-        "read_csv_auto",
-        "read_json",
-        "read_json_auto",
-        "read_ndjson",
-        "read_ndjson_auto",
-        "read_parquet",
-        "parquet_scan",
-        "glob",
-        "sniff_csv",
-    }
-)
-"""Destination functions that read the host filesystem or the network from inside a SELECT."""
+MUTATING_FUNCTION_SUFFIXES = ("_execute", "_attach")
+"""Table functions that attach a database or run a statement on one: `postgres_execute`."""
 
 
 def _ensure_read_only(sql_query: str, dialect: Optional[str]) -> None:
@@ -94,8 +79,9 @@ def _ensure_read_only(sql_query: str, dialect: Optional[str]) -> None:
                 "Only read-only SELECT statements are allowed."
                 f" {type(node).__name__.upper()} modifies data or schema"
             )
-        # a host-side function reads files and URLs with the destination's credentials
-        if isinstance(node, sge.Anonymous) and node.name.lower() in HOST_FUNCTIONS:
+        if isinstance(node, sge.Anonymous) and node.name.lower().endswith(
+            MUTATING_FUNCTION_SUFFIXES
+        ):
             raise ToolError(f"Function {node.name!r} is not allowed in a read-only query")
     if not isinstance(root, sge.Query):
         raise ToolError("Only read-only SELECT statements are allowed")

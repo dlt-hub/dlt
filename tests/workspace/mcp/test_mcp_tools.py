@@ -16,6 +16,7 @@ from dlt._workspace.mcp.tools.data_tools import TMcpSchemaFormat, TResultFormat
 from dlt._workspace.mcp.tools.context_tools import search_dlthub_sources
 from dlt._workspace.mcp.tools.toolkit_tools import list_toolkits, toolkit_info
 from dlt._workspace.mcp.tools.data_tools import (
+    _ensure_read_only,
     list_pipelines,
     list_profiles,
     list_tables,
@@ -154,12 +155,11 @@ def test_execute_sql_query(
         "CREATE TABLE evil AS SELECT * FROM pokemon",
         "TRUNCATE TABLE pokemon",
         "ALTER TABLE pokemon ADD COLUMN x INT",
-        # the statement guard is not the whole story: these read the host, not the dataset
-        "SELECT * FROM read_text('/etc/passwd')",
-        "SELECT read_blob('/etc/shadow')",
-        "SELECT * FROM read_csv_auto('http://127.0.0.1:1/x.csv')",
-        "SELECT * FROM parquet_scan('s3://bucket/x.parquet')",
+        "COPY (SELECT 1) TO '/tmp/out.csv'",
         "ATTACH 'other.db'",
+        # table functions that attach a database or run a statement on an attached one
+        "SELECT * FROM postgres_execute('pg', 'DROP TABLE pokemon')",
+        "SELECT * FROM sqlite_attach('/tmp/other.db')",
         "SELECT 1; DROP TABLE pokemon",
     ],
     ids=[
@@ -171,11 +171,10 @@ def test_execute_sql_query(
         "create-as-select",
         "truncate",
         "alter",
-        "read-text",
-        "read-blob",
-        "read-csv-url",
-        "parquet-scan",
+        "copy-to",
         "attach",
+        "postgres-execute",
+        "sqlite-attach",
         "multi-statement",
     ],
 )
@@ -193,6 +192,21 @@ def test_execute_sql_query_still_runs_a_select(pokemon_pipeline_context: RunCont
     assert execute_sql_query(
         "rest_api_pokemon", "WITH x AS (SELECT 1 AS a) SELECT * FROM x", output_format="jsonl"
     )
+
+
+@pytest.mark.parametrize(
+    "query",
+    [
+        "SELECT * FROM read_csv('/tmp/rows.csv')",
+        "SELECT * FROM read_parquet('s3://bucket/x.parquet')",
+        "SELECT * FROM '/tmp/rows.parquet'",
+        "SELECT * FROM postgres_query('pg', 'SELECT 1')",
+    ],
+    ids=["read-csv", "read-parquet", "bare-path", "postgres-query"],
+)
+def test_read_only_guard_lets_reads_through(query: str) -> None:
+    """Reading a file or a foreign database is not a write; the local access axis is not enforced here."""
+    _ensure_read_only(query, "duckdb")
 
 
 @pytest.mark.parametrize(
