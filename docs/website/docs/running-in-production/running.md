@@ -205,7 +205,9 @@ RUNTIME__SENTRY_DSN="https:///<...>"
 The Sentry client is configured after the first pipeline is created with `dlt.pipeline()`. Feel free
 to use `sentry_sdk` init again to cover your specific needs.
 
-> 💡 `dlt` does not have Sentry client as a dependency. Remember to install it with `pip install sentry-sdk`.
+:::info
+`dlt` does not have Sentry client as a dependency. Remember to install it with `pip install sentry-sdk`.
+:::
 
 ### Disable all tracing
 

@@ -27,7 +27,9 @@ Let's start by initializing a new `dlt` project as follows:
    dlt init chess athena
    ```
 
-   > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
+   :::info
+   This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
+   :::
 
 ### 2. Setup bucket storage and Athena credentials
 

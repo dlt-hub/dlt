@@ -218,7 +218,9 @@ the pipeline run is progressing. dlt supports 4 progress monitors out of the box
 - **log** - dumps the progress information to log, console, or text stream. **The most useful on
   production** optionally adds memory and CPU usage stats.
 
-> 💡 You must install the required progress bar library yourself.
+:::info
+You must install the required progress bar library yourself.
+:::
 
 You pass the progress monitor in the `progress` argument of the pipeline. You can use a name from the
 preceding list as in the following example:

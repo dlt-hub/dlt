@@ -1152,7 +1152,9 @@ HTTP 429 errors indicate you've hit API rate limits. The dlt requests client ret
 - **Implement backoff**: Increase wait times after failures (exponential backoff)
 - **Reduce calls**: Batch requests or cache results when possible
 
-> 💡 The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.
+:::info
+The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.
+:::
 
 ## Advanced configuration
 

@@ -212,10 +212,12 @@ and just add the `password` to your
 credentials.password="loader"
 ```
 
-> 💡 Make sure you run the script from the same folder in which it is saved. For example,
-> `python chess_demo/chess.py` will run the script from the `chess_demo` folder, but the current working
-> directory is the folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and
-> filling in credentials.
+:::info
+Make sure you run the script from the same folder in which it is saved. For example,
+`python chess_demo/chess.py` will run the script from the `chess_demo` folder, but the current working
+directory is the folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and
+filling in credentials.
+:::
 
 ### Failed API or database connections and other exceptions
 

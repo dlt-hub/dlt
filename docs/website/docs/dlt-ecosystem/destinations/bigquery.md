@@ -257,11 +257,13 @@ BigQuery supports the following [column hints](../../general-usage/schema#tables
   Only one column per table is supported and only when a new table is created.
   For more information on BigQuery partitioning, read the [official docs](https://cloud.google.com/bigquery/docs/partitioned-tables).
 
-  > ❗ `bigint` maps to BigQuery's **INT64** data type.
-  > Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn't natively support.
-  > With a 10,000 partition limit, we can’t cover the full INT64 range.
-  > Instead, we set 86,400-second boundaries to enable daily partitioning.
-  > This captures typical values, but extremely large/small outliers go to an `__UNPARTITIONED__` catch-all partition.
+  :::warning
+  `bigint` maps to BigQuery's **INT64** data type.
+  Automatic partitioning requires converting an INT64 column to a UNIX timestamp, which `GENERATE_ARRAY` doesn't natively support.
+  With a 10,000 partition limit, we can’t cover the full INT64 range.
+  Instead, we set 86,400-second boundaries to enable daily partitioning.
+  This captures typical values, but extremely large/small outliers go to an `__UNPARTITIONED__` catch-all partition.
+  :::
 
 * `cluster` - creates cluster column(s). Many columns per table are supported and only when a new table is created.
 
