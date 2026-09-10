@@ -148,7 +148,7 @@ When created, `sql_client` is bound to a particular dataset name (which typicall
 How this works in practice: we have a set of tests for all relevant error cases in [test_sql_client.py](https://github.com/dlt-hub/dlt/blob/devel/tests/load/test_sql_client.py), this way we make sure that the new sql_client behaves correctly.
 :::
 
-### What the base class assumes
+### SQL Client base class assumes
 
  - that `INFORMATION_SCHEMA` exists from which we can take basic information on `SCHEMATA` and `COLUMNS`
  - `CREATE SCHEMA` and `DROP SCHEMA` (see how `BigQuery` overrides that)
@@ -188,7 +188,7 @@ In case of destinations that do not allow data modifications, you can opt out fr
 - Override the `get_truncate_destination_table_dispositions` method and return an empty list so your tables are never truncated.
 - Override the `get_stage_dispositions` and return an empty list to opt out from any operations on the staging dataset.
 
-### What the base class assumes
+### Job client base class assumes
 
 * DDL to create and add columns to tables is available.
 * It is possible to SELECT data.

@@ -85,9 +85,9 @@ This section is a development checklist for validating a new REST API pipeline u
 
 ### 1) Am I grabbing data correctly?
 
-#### Pagination sanity
+#### 1.1) What to look for
 
-**What to look for**
+Pagination sanity:
 
 - If your first successful run shows a suspiciously round count (for example, **10 / 20 / 100**) for a resource whose page size matches that number, you probably captured only page 1.
 - Cross-check the source's expected volume (API docs, admin UI, or a known "ground truth") vs. what landed.
@@ -96,12 +96,14 @@ To do so, navigate to the Dataset Browser and load row counts:
 
 ![Dataset Browser row counts](https://storage.googleapis.com/dlt-blog-images/docs-dashboard-dq1.png)
 
-**Typical failure modes**
+#### 1.2) Typical failure modes
 
 - The wrong paginator pattern was chosen vs. the API docs (cursor vs. offset vs. page/size).
 - The API supports multiple pagination styles per endpoint and you implemented the wrong one.
 
-**What to do:** reread the endpoint's official documentation (or ask your agent to do so) and confirm the exact pagination contract (parameter names, response fields, end-of-data signal).
+#### 1.3) What to do
+
+Reread the endpoint's official documentation (or ask your agent to do so) and confirm the exact pagination contract (parameter names, response fields, end-of-data signal).
 
 ### 2) Am I loading data correctly?
 
@@ -186,7 +188,7 @@ def example_complex_unnesting():
 
 ### 4) Do I have the right business data?
 
-#### What to look for
+#### 4.1) What to look for
 
 Open the Dataset Browser and run a query to see what you actually have:
 
@@ -198,13 +200,13 @@ SELECT * FROM {your_table} LIMIT 10
 - Are key columns present (IDs, timestamps, status fields)?
 - Is the data complete or are important fields showing up as `NULL`?
 
-#### Typical failure modes
+#### 4.2) Typical failure modes
 
 - The API returns a **summary view** by default; you need extra parameters (for example, `expand`, `include=changes`, `since=`) to get full details.
 - **Related data lives in separate endpoints** that you haven't added yet (for example, orders exist but order line items are a different endpoint).
 - **PII columns** (emails, phones, names) are present and need to be hashed or removed before analytics.
 
-#### What to do
+#### 4.3) What to do
 
 1. Check the API docs for expansion parameters that return nested/related data.
 2. Add additional endpoints to your source if you need related entities.
@@ -214,7 +216,7 @@ Use the Dataset Browser to explore the data, or the [marimo notebook](../../gene
 
 ### 5) Are my data types correct?
 
-#### What to look for
+#### 5.1) What to look for
 
 Open the Schema Explorer and check the `data_type` column for each field:
 
@@ -222,13 +224,13 @@ Open the Schema Explorer and check the `data_type` column for each field:
 - Dates should be `timestamp` or `date`, not `text`
 - Boolean fields should be `bool`, not `text`
 
-#### Typical failure modes
+#### 5.2) Typical failure modes
 
 - Numbers arrive as strings (`"amount": "100.00"`) because the API returns them quoted.
 - Timestamps in non-standard formats (for example, `"12/25/2024"` or Unix epochs) aren't auto-detected.
 - Boolean values come as `"true"`/`"false"` strings or `0`/`1` integers.
 
-#### What to do
+#### 5.3) What to do
 
 1. **Enable additional autodetectors** to catch more types automatically. Add to your config:
 

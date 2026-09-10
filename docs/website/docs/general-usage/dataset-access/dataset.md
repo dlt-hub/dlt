@@ -1105,7 +1105,7 @@ print(table.limit(10).execute())
 
 This page shows how dlt, marimo, and [ibis](../../dlt-ecosystem/transformations/python.md#using-ibis) work together. You can explore loaded data, write data transformations, and create data applications.
 
-### Prerequisites
+### marimo Prerequisites
 
 To install marimo and ibis with the duckdb extras, run the following command:
 

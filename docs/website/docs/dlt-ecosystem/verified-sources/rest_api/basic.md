@@ -3,7 +3,7 @@ title: REST API source
 description: Learn how to set up and configure
 keywords: [rest api, restful api]
 ---
-# Quick example
+# REST API source
 
 import Header from '../_source-info-header.md';
 
@@ -127,8 +127,6 @@ github_token = "your_github_token"
    ```
 
 ## Source configuration
-
-### Quick example
 
 Let's take a look at the GitHub example in the `rest_api_pipeline.py` file:
 
@@ -1005,7 +1003,7 @@ The `processing_steps` field in the resource configuration allows you to apply t
 
 Each processing step is a dictionary specifying the type of operation (`filter`, `map` or `yield_map`) and the function to apply. Steps apply in the order they are listed.
 
-#### Quick example
+#### Filter and transform example
 
 ```py notype
 def lower_title(record):

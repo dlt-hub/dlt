@@ -221,7 +221,7 @@ The Snowflake Plus destination supports all standard Snowflake destination data 
 
 To enable querying of Snowflake-managed Iceberg tables by third-party engines (for example, Apache Spark) via an external catalog (Snowflake Open Catalog), use the `catalog_sync` configuration option. This setting specifies a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) that syncs Iceberg tables to the external catalog.
 
-### Setup
+### Open Catalog Setup
 
 1. Create an [external catalog in Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/create-catalog).
 

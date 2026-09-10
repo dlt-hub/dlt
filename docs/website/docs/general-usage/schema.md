@@ -789,7 +789,7 @@ tables:
     resource: customers
 ```
 
-### Table references
+### Table reference hints
 
 You can annotate tables with table references. `@dlt.resource` implements `references` argument that declares table references. Those references
 are not enforced by `dlt`. See [example](#generate-custom-linking-for-nested-tables) above.

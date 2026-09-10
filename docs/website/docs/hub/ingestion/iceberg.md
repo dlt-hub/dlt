@@ -321,7 +321,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 
 </Tabs>
 
-##### Prerequisites
+##### S3 Tables Catalog Prerequisites
 
 Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
 
@@ -385,7 +385,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 </TabItem>
 </Tabs>
 
-##### Prerequisites
+##### Glue REST Catalog Prerequisites
 
 Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
 
@@ -433,7 +433,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 </TabItem>
 </Tabs>
 
-##### Prerequisites
+##### Glue Catalog Prerequisites
 
 An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
 
@@ -443,7 +443,7 @@ An S3 bucket and an IAM principal allowed to read/write that bucket and access t
 
 [Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Databricks tables.
 
-#### Prerequisites
+#### Unity Catalog Prerequisites
 
 Before using Unity Catalog with the Iceberg destination, ensure you have:
 
@@ -459,7 +459,7 @@ Before using Unity Catalog with the Iceberg destination, ensure you have:
 
 For detailed setup instructions, see Databricks guide on [accessing tables from Apache Iceberg clients](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
 
-#### Configuration
+#### Unity Catalog Configuration
 
 <Tabs
   groupId="filesystem-type"
