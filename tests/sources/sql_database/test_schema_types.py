@@ -218,3 +218,26 @@ def test_get_table_references() -> None:
 
     refs = get_table_references(child)
     assert refs == []
+
+
+def test_oracle_local_time_zone_mapped_to_timezone_true() -> None:
+    """Oracle TIMESTAMP WITH LOCAL TIME ZONE (local_timezone=True) maps to timezone=True (issue #4315)."""
+    from sqlalchemy.dialects.oracle import TIMESTAMP as OracleTIMESTAMP
+
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", OracleTIMESTAMP(local_timezone=True)))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["data_type"] == "timestamp"
+    assert col_schema["timezone"] is True
+
+
+def test_oracle_timestamp_plain_maps_to_timezone_false() -> None:
+    """Plain Oracle TIMESTAMP stays timezone=False; local_timezone defaults to False."""
+    from sqlalchemy.dialects.oracle import TIMESTAMP as OracleTIMESTAMP
+
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", OracleTIMESTAMP()))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["timezone"] is False
