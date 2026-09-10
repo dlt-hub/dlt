@@ -255,7 +255,6 @@ def tickets(
 
 :::
 
-
 ## Split large loads into chunks
 
 You can split large incremental resources into smaller chunks and load them sequentially. This way you'll see the data quicker and
@@ -295,7 +294,6 @@ If your source returns unordered data, you will most probably miss some data ite
 
 Check two other examples: [filesystem](../../dlt-ecosystem/verified-sources/filesystem/index.md#6-split-large-incremental-loads) and
 [sql_database](../../dlt-ecosystem/verified-sources/sql_database/advanced.md#split-or-partition-long-incremental-loads).
-
 
 ## Deduplicate overlapping ranges
 
@@ -566,7 +564,6 @@ def some_data_without_cursor_value(updated_at=dlt.sources.incremental("updated_a
 
 list(some_data_without_cursor_value())
 ```
-
 
 To process a data set where some records do not include the incremental cursor path or where the values at the cursor path are `None`, there are the following four options:
 

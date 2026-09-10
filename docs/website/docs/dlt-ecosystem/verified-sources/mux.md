@@ -9,13 +9,11 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-
 [Mux.com](http://mux.com/) is a video technology platform that provides infrastructure and tools for developers to build and stream high-quality video content.
 
 This Mux `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mux_pipeline.py)
 loads data using the “Mux API” to the destination of your choice.
-
 
 | Name       | Description                                                                                         |
 | ---------- | --------------------------------------------------------------------------------------------------- |
@@ -116,7 +114,6 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-
 ### Source `mux_source`
 
 This function yields resources "asset_resource" and "views_resource" to load video assets and views.
@@ -168,7 +165,6 @@ def views_resource(
 ```
 
 The arguments `mux_api_access_token`, `mux_api_secret_key`, and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
-
 
 ## Customization
 

@@ -169,7 +169,6 @@ list_secrets=false
 Vault will fetch only secret values (credentials, `dlt.secrets.value` marked arguments) and only the toml fragments as described
 in the above section, without fetching single values.
 
-
 :::warning
 `dlt` probes several locations for a single value so if you disable `only_toml_fragments` you may receive large amount of calls
 to Secrets backend.

@@ -15,7 +15,6 @@ They are compatible with the `secrets.toml` and `config.toml` files you may alre
 
 The [dltHub platform](https://app.dlthub.com) automatically uses certain profiles to deploy and run pipelines and notebooks.
 
-
 ## Enable the workspace and profiles
 
 Before you start, make sure you have followed the [installation instructions](../getting-started/installation.md) and enabled [additional Workspace features](../getting-started/installation.md#enable-workspace-mode) (which also include Profiles).
@@ -62,7 +61,6 @@ View available profiles:
 ```sh
 dlthub profile list
 ```
-
 
 ## Switching profiles
 
@@ -158,7 +156,6 @@ dlthub local pipeline run pokemon_api_pipeline
 Data will be stored in `.dlt/data/dev/warehouse.duckdb`.
 Pipeline state will be stored in `.dlt/state/dev/`.
 
-
 ### Step 2. Configure the production profile
 
 Create `.dlt/prod.secrets.toml`:
@@ -248,7 +245,6 @@ dlthub local clean
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.
 * For process environment that should not live in the repo, set [workspace environment variables](environment-variables.md); profile-scoped values override the shared workspace set for that profile’s runs.
-
 
 ## Next steps
 

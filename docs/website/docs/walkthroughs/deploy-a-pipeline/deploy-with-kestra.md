@@ -33,20 +33,20 @@ To know more, please refer to [Kestra's documentation.](https://kestra.io/docs)
 
 **`dlt`** is an open-source Python library that allows you to declaratively load data sources
 into well-structured tables or datasets. It does this through automatic schema inference and evolution.
-The library simplifies building data pipelines by providing functionality to support the entire extract 
+The library simplifies building data pipelines by providing functionality to support the entire extract
 and load process.
 
 ### How does `dlt` integrate with Kestra for pipeline orchestration?
 
-To illustrate setting up a pipeline in Kestra, we’ll be using the following example: 
+To illustrate setting up a pipeline in Kestra, we’ll be using the following example:
 [From Inbox to Insights: AI-Enhanced Email Analysis with dlt and Kestra.](https://kestra.io/blogs/2023-12-04-dlt-kestra-usage)
 
 The example demonstrates automating a workflow to load data from Gmail to BigQuery using the `dlt`,
 complemented by AI-driven summarization and sentiment analysis. You can refer to the project's
 GitHub repo by clicking [here.](https://github.com/dlt-hub/dlt-kestra-demo)
 
-:::info 
-For the detailed guide, please take a look at the project's [README](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) section. 
+:::info
+For the detailed guide, please take a look at the project's [README](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) section.
 :::
 
 Here is the summary of the steps:
@@ -66,8 +66,8 @@ Here is the summary of the steps:
     https://raw.githubusercontent.com/kestra-io/kestra/develop/docker-compose.yml
    ```
 
-5. Configure Docker Compose file: 
-   Edit the downloaded Docker Compose file to link the `.env` file for environment 
+5. Configure Docker Compose file:
+   Edit the downloaded Docker Compose file to link the `.env` file for environment
    variables.
 
    ```yaml
@@ -100,7 +100,7 @@ By following these steps, you establish a structured workflow within Kestra, lev
 features for efficient data pipeline orchestration.
 
 :::info
-For detailed information on these steps, please consult the `README.md` in the 
+For detailed information on these steps, please consult the `README.md` in the
 [dlt-kestra-demo](https://github.com/dlt-hub/dlt-kestra-demo/blob/main/README.md) repo.
 :::
 

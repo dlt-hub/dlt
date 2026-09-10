@@ -228,7 +228,7 @@ Inherits arguments from [`dlthub workspace`](#dlthub-workspace).
 **Options**
 
 * `-h, --help` - Show this help message and exit
-* `--create` - 
+* `--create` -
 * `--org-id ORG_ID` - Organization uuid to scope the connection to. required in non-interactive mode when you belong to multiple organizations and local workspace has no organization pinned.
 
 </details>

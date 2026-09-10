@@ -53,9 +53,13 @@ We keep the config and credentials in `configuration.py`. You should:
 - Adjust the `__init__` arguments in your `Destination` class in `factory.py` to match the new credentials and config classes.
 - Expose the configuration type in the `spec` attribute in `factory.py`.
 
-> 💡 Each destination implements the `Destination` abstract class defined in [reference.py](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/destination/reference.py).
+:::info
+Each destination implements the `Destination` abstract class defined in [reference.py](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/destination/reference.py).
+:::
 
-> 💡 See how the `snowflake` destination adds additional authorization methods and configuration options.
+:::info
+See how the `snowflake` destination adds additional authorization methods and configuration options.
+:::
 
 ## 3. Set the destination capabilities
 
@@ -89,15 +93,21 @@ Specify which [loader file formats](../dlt-ecosystem/file-formats.md) your desti
 * `preferred_staging_file_format` - a file format that will be used by default when `staging` is enabled. Set to `None` if the destination can't load from staging.
 * `supported_staging_file_formats` - file formats that are supported to be loaded from staging storage. Set to `[]` if the destination can't load from staging.
 
-> 💡 Mind that for each file type, you'll need to implement a load job (which in most cases is a `COPY` command to which you pass a file path and file type).
+:::info
+Mind that for each file type, you'll need to implement a load job (which in most cases is a `COPY` command to which you pass a file path and file type).
+:::
 
-> 💡 Postgres does not support staging and any other file format beyond **insert-values**. Check the `snowflake` capabilities for a destination that supports all possible formats.
+:::info
+Postgres does not support staging and any other file format beyond **insert-values**. Check the `snowflake` capabilities for a destination that supports all possible formats.
+:::
 
 ### Escape identifiers and literals
 
 The default `escape_identifier` function escapes `"` and '\\' and quotes the identifier with `"`. This is standard SQL behavior. Mind that if you use the default naming convention, `dlt` normalizes identifiers to an alphabet that does not accept any special characters. Users are able to change the naming convention in the configuration, so the correct escape function is still important.
 
-> 💡 The **postgres** destination that you modify is using a standard implementation that you may keep.
+:::info
+The **postgres** destination that you modify is using a standard implementation that you may keep.
+:::
 
 You should avoid providing a custom `escape_literal` function by not enabling `insert-values` for your destination.
 
@@ -182,7 +192,6 @@ In case of destinations that do not allow data modifications, you can opt out fr
 
 > 💡 Talk to us on Slack if your destination is fully read-only.
 
-
 ## 6. Implement load jobs
 
 Load jobs ensure that all files in the load package are loaded to the destination. `dlt` creates a single job per file and [makes sure that it transitions to the `completed` state. (look for `LoadJob`)](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/destination/reference.py)
@@ -262,4 +271,3 @@ Load package 1690628947.953597 is LOADED and contains no failed jobs
 ```
 
 You can use `dlt pipeline show github_events` to view data in the destination.
-

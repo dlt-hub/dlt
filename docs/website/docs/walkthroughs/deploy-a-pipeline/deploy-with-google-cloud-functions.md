@@ -15,7 +15,6 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
    [Notion verified source](../../dlt-ecosystem/verified-sources/notion). However, you can use any verified source or create a custom one to suit your needs.
 1. In the terminal:
 
-
   - Run the following command to initialize the verified source with Notion and create a pipeline example with BigQuery as the target.
 
      ```sh
@@ -25,7 +24,6 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
   - After the command executes, new files and folders with the necessary configurations are created in the main directory where the command was executed.
 
   - Detailed information about initializing a verified source and a pipeline example can be found in the dlthub [documentation](../../dlt-ecosystem/verified-sources/notion).
-
 
 1. Create a new Python file called "main.py" in the main directory. The file can be configured as follows:
 
@@ -38,7 +36,7 @@ To deploy a pipeline with GCP Cloud Functions, navigate to the directory on your
    ```
 
    By default, Google Cloud Functions looks for the "main.py" file in the directory.
-   
+
 1. If you need any additional dependencies, add them to the "requirements.txt" that was created.
 
 ## 2. Deploying GCP Cloud Function
@@ -146,7 +144,6 @@ You can set up a GCP cloud function webhook using `dlt` as follows:
 9. Click on "Deploy" to complete the setup.
 
 > You can now use this cloud function as a webhook for event ingestion on various platforms such as Slack, Discord, Stripe, PayPal, and any other as per your requirement. Just remember to use the "Trigger URL" created by the cloud function when setting up the webhook. The Trigger URL can be found in the Trigger tab.
-
 
 ### 2. Monitor (and manually trigger) the webhook
 

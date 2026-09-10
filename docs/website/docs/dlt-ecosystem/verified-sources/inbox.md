@@ -30,7 +30,6 @@ Sources and resources that can be loaded using this verified source are:
 
 1. For verified source configuration, you need:
 
-
   - "host": IMAP server hostname (e.g., Gmail: imap.gmail.com, Outlook: imap-mail.outlook.com).
   - "email_account": Associated email account name (e.g., dlthub@dlthub.com).
   - "password": APP password (for third-party clients) from the email provider.
@@ -126,7 +125,6 @@ you may need to reduce the workers accordingly.
    Prerequisites for fetching messages differ by provider.
 
    For Gmail:
-
 
   - `pip install google-api-python-client>=2.86.0`
   - `pip install google-auth-oauthlib>=1.0.0`

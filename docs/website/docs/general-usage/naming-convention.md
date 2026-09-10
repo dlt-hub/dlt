@@ -258,7 +258,6 @@ dest_ = dlt.destinations.postgres(naming_convention=my_package.sql_cs_latin2)
 
 :::
 
-
 We include [two examples](../examples/custom_naming) of naming conventions that you may find useful:
 
 1. A variant of `sql_ci` that generates identifier collisions with a low (user-defined) probability by appending a deterministic tag to each name.
@@ -268,4 +267,3 @@ We include [two examples](../examples/custom_naming) of naming conventions that 
 Note that the fully qualified name of your custom naming convention will be stored in the schema, and dlt will attempt to import it when the schema is loaded from storage.
 You should distribute your custom naming conventions with your pipeline code or via a pip package from which it can be imported.
 :::
-

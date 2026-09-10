@@ -104,8 +104,6 @@ follow these steps:
 
 ### Prepare your data
 
-
-
 #### Share Google Sheet with the email
 
 > Note: For service account authentication, use the client_email. For OAuth authentication, use the
@@ -417,12 +415,13 @@ headers, and data types as arguments.
 
 `write_disposition`: Dictates how data is loaded to the destination.
 
-> Please note:
->
+:::info
+Please note:
 
-> 1. Empty rows are ignored.
-> 1. Empty cells are converted to None (and then to NULL by dlt).
-> 1. Data in columns without headers will be dropped.
+1. Empty rows are ignored.
+1. Empty cells are converted to None (and then to NULL by dlt).
+1. Data in columns without headers will be dropped.
+:::
 
 ### Resource `spreadsheet_info`
 

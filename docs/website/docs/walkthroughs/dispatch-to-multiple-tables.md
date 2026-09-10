@@ -89,7 +89,6 @@ dlt pipeline -v github_events show
 :::tip
 Some of the events produce tables with many nested tables. You can [control the level of table nesting](../general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
 
-
 Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2#scrollTo=a3OcZolbaWGf) - we analyze reactions on the duckdb repo!
 
 :::

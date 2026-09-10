@@ -115,7 +115,6 @@ dlt.config["schema.naming"] = "duck_case"
 `{"Column": 1, "column": 2}`, duckdb maps both keys to a single column. This creates a name collision.
 :::
 
-
 ## Supported file formats
 
 You can configure the following file formats to load data into duckdb:
@@ -377,7 +376,6 @@ The code above installs **spatial** with `duckdb` directly, because `dlt` only l
 
 After a load, you can read and write the data with `with pipeline.sql_client() as con:`. This client wraps `DuckDBPyConnection`. See [duckdb docs](https://duckdb.org/docs/api/python/overview#persistent-storage) for details. If you want to **read** data, use [pipeline.dataset()](../../general-usage/dataset-access/dataset) instead of `sql_client`.
 
-
 ## dbt support
 
 This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-duckdb](https://github.com/jwills/dbt-duckdb), which is a community-supported package. `dlt` shares the `duckdb` database with `dbt`. In rare cases, `dbt-duckdb` reports that the binary database format does not match the format it expects. To avoid this error, update the `duckdb` package in your `dlt` project with `pip install -U`.
@@ -391,4 +389,3 @@ This destination [integrates with dbt](../transformations/dbt/dbt.md) via [dbt-d
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination).
 
 <!--@@@DLT_TUBA duckdb-->
-

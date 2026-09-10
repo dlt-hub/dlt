@@ -142,7 +142,6 @@ def dim_person(dataset: dlt.Dataset):
 
 The output script follows naming conventions based on business domain, not source system names (e.g. `person_interactions_to_cdm.py`).
 
-
 ### Anatomy of the transformations toolkit
 
 ```mermaid

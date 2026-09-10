@@ -11,7 +11,6 @@ We've got several destinations contributed by our community. [They are not part 
 **Use at your own risk:** These are community-maintained forks of `dlt` that are not officially supported by the dlt team. While they extend dlt's functionality to additional databases, they may not receive the same level of testing, maintenance, or security updates as the core library. Always review the code and test thoroughly before using in production environments.
 :::
 
-
 ## Starrocks
 
 by: [phaethon](https://github.com/phaethon)
@@ -26,7 +25,6 @@ Code:
 
 PR with discussion:
 [https://github.com/dlt-hub/dlt/pull/2518](https://github.com/dlt-hub/dlt/pull/2518)
-
 
 ## Clickhouse Distributed
 
@@ -44,11 +42,8 @@ This allows dlt to work seamlessly with sharded and replicated Clickhouse setups
 Code:
 [https://github.com/zstipanicev/dlt/tree/feat/2200-add-clickhouse-distributed-support](https://github.com/zstipanicev/dlt/tree/feat/2200-add-clickhouse-distributed-support)
 
-
 PR with discussion:
 [https://github.com/dlt-hub/dlt/pull/2573](https://github.com/dlt-hub/dlt/pull/2573)
-
-
 
 ## CrateDB
 
@@ -67,7 +62,6 @@ Code:
 Original PR with discussion (currently on hiatus):
 [https://github.com/dlt-hub/dlt/pull/2733](https://github.com/dlt-hub/dlt/pull/2733)
 
-
 ## Hotdata.dev
 
 by: [Hotdata](https://github.com/hotdata-dev)
@@ -78,6 +72,6 @@ Hotdata is a high-concurrency SQL execution layer built on Apache DataFusion for
 - Native append, replace, and merge/upsert write modes
 - Compatible with PostgreSQL, DuckDB, and Snowflake SQL for server-side queries
 - Parquet-native loading and Arrow-native results
-  
+
 Code:
 [https://github.com/hotdata-dev/hotdata-dlt-destination](https://github.com/hotdata-dev/hotdata-dlt-destination)

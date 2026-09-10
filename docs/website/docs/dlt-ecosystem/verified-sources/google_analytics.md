@@ -103,8 +103,6 @@ python google_analytics/setup_script_gcp_oauth.py
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
 
-
-
 ### Share the Google Analytics property with the API
 
 > Note: For service account authentication, use the client_email. For OAuth authentication, use the

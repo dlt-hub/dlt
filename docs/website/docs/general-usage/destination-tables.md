@@ -283,7 +283,6 @@ dlt automatically creates internal tables in the destination schema to track pip
 
 This table records each pipeline run. Every time you execute a pipeline, a new row is added to this table with a unique `load_id`. This table tracks which loads have been completed and supports chaining of transformations.
 
-
 | Column name           | Type      | Description                             |
 | --------------------- | --------- | --------------------------------------- |
 | `load_id`             | STRING    | Unique identifier for the load job      |
@@ -298,7 +297,6 @@ Only rows with `status = 0` are considered complete. Other values represent inco
 
 This table stores the internal state of the pipeline for each run. This state enables incremental loading and allows the pipeline to resume from where it left off if a previous run was interrupted.
 
-
 | Column name      | Type           | Description                                    |
 | ---------------- | -------------- | ---------------------------------------------- |
 | `version`        | INTEGER        | Version of this state entry                    |
@@ -309,7 +307,6 @@ This table stores the internal state of the pipeline for each run. This state en
 | `version_hash`   | STRING         | Hash to detect changes in the state            |
 | `_dlt_load_id`   | STRING         | Reference to related load in `_dlt_loads`      |
 | `_dlt_id`        | STRING         | Unique identifier for the pipeline state row   |
- 
 
 The state column contains a serialized Python dictionary that includes:
 
@@ -343,7 +340,6 @@ By keeping previous schema definitions, `_dlt_version` ensures that:
 - Backward compatibility is maintained
 
 This table also supports troubleshooting and compatibility checks. It lets you track which schema and engine version were used for any load. This helps with debugging and ensures safe evolution of your data model.
-
 
 ## Loading data into existing tables not created by dlt
 

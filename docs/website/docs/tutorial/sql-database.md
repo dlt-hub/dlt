@@ -61,7 +61,6 @@ With the necessary files in place, we can now start writing our pipeline script.
 Running the script as it is will execute the function `load_standalone_table_resource()`, so remember to comment out the function call from inside the main block.
 :::
 
-
 The following function will load the tables `family` and `genome`.
 
 ```py
@@ -122,7 +121,6 @@ sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.a
 ```
 
 For more details on the credentials format and other connection methods, read the section on [configuring connection to the SQL Database](../dlt-ecosystem/verified-sources/sql_database/configuration#configuring-the-connection).
-
 
 ## 4. Install dependencies
 

@@ -38,7 +38,6 @@ whereas verified sources are maintained in a separate [repository](https://githu
 To use a verified source, you need to run the `dlt` init command, which will download the verified source code to
 your working directory.
 
-
 ### Get help
 
 * Source missing? [Request a new verified source.](https://github.com/dlt-hub/verified-sources/issues/new?template=source-request.md)

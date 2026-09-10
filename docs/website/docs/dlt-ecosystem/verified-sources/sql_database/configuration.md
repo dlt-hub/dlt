@@ -18,7 +18,6 @@ import Header from '../_source-info-header.md';
 
 Read more about sources and resources here: [General usage: source](../../../general-usage/source.md) and [General usage: resource](../../../general-usage/resource.md).
 
-
 ### Example usage
 
 :::tip
@@ -150,7 +149,7 @@ will create `sql_database` folder with the source code that you can import and u
    ```
 
    This renames the tables before insertion. For example, the table "family" will be loaded as "prefix__family".
-   
+
 5. **Configuring table and column selection in `config.toml`**
 
    To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
@@ -173,15 +172,15 @@ will create `sql_database` folder with the source code that you can import and u
    ```
 
    :::note
-   *Case-Sensitivity:* 
-   
+   *Case-Sensitivity:*
+
    Table and column names specified in `config.toml` must exactly match their counterparts in the SQL database, as they are case-sensitive.
    :::
 
 ## Incremental loading
 
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only new or updated data. In essence, arguments that you pass
-to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need. 
+to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need.
 
 Read [step by step guide on how to use incremental with sql_database](../../../walkthroughs/sql-incremental-configuration).
 
@@ -209,7 +208,6 @@ If your cursor is on a timestamp/datetime column, make sure you set up your init
 * If your datetime column is naive, use naive Python datetime. Note that `pendulum` datetime is timezone-aware by default while standard `datetime` is naive.
 * Use `full` reflection level or above to reflect the `timezone` (awareness hint) on datetime columns.
 * Read about [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
-
 
 ### Examples
 
@@ -278,7 +276,7 @@ Which generates the following query:
 
 ## Limit number of items returned by the query
 
-If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded 
+If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded
 to the query. Note that limit works in the multiples of `chunk_size`. For example if the `chunk_size` is 1000 and you set `max_items` in `add_limit` to
 2, your query will return 2000 rows.
 

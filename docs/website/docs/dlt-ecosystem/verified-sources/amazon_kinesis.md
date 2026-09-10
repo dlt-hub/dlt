@@ -19,7 +19,6 @@ Resources that can be loaded using this verified source are:
 | -------------- | --------------------------------------- |
 | kinesis_stream | Load messages from the specified stream |
 
-
 :::tip
 You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py).
 :::
@@ -186,8 +185,6 @@ partition key, etc. The message contains `_kinesis_msg_id`, which is the primary
 if False, `data` is returned as bytes.
 
 ## Customization
-
-
 
 ### Create your own pipeline
 

@@ -11,7 +11,6 @@ import Header from '../_source-info-header.md';
 
 This is a dlt source you can use to extract data from any REST API. It uses [declarative configuration](#source-configuration) to define the API endpoints, their [relationships](#define-resource-relationships), how to handle [pagination](#pagination), and [authentication](#authentication).
 
-
 Here's an example of how to configure the REST API source to load posts and related comments from a hypothetical blog API:
 
 ```py
@@ -199,7 +198,6 @@ The declarative resource configuration is defined in the `config` dictionary. It
 1. `client`: Defines the base URL and authentication method for the API. In this case, it uses token-based authentication. The token is stored in the `secrets.toml` file.
 
 2. `resource_defaults`: Contains default settings for all [resources](#resource-configuration). In this example, we define that all resources:
-
 
   - Have `id` as the [primary key](../../../general-usage/resource#define-schema)
   - Use the `merge` [write disposition](../../../general-usage/incremental-loading.md#choosing-a-write-disposition) to merge the data with the existing data in the destination.
@@ -649,7 +647,6 @@ Available authentication types:
 | `api_key`                   | [APIKeyAuth](./advanced.md#api-key-authentication)              | API key authentication with key defined in the query parameters or in the headers. <br/>Parameters:<ul><li>`name` (str) - the name of the query parameter or header</li><li>`api_key` (str) - the API key value</li><li>`location` (str, optional) - the location of the API key in the request. Can be `query` or `header`. Default is `header`</li></ul>                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                      |
 | `oauth2_client_credentials` | [OAuth2ClientCredentials](./advanced.md#oauth-20-authorization) | OAuth 2.0 Client Credentials authorization for server-to-server communication without user consent. <br/>Parameters:<ul><li>`access_token` (str, optional) - the temporary token. Usually not provided here because it is automatically obtained from the server by exchanging `client_id` and `client_secret`. Default is `None`</li><li>`access_token_url` (str) - the URL to request the `access_token` from</li><li>`client_id` (str) - identifier for your app. Usually issued via a developer portal</li><li>`client_secret` (str) - client credential to obtain authorization. Usually issued via a developer portal</li><li>`access_token_request_data` (dict, optional) - A dictionary with data required by the authorization server apart from the `client_id`, `client_secret`, and `"grant_type": "client_credentials"`. Defaults to `None`</li><li>`default_token_expiration` (int, optional) - The time in seconds after which the temporary access token expires. Defaults to 3600.</li><li>`session` (requests.Session, optional) - a custom session object. Mostly used for testing</li></ul> |
 
-
 For more complex authentication methods, you can implement a [custom authentication class](./advanced.md#implementing-custom-authentication) and use it in the configuration.
 
 You can use the dictionary configuration syntax also for custom authentication classes after registering them as follows:
@@ -871,7 +868,6 @@ The syntax for the `resolve` field in parameter configuration is:
 
 The `field` value can be specified as a [JSONPath](https://github.com/h2non/jsonpath-ng?tab=readme-ov-file#jsonpath-syntax) to select a nested field in the parent resource data. For example: `"field": "items[0].id"`.
 
-
 #### Resolving multiple path parameters from a parent resource
 
 When a child resource depends on multiple fields from a single parent resource, you can define multiple `resolve` parameters in the endpoint configuration. For example:
@@ -1043,7 +1039,7 @@ In the example above:
 
 - First, the `filter` step uses a lambda function to include only records where `id` is less than 10.
 - Then, the `map` step applies the `lower_title` function to each remaining record.
-- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record, 
+- Finally, the `yield_map` step applies the `flatten_reactions` function to each transformed record,
 yielding a set of records, one for each reaction for the given post.
 
 #### Using `filter`
@@ -1282,7 +1278,6 @@ You can also use different placeholder variants depending on your needs:
 | `{incremental.last_value}`    | The last seen value (same as start_value in most cases, see the [incremental loading](../../../general-usage/incremental/cursor.md) guide for more details) |
 | `{incremental.end_value}`     | The end value if specified in the configuration                                                                                                             |
 
-
 ### Legacy method: Incremental loading in `params` (DEPRECATED)
 
 :::warning
@@ -1410,7 +1405,6 @@ Incremental loading using the `incremental` field:
     },
 }
 ```
-
 
 ## Troubleshooting
 

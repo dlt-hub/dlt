@@ -22,7 +22,6 @@ With Modal, you can perform tasks like running generative models, large-scale ba
 
 To learn more, please refer to [Modal's documentation.](https://modal.com/docs)
 
-
 ## How to run dlt on Modal
 
 Here’s a dlt project setup to copy data from public MySQL database into DuckDB as a destination:
@@ -134,7 +133,6 @@ modal deploy sql_pipeline.py
 
 * Use [Proxy IPs](https://modal.com/docs/guide/proxy-ips) to connect to resources in your private network
 * Sync tables in parallel using [map()](https://modal.com/docs/guide/scale)
-
 
 ## More examples
 

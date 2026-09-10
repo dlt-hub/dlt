@@ -411,7 +411,6 @@ SFTP authentication is attempted in the following order of priority:
 
 4. **GSS-API authentication**: If GSS-API (Kerberos) is enabled (`sftp_gss_auth=True`), authentication will use the Kerberos protocol. GSS-API may also be used for key exchange (`sftp_gss_kex=True`) and credential delegation (`sftp_gss_deleg_creds=True`). This method is useful in environments where Kerberos is set up, often in enterprise networks.
 
-
 #### 1. Key-based authentication
 
 If you use an SSH key instead of a password, you can specify the path to your private key in the configuration.
@@ -456,7 +455,6 @@ file_glob = "*"                          # Pattern to match the files you want t
 sftp_username = "foo"                    # Replace "foo" with your SFTP username
 sftp_password = "pass"                   # Replace "pass" with your SFTP password
 ```
-
 
 ### Notes
 
@@ -732,7 +730,6 @@ You can enable views autorefresh:
 [destination.filesystem]
 always_refresh_views=true
 ```
-
 
 ## Troubleshooting
 

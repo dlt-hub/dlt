@@ -9,7 +9,6 @@ import Header from './_source-info-header.md';
 
 <Header/>
 
-
 [Freshdesk](https://www.freshworks.com/freshdesk/) is a cloud-based customer service software
 that provides businesses with tools for managing customer support via multiple channels including
 email, phone, websites, and social media.

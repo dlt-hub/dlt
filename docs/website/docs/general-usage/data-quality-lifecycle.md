@@ -5,9 +5,9 @@ keywords: [data quality, validation, contracts, pydantic, schema, monitoring, go
 ---
 # Data quality lifecycle
 
-The data quality lifecycle has rarely been achievable 
-in a single tool due to the runtime constraints of 
-traditional ETL vendors. 
+The data quality lifecycle has rarely been achievable
+in a single tool due to the runtime constraints of
+traditional ETL vendors.
 
 ## One library, end-to-end ingestion, transformation, with data quality and lineage
 
@@ -16,7 +16,6 @@ dlt is an open source pythonic ingestion library while dlthub is a commercial ad
 Because `dlt` together with `dltHub` span the entire pipeline, starting from ingestion, passing through a portable staging layer, and extending into the transformation, it uniquely bridges these gaps.
 
 Instead of stitching together four or five separate tools, you write Python code that works across the entire pipeline. No glue scripts. No context lost between systems, end to end lineage and metadata.
-
 
 ![Data Quality Lifecycle](https://storage.googleapis.com/dlt-blog-images/docs-DQ-lifecycle.png)
 
@@ -117,8 +116,6 @@ Monitoring the reliability of the delivery mechanism itself. Even perfectly vali
 | Trace Lineage           | **Load IDs:** Every row in your destination is tagged with `_dlt_load_id`. You can trace any specific record back to the exact pipeline run that produced it.                                    | [Destination Tables](destination-tables.md#data-lineage)                                              | dlt          |
 | Alert on failures       | **Slack Integration:** Send pipeline success/failure notifications via Slack incoming webhooks configured in `dlt.secrets`.                                                                      | [Alerting](../running-in-production/running.md#using-slack-to-send-messages)                          | dlt          |
 
-
-
 ## Validate data quality during development
 
 Use the [dltHub Dashboard](../hub/ingestion/dashboard.md) to interactively inspect your pipeline during development. The dashboard lets you:
@@ -132,7 +129,6 @@ Use the [dltHub Dashboard](../hub/ingestion/dashboard.md) to interactively inspe
 ```sh
 dlt pipeline {pipeline_name} show
 ```
-
 
 ## Get the full lifecycle with dltHub
 

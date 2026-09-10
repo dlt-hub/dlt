@@ -14,7 +14,6 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 Learn about the authentication methods supported by the `dlt` RestAPI Client in detail in the [RESTClient section](../../dlt-ecosystem/verified-sources/rest_api/advanced.md#authentication).
 :::
 
-
 ## Example with ConnectionStringCredentials
 
 `ConnectionStringCredentials` handles database connection strings:

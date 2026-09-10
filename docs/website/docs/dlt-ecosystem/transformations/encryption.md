@@ -13,19 +13,15 @@ Data is vulnerable both while moving between systems (in transit) and when store
 
 - **Data in transit**:
 
-    
     During transfers, data can be intercepted or tampered with. Employing secure protocols (e.g., SSL/TLS) or encrypted connection strings prevents unauthorized access and ensures confidentiality.
-    
+
 - **Client-side encryption**:
 
-    
     Encrypting data on the client side before transmission adds an extra layer of security. By using libraries like AWS Encryption SDK, Google Tink, or Azure Key Vault, organizations can ensure that data is encrypted before it leaves the source, maintaining control over encryption keys and safeguarding sensitive information throughout its journey.
-    
+
 - **Data at rest / Server-side encryption**:
 
-    
     Even if a storage system is compromised, encryption at rest prevents unauthorized access. dlt can leverage disk encryption (e.g., BitLocker, FileVault, dm-crypt/LUKS) or the destination’s server-side encryption to keep data safe on the local machine and in the cloud.
-    
 
 This layered approach ensures comprehensive protection, covering every stage of data’s journey from extraction to storage.
 
@@ -44,7 +40,6 @@ Client-side encryption empowers you to encrypt data before it ever leaves your e
 - Tink by Google
 - Azure Key Vault & Blob Client-Side Encryption
 - OpenSSL
-
 
 ## Encryption in transit and server-side encryption
 

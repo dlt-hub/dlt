@@ -28,8 +28,6 @@ In this guide, we will discuss various incremental loading methods using `dlt`, 
 
 ## Code examples
 
-
-
 ### 1. Full load (replace)
 
 A full load strategy completely overwrites the existing data with the new dataset. This is useful when you want to refresh the entire table with the latest data.

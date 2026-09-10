@@ -7,11 +7,9 @@ keywords: [transform, pandas, polars, arrow]
 
 You can transform your data in Python using Pandas DataFrames, Arrow tables, or Polars DataFrames. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
-
 ## Interactively transforming your data in Python
 
 Using the methods explained in the [dataset docs](../../general-usage/dataset-access/dataset), you can fetch data from your destination into a DataFrame or Arrow table in your local Python process and work with it interactively. This even works for filesystem destinations:
-
 
 The example below reads GitHub reactions data from the `issues` table and
 counts the reaction types.
@@ -87,7 +85,6 @@ print(table.limit(10).execute())
 ## Persisting your transformed data
 
 Since dlt supports Arrow tables, Pandas or Polars DataFrames from resources directly, you can use the same pipeline to load the transformed data back into the destination.
-
 
 ### A simple example
 

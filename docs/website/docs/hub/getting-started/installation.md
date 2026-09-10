@@ -81,7 +81,6 @@ uv venv --python 3.13
 
 This uses `Python 3.13` for your virtual environment.
 
-
 Activate the virtual environment using the instructions displayed by `uv`, i.e.:
 
 ```sh

@@ -11,9 +11,9 @@ The dltHub AI Harness is a part of the dltHub platform. View the license [here](
 
 ## Overview
 
-Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices. 
+Build a custom REST API connector for any of the 8k+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
 
-The **rest-api-pipeline** toolkit is part of the [dltHub AI Harness](../ai-harness/introduction.md) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step. 
+The **rest-api-pipeline** toolkit is part of the [dltHub AI Harness](../ai-harness/introduction.md) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
 
 The dltHub AI Harness works with **Claude Code**, **Cursor**, and **Codex**.
 
@@ -37,7 +37,6 @@ Wire up your specific coding assistant:
 ```sh
 dlthub ai init --agent claude
 ```
-
 
 </TabItem>
 <TabItem value="cursor">

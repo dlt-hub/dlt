@@ -50,7 +50,6 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 
 * Specify the credentials for your SQL Server connection according to the [sql_database source instructions](../../dlt-ecosystem/verified-sources/sql_database/setup)
 
-
 ## Setting up the pipeline
 
 The process involves two main steps:
@@ -271,8 +270,6 @@ if __name__ == "__main__":
 
 </details>
 
-
-
 ## Understanding the change tracking query
 
 The incremental loading process uses a SQL query that joins the CHANGETABLE function with the source table to fetch the latest changes. Here’s a simplified version of the query:
@@ -301,7 +298,6 @@ ORDER BY
  Since the query joins with the production table, there may be implications for locking and performance. Ensure your database can handle the additional load, and consider isolation levels if necessary.
 :::
 
-
 ## Full refresh
 
 :::warning
@@ -312,7 +308,6 @@ You can trigger a full refresh by performing a full load again and passing `drop
 ```py notype
 pipeline.run(initial_resource, refresh="drop_resources")
 ```
-
 
 ## Handling deletes
 

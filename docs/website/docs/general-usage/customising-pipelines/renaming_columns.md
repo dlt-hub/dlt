@@ -50,4 +50,3 @@ for row in source_instance:
 # {'Objekt_0': {'Groesse': 0, 'Aequivalenzpruefung': True}}
 # ...
 ```
-

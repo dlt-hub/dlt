@@ -83,8 +83,6 @@ scrape data from "[https://quotes.toscrape.com/page/1/](https://quotes.toscrape.
 
 ## Customization
 
-
-
 ### Create your own pipeline
 
 If you wish to create your data pipeline, follow these steps:

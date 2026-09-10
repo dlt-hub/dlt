@@ -143,7 +143,6 @@ pipeline = dlt.pipeline(
 pipeline.run(response.json(), table_name="issues")
 ```
 
-
 Here's what the code above does:
 
 1. It makes a request to the GitHub API endpoint and checks if the response is successful.
@@ -277,7 +276,6 @@ normalize_info = pipeline.last_trace.last_normalize_info
 """
 ```
 
-
 Let's take a closer look at the code above.
 
 We use the `@dlt.resource` decorator to declare the table name into which data will be loaded and specify the `append` write disposition.
@@ -360,7 +358,6 @@ normalize_info = pipeline.last_trace.last_normalize_info
 # print(normalize_info.row_counts)
 #> {'_dlt_pipeline_state': 1}
 ```
-
 
 Above, we add the `primary_key` argument to the `dlt.resource()` that tells `dlt` how to identify the issues in the database to find duplicates whose content it will merge.
 
@@ -700,7 +697,6 @@ Interested in learning more? Here are some suggestions:
 1. You've been running your pipelines locally. Learn how to [deploy and run them in the cloud](../walkthroughs/deploy-a-pipeline/).
 2. Dive deeper into how dlt works by reading:
 
-
   - [Set up "last value" incremental loading](../general-usage/incremental/cursor.md).
   - Learn about data loading strategies: append, [replace](../general-usage/full-loading.md), and [merge](../general-usage/merge-loading.md).
   - [Connect the transformers to the resources](../general-usage/resource#process-resources-with-dlttransformer) to load additional data or enrich it.
@@ -712,7 +708,6 @@ Interested in learning more? Here are some suggestions:
   - [Run in production: inspecting, tracing, retry policies, and cleaning up](../running-in-production/running).
   - [Run resources in parallel, optimize buffers, and local storage](../reference/performance.md)
   - [Use REST API client helpers](../dlt-ecosystem/verified-sources/rest_api/advanced.md) to simplify working with REST APIs.
-
 
 3. Explore [destinations](../dlt-ecosystem/destinations/) and [sources](../dlt-ecosystem/verified-sources/) provided by us and the community.
 4. Explore the [Examples](../examples) section to see how dlt can be used in real-world scenarios.

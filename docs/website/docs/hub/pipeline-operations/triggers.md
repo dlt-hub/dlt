@@ -98,7 +98,6 @@ When such a job is started manually (e.g., `dlthub job trigger` or `dlthub run`)
 
 An `every` trigger generates relative intervals of a fixed period, starting from now rather than at absolute tick times. A newly deployed job runs for the first time once the period has elapsed: deploy `trigger.every("1h")` at 14:20 and the first run starts at 15:20 with the interval 14:20 to 15:20. When run manually, the interval spans from the previous run start to now — so unlike cron jobs, manual runs of `every` jobs always receive a non-empty interval.
 
-
 ## Freshness checks
 
 `freshness=[upstream.is_fresh]` blocks a job until the upstream's most recent interval has fully completed:

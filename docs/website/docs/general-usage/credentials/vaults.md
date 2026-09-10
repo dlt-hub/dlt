@@ -28,7 +28,6 @@ On first access to any configuration value, the vault provider tries to populate
 2. Pipeline-scoped `dlt_secrets_toml`. If you request a value for a specific pipeline, it also attempts to fetch a pipeline-scoped `<pipeline_name>.dlt_secrets_toml`.
 3. Known sections and names:
 
-
   * The provider knows about these top-level sections: **sources** and **destination**.
   * It will probe short-to-long paths so that more specific fragments override less specific ones:
   * **`sources`** and **`sources.<source_name>`**
@@ -122,7 +121,6 @@ PROVIDERS__GOOGLE_SECRETS__CREDENTIALS__CLIENT_EMAIL="....gserviceaccount.com"
   </TabItem>
 </Tabs>
 
-
 Alternative vault configuration when listing secrets is not available:
 
 <Tabs
@@ -158,8 +156,6 @@ PROVIDERS__GOOGLE_SECRETS__LIST_SECRETS="false"
   </TabItem>
 </Tabs>
 
-
-
 ### Naming convention for Google Secrets
 
 You can now add secrets to Google Secrets directly. To optimize performance, use TOML fragments to reduce backend calls. Please, read carefully the description of naming convention for Google Secrets used by dlt:
@@ -172,7 +168,7 @@ Secret names are normalized to contain letters, digits, hyphens (-), and undersc
   * `sources.pipedrive.pipedrive_api_key` → `sources-pipedrive-pipedrive_api_key`
   * `destination.bigquery` → `destination-bigquery`
   * `my_pipeline.dlt_secrets_toml` → `my_pipeline-dlt_secrets_toml`
-   
+
 Below you will find examples grouped by storage type, simplest first.
 
 ### Store your whole `secrets.toml` (simplest)
@@ -246,7 +242,6 @@ For example, the following keys would be fetched similarly to environment variab
 
 When `list_secrets=true`, the provider will pre-list all secret names to skip lookups for non-existent keys.
 If the service account lacks `roles/secretmanager.secretViewer`, listing will fail and the provider will raise a configuration error.
-
 
 ## Configure AWS Secrets Manager provider
 
@@ -362,7 +357,6 @@ Because IAM policies match the name portion of secret ARNs, you can scope read a
 ```
 
 Note that `secretsmanager:ListSecrets` cannot be limited to particular secrets - the prefix narrows what dlt fetches and lists, not what the principal is allowed to list.
-
 
 ## Configure Airflow Variables as provider
 

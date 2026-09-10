@@ -186,4 +186,3 @@ You can send anonymous telemetry to your own [Segment](https://segment.com/) acc
 dlthub_telemetry_endpoint="https://api.segment.io/v1/track"
 dlthub_telemetry_segment_write_key="<write_key>"
 ```
-

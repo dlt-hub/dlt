@@ -28,7 +28,6 @@ the start of that day, `"2024-04-09T00:00:00Z"` for 28 days, or its end with `la
 the whole day stays in range. A datetime cursor turns `"2024-05-07"` into midnight of that day. A value
 that does not parse to the declared type raises an error.
 
-
 ### Example using `datetime` incremental cursor with `merge` as `write_disposition`
 
 This example demonstrates how to use a `datetime` cursor with a `lag` parameter, applying `merge` as the `write_disposition`. The setup runs twice, and during the second run, the `lag` parameter re-fetches recent entries to capture updates.

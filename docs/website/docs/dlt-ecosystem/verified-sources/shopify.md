@@ -243,8 +243,6 @@ def shopify_partner_query(
 
 ## Customization
 
-
-
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.

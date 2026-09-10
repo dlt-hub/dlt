@@ -157,7 +157,6 @@ dbt_<pipeline-name>/
 
 Additionally, in the directory where you ran the generator, you will find a new Python file named `run_<pipeline-name>_dbt.py`, which you can execute to run the project.
 
-
 ## Generating fact tables
 
 After creating the base project with dimensional tables, you can create fact tables that will use the previously added relationship hints by running:

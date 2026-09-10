@@ -5,9 +5,9 @@ keywords: [dlthub, deploy, first pipeline, getting started, workspace, dlthub-st
 ---
 # Deploy your first pipeline with dltHub
 
-New to dltHub and just want to try or learn it? This guide takes you from an empty directory to a sample pipeline running on the managed [dltHub platform](https://app.dlthub.com/). 
+New to dltHub and just want to try or learn it? This guide takes you from an empty directory to a sample pipeline running on the managed [dltHub platform](https://app.dlthub.com/).
 
-`dlthub-start` creates a ready-to-run workspace, connects it to dltHub, and configures your coding agent. The agent then deploys and runs a sample pipeline for you. 
+`dlthub-start` creates a ready-to-run workspace, connects it to dltHub, and configures your coding agent. The agent then deploys and runs a sample pipeline for you.
 
 By the end of this guide, you have loaded data into the [Playground destination](../ingestion/playground.md) destination and opened it in the dltHub UI.
 
@@ -17,11 +17,11 @@ project into a dltHub workspace.
 ## Before you start
 
 - **Python 3.10–3.14** and [uv](https://docs.astral.sh/uv/) (recommended). See [Installation](installation.md) for
-  alternatives.                               
-- **A coding agent**: Claude Code, Cursor, or Codex.                                                 
+  alternatives.
+- **A coding agent**: Claude Code, Cursor, or Codex.
 - **A GitHub, Google, or email login.** `dlthub-start` uses OAuth 2.0 (GitHub, Google, or email) to sign you in and creates your dltHub account on first login. You automatically get a [Playground workspace](../pipeline-operations/playground-workspace.md), so you don't need to configure cloud credentials to complete this guide.
 
-dltHub is commercial. Use is governed by the [license](../license.md). 
+dltHub is commercial. Use is governed by the [license](../license.md).
 
 ## 1. Setup your ready-to-run dltHub workspace
 
@@ -38,7 +38,6 @@ No arguments are needed. The CLI guides you through the following steps:
 3. **Signs you in and connects the project to dltHub.** An OAuth 2.0 flow opens in your browser and creates your account on first login. The project is then connected to your Playground workspace.
 4. **Configures your coding Agent.** Select Claude Code, Cursor, or Codex, and `dlthub-start` adds the corresponding dltHub toolkits.
 5. **Offers to launch the agent** with a handoff prompt that continues the onboarding workflow using the `deploy-run-sample-pipeline` skill.
-
 
 ```text
 ✓ Workspace ready — dependencies installed in .venv
@@ -62,9 +61,8 @@ How do you want to continue?
 Accept the launch, and the agent continues in the same terminal. If you decline, you can launch the agent later and paste the printed handoff prompt.
 
 :::tip Explore first, then build your own
-`dlthub-start` is the quickest way to explore dltHub end-to-end. The sample pipeline lets you explore the complete dltHub workflow without configuring a destination. Once it's running, you can use the same coding agent to build and deploy a pipeline for your own source. 
+`dlthub-start` is the quickest way to explore dltHub end-to-end. The sample pipeline lets you explore the complete dltHub workflow without configuring a destination. Once it's running, you can use the same coding agent to build and deploy a pipeline for your own source.
 :::
-
 
 ### What you got
 
@@ -85,7 +83,6 @@ The pipeline is decorated with `@run.pipeline` and registered as a deployable jo
 ## 2. Let the agent deploy and run the sample
 
 The agent now uses the dltHub [platform toolkit](https://github.com/dlt-hub/dlthub-ai-workbench/tree/master) to guide the deployment and run the sample pipeline. The toolkit provides the dltHub-specific instructions and commands, while the dltHub CLI and managed platform handle the deployment and execution. You can follow each command in the terminal.
-
 
 First, it deploys the workspace by syncing your files and registering the jobs defined in `__deployment__.py`:
 
@@ -134,19 +131,11 @@ uv run dlthub show
 
 ![In the UI you can then inspect your job runs and pipeline health](https://storage.googleapis.com/dlt-blog-images/onboarding-rerun.png)
 
-
 For ongoing monitoring, open the [workspace observability dashboard](../ingestion/dashboard.md) from the Notebooks section. Unlike the `onboarding_success` notebook, this dashboard is not specific to the sample pipeline or this tutorial. It is available as a general workspace tool for inspecting your pipelines and datasets. You can use it to review pipeline metadata, query destination data, inspect traces and exceptions, check run history, and verify incremental loading behavior.
-
 
 ![Observability dashboard showing pipeline metadata, run history, traces, and loaded datasets](https://storage.googleapis.com/dlt-blog-images/observability-dashboard.png)
 
-
 To run jobs locally instead, use `dlthub run local`. Local runs use the `dev` [Profile](../pipeline-operations/profiles).
-
-
-
-
-
 
 ## 4. Continue with your own setup
 
@@ -215,7 +204,6 @@ Supported destinations include
 [S3](../../dlt-ecosystem/destinations/filesystem.md), and
 [many more](../../dlt-ecosystem/destinations).
 
-
 ### Schedule the pipeline
 
 Scheduling is declarative: add a trigger to the job and redeploy.
@@ -245,9 +233,6 @@ Get notified when a job run fails via email. Go to **Workspace Settings > Alerts
 
 ![Alerts settings showing the job run failures toggle and role selection](https://storage.googleapis.com/dlt-blog-images/onboarding_alerting.png)
 
-
-
-
 ### Build your own pipeline with your coding agent
 
 With the sample running, the same agent session is ready to build a pipeline for **your own** source. Ask it:
@@ -270,7 +255,6 @@ The sample pipeline uses the Playground destination. For your own pipeline, you 
 
 For the production-grade path (auth, incremental loading, more endpoints) see the
 [dltHub AI Harness](../ingestion/rest-api-source.md).
-
 
 ## Troubleshooting
 
@@ -303,4 +287,3 @@ If the scaffold was created successfully, you can also enter the workspace and r
 - Ask your coding agent to [build a pipeline](../ingestion/rest-api-source.md) for your source.
 - Reshape your data with [Transformations](../transformations/index.md).
 - Add [data quality checks](../data-quality/index.md) to catch issues early.
-

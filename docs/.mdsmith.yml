@@ -160,7 +160,7 @@ categories:
     prose: false
     structural: false
     table: true
-    whitespace: false
+    whitespace: true
 files:
     - '**/website/docs*.md'
     - '**/website/docs*.markdown'

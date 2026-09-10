@@ -9,7 +9,6 @@ keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, bran
 
 Optionally, the destination can generate **vector embeddings** using the [LanceDB](https://lancedb.com/) embedding functions library.
 
-
 <!--@@@DLT_DESTINATION_CAPABILITIES lance-->
 
 :::note Lance vs. LanceDB destination
@@ -134,7 +133,6 @@ The `lance` destination uses a [Lance Namespace](https://lance.org/format/namesp
 - [Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) — used by default
 - [REST Namespace](https://lance.org/format/namespace/rest/catalog-spec/)  — experimental support only
 
-
 ### Directory Namespace
 
 The destination uses a Directory Namespace by default. Two concepts are configured separately:
@@ -205,7 +203,6 @@ uri = "http://127.0.0.1:2333"
 api_key = "..."      # sent as x-api-key
 auth_token = "..."   # sent as Authorization: Bearer <auth_token>
 ```
-
 
 ## Branching
 
