@@ -117,11 +117,8 @@ rules:
 #         pad: 1
 #         separator-style: spaced
 #         style: consistent
-#     table-readability:
-#         max-column-width-ratio: 60
-#         max-columns: 8
-#         max-rows: 30
-#         max-words-per-cell: 30
+    table-readability:
+        max-words-per-cell: 35
 #     toc: true
 #     toc-directive: false
 #     token-budget:
@@ -141,7 +138,15 @@ ignore: [
   "website/docs/_book-onboarding-call.md",  # actually an mdx files
   "website/docs/dlt-ecosystem/verified-sources/_source-info-header.md",  # actually an mdx files
 ]
-overrides: []
+overrides:
+  - glob: [
+      "website/docs/dlt-ecosystem/verified-sources/arrow-pandas.md",
+      "website/docs/dlt-ecosystem/verified-sources/rest_api/basic.md",
+      "website/docs/hub/getting-started/oss-and-dlthub.md",
+    ]
+    rules:
+      table-readability: false
+
 # front-matter: true
 categories:
     # categories are defined here: https://mdsmith.dev/rules/
