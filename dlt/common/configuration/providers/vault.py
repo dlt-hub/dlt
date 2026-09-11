@@ -2,6 +2,7 @@ import abc
 import contextlib
 import re
 import string
+from threading import Lock
 from typing import Any, Dict, Optional, Set, Tuple
 
 from dlt.common import logger
@@ -64,6 +65,7 @@ class VaultDocProvider(BaseDocProvider):
         self.only_secrets = only_secrets
         self.only_toml_fragments = only_toml_fragments
         self.list_secrets = list_secrets
+        self._vault_lock = Lock()
         self._vault_lookups: Dict[str, Any] = {}
         self._available_keys: Optional[Set[str]] = None
         if list_secrets and (only_toml_fragments or only_secrets):
@@ -78,32 +80,35 @@ class VaultDocProvider(BaseDocProvider):
     def get_value(
         self, key: str, hint: type, pipeline_name: str, *sections: str
     ) -> Tuple[Optional[Any], str]:
-        # global settings must be updated first
-        self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
-        # then regular keys
-        full_key = self.get_key_name(key, pipeline_name, *sections)
-        value, _ = super().get_value(key, hint, pipeline_name, *sections)
-        if value is None:
-            if self.only_secrets and not is_secret_hint(hint):
-                pass
-            else:
-                # only secrets hints are handled fully
-                self._load_fragments(key, pipeline_name, *sections)
-                value, _ = super().get_value(key, hint, pipeline_name, *sections)
-                # skip checking the exact path if we check only toml fragments
-                if value is None and not self.only_toml_fragments:
-                    # look for key in the vault and update the toml document
-                    self._update_from_vault(full_key, key, hint, pipeline_name, sections)
+        # Fragments share one document, so reads must wait for the entire merge sequence.
+        with self._vault_lock:
+            # global settings must be updated first
+            self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
+            # then regular keys
+            full_key = self.get_key_name(key, pipeline_name, *sections)
+            value, _ = super().get_value(key, hint, pipeline_name, *sections)
+            if value is None:
+                if self.only_secrets and not is_secret_hint(hint):
+                    pass
+                else:
+                    # only secrets hints are handled fully
+                    self._load_fragments(key, pipeline_name, *sections)
                     value, _ = super().get_value(key, hint, pipeline_name, *sections)
+                    # skip checking the exact path if we check only toml fragments
+                    if value is None and not self.only_toml_fragments:
+                        # look for key in the vault and update the toml document
+                        self._update_from_vault(full_key, key, hint, pipeline_name, sections)
+                        value, _ = super().get_value(key, hint, pipeline_name, *sections)
 
-        return value, full_key
+            return value, full_key
 
     @property
     def supports_secrets(self) -> bool:
         return True
 
     def clear_lookup_cache(self) -> None:
-        self._vault_lookups.clear()
+        with self._vault_lock:
+            self._vault_lookups.clear()
 
     def _load_fragments(self, key: str, pipeline_name: str, *sections: str) -> None:
         """Load known toml fragments from the vault
@@ -182,9 +187,9 @@ class VaultDocProvider(BaseDocProvider):
         # print(f"tries '{key}' {pipeline_name} | {sections} at '{full_key}'")
         logger.debug(f"Vault provider {self.name} will make a request for {full_key}")
         secret = self._look_vault(full_key, hint)
-        self._vault_lookups[full_key] = pendulum.now()
         if secret is not None:
             self.set_fragment(key, secret, pipeline_name, *sections)
+        self._vault_lookups[full_key] = pendulum.now()
 
     @property
     def is_empty(self) -> bool:
