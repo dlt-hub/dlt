@@ -477,12 +477,23 @@ class DuckDbSqlClient(SqlClientBase[duckdb.DuckDBPyConnection], DBTransaction, W
                     )""")
 
             elif isinstance(credentials, AzureCredentialsWithoutDefaults):
-                sql.append(f"""
-                CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
-                    TYPE AZURE,
-                    CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
-                    SCOPE '{scope}'
-                )""")
+                if credentials.azure_storage_token and not credentials.azure_storage_account_key:
+                    # Static bearer (e.g. Fabric OneLake) — same PROVIDER as frozen external session
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        PROVIDER access_token,
+                        ACCESS_TOKEN '{credentials.azure_storage_token}',
+                        ACCOUNT_NAME '{credentials.azure_storage_account_name}',
+                        SCOPE '{scope}'
+                    )""")
+                else:
+                    sql.append(f"""
+                    CREATE OR REPLACE {persistent_stmt} SECRET {secret_name} (
+                        TYPE AZURE,
+                        CONNECTION_STRING 'AccountName={credentials.azure_storage_account_name};AccountKey={credentials.azure_storage_account_key}',
+                        SCOPE '{scope}'
+                    )""")
 
             # azure with service principal creds
             elif isinstance(credentials, AzureServicePrincipalCredentialsWithoutDefaults):
