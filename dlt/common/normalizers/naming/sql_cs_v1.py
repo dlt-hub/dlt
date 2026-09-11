@@ -35,8 +35,8 @@ class NamingConvention(BaseNamingConvention):
         # remove trailing underscores to not mess with how we break paths
         if norm_identifier != "_":
             norm_identifier = self.RE_ENDING_UNDERSCORES.sub("", norm_identifier)
-        # contract multiple __
-        norm_identifier = self.RE_UNDERSCORES.sub("_", norm_identifier)
+        # contract multiple __, collapsing an all-underscore identifier to a single _
+        norm_identifier = self.RE_UNDERSCORES.sub("_", norm_identifier) or "_"
         return self.shorten_identifier(norm_identifier, identifier, self.max_length)
 
     @property
