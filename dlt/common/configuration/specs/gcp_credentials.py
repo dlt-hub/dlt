@@ -1,4 +1,5 @@
 import dataclasses
+import os
 import sys
 from typing import Any, ClassVar, Final, List, Tuple, Union, Dict, Optional
 
@@ -26,6 +27,21 @@ from dlt.common.utils import is_interactive
 
 # GCS scope required for OAuth2 token requests
 GCS_SCOPE = "https://www.googleapis.com/auth/devstorage.read_write"
+
+
+def _read_native_value_from_file_if_path(native_value: Any) -> Any:
+    """If `native_value` is a string pointing at an existing file (e.g. the path to a downloaded
+    Google service account or OAuth client JSON file, following the common `GOOGLE_APPLICATION_CREDENTIALS`
+    convention), read and return the file's contents. Otherwise return `native_value` unchanged."""
+    if isinstance(native_value, str):
+        try:
+            if os.path.isfile(native_value):
+                with open(native_value, "r", encoding="utf-8") as f:
+                    return f.read()
+        except (OSError, ValueError):
+            # not a usable path (e.g. too long, contains null bytes): treat as a regular value
+            pass
+    return native_value
 
 
 def _get_pyiceberg_fileio_config(credentials: Any, project_id: Optional[str]) -> Dict[str, Any]:
@@ -134,6 +150,8 @@ class GcpServiceAccountCredentialsWithoutDefaults(GcpCredentials, WithPyicebergC
         if service_dict is None:
             # check if type is str
             GcpCredentials.parse_native_representation(self, native_value)
+            # if given a path to a service account JSON file, read its contents
+            native_value = _read_native_value_from_file_if_path(native_value)
             # if not instance of service account credentials then check type and try to parse native value
             try:
                 service_dict = json.loads(native_value)
@@ -203,6 +221,8 @@ class GcpOAuthCredentialsWithoutDefaults(GcpCredentials, OAuth2Credentials, With
         if oauth_dict is None:
             # check if type is str
             GcpCredentials.parse_native_representation(self, native_value)
+            # if given a path to an OAuth client JSON file, read its contents
+            native_value = _read_native_value_from_file_if_path(native_value)
             # if not instance of oauth2 credentials try to parse native value
             try:
                 oauth_dict = json.loads(native_value)
