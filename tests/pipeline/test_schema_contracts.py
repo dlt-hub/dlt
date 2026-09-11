@@ -444,6 +444,38 @@ def test_variant_columns(contract_setting: TSchemaEvolutionMode, setting_locatio
         assert VARIANT_COLUMN_NAME not in pipeline.default_schema.tables[SUBITEMS_TABLE]["columns"]
 
 
+def test_hint_type_change_evolves_into_variant() -> None:
+    """Issue #4340: an explicit hint that changes the data type of an existing column
+    must evolve into a variant column (like an inferred type change) instead of
+    silently overwriting the schema and failing the load at the destination."""
+    pipeline = get_pipeline()
+
+    @dlt.resource(table_name="hint_evolve", columns={"value": {"data_type": "bigint"}})
+    def data_bigint():
+        yield {"value": 3}
+
+    @dlt.resource(table_name="hint_evolve", columns={"value": {"data_type": "text"}})
+    def data_text():
+        yield {"value": "test"}
+
+    pipeline.run(data_bigint())
+    assert (
+        pipeline.default_schema.tables["hint_evolve"]["columns"]["value"]["data_type"]
+        == "bigint"
+    )
+
+    # the type change via hint must not overwrite the schema nor fail the load:
+    # the existing column keeps its type and the new type goes to a variant column
+    pipeline.run(data_text())
+    columns = pipeline.default_schema.tables["hint_evolve"]["columns"]
+    assert columns["value"]["data_type"] == "bigint"
+    assert "value__v_text" in columns
+    assert columns["value__v_text"]["data_type"] == "text"
+
+    table_counts = load_table_counts(pipeline)
+    assert table_counts["hint_evolve"] == 2
+
+
 def test_settings_precedence() -> None:
     pipeline = get_pipeline()
 
