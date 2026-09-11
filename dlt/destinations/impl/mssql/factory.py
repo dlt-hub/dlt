@@ -22,7 +22,7 @@ if TYPE_CHECKING:
 
 class MsSqlTypeMapper(TypeMapperImpl):
     sct_to_unbound_dbt = {
-        "json": "json",
+        "json": "nvarchar(max)",
         "text": "nvarchar(max)",
         "double": "float",
         "bool": "bit",
@@ -56,7 +56,6 @@ class MsSqlTypeMapper(TypeMapperImpl):
         "tinyint": "bigint",
         "smallint": "bigint",
         "int": "bigint",
-        "json": "json",
     }
 
     def to_db_datetime_type(
@@ -179,7 +178,11 @@ class mssql(Destination[MsSqlClientConfiguration, "MsSqlJobClient"]):
 
         ms_credentials = client.config.credentials.to_native_representation()
         ms_credentials = ms_credentials.replace("synapse://", "mssql://")
-        return ibis.connect(ms_credentials, driver=client.config.credentials.driver)
+        try:
+            return ibis.connect(ms_credentials, driver=client.config.credentials.driver)
+        except ImportError as e:
+            # ibis mssql backend requires pyodbc; mssql-python does not provide it
+            raise NotImplementedError("ibis mssql backend requires pyodbc") from e
 
     def __init__(
         self,

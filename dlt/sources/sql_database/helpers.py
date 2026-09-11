@@ -65,7 +65,7 @@ from dlt.common.libs.sql_alchemy import (
     OracleDialect,
 )
 
-TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx"]
+TableBackend = Literal["sqlalchemy", "pyarrow", "pandas", "connectorx", "mssql_arrow"]
 SelectClause = Union[SelectAny, TextClause]
 TQueryAdapter = Union[
     Callable[[SelectAny, Table], SelectClause],

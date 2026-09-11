@@ -107,6 +107,12 @@ class FabricCopyFileLoadJob(SynapseCopyFileLoadJob):
         if cache_key in self._token_initialized_cache:
             return
 
+        if not credentials.azure_client_secret:
+            # No Service Principal secret configured: ClientSecretCredential would raise before
+            # any data moves. Skip the proactive Fabric token initialization rather than fail the
+            # whole load; COPY INTO still works as long as the staging credential is otherwise valid.
+            return
+
         try:
             import requests
             from azure.identity import ClientSecretCredential
