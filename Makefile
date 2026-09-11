@@ -32,7 +32,7 @@ has-uv:
 	uv --version
 
 dev: has-uv ## Prepares development environment
-	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests
+	uv sync --all-extras --no-extra hub --group workspace-deps --group dev --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group adbc --group dashboard-tests --group agent --group agent-claude
 
 dev-airflow: has-uv ## Prepares development environment with airflow support
 	uv sync --all-extras --no-extra hub --group workspace-deps --group providers --group pipeline --group sources --group sentry-sdk --group ibis --group airflow
@@ -278,12 +278,15 @@ test-pipeline-arrow:
 # ----------------------------------------------------------------------
 
 install-workspace:
-	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit
+	uv sync $(UV_SYNC_ARGS) --group workspace-deps --extra cli --group streamlit --group agent --group agent-claude
 
-TEST_WORKSPACE_PATHS = tests/workspace
+TEST_WORKSPACE_PATHS = tests/workspace --ignore tests/workspace/deployment/test_agent_e2e.py
 
 test-workspace:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_WORKSPACE_PATHS))
+
+test-workspace-agents: ## Runs agents on real loops and models (needs jobs.agent.api_key in tests/.dlt/secrets.toml)
+	$(PYTEST_BASE) tests/workspace/deployment/test_agent_e2e.py
 
 # ----------------------------------------------------------------------
 # CI: hub minimal (no ibis)

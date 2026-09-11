@@ -76,12 +76,14 @@ def is_instance_lib(obj: Any, *, class_ref: str) -> bool:
 
     target_class: Any = sys.modules[module_name]
     for idx, part in enumerate(import_parts[1:], start=1):
-        # packages do not necessarily re-export their submodules: import them on demand
-        if isinstance(target_class, ModuleType) and not hasattr(target_class, part):
-            try:
+        # packages do not necessarily re-export their submodules: import them on demand. a
+        # package that loads the attribute lazily raises ImportError from `hasattr` when its
+        # own dependencies are missing, and such a class is not installed either
+        try:
+            if isinstance(target_class, ModuleType) and not hasattr(target_class, part):
                 importlib.import_module(".".join(import_parts[: idx + 1]))
-            except ImportError:
-                return False
-        target_class = getattr(target_class, part)
+            target_class = getattr(target_class, part)
+        except ImportError:
+            return False
 
     return isinstance(obj, target_class)

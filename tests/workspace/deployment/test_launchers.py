@@ -23,7 +23,12 @@ from dlt._workspace.deployment.launchers._launcher import (
 )
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers.job import run as job_run
-from dlt._workspace.deployment.typing import TInstallSpec, TJobDefinition, TRuntimeEntryPoint
+from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
+    TInstallSpec,
+    TJobDefinition,
+    TRuntimeEntryPoint,
+)
 from dlt.common.exceptions import SignalReceivedException
 from dlt.common.runtime import signals
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -33,7 +38,7 @@ from tests.workspace.cases.runtime_workspace import batch_jobs
 from tests.workspace.utils import isolated_workspace
 
 WORKSPACE = "tests.workspace.cases.runtime_workspace"
-_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": "1.29.0", "mode": "pypi"}
+_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": dlt.__version__, "mode": "pypi"}
 
 
 def _entry(
@@ -239,7 +244,9 @@ def test_decorator_to_launcher_e2e_incremental_mode() -> None:
         dlt_version=_DLT_SPEC,
         tz="UTC",
     )
-    assert ep["allow_external_schedulers"] is True
+    # this dlt's launcher reads the mode itself; the flag is for launchers before 1.30.1
+    assert ep["incremental_mode"] == "interval"
+    assert "allow_external_schedulers" not in ep
 
     result = job_run(ep, run_id="inc-iv-e2e", trigger="schedule:0 0 * * *")
     # context flag was injected and observed by the job
@@ -1086,6 +1093,7 @@ def test_build_runtime_entry_point_propagates_execute_intercept_signals() -> Non
 
     def _job_def(**extra: Any) -> TJobDefinition:
         jd: Dict[str, Any] = {
+            "engine_version": MANIFEST_ENGINE_VERSION,
             "job_ref": "jobs.test",
             "entry_point": dict(base_ep),
             "triggers": [],

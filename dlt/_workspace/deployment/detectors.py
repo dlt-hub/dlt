@@ -23,6 +23,7 @@ from dlt._workspace.deployment._trigger_helpers import normalize_triggers
 from dlt._workspace.deployment.launchers import LAUNCHER_MODULE, get_launcher_for_framework
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
     TExposeSpec,
@@ -134,6 +135,7 @@ def _detect_marimo(module: ModuleType) -> Optional[TJobDefinition]:
         "launcher": get_launcher_for_framework("marimo"),
     }
     job_def: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
         "expose": TExposeSpec(interface="gui", category="notebook"),
@@ -171,6 +173,7 @@ def _detect_mcp(module: ModuleType) -> Optional[TJobDefinition]:
         "launcher": get_launcher_for_framework("fastmcp"),
     }
     job_def: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
         "expose": TExposeSpec(interface="mcp", category="mcp"),
@@ -204,6 +207,7 @@ def _detect_streamlit(module: ModuleType) -> Optional[TJobDefinition]:
         "launcher": get_launcher_for_framework("streamlit"),
     }
     job_def: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
         "expose": TExposeSpec(interface="gui", category="dashboard"),
@@ -263,6 +267,7 @@ def detect_local_module(module: ModuleType, parent_module: ModuleType) -> Option
         "launcher": LAUNCHER_MODULE,
     }
     job_def: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": _module_job_ref(module),
         "entry_point": entry_point,
         "triggers": [],

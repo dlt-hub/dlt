@@ -9,24 +9,25 @@ from datetime import datetime, timezone
 from contextlib import contextmanager
 from copy import copy
 from importlib import import_module
-from typing import Any, BinaryIO, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple
+from typing import Any, BinaryIO, Dict, Iterator, List, NamedTuple, Optional, Set, Tuple, Type
 from types import ModuleType
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import DictStrAny
-from dlt.common.validation import validate_dict
+from dlt.common import validation
 from dlt.common.warnings import apply_deprecations
 from dlt.reflection.script_inspector import no_pipeline_execution
 
-from dlt._workspace.deployment.decorators import JobFactory
+from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
 from dlt._workspace.deployment.detectors import (
     detect_local_module,
     detect_module_job,
     is_local_module,
 )
 from dlt._workspace.deployment.exceptions import (
+    DeploymentValidationError,
     InvalidFreshnessConstraint,
     InvalidJobDefinition,
     InvalidJobRef,
@@ -40,6 +41,8 @@ from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.profile import LOCAL_PROFILES, is_local_profile
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
+    is_selector,
+    match_triggers_with_selectors,
     maybe_parse_schedule,
     parse_trigger,
 )
@@ -63,6 +66,8 @@ from dlt._workspace.deployment.typing import (
 
 DEPLOYMENT_ENGINE_VERSION = 1
 """Engine version of package files manifests (`TFilesManifest`), independent of job definitions."""
+
+_JOB_EVENT_TRIGGERS = ("job.success", "job.fail")
 
 _HASH_EXCLUDE_KEYS = ("version", "version_hash", "previous_hashes", "created_at")
 _MAX_PREVIOUS_HASHES = 10
@@ -122,8 +127,6 @@ def migrate_job_definition(
     WARNING: if you add new migration you MUST make sure that build_runtime_entry_point has downgrade
     path for previous dlt versions.
     """
-    if from_engine == to_engine:
-        return job_dict  # type: ignore[return-value]
     if from_engine == 1 and to_engine > 1:
         # engine 2: allow_external_schedulers -> incremental_mode, refresh -> refresh_propagation
         apply_deprecations(
@@ -137,6 +140,7 @@ def migrate_job_definition(
 
     if from_engine != to_engine:
         raise ManifestEngineNoUpgradePath("job definition", from_engine, to_engine)
+    job_dict["engine_version"] = to_engine
     return job_dict  # type: ignore[return-value]
 
 
@@ -185,11 +189,7 @@ def load_manifest(f: BinaryIO) -> TJobsDeploymentManifest:
     manifest_dict: DictStrAny = json.loadb(data)
     engine_version = manifest_dict.get("engine_version", 1)
     manifest = migrate_manifest(manifest_dict, engine_version, MANIFEST_ENGINE_VERSION)
-
-    result = validate_manifest(manifest)
-    if not result.is_valid:
-        raise InvalidManifest(result)
-
+    validate_manifest(manifest, raise_on_error=True)
     return manifest
 
 
@@ -220,6 +220,60 @@ def _newtype_validator(path: str, pk: str, pv: Any, t: Any) -> bool:
     return False
 
 
+def selects_job(job_def: TJobDefinition, selector: str) -> bool:
+    """Whether a selector picks this job: by its type, one of its triggers, or its ref."""
+    return bool(
+        match_triggers_with_selectors(
+            job_def["entry_point"].get("job_type", "batch"),
+            expand_triggers(job_def),
+            [selector],
+            job_ref=job_def["job_ref"],
+        )
+    )
+
+
+def expand_trigger_selectors(jobs: List[TJobDefinition]) -> List[str]:
+    """Replaces selector `job.success:` / `job.fail:` triggers with one trigger per matching job.
+
+    The runtime looks a completion trigger up by exact string, so a selector has to become
+    concrete refs here. A selector never expands onto the job that declares it, and an
+    interactive job is never a target: it has no completion to report.
+
+    Returns:
+        List[str]: Warnings for selectors that matched no job.
+    """
+    warnings: List[str] = []
+    candidates = [
+        job_def for job_def in jobs if job_def["entry_point"].get("job_type") != "interactive"
+    ]
+
+    for job_def in jobs:
+        own_ref = job_def["job_ref"]
+        expanded: List[TTrigger] = []
+        changed = False
+        for trigger in job_def.get("triggers", []):
+            trigger_type, _, expr = trigger.partition(":")
+            if trigger_type not in _JOB_EVENT_TRIGGERS or not is_selector(expr):
+                if trigger not in expanded:
+                    expanded.append(trigger)
+                continue
+            changed = True
+            matched = [
+                candidate["job_ref"]
+                for candidate in candidates
+                if candidate["job_ref"] != own_ref and selects_job(candidate, expr)
+            ]
+            if not matched:
+                warnings.append(f"job {own_ref!r}: trigger {trigger!r} matched no job")
+            for ref in matched:
+                concrete = TTrigger(f"{trigger_type}:{ref}")
+                if concrete not in expanded:
+                    expanded.append(concrete)
+        if changed:
+            job_def["triggers"] = expanded
+    return warnings
+
+
 def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
     """Expand triggers with synthetic triggers from expose and deliver specs.
 
@@ -244,17 +298,22 @@ def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
     return triggers
 
 
-def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
-    """Pick the default trigger for a job: prefer schedule/every, else first eligible trigger.
+NO_DEFAULT_TRIGGER_TYPES = ("manual", "deployment", "job.success", "job.fail")
+"""Trigger types that never become a job's default.
 
-    `manual` and `deployment` triggers are never selected as the default.
-    """
+A job event names the upstream run that fired it, so standing in for a manual run would tell
+the job a job failed when none did.
+"""
+
+
+def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
+    """Pick the default trigger for a job: prefer schedule/every, else first eligible trigger."""
     default: Optional[TTrigger] = None
     for t in job_def.get("triggers", []):
         parsed = parse_trigger(t)
         if parsed.type in ("schedule", "every"):
             return t
-        if default is None and parsed.type not in ("manual", "deployment"):
+        if default is None and parsed.type not in NO_DEFAULT_TRIGGER_TYPES:
             default = t
     return default
 
@@ -262,6 +321,7 @@ def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
 def validate_job_definition(
     job_def: TJobDefinition,
     raise_on_error: bool = False,
+    validate_dict: bool = False,
 ) -> JobValidationResult:
     """Validate a single job definition (self-contained checks only).
 
@@ -271,10 +331,21 @@ def validate_job_definition(
     Args:
         job_def: The job definition to validate.
         raise_on_error: If True, raise InvalidJobDefinition when errors found.
+        validate_dict: If True, check that `job_def` conforms to `TJobDefinition` before
+            anything else. A structural error is then the only error reported.
 
     Raises:
         InvalidJobDefinition: When raise_on_error is True and validation fails.
     """
+    if validate_dict:
+        try:
+            validation.validate_dict(TJobDefinition, job_def, ".", validator_f=_newtype_validator)
+        except DictValidationException as e:
+            result = JobValidationResult(errors=[str(e)], warnings=[])
+            if raise_on_error:
+                raise InvalidJobDefinition(job_def.get("job_ref", ""), result) from e
+            return result
+
     errors: List[str] = []
     warnings: List[str] = []
     ref = job_def["job_ref"]
@@ -298,6 +369,11 @@ def validate_job_definition(
         try:
             parsed = parse_trigger(t)
             trigger_types.add(parsed.type)
+            if parsed.type in _JOB_EVENT_TRIGGERS and parsed.expr == ref:
+                errors.append(
+                    f"job {ref!r}: trigger {t!r} makes the job trigger itself, which never"
+                    " terminates"
+                )
         except InvalidTrigger as e:
             errors.append(f"job {ref!r}: {e}")
 
@@ -390,27 +466,47 @@ def validate_job_definition(
     return result
 
 
-def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationResult:
-    """Validate a deployment manifest structurally and for consistency."""
+def validate_manifest(
+    manifest: TJobsDeploymentManifest, raise_on_error: bool = False
+) -> ManifestValidationResult:
+    """Validate a deployment manifest structurally and for consistency.
+
+    Args:
+        manifest: The manifest to validate.
+        raise_on_error: If True, raise InvalidManifest when errors found.
+
+    Raises:
+        InvalidManifest: When raise_on_error is True and validation fails.
+    """
     errors: List[str] = []
     warnings: List[str] = []
     unresolved: Dict[str, List[str]] = {}
 
     try:
-        validate_dict(TJobsDeploymentManifest, manifest, ".", validator_f=_newtype_validator)
+        validation.validate_dict(
+            TJobsDeploymentManifest, manifest, ".", validator_f=_newtype_validator
+        )
     except DictValidationException as e:
         errors.append(str(e))
-        return ManifestValidationResult(
+        result = ManifestValidationResult(
             is_valid=False, errors=errors, warnings=warnings, unresolved_triggers=unresolved
         )
+        if raise_on_error:
+            raise InvalidManifest(result) from e
+        return result
 
     jobs = manifest.get("jobs", [])
 
     # per-job validation
     for job_def in jobs:
-        result = validate_job_definition(job_def)
-        errors.extend(result.errors)
-        warnings.extend(result.warnings)
+        job_result = validate_job_definition(job_def)
+        errors.extend(job_result.errors)
+        warnings.extend(job_result.warnings)
+        if job_def["engine_version"] != manifest["engine_version"]:
+            errors.append(
+                f"job {job_def['job_ref']!r} is written for engine {job_def['engine_version']},"
+                f" the manifest for engine {manifest['engine_version']}"
+            )
 
     # duplicate job refs
     seen_refs: Set[str] = set()
@@ -484,12 +580,15 @@ def validate_manifest(manifest: TJobsDeploymentManifest) -> ManifestValidationRe
                         " but upstream is an interactive job"
                     )
 
-    return ManifestValidationResult(
+    result = ManifestValidationResult(
         is_valid=len(errors) == 0,
         errors=errors,
         warnings=warnings,
         unresolved_triggers=unresolved,
     )
+    if raise_on_error and not result.is_valid:
+        raise InvalidManifest(result)
+    return result
 
 
 @contextmanager
@@ -509,6 +608,7 @@ def import_deployment_module(module_name: str) -> ModuleType:
 def default_dashboard_job() -> TJobDefinition:
     """Default workspace dashboard job definition."""
     return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": DASHBOARD_JOB_REF,
         "entry_point": TEntryPoint(
             module="dlt._workspace.helpers.dashboard.dlt_dashboard",
@@ -583,6 +683,9 @@ def generate_manifest(
                 continue
 
             if isinstance(obj, JobFactory):
+                # a declared agent has no function to take its module and section from
+                if isinstance(obj, AgentJobFactory) and obj.is_declared:
+                    obj.declare(deployment_module.__name__, name)
                 jobs.append(obj.to_job_definition())
             elif isinstance(obj, ModuleType):
                 # __all__: trust the user; __dir__ scan: filter to local modules
@@ -613,6 +716,10 @@ def generate_manifest(
     )
     if is_workspace_deployment and not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
         jobs.append(default_dashboard_job())
+
+    # selectors are a source-level concept: a stored manifest is always fully expanded,
+    # so this must run before default_trigger and before validation
+    warnings.extend(expand_trigger_selectors(jobs))
 
     # set expose.manual default and compute default_trigger
     for job_def in jobs:
@@ -691,20 +798,29 @@ _WORKER_ERROR_TYPES: Dict[str, type] = {
     "ModuleNotFoundError": ModuleNotFoundError,
     "ImportError": ImportError,
     "SyntaxError": SyntaxError,
-    "InvalidManifest": InvalidManifest,
-    "InvalidTrigger": InvalidTrigger,
-    "InvalidFreshnessConstraint": InvalidFreshnessConstraint,
-    "InvalidJobDefinition": InvalidJobDefinition,
-    "InvalidJobRef": InvalidJobRef,
 }
+"""Import failures the worker reports, rebuilt from the message alone."""
+
+
+def _validation_error_types() -> Dict[str, Type[DeploymentValidationError]]:
+    """Every `DeploymentValidationError` subclass loaded so far, by name."""
+    found: Dict[str, Type[DeploymentValidationError]] = {}
+    pending = [DeploymentValidationError]
+    while pending:
+        cls = pending.pop()
+        for sub in cls.__subclasses__():
+            if sub.__name__ not in found:
+                found[sub.__name__] = sub
+                pending.append(sub)
+    return found
 
 
 def _raise_from_worker_payload(payload: Dict[str, Any]) -> None:
     msg = payload.get("error", "unknown error")
-    exc_cls = _WORKER_ERROR_TYPES.get(payload.get("error_type", ""))
-    if exc_cls is InvalidManifest:
-        raise InvalidManifest.from_message(msg)
-    if exc_cls is not None:
+    error_type = payload.get("error_type", "")
+    if validation_cls := _validation_error_types().get(error_type):
+        raise validation_cls.from_message(msg)
+    if exc_cls := _WORKER_ERROR_TYPES.get(error_type):
         raise exc_cls(msg)
     raise InvalidManifest.from_message(msg)
 
@@ -713,10 +829,13 @@ def _parse_worker_result(
     stdout: str, stderr: str, returncode: int
 ) -> Tuple[TJobsDeploymentManifest, List[str]]:
     if returncode != 0:
+        # only a decode failure means the worker died without a payload
         try:
-            _raise_from_worker_payload(json.typed_loads(stdout.strip()))
-        except (ValueError, KeyError):
-            pass
+            payload = json.typed_loads(stdout.strip())
+        except ValueError:
+            payload = None
+        if isinstance(payload, dict) and "error" in payload:
+            _raise_from_worker_payload(payload)
         raise InvalidManifest.from_message(
             stderr.strip() or stdout.strip() or f"worker exited with code {returncode}"
         )
@@ -743,10 +862,5 @@ def _manifest_from_module_inprocess(
             sys.path.insert(0, cwd)
         mod = import_deployment_module(module_name)
     manifest, gen_warnings = generate_manifest(mod, use_all=use_all)
-
-    result = validate_manifest(manifest)
-    all_warnings = gen_warnings + result.warnings
-    if not result.is_valid:
-        raise InvalidManifest(result)
-
-    return manifest, all_warnings
+    result = validate_manifest(manifest, raise_on_error=True)
+    return manifest, gen_warnings + result.warnings

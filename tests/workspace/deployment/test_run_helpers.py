@@ -3,9 +3,10 @@
 from datetime import datetime, timezone
 from pathlib import Path
 from zoneinfo import ZoneInfo
-from typing import Any, Dict, List, Optional, Tuple, cast
+from typing import Any, Dict, List, Optional
 
 import pytest
+from packaging.version import InvalidVersion
 
 from dlt._workspace.deployment import _run_helpers as run_helpers
 from dlt._workspace.deployment._run_helpers import (
@@ -31,7 +32,6 @@ from dlt._workspace.deployment.exceptions import (
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB, LAUNCHER_MODULE
 from dlt._workspace.deployment.typing import (
-    TIncrementalSource,
     TInstallSpec,
     TJobDefinition,
     TJobsDeploymentManifest,
@@ -40,12 +40,15 @@ from dlt._workspace.deployment.typing import (
     TTrigger,
 )
 from dlt._workspace.profile import DEFAULT_PROFILE
+from dlt.version import __version__
 
 from tests.workspace.manifest_utils import make_job, make_manifest
 
 
 NOW = datetime(2026, 4, 19, 12, 0, tzinfo=timezone.utc)
-_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": "1.29.0", "mode": "pypi"}
+_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": __version__, "mode": "pypi"}
+# a launcher from before `incremental_mode`, as an engine-1 deployment resolves to
+_OLD_DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": "1.28.0", "mode": "pypi"}
 
 
 def _job(
@@ -560,27 +563,44 @@ def test_build_runtime_entry_point_config_merges() -> None:
     assert ep["config"] == {"A": "1", "B": "override", "C": "3"}
 
 
-def test_build_runtime_entry_point_propagates_modes() -> None:
-    """incremental_mode is dual-written with `allow_external_schedulers` for older launchers;
-    auto_refresh_pipeline_mode passes through verbatim."""
-    mode_cases: List[Tuple[Dict[str, Any], bool, Optional[str]]] = [
-        ({"incremental_mode": "interval"}, True, "interval"),
-        ({"incremental_mode": "pipeline"}, False, "pipeline"),
-    ]
-    for jd_kwargs, expected_allow, expected_mode in mode_cases:
-        jd = _job("jobs.a", **jd_kwargs)
-        ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
-        assert ep["allow_external_schedulers"] is expected_allow, jd_kwargs
-        assert ep.get("incremental_mode") == expected_mode, jd_kwargs
-
-    # auto_refresh_pipeline_mode: unset emits nothing, set passes through
-    jd = _job("jobs.a")
-    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
-    assert "auto_refresh_pipeline_mode" not in ep
-
+def test_build_runtime_entry_point_shapes_modes_for_the_target_dlt() -> None:
+    """A launcher from dlt 1.30.1 on reads `incremental_mode` and `auto_refresh_pipeline_mode`;
+    one from before knows `allow_external_schedulers` alone. Each target gets its own keys."""
+    jd = _job("jobs.a", incremental_mode="interval")
     jd["auto_refresh_pipeline_mode"] = "drop_sources"
-    ep = build_runtime_entry_point(jd, {}, "dev", True, NOW, NOW, _DLT_SPEC, "UTC")
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
+    assert ep["incremental_mode"] == "interval"
     assert ep["auto_refresh_pipeline_mode"] == "drop_sources"
+    assert "allow_external_schedulers" not in ep
+
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _OLD_DLT_SPEC, "UTC")
+    assert ep["allow_external_schedulers"] is True
+    assert "incremental_mode" not in ep
+    assert "auto_refresh_pipeline_mode" not in ep
+    jd = _job("jobs.a", incremental_mode="pipeline")
+    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _OLD_DLT_SPEC, "UTC")
+    assert ep["allow_external_schedulers"] is False
+
+    # the keys came in with a devel pre-release, so it and everything after count as new
+    for version in ("1.30.1a0", "1.30.1", "1.31.0.dev2", "1.30.1+local"):
+        spec: TInstallSpec = {**_DLT_SPEC, "version": version}
+        ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, spec, "UTC")
+        assert ep["incremental_mode"] == "pipeline", version
+    for version in ("1.30.0", "1.29.9rc1"):
+        spec = {**_DLT_SPEC, "version": version}
+        ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, spec, "UTC")
+        assert "incremental_mode" not in ep, version
+    # anything but a package version is refused: a guess would shape the point for the wrong launcher
+    for version in ("", "latest"):
+        spec = {**_DLT_SPEC, "version": version}
+        with pytest.raises(InvalidVersion):
+            build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, spec, "UTC")
+
+    # unset modes emit nothing, whatever the target
+    for spec in (_DLT_SPEC, _OLD_DLT_SPEC):
+        ep = build_runtime_entry_point(_job("jobs.a"), {}, "dev", True, NOW, NOW, spec, "UTC")
+        assert "incremental_mode" not in ep and "allow_external_schedulers" not in ep
+        assert "auto_refresh_pipeline_mode" not in ep
 
 
 def test_build_runtime_entry_point_requires_dlt_version() -> None:
@@ -727,17 +747,3 @@ def test_warn_missing_profiles_returns_empty_when_both_present(
 
     monkeypatch.setattr(run_helpers, "active", lambda: _MockCtx())
     assert warn_missing_profiles() == []
-
-
-@pytest.mark.parametrize("mode", ["interval", "pipeline"])
-def test_entry_point_always_dual_writes_legacy_flag(mode: str) -> None:
-    """The entry point is the compatibility layer, not the job definition.
-
-    Launchers of older dlt versions only read `allow_external_schedulers`, so it must be
-    emitted whenever `incremental_mode` is. Dropping it as redundant silently breaks every
-    already-deployed workspace running an older dlt.
-    """
-    jd = _job("jobs.a", incremental_mode=cast(TIncrementalSource, mode))
-    ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")
-    assert ep["incremental_mode"] == mode
-    assert ep["allow_external_schedulers"] is (mode == "interval")
