@@ -1,0 +1,4 @@
+api_type: "REST"
+typecheck:
+  - a: 1
+  b: 2
