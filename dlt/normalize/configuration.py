@@ -23,6 +23,8 @@ class ItemsNormalizerConfiguration(BaseConfiguration):
 class NormalizeConfiguration(PoolRunnerConfiguration):
     pool_type: TPoolType = "process"
     destination_capabilities: DestinationCapabilitiesContext = None  # injectable
+    destination_type: Optional[str] = None
+    """Type of the destination the data is normalized for, used to report unsupported data types."""
     _schema_storage_config: SchemaStorageConfiguration = None
     _normalize_storage_config: NormalizeStorageConfiguration = None
     _load_storage_config: LoadStorageConfiguration = None
