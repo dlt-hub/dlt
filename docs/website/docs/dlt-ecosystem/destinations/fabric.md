@@ -20,29 +20,34 @@ This will install `dlt` with the `mssql` extra, which contains all the dependenc
 
 ### Prerequisites
 
-The _Microsoft ODBC Driver for SQL Server_ must be installed to use this destination.
-This cannot be included with `dlt`'s Python dependencies, so you must install it separately on your system. You can find the official installation instructions [here](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16).
+This destination uses the [mssql-python](https://github.com/microsoft/mssql-python) driver, which is
+installed automatically with `dlt[fabric]` together with its `mssql-python-odbc` dependency, providing
+the SQL Server client libraries. No separate ODBC driver installation is required (see the
+[MS SQL prerequisites](./mssql.md#prerequisites) for the private-index/`--no-deps` caveat).
 
-Supported driver versions:
-* `ODBC Driver 18 for SQL Server` (recommended)
-* `ODBC Driver 17 for SQL Server`
+### Authentication
 
-You can also [configure the driver name](#additional-destination-options) explicitly.
-
-### Service Principal Authentication
-
-Fabric Warehouse requires Azure Active Directory Service Principal authentication. You'll need:
-
-1. **Tenant ID**: Your Azure AD tenant ID (GUID)
-2. **Client ID**: Application (service principal) client ID (GUID)
-3. **Client Secret**: Application client secret
-4. **Host**: Your Fabric warehouse SQL endpoint
-5. **Database**: The database name within your warehouse
+Fabric Warehouse authenticates with Microsoft Entra ID. Whichever method you choose, you always set the warehouse SQL endpoint as the `host` (`<guid>.datawarehouse.fabric.microsoft.com`) and the warehouse name as the `database`.
 
 **Finding your SQL endpoint:**
 - In the Fabric portal, go to your warehouse **Settings**
 - Select **SQL endpoint**
 - Copy the **SQL connection string** - it should be in the format: `<guid>.datawarehouse.fabric.microsoft.com`
+
+The method is selected with the `authentication` credential option. For every method except one, `dlt` writes it to the connection string as `Authentication=` and the [mssql-python](https://github.com/microsoft/mssql-python) driver performs the Entra ID sign-in.
+
+`ActiveDirectoryServicePrincipal` is the default and needs `azure_tenant_id`, `azure_client_id` and `azure_client_secret`. `ActiveDirectoryPassword` needs `username` and `password`. `ActiveDirectoryIntegrated`, `ActiveDirectoryInteractive`, `ActiveDirectoryMsi`, `ActiveDirectoryDefault` (alias `default`, which covers managed identity, environment and Azure CLI) and `ActiveDirectoryDeviceCode` need no further fields.
+
+The exception is **`fab_notebookutils`**, for pipelines running inside a Fabric notebook. There is no environment, managed identity or Azure CLI login to sign in with there, so `dlt` builds a credential backed by the notebook runtime's [NotebookUtils](https://learn.microsoft.com/fabric/data-engineering/notebookutils/notebookutils-credentials) API and hands it to the driver, which acquires the token from it. It authenticates as whoever runs the notebook, so that identity needs write access to the warehouse:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "fab_notebookutils"
+```
+
+The `notebookutils` module ships with the Fabric runtime and is not installed by `dlt`, so it is imported only when this method is used. Using it outside the Fabric runtime raises a configuration error rather than falling back silently. Staging through OneLake or Azure Blob Storage picks the same identity up automatically — see [OneLake staging from a Fabric notebook](#onelake-staging-from-a-fabric-notebook).
 
 ### Create a pipeline
 
@@ -62,6 +67,8 @@ pip install "dlt[fabric]"
 
 **3. Enter your credentials into `.dlt/secrets.toml`.**
 
+Service Principal (default):
+
 ```toml
 [destination.fabric.credentials]
 host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
@@ -72,6 +79,19 @@ azure_client_secret = "your-client-secret"
 port = 1433
 connect_timeout = 30
 ```
+
+Passwordless, e.g. `DefaultAzureCredential` after `az login`:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "default"
+```
+
+You can also inject a credential object as `azure_credential` or a pre-acquired token as
+`access_token`, exactly as for [MS SQL](./mssql.md#passing-a-credential-object-or-a-token-yourself)
+— including the sovereign-cloud caveat.
 
 ## Write disposition
 All write dispositions are supported, including the [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies.
@@ -118,6 +138,30 @@ azure_client_secret = "your-client-secret"
 2. The workspace GUID is in the URL: `https://fabric.microsoft.com/groups/<workspace_guid>/...`
 3. Open your Lakehouse
 4. The lakehouse GUID is in the URL: `https://fabric.microsoft.com/.../lakehouses/<lakehouse_guid>`
+
+#### OneLake staging from a Fabric notebook
+
+Inside a Fabric notebook you can drop the Service Principal from the staging credentials entirely.
+Leave out `azure_storage_account_key`, `azure_storage_sas_token` and the principal fields, and `dlt`
+authenticates to blob storage with the notebook identity through NotebookUtils, the same way the
+warehouse connection does:
+
+```toml
+[destination.fabric.credentials]
+host = "<your-warehouse-guid>.datawarehouse.fabric.microsoft.com"
+database = "mydb"
+authentication = "fab_notebookutils"
+
+[destination.filesystem]
+bucket_url = "abfss://<your-workspace-guid>@onelake.dfs.fabric.microsoft.com/<your-lakehouse-guid>/Files"
+
+[destination.filesystem.credentials]
+azure_storage_account_name = "onelake"
+azure_account_host = "onelake.blob.fabric.microsoft.com"
+```
+
+Outside the Fabric runtime the same configuration keeps using `DefaultAzureCredential`, so a static
+secret or an explicitly passed credential always takes precedence over NotebookUtils.
 
 #### `.dlt/secrets.toml` when using Azure Blob / Data Lake Storage:
 
@@ -169,7 +213,7 @@ Fabric does not support native JSON columns. JSON objects are stored as `varchar
 
 ## Collation Support
 
-Fabric Warehouse supports UTF-8 collations. The destination automatically configures `LongAsMax=yes` which is required for UTF-8 collations to work properly.
+Fabric Warehouse supports UTF-8 collations. Long/max types (e.g. `varchar(max)`) are handled natively by the mssql-python driver, so no extra configuration is needed for UTF-8 collations to work properly.
 
 **Default collation**: `Latin1_General_100_BIN2_UTF8` (case-sensitive, UTF-8)
 
@@ -197,19 +241,16 @@ The **fabric** destination **does not** create UNIQUE indexes by default on colu
 create_indexes=true
 ```
 
-You can explicitly set the ODBC driver name:
-```toml
-[destination.fabric.credentials]
-driver="ODBC Driver 18 for SQL Server"
-```
+The `driver` credential option is deprecated and ignored: mssql-python installs and manages its own
+driver dependency, so no ODBC driver name needs to be configured.
 
 ## Differences from MSSQL Destination
 
 While Fabric Warehouse is based on SQL Server, there are key differences:
 
-1. **Authentication**: Fabric requires Service Principal; username/password auth is not supported
+1. **Authentication**: Fabric uses Entra ID; in addition to Service Principal, `dlt` supports several other methods (see [Authentication](#authentication))
 2. **Type System**: Uses `varchar` and `datetime2` instead of `nvarchar` and `datetimeoffset`
-3. **Collation**: Optimized for UTF-8 collations with automatic `LongAsMax` configuration
+3. **Collation**: Optimized for UTF-8 collations, with long/max types handled natively by the driver
 4. **SQL Dialect**: Uses `fabric` SQLglot dialect for proper SQL generation
 
 ### dbt support
@@ -217,31 +258,18 @@ Integration with [dbt](../transformations/dbt/dbt.md) is supported via [dbt-fabr
 
 ## Troubleshooting
 
-### ODBC Driver Not Found
-
-If you see "No supported ODBC driver found", install the Microsoft ODBC Driver 18 for SQL Server:
-
-```sh
-# Ubuntu/Debian
-curl https://packages.microsoft.com/keys/microsoft.asc | sudo apt-key add -
-curl https://packages.microsoft.com/config/ubuntu/$(lsb_release -rs)/prod.list | sudo tee /etc/apt/sources.list.d/mssql-release.list
-sudo apt-get update
-sudo ACCEPT_EULA=Y apt-get install -y msodbcsql18
-```
-
 ### Authentication Failures
 
 Ensure your Service Principal has:
 - Proper permissions on the Fabric workspace
 - Access to the target database/warehouse  
-- Correct tenant ID (your Azure AD tenant, not the workspace/capacity ID)
+- Correct tenant ID (your Entra ID tenant, not the workspace/capacity ID)
 
 ### UTF-8 Character Issues
 
 If you experience character encoding issues:
 1. Verify your warehouse uses a UTF-8 collation
-2. Check that `LongAsMax=yes` is in the connection (automatically added by this destination)
-3. Consider using the case-insensitive UTF-8 collation if needed
+2. Consider using the case-insensitive UTF-8 collation if needed
 
 ## Additional Resources
 
