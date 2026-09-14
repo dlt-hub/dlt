@@ -51,13 +51,14 @@ A dltHub platform workspace can contain many jobs scheduled on different cadence
 
 ### Job decorators
 
-The `dlt.hub.run` module provides three decorators:
+The `dlt.hub.run` module provides four decorators:
 
 | Decorator | Used for |
 |-----------|----------|
 | `@run.pipeline` | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking) |
 | `@run.job` | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts) |
 | `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API) |
+| `@run.agent` | An AI agent that runs unattended, for example to inspect a failed run (see [Agents](agents.md)) |
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
 
