@@ -14,8 +14,11 @@ from dlt.common.configuration.providers import (
     EnvironProvider,
     SecretsTomlProvider,
     ConfigTomlProvider,
+    SecretsYamlProvider,
+    ConfigYamlProvider,
 )
 from dlt.common.configuration.providers.provider import ConfigProvider
+from dlt.common.configuration.providers.utils import warn_on_toml_yaml_collision
 from dlt.common.configuration.resolve import resolve_configuration
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.configuration.specs.pluggable_run_context import (
@@ -68,10 +71,18 @@ class RunContext(RunContextBase):
         return os.environ.get(known_env.DLT_DATA_DIR, self.global_dir)
 
     def initial_providers(self) -> List[ConfigProvider]:
+        secrets_toml = SecretsTomlProvider(self.settings_dir, self.global_dir)
+        config_toml = ConfigTomlProvider(self.settings_dir, self.global_dir)
+        secrets_yaml = SecretsYamlProvider(self.settings_dir, self.global_dir)
+        config_yaml = ConfigYamlProvider(self.settings_dir, self.global_dir)
+        warn_on_toml_yaml_collision(secrets_toml, secrets_yaml)
+        warn_on_toml_yaml_collision(config_toml, config_yaml)
         providers = [
             EnvironProvider(),
-            SecretsTomlProvider(self.settings_dir, self.global_dir),
-            ConfigTomlProvider(self.settings_dir, self.global_dir),
+            secrets_toml,
+            secrets_yaml,
+            config_toml,
+            config_yaml,
         ]
         return providers
 
