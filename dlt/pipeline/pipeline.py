@@ -552,6 +552,7 @@ class Pipeline(SupportsPipeline):
         # create default normalize config
         normalize_config = NormalizeConfiguration(
             workers=workers,
+            destination_type=self._destination.destination_type,
             _schema_storage_config=self._schema_storage_config,
             _normalize_storage_config=self._normalize_storage_config(),
             _load_storage_config=self._load_storage_config(),
