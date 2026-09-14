@@ -127,6 +127,8 @@ endpoint_url = "https://<account_id>.r2.cloudflarestorage.com" # copy your endpo
 
 For Tigris, set `endpoint_url = "https://t3.storage.dev"` and use your Tigris access key ID (prefixed `tid_`) and secret access key (prefixed `tsec_`). Tigris uses a single global endpoint and doesn't charge egress fees, which matters when warehouses in different regions load from the same staging bucket.
 
+Because the destination reaches these stores through the Amazon S3 API, `endpoint_url` is usually the only setting that differs between providers such as Backblaze B2, Cloudflare R2, and MinIO. Keep `bucket_url` on the `s3://` scheme, keep the same access key settings, and point `endpoint_url` at your provider's S3 endpoint, for example `https://your-s3-endpoint.example.com`.
+
 #### Adding additional configuration
 
 To pass any additional arguments to `fsspec`, you may supply `kwargs` and `client_kwargs` in `toml` config.
