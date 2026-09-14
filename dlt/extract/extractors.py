@@ -297,6 +297,23 @@ class Extractor:
 
             # merge with schema table
             if computed_table:
+                # do not let hints overwrite the data type of an existing complete
+                # column. The existing type is kept in the schema and incoming values
+                # of a different type are evolved by the normalizer into variant
+                # columns (like values without explicit hints). Otherwise the mismatch
+                # is deferred to load time and fails the destination (issue #4340).
+                existing_table = self.schema._schema_tables.get(table_name)
+                if existing_table:
+                    existing_columns = existing_table["columns"]
+                    for col_name, col in computed_table["columns"].items():
+                        existing_col = existing_columns.get(col_name)
+                        if (
+                            existing_col
+                            and utils.is_complete_column(existing_col)
+                            and col.get("data_type")
+                            and col["data_type"] != existing_col["data_type"]
+                        ):
+                            col.pop("data_type")
                 # computed table identifiers already normalized
                 self.schema.update_table(
                     computed_table,
