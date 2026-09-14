@@ -147,6 +147,16 @@ hf_dataset_card = false
 
 When disabled, the dataset viewer will not display table subsets, but data loading is unaffected.
 
+### Upload progress bars
+By default, `dlt` reports progress via `dlt.pipeline(progress=...)`, so the `huggingface_hub` upload and commit progress bars are not printed to the terminal. To show them, set `hf_show_progress` to `true`:
+
+```toml
+[destination.filesystem]
+hf_show_progress = true
+```
+
+This toggles the `huggingface_hub` progress bars process-wide (the same global switch as `disable_progress_bars()`/`enable_progress_bars()`). If you set the `HF_HUB_DISABLE_PROGRESS_BARS` environment variable, it takes priority and `hf_show_progress` is ignored.
+
 ### Atomic commits
 
 All data files for a table and its child tables are committed to the Hub in a single git commit via the `HfApi` client. This minimizes the number of commits, avoids hitting Hugging Face [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers), and prevents commit conflicts.
