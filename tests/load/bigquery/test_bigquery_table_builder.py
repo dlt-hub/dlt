@@ -682,6 +682,113 @@ def test_bigquery_with_column_description_and_rounding_mode_hints(
             assert column_info["rounding_mode"] == "ROUND_HALF_AWAY_FROM_ZERO"  # type: ignore[call-overload]
 
 
+def _stub_dest_descriptions(gcp_client: BigQueryClient, descriptions: Dict[str, Any]) -> None:
+    """Replace _get_dest_column_descriptions with a stub returning fixed data."""
+    gcp_client._get_dest_column_descriptions = lambda table_name: descriptions  # type: ignore[assignment]
+
+
+def test_alter_column_descriptions_when_changed(gcp_client: BigQueryClient) -> None:
+    """Descriptions should be updated when they differ from the destination."""
+    columns = deepcopy(TABLE_UPDATE[:2])
+    columns[0]["description"] = "New description"
+    columns[1]["description"] = "Another description"
+
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
+    storage_columns = {c["name"]: {"name": c["name"], "data_type": c["data_type"]} for c in columns}
+
+    # Destination has no descriptions — both should be updated
+    _stub_dest_descriptions(gcp_client, {columns[0]["name"]: None, columns[1]["name"]: None})
+
+    sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
+    assert len(sql_updates) == 2
+    for sql in sql_updates:
+        sqlfluff.parse(sql, dialect="bigquery")
+        assert "ALTER COLUMN" in sql
+        assert "SET OPTIONS(description=" in sql
+
+
+def test_alter_column_descriptions_skips_unchanged(gcp_client: BigQueryClient) -> None:
+    """No ALTER should be emitted when destination descriptions already match."""
+    columns = deepcopy(TABLE_UPDATE[:2])
+    columns[0]["description"] = "Same description"
+    columns[1]["description"] = "Also same"
+
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
+    storage_columns = {c["name"]: {"name": c["name"], "data_type": c["data_type"]} for c in columns}
+
+    # Destination already has matching descriptions
+    _stub_dest_descriptions(
+        gcp_client,
+        {
+            columns[0]["name"]: "Same description",
+            columns[1]["name"]: "Also same",
+        },
+    )
+
+    sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
+    assert len(sql_updates) == 0
+
+
+def test_alter_column_descriptions_handles_removal(gcp_client: BigQueryClient) -> None:
+    """Removing a description from schema should emit SET OPTIONS(description=NULL)."""
+    columns = deepcopy(TABLE_UPDATE[:2])
+    # No descriptions in schema
+
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
+    storage_columns = {c["name"]: {"name": c["name"], "data_type": c["data_type"]} for c in columns}
+
+    # Destination has descriptions that should be cleared
+    _stub_dest_descriptions(
+        gcp_client,
+        {
+            columns[0]["name"]: "Old description",
+            columns[1]["name"]: "Another old one",
+        },
+    )
+
+    sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
+    assert len(sql_updates) == 2
+    for sql in sql_updates:
+        sqlfluff.parse(sql, dialect="bigquery")
+        assert "SET OPTIONS(description=NULL)" in sql
+
+
+def test_alter_column_descriptions_skips_new_columns(gcp_client: BigQueryClient) -> None:
+    """Columns not yet in storage should not get ALTER statements (handled by ADD COLUMN)."""
+    columns = deepcopy(TABLE_UPDATE[:2])
+    columns[0]["description"] = "First column description"
+    columns[1]["description"] = "Second column description"
+
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
+
+    # Only col1 exists in storage — col2 is new
+    storage_columns = {
+        columns[0]["name"]: {"name": columns[0]["name"], "data_type": columns[0]["data_type"]}
+    }
+    _stub_dest_descriptions(gcp_client, {columns[0]["name"]: None})
+
+    sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
+    assert len(sql_updates) == 1
+    assert columns[0]["name"] in sql_updates[0]
+
+
+def test_alter_column_descriptions_escapes_special_characters(gcp_client: BigQueryClient) -> None:
+    """Descriptions with quotes and special characters should be properly escaped."""
+    columns = deepcopy(TABLE_UPDATE[:1])
+    columns[0]["description"] = "It's a 'test' with \"quotes\" and \\ backslashes"
+
+    gcp_client.schema.update_table(utils.new_table("event_test_table", columns=columns))
+    storage_columns = {
+        columns[0]["name"]: {"name": columns[0]["name"], "data_type": columns[0]["data_type"]}
+    }
+    _stub_dest_descriptions(gcp_client, {columns[0]["name"]: None})
+
+    sql_updates = gcp_client._alter_existing_column_hints_sql("event_test_table", storage_columns)
+    assert len(sql_updates) == 1
+    sqlfluff.parse(sql_updates[0], dialect="bigquery")
+    assert "SET OPTIONS(description=" in sql_updates[0]
+
+
 def test_adapter_no_hints_parsing() -> None:
     @dlt.resource(columns=[{"name": "int_col", "data_type": "bigint"}])
     def some_data() -> Iterator[Dict[str, str]]:
