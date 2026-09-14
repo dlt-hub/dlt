@@ -58,3 +58,29 @@ def test_search_sources_server_error(requests_mock: rm.Mocker) -> None:
         search_sources(query="test", ai_context_api_url="https://api.example.com")
 
     assert "500" in str(exc_info.value)
+
+
+def test_search_sources_non_json_body(requests_mock: rm.Mocker) -> None:
+    """Test search_sources raises AiContextApiError when a 200 body is not JSON"""
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        text="<html>proxy interstitial</html>",
+    )
+
+    with pytest.raises(AiContextApiError) as exc_info:
+        search_sources(query="test", ai_context_api_url="https://api.example.com")
+
+    assert "not valid JSON" in str(exc_info.value)
+
+
+def test_search_sources_non_dict_json(requests_mock: rm.Mocker) -> None:
+    """Test search_sources raises AiContextApiError when the JSON is not an object"""
+    requests_mock.get(
+        re.compile(r".*/api/v1/scaffolds/sources"),
+        json=["unexpected", "shape"],
+    )
+
+    with pytest.raises(AiContextApiError) as exc_info:
+        search_sources(query="test", ai_context_api_url="https://api.example.com")
+
+    assert "unexpected JSON shape" in str(exc_info.value)
