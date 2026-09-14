@@ -1,6 +1,6 @@
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, cast
+from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, Tuple, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
@@ -20,7 +20,12 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.typing import TColumnType, C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID
+from dlt.common.schema.typing import (
+    TColumnType,
+    TSortOrder,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    C_DLT_LOAD_ID,
+)
 from dlt.common import logger
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -31,7 +36,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.storages.load_package import ParsedLoadJobFileName, load_package_state
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -299,6 +304,78 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return False
 
 
+class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
+    "Merge job that scopes every staging read to the current `_dlt_load_id`."
+
+    @classmethod
+    def _load_id_predicate(cls, prefix: str = "") -> str:
+        load_id = load_package_state()["load_id"]
+        col = f"{prefix}`{C_DLT_LOAD_ID}`"
+        return f"{col} = {escape_clickhouse_literal(load_id)}"
+
+    @classmethod
+    def gen_key_table_clauses(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
+        for_delete: bool,
+    ) -> List[str]:
+        if for_delete:
+            sql: List[str] = []
+            for cols in (primary_keys, merge_keys):
+                if cols:
+                    col_tuple = ", ".join(cols)
+                    sql.append(
+                        f"FROM {root_table_name} WHERE ({col_tuple}) IN"
+                        f" (SELECT {col_tuple} FROM {staging_root_table_name}"
+                        f" WHERE {cls._load_id_predicate()})"
+                    )
+            return sql
+        # non-delete builds "FROM root AS d JOIN staging AS s ON ..."; scope the staging side
+        return [
+            f"{clause} WHERE {cls._load_id_predicate('s.')}"
+            for clause in super().gen_key_table_clauses(
+                root_table_name, staging_root_table_name, primary_keys, merge_keys, for_delete
+            )
+        ]
+
+    @classmethod
+    def gen_select_from_dedup_sql(
+        cls,
+        table_name: str,
+        primary_keys: Sequence[str],
+        columns: Sequence[str],
+        dedup_sort: Tuple[str, TSortOrder] = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
+    ) -> str:
+        # gen_select_from_dedup_sql only ever reads staging tables, so always scope it.
+        predicate = cls._load_id_predicate()
+        condition = predicate if not condition else f"({condition}) AND {predicate}"
+        # ensure `_dlt_load_id` is visible to the outer WHERE of the dedup subquery
+        load_id_col = f"`{C_DLT_LOAD_ID}`"
+        if load_id_col not in columns:
+            condition_columns = list(condition_columns or [])
+            if load_id_col not in condition_columns:
+                condition_columns.append(load_id_col)
+        return super().gen_select_from_dedup_sql(
+            table_name, primary_keys, columns, dedup_sort, condition, condition_columns, skip_dedup
+        )
+
+    @classmethod
+    def gen_merge_sql(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        sql = super().gen_merge_sql(table_chain, sql_client)
+        # drop only this load's rows from the shared staging table once merged
+        _, staging_root_table_name = sql_client.get_qualified_table_names(table_chain[0]["name"])
+        sql.append(f"DELETE FROM {staging_root_table_name} WHERE {cls._load_id_predicate()}")
+        return sql
+
+
 class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
     """Atomic staging-optimized replace via `EXCHANGE TABLES`.
 
@@ -369,10 +446,20 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         elif table["name"] == self.schema.loads_table_name:
             table[SORT_HINT] = [C_DLT_LOADS_TABLE_LOAD_ID]  # type: ignore[typeddict-unknown-key]
 
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        if self.config.merge_scope_by_load_id and self.in_staging_dataset_mode:
+            truncate_tables = None
+        super().initialize_storage(truncate_tables=truncate_tables)
+
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+        merge_job_cls = (
+            LoadIdScopedClickHouseMergeJob
+            if self.config.merge_scope_by_load_id
+            else ClickHouseMergeJob
+        )
+        return [merge_job_cls.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
@@ -479,6 +566,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         clauses = [f"{key} = {to_clickhouse_literal(val)}" for key, val in settings_hint.items()]
 
         return ", ".join(clauses)
+
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        return f"CREATE TABLE IF NOT EXISTS {qualified_name}"
 
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
