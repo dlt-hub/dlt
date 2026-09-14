@@ -439,3 +439,35 @@ def test_is_destructive_local_op(
 
     _, _, args = _parse_dlthub(monkeypatch, argv)
     assert _is_destructive_local_op(args) is expected_destructive
+
+
+@pytest.mark.parametrize(
+    "argv,expected",
+    [
+        (["local", "run", "myjob"], None),
+        (["local", "-v", "run", "myjob"], 2),
+        (["local", "-v", "run", "myjob", "-c", "agent.verbosity=0"], "0"),
+    ],
+    ids=["default", "verbose", "explicit-wins"],
+)
+def test_dlthub_local_run_passes_verbosity_to_the_agent(
+    auto_isolated_workspace: Any,
+    monkeypatch: pytest.MonkeyPatch,
+    argv: List[str],
+    expected: Any,
+) -> None:
+    """An agent watched from a terminal shows more of its run; `-c` still has the last word."""
+    from dlt._workspace.cli.dlthub import _local_workspace_command as local_command
+    from dlt._workspace.deployment import _run_helpers
+
+    seen: Dict[str, Any] = {}
+
+    def _fetch_run_info(**kwargs: Any) -> None:
+        seen.update(kwargs["cli_config"])
+        return None
+
+    monkeypatch.setattr(_run_helpers, "fetch_run_info", _fetch_run_info)
+    _, _, args = _parse_dlthub(monkeypatch, argv)
+    local_command.execute_run(args)
+
+    assert seen.get("agent", {}).get("verbosity") == expected

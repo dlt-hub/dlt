@@ -1,13 +1,30 @@
 import inspect
+import os
+import sys
+import warnings
 from functools import update_wrapper, wraps
-from typing import Any, Callable, List, Optional, Sequence, Type, Union, overload
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    List,
+    Mapping,
+    Optional,
+    Sequence,
+    Type,
+    Union,
+    cast,
+    overload,
+)
 
 from typing_extensions import TypeVar
 
+from dlt.common import logger
 from dlt.common.configuration import get_fun_spec, with_config
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.pipeline import SupportsPipeline, TRefreshMode
 from dlt.common.reflection.inspect import iscoroutinefunction
+from dlt.common.runtime.run_context import active
 from dlt.common.typing import AnyFun, Generic, ParamSpec, Unpack
 from dlt.common.utils import get_callable_name, get_module_name
 from dlt.common.warnings import TNoExtraKwargs, apply_deprecations
@@ -24,10 +41,42 @@ from dlt.extract.reference import SourceFactory as AnySourceFactory
 from dlt.extract.resource import DltResource
 from dlt.extract.source import DltSource
 
-from dlt._workspace.deployment._job_ref import make_job_ref
-from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
-from dlt._workspace.deployment.launchers import LAUNCHER_JOB
+from dlt._workspace.deployment._job_ref import job_category, make_job_ref
+from dlt._workspace.deployment.exceptions import (
+    InvalidJobName,
+    InvalidJobSchema,
+    InvalidJobSection,
+)
+from dlt._workspace.deployment.reflection import (
+    entity_properties,
+    injectable_fields,
+    inputs_from_function,
+    job_result_from_return,
+)
+from dlt._workspace.deployment.agent.configuration import (
+    spec_from_agent_inputs,
+    warn_unbound_inputs,
+    warn_unreferenced_inputs,
+)
+from dlt._workspace.deployment.agent.manifest import (
+    load_agent_spec,
+    agent_manifest_path,
+    resolve_agent_dir,
+    to_agent_definition,
+)
+from dlt._workspace.deployment.agent.reflection import agent_source, agent_spec_from_function
+from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
+from dlt._workspace.deployment.job_result import running_job
+from dlt._workspace.deployment.launchers import (
+    DEFAULT_AGENT_LOOP,
+    LAUNCHER_AGENT,
+    LAUNCHER_JOB,
+    agent_loop_group,
+)
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
+    TWorkspaceAccess,
+    TAgentDefinition,
     TDeliverSpec,
     TEntryPoint,
     TExecuteSpec,
@@ -39,6 +88,7 @@ from dlt._workspace.deployment.typing import (
     TJobDefinition,
     TJobDefinitionDeprecated,
     TJobExposeSpec,
+    TJobObjectInput,
     TJobRef,
     TJobType,
     TRefreshPolicy,
@@ -132,6 +182,13 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         self.incremental_mode: Optional[TIncrementalSource] = None
         self.refresh_propagation: TRefreshPolicy = "auto"
         self.auto_refresh_pipeline_mode: Optional[TRefreshMode] = None
+        self.launcher: str = LAUNCHER_JOB
+        self.access: Optional[TWorkspaceAccess] = None
+        """What the job may touch. Only an agent sets it today."""
+        self.inputs: Optional[Dict[str, Any]] = None
+        """JSON Schema of the arguments. Read from the function when the manifest is built."""
+        self.output: Optional[Dict[str, Any]] = None
+        """JSON Schema of the result, when the job returns a `TJobResult`."""
 
     @property
     def job_ref(self) -> TJobRef:
@@ -180,13 +237,17 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         conf_f = with_config(f, spec=self._user_spec, sections=job_sections)
         self._spec = get_fun_spec(conf_f)
 
+        # the stack is pushed inside the coroutine, not around it: `__call__` returns the
+        # coroutine and the launcher awaits it later, so an outer scope would pop too early
         @wraps(conf_f)
         def _call(*args: Any, **kwargs: Any) -> Any:
-            return conf_f(*args, **kwargs)
+            with running_job(self.job_ref):
+                return conf_f(*args, **kwargs)
 
         @wraps(conf_f)
         async def _call_coro(*args: Any, **kwargs: Any) -> Any:
-            return await conf_f(*args, **kwargs)
+            with running_job(self.job_ref):
+                return await conf_f(*args, **kwargs)
 
         self._deco_f = _call_coro if iscoroutinefunction(f) else _call
 
@@ -197,16 +258,46 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         update_wrapper(self, self._f)
         self.__signature__ = inspect.signature(self._f)
 
-    def to_job_definition(self) -> TJobDefinition:
-        """Builds a TJobDefinition manifest dict from this wrapper's metadata."""
-        entry_point: TEntryPoint = {
+    def _entry_point(self) -> TEntryPoint:
+        return {
             "module": self._f.__module__,
             "function": get_callable_name(self._f),
             "job_type": self.job_type,
-            "launcher": LAUNCHER_JOB,
+            "launcher": self.launcher,
         }
 
+    def _description(self) -> str:
+        return (self._f.__doc__ or "").strip()
+
+    def config_fields(self) -> Dict[str, Any]:
+        """Job arguments configuration injects, name to hint. `config_keys` and `inputs` are these."""
+        return injectable_fields(self._spec)
+
+    @property
+    def category(self) -> str:
+        """Label the job is grouped under, and the middle segment of its result type."""
+        deliver = self.deliver if isinstance(self.deliver, dict) else None
+        return job_category(self.expose, deliver, self.job_type)
+
+    def _reflect_schemas(self) -> None:
+        """Inputs and output of the job, read from the function. Set already, they stand."""
+        if self._f is None:
+            return
+        if self.inputs is None:
+            try:
+                self.inputs = inputs_from_function(self._f, self.job_ref, self.config_fields())
+            except InvalidJobSchema as ex:
+                # a job dlt cannot describe still deploys and still runs
+                logger.warning(f"Job {self.job_ref} declares no inputs in the manifest: {ex}")
+        if self.output is None:
+            self.output = job_result_from_return(self._f, self.job_ref)
+
+    def to_job_definition(self) -> TJobDefinition:
+        """Builds a TJobDefinition manifest dict from this wrapper's metadata."""
+        entry_point = self._entry_point()
+
         job_def: TJobDefinition = {
+            "engine_version": MANIFEST_ENGINE_VERSION,
             "job_ref": self.job_ref,
             "entry_point": entry_point,
             "triggers": list(self.trigger),
@@ -216,14 +307,31 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         if self.expose:
             job_def["expose"] = self.expose  # type: ignore[typeddict-item]
 
-        description = (self._f.__doc__ or "").strip()
+        description = self._description()
         if description:
             job_def["description"] = description
 
-        if self._spec is not None:
-            config_keys = list(self._spec.get_resolvable_fields().keys())
-            if config_keys:
-                job_def["config_keys"] = config_keys
+        if self.access is not None:
+            job_def["access"] = self.access
+
+        config_keys = list(self.config_fields())
+        if config_keys:
+            job_def["config_keys"] = config_keys
+
+        self._reflect_schemas()
+        if (self.inputs or {}).get("properties"):
+            job_def["inputs"] = self.inputs
+        if self.output:
+            job_def["output"] = self.output
+        # an unknown entity_type fails here, at manifest time, for inputs and output alike
+        entity_properties(self.output, self.job_ref)
+        if entities := entity_properties(self.inputs, self.job_ref):
+            name, entity_type = next(iter(entities.items()))
+            expose = dict(job_def.get("expose") or {})
+            expose["object_input"] = TJobObjectInput(
+                entity_type=entity_type, input=f"{self.job_ref}.{name}"
+            )
+            job_def["expose"] = expose  # type: ignore[typeddict-item]
 
         if self.interval is not None:
             job_def["interval"] = self.interval
@@ -248,9 +356,9 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         return job_def
 
 
-def _job(
-    func: Optional[AnyFun] = None,
-    /,
+def _make_job_factory(
+    *,
+    factory_cls: Type[JobFactory[Any, Any]] = JobFactory,
     name: str = None,
     section: str = None,
     job_type: TJobType = "batch",
@@ -269,8 +377,8 @@ def _job(
     spec: Type[BaseConfiguration] = None,
     deco_name: str = "@job",
     **kwargs: Any,
-) -> Any:
-    """Common decorator implementation for all job types."""
+) -> JobFactory[Any, Any]:
+    """Builds an unbound job factory with all metadata normalized."""
     # accept deprecated arg names (including nested `require`), convert, warn
     if require is not None:
         kwargs["require"] = dict(require)
@@ -296,7 +404,7 @@ def _job(
         )
     _validate_job_name(name)
     _validate_job_section(section)
-    wrapper: JobFactory[Any, Any] = JobFactory()
+    wrapper: JobFactory[Any, Any] = factory_cls()
     wrapper.name = name
     wrapper.section = section
     wrapper.job_type = job_type
@@ -317,7 +425,16 @@ def _job(
     wrapper.refresh_propagation = refresh_propagation or "auto"
     wrapper.auto_refresh_pipeline_mode = auto_refresh_pipeline_mode
     wrapper._user_spec = spec
+    return wrapper
 
+
+def _job(
+    func: Optional[AnyFun] = None,
+    /,
+    **kwargs: Any,
+) -> Any:
+    """Common decorator implementation for all job types."""
+    wrapper = _make_job_factory(**kwargs)
     if func is None:
         return wrapper.bind
     return wrapper.bind(func)
@@ -641,7 +758,7 @@ def pipeline_run(
             execute=execute,
             expose=full_expose,
             require=require,
-            deliver=deliver,  # type: ignore[arg-type]
+            deliver=deliver,
             interval=interval,
             freshness=freshness,
             incremental_mode=incremental_mode,
@@ -652,3 +769,474 @@ def pipeline_run(
         )
 
     return decorator
+
+
+def _job_name_from_agent(agent: Union[str, TAgentSpec]) -> str:
+    """Job name derived from the agent name: the part after `:`, dashes turned into underscores."""
+    name = agent if isinstance(agent, str) else agent["name"]
+    return name.rpartition(":")[2].replace("-", "_")
+
+
+def _workspace_relative(source: str, workspace_root: str) -> str:
+    """`<file>:<name>` with the file made relative to the workspace when it sits inside it."""
+    path, _, name = source.rpartition(":")
+    try:
+        return f"{os.path.relpath(path, workspace_root)}:{name}"
+    except ValueError:
+        return source
+
+
+def _set_agent(wrapper: "AgentJobFactory[Any, Any]", agent: Union[None, str, TAgentSpec]) -> None:
+    """Stores the agent on the factory, by reference or in full."""
+    if agent is None:
+        return
+    if isinstance(agent, str):
+        wrapper.agent_ref = agent
+    else:
+        wrapper.agent_spec = agent
+        wrapper.agent_ref = agent["name"]
+
+
+class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
+    """Job whose body is an agent loop.
+
+    Declared either by decorating a function that drives the loop from
+    `run_context["ai_loop"]`, or by naming an agent, in which case the launcher drives it.
+    Either form names the agent with a `"<toolkit>:<agent>"` reference or a `TAgentSpec`.
+    """
+
+    def __init__(self) -> None:
+        super().__init__()
+        self.launcher = LAUNCHER_AGENT
+        self.agent_ref: str = None
+        self.agent_spec: Optional[TAgentSpec] = None
+        """Agent declared inline, instead of referenced by name."""
+        self.agent_file: Optional[str] = None
+        """Folder the referenced agent was read from, relative to the workspace root."""
+        self.loop: str = DEFAULT_AGENT_LOOP
+        self.model: str = None
+        self.instructions: str = None
+        """The user turn opening every run of this job, until configuration says otherwise."""
+        self.limits: Optional[TAgentLimits] = None
+        self.loop_run_args: Optional[Dict[str, Any]] = None
+        self.verbosity: Optional[int] = None
+        self.inputs_validator: Optional[AnyFun] = None
+        self.outputs_validator: Optional[AnyFun] = None
+        self.agent_declaration: Dict[str, Any] = {}
+        """`AGENT.md` fields the decorator carried, overriding the agent it referenced."""
+        self.agent_definition: Optional[TAgentDefinition] = None
+        """Manifest subset of the agent, resolved when the job definition is generated."""
+        self._declared_module: str = None
+        self._declared_attr: str = None
+
+    @property
+    def is_declared(self) -> bool:
+        """True when the agent was named instead of decorating a function."""
+        return self._f is None
+
+    @property
+    def has_agent(self) -> bool:
+        """True when the job has an agent: named, given, or declared by the function itself."""
+        return bool(self.agent_ref or self.agent_spec or not self.is_declared)
+
+    def resolve_agent_spec(self, workspace_root: str) -> TAgentSpec:
+        """The agent in full: declared by the decorated function, given inline, or named."""
+        if self.agent_spec is None:
+            base: Optional[TAgentSpec] = None
+            if self.agent_ref:
+                agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
+                base = load_agent_spec(agent_dir)
+                self.agent_file = os.path.relpath(agent_manifest_path(agent_dir), workspace_root)
+
+            if self.is_declared:
+                self.agent_spec = base
+            else:
+                source = agent_source(self._f, self.name)
+                self.agent_spec = agent_spec_from_function(
+                    self._f, source, self.agent_declaration, base
+                )
+                # a function-declared agent has no AGENT.md: it is the module it lives in
+                self.agent_file = _workspace_relative(source, workspace_root)
+                if not self.agent_ref:
+                    self.agent_ref = f"{self._f.__module__}:{get_callable_name(self._f)}"
+        # the agent declares the result. A declared job's inputs are the agent's too; a
+        # decorated one takes them from its signature, which is what configuration can inject
+        self.output = self.agent_spec["output"]
+        if self.is_declared:
+            self.inputs = self.agent_spec["inputs"]
+        return self.agent_spec
+
+    def declare(self, module_name: str, attr_name: str) -> None:
+        """Names the module attribute holding a declared agent, so the launcher can resolve it."""
+        self._declared_module = self._declared_module or module_name
+        self._declared_attr = self._declared_attr or attr_name
+        self.section = self.section or get_module_name(sys.modules[module_name])
+
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        if not self.is_declared:
+            return super().__call__(*args, **kwargs)
+        # the launcher imports this module, so it can only be reached from inside the call
+        from dlt._workspace.deployment.launchers.agent import run_declared_agent
+
+        return run_declared_agent(self, *args, **kwargs)
+
+    def _entry_point(self) -> TEntryPoint:
+        if not self.is_declared:
+            return super()._entry_point()
+        return {
+            "module": self._declared_module,
+            "function": self._declared_attr,
+            "job_type": self.job_type,
+            "launcher": self.launcher,
+        }
+
+    def _description(self) -> str:
+        if not self.is_declared:
+            return super()._description()
+        # a declared job has no function to describe it, so the agent speaks for it
+        return self.agent_spec.get("description", "") if self.agent_spec else ""
+
+    @property
+    def category(self) -> str:
+        return "background_agent"
+
+    def input_spec(self, agent_spec: TAgentSpec) -> Type[BaseConfiguration]:
+        """Job configuration of a declared agent: its inputs, synthesized once."""
+        if self._spec is None:
+            # no function to inject config into, so the declared inputs are the job config
+            self._spec = spec_from_agent_inputs(agent_spec)
+        return self._spec
+
+    def _resolve_agent(self) -> None:
+        """Reads the agent and takes its job configuration from the inputs it declares."""
+        spec = self.resolve_agent_spec(active().run_dir)
+        self.agent_definition = to_agent_definition(
+            spec, self.agent_file, self.instructions, self.model
+        )
+        self.access = spec.get("access") or {}
+        warn_unreferenced_inputs(spec)
+        if self.is_declared:
+            self.input_spec(spec)
+        else:
+            warn_unbound_inputs(spec, self._f)
+
+    def to_job_definition(self) -> TJobDefinition:
+        if self.has_agent:
+            self._resolve_agent()
+        job_def = super().to_job_definition()
+        expose: TExposeSpec = dict(job_def.get("expose") or {})  # type: ignore[assignment]
+        expose["category"] = self.category  # type: ignore[typeddict-item]
+        job_def["expose"] = expose
+        if self.agent_definition is not None:
+            job_def["agent"] = self.agent_definition
+        require: TRequireSpec = dict(job_def.get("require") or {})  # type: ignore[assignment]
+        groups = list(require.get("dependency_groups") or [])
+        loop_group = agent_loop_group(self.loop)
+        if loop_group not in groups:
+            groups.append(loop_group)
+        require["dependency_groups"] = groups
+        job_def["require"] = require
+        return job_def
+
+
+@overload
+def agent(
+    func: Callable[TJobFunParams, TJobResult],
+    /,
+    *,
+    agent: Union[str, TAgentSpec] = None,
+    instructions: str = None,
+    access: Optional[TWorkspaceAccess] = None,
+    tools: Optional[List[str]] = None,
+    skills: Optional[List[str]] = None,
+    rules: Optional[List[str]] = None,
+    name: str = None,
+    section: str = None,
+    loop: str = DEFAULT_AGENT_LOOP,
+    model: str = None,
+    identity: str = None,
+    limits: Optional[TAgentLimits] = None,
+    loop_run_args: Optional[Dict[str, Any]] = None,
+    verbosity: Optional[int] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
+    spec: Type[BaseConfiguration] = None,
+) -> AgentJobFactory[TJobFunParams, TJobResult]: ...
+
+
+@overload
+def agent(
+    func: None = ...,
+    /,
+    *,
+    agent: Union[str, TAgentSpec] = None,
+    instructions: str = None,
+    access: Optional[TWorkspaceAccess] = None,
+    tools: Optional[List[str]] = None,
+    skills: Optional[List[str]] = None,
+    rules: Optional[List[str]] = None,
+    name: str = None,
+    section: str = None,
+    loop: str = DEFAULT_AGENT_LOOP,
+    model: str = None,
+    identity: str = None,
+    limits: Optional[TAgentLimits] = None,
+    loop_run_args: Optional[Dict[str, Any]] = None,
+    verbosity: Optional[int] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
+    spec: Type[BaseConfiguration] = None,
+) -> Callable[
+    [Callable[TJobFunParams, TJobResult]], AgentJobFactory[TJobFunParams, TJobResult]
+]: ...
+
+
+@overload
+def agent(
+    agent_ref: Union[str, TAgentSpec],
+    /,
+    *,
+    name: str = None,
+    section: str = None,
+    loop: str = DEFAULT_AGENT_LOOP,
+    model: str = None,
+    instructions: str = None,
+    identity: str = None,
+    limits: Optional[TAgentLimits] = None,
+    loop_run_args: Optional[Dict[str, Any]] = None,
+    verbosity: Optional[int] = None,
+    inputs_validator: Optional[AnyFun] = None,
+    outputs_validator: Optional[AnyFun] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
+    spec: Type[BaseConfiguration] = None,
+) -> AgentJobFactory[..., TAgentJobResult]: ...
+
+
+def agent(
+    func_or_ref: Union[Optional[AnyFun], str, TAgentSpec] = None,
+    /,
+    *,
+    agent: Union[str, TAgentSpec] = None,
+    instructions: str = None,
+    access: Optional[TWorkspaceAccess] = None,
+    tools: Optional[List[str]] = None,
+    skills: Optional[List[str]] = None,
+    rules: Optional[List[str]] = None,
+    name: str = None,
+    section: str = None,
+    loop: str = DEFAULT_AGENT_LOOP,
+    model: str = None,
+    identity: str = None,
+    limits: Optional[TAgentLimits] = None,
+    loop_run_args: Optional[Dict[str, Any]] = None,
+    verbosity: Optional[int] = None,
+    inputs_validator: Optional[AnyFun] = None,
+    outputs_validator: Optional[AnyFun] = None,
+    trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
+    execute: Optional[TExecuteSpec] = None,
+    expose: Optional[TJobExposeSpec] = None,
+    require: Optional[TRequireSpec] = None,
+    spec: Type[BaseConfiguration] = None,
+) -> Any:
+    """Declares a background agent job: an agent loop that dlthub runs as a job.
+
+    Decorate a function, and the function is the agent: its docstring is the system prompt,
+    its parameters are the inputs, its return type is the output, and its body drives the loop
+    it finds in `run_context["ai_loop"]`. Or name an installed agent, and dlthub drives the
+    loop and reports the agent's output as the job result.
+
+    Example: a function agent that explains a failed job run
+
+        >>> from typing import Annotated, Literal
+        >>> from dlt.hub import run
+        >>>
+        >>> class Diagnosis(run.TAgentOutput):
+        ...     classification: Annotated[
+        ...         Literal["config", "code", "upstream_data"],
+        ...         run.Doc("What kind of failure it was"),
+        ...     ]
+        >>>
+        >>> @run.agent(
+        ...     access={"local": ["read"], "data": ["read"], "context": ["read"]},
+        ...     tools=["jobs", "logs", "telemetry"],
+        ...     skills=["dlthub-platform:debug-deployment"],
+        ...     rules=["dlthub-platform:job-resources"],
+        ...     loop="claude-agent-sdk",
+        ...     limits={"max_turns": 20},
+        ... )
+        ... async def inspect_failure(
+        ...     failed_run_id: str, run_context: run.TJobRunContext
+        ... ) -> Diagnosis:
+        ...     '''Explain why job run {{ failed_run_id }} failed. Do not repair anything.
+        ...
+        ...     Read the run record and its logs, classify the failure and propose a fix.
+        ...     '''
+        ...     return await run_context["ai_loop"].run(inputs={"failed_run_id": failed_run_id})
+
+    Run it with `dlthub local run inspect_failure`. The system prompt refers to inputs as
+    `{{ name }}` and to the run as `{{ run_context.trigger }}`; an input comes from the job's
+    configuration first, then from the trigger's run arguments, then from the call. The loop
+    returns the output as a dict; a `status` of `aborted` raises `JobAbortedException` with
+    the agent's `summary`.
+
+    The same agent installed by a toolkit as `.claude/dlthub/agents/job-inspector/AGENT.md`
+    needs no function, and runs from Python too:
+
+        >>> inspector = run.agent(
+        ...     "dlthub-platform:job-inspector", instructions="explain, do not fix"
+        ... )
+        >>> result = inspector(failed_run_id="run-42")
+
+    Configuration in the job's section overrides the decorator: `[jobs.<module>.<job>.agent]`
+    takes `loop`, `model`, `instructions`, `max_turns`, `max_tokens`, `loop_run_args`,
+    `verbosity`, `api_key`, `api_url` and `api_version`. Inputs are set one level up, in
+    `[jobs.<module>.<job>]`.
+
+    Args:
+        func_or_ref (Union[Optional[AnyFun], str, TAgentSpec]): The function to decorate, or the
+            agent to run. An agent is a `"<toolkit>:<agent>"` reference to an installed one, a
+            workspace-relative path to a folder holding `AGENT.md`, or a `TAgentSpec` declared
+            inline.
+        agent (Union[str, TAgentSpec]): Agent the decorated function starts from, as a
+            `"<toolkit>:<agent>"` reference, a path to its folder, or a `TAgentSpec`. The
+            decorator arguments override its fields, and the function's docstring, parameters
+            and return type override those.
+        instructions (str): The first user message of every run: the task for this time, where
+            the system prompt says who the agent is. Optional; without it the run opens with a
+            bare go-ahead. `agent.instructions` in the job's configuration replaces it.
+        access (Optional[TWorkspaceAccess]): What the agent may touch, per axis, as one verb or
+            a list of verbs. `local` (`read`, `write`, `execute`, `network`, `all`) buys the
+            loop's built-in tools: `read` file reading and search, `write` file writing,
+            `execute` a shell and Python in the workspace, `network` web access; credential
+            files stay out of reach whatever is granted. `data` (`read`, `write`) is workspace
+            data, enforced by the dlt profile of the run. `context` (`read`) is telemetry, runs
+            and job definitions on dlthub. Nothing granted, no tools of that kind.
+        tools (Optional[List[str]]): Feature groups of the dlthub MCP server, which the loop
+            spawns for the run with exactly these features: `workspace`, `pipeline`, `toolkit`,
+            `secrets`, `context`, and on dlthub `jobs`, `logs`, `telemetry`. Without `tools`
+            no server is started.
+        skills (Optional[List[str]]): Skills the agent may invoke. Refer to a skill of an
+            installed toolkit as `"<toolkit>:<skill>"`, e.g. `"dlthub-platform:debug-deployment"`,
+            or by a workspace-relative path to its file, e.g. `".claude/skills/my-skill/SKILL.md"`.
+            On `claude-agent-sdk` the CLI lists them by name and loads one when invoked, the
+            way Claude Code does; on `pydantic-ai` their text is inlined into the system
+            prompt. Only the listed skills reach the agent, none of the others installed in the
+            workspace. A reference that does not resolve is skipped with a warning.
+        rules (Optional[List[str]]): Rules inlined into the system prompt on every loop. Refer
+            to a rule of an installed toolkit as `"<toolkit>:<rule>"`, e.g.
+            `"dlthub-platform:job-resources"`, or by a workspace-relative path to its file,
+            e.g. `".claude/rules/my-rule.md"`. The workspace's own `.claude/rules` are not
+            loaded; an agent gets the rules it declares. A reference that does not resolve is
+            skipped with a warning.
+        name (str): Job name. Defaults to the function name, or to the agent's name.
+        section (str): Configuration section. Defaults to the name of the declaring module.
+        loop (str): Framework that runs the agent. `"pydantic-ai"` (default) runs any
+            provider's model on dlt's own file, search and execution tools. `"claude-agent-sdk"`
+            runs Anthropic models on Claude Code, with its tools and native skills; the SDK
+            ships the CLI it needs. `agent.loop` in configuration replaces it.
+        model (str): `provider:model` id, e.g. `"anthropic:claude-sonnet-5"`, or an alias:
+            `sonnet`, `opus`, `haiku`, `fable`, `gpt`, `gpt-mini`, `gpt-nano`, `gemini`,
+            `gemini-pro`. Overrides the agent's declared default; `agent.model` in configuration
+            replaces both.
+        identity (str): Reserved for future use.
+        limits (Optional[TAgentLimits]): `max_turns` and `max_tokens` for one run. The loop
+            ends the run when either is spent. Overrides the agent's declared defaults;
+            `agent.max_turns` and `agent.max_tokens` in configuration replace them.
+        loop_run_args (Optional[Dict[str, Any]]): Arguments handed to the native loop, merged
+            over the agent's declared defaults. `retries` is how often pydantic-ai lets the
+            model correct a failing tool call, 0 by default. Other keys are the framework's
+            own: pydantic-ai `Agent` spec fields, or `ClaudeAgentOptions` fields such as
+            `settings`. Keys a loop does not know are ignored and listed in the run's trace.
+        verbosity (Optional[int]): How much of the run is printed to stdout: 0 the outcome
+            only, 1 turns, thoughts and tool calls, 2 everything, the system prompt included.
+        inputs_validator (Optional[AnyFun]): Called with the resolved inputs before the run;
+            whatever it returns is merged into them. Use it to check or derive inputs, e.g. look
+            up a run id from a job ref.
+        outputs_validator (Optional[AnyFun]): Called with the agent's output after the run;
+            whatever it returns replaces it.
+        trigger (Union[str, TTrigger, Sequence[Union[str, TTrigger]]]): One or more trigger
+            strings or `TTrigger` values.
+        execute (Optional[TExecuteSpec]): Execution constraints: `timeout`, `concurrency`.
+        expose (Optional[TJobExposeSpec]): UI presentation: `tags`, `starred`, `manual`.
+        require (Optional[TRequireSpec]): Runtime resource requirements.
+        spec (Type[BaseConfiguration]): Optional configuration spec class.
+
+    Returns:
+        AgentJobFactory: The job. In the function form it keeps the function's signature and
+        return type; in the reference form it is called with the inputs as keyword arguments.
+
+    Raises:
+        TypeError: An argument was passed that the chosen form does not accept.
+    """
+    is_agent_ref = isinstance(func_or_ref, (str, Mapping))
+    if not is_agent_ref:
+        # the launcher applies these two only when it drives the loop itself
+        for arg_name, value in (
+            ("inputs_validator", inputs_validator),
+            ("outputs_validator", outputs_validator),
+        ):
+            if value is not None:
+                raise TypeError(
+                    f"run.agent on a function does not accept {arg_name!r}. Pass it to"
+                    " `loop.run()`, or name an agent: run.agent('<toolkit>:<agent>')."
+                )
+
+    if is_agent_ref and agent is not None:
+        raise TypeError("run.agent takes the agent positionally here. Drop the 'agent' argument.")
+
+    def _new_factory() -> AgentJobFactory[Any, Any]:
+        wrapper: AgentJobFactory[Any, Any] = _make_job_factory(  # type: ignore[assignment]
+            factory_cls=AgentJobFactory,
+            name=name,
+            section=section,
+            job_type="batch",
+            trigger=trigger,
+            execute=execute,
+            expose=expose,
+            require=require,
+            spec=spec,
+            deco_name="@agent",
+        )
+        wrapper.loop = loop
+        wrapper.model = model
+        wrapper.instructions = instructions
+        wrapper.limits = limits
+        wrapper.loop_run_args = loop_run_args
+        wrapper.verbosity = verbosity
+        wrapper.inputs_validator = inputs_validator
+        wrapper.outputs_validator = outputs_validator
+        wrapper.agent_declaration = {
+            "name": name,
+            "access": access,
+            "tools": tools,
+            "skills": skills,
+            "rules": rules,
+            "model": model,
+            "limits": limits,
+            "loop_run_args": loop_run_args,
+            "trigger": wrapper.trigger or None,
+        }
+        _set_agent(wrapper, agent)
+        return wrapper
+
+    if func_or_ref is None:
+        # called with parens
+        return lambda f: _new_factory().bind(f)
+    if not is_agent_ref:
+        # called as @run.agent, without parens
+        return _new_factory().bind(cast(AnyFun, func_or_ref))
+
+    # an agent was given: there is no function, the launcher drives the loop
+    declared = cast(Union[str, TAgentSpec], func_or_ref)
+    wrapper = _new_factory()
+    _set_agent(wrapper, declared)
+    wrapper.name = wrapper.name or _job_name_from_agent(declared)
+    _validate_job_name(wrapper.name)
+    return wrapper

@@ -1,0 +1,6 @@
+e2e:
+  version: 0.1.0
+  description: Fixtures the end-to-end agent tests run against
+  tags: []
+  installed_at: '2026-09-07T00:00:00+00:00'
+  agent: claude

@@ -7,6 +7,7 @@ if TYPE_CHECKING:
 
 
 from dlt._workspace._workspace_context import WorkspaceRunContext
+from dlt._workspace.cli.dlthub.ai.utils import TOOLKITS_INDEX_FILE
 from dlt._workspace.profile import LOCAL_PROFILES
 
 
@@ -28,6 +29,9 @@ DEFAULT_IGNORES: List[str] = [
     ".DS_Store",
     ".env",
 ]
+
+SETTINGS_INCLUDES: List[str] = [TOOLKITS_INDEX_FILE]
+"""Settings-dir files that ship with the code. Never anything holding secrets."""
 
 
 class BaseFileSelector(Iterable[Tuple[Path, Path]]):
@@ -62,7 +66,13 @@ class WorkspaceFileSelector(BaseFileSelector):
         """Build PathSpec from ignore file + defaults + additional excludes"""
         from pathspec import PathSpec
 
-        patterns: List[str] = [f"{self.settings_dir.relative_to(self.root_path)}/"]
+        settings_rel = self.settings_dir.relative_to(self.root_path)
+        # the settings dir stays out, except the toolkit index: the agent launcher reads it
+        # on the runner to resolve `<toolkit>:<agent>` refs
+        patterns: List[str] = [
+            f"{settings_rel}/",
+            *(f"!{settings_rel}/{name}" for name in SETTINGS_INCLUDES),
+        ]
 
         # load ignore file if exists, otherwise fall back to default ignores
         ignore_path = self.root_path / self.ignore_file

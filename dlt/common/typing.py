@@ -32,6 +32,7 @@ from typing import (
 from typing_extensions import (
     ForwardRef,
     Annotated,
+    Doc,
     Never,
     NotRequired,
     ParamSpec,

@@ -51,21 +51,21 @@ from tests.workspace.cli.dlthub.ai.utils import (
     [
         (
             _ClaudeAgent,
-            {"skill", "command", "rule", "ignore"},
+            {"skill", "command", "rule", "agent", "ignore"},
             ".claude/rules/test-toolkit-coding.md",
             lambda c: "alwaysApply" not in c and "# Coding Style" in c,
             ".claudeignore",
         ),
         (
             _CursorAgent,
-            {"skill", "command", "rule", "ignore"},
+            {"skill", "command", "rule", "agent", "ignore"},
             ".cursor/rules/test-toolkit-coding.mdc",
             lambda c: "alwaysApply: true" in c,
             ".cursorignore",
         ),
         (
             _CodexAgent,
-            {"skill", "ignore", "rule"},
+            {"skill", "agent", "ignore", "rule"},
             ".agents/skills/test-toolkit-coding/SKILL.md",
             lambda c: "Coding Style" in c,
             ".codexignore",
@@ -97,6 +97,15 @@ def test_toolkit_install_all_variants(
     skill_base = variant.component_dir("skill", project_root) / "find-source"
     assert (skill_base / "SKILL.md").exists()
     assert (skill_base / "helper.py").exists()
+
+    # agent dir is copied verbatim, supporting files included
+    agent_base = variant.component_dir("agent", project_root) / "find-crash"
+    assert (agent_base / "AGENT.md").exists()
+    assert (agent_base / "crash_helper.py").exists()
+    assert "You are a test agent." in (agent_base / "AGENT.md").read_text(encoding="utf-8")
+    # the host's own agents folder is left to its native subagents
+    assert agent_base.parent.parent.name == "dlthub"
+    assert not (agent_base.parents[2] / "agents").exists()
 
     # rule/converted-rule written with correct content
     rule_dest = project_root / rule_path
@@ -188,7 +197,8 @@ def test_toolkit_install_skip_existing() -> None:
     assert skill_action.conflict is True
 
     installed = _execute_install(actions)
-    assert installed == 3
+    # everything but the conflicting skill
+    assert installed == len(actions) - 1
     assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "custom content"
 
 
@@ -445,7 +455,8 @@ def test_toolkit_install_overwrite() -> None:
     assert rule_action.conflict is False
 
     installed = _execute_install(actions, overwrite=True)
-    assert installed == 4
+    # overwrite clears the conflict, so every planned action runs
+    assert installed == len(actions)
     new_content = (rule_dest / "test-toolkit-coding.md").read_text(encoding="utf-8")
     assert new_content != "old content"
     assert "Coding Style" in new_content
