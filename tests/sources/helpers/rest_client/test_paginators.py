@@ -456,6 +456,12 @@ class TestOffsetPaginator:
         with pytest.raises(ValueError, match="must be provided"):
             OffsetPaginator(0, 10, stop_after_empty_page=False)
 
+    def test_init_with_explicit_default_total_path_constructs(self):
+        # Migration path: APIs returning the total under the default key
+        # keep working by passing the path explicitly.
+        paginator = OffsetPaginator(0, 10, total_path="total", stop_after_empty_page=False)
+        assert paginator.total_path is not None
+
     def test_update_state_with_has_more(self):
         paginator = OffsetPaginator(0, 10, total_path=None, has_more_path="has_more")
         response = Mock(Response, json=lambda: {"has_more": False})
@@ -706,6 +712,19 @@ class TestPageNumberPaginator:
         response = Mock(Response, json=lambda: {"total": None})
         paginator.update_state(response, data=NON_EMPTY_PAGE)
         assert paginator.has_next_page is True
+
+    def test_init_without_stop_condition_raises(self):
+        # The inherited default is not a stop condition on its own.
+        with pytest.raises(ValueError, match="must be provided"):
+            PageNumberPaginator(base_page=1, page=1, stop_after_empty_page=False)
+
+    def test_init_with_explicit_default_total_path_constructs(self):
+        # Migration path: APIs returning the total under the default key
+        # keep working by passing the path explicitly.
+        paginator = PageNumberPaginator(
+            base_page=1, page=1, total_path="total", stop_after_empty_page=False
+        )
+        assert paginator.total_path is not None
 
     def test_update_state(self):
         paginator = PageNumberPaginator(base_page=1, page=1, total_path="total_pages")

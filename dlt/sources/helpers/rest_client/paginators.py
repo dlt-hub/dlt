@@ -158,7 +158,8 @@ class RangePaginator(BasePaginator):
         ):
             raise ValueError(
                 "One of `total_path`, `maximum_value`, `has_more_path`, or `stop_after_empty_page`"
-                " must be provided."
+                " must be provided. If the API returns the total under the default 'total'"
+                " key, pass `total_path='total'` explicitly."
             )
 
         if bool(param_name) == bool(param_body_path):
@@ -420,7 +421,8 @@ class PageNumberPaginator(RangePaginator):
         ):
             raise ValueError(
                 "One of `total_path`, `maximum_page`, `has_more_path`, or `stop_after_empty_page`"
-                " must be provided."
+                " must be provided. If the API returns the total under the default 'total'"
+                " key, pass `total_path='total'` explicitly."
             )
 
         page = page if page is not None else base_page
@@ -594,7 +596,8 @@ class OffsetPaginator(RangePaginator):
         ):
             raise ValueError(
                 "One of `total_path`, `maximum_offset`, `has_more_path`, or `stop_after_empty_page`"
-                " must be provided."
+                " must be provided. If the API returns the total under the default 'total'"
+                " key, pass `total_path='total'` explicitly."
             )
         super().__init__(
             param_name=offset_param,
