@@ -116,7 +116,7 @@ By default, columns derived from a Pydantic model are subject to schema contract
 ```py
 from typing import ClassVar
 
-from pydantic import BaseModel
+from pydantic import BaseModel, ConfigDict
 
 from dlt.common.libs.pydantic import DltConfig
 
@@ -124,8 +124,7 @@ from dlt.common.libs.pydantic import DltConfig
 class MyModel(BaseModel):
     dlt_config: ClassVar[DltConfig] = {"is_authoritative_model": True}
 
-    class Config:
-        extra = "forbid"
+    model_config = ConfigDict(extra="forbid")
 
     id: int
     name: str
