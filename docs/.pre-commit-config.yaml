@@ -41,6 +41,14 @@ repos:
         types: [markdown]
         pass_filenames: false
 
+      - id: md-check
+        name: md-check
+        entry: make md-check
+        language: system
+        files: ^website/docs/.*\.md$
+        types: [markdown]
+        pass_filenames: false
+
       # re-enable once examples can be executed locally
       # - id: check-examples
       #   name: check-examples
@@ -51,15 +59,6 @@ repos:
       #   types: [markdown]
       #   stages: [pre-push]
       #   pass_filenames: false
-
-  - repo: local
-    hooks:
-      - id: check-md
-        name: check-md
-        entry: uv run mdsmith check website/docs --no-color
-        language: system
-        types: [markdown]
-        pass_filenames: false
 
   # make commands
   - repo: local
