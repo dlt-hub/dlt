@@ -62,7 +62,7 @@ query("SELECT * FROM customers", "postgres://loader@localhost:5432/dlt_data") # 
 query("SELECT * FROM customers", {"database": "dlt_data", "username": "loader"}) # type: ignore[arg-type]
 ```
 
-## Built-in credentials
+## Credentials
 
 `dlt` offers some ready-made credentials you can reuse:
 

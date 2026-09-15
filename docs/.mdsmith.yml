@@ -14,12 +14,14 @@ categories:
   structural: true
   table: true
   whitespace: true
+
 # completely ignore files
 ignore: [
   "website/docs/reference/command-line-interface.md",  # dynamically generated
   "website/docs/_book-onboarding-call.md",  # actually an mdx files
   "website/docs/dlt-ecosystem/verified-sources/_source-info-header.md",  # actually an mdx files
 ]
+
 # enable / disable rules per file
 overrides:
   - glob: [

@@ -378,5 +378,5 @@ With your pipeline code ready, we recommend the following next steps:
 Interested in learning more about dlt? Here are some suggestions:
 
 - Learn more about the filesystem source configuration in [filesystem source](../dlt-ecosystem/verified-sources/filesystem)
-- Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#built-in-credentials)
+- Learn more about different credential types in [Built-in credentials](../general-usage/credentials/complex_types#credentials)
 - Learn how to [create a custom source](./load-data-from-an-api.md) in the advanced tutorial
