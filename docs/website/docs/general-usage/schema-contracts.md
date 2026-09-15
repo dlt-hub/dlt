@@ -3,6 +3,7 @@ title: Schema contract
 description: Controlling schema evolution and validating data
 keywords: [data contracts, schema, dlt schema, pydantic]
 ---
+# Schema contract
 
 `dlt` will evolve the schema at the destination by following the structure and data types of the extracted data. There are several modes
 that you can use to control this automatic schema evolution, from the default modes where all changes to the schema are accepted to
@@ -18,13 +19,16 @@ def items():
 
 This resource will allow new tables (both nested tables and [tables with dynamic names](resource.md#dispatch-data-to-many-tables)) to be created, but will throw an exception if data is extracted for an existing table which contains a new column.
 
-### Setting up the contract
+## Setting up the contract
+
 You can control the following **schema entities**:
+
 * `tables` - the contract is applied when a new table is created
 * `columns` - the contract is applied when a new column is created on an existing table
 * `data_type` - the contract is applied when a data type property of an existing column changes. This includes variant columns (where data cannot be coerced into the existing type) as well as explicit changes to `data_type`, `nullable`, `precision`, `scale`, or `timezone` on a column that is already complete.
 
 You can use **contract modes** to tell `dlt` how to apply the contract for a particular entity:
+
 * `evolve`: No constraints on schema changes.
 * `freeze`: This will raise an exception if data is encountered that does not fit the existing schema, so no data will be loaded to the destination.
 * `discard_row`: This will discard any extracted row if it does not adhere to the existing schema, and this row will not be loaded to the destination.
@@ -32,29 +36,33 @@ You can use **contract modes** to tell `dlt` how to apply the contract for a par
 
 :::note
 The default mode (**evolve**) works as follows:
+
 1. New tables may always be created.
 2. New columns may always be appended to the existing table.
 3. Data that do not coerce to the existing data type of a particular column will be sent to a [variant column](schema.md#variant-columns) created for this particular type.
 :::
 
-#### Passing the schema_contract argument
+### Passing the schema_contract argument
+
 The `schema_contract` exists on the [dlt.source](source.md) decorator as a default for all resources in that source and on the
 [dlt.resource](source.md) decorator as a directive for the individual resource - and as a consequence - on all tables created by this resource.
 Additionally, it exists on the `pipeline.run()` method, which will override all existing settings.
 
 The `schema_contract` argument accepts two forms:
+
 1. **full**: a mapping of schema entities to contract modes
 2. **shorthand**: a contract mode (string) that will be applied to all schema entities.
 
 For example, setting `schema_contract` to *freeze* will expand to the full form:
+
 ```py
 {"tables": "freeze", "columns": "freeze", "data_type": "freeze"}
 ```
 
 You can change the contract on the **source** instance via the `schema_contract` property. For **resource**, you can use [apply_hints](resource#set-table-name-and-adjust-schema).
 
-
 #### Nuances of contract modes
+
 1. Contracts are applied **after names of tables and columns are normalized**.
 2. A contract defined on a resource is applied to all root tables and nested tables created by that resource.
 3. `discard_row` works on the table level. For example, if you have two tables in a nested relationship, i.e., *users* and *users__addresses*, and the contract is violated in the *users__addresses* table, the row of that table is discarded while the parent row in the *users* table will be loaded.
@@ -64,6 +72,7 @@ You can change the contract on the **source** instance via the `schema_contract`
 Pydantic models can be used to [define table schemas and validate incoming data](resource.md#define-a-schema-with-pydantic). You can use any model you already have. `dlt` will internally synthesize (if necessary) new models that conform to the **schema contract** on the resource.
 
 Just passing a model in the `column` argument of the [dlt.resource](resource.md#define-a-schema-with-pydantic) sets a schema contract that conforms to the default Pydantic behavior:
+
 ```py
 {
   "tables": "evolve",
@@ -71,9 +80,11 @@ Just passing a model in the `column` argument of the [dlt.resource](resource.md#
   "data_type": "freeze"
 }
 ```
+
 New tables are allowed, extra fields are ignored, and invalid data raises an exception.
 
 If you pass a schema contract explicitly, the following happens to schema entities:
+
 1. **tables** do not impact the Pydantic models.
 2. **columns** modes are mapped into the **extra** modes of Pydantic (see below). `dlt` will apply this setting recursively if models contain other models.
 3. **data_type** supports the following modes for Pydantic: **evolve** will synthesize a lenient model that allows for any data type. This may result in variant columns upstream.
@@ -199,11 +210,11 @@ Each destination table receives only the columns defined by its variant model. F
 
 When an item's discriminator value does not match any variant in the union (e.g., a `"debug"` event when only `"click"` and `"purchase"` are defined), the **data_type** contract controls what happens:
 
-| data_type mode | behavior                                               |
-| -------------- | ------------------------------------------------------ |
-| evolve         | Validation is bypassed; the item passes through as-is  |
-| discard_row    | The item is silently dropped                           |
-| freeze         | Raises an exception                                    |
+| data_type mode | behavior                                              |
+| -------------- | ----------------------------------------------------- |
+| evolve         | Validation is bypassed; the item passes through as-is |
+| discard_row    | The item is silently dropped                          |
+| freeze         | Raises an exception                                   |
 
 :::note
 `data_type: discard_value` is not supported with Pydantic models. Use `discard_row` instead.
@@ -212,17 +223,20 @@ When an item's discriminator value does not match any variant in the union (e.g.
 ### Set contracts on Arrow tables, Pandas, and Polars
 
 All contract settings apply to [Arrow tables, Pandas or Polars DataFrames](../dlt-ecosystem/verified-sources/arrow-pandas.md) as well.
+
 1. **tables** mode is the same - no matter what the data item type is.
 2. **columns** will allow new columns, raise an exception, or modify tables/frames still in the extract step to avoid rewriting Parquet files.
 3. **data_type** applies to variant columns and to changes in type properties (`data_type`, `nullable`, `precision`, `scale`, `timezone`) on existing complete columns. The contract will raise an exception, discard the column, or discard the row depending on the mode.
 
 Here's how `dlt` deals with column modes:
+
 1. **evolve** new columns are allowed (the table may be reordered to put them at the end).
 2. **discard_value** the column will be deleted.
 3. **discard_row** rows with the column present will be deleted and then the column will be deleted.
 4. **freeze** an exception on a new column.
 
 ### Get context from DataValidationError in freeze mode
+
 When a contract is violated in freeze mode, `dlt` raises a `DataValidationError` exception. This exception provides access to the full context and passes the evidence to the caller.
 As with any other exception coming from a pipeline run, it will be re-raised via a `PipelineStepFailed` exception, which you should catch in an except block:
 
@@ -239,6 +253,7 @@ except PipelineStepFailed as pip_ex:
 ```
 
 `DataValidationError` provides the following context:
+
 1. `schema_name`, `table_name`, and `column_name` provide the logical "location" at which the contract was violated.
 2. `schema_entity` and `contract_mode` indicate which contract was violated.
 3. `table_schema` contains the schema against which the contract was validated. It may be a Pydantic model or a dlt `TTableSchema` instance.
@@ -246,14 +261,17 @@ except PipelineStepFailed as pip_ex:
 5. `data_item` is the causing data item (Python dict, arrow table, Pydantic model, or list thereof).
 
 ### Contracts on new tables
+
 If a table is a **new table** that has not been created on the destination yet, dlt will allow the creation of new columns. For a single pipeline run, the column mode is changed (internally) to **evolve** and then reverted back to the original mode. This allows for initial schema inference to happen, and then on subsequent runs, the inferred contract will be applied to the new data.
 
 The following tables are considered new:
+
 1. Child tables inferred from nested data.
 2. Dynamic tables created from the data during extraction.
 3. Tables containing **incomplete** columns - columns without a data type bound to them.
 
 For example, such a table is considered new because the column **number** is incomplete (defined as primary key and NOT null but no data type):
+
 ```yaml
 blocks:
   description: Ethereum blocks
@@ -266,6 +284,7 @@ blocks:
 ```
 
 Tables that are not considered new:
+
 1. Those that already exist in the schema with at least one complete column (a column with a `data_type`).
 
 ### Working with datasets that have manually added tables and columns on the first load

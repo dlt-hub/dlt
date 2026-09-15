@@ -3,7 +3,6 @@ title: Introduction
 description: What the dltHub AI Harness is and the components it's built from.
 keywords: [ai harness, workbench, toolkits, skills, mcp, coding agent, claude code, cursor, codex]
 ---
-
 # Introduction
 
 The dltHub AI Harness is a set of skills, rules, and MCP servers that teach a general-purpose coding agent (Claude Code, Cursor, or Codex) how to build production-grade pipelines, deploy and run them on dltHub managed infrastructure. It draws from [dltHub Context](https://dlthub.com/context), a hub of deeply researched context on APIs across different SaaS sources, so your agent pulls exactly what it needs to code any dlt pipeline.
@@ -25,12 +24,12 @@ Each prompt maps to a toolkit, whose skills guide the agent through the workflow
 
 The AI Harness bundles four kinds of artifacts into installable units called [**toolkits**](toolkits.md):
 
-| Artifact | What it is | Example |
-| --- | --- | --- |
-| Skill | Step-by-step procedure the agent follows for a specific task | `find-source`, `debug-pipeline`, `prepare-deployment` |
-| Rule | Always-on context the agent loads every session | Coding conventions, security constraints |
-| Workflow | Ordered sequence of skills with a fixed entry point, loaded as a rule so it's always active | REST API pipeline workflow, Deploy workflow |
-| MCP server | Tools the agent can call from inside a session | `dlt-workspace-mcp` exposes pipeline, schema, and secrets tools |
+| Artifact   | What it is                                                                                  | Example                                                         |
+| ---------- | ------------------------------------------------------------------------------------------- | --------------------------------------------------------------- |
+| Skill      | Step-by-step procedure the agent follows for a specific task                                | `find-source`, `debug-pipeline`, `prepare-deployment`           |
+| Rule       | Always-on context the agent loads every session                                             | Coding conventions, security constraints                        |
+| Workflow   | Ordered sequence of skills with a fixed entry point, loaded as a rule so it's always active | REST API pipeline workflow, Deploy workflow                     |
+| MCP server | Tools the agent can call from inside a session                                              | `dlt-workspace-mcp` exposes pipeline, schema, and secrets tools |
 
 Every [dltHub workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) starts with one toolkit, `init`, which ships an MCP server (`dlt-workspace-mcp`) and a router skill called `dlthub-router`. From there, [feature toolkits](toolkits.md) are added as you need them.
 

@@ -88,3 +88,9 @@ snippets-typecheck:
 
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
+
+md-check:  ## Check mardown file formatting errors in website/docs
+	uv run mdsmith check website/docs
+
+md-fix:  ## Fix mardown file formatting errors in website/docs
+	uv run mdsmith fix website/docs

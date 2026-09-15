@@ -3,7 +3,6 @@ title: Scrapy
 description: dlt verified source for Scraping using scrapy
 keywords: [scraping, scraping verified source, scrapy]
 ---
-
 # Scrapy
 
 This verified source utilizes Scrapy, an open-source and collaborative framework for web scraping.
@@ -35,12 +34,14 @@ To get started with your data pipeline, follow these steps:
 ### Add credentials
 
 1. The `config.toml`, looks like:
+
    ```toml
    # put your configuration values here
    [sources.scraping]
    start_urls = ["URL to be scraped"] # please set me up!
    start_urls_file = "/path/to/urls.txt" # please set me up!
    ```
+
    > When both `start_urls` and `start_urls_file` are provided, they will be merged and deduplicated
    > to ensure Scrapy gets a unique set of start URLs.
 
@@ -81,8 +82,6 @@ scrape data from "[https://quotes.toscrape.com/page/1/](https://quotes.toscrape.
    ```
 
 ## Customization
-
-
 
 ### Create your own pipeline
 

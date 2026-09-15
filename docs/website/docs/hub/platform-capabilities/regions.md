@@ -3,7 +3,6 @@ title: Regions and data residency
 description: How the dltHub platform splits the control plane from regional data planes, and what that means for where your code, configuration, and workload data are stored.
 keywords: [region, data residency, control plane, data plane, EU, US, dltHub platform]
 ---
-
 # Regions and data residency
 
 The dltHub platform is architected as a control plane paired with one or more regional data planes. Each organization is assigned to a data region (currently US or Europe), which determines where your code, configuration, secrets, and workload data are processed and stored.

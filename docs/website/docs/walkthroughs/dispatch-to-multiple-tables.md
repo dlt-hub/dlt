@@ -3,6 +3,7 @@ title: Dispatch stream of events to multiple tables in DuckDB
 description: Learn how to efficiently dispatch a stream of GitHub events, categorized by event type, to different tables in DuckDB
 keywords: [dispatch, stream, events, tables, event type]
 ---
+# Dispatch stream of events to multiple tables in DuckDB
 
 This is a practical example of how to process [GitHub events](https://docs.github.com/en/rest/activity/events?apiVersion=2022-11-28) from the [dlt](https://github.com/dlt-hub/dlt) repository, such as issues or pull request creation, comments addition, etc.
 We'll use the [GitHub API](https://docs.github.com/en/rest) to fetch the events and [duckdb](https://duckdb.org/) as a destination. Each event type will be sent to a separate table in DuckDB.
@@ -88,12 +89,10 @@ dlt pipeline -v github_events show
 :::tip
 Some of the events produce tables with many nested tables. You can [control the level of table nesting](../general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
 
-
 Another fun [Colab Demo](https://colab.research.google.com/drive/1BXvma_9R9MX8p_iSvHE4ebg90sUroty2#scrollTo=a3OcZolbaWGf) - we analyze reactions on the duckdb repo!
 
 :::
 
 Learn more:
+
 * [Change the nesting of the tables](../general-usage/source.md#reduce-the-nesting-level-of-generated-tables) with a decorator.
-
-

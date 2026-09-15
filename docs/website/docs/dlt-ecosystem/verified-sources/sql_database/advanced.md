@@ -3,15 +3,16 @@ title: Advanced usage
 description: advance configuration and usage of the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Advanced usage
 
 import Header from '../_source-info-header.md';
 
-# Advanced usage
-
 <Header/>
 
-### Split or partition long incremental loads
+## Split or partition long incremental loads
+
 If you have a large table with incremental loading set up, you can partition your initial load or split it in a loop. There are two methods to do that:
+
 * **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
 * **Split** where you load data sequentially in small chunks
 
@@ -21,13 +22,14 @@ If you have a large table with incremental loading set up, you can partition you
 2. Split it into N ranges. Here we assume that ranges are evenly populated. Obviously you can write more clever query that will give you partitions with more
 or less similar sizes.
 3. For each range find min and max cursor value and
-use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill.
 4. You can load each partition in a loop or in parallel (i.e. in separate process). Incremental resources with `end_value` set
 do not use the state.
 5. Continue regular incremental loading with `initial_value` set to the value at the end of the range
 and make the start range open to avoid duplicates.
 
 In example below we partition a table with chat messages by day using `updated_at` timestamp column as cursor.
+
 ```py
 import dlt
 from dlt.sources.sql_database import sql_table
@@ -73,11 +75,12 @@ incremental_table = sql_table(
 )
 pipeline.run(incremental_table)
 ```
+
 Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#partition-large-backfills)
 
 **Split loading works as follows:**
 
-1. Use `incremental` property with **row_order** set. 
+1. Use `incremental` property with **row_order** set.
 2. Limit the resource by number of pages or time
 4. Run pipeline in a loop as long as it is not empty
 
@@ -102,6 +105,7 @@ incremental_table = sql_table(
 while not pipeline.run(incremental_table.add_limit(2)).is_empty:
     pass
 ```
+
 Note: if you have a table that receives data all the time, `is_empty` may never be false (there's always new data).
 Use `pipeline.last_trace.last_normalize_info.row_counts` for more granular exit conditions
 
@@ -153,6 +157,7 @@ It's a good option if:
 ## Parallelized extraction
 
 You can extract each table in a separate thread (no multiprocessing at this point). This will decrease loading time if your queries take time to execute or your network latency/speed is low. To enable this, declare your sources/resources as follows:
+
 ```py
 from dlt.sources.sql_database import sql_database, sql_table
 
@@ -161,6 +166,7 @@ table = sql_table().parallelize()
 ```
 
 ## Column reflection
+
 Column reflection is the automatic detection and retrieval of column metadata like column names, constraints, data types, etc. Columns and their data types are reflected with SQLAlchemy. The SQL types are then mapped to `dlt` types.
 Depending on the selected backend, some of the types might require additional processing.
 
@@ -171,12 +177,13 @@ The `reflection_level` argument controls how much information is reflected:
 - `reflection_level = "full_with_precision"`: Column names, nullability, data types, and precision/scale are detected, also for types like text and binary. Integer sizes are set to bigint and to int for all other types.
 
 If the SQL type is unknown or not supported by `dlt`, then we'll try to infer it from the data.
+
 * `sqlalchemy` follows standard `dlt` inference rules from Python objects. This often means that some types are coerced to strings and `dataclass` based values from sqlalchemy are inferred as `json` (JSON in most destinations).
 * `pyarrow` backend will try to infer types from the data using rules built into arrow (we just pass an array of Python objects and ask for a type). Variant columns are not created by this backend so columns with inconsistent types cannot be loaded by this backend.
 
-
 :::tip
 If you use reflection level **full** / **full_with_precision**, you may encounter a situation where the data returned by sqlalchemy or pyarrow backend does not match the reflected data types. The most common symptoms are:
+
 1. The destination complains that it cannot cast one type to another for a certain column. For example, `connector-x` returns TIME in nanoseconds
 and BigQuery sees it as bigint and fails to load.
 2. You get `SchemaCorruptedException` or another coercion error during the `normalize` step.
@@ -189,6 +196,7 @@ most of the coercion problems.
 You can also override the SQL type by passing a `type_adapter_callback` function. This function takes a `SQLAlchemy` data type as input and returns a new type (or `None` to force the column to be inferred from the data) as output.
 
 This is useful, for example, when:
+
 - You're loading a data type that is not supported by the destination (e.g., you need JSON type columns to be coerced to string).
 - You're using a sqlalchemy dialect that uses custom types that don't inherit from standard sqlalchemy types.
 - For certain types, you prefer `dlt` to infer the data type from the data and you return `None`.
@@ -217,8 +225,10 @@ dlt.pipeline("demo").run(source)
 ```
 
 ### Remove nullability information
+
 `dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
 i.e.
+
 * if you plan to use replication source that will (soft) delete rows.
 * if you expect that columns will be dropped from the source table.
 
@@ -262,6 +272,7 @@ source = sql_database(
 
 You can use `query_adapter_callback` to filter rows using SQL conditions.
 This allows you to include only the data that matches specific criteria.
+
 ```py
 from dlt.sources.sql_database import sql_database
 
@@ -275,9 +286,10 @@ source = sql_database(
     query_adapter_callback=query_adapter_callback,
 )
 ```
+
 :::note
-You can combine both `query_adapter_callback` and `table_adapter_callback`  
-to filter rows and select specific columns within the same source.  
+You can combine both `query_adapter_callback` and `table_adapter_callback`
+to filter rows and select specific columns within the same source.
 This works for one or more tables.
 
 ```py notype
@@ -287,19 +299,25 @@ source = sql_database(
     table_adapter_callback=table_adapter_callback,
 )
 ```
+
 :::
+
 ## Configuring with TOML or environment variables
+
 You can set most of the arguments of `sql_database()` and `sql_table()` directly in the TOML files or as environment variables. `dlt` automatically injects these values into the pipeline script.
 
 This is particularly useful with `sql_table()` because you can maintain a separate configuration for each table (below we show **secrets.toml** and **config.toml**; you are free to combine them into one):
 
 The examples below show how you can set arguments in any of the TOML files (`secrets.toml` or `config.toml`):
 1. Specifying connection string:
+
     ```toml
     [sources.sql_database]
     credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
     ```
+
 2. Setting parameters like backend, `chunk_size`, and incremental column for the table `chat_message`:
+
     ```toml
     [sources.sql_database.chat_message]
     backend="pandas"
@@ -308,10 +326,12 @@ The examples below show how you can set arguments in any of the TOML files (`sec
     [sources.sql_database.chat_message.incremental]
     cursor_path="updated_at"
     ```
+
     This is especially useful with `sql_table()` in a situation where you may want to run this resource for multiple tables. Setting parameters like this would then give you a clean way of maintaining separate configurations for each table.
 
 3. Handling separate configurations for database and individual tables
     When using the `sql_database()` source, you can separately configure the parameters for the database and for the individual tables.
+
     ```toml
     [sources.sql_database]
     credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
@@ -334,6 +354,7 @@ The examples below show how you can set arguments in any of the TOML files (`sec
 You'll be able to configure all the arguments this way (except the adapter callback function). [Standard dlt rules apply](../../../general-usage/credentials/setup).
 
 It is also possible to set these arguments as environment variables [using configuration sections](../../../general-usage/credentials/setup#recommended-section-layout):
+
 ```sh
 SOURCES__SQL_DATABASE__CREDENTIALS="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"
 SOURCES__SQL_DATABASE__BACKEND=pandas
@@ -342,16 +363,20 @@ SOURCES__SQL_DATABASE__CHAT_MESSAGE__INCREMENTAL__CURSOR_PATH=updated_at
 ```
 
 ### Configure many sources side by side with custom sections
+
 `dlt` allows you to rename any source to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
 my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["chat_message"])
 print(my_db.name)
 ```
+
 Here we create a renamed version of the `sql_database` and then instantiate it. Such source will read
 credentials from:
+
 ```toml
 [sources.my_db]
 credentials="mssql+pyodbc://loader.database.windows.net/dlt_data?trusted_connection=yes&driver=ODBC+Driver+17+for+SQL+Server"

@@ -3,7 +3,6 @@ title: Manually edit a schema
 description: How to manually edit a schema
 keywords: [tutorial, schema]
 ---
-
 # Manually edit a schema
 
 When you [create](../tutorial/load-data-from-an-api.md) and then [run](run-a-pipeline.md) a pipeline, you may want
@@ -36,7 +35,7 @@ schemas
     |---export/
 ```
 
-Rather than providing the paths in the `dlt.pipeline` function, you can also set them at 
+Rather than providing the paths in the `dlt.pipeline` function, you can also set them at
 the beginning of the `config.toml` file:
 
 ```toml
@@ -46,14 +45,15 @@ import_schema_path="schemas/import"
 
 :::tip
 You can pick other import/export formats using config file:
+
 ```toml
 external_schema_format="dbml"
 ```
+
 will export **dbml** schema. Other supported formats are: **yaml** (default) and **json**.
 
 Note: import from **dbml** is not yet implemented.
 :::
-
 
 ## 2. Run the pipeline to see the schemas
 
@@ -85,11 +85,12 @@ You should keep the import schema as simple as possible and let `dlt` do the res
 In the next steps, we'll experiment a lot; you will be warned to set `dev_mode=True` until we are done experimenting.
 
 :::warning
-dlt does **not modify** existing columns in a table after creation. While new columns can be added, changes to existing 
+dlt does **not modify** existing columns in a table after creation. While new columns can be added, changes to existing
 columns (such as altering data types or adding hints) will not take effect automatically.
 
-If you modify a YAML schema file, you must either delete the dataset, enable `dev_mode=True`, or use one of the Pipeline 
+If you modify a YAML schema file, you must either delete the dataset, enable `dev_mode=True`, or use one of the Pipeline
 [Refresh options](../general-usage/pipeline#refresh-pipeline-data-and-state) to apply the changes.
+
 ```py
 dlt.pipeline(
     import_schema_path="schemas/import",
@@ -100,6 +101,7 @@ dlt.pipeline(
     dev_mode=True,
 )
 ```
+
 :::
 
 ### Change the data type
@@ -133,6 +135,7 @@ You can [adjust the schema](../general-usage/resource.md#set-table-name-and-adju
 :::
 
 ### Reorder columns
+
 To reorder the columns in your dataset, follow these steps:
 
 1. Initial Run: Execute the pipeline to obtain the import and export schemas.

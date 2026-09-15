@@ -3,7 +3,6 @@ title: Profiles
 description: Manage environment-specific configurations and secrets in dltHub Workspace
 keywords: [dltHub, profiles, workspace, configuration, secrets, environments]
 ---
-
 # Profiles
 
 Profiles in `dlt` define **environment-specific configurations and secrets**.
@@ -15,7 +14,6 @@ Profiles are defined and managed through [**TOML files**](../../general-usage/cr
 They are compatible with the `secrets.toml` and `config.toml` files you may already know from OSS dlt.
 
 The [dltHub platform](https://app.dlthub.com) automatically uses certain profiles to deploy and run pipelines and notebooks.
-
 
 ## Enable the workspace and profiles
 
@@ -47,12 +45,12 @@ Once your workspace is scaffolded, you'll have two familiar `toml` files in `.dl
 
 **dltHub Workspace** predefines several profiles. `dev` and `tests` are local-only and never uploaded; `prod`, `access`, and any custom profile referenced in a job decorator are synchronized to the cloud configuration on every `dlthub deploy`.
 
-| Profile      | Scope            | Description                                                                                                                          |
-| ------------ | ---------------- | ------------------------------------------------------------------------------------------------------------------------------------ |
-| **`dev`**    | Local only       | Default profile for local development.                                                                                               |
-| **`tests`**  | Local only       | Profile for automated test runs and CI/CD.                                                                                           |
-| **`prod`**   | Synced to cloud  | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).         |
-| **`access`** | Synced to cloud  | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
+| Profile      | Scope           | Description                                                                                                                             |
+| ------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
+| **`dev`**    | Local only      | Default profile for local development.                                                                                                  |
+| **`tests`**  | Local only      | Profile for automated test runs and CI/CD.                                                                                              |
+| **`prod`**   | Synced to cloud | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).        |
+| **`access`** | Synced to cloud | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
 
 :::note
 The `dev` profile is active by default when you create a workspace. The others become active when pinned locally or automatically selected by the dltHub platform (`prod` for batch jobs, `access` for interactive ones).
@@ -63,7 +61,6 @@ View available profiles:
 ```sh
 dlthub profile list
 ```
-
 
 ## Switching profiles
 
@@ -89,9 +86,11 @@ rm .dlt/profile-name
 :::tip
 You can pin a profile with any name, not just those from the predefined list. This allows you to create as many profiles as you need.
 You can also pin a profile that doesn't yet have profile-specific TOML files and add those files later.
+
 ```sh
 dlthub -v local info
 ```
+
 This command lists all expected file locations from which `dlt` reads profile settings.
 :::
 
@@ -106,6 +105,7 @@ The workspace automatically uses the active profile's configuration, secrets, an
 :::tip
 Profiles isolate not only configuration but also pipeline runs. Each profile has a separate working directory (`.dlt/state/<profile>/`) and
 local data directory (`.dlt/data/<profile>/`). This makes it easy to:
+
 1. Clean up your workspace and start over (`dlthub local clean`)
 2. Switch to the `tests` profile when running `pytest` (for example, using a fixture) so you can develop on the `dev` profile interactively while running tests in parallel in isolation
 :::
@@ -155,7 +155,6 @@ dlthub local pipeline run pokemon_api_pipeline
 
 Data will be stored in `.dlt/data/dev/warehouse.duckdb`.
 Pipeline state will be stored in `.dlt/state/dev/`.
-
 
 ### Step 2. Configure the production profile
 
@@ -220,23 +219,23 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 
 ## Inspecting and managing profiles
 
-* **List profiles**
+### List profiles
 
-  ```sh
-  dlthub profile list
-  ```
+```sh
+dlthub profile list
+```
 
-* **Show the current profile**
+### Show the current profile
 
-  ```sh
-  dlthub profile info
-  ```
+```sh
+dlthub profile info
+```
 
-* **Clean the workspace (useful in dev)**
+### Clean the workspace (useful in dev)
 
-  ```sh
-  dlthub local clean
-  ```
+```sh
+dlthub local clean
+```
 
 ## Best practices
 
@@ -246,7 +245,6 @@ Note that the dltHub platform will automatically use the `prod` profile you just
 * Use **named destinations** (like `warehouse`) to simplify switching.
 * Commit `config.toml`, but exclude all `.secrets.toml` files.
 * For process environment that should not live in the repo, set [workspace environment variables](environment-variables.md); profile-scoped values override the shared workspace set for that profile’s runs.
-
 
 ## Next steps
 

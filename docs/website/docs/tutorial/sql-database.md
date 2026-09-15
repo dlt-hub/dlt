@@ -3,6 +3,7 @@ title: Load data from a SQL database
 description: How to extract data from a SQL Database using dlt's SQL Database core source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Load data from a SQL database
 
 This tutorial will show you how you can use dlt to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any dlt-compatible destination (Postgres, BigQuery, Snowflake, DuckDB, etc.).
 
@@ -45,8 +46,8 @@ Here’s what each file does:
 - `sql_database_pipeline.py`: This is the main script where you'll define your data pipeline. It contains several different examples of how you can configure your SQL Database pipeline.
 - `requirements.txt`: This file lists all the Python dependencies required for your project.
 - `.dlt/`: This directory contains the [configuration files](../general-usage/credentials/) for your project:
-    - `secrets.toml`: This file stores your credentials, API keys, tokens, and other sensitive information.
-    - `config.toml`: This file contains the configuration settings for your `dlt` project.
+  - `secrets.toml`: This file stores your credentials, API keys, tokens, and other sensitive information.
+  - `config.toml`: This file contains the configuration settings for your `dlt` project.
 
 :::note
 When deploying your pipeline in a production environment, managing all configurations with the TOML files might not be convenient. In this case, we highly recommend using environment variables or other [configuration providers](../general-usage/credentials/setup) available in dlt to store secrets and configs instead.
@@ -59,7 +60,6 @@ With the necessary files in place, we can now start writing our pipeline script.
 :::note
 Running the script as it is will execute the function `load_standalone_table_resource()`, so remember to comment out the function call from inside the main block.
 :::
-
 
 The following function will load the tables `family` and `genome`.
 
@@ -91,9 +91,10 @@ if __name__ == '__main__':
 ```
 
 Explanation:
+
 - The `sql_database` source has two built-in helper functions: `sql_database()` and `sql_table()`:
-    - `sql_database()` is a [dlt source function](../general-usage/source) that iteratively loads the tables (in this example, `"family"` and `"genome"`) passed inside the `with_resources()` method.
-    - `sql_table()` is a [dlt resource function](../general-usage/resource) that loads standalone tables. For example, if we wanted to only load the table `"family"`, then we could have done it using `sql_table(table="family")`.
+  - `sql_database()` is a [dlt source function](../general-usage/source) that iteratively loads the tables (in this example, `"family"` and `"genome"`) passed inside the `with_resources()` method.
+  - `sql_table()` is a [dlt resource function](../general-usage/resource) that loads standalone tables. For example, if we wanted to only load the table `"family"`, then we could have done it using `sql_table(table="family")`.
 - `dlt.pipeline()` creates a `dlt` pipeline with the name `"sql_to_duckdb_pipeline"` with the destination DuckDB.
 - `pipeline.run()` method loads the data into the destination.
 
@@ -102,6 +103,7 @@ Explanation:
 To successfully connect to your SQL database, you will need to pass credentials into your pipeline. dlt automatically looks for this information inside the generated TOML files.
 
 Simply paste the [connection details](https://docs.rfam.org/en/latest/database.html) inside `secrets.toml` as follows:
+
 ```toml
 [sources.sql_database.credentials]
 drivername = "mysql+pymysql" # database+dialect
@@ -113,21 +115,25 @@ port = 4497
 ```
 
 Alternatively, you can also paste the credentials as a connection string:
+
 ```toml
 sources.sql_database.credentials="mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
 
 For more details on the credentials format and other connection methods, read the section on [configuring connection to the SQL Database](../dlt-ecosystem/verified-sources/sql_database/configuration#configuring-the-connection).
 
-
 ## 4. Install dependencies
 
 Before running the pipeline, make sure to install all the necessary dependencies:
+
 1. **General dependencies**: These are the general dependencies needed by the `sql_database` source.
+
     ```sh
     pip install -r requirements.txt
     ```
+
 2. **Database-specific dependencies**: In addition to the general dependencies, you will also need to install `pymysql` to connect to the MySQL database in this tutorial:
+
     ```sh
     pip install pymysql
     ```
@@ -141,6 +147,7 @@ After performing steps 1-4, you should now be able to successfully run the pipel
 ```sh
 python sql_database_pipeline.py
 ```
+
 This will create the file `sql_to_duckdb_pipeline.duckdb` in your dlt project directory, which contains the loaded data.
 
 ## 6. Explore the data
@@ -268,11 +275,13 @@ In the first run of the pipeline `python sql_database_pipeline.py`, the entire t
 Congratulations on completing the tutorial! You learned how to set up a SQL Database source in dlt and run a data pipeline to load the data into DuckDB.
 
 With your pipeline code ready, we recommend the following next steps:
+
 - Inspect your pipeline and data in [workspace dashboard](../hub/ingestion/dashboard.md)
 - [Access your data](../general-usage/dataset-access/dataset.md) using `dataset` interface
 - [Explore your data and create reports](../general-usage/dataset-access/marimo) in Marimo notebooks.
 
 Interested in learning more about dlt? Here are some suggestions:
+
 - Learn more about the SQL Database source configuration in [the SQL Database source reference](../dlt-ecosystem/verified-sources/sql_database)
 - Learn how to extract [single tables and use fast `arrow` and `connectorx` backends](../dlt-ecosystem/verified-sources/sql_database/configuration.md)
 - Learn how to [rewrite table schemas and queries](../dlt-ecosystem/verified-sources/sql_database/usage.md)

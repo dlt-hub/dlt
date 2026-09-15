@@ -3,8 +3,7 @@ title: Schema evolution
 description: A small guide to elaborate on how schema evolution works
 keywords: [schema evolution, schema, dlt schema]
 ---
-
-## Schema evolution with `dlt`
+# Schema evolution with `dlt`
 
 `dlt` automatically infers the initial schema for your first pipeline run. However, in most cases, the schema tends to change over time, which makes it critical for downstream consumers to adapt to schema changes.
 
@@ -55,6 +54,7 @@ Let’s add the following 4 cases:
 - A column is renamed: a field “building” was renamed to “main_block”.
 
 Please update the pipeline for the cases discussed above.
+
 ```py
 data = [{
     "organization": "Tech Innovations Inc.",
@@ -84,13 +84,13 @@ Let’s load the data and look at the tables:
 What happened?
 
 - Added column:
-    - A new column named `ceo` is added to the “org” table.
+  - A new column named `ceo` is added to the “org” table.
 - Variant column:
-    - A new column named `inventory_nr__v_text` is added as the datatype of the column was changed from “integer” to “string”.
+  - A new column named `inventory_nr__v_text` is added as the datatype of the column was changed from “integer” to “string”.
 - Removed column stopped loading:
-    - New data to column `room` is not loaded.
+  - New data to column `room` is not loaded.
 - Column stopped loading and new one was added:
-    - A new column `address__main_block` was added and now data will be loaded to that and stop loading in the column `address__building`.
+  - A new column `address__main_block` was added and now data will be loaded to that and stop loading in the column `address__building`.
 
 ## Alert schema changes to curate new data
 
@@ -103,6 +103,7 @@ The column lineage can be tracked by loading the 'load_info' to the destination.
 **Getting notifications**
 
 We can read the load outcome and send it to a Slack webhook with dlt.
+
 ```py
 # Import the send_slack_message function from the dlt library
 from dlt.common.runtime.slack import send_slack_message
@@ -127,6 +128,7 @@ for package in load_info.load_packages:
                 )
             )
 ```
+
 This script sends Slack notifications for schema updates using the `send_slack_message` function from the `dlt` library. It provides details on the updated table and column.
 
 ## How to control evolution
@@ -157,6 +159,7 @@ pipeline = dlt.pipeline("organizations_pipeline", destination="duckdb")
 # Adding not null constraint
 pipeline.run(data, table_name="org", columns={"room": {"data_type": "bigint", "nullable": False}})
 ```
+
 During pipeline execution, a data validation error indicates that a removed column is being passed as null.
 
 ## Some schema changes in the data
@@ -188,6 +191,7 @@ data = [{
 # Run `dlt` pipeline
 dlt.pipeline("organizations_pipeline", destination="duckdb").run(data, table_name="org")
 ```
+
 The schema of the data above is loaded to the destination as follows:
 <iframe width="560" height="315" src='https://dbdiagram.io/e/65e80b31cd45b569fba33169/65e81055cd45b569fba3aa20'> </iframe>
 

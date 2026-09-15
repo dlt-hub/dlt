@@ -3,9 +3,9 @@ title: Slack
 description: dlt verified source for Slack API
 keywords: [slack api, slack verified source, slack]
 ---
-import Header from './_source-info-header.md';
-
 # Slack
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -17,8 +17,8 @@ load data using the “Slack API” to the destination of your choice.
 
 Sources and resources that can be loaded using this verified source are:
 
-| Name                  | Description                                                                        |
-|-----------------------|------------------------------------------------------------------------------------|
+| Name                  | Description                                                                         |
+| --------------------- | ----------------------------------------------------------------------------------- |
 | slack                 | Retrieves all the Slack data: channels, messages for selected channels, users, logs |
 | channels              | Retrieves all the channels data                                                     |
 | users                 | Retrieves all the users info                                                        |
@@ -41,7 +41,7 @@ To set up the pipeline, create a Slack app in your workspace to obtain a user to
 1. Assign the following scopes:
 
    | Name             | Description                                                                       |
-   |------------------|-----------------------------------------------------------------------------------|
+   | ---------------- | --------------------------------------------------------------------------------- |
    | admin            | Administer a workspace                                                            |
    | channels:history | View messages and other content in public channels                                |
    | groups:history   | View messages and other content in private channels (where the app is added)      |
@@ -52,6 +52,7 @@ To set up the pipeline, create a Slack app in your workspace to obtain a user to
    | im:read          | View basic information about direct messages (where the app is added)             |
    | mpim:read        | View basic information about group direct messages (where the app is added)       |
    | users:read       | View people in a workspace                                                        |
+
    > Note: These scopes are adjustable; tailor them to your needs.
 
 1. From "OAuth & Permissions" on the left, add the scopes and copy the User OAuth Token.
@@ -250,6 +251,7 @@ def logs_resource() -> Iterable[TDataItem]:
 > Note: This resource may not function in the pipeline or tests due to its paid status. An error arises for non-paying accounts.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
@@ -263,6 +265,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
         dataset_name="slack_data"  # Use a custom name if desired
    )
    ```
+
 1. To load Slack resources from the specified start date:
 
    ```py notype
@@ -275,6 +278,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(source)
    print(load_info)
    ```
+
    > Subsequent runs will load only items updated since the previous run.
 
 1. To load data from selected Slack channels from the specified start date:

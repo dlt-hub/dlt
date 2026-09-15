@@ -3,7 +3,6 @@ title: Hugging Face
 description: Load data into Hugging Face Datasets repositories using dlt
 keywords: [hugging face, hf, datasets, parquet, filesystem, hub]
 ---
-
 # Hugging Face
 
 The Hugging Face destination loads data into [Hugging Face Datasets](https://huggingface.co/docs/datasets/index) repositories. It is built on top of the [filesystem](filesystem) destination and uses the `hf://` protocol to write [Parquet](../file-formats.md#parquet) files to the Hugging Face Hub.
@@ -94,13 +93,13 @@ The Hugging Face destination supports two write dispositions:
 The Hugging Face destination **always uses [Parquet](../file-formats.md#parquet)** as the file format, regardless of other configuration. This is required because the [Hugging Face dataset viewer](https://huggingface.co/docs/dataset-viewer/index) needs Parquet files to preview datasets on the Hub.
 
 The Parquet files are written with:
+
 - **Page index** ([Apache Parquet page index](https://github.com/apache/parquet-format/blob/master/PageIndex.md)) for efficient column statistics and skipping
 - **[Content-defined chunking](https://huggingface.co/blog/parquet-cdc)** for efficient versioned storage on the Hub
 
 ## Table formats
 
 The Hugging Face destination does **not** support [Delta](./delta-iceberg) or [Iceberg](./iceberg) table formats.
-
 
 ## Files layout
 
@@ -125,9 +124,11 @@ layout = "{table_name}/{load_id}.{file_id}.{ext}"
 Each dlt dataset creates or updates a Hugging Face dataset repository (not a directory). The repository name is `<namespace>/<dataset_name>`, where `<namespace>` comes from the `bucket_url` and `<dataset_name>` is the pipeline's `dataset_name`.
 
 ### Dataset repository visibility
+
 The Hugging Face dataset repositories created by `dlt` are **public**, unless your Hugging Face organization's default is private.
 
 ### Dataset card
+
 `dlt` creates a [dataset card](https://huggingface.co/docs/datasets/dataset_card) (i.e. the repo's `README.md`) without any content (but with metadata). You can manually update the dataset card to e.g. add a dataset description.
 
 :::note
@@ -135,9 +136,11 @@ Do not manually change the [configurations](https://huggingface.co/docs/datasets
 :::
 
 ### Subsets and split
+
 `dlt` creates a [subset](https://huggingface.co/docs/dataset-viewer/en/configs_and_splits#subsets) for each table in the dataset, so the dataset viewer displays each table properly. All data is loaded into the `train` [split](https://huggingface.co/docs/dataset-viewer/en/configs_and_splits#splits).
 
 ### Disabling dataset card management
+
 To disable automatic dataset card creation and metadata updates (e.g. to reduce API calls and avoid [rate limits](https://huggingface.co/docs/hub/rate-limits#rate-limit-tiers)), set `hf_dataset_card` to `false`:
 
 ```toml

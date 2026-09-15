@@ -3,9 +3,9 @@ title: Chess.com
 description: dlt verified source for Chess.com API
 keywords: [chess.com api, chess.com verified source, verified source, chess.com, chess]
 ---
-import Header from './_source-info-header.md';
-
 # Chess.com
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -14,10 +14,10 @@ enthusiasts. It includes online chess games, tournaments, lessons, and more.
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                            |
-| ---------------- | ---------------------------------------------------------------------- |
-| players_profiles | retrieves player profiles for a list of player usernames                |
-| players_archives | retrieves URL to game archives for specified players                    |
+| Name             | Description                                                              |
+| ---------------- | ------------------------------------------------------------------------ |
+| players_profiles | retrieves player profiles for a list of player usernames                 |
+| players_archives | retrieves URL to game archives for specified players                     |
 | players_games    | retrieves players' games that happened between start_month and end_month |
 
 ## Setup guide
@@ -179,8 +179,6 @@ The `players_online_status` is a `dlt.resource` function that checks the current
 retrieves their username, status, last login date, and check time.
 
 ## Customization
-
-
 
 ### Create your own pipeline
 

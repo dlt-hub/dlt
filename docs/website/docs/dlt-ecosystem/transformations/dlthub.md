@@ -3,7 +3,6 @@ title: Transformations with dltHub
 description: Python-defined transformations that run eagerly on your compute or lazily on the warehouse with dlt.hub.transformation
 keywords: [transformations, dlthub, ibis, sql, incremental, lazy, eager]
 ---
-
 # Transformations with dltHub
 
 [dltHub](../../hub/transformations/index.md) extends `dlt` with `@dlt.hub.transformation` — transformations defined in Python that run **eagerly** on your compute (e.g. local DuckDB, Pandas, Polars, or Arrow) or **lazily** on the warehouse — the same code, executed where it makes the most sense. A transformation is a resource that takes a `dlt.Dataset` and yields an Ibis expression, a `Relation`, or a plain SQL query; `dlt` compiles it to the destination SQL dialect and materializes the result into a table. When source and target share the same physical location, no data is transferred to the machine running the pipeline.

@@ -3,8 +3,7 @@ title: Control nested MongoDB data
 description: Learn how control nested data
 keywords: [incremental loading, example]
 ---
-
-## About this Example
+# Control nested MongoDB data
 
 In this example, you'll find a Python script that demonstrates how to control nested data using the `dlt` library.
 
@@ -17,7 +16,7 @@ We'll learn how to:
 - Work with [MongoDB](../dlt-ecosystem/verified-sources/mongodb) in Python and `dlt`.
 - Enable [incremental loading](../general-usage/incremental-loading) for efficient data extraction.
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example

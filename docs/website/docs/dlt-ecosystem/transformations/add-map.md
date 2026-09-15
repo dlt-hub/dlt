@@ -3,12 +3,14 @@ title: Transform data with `add_map`
 description: Apply lightweight python transformations to your data inline using `add_map`.
 keywords: [add_map, transform data, remove columns]
 ---
+# Transform data with `add_map`
 
 `add_map` is a method in dlt used to apply custom logic to each data item after extraction. It is typically used to modify records **before** they continue through the pipeline or are loaded to the destination. Common examples include transforming, enriching, validating, cleaning, restructuring, or anonymizing data early in the pipeline.
 
-
 ## Method signature
+
 ### `add_map` method
+
 ```py
 from dlt.extract import DltResource
 from dlt.extract.items_transform import ItemTransformFunc
@@ -61,11 +63,10 @@ If your needs are straightforward and focused on single-record modifications or 
 - **Removing or renaming fields:**
     If certain fields from the source are not needed or should have different names, you can modify the record dictionaries in-place. Please find the docs here:
 
-    - [Removing columns.](../../general-usage/customising-pipelines/removing_columns)
-    - [Renaming columns.](../../general-usage/customising-pipelines/renaming_columns)
+  - [Removing columns.](../../general-usage/customising-pipelines/removing_columns)
+  - [Renaming columns.](../../general-usage/customising-pipelines/renaming_columns)
 - **Incremental loading:**
     When using incremental loading, you may need to adjust records before the incremental logic runs. This includes filling in missing timestamp or ID fields used as cursors, or dropping records that don’t meet criteria. The `add_map` function with the `insert_at` parameter lets you run these transformations at the right stage in the pipeline.
-
 
 ## Controlling transformation order with `insert_at`
 
@@ -104,7 +105,7 @@ for user in transformed_users:
     print(user)
 ```
 
-**Expected output**
+Expected output
 
 ```py
 {'id': 1, 'first_name': 'John', 'last_name': 'Doe', 'email': '<hashed_value>', 'full_name': 'John Doe'}
@@ -125,19 +126,16 @@ If the incremental cursor field (e.g., `updated_at`) is missing, you can provide
 
 [In this example](../../general-usage/incremental/cursor#transform-records-before-incremental-processing), the third record is made incremental-ready by assigning it a fallback `updated_at` value. This ensures it isn't skipped by the incremental loader.
 
-
 ## `add_map` vs `add_yield_map`
 
 The difference between `add_map` and `add_yield_map` matters when a transformation returns multiple records from a single input.
 
-
 ### **`add_map`**
+
 - Use `add_map` when you want to transform each item into exactly one item.
 - Think of it like modifying or enriching a row.
 - You use a regular function that returns one modified item.
 - Great for adding fields or changing structure.
-
-#### Example
 
 ```py
 import dlt
@@ -156,7 +154,7 @@ for row in resource():
     print(row)
 ```
 
-#### Output
+Output
 
 ```sh
 {'name': 'Alice', 'greeting': 'Hello, Alice!'}
@@ -164,11 +162,12 @@ for row in resource():
 ```
 
 ### **`add_yield_map`**
+
 - Use `add_yield_map` when you want to turn one item into multiple items, or possibly no items.
 - Your function is a generator that uses yield.
 - Great for pivoting nested data, flattening lists, or filtering rows.
 
-#### Example
+Example
 
 ```py
 import dlt
@@ -189,7 +188,8 @@ resource.add_yield_map(expand_hobbies)
 for row in resource():
     print(row)
 ```
-#### Output
+
+Output
 
 ```sh
 {'name': 'Alice', 'hobby': 'reading'}

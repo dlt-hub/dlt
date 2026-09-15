@@ -3,9 +3,9 @@ title: Jira
 description: dlt verified source for Atlassian Jira
 keywords: [jira api, jira verified source, jira]
 ---
-import Header from './_source-info-header.md';
-
 # Jira
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -46,7 +46,6 @@ To get a complete list of sub-endpoints that can be loaded, see
 
 > Note: The Jira UI, which is described here, might change.
 The full guide is available at [this link.](https://support.atlassian.com/atlassian-account/docs/manage-api-tokens-for-your-atlassian-account/)
-
 
 ### Initialize the verified source
 
@@ -96,17 +95,23 @@ For more information, read [General Usage: Credentials.](../../general-usage/cre
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python jira_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `jira_pipeline`. You may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).

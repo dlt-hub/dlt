@@ -3,6 +3,7 @@ title: "Data quality"
 description: Validate your data and control its quality
 keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
+# Overview
 
 :::warning
 This feature is in public preview
@@ -10,23 +11,23 @@ This feature is in public preview
 
 dltHub data quality features include metrics for monitoring dataset properties over time, and checks to validate them against expectations. Together, they offer visibility and help catch data issues early. Metrics and checks are defined via Python code. The extensive configuration allows you to specify what to monitor and validate, when, how, and where to store results.
 
-This page covers the basics of metrics and checks. You should notice a lot of symmetry (for example, `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both. 
+This page covers the basics of metrics and checks. You should notice a lot of symmetry (for example, `with_metrics()` and `with_checks()`). The later parts of this page cover notions applicable to both.
 
 ## Metrics
 
 A **data quality metric** or **metric** a function applied to data that returns a scalar value describing a property of the data. A metric can take as input a column, a table, or the full dataset (i.e., all tables and historical metrics).
 
 ### Define metrics
-#### Static
+
+#### Static metrics
 
 You can define metrics along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_metrics`. It's available under the `dlt.hub.data_quality` module, commonly imported as `dq`. Inside the decorator, you can set the individual metrics available through `dq.metrics.column.`, `dq.metrics.table.`, or `dq.metrics.dataset.`.
 
-The next snippet defines 3 metrics on the `customers` resource: the mean of the `amount` column, the number of null values in the `email` column, and the total number of rows in the table. 
+The next snippet defines 3 metrics on the `customers` resource: the mean of the `amount` column, the number of null values in the `email` column, and the total number of rows in the table.
 
 :::note
 Only column-level and table-level metrics can be defined on a `@dlt.resource`. To set dataset-level metrics, use `@with_metrics` on the `@dlt.source`.
 :::
-
 
 ```python
 import dlt
@@ -66,7 +67,7 @@ def crm():
     return [customers]
 ```
 
-#### Dynamic
+#### Dynamic metrics
 
 Similar to the static approach, you can add metrics to an instantiated resource or source object using `with_metrics`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
 
@@ -150,7 +151,6 @@ dq.run_metrics(pipeline.dataset())
 Each call to `run_metrics` writes a fresh snapshot to the `_dlt_dq_metrics` table — one row per registered metric, with columns `_dlt_load_id`, `loaded_at`, `table_name` (null for dataset-level metrics), `column_name` (null for table- and dataset-level metrics), `metric_name`, and the computed `metric_value`. Successive calls append; nothing is overwritten.
 :::
 
-
 ### Read metrics
 
 The convenience function `dq.read_metric()` allows you to retrieve stored metrics with some metadata. This makes it easy to build reporting, dashboard, or analytics over this data.
@@ -189,6 +189,7 @@ latest_row_count = latest["metric_value"].iloc[0]
 ```
 
 ## Checks
+
 A **data quality check** or **check** is a function applied to data that returns a **check result** or **result** (can be boolean, integer, float, etc.). The result is converted to a success / fail **check outcome** or **outcome** (boolean) based on a **decision**.
 
 :::info
@@ -196,7 +197,8 @@ A **test** verifies that **code** behaves as expected. A **check** verifies that
 :::
 
 ### Define checks
-#### Static
+
+#### Static checks
 
 You can define checks along your `@dlt.resource` (and `@dlt.transformer`, `@dlt.hub.transformation`) via the new decorator `@with_checks` available under the `dlt.hub.data_quality` module. Inside the decorator, you can set the individual checks available through `dq.checks.`.
 
@@ -214,7 +216,7 @@ def orders():
     yield from [...]
 ```
 
-#### Dynamic
+#### Dynamic checks
 
 Similar to the static approach, you can add checks to an instantiated resource or source object using `with_checks`. This is particularly useful when using built-in sources and resources like `filesystem`, `rest_api` or `sql_database`.
 
@@ -298,10 +300,10 @@ suite.get_successes("orders", "payment_method__is_in").df()
 
 `CheckSuite` does not write to `_dlt_checks`, so dashboards and `read_check` won't see its results. Pick the pattern that matches your goal:
 
-| Pattern | Persists to `_dlt_checks` | Best for |
-|---|---|---|
-| `dq.run_checks(pipeline, checks={...})` | Yes | Scheduled jobs, monitoring history, dashboards |
-| `dq.CheckSuite(dataset, checks={...}).get_failures(...)` | No | Interactive notebooks, debugging row-level failures |
+| Pattern                                                  | Persists to `_dlt_checks` | Best for                                            |
+| -------------------------------------------------------- | ------------------------- | --------------------------------------------------- |
+| `dq.run_checks(pipeline, checks={...})`                  | Yes                       | Scheduled jobs, monitoring history, dashboards      |
+| `dq.CheckSuite(dataset, checks={...}).get_failures(...)` | No                        | Interactive notebooks, debugging row-level failures |
 
 Both APIs accept the same check objects, so you can register checks once and use either path.
 
@@ -335,7 +337,9 @@ payment_checks = all_checks[
 ```
 
 ## Lifecycle
+
 Data quality (both metrics and checks) can be executed at different stages of the pipeline lifecycle. This impacts several aspects including:
+
 - available **input data**
 - compute resources used
 - **actions** available after a failed check (for example, prevent invalid data load)
@@ -343,9 +347,11 @@ Data quality (both metrics and checks) can be executed at different stages of th
 <!--How does this affect transactions? How do we handle errors in the data quality part-->
 
 ### Post-load
+
 The post-load execution is the simplest option. The pipeline goes through `Extract -> Normalize -> Load` as usual. Then, the checks are executed on the destination.
 
 Properties:
+
 - Failed records can't be dropped or quarantined before load. All records must be written, checked, and then handled. This only works with `write_disposition="append"` or destinations supporting snapshots (for example `iceberg`, `ducklake`).
 - Checks have access to the full dataset. This includes current and past loads + internal dlt tables.
 - Computed directly on the destination. This scales well with the size of the data and the complexity of the checks.
@@ -364,10 +370,10 @@ sequenceDiagram
 ```
 
 ### Pre-load (staging)
+
 :::warning
 Work in progress. Currently unavailable.
 :::
-
 
 The pre-load execution via staging dataset allows you to execute checks on the destination and trigger actions before data is loaded into the dataset. This is effectively using **post-load** checks before a second load phase.
 
@@ -376,14 +382,14 @@ The pre-load execution via staging dataset allows you to execute checks on the d
 :::
 
 Properties:
+
 - Failed records can be dropped or quarantined before load. This works with all `write_disposition`
 - Requires a destination that supports staging datasets.
-- Checks have access to the current load. 
-    - If the staging dataset is on the same destination, checks can access the full dataset. 
-    - If the staging dataset is on a different destination, communication between the staging dataset and the dataset.
+- Checks have access to the current load.
+  - If the staging dataset is on the same destination, checks can access the full dataset.
+  - If the staging dataset is on a different destination, communication between the staging dataset and the dataset.
 - Computed on the staging destination. This scales well with the size of the data and the complexity of the checks.
 - Data and checks results & outcome can be safely stored on the staging dataset until review. This helps human-in-the-loop workflows without reprocessing the full pipeline.
-
 
 ```mermaid
 sequenceDiagram
@@ -399,8 +405,8 @@ sequenceDiagram
     Staging->>Dataset: Load
 ```
 
-
 ### Pre-load (in-memory)
+
 :::warning
 Work in progress. Currently unavailable.
 :::
@@ -412,6 +418,7 @@ This is equivalent to using a staging destination that's the local filesystem. T
 :::
 
 Properties:
+
 - Failed records can be dropped or quarantined before load. This works with all `write_disposition
 - Checks only have access to the current load. Checking against the full dataset requires communication between the staging destination and the main destination.
 - Computed on the machine running the pipeline. The resource need to match the compute requirements.
@@ -430,6 +437,7 @@ sequenceDiagram
 ```
 
 ## Roadmap
+
 - Define checks that depend on metrics (this should reduce verbosity)
 - Support user-defined group-by metrics
 - Support completely custom checks via `@dlt.hub.transformation` (for example, SQL, SQLGlot, Ibis, Narwhals, Polars)

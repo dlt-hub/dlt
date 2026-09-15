@@ -3,9 +3,9 @@ title: Inbox
 description: dlt verified source for Mail Inbox
 keywords: [inbox, inbox verified source, inbox mail, email]
 ---
-import Header from './_source-info-header.md';
-
 # Inbox
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -18,7 +18,7 @@ load data using the “Inbox” verified source to the destination of your choic
 Sources and resources that can be loaded using this verified source are:
 
 | Name              | Type                 | Description                                        |
-|-------------------|----------------------|----------------------------------------------------|
+| ----------------- | -------------------- | -------------------------------------------------- |
 | inbox_source      | source               | Gathers inbox emails and saves attachments locally |
 | get_messages_uids | resource             | Retrieves messages UUIDs from the mailbox          |
 | get_messages      | resource-transformer | Retrieves emails from the mailbox using given UIDs |
@@ -29,9 +29,10 @@ Sources and resources that can be loaded using this verified source are:
 ### Grab credentials
 
 1. For verified source configuration, you need:
-   - "host": IMAP server hostname (e.g., Gmail: imap.gmail.com, Outlook: imap-mail.outlook.com).
-   - "email_account": Associated email account name (e.g., dlthub@dlthub.com).
-   - "password": APP password (for third-party clients) from the email provider.
+
+  - "host": IMAP server hostname (e.g., Gmail: imap.gmail.com, Outlook: imap-mail.outlook.com).
+  - "email_account": Associated email account name (e.g., dlthub@dlthub.com).
+  - "password": APP password (for third-party clients) from the email provider.
 
 2. Host addresses and APP password procedures vary by provider and can be found via a quick Google search. For Google Mail's app password, read [here](https://support.google.com/mail/answer/185833?hl=en#:~:text=An%20app%20password%20is%20a,2%2DStep%20Verification%20turned%20on).
 
@@ -46,7 +47,7 @@ Sources and resources that can be loaded using this verified source are:
 
 1. An app password is a 16-digit code allowing less secure apps/devices to access your Google Account, available only with 2-Step Verification activated.
 
-#### Steps to create and use app passwords:
+#### Steps to create and use app passwords
 
 1. Visit your Google Account > Security.
 2. Under "How you sign in to Google", enable 2-Step Verification.
@@ -116,6 +117,7 @@ you may need to reduce the workers accordingly.
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
@@ -123,17 +125,21 @@ you may need to reduce the workers accordingly.
    Prerequisites for fetching messages differ by provider.
 
    For Gmail:
-    - `pip install google-api-python-client>=2.86.0`
-    - `pip install google-auth-oauthlib>=1.0.0`
-    - `pip install google-auth-httplib2>=0.1.0`
+
+  - `pip install google-api-python-client>=2.86.0`
+  - `pip install google-auth-oauthlib>=1.0.0`
+  - `pip install google-auth-httplib2>=0.1.0`
 
    For pdf parsing:
-    - PyPDF2: `pip install PyPDF2`
+
+  - PyPDF2: `pip install PyPDF2`
 
 2. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `standard_inbox`, you may also use any custom name instead.
 
 For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs/run-a-pipeline)
@@ -234,6 +240,7 @@ def get_attachments(
 ) -> Iterable[list[FileItem]]:
    ...
 ```
+
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
 
 We use the document hash as a primary key to avoid duplicating them in tables.
@@ -254,13 +261,15 @@ verified source.
        dataset_name="standard_inbox_data"  # Use a custom name if desired
    )
    ```
+
    To read more about pipeline configuration, please refer to our
    [documentation](../../general-usage/pipeline).
 
 2. To load messages from "mycreditcard@bank.com" starting "2023-10-1":
 
-    - Set `START_DATE = pendulum.DateTime(2023, 10, 1)` in `./inbox/settings.py`.
-    - Use the following code:
+  - Set `START_DATE = pendulum.DateTime(2023, 10, 1)` in `./inbox/settings.py`.
+  - Use the following code:
+
       ```py notype
       # Retrieve messages from the specified email address.
       messages = inbox_source(filter_emails=("mycreditcard@bank.com",)).messages
@@ -271,7 +280,9 @@ verified source.
       # Print the loading details.
       print(load_info)
       ```
+
       > Please refer to the inbox_source() docstring for email filtering options by sender, date, or mime type.
+
 3. To load messages from multiple emails, including "community@dlthub.com":
 
    ```py notype

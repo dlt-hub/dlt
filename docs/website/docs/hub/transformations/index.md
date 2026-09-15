@@ -24,7 +24,6 @@ A few real-world scenarios where dlt transformations can be useful:
 - **Run transformations during ingestion pre-warehouse** – Pre-aggregate or pre-filter data before it hits the warehouse to cut compute and storage costs.
 - **…and more** – Any scenario where reshaping, enriching, or aggregating existing data unlocks faster insight or cleaner downstream pipelines.
 
-
 ## Quick start
 
 Copy the example below into one script. Then run the script.
@@ -90,7 +89,6 @@ print(fruitshop_pipeline.dataset().row_counts().df())  # ty: ignore[unresolved-r
 """
 ```
 
-
 ### 3.1 Alternatively use pure SQL for the transformation
 
 ```py execute
@@ -136,7 +134,6 @@ def orders_per_user(dataset: dlt.Dataset) -> Any:
 
 ## Loading to other datasets
 
-
 ### Loading to another dataset at the same data location
 
 Below we load to the same DuckDB instance with a new pipeline that points to another `dataset`. dlt detects that both datasets live on the same destination,
@@ -171,9 +168,7 @@ duck_p = dlt.pipeline("fruitshop_warehouse", destination="postgres")
 duck_p.run(copied_customers(fruitshop_pipeline.dataset()))
 ```
 
-
 ## Using transformations
-
 
 ### Grouping multiple transformations in a source
 
@@ -531,7 +526,6 @@ def enriched_purchases(dataset: dlt.Dataset) -> Any:
 
 ```
 
-
 ## Incremental transformations
 
 When source data keeps growing, rerunning the same full transformation every time is slow and expensive.
@@ -553,12 +547,12 @@ Here is an example. The transformation below reads the `orders` table and writes
 
 Given an `orders` table with one row per day:
 
-| id | created_at |
-| --- | --- |
-| 1  | 2026-01-01 |
-| 2  | 2026-01-02 |
-| …  | … |
-| 10 | 2026-01-10 |
+| id  | created_at |
+| --- | ---------- |
+| 1   | 2026-01-01 |
+| 2   | 2026-01-02 |
+| …   | …          |
+| 10  | 2026-01-10 |
 
 and a scheduler window of `[2026-01-05, 2026-01-10)`, the run writes ids 5 to 9 to `orders_window` (id 10 is excluded by the open range end).
 
@@ -613,10 +607,10 @@ def recent_orders(dataset: dlt.Dataset) -> Any:
 
 Now suppose `orders` is loaded in two batches:
 
-| batch   | ids    | `created_at`              |
-| ---     | ---    | ---                       |
-| initial | 1..3   | 2026-01-01 .. 2026-01-03  |
-| later   | 4..5   | 2026-01-04 .. 2026-01-05  |
+| batch   | ids  | `created_at`             |
+| ------- | ---- | ------------------------ |
+| initial | 1..3 | 2026-01-01 .. 2026-01-03 |
+| later   | 4..5 | 2026-01-04 .. 2026-01-05 |
 
 The first run has no `last_value` yet, so it starts from `initial_value` (`2000-01-01`), writes the three initial rows to `recent_orders`, and advances `last_value` to `2026-01-03`. The next run sees the two later rows fall past `last_value`, appends them, and advances `last_value` to `2026-01-05`.
 
@@ -663,7 +657,6 @@ Internally, dlt modifies the source query to include the cursor filter when it r
 - Null handling follows `on_cursor_value_missing`. For SQL pushdown, `"include"` adds `OR cursor IS NULL`; `"exclude"` adds `AND cursor IS NOT NULL`; `"raise"` cannot raise in the middle of a query and falls back to excluding null cursor values when needed.
 
 For lower-level cursor rules, including range inclusivity and `lag`, see [Filter to an incremental cursor](../../general-usage/dataset-access/dataset.md#filter-to-an-incremental-cursor) and [Cursor-based incremental loading](../../general-usage/incremental/cursor.md).
-
 
 ## Schema evolution and hint lineage
 
@@ -742,7 +735,6 @@ assert (
 * `dlt` forwards only certain hint types to the resulting tables: custom hints that start with `x-annotation...`, and the type hints `nullable`, `data_type`, `precision`, `scale`, and `timezone`. Set other hints, such as `primary_key` or `merge_keys`, with the `columns` argument on the transformation decorator. `dlt` does not know how you will use the transformed tables.
 * `dlt` cannot forward hints for columns that result from combining multiple origin columns, such as when they are concatenated or produced through other SQL operations.
 
-
 ## Lifecycle of a SQL transformation
 
 This section covers the lifecycle of transformations that yield a `Relation` object. We call these SQL transformations. Python-based transformations yield dataframes, arrow tables, or polars frames. They go through the regular extract, normalize, and load lifecycle of a `dlt` resource.
@@ -765,23 +757,26 @@ The normalization described here applies only to SQL-based transformations. Pyth
 During normalization, `dlt` adds internal `dlt` columns to your SQL queries, based on the config:
 
 - `_dlt_load_id`, which tracks which load operation created or modified each row, is **added by default**. Even if present in your query, the `_dlt_load_id` column will be **replaced with a constant value** corresponding to the current load ID. To disable this behavior, set:
+
     ```toml
     [normalize.model_normalizer]
     add_dlt_load_id = false
     ```
+
     In this case, the column will not be added or replaced.
 
 - `_dlt_id`, a unique identifier for each row, is **not added by default**. If your query already includes a `_dlt_id` column, dlt leaves it unchanged. To generate this column when it is missing, set:
+
     ```toml
     [normalize.model_normalizer]
     add_dlt_id = true
     ```
+
     When enabled and the column is not in the query, dlt generates a `_dlt_id`. When the column is already present, dlt does **not** replace it.
 
     The `_dlt_id` column is generated using the destination's UUID function, such as `generateUUIDv4()` in ClickHouse. For dialects without native UUID support:
-     - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
-     - In **SQLite**, `_dlt_id` is simulated using `lower(hex(randomblob(16)))`.
-
+  - In **Redshift**, `_dlt_id` is generated using an `MD5` hash of the load ID and row number.
+  - In **SQLite**, `_dlt_id` is simulated using `lower(hex(randomblob(16)))`.
 
 #### Query transformations
 
@@ -905,6 +900,7 @@ warehouse_pipeline.run(orders_per_store(transit_pipeline.dataset()))
 ```
 
 This script:
+
 - fetches data from a REST API with dlt's `rest_api_source`
 - loads the raw data into a local DuckDB instance as an intermediate step
 - joins orders with stores and aggregates order counts on the local DuckDB instance, not in the destination warehouse

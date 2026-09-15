@@ -3,6 +3,7 @@ title: REST APIs
 description: Loads data from REST APIs using a declarative configuration
 keywords: [rest api, restful api]
 ---
+# Overview
 
 You can use the REST API source to extract data from any REST API. Using a [declarative configuration](./basic.md#source-configuration), you can define:
 
@@ -16,4 +17,3 @@ dlt will take care of the rest: unnesting the data, inferring the schema, etc., 
 - [Basic configuration](./basic.md)
 - [Advanced configuration](./advanced.md)
 - [OpenAPI generator](../openapi-generator.md)
-

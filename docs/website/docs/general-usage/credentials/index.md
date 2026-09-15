@@ -3,6 +3,8 @@ title: Configure credentials and pipelines
 description: How to configure dlt pipelines and set up credentials
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables]
 ---
+# Overview
+
 The configuration mechanism in `dlt` provides a flexible, secure way to define credentials to external systems and other settings separately from your code.
 
 ## Key features
