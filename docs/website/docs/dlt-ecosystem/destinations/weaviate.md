@@ -10,7 +10,8 @@ keywords: [weaviate, vector database, destination, dlt]
 This destination helps you load data into Weaviate from [dlt resources](../../general-usage/resource.md).
 
 :::note
-The Weaviate destination uses the weaviate-client v4 Python library.
+The Weaviate destination requires `weaviate-client` 4.20.0 or newer. Server-side batching
+additionally requires a Weaviate server on 1.36 or newer.
 :::
 
 <!--@@@DLT_DESTINATION_CAPABILITIES weaviate-->
@@ -84,6 +85,32 @@ url = "http://my-weaviate-host"
 http_port = 8080
 grpc_port = 50051
 ```
+
+`[destination.weaviate.credentials]` also accepts:
+
+- `grpc_host`: (str) the gRPC host, when it is not the same as the REST host. Only
+  `connection_type = "custom"` supports this — the Weaviate client takes a separate gRPC host
+  only on `connect_to_custom`, so setting it for `local` or `cloud` raises a configuration error
+  instead of being silently ignored.
+- `http_secure` / `grpc_secure`: (bool) whether to use TLS. `http_secure` defaults to whether
+  `url` is `https`, and `grpc_secure` defaults to `http_secure`.
+
+```toml
+[destination.weaviate]
+connection_type = "custom"
+
+[destination.weaviate.credentials]
+url = "https://rest.example.com"
+http_port = 443
+grpc_host = "grpc.example.com"
+grpc_port = 50051
+grpc_secure = true
+```
+
+:::note
+The v4 Weaviate client needs both REST **and** gRPC. When self-hosting, make sure the gRPC port
+(50051 by default) is reachable, not just the REST port.
+:::
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -320,19 +347,68 @@ naming="dlt.destinations.impl.weaviate.ci_naming"
 
 ## Additional destination options
 
-- `batch_size`: (int) the number of items in the batch insert request. The default is 100.
-- `batch_workers`: (int) the maximal number of concurrent threads to run batch import. The default is 1.
+- `batch_mode`: (str) how objects are sent to Weaviate. The default is `auto`.
+- `batch_size`: (int) the number of items in the batch insert request. Applies to `fixed_size` batching. The default is 100.
+- `batch_workers`: (int) the number of concurrent requests. Applies to `fixed_size` and `stream` batching. The default is 1.
+- `batch_requests_per_minute`: (int) the request budget per minute. Applies to `rate_limit` batching. The default is 600.
 - `batch_consistency`: (str) the number of replica nodes in the cluster that must acknowledge a write or read request before it's considered successful. The available consistency levels include:
     - `ONE`: Only one replica node needs to acknowledge.
     - `QUORUM`: Majority of replica nodes (calculated as `replication_factor / 2 + 1`) must acknowledge.
     - `ALL`: All replica nodes in the cluster must send a successful response.
     The default is `ONE`.
-- `batch_retries`: (int) number of retries to create a batch that failed with ReadTimeout. The default is 5.
 - `dataset_separator`: (str) the separator to use when generating the class names in Weaviate.
-- `conn_timeout` and `read_timeout`: (float) to set timeouts (in seconds) when connecting and reading from the REST API. Defaults to (10.0, 180.0).
-- `startup_period` (int) - how long to wait for Weaviate to start.
+- `conn_timeout` and `read_timeout`: (float) to set timeouts (in seconds) when connecting and reading. Defaults to (10.0, 180.0).
+- `init_timeout`, `query_timeout`, `insert_timeout`, `stream_timeout`: (float) per-operation timeouts. `init_timeout` overrides `conn_timeout`; `query_timeout` and `insert_timeout` override `read_timeout`. `stream_timeout` applies to a server-side batch stream.
+- `skip_init_checks`: (bool) skip the client startup handshake. Defaults to `true` for `cloud` and `custom`, `false` for `local`.
+- `proxies`: (dict) proxies passed to the client, e.g. `{"https" = "http://proxy:3128"}`.
+- `trust_env`: (bool) let the client read proxy settings from the environment. The default is `false`.
+- `session_pool_connections`, `session_pool_maxsize`, `session_pool_max_retries`, `session_pool_timeout`: (int) REST connection pool tuning. Left unset, the client's own defaults apply.
 - `vectorizer`: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
 - `moduleConfig`: (dict) configurations of various Weaviate modules.
+
+:::note
+`batch_retries` and `startup_period` are deprecated and have no effect. The Weaviate v4 client
+manages retries and startup internally. Setting them emits a deprecation warning.
+:::
+
+### Batching
+
+`batch_mode` selects how dlt sends objects:
+
+| Mode | Behavior |
+| --- | --- |
+| `auto` (default) | Uses server-side batching when the server supports it, otherwise falls back to `fixed_size`. |
+| `stream` | [Server-side batching](https://docs.weaviate.io/weaviate/tutorials/import#option-a-server-side-batching). The server picks the batch size, parallelization, and backpressure. Requires Weaviate **1.36** or newer. |
+| `fixed_size` | Client-side batching with an explicit `batch_size` and `batch_workers`. |
+| `rate_limit` | Client-side batching capped at `batch_requests_per_minute`, for rate-limited vectorizer APIs. |
+| `dynamic` | Client-side batching where the client adjusts the batch size. |
+
+Server-side batching needs no tuning and is the recommended mode, so `auto` picks it whenever
+the connected server is new enough:
+
+```toml
+[destination.weaviate]
+batch_mode = "auto"
+```
+
+If your vectorizer provider rate-limits you, cap the request rate instead:
+
+```toml
+[destination.weaviate]
+batch_mode = "rate_limit"
+batch_requests_per_minute = 100
+```
+
+### Weaviate integration header
+
+dlt identifies itself to Weaviate with the `X-Weaviate-Client-Integration` header, set to
+`dlt/<version>`. It is sent on every connection so Weaviate can attribute traffic to the
+integration. To change or remove it, set the same header explicitly:
+
+```toml
+[destination.weaviate.credentials.additional_headers]
+X-Weaviate-Client-Integration = "my-app/1.0"
+```
 
 ### Configure Weaviate modules
 
