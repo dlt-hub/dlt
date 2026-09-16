@@ -1,9 +1,10 @@
 # /// script
 # dependencies = [
-#     "dlt",
+#     "dlt[duckdb]",
 #     "loguru",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sentry-sdk",
 #     "sqlalchemy",
 # ]

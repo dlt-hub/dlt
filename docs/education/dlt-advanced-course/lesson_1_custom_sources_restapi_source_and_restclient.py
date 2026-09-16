@@ -3,6 +3,7 @@
 #     "dlt[duckdb]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///
@@ -85,11 +86,11 @@ def _():
                 yield page
 
         @dlt.resource
-        def github_stargazers() -> Iterator[TDataItems]:
-            for page in client.paginate("repos/dlt-hub/dlt/stargazers"):
+        def github_issue_comments() -> Iterator[TDataItems]:
+            for page in client.paginate("repos/dlt-hub/dlt/issues/comments"):
                 yield page
 
-        return (github_events, github_stargazers)
+        return (github_events, github_issue_comments)
 
     pipeline = dlt.pipeline(
         pipeline_name="rest_client_github",
