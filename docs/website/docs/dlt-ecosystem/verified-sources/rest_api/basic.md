@@ -218,6 +218,8 @@ from dlt.sources.rest_api import RESTAPIConfig
 The configuration object passed to the REST API Generic Source has three main elements:
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         # ...
@@ -306,7 +308,7 @@ A resource configuration is used to define a [dlt resource](../../../general-usa
     - `auth`: An optional `AuthConfig` instance. If passed, is used over the one defined in the [client](#client) definition.
 
 Example:
-```py
+```py notype
 from dlt.sources.helpers.rest_client.auth import HttpBasicAuth
 
 config = {
@@ -501,6 +503,7 @@ Alternatively, you can use the dictionary configuration syntax also for custom p
 
 ```py
 from dlt.sources.rest_api.config_setup import register_paginator
+from dlt.sources.helpers.rest_client.paginators import SinglePagePaginator
 
 class CustomPaginator(SinglePagePaginator):
     # custom implementation of SinglePagePaginator
@@ -644,6 +647,7 @@ You can use the dictionary configuration syntax also for custom authentication c
 ```py
 from dlt.common.configuration import configspec
 from dlt.sources.rest_api.config_setup import register_auth
+from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
 @configspec
 class CustomAuth(AuthConfigBase):
@@ -947,10 +951,11 @@ In the following example, we want to load the issues belonging to three reposito
 Instead of defining three different issues resources, one for each of the paths `dlt-hub/dlt/issues/`, `dlt-hub/verified-sources/issues/`, `dlt-hub/dlthub-education/issues/`, we have a resource `repositories` which yields a list of repository names that will be fetched by the dependent resource `issues`.
 
 ```py
+from collections.abc import Generator
 from dlt.sources.rest_api import RESTAPIConfig
 
 @dlt.resource()
-def repositories() -> Generator[List[Dict[str, Any]], Any, Any]:
+def repositories() -> Generator[list[dict[str, Any]], Any, Any]:
     """A seed list of repositories to fetch"""
     yield [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 
@@ -979,8 +984,10 @@ config: RESTAPIConfig = {
 Be careful that the parent resource needs to return `Generator[List[Dict[str, Any]]]`. Thus, the following will NOT work:
 
 ```py
+from collections.abc import Generator
+
 @dlt.resource
-def repositories() -> Generator[Dict[str, Any], Any, Any]:
+def repositories() -> Generator[dict[str, Any], Any, Any]:
     """Not working seed list of repositories to fetch"""
     yield from [{"name": "dlt"}, {"name": "verified-sources"}, {"name": "dlthub-education"}]
 ```
@@ -993,7 +1000,7 @@ Each processing step is a dictionary specifying the type of operation (`filter`,
 
 #### Quick example
 
-```py
+```py notype
 def lower_title(record):
     record["title"] = record["title"].lower()
     return record
@@ -1049,6 +1056,8 @@ In this example, only records with `id` equal to 10, 20, or 30 will be included.
 The `map` step allows you to modify the records fetched from the API. The provided function should take a record as an argument and return the modified record. For example, to anonymize the `email` field:
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 def anonymize_email(record):
     record["email"] = "REDACTED"
     return record
@@ -1072,7 +1081,7 @@ config: RESTAPIConfig = {
 
 The `yield_map` step allows you to transform a record into multiple records. The provided function should take a record as an argument and return an iterator of records. For example, to flatten the `reactions` field:
 
-```py
+```py notype
 def flatten_reactions(post):
     post_without_reactions = copy.deepcopy(post)
     post_without_reactions.pop("reactions")
@@ -1097,7 +1106,7 @@ config: RESTAPIConfig = {
 
 You can combine multiple processing steps to achieve complex transformations:
 
-```py
+```py notype
 {
     "name": "posts",
     "endpoint": "posts",
@@ -1424,7 +1433,7 @@ When you are running the pipeline and getting a `DictValidationException`, it me
 
 For example, if you have a source configuration like this:
 
-```py
+```py notype
 config: RESTAPIConfig = {
     "client": {
         # ...

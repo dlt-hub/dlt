@@ -181,7 +181,7 @@ def orders(ordered_at = dlt.sources.incremental('ordered_at')):
     # Get a dataframe/arrow table from somewhere
     # If your database supports it, you can use the last_value to filter data at the source.
     # Otherwise, it will be filtered automatically after loading the data.
-    df = _get_orders(since=ordered_at.last_value)
+    df = _get_orders(since=ordered_at.last_value)  # ty: ignore[unresolved-reference]
     yield df
 
 pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")
@@ -233,7 +233,7 @@ All struct types are represented as `json` and will be loaded as JSON (if the de
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
 If you want to represent nested data as separate tables, you must yield DataFrames and Arrow tables as records. In the examples above:
-```py
+```py notype
 # yield pandas DataFrame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
 

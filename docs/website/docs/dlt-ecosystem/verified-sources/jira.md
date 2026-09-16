@@ -83,7 +83,7 @@ To get started with your data pipeline, follow these steps:
    api_token = "set me up!" # please set me up!
    ```
 
-1. A subdomain in a URL identifies your Jira account. For example, in "https://example.atlassian.net", "example" is the subdomain.
+1. A subdomain in a URL identifies your Jira account. For example, in "[https://example.atlassian.net](https://example.atlassian.net)", "example" is the subdomain.
 
 1. Use the email address associated with your Jira account.
 
@@ -124,6 +124,9 @@ You can write your own pipelines to load data to a destination using this verifi
 This source function creates a list of resources to load data into the destination.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def jira(
      subdomain: str = dlt.secrets.value,
@@ -142,6 +145,9 @@ def jira(
 This function returns a resource for querying issues using JQL [(Jira Query Language)](https://support.atlassian.com/jira-service-management-cloud/docs/use-advanced-search-with-jira-query-language-jql/).
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def jira_search(
      subdomain: str = dlt.secrets.value,
@@ -158,8 +164,11 @@ The above function uses the same arguments `subdomain`, `email`, and `api_token`
 The resource function searches issues using JQL queries and then loads them to the destination.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 @dlt.resource(write_disposition="replace")
-def issues(jql_queries: List[str]) -> Iterable[TDataItem]:
+def issues(jql_queries: list[str]) -> Iterable[TDataItem]:
    api_path = "rest/api/3/search"
    return {}  # return the retrieved values here
 ```
@@ -184,7 +193,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 2. To load custom endpoints such as "issues" and "users" using the jira source function:
 
-    ```py
+    ```py notype
     # Run the pipeline
     load_info = pipeline.run(jira().with_resources("issues", "users"))
     print(f"Load Information: {load_info}")
@@ -192,7 +201,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 3. To load custom issues using JQL queries, you can use custom queries. Here is an example below:
 
-    ```py
+    ```py notype
     # Define the JQL queries as follows
     queries = [
               "created >= -30d order by created DESC",

@@ -108,9 +108,9 @@ To get started with your data pipeline, follow these steps:
    organization_id = "Please set me up!"
    ```
 
-1. Update `shop_url` with the URL of your Shopify store. For example, "https://shop-123.myshopify.com/".
+1. Update `shop_url` with the URL of your Shopify store. For example, "[https://shop-123.myshopify.com/](https://shop-123.myshopify.com/)".
 
-1. Update `organization_id` with a code from your Shopify partner URL. For example, in "https://partners.shopify.com/1234567", the code '1234567' is the organization ID.
+1. Update `organization_id` with a code from your Shopify partner URL. For example, in "[https://partners.shopify.com/1234567](https://partners.shopify.com/1234567)", the code '1234567' is the organization ID.
 
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
@@ -142,7 +142,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function returns a list of resources to load products, orders, and customers data from the Shopify API.
 
-```py
+```py notype
 @dlt.source()
 def shopify_source(
     private_app_password: str = dlt.secrets.value,
@@ -161,7 +161,7 @@ def shopify_source(
 
 `api_version`: API version (e.g., 2023-01).
 
-`shop_url`: Your shop's URL (e.g., https://my-shop.myshopify.com).
+`shop_url`: Your shop's URL (e.g., [https://my-shop.myshopify.com](https://my-shop.myshopify.com)).
 
 `items_per_page`: Max items fetched per page (Default: 250).
 
@@ -177,7 +177,7 @@ def shopify_source(
 
 This resource loads products from your Shopify shop into the destination. It supports incremental loading and pagination.
 
-```py
+```py notype
 @dlt.resource(primary_key="id", write_disposition="merge")
 def products(
     updated_at: dlt.sources.incremental[
@@ -201,14 +201,14 @@ Similar to the mentioned resource, there are two more resources "orders" and "cu
 ### Resource `shopify_partner_query`:
 This resource can be used to run custom GraphQL queries to load paginated data.
 
-```py
+```py notype
 @dlt.resource
 def shopify_partner_query(
     query: str,
     data_items_path: jp.TJsonPath,
     pagination_cursor_path: jp.TJsonPath,
     pagination_variable_name: str = "after",
-    variables: Optional[Dict[str, Any]] = None,
+    variables: Optional[dict[str, Any]] = None,
     access_token: str = dlt.secrets.value,
     organization_id: str = dlt.config.value,
     api_version: str = API_VERSION,
@@ -254,7 +254,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from "products", "orders", and "customers" from January 1, 2023:
 
-   ```py
+   ```py notype
    # Add your desired resources to the list...
    resources = ["products", "orders", "customers"]
 
@@ -265,12 +265,12 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load past Shopify orders in weekly chunks using start_date and end_date parameters. This minimizes potential failure during large data loads. Running chunks and incremental loads in parallel accelerates the initial load.
 
-   ```py
+   ```py notype
    # Load all orders from 2023-01-01 to now
    min_start_date = current_start_date = pendulum.DateTime(2023, 1, 1)
    max_end_date = pendulum.now()
    # Create a list of time ranges of 1 week each, we'll use this to load the data in chunks
-   ranges: List[Tuple[pendulum.DateTime, pendulum.DateTime]] = []
+   ranges: list[tuple[pendulum.DateTime, pendulum.DateTime]] = []
    while current_start_date < max_end_date:
         end_date = min(current_start_date.add(weeks=1), max_end_date)
         ranges.append((current_start_date, end_date))
@@ -297,7 +297,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
    print(load_info)
    ```
 1. To load the first 10 transactions via a GraphQL query from the Shopify Partner API.
-   ```py
+   ```py notype
     # Construct query to load transactions 100 per page, the `$after` variable is used to paginate
     query = """query Transactions($after: String) {
     transactions(after: $after, first: 10) {

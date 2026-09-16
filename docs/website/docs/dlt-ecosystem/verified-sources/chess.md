@@ -93,10 +93,10 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This is a `dlt.source` function for the Chess.com API named "chess", which returns a sequence of
 DltResource objects. We'll discuss these in subsequent sections as resources.
 
-```py
+```py notype
 dlt.source(name="chess")
 def source(
-    players: List[str], start_month: str = None, end_month: str = None
+    players: list[str], start_month: str = None, end_month: str = None
 ) -> Sequence[DltResource]:
     return (
         players_profiles(players),
@@ -115,9 +115,9 @@ to fetch game data (in "YYYY/MM" format).
 
 This is a `dlt.resource` function, which returns player profiles for a list of player usernames.
 
-```py
+```py notype
 @dlt.resource(write_disposition="replace")
-def players_profiles(players: List[str]) -> Iterator[TDataItem]:
+def players_profiles(players: list[str]) -> Iterator[TDataItem]:
 
     @dlt.defer
     def _get_profile(username: str) -> TDataItem:
@@ -136,8 +136,11 @@ It uses the `@dlt.defer` decorator to enable parallel run in a thread pool.
 This is a `dlt.resource` function, which returns a URL to game archives for specified players.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItem
+
 @dlt.resource(write_disposition="replace", selected=False)
-def players_archives(players: List[str]) -> Iterator[List[TDataItem]]:
+def players_archives(players: list[str]) -> Iterator[list[TDataItem]]:
     ...
 ```
 
@@ -152,9 +155,12 @@ This incremental resource takes data from players and returns games for the last
 specified otherwise.
 
 ```py
+from typing import Iterator
+from dlt.common.typing import TDataItems
+
 @dlt.resource(write_disposition="append")
 def players_games(
-    players: List[str], start_month: str = None, end_month: str = None
+    players: list[str], start_month: str = None, end_month: str = None
 ) -> Iterator[TDataItems]:
     # gets a list of already checked (loaded) archives.
     checked_archives = dlt.current.resource_state().setdefault("archives", [])
@@ -207,7 +213,7 @@ To create your data loading pipeline for players and load data, follow these ste
 
 1. Use the method `pipeline.run()` to execute the pipeline.
 
-   ```py
+   ```py notype
    info = pipeline.run(source_instance)
    # print the information on data that was loaded
    print(info)
@@ -215,7 +221,7 @@ To create your data loading pipeline for players and load data, follow these ste
 
 1. To load data from specific resources like "players_games" and "player_profiles", modify the above code as:
 
-   ```py
+   ```py notype
    info = pipeline.run(source_instance.with_resources("players_games", "players_profiles"))
    # print the information on data that was loaded
    print(info)

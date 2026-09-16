@@ -268,6 +268,7 @@ The default. Inserts all records without updating or deleting existing data.
 Replaces all data in the table with a single overwrite commit:
 
 ```py
+movies = [{"name": "E.T.", "summary": ...}, ...]
 info = pipeline.run(movies, table_name="movies", write_disposition="replace")
 ```
 
@@ -296,6 +297,8 @@ The `merge_key` identifies the parent document. If `merge_key` is not specified,
 By default, when parent documents are updated or deleted during a merge, orphaned child records (chunks that no longer have a matching parent) are automatically removed. To disable this:
 
 ```py
+from dlt.destinations.adapters import lance_adapter
+
 lance_adapter(data, merge_key="doc_id", remove_orphans=False)
 ```
 
@@ -326,6 +329,7 @@ Then use `lance_adapter` to specify which columns should be embedded. The destin
 ```py
 from dlt.destinations.adapters import lance_adapter
 
+movies = [{"name": "E.T.", "summary": ...}, ...]
 info = pipeline.run(
     lance_adapter(movies, embed=["title", "description"]),
     table_name="movies",
@@ -356,27 +360,27 @@ This adds a small overhead per read, so leave it disabled unless you read tables
 
 For operations specific to the Lance format — such as version management, tagging, or direct reads — use `open_lance_dataset` on the destination client. It returns a `lance.LanceDataset` from the [lance](https://github.com/lancedb/lance) library:
 
-```py
+```py notype
 with pipeline.destination_client() as client:
-    ds = client.open_lance_dataset("movies")  # type: ignore[attr-defined]
+    ds = client.open_lance_dataset("movies")
     ds.create_tag("v1.0")
     print(ds.tags())
 ```
 
 You can also check out a specific branch or version:
 
-```py
+```py notype
 with pipeline.destination_client() as client:
-    ds = client.open_lance_dataset("movies", branch_name="staging", version_number=5)  # type: ignore[attr-defined]
+    ds = client.open_lance_dataset("movies", branch_name="staging", version_number=5)
 ```
 
 ### LanceDB vector search
 
 For vector similarity search and other LanceDB-specific features, use `open_lancedb_table`. It returns a `lancedb.table.LanceTable` from the [lancedb](https://github.com/lancedb/lancedb) library:
 
-```py
+```py notype
 with pipeline.destination_client() as client:
-    tbl = client.open_lancedb_table("movies")  # type: ignore[attr-defined]
+    tbl = client.open_lancedb_table("movies")
     results = tbl.search("sci-fi classic").limit(5).to_list()
 ```
 

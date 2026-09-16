@@ -100,27 +100,24 @@ pipeline = dlt.pipeline(
 To use **Active Directory Principal**, you can use the `sqlalchemy.engine.URL.create` method to create the connection URL using your Active Directory Service Principal credentials. First, create the connection string as:
 ```py
 conn_str = (
-    f"DRIVER={{ODBC Driver 18 for SQL Server}};"
-    f"SERVER={SERVER_NAME};"
-    f"DATABASE={DATABASE_NAME};"
-    f"UID={SERVICE_PRINCIPAL_ID}@{TENANT_ID};"
-    f"PWD={SERVICE_PRINCIPAL_SECRETS};"
-    f"Authentication=ActiveDirectoryServicePrincipal"
+    "DRIVER={ODBC Driver 18 for SQL Server};"
+    "SERVER={SERVER_NAME};"
+    "DATABASE={DATABASE_NAME};"
+    "UID={SERVICE_PRINCIPAL_ID}@{TENANT_ID};"
+    "PWD={SERVICE_PRINCIPAL_SECRETS};"
+    "Authentication=ActiveDirectoryServicePrincipal"
 )
 ```
 
-Next, create the connection URL:
+Create the connection URL, which you can use directly in your pipeline configuration or convert to a string.
 ```py
 from sqlalchemy.engine import URL
 
 connection_url = URL.create(
     "mssql+pyodbc",
-    query={"odbc_connect": conn_str}
+    query={"odbc_connect": "..."}
 )
-```
 
-Once you have the connection URL, you can directly use it in your pipeline configuration or convert it to a string.
-```py
 pipeline = dlt.pipeline(
     pipeline_name='chess',
     destination=dlt.destinations.synapse(

@@ -146,7 +146,7 @@ For more information, read the [Walkthrough: Run a pipeline.](../../walkthroughs
 
 This function fetches inbox emails, saves attachments locally, and returns uids, messages, and attachments as resources.
 
-```py
+```py notype
 @dlt.source
 def inbox_source(
     host: str = dlt.secrets.value,
@@ -185,11 +185,11 @@ def inbox_source(
 This resource collects email message UIDs (Unique IDs) from the mailbox.
 
 ```py
+from dlt.common.typing import TDataItem
+
 @dlt.resource(name="uids")
 def get_messages_uids(
-    initial_message_num: Optional[
-        dlt.sources.incremental[int]
-    ] = dlt.sources.incremental("message_uid", initial_value=1),
+    initial_message_num: dlt.sources.incremental[int] | None = dlt.sources.incremental("message_uid", initial_value=1),
 ) -> TDataItem:
    ...
 ```
@@ -201,6 +201,8 @@ def get_messages_uids(
 This resource retrieves emails by UID (Unique IDs), yielding a dictionary with metadata like UID, ID, sender, subject, dates, content type, and body.
 
 ```py
+from dlt.common.typing import TDataItem, TDataItems
+
 @dlt.transformer(name="messages", primary_key="message_uid")
 def get_messages(
     items: TDataItems,
@@ -219,13 +221,17 @@ Similar to the previous resources, resource `get_attachments` extracts email att
 It yields file items with attachments in the file_content field and the original email in the message field.
 
 ```py
+from typing import Iterable
+from dlt.extract.items import TDataItems
+from dlt.sources.filesystem import FileItem
+
 @dlt.transformer(
     name="attachments",
     primary_key="file_hash",
 )
 def get_attachments(
     items: TDataItems,
-) -> Iterable[List[FileItem]]:
+) -> Iterable[list[FileItem]]:
    ...
 ```
 `items`: An iterable containing dictionaries with 'message_uid' representing the email message UIDs.
@@ -255,7 +261,7 @@ verified source.
 
     - Set `START_DATE = pendulum.DateTime(2023, 10, 1)` in `./inbox/settings.py`.
     - Use the following code:
-      ```py
+      ```py notype
       # Retrieve messages from the specified email address.
       messages = inbox_source(filter_emails=("mycreditcard@bank.com",)).messages
       # Configure messages to exclude body and name the result "my_inbox".
@@ -268,7 +274,7 @@ verified source.
       > Please refer to the inbox_source() docstring for email filtering options by sender, date, or mime type.
 3. To load messages from multiple emails, including "community@dlthub.com":
 
-   ```py
+   ```py notype
    messages = inbox_source(
         filter_emails=("mycreditcard@bank.com", "community@dlthub.com.")
    ).messages
@@ -277,7 +283,7 @@ verified source.
 4. In `inbox_pipeline.py`, the `pdf_to_text` transformer extracts text from PDFs, treating each page as a separate data item.
    Using the `pdf_to_text` function to load parsed PDFs from mail to the database:
 
-   ```py
+   ```py notype
    filter_emails = ["mycreditcard@bank.com", "community@dlthub.com."] # Email senders
    attachments = inbox_source(
         filter_emails=filter_emails, filter_by_mime_type=["application/pdf"]

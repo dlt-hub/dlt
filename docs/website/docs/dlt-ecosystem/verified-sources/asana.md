@@ -122,7 +122,7 @@ it is important to note the complete list of the default endpoints given in
 This is a `dlt.source` function, which returns a list of DltResource objects: "workspaces",
 "projects", "sections","tags","tasks","stories", "teams", and "users".
 
-```py
+```py notype
 @dlt.source
 def asana_source(access_token: str = dlt.secrets.value) -> Any:
     return [
@@ -137,7 +137,7 @@ def asana_source(access_token: str = dlt.secrets.value) -> Any:
 
 This is a `dlt.resource` function, which returns collections of tasks and related information.
 
-```py
+```py notype
 @dlt.resource(write_disposition="replace")
 def workspaces(
     access_token: str = dlt.secrets.value,
@@ -163,7 +163,7 @@ In addition to these source and resource functions, there are seven transformer 
 
 The transformer function `projects` processes data from the `workspaces` resource. It fetches and returns a list of projects for a given workspace from Asana.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=workspaces,
     write_disposition="replace",
@@ -189,10 +189,10 @@ It uses the `@dlt.defer` decorator to enable parallel run in a thread pool.
 
 This [incremental](../../general-usage/incremental-loading.md) resource-transformer fetches all tasks for a given project from Asana.
 
-```py
+```py notype
 @dlt.transformer(data_from=projects, write_disposition="merge", primary_key="gid")
 def tasks(
-    project_array: List[TDataItem],
+    project_array: list[TDataItem],
     access_token: str = dlt.secrets.value,
     modified_at: dlt.sources.incremental[str] = dlt.sources.incremental(
         "modified_at", initial_value=START_DATE_STRING
@@ -232,13 +232,13 @@ To create your data pipeline using single loading for the "workspaces" and "proj
 
 1. To load the data from all the fields, you can utilize the `asana_source` method as follows:
 
-   ```py
+   ```py notype
    load_data = asana_source()
    ```
 
 1. Use the method `pipeline.run()` to execute the pipeline.
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data)
    # print the information on data that was loaded
    print(load_info)
@@ -246,7 +246,7 @@ To create your data pipeline using single loading for the "workspaces" and "proj
 
 1. To use the method `pipeline.run()` to load custom endpoints "workspaces" and "projects", the above script may be modified as:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("workspaces", "projects"))
    # print the information on data that was loaded
    print(load_info)

@@ -134,10 +134,13 @@ This function returns a list of resources including activities, deals, custom_fi
 other resources data from the Pipedrive API.
 
 ```py
+from typing import Iterator
+from dlt.extract import DltResource
+
 @dlt.source(name="pipedrive")
 def pipedrive_source(
     pipedrive_api_key: str = dlt.secrets.value,
-    since_timestamp: Optional[Union[pendulum.DateTime, str]] = dlt.config.value,
+    since_timestamp: pendulum.DateTime | str | None = dlt.config.value,
 ) -> Iterator[DltResource]:
    ...
 ```
@@ -155,7 +158,7 @@ This code generates resources for each entity in
 [RECENTS_ENTITIES](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive/settings.py),
 stores them in endpoints_resources, and then loads data from each endpoint to the destination.
 
-```py
+```py notype
 endpoints_resources = {}
 for entity, resource_name in RECENTS_ENTITIES.items():
     endpoints_resources[resource_name] = dlt.resource(
@@ -182,7 +185,7 @@ for entity, resource_name in RECENTS_ENTITIES.items():
 
 This function gets the participants of deals from the Pipedrive API and yields the result.
 
-```py
+```py notype
 def pipedrive_source(args):
   # Rest of function
    yield endpoints_resources["deals"] |  dlt.transformer(
@@ -206,11 +209,13 @@ This function preserves the mapping of custom fields across different pipeline r
 create and store a mapping of custom fields for different entities in the source state.
 
 ```py
+from typing import Iterator
+
 @dlt.resource(selected=False)
-def create_state(pipedrive_api_key: str) -> Iterator[Dict[str, Any]]:
+def create_state(pipedrive_api_key: str) -> Iterator[dict[str, Any]]:
    def _get_pages_for_rename(
       entity: str, fields_entity: str, pipedrive_api_key: str
-   ) -> Dict[str, Any]:
+   ) -> dict[str, Any]:
       ...
    yield _get_pages_for_rename("", "", "")
 ```

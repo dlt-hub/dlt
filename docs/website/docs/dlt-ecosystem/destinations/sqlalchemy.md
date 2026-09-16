@@ -392,18 +392,19 @@ Custom type mapper is also useful when you want to limit the length of the strin
 for `mssql` dialect:
 ```py
 import sqlalchemy as sa
+from dlt.common.schema.typing import PreparedTableSchema
 from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
 
 class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
     """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
 
-    def db_type_from_text_type(self, column, table=None):
+    def db_type_from_text_type(self, column, table: PreparedTableSchema):
         type_ = super().db_type_from_text_type(column, table)
         length = column.get("precision")
         if length is None:
-            return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+            return type_.with_variant(sa.UnicodeText(), "mssql")
         else:
-            return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
+            return type_.with_variant(sa.Unicode(length=length), "mssql")
 ```
 
 :::warning
@@ -444,7 +445,7 @@ class MyDialectCapabilities(DialectCapabilities):
         caps.max_column_identifier_length = 128
         caps.sqlglot_dialect = "oracle"  # type: ignore[assignment]
 
-    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+    def type_mapper_class(self) -> Type[DataTypeMapper]:
         return MyTypeMapper
 
     def adapt_table(

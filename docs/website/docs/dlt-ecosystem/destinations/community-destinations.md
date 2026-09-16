@@ -22,10 +22,10 @@ Implementation of Starrocks support as a separate destination. Starrocks is an M
 - **INSERT INTO SELECT FROM FILES**: Loading data from S3-compatible staging storage for improved performance with large datasets
 
 Code:
-https://github.com/phaethon/dlt/tree/starrocks
+[https://github.com/phaethon/dlt/tree/starrocks](https://github.com/phaethon/dlt/tree/starrocks)
 
 PR with discussion:
-https://github.com/dlt-hub/dlt/pull/2518
+[https://github.com/dlt-hub/dlt/pull/2518](https://github.com/dlt-hub/dlt/pull/2518)
 
 
 ## Clickhouse Distributed
@@ -41,11 +41,11 @@ When Clickhouse is deployed with replicas and distributed tables, standard DDL &
 This allows dlt to work seamlessly with sharded and replicated Clickhouse setups.
 
 Code:
-https://github.com/zstipanicev/dlt/tree/feat/2200-add-clickhouse-distributed-support
+[https://github.com/zstipanicev/dlt/tree/feat/2200-add-clickhouse-distributed-support](https://github.com/zstipanicev/dlt/tree/feat/2200-add-clickhouse-distributed-support)
 
 
 PR with discussion:
-https://github.com/dlt-hub/dlt/pull/2573
+[https://github.com/dlt-hub/dlt/pull/2573](https://github.com/dlt-hub/dlt/pull/2573)
 
 
 
@@ -60,11 +60,10 @@ CrateDB is a distributed SQL database built on top of Lucene, designed for real-
 - Adjusted transaction handling for CrateDB's limited transaction support
 
 Code:
-https://github.com/crate/dlt-cratedb
+[https://github.com/crate/dlt-cratedb](https://github.com/crate/dlt-cratedb)
 
 Original PR with discussion (currently on hiatus):
-https://github.com/dlt-hub/dlt/pull/2733
-
+[https://github.com/dlt-hub/dlt/pull/2733](https://github.com/dlt-hub/dlt/pull/2733)
 
 
 ## Hotdata.dev
@@ -78,4 +77,5 @@ Hotdata is a high-concurrency SQL execution layer built on Apache DataFusion for
 - Compatible with PostgreSQL, DuckDB, and Snowflake SQL for server-side queries
 - Parquet-native loading and Arrow-native results
   
-Code: https://github.com/hotdata-dev/hotdata-dlt-destination
+Code:
+[https://github.com/hotdata-dev/hotdata-dlt-destination](https://github.com/hotdata-dev/hotdata-dlt-destination)

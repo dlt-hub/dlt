@@ -68,7 +68,7 @@ To get started with your data pipeline, follow these steps:
    information securely, like access tokens. Keep this file safe. Here's its format for service
    account authentication:
 
-   ```py
+   ```py notype
    # put your secret values and credentials here. do not share this file and do not push it to github
    [sources.strapi]
    api_secret_key = "api_secret_key" # please set me up!
@@ -127,9 +127,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function retrieves data from Strapi.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def strapi_source(
-    endpoints: List[str],
+    endpoints: list[str],
     api_secret_key: str = dlt.secrets.value,
     domain: str = dlt.secrets.value,
 ) -> Iterable[DltResource]:
@@ -161,7 +164,7 @@ verified source.
 
 1. To load the specified endpoints:
 
-   ```py
+   ```py notype
    endpoints = ["athletes"]
    load_data = strapi_source(endpoints=endpoints)
 

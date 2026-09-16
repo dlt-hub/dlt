@@ -144,7 +144,7 @@ export SOURCES__FILESYSTEM__BUCKET_URL="gs://filesystem-tutorial"
 
 <TabItem value="code">
 
-```py
+```py notype
 import os
 
 from dlt.common.configuration.specs import GcpClientCredentials
@@ -291,7 +291,7 @@ Now let's add the file names to the actual records. This could be useful to conn
 
 Since the `filesystem` source yields information about files, we can modify the transformer to add any available metadata. Let's create a custom transformer function. We can just copy-paste the `read_csv` function from dlt code and add one column `file_name` to the dataframe:
 
-```py
+```py notype
 from typing import Any, Iterator
 
 import dlt

@@ -49,6 +49,8 @@ Here’s a walkthrough:
 2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "replace"` used below.
 
     ```py
+    from dlt.sources.sql_database import sql_database
+
     def load_full_table_resource() -> None:
         """Load a full table, replacing existing data."""
         pipeline = dlt.pipeline(
@@ -112,6 +114,8 @@ Here’s a walkthrough:
 2. The Python code demonstrates loading data from an SQL source into BigQuery using an incremental variable, `id`. This variable tracks new or updated records in the `dlt` pipeline. Please note the `write_disposition = "append"` used below.
 
     ```py
+    from dlt.sources.sql_database import sql_database
+
     def load_incremental_id_table_resource() -> None:
         """Load a table incrementally based on an ID."""
         pipeline = dlt.pipeline(
@@ -175,6 +179,8 @@ Here’s a walkthrough:
 2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "append"`, with `created_at` being used as the incremental parameter.
 
     ```py
+    from dlt.sources.sql_database import sql_database
+    
     def load_incremental_timestamp_table_resource() -> None:
         """Load a table incrementally based on created_at timestamp."""
         pipeline = dlt.pipeline(
@@ -241,6 +247,8 @@ Here’s a walkthrough:
 2. The Python code illustrates the process of loading data from an SQL source into BigQuery using the `dlt` pipeline. Please note the `write_disposition = "merge"`, with `last_modified_at` being used as the incremental parameter.
 
     ```py
+    from dlt.sources.sql_database import sql_database
+
     def load_merge_table_resource() -> None:
         """Merge (update/insert) records based on last_modified_at timestamp and ID."""
         pipeline = dlt.pipeline(

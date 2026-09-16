@@ -61,7 +61,7 @@ You can also access the last `extract`, `normalize`, and `load` infos directly:
     # print human-friendly normalization information
     print(pipeline.last_trace.last_normalize_info)
     # access row counts dictionary of normalize info
-    print(pipeline.last_trace.last_normalize_info.row_counts)
+    print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore
     # print human-friendly load information
     print(pipeline.last_trace.last_load_info)
 ```
@@ -122,9 +122,10 @@ RUNTIME__SLACK_INCOMING_HOOK="https://hooks.slack.com/services/T04DHMAF13Q/B04E7
 
 Then, the configured hook is available via the pipeline object. We also provide a convenience method to send Slack messages:
 
-```py
+```py notype
 from dlt.common.runtime.slack import send_slack_message
 
+message = "..."
 send_slack_message(pipeline.runtime_config.slack_incoming_hook, message)
 
 ```
@@ -567,7 +568,62 @@ This reports the row count per table for that `load_id` (including `_dlt` tables
 
 Retrying the load is always the safest remedy: run the pipeline again (ideally wrapped in `tenacity`, see below) and `dlt` resumes the pending package and completes it. If retrying is not possible, the remedy depends on the write disposition. For `merge` and `replace` tables, do not delete rows by hand — abort the package with `pipeline.abort_packages()`, which restores the local checkpoint the package was created from, then run the pipeline again. For `append` tables you can instead remove the partially-loaded rows yourself. Attach the pipeline, take the `load_id` of the partially-loaded package, and set `root_table` to the affected append table. The root table carries `_dlt_load_id`, while nested tables link to it through `_dlt_parent_id`, so rows are deleted deepest-first with a subquery that walks up to the root:
 
-<!--@@@DLT_SNIPPET ./running_snippets/running-snippets.py::delete_append_load_id-->
+```py execute notype
+import dlt
+from dlt.common.schema.utils import get_nested_tables
+from dlt.common.utils import uniq_id
+
+pipeline = dlt.pipeline(
+    "delete_demo_" + uniq_id(), destination="duckdb", dev_mode=True
+)
+# load append data with nested tables twice; delete the first package, keep the second
+load_info = pipeline.run(
+    [{"id": 1, "items": [{"x": 1}, {"x": 2}]}], table_name="my_table"
+)
+other_info = pipeline.run([{"id": 2, "items": [{"x": 3}]}], table_name="my_table")
+load_id = load_info.loads_ids[0]
+other_load_id = other_info.loads_ids[0]
+
+root_table = "my_table"
+schema = pipeline.default_schema
+
+with pipeline.sql_client() as client:
+
+    def load_id_filter(table_name: str) -> str:
+        table = schema.tables[table_name]
+        load_id_col = client.escape_column_name("_dlt_load_id")
+        row_key = client.escape_column_name("_dlt_id")
+        parent_key = client.escape_column_name("_dlt_parent_id")
+        if table.get("parent") is None:
+            return f"{load_id_col} = {client.capabilities.escape_literal(load_id)}"
+        parent = client.make_qualified_table_name(table["parent"])
+        return (
+            f"{parent_key} IN (SELECT {row_key} FROM {parent}"
+            f" WHERE {load_id_filter(table['parent'])})"
+        )
+
+    # delete the deepest nested tables first so parent links still resolve
+    for table in reversed(get_nested_tables(schema.tables, root_table)):
+        table_name = client.make_qualified_table_name(table["name"])
+        client.execute_sql(
+            f"DELETE FROM {table_name} WHERE {load_id_filter(table['name'])}"
+        )
+
+# the deleted package has no rows left, the other package is intact
+dataset = pipeline.dataset()
+
+first_load_count = dict(dataset.row_counts(load_id=load_id).fetchall())
+print(first_load_count["my_table"])
+#> 0
+
+second_load_count = dict(dataset.row_counts(load_id=other_load_id).fetchall())
+print(second_load_count["my_table"])
+#> 1
+
+# nested tables carry no _dlt_load_id, so only the other load's nested row remains
+print(len(dataset["my_table__items"].fetchall()))
+#> 1
+```
 
 :::tip
 Here's how to lower the chances of having your destination dataset in
@@ -602,7 +658,7 @@ the [tenacity](https://tenacity.readthedocs.io/en/latest/) library. The snippet 
 `load` stage with the `retry_load` strategy and define back-off or re-raise exceptions for any other
 steps (`extract`, `normalize`) and for terminal exceptions.
 
-```py
+```py notype
 from tenacity import stop_after_attempt, retry_if_exception, Retrying, retry, wait_exponential
 from dlt.common.runtime.slack import send_slack_message
 from dlt.pipeline.helpers import retry_load
@@ -625,7 +681,7 @@ if __name__ == "__main__":
 
 You can also use `tenacity` to decorate functions. This example additionally retries on `extract`:
 
-```py
+```py notype
 if __name__ == "__main__":
     pipeline = dlt.pipeline(pipeline_name="chess_pipeline", destination='duckdb', dataset_name="games_data")
 
@@ -739,11 +795,10 @@ Obviously, this requires a very long grace period to be defined in your producti
 
 :::warning
 Note that signal interception is possible only in the main Python thread. If you offload pipeline runs to a thread pool ([or async pool with thread executors](../reference/performance.md#parallelism-within-a-single-process)), intercept signal handling before any pipeline runs in the pool:
-```py
+```py notype
 import asyncio
 
 from dlt.common.runtime import signals
-
 
 with signals.intercepted_signals():
     # load data

@@ -51,7 +51,7 @@ embedding_model_provider_api_key = "embedding_model_provider_api_key" # Not need
 - The `embedding_model_provider` specifies the embedding provider used for generating embeddings. The default is `cohere`.
 - The `embedding_model` specifies the model used by the embedding provider for generating embeddings.
   Check with the embedding provider which options are available.
-  Reference https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/.
+  Reference [https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/](https://lancedb.github.io/lancedb/embeddings/default_embedding_functions/).
 - The `embedding_model_provider_host` specifies the full host URL with protocol and port for providers that support custom endpoints (like Ollama). If not specified, the provider's default endpoint will be used.
 - The `embedding_model_provider_api_key` is the API key for the embedding model provider used to generate embeddings. If you're using a provider that doesn't need authentication, such as Ollama, you don't need to supply this key.
 
@@ -102,7 +102,6 @@ For example:
 import dlt
 from dlt.destinations.adapters import lancedb_adapter
 
-
 movies = [
   {
     "id": 1,
@@ -120,20 +119,12 @@ movies = [
     "year": 1999,
   },
 ]
-```
 
-### Create a pipeline:
-
-```py
 pipeline = dlt.pipeline(
   pipeline_name="movies",
   destination="lancedb",
 )
-```
 
-### Run the pipeline:
-
-```py
 info = pipeline.run(
   lancedb_adapter(
     movies,
@@ -168,6 +159,8 @@ Out of the box, LanceDB will act as a normal database. To use LanceDB's embeddin
 The `lancedb_adapter` is a helper function that configures the resource for the LanceDB destination:
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+ 
 lancedb_adapter(data, embed="title")
 ```
 
@@ -181,6 +174,8 @@ Returns: [dlt resource](../../general-usage/resource.md) object that you can pas
 Example:
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+
 lancedb_adapter(
   resource,
   embed=["title", "description"],
@@ -190,6 +185,9 @@ lancedb_adapter(
 When using the `lancedb_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
+from dlt.sources.sql_database import sql_database
+from dlt.destinations.adapters import lancedb_adapter
+
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
@@ -214,7 +212,7 @@ If you plan to use `merge` write disposition, remember to [enable load ids](../v
 
 You can access the data that got loaded in many ways. You can create lancedb client yourself, pass it to `dlt` pipeline
 for loading and then use it for querying:
-```py
+```py notype
 import dlt
 import lancedb
 
@@ -227,7 +225,7 @@ pipeline = dlt.pipeline(
 
 ...
 
-tbl = db.open_table("movies")
+tbl = db.table("movies")
 print(tbl.query("magic dog"))
 ```
 
@@ -243,7 +241,7 @@ pipeline = dlt.pipeline(
 
 ...
 
-with pipeline.destination_client() as job_client:
+with pipeline.destination_client() as job_client:  # type: ignore
   db: DBConnection = job_client.db_client  # type: ignore
   tbl = db.open_table("movies")
   tbl.create_scalar_index("id")
@@ -282,6 +280,9 @@ All [write dispositions](../../general-usage/incremental-loading.md#choosing-a-w
 The [replace](../../general-usage/full-loading.md) disposition replaces the data in the destination with the data from the resource.
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
   lancedb_adapter(
     movies,
@@ -298,23 +299,23 @@ The [merge](../../general-usage/incremental-loading.md) write disposition merges
 You can specify the merge disposition, primary key, and merge key either in a resource or adapter:
 
 ```py
+from typing import Generator
+from dlt.common.typing import DictStrAny
+from dlt.destinations.adapters import lancedb_adapter
+
 @dlt.resource(
   primary_key=["doc_id", "chunk_id"],
   merge_key=["doc_id"],
   write_disposition={"disposition": "merge", "strategy": "upsert"},
 )
 def my_rag_docs(
-  data: List[DictStrAny],
-) -> Generator[List[DictStrAny], None, None]:
+  data: list[DictStrAny],
+) -> Generator[list[DictStrAny], None, None]:
     yield data
-```
 
-Or:
-
-```py
 pipeline.run(
   lancedb_adapter(
-    my_new_rag_docs,
+    my_rag_docs,
     merge_key="doc_id"
   ),
   write_disposition={"disposition": "merge", "strategy": "upsert"},
@@ -334,6 +335,9 @@ This structure ensures proper record identification and maintains consistency wi
 LanceDB **automatically removes orphaned chunks** when updating or deleting parent documents during a merge operation. To disable this feature:
 
 ```py
+from dlt.destinations.adapters import lancedb_adapter
+
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 pipeline.run(
   lancedb_adapter(
     movies,
@@ -371,4 +375,3 @@ The LanceDB destination doesn't support dbt integration.
 The LanceDB destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA lancedb-->
-

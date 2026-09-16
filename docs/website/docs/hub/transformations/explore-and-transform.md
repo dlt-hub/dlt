@@ -123,7 +123,7 @@ Translates the ontology into an implementation-ready CDM schema using Kimball pr
 
 Generates `@dlt.hub.transformation` functions that map your source tables to CDM entities using ibis:
 
-```py
+```py notype
 import dlt
 import ibis
 

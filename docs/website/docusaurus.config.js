@@ -118,6 +118,8 @@ const config = {
   ],
 
   plugins: [
+    // re-runs the python docs preprocessor when `website/docs` sources change
+    require.resolve("./plugins/preprocess-docs"),
     [
       require.resolve("./plugins/llms-txt"),
       {

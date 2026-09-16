@@ -45,7 +45,7 @@ You can host your own Weaviate instance using Docker Compose, Kubernetes, or emb
 [destination.weaviate.credentials.additional_headers]
 X-OpenAI-Api-Key = "your-openai-api-key"
 ```
-The `url` will default to **http://localhost:8080** and `api_key` is not defined - which are the defaults for the Weaviate container.
+The `url` will default to **[http://localhost:8080](http://localhost:8080)** and `api_key` is not defined - which are the defaults for the Weaviate container.
 
 ### Connection types
 
@@ -105,11 +105,7 @@ movies = [
         "year": 1999,
     }
 ]
-```
 
-4. Define and run the pipeline:
-
-```py
 import dlt
 from dlt.destinations.adapters import weaviate_adapter
 
@@ -125,11 +121,7 @@ info = pipeline.run(
         vectorize="title",
     )
 )
-```
 
-5. Check the results:
-
-```py
 print(info)
 ```
 
@@ -144,7 +136,7 @@ The `weaviate_adapter` is a helper function that configures the resource for the
 ```py
 from dlt.destinations.adapters import weaviate_adapter
 
-weaviate_adapter(data, vectorize, tokenization)
+weaviate_adapter(data, vectorize, tokenization)  # ty: ignore[unresolved-reference]
 ```
 
 It accepts the following arguments:
@@ -203,6 +195,7 @@ In the movie example from the [setup guide](#setup-guide), we can use the `repla
 ```py
 from dlt.destinations.adapters import weaviate_adapter
 
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -220,6 +213,7 @@ For the `merge` disposition, you would need to specify a `primary_key` for the r
 ```py
 from dlt.destinations.adapters import weaviate_adapter
 
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
     weaviate_adapter(
         movies,
@@ -374,4 +368,3 @@ Currently, Weaviate destination does not support dbt.
 Weaviate destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA weaviate-->
-

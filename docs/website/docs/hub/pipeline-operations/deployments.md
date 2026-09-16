@@ -61,7 +61,7 @@ The `dlt.hub.run` module provides three decorators:
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
 
-```py
+```py notype
 import dlt
 from dlt.hub import run
 from dlt.hub.run import trigger
@@ -83,7 +83,7 @@ def load_commits():
 
 A general-purpose job, scheduled hourly:
 
-```py
+```py notype
 @run.job(
     trigger=trigger.schedule("0 * * * *"),
     expose={"display_name": "GitHub data quality"},

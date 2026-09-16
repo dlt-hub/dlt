@@ -25,7 +25,7 @@ def tweets():
     # Get the last value from loaded metadata. If it does not exist, get None
     last_val = dlt.current.resource_state().setdefault("last_updated", None)
     # Get data and yield it
-    data = _get_data(start_from=last_val)
+    data = _get_data(start_from=last_val)  # ty: ignore[unresolved-reference]
     yield data
     # Change the state to the new value
     dlt.current.resource_state()["last_updated"] = data["last_timestamp"]
@@ -76,7 +76,7 @@ def players_games(chess_url, players, start_month=None, end_month=None):
     # when the data is loaded, the cache is updated with our loaded_archives_cache
 
     # Get archives for a given player
-    archives = _get_players_archives(chess_url, players)
+    archives = _get_players_archives(chess_url, players)  # ty: ignore[unresolved-reference]
     for url in archives:
         # If not in cache, yield the data and cache the URL
         if url not in loaded_archives_cache:
@@ -91,10 +91,11 @@ def players_games(chess_url, players, start_month=None, end_month=None):
 
 ### Advanced state usage: tracking the last value for all search terms in Twitter API
 
-```py
+```py notype
 @dlt.resource(write_disposition="append")
 def search_tweets(twitter_bearer_token=dlt.secrets.value, search_terms=None, start_time=None, end_time=None, last_value=None):
     headers = _headers(twitter_bearer_token)
+    search_terms = [...]
     for search_term in search_terms:
         # Make cache for each term
         last_value_cache = dlt.current.resource_state().setdefault(f"last_value_{search_term}", None)

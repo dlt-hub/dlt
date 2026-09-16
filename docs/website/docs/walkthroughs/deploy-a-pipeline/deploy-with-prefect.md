@@ -36,7 +36,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
 1. Add `@task` decorator to the individual functions.
     1. Here we use the `@task` decorator for the `get_users` function: 
         
-        ```py
+        ```py notype
         @task
         def get_users() -> None:
             """Execute a pipeline that will load the Slack users list."""
@@ -44,7 +44,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
         
     1. Use the `@flow` function on the `slack_pipeline` function as:
         
-        ```py
+        ```py notype
         @flow
         def slack_pipeline(
             channels=None, 
@@ -56,7 +56,7 @@ Here's a concise guide to orchestrating a `dlt` pipeline with Prefect using "Mov
         
 2. Lastly, append `.serve` to the `if __name__ == '__main__'` block to automatically create and schedule a Prefect deployment for daily execution as:
     
-    ```py
+    ```py notype
     if __name__ == "__main__":
         slack_pipeline.serve("slack_pipeline", cron="0 0 * * *")
     ```

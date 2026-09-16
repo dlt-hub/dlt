@@ -27,16 +27,14 @@ jobs:
 
   # testing and linting of docs snippets is always run to catch problems in the docs
   # NOTE: we could splint linting and testing of docs so linter can also always run for fork PRs
-  test_docs:
-    name: docs
-    uses: ./.github/workflows/test_docs.yml
+  docs_check:
+    uses: ./.github/workflows/docs_check.yml
     secrets: inherit
 
   # NOTE: we build docs the same way as on cloudflare, so we can catch problems early
-  build_docs:
-    name: build docs
-    uses: ./.github/workflows/build_docs.yml
-  
+  docs_build:
+    uses: ./.github/workflows/docs_build.yml
+
   lint:
     name: lint
     needs: get_docs_changes
@@ -102,7 +100,7 @@ jobs:
     needs: [test_common, authorize_secrets]
     uses: ./.github/workflows/test_tools_dbt_runner.yml
     secrets: inherit
-  
+
   # dbt cloud tests currently are disabled, TODO: explain why
   # test_tools_dbt_cloud:
   #   needs: [test_common, authorize_secrets]

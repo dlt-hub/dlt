@@ -194,7 +194,7 @@ need to register to use this service nor get an API key.
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 
-   ```py
+   ```py notype
    # Create the pipeline
    pipeline = dlt.pipeline(
        pipeline_name="data_enrichment_three",
@@ -213,7 +213,7 @@ need to register to use this service nor get an API key.
    do so, you need to add the transformer decorator at the top of the `url_parser` function. For
    `pipeline.run`, you can use the following code:
 
-   ```py
+   ```py notype
    # using url_parser as a transformer function
    load_info = pipeline.run(
        tracked_data | url_parser,
@@ -247,4 +247,3 @@ need to register to use this service nor get an API key.
 
    For example, the "pipeline_name" for the above pipeline example is `data_enrichment_three`; you
    can use any custom name instead.
-

@@ -90,6 +90,7 @@ You can modify and filter data in resources, for example, if we want to keep onl
 date:
 
 ```py
+yesterday = "2026-01-31"
 source.deals.add_filter(lambda deal: deal["created_at"] > yesterday)
 ```
 
@@ -155,20 +156,19 @@ source = hubspot()
 @dlt.transformer
 def deal_scores(deal_item):
     # obtain the score, deal_items contains data yielded by source.deals
-    score = model.predict(featurize(deal_item))
+    score = model.predict(featurize(deal_item))  # ty: ignore
     yield {"deal_id": deal_item, "score": score}
 
 # connect the data from `deals` resource into `deal_scores` and add to the source
 source.resources.add(source.deals | deal_scores)
 # load the data: you'll see the new table `deal_scores` in your destination!
 pipeline.run(source)
-```
-You can also set the resources in the source as follows:
-```py
+
+
+# You can also set the resources in the source as follows:
 source.deal_scores = source.deals | deal_scores
-```
-or
-```py
+
+# or
 source.resources["deal_scores"] = source.deals | deal_scores
 ```
 :::note
@@ -251,12 +251,26 @@ You can temporarily change the "write disposition" to `replace` on all (or selec
 a source to force a full refresh:
 
 ```py
+@dlt.source
+def merge_source():
+    ...
+
 p.run(merge_source(), write_disposition="replace")
 ```
 
 With selected resources:
 
 ```py
-p.run(tables.with_resources("users"), write_disposition="replace")
-```
+@dlt.source
+def crm():
+    @dlt.resource
+    def users():
+        ...
 
+    return [users, ...]
+
+p.run(
+    crm().with_resources("users"),
+    write_disposition="replace"
+)
+```

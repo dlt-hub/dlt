@@ -198,6 +198,8 @@ Iceberg supports several transformation functions for partitioning. Use the `ice
 Distribute data across a fixed number of buckets using a hash function:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.bucket(16, "user_id")],
@@ -209,6 +211,8 @@ iceberg_adapter(
 Partition string values by a fixed prefix length:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.truncate(3, "category")],  # "ELECTRONICS" → "ELE"
@@ -220,6 +224,8 @@ iceberg_adapter(
 Specify custom names for partition fields:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[
@@ -299,6 +305,10 @@ You can combine table properties with partitioning:
 
 ```py
 from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
+@dlt.resource(table_format="iceberg")
+def my_data():
+    yield [{"id": 1, "value": "a"}]
 
 iceberg_adapter(
     my_data,

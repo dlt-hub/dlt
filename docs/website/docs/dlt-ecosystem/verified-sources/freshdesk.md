@@ -112,9 +112,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function retrieves the data from specified Freshdesk API endpoints.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source()
 def freshdesk_source(
-    endpoints: Optional[List[str]] = None,
+    endpoints: list[str] | None = None,
     per_page: int = 100,
     domain: str = dlt.secrets.value,
     api_secret_key: str = dlt.secrets.value,
@@ -139,11 +142,15 @@ This function creates and yields a dlt resource for each endpoint in
 ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source()
 def freshdesk_source(
     #args as defined above
 ) -> Iterable[DltResource]:
-    for endpoint in ENDPOINTS:
+    endpoints: list[str] = []
+    for endpoint in endpoints:
         yield dlt.resource(
             incremental_resource,
             name=endpoint,
@@ -179,7 +186,7 @@ verified source.
    [documentation](../../general-usage/pipeline).
 
 2. To load data from all the endpoints, specified in ["settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/freshdesk/settings.py)
-   ```py
+   ```py notype
    load_data = freshdesk_source()
    # Run the pipeline
    load_info = pipeline.run(load_data)
@@ -188,7 +195,7 @@ verified source.
    ```
 
 3. To load the data from "agents", "contacts", and "tickets":
-   ```py
+   ```py notype
    load_data = freshdesk_source().with_resources("agents", "contacts", "tickets")
    # Run the pipeline
    load_info = pipeline.run(load_data)

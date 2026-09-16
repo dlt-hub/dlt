@@ -612,6 +612,8 @@ Iceberg supports several transformation functions for partitioning. Use the `ice
 Partition by the exact value of a column (default for string columns when specified by name):
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 # These are equivalent:
 iceberg_adapter(resource, partition=["region"])
 iceberg_adapter(resource, partition=[iceberg_partition.identity("region")])
@@ -643,6 +645,8 @@ iceberg_adapter(
 Distribute data across a fixed number of buckets using a hash function:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.bucket(16, "user_id")]
@@ -653,6 +657,8 @@ iceberg_adapter(
 Partition string values by a fixed prefix length:
 
 ```py
+from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
+
 iceberg_adapter(
     resource,
     partition=[iceberg_partition.truncate(3, "category")]  # Groups "ELECTRONICS" → "ELE"

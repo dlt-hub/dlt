@@ -6,31 +6,23 @@ paths:
 # Documentation guidelines
 
 ## Setup
-- `cd docs && make dev` (Python tooling), then `cd docs/website && npm install` (Node/Docusaurus)
-- `make dev` must run before any other docs command
+- On your first setup, go to directory `docs/` and run `make dev`. This will install the required Python and JS/TS dependencies to build the docs `cd docs && make dev`.
+- This will also install pre-commit hooks using `prek`. This will automatically run linting, type checking, etc. on each `git commit` and `git push`
 
-## Linting
-- **Always lint after editing docs**: from `docs/` run `make lint-embedded-snippets`
-- Filter by path: `uv run lint-embedded-snippets full -f <path-fragment>`
-- Filter by snippet number: `-s 49,345`; verbose: `-v`
+## Code snippets
+- Inline code snippets will automatically be formatted, linted, and type-checked. To opt-out, add the directive to the codefence `notype` or `nolint`.
+- The `execute` directive means the snippet will be ran during before each commit and on CI. The executed snippets should be lightweight.
 
-## Inline code snippets
-- Use fenced code blocks with a language tag -- the linter rejects blocks without one
-- Allowed tags: `py`, `toml`, `json`, `yaml`, `sh`, `bat`, `sql`, `text`, `hcl`, `dbml`, `dot`, `mermaid`
-- Python snippets must parse (`ast.parse`), pass `ruff check`, and (optionally) `mypy`
-- TOML/JSON/YAML snippets must parse with their respective parsers
+For example
 
-## External snippet references
-- Keep reusable examples in `snippets/` subdirectories next to the markdown, named `*-snippets.py`
-- Mark code regions in the Python file:
-  ```python
-  # @@@DLT_SNIPPET_START my_snippet
-  ...code...
-  # @@@DLT_SNIPPET_END my_snippet
-  ```
-- Reference in markdown with an HTML comment: `<!--@@@DLT_SNIPPET ./snippets/file-snippets.py::my_snippet-->`
-- The preprocessor (`uv run preprocess-docs`) replaces these markers with the extracted code block
-
+    > \```python notype execute
+    >
+    > import foo
+    > 
+    > def my_func() -> int: ...
+    > 
+    > \``` 
+  
 ## Internal links
 - Use relative paths **with** `.md` extension: `[schema contracts](schema-contracts.md)`
 - Link to sections with `#` anchors (auto-generated from headings, lowercase hyphenated): `[merge strategies](merge-loading.md#merge-strategies)`
