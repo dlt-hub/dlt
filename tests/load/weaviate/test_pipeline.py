@@ -8,6 +8,7 @@ from dlt.common.schema.exceptions import (
     SchemaCorruptedException,
     SchemaIdentifierNormalizationCollision,
 )
+from dlt.common.configuration.exceptions import ConfigurationValueError
 from dlt.common.utils import uniq_id
 
 from dlt.destinations import weaviate
@@ -334,7 +335,14 @@ def test_pipeline_with_schema_evolution(vectorized: bool):
     aggregated_data[0]["new_vec_column"] = None
     aggregated_data[1]["new_vec_column"] = None
 
-    assert_class(pipeline, "SomeData", items=aggregated_data)
+    # Weaviate fixes a vector's source properties when the collection is created and offers no
+    # way to extend them, so `new_vec_column` is not vectorized even though it carries the hint
+    assert_class(
+        pipeline,
+        "SomeData",
+        items=aggregated_data,
+        vectorized_columns=["content"] if vectorized else [],
+    )
 
 
 def test_merge_github_nested() -> None:
@@ -484,6 +492,147 @@ def test_vectorize_property_without_data() -> None:
     assert_class(p, "Content", expected_items_count=6)
 
 
+def test_pipeline_with_precomputed_vectors() -> None:
+    """Vectors supplied by the user are stored as object vectors, not as properties."""
+
+    @dlt.resource(name="embeddings", primary_key="doc_id", write_disposition="merge")
+    def embeddings(vector: float):
+        yield {"doc_id": 1, "title": "first", "emb": [vector, 0.2, 0.3]}
+        yield {"doc_id": 2, "title": "second", "emb": [0.9, 0.8, 0.7]}
+
+    p = dlt.pipeline(
+        pipeline_name="weaviate_byo_vectors_" + uniq_id(),
+        destination="weaviate",
+        dataset_name="TestByoVectors" + uniq_id(),
+        dev_mode=True,
+    )
+    info = p.run(weaviate_adapter(embeddings(0.1), vector="emb"))
+    assert_load_info(info)
+
+    # the vector column is not unnested into a child table
+    assert "Embeddings__emb" not in p.default_schema.tables
+
+    client: WeaviateClient
+    with p.destination_client() as client:  # type: ignore[assignment]
+        collection = client.db_client.collections.get(
+            client.make_qualified_collection_name("Embeddings")
+        )
+        # the vector column is not stored as a property
+        assert "emb" not in {prop.name for prop in collection.config.get().properties}
+
+        objects = collection.query.fetch_objects(include_vector=True, limit=10).objects
+        vectors = {int(o.properties["doc_id"]): o.vector["default"] for o in objects}  # type: ignore[arg-type]
+        assert vectors[1] == pytest.approx([0.1, 0.2, 0.3])
+        assert vectors[2] == pytest.approx([0.9, 0.8, 0.7])
+
+    # merging the same primary key replaces the vector
+    info = p.run(weaviate_adapter(embeddings(0.5), vector="emb"))
+    assert_load_info(info)
+
+    with p.destination_client() as client:  # type: ignore[assignment]
+        collection = client.db_client.collections.get(
+            client.make_qualified_collection_name("Embeddings")
+        )
+        objects = collection.query.fetch_objects(include_vector=True, limit=10).objects
+        assert len(objects) == 2
+        vectors = {int(o.properties["doc_id"]): o.vector["default"] for o in objects}  # type: ignore[arg-type]
+        assert vectors[1] == pytest.approx([0.5, 0.2, 0.3])
+
+
+def test_adapter_rejects_vector_column_that_is_also_vectorized() -> None:
+    with pytest.raises(ValueError):
+        weaviate_adapter([{"emb": [0.1]}], vectorize="emb", vector="emb")
+
+
+def test_adapter_requires_at_least_one_hint() -> None:
+    with pytest.raises(ValueError):
+        weaviate_adapter([{"emb": [0.1]}])
+
+
+def test_pipeline_with_named_vectors() -> None:
+    """Each named vector becomes its own vector on the collection, built from its own columns."""
+
+    @dlt.resource(name="articles", primary_key="id")
+    def articles():
+        yield {"id": 1, "title": "weaviate vectors", "body": "the body text goes here"}
+
+    p = dlt.pipeline(
+        pipeline_name="weaviate_named_vectors_" + uniq_id(),
+        destination="weaviate",
+        dataset_name="TestNamedVectors" + uniq_id(),
+        dev_mode=True,
+    )
+    info = p.run(
+        weaviate_adapter(
+            articles(),
+            named_vectors={
+                "title_vec": {"vectorize": ["title"]},
+                "body_vec": {"vectorize": ["body"]},
+            },
+        )
+    )
+    assert_load_info(info)
+
+    client: WeaviateClient
+    with p.destination_client() as client:  # type: ignore[assignment]
+        collection = client.db_client.collections.get(
+            client.make_qualified_collection_name("Articles")
+        )
+        vector_config = collection.config.get().vector_config
+        assert set(vector_config) == {"title_vec", "body_vec"}
+
+        if client.config.vectorizer == "none":
+            # without a vectorizer module each named vector carries user supplied vectors
+            assert all(v.vectorizer.vectorizer == "none" for v in vector_config.values())
+        else:
+            assert vector_config["title_vec"].vectorizer.source_properties == ["title"]
+            assert vector_config["body_vec"].vectorizer.source_properties == ["body"]
+
+
+def test_named_vectors_require_source_columns() -> None:
+    with pytest.raises(ValueError):
+        weaviate_adapter([{"title": "x"}], named_vectors={"title_vec": {"vectorize": []}})
+
+
+def test_pipeline_multi_tenancy_isolates_tenants() -> None:
+    """Rows loaded under one tenant are invisible to another."""
+    dataset_name = "TestTenants" + uniq_id()
+
+    def load(tenant: str, rows) -> dlt.Pipeline:
+        pipeline = dlt.pipeline(
+            pipeline_name=f"weaviate_tenant_{tenant}_" + uniq_id(),
+            destination=weaviate(multi_tenancy=True, tenant=tenant),
+            dataset_name=dataset_name,
+        )
+        assert_load_info(
+            pipeline.run(rows, table_name="items", primary_key="id", write_disposition="merge")
+        )
+        return pipeline
+
+    p_a = load("tenanta", [{"id": 1, "v": "a1"}, {"id": 2, "v": "a2"}])
+    load("tenantb", [{"id": 1, "v": "b1"}])
+
+    client: WeaviateClient
+    with p_a.destination_client() as client:  # type: ignore[assignment]
+        items = client.db_client.collections.get(client.make_qualified_collection_name("Items"))
+        assert items.config.get().multi_tenancy_config.enabled is True
+
+        # dlt bookkeeping stays shared, it is already keyed by pipeline name
+        state = client.db_client.collections.get(
+            client.make_qualified_collection_name("DltPipelineState")
+        )
+        assert state.config.get().multi_tenancy_config.enabled is False
+
+        by_tenant = {
+            tenant: sorted(
+                str(o.properties["v"])
+                for o in items.with_tenant(tenant).query.fetch_objects(limit=10).objects
+            )
+            for tenant in ("tenanta", "tenantb")
+        }
+        assert by_tenant == {"tenanta": ["a1", "a2"], "tenantb": ["b1"]}
+
+
 def test_pipeline_with_separate_grpc_host() -> None:
     """A custom connection can reach REST and gRPC on different hosts."""
     p = dlt.pipeline(
@@ -515,3 +664,88 @@ def test_pipeline_with_separate_grpc_host() -> None:
         )
         objects = collection.query.fetch_objects(limit=5).objects
         assert [o.properties["value"] for o in objects] == ["loaded over a separate grpc host"]
+
+
+def test_pipeline_with_extra_collection_config() -> None:
+    """`collection_config` reaches `collections.create` for arguments dlt has no field for."""
+    from weaviate.classes.config import Configure
+
+    p = dlt.pipeline(
+        pipeline_name="weaviate_collection_config_" + uniq_id(),
+        destination=weaviate(
+            collection_config={
+                "description": "created by dlt",
+                "replication_config": Configure.replication(factor=1),
+                "inverted_index_config": Configure.inverted_index(index_null_state=True),
+            }
+        ),
+        dataset_name="TestCollectionConfig" + uniq_id(),
+        dev_mode=True,
+    )
+    info = p.run([{"doc_id": 1, "value": "hello"}], table_name="content")
+    assert_load_info(info)
+
+    client: WeaviateClient
+    with p.destination_client() as client:  # type: ignore[assignment]
+        config = client.db_client.collections.get(
+            client.make_qualified_collection_name("Content")
+        ).config.get()
+
+        assert config.description == "created by dlt"
+        assert config.replication_config.factor == 1
+        assert config.inverted_index_config.index_null_state is True
+
+
+def test_extra_collection_config_rejects_what_dlt_derives() -> None:
+    p = dlt.pipeline(
+        pipeline_name="weaviate_bad_collection_config_" + uniq_id(),
+        destination=weaviate(collection_config={"vector_config": "nope"}),
+        dataset_name="TestBadCollectionConfig" + uniq_id(),
+        dev_mode=True,
+    )
+
+    client: WeaviateClient
+    with p.destination_client() as client:  # type: ignore[assignment]
+        with pytest.raises(ConfigurationValueError, match="vector_config"):
+            client.extra_collection_config()
+
+
+def test_multi_tenancy_activates_an_inactive_tenant() -> None:
+    """Weaviate refuses writes to a deactivated tenant unless the collection auto-activates."""
+    from weaviate.classes.tenants import Tenant, TenantActivityStatus
+
+    dataset_name = "TestTenantActivation" + uniq_id()
+
+    def load(rows) -> dlt.Pipeline:
+        pipeline = dlt.pipeline(
+            pipeline_name="weaviate_tenant_activation_" + uniq_id(),
+            destination=weaviate(multi_tenancy=True, tenant="tenanta"),
+            dataset_name=dataset_name,
+        )
+        assert_load_info(
+            pipeline.run(rows, table_name="items", primary_key="id", write_disposition="merge")
+        )
+        return pipeline
+
+    p = load([{"id": 1, "v": "before"}])
+
+    client: WeaviateClient
+    with p.destination_client() as client:  # type: ignore[assignment]
+        items = client.db_client.collections.get(client.make_qualified_collection_name("Items"))
+        tenancy = items.config.get().multi_tenancy_config
+        assert tenancy.auto_tenant_creation is True
+        assert tenancy.auto_tenant_activation is True
+
+        items.tenants.update(Tenant(name="tenanta", activity_status=TenantActivityStatus.INACTIVE))
+        assert items.tenants.get_by_name("tenanta").activity_status == TenantActivityStatus.INACTIVE
+
+    # the tenant is inactive, and loading into it must still work
+    p = load([{"id": 2, "v": "after"}])
+
+    with p.destination_client() as client:  # type: ignore[assignment]
+        items = client.db_client.collections.get(client.make_qualified_collection_name("Items"))
+        loaded = sorted(
+            str(o.properties["v"])
+            for o in items.with_tenant("tenanta").query.fetch_objects(limit=10).objects
+        )
+        assert loaded == ["after", "before"]

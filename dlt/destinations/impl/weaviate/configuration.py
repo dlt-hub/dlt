@@ -31,6 +31,9 @@ WEAVIATE_SERVER_SIDE_BATCH_MIN_VERSION = "1.36.0"
 # earlier ones only ship `batch.experimental`.
 WEAVIATE_CLIENT_MIN_VERSION = "4.20.0"
 
+# Weaviate exposes a collection's single unnamed vector under this name.
+DEFAULT_VECTOR_NAME = "default"
+
 DEFAULT_HTTP_PORT = 8080
 DEFAULT_GRPC_PORT = 50051
 
@@ -136,6 +139,20 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
 
     dataset_separator: str = "_"
 
+    collection_config: Optional[Dict[str, Any]] = None
+    """Extra arguments passed to `collections.create` for every collection dlt creates,
+    e.g. `replication_config`, `generative_config` or `inverted_index_config`. Values are
+    weaviate-client config objects, so this can only be set from Python, not from TOML."""
+
+    multi_tenancy: bool = False
+    """Create collections as multi-tenant."""
+    tenant: Optional[str] = None
+    """Tenant all objects of this pipeline belong to. Requires `multi_tenancy`."""
+    auto_tenant_creation: bool = True
+    """Create the tenant on first write instead of failing."""
+    auto_tenant_activation: bool = True
+    """Activate an inactive tenant on any operation against it instead of failing."""
+
     # Connection type: "cloud" for Weaviate Cloud, "local" for Docker, "custom" for self-hosted
     # If None, auto-detected from URL pattern
     connection_type: Optional[TWeaviateConnectionType] = None
@@ -165,6 +182,18 @@ class WeaviateClientConfiguration(DestinationClientDwhConfiguration):
             batch_option_without_v4_equivalent_deprecated("batch_retries")
         if self.startup_period != 5:
             batch_option_without_v4_equivalent_deprecated("startup_period")
+        if self.tenant and not self.multi_tenancy:
+            raise ConfigurationValueError(
+                "tenant",
+                "`tenant` requires `multi_tenancy` to be enabled. Set"
+                " `[destination.weaviate]\nmulti_tenancy=true`.",
+            )
+        if self.multi_tenancy and not self.tenant:
+            raise ConfigurationValueError(
+                "tenant",
+                "`multi_tenancy` requires a `tenant` to load into. Set"
+                ' `[destination.weaviate]\ntenant="my-tenant"`.',
+            )
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the connection host."""

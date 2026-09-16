@@ -222,6 +222,34 @@ def test_explicit_batch_mode_is_not_overridden(batch_mode: TWeaviateBatchMode) -
     assert client.resolve_batch_mode() == batch_mode
 
 
+def test_tenant_requires_multi_tenancy() -> None:
+    config = WeaviateClientConfiguration(
+        credentials=WeaviateCredentials(url="http://localhost:8080"), tenant="tenanta"
+    )
+
+    with pytest.raises(ConfigurationValueError):
+        config.on_resolved()
+
+
+def test_multi_tenancy_requires_a_tenant() -> None:
+    config = WeaviateClientConfiguration(
+        credentials=WeaviateCredentials(url="http://localhost:8080"), multi_tenancy=True
+    )
+
+    with pytest.raises(ConfigurationValueError):
+        config.on_resolved()
+
+
+def test_multi_tenancy_with_tenant_resolves() -> None:
+    config = WeaviateClientConfiguration(
+        credentials=WeaviateCredentials(url="http://localhost:8080"),
+        multi_tenancy=True,
+        tenant="tenanta",
+    )
+
+    config.on_resolved()
+
+
 def test_grpc_host_defaults_to_the_rest_host() -> None:
     config = WeaviateClientConfiguration(
         credentials=WeaviateCredentials(
@@ -406,3 +434,26 @@ def test_session_pool_defaults_are_left_to_the_client() -> None:
         ConnectionConfig().session_pool_connections
     )
     assert default_connection.session_pool_maxsize == ConnectionConfig().session_pool_maxsize
+
+
+@pytest.mark.parametrize("option", ["auto_tenant_creation", "auto_tenant_activation"])
+def test_tenant_automation_defaults_to_on(option: str) -> None:
+    config = WeaviateClientConfiguration(
+        credentials=WeaviateCredentials(url="http://localhost:8080"),
+        multi_tenancy=True,
+        tenant="tenanta",
+    )
+
+    assert getattr(config, option) is True
+
+
+@pytest.mark.parametrize("option", ["auto_tenant_creation", "auto_tenant_activation"])
+def test_tenant_automation_can_be_turned_off(option: str) -> None:
+    config = WeaviateClientConfiguration(
+        credentials=WeaviateCredentials(url="http://localhost:8080"),
+        multi_tenancy=True,
+        tenant="tenanta",
+        **{option: False},  # type: ignore[arg-type]
+    )
+
+    assert getattr(config, option) is False

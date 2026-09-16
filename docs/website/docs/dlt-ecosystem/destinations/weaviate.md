@@ -163,13 +163,15 @@ The `weaviate_adapter` is a helper function that configures the resource for the
 ```py
 from dlt.destinations.adapters import weaviate_adapter
 
-weaviate_adapter(data, vectorize, tokenization)  # ty: ignore[unresolved-reference]
+weaviate_adapter(data, vectorize, tokenization, vector, named_vectors)  # ty: ignore[unresolved-reference]
 ```
 
 It accepts the following arguments:
 - `data`: a dlt resource object or a Python data structure (e.g., a list of dictionaries).
 - `vectorize`: a name of the field or a list of names that should be vectorized by Weaviate.
 - `tokenization`: the dictionary containing the tokenization configuration for a field. The dictionary should have the following structure `{'field_name': 'method'}`. Valid methods are "word", "lowercase", "whitespace", "field". The default is "word". See [Property tokenization](https://weaviate.io/developers/weaviate/config-refs/schema#property-tokenization) in Weaviate documentation for more details.
+- `vector`: the name of a field holding a precomputed embedding. See [Bring your own vectors](#bring-your-own-vectors).
+- `named_vectors`: a dictionary declaring several independently configured vectors on one collection. See [Named vectors](#named-vectors).
 
 Returns: a [dlt resource](../../general-usage/resource.md) object that you can pass to the `pipeline.run()`.
 
@@ -207,6 +209,48 @@ info = pipeline.run(products_tables)
 
 :::tip
 A more comprehensive pipeline would load data from [API](https://dlthub.com/workspace) or use one of dlt's [sources](../verified-sources/).
+:::
+
+### Bring your own vectors
+
+When you already compute embeddings yourself, point `vector` at the field holding them. The
+field is stored as the object vector instead of as a property, and the collection is created
+without a vectorizer:
+
+```py
+@dlt.resource(primary_key="doc_id", write_disposition="merge")
+def documents():
+    yield {"doc_id": 1, "title": "first", "embedding": [0.1, 0.2, 0.3]}
+
+weaviate_adapter(documents(), vector="embedding")  # ty: ignore[unresolved-reference]
+```
+
+The vector index stays enabled so the objects remain searchable, and re-running with `merge`
+replaces the vector along with the rest of the object.
+
+### Named vectors
+
+A collection can carry several vectors, each built from its own fields and, optionally, its own
+vectorizer. Declare them with `named_vectors`:
+
+```py
+weaviate_adapter(  # ty: ignore[unresolved-reference]
+    articles(),
+    named_vectors={
+        "title_vec": {"vectorize": ["title"]},
+        "body_vec": {"vectorize": ["body"], "vectorizer": "text2vec-weaviate"},
+    },
+)
+```
+
+Each entry becomes a named vector on the collection, queryable with Weaviate's `target_vector`.
+A vector without an explicit `vectorizer` uses the destination's `vectorizer` setting.
+
+:::note
+Weaviate fixes a collection's vectors when the collection is created and offers no way to
+change them afterwards. Declare `named_vectors` before the first load, or load into a new
+dataset. The same applies to `vectorize`: a column that gains the hint after the collection
+exists is stored and stays queryable, but is not added to the vector, and dlt logs a warning.
 :::
 
 ## Write disposition
@@ -363,8 +407,13 @@ naming="dlt.destinations.impl.weaviate.ci_naming"
 - `proxies`: (dict) proxies passed to the client, e.g. `{"https" = "http://proxy:3128"}`.
 - `trust_env`: (bool) let the client read proxy settings from the environment. The default is `false`.
 - `session_pool_connections`, `session_pool_maxsize`, `session_pool_max_retries`, `session_pool_timeout`: (int) REST connection pool tuning. Left unset, the client's own defaults apply.
-- `vectorizer`: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/modules/retriever-vectorizer-modules) to use. The default is `text2vec-openai`.
-- `moduleConfig`: (dict) configurations of various Weaviate modules.
+- `vectorizer`: (str) the name of [the vectorizer](https://weaviate.io/developers/weaviate/model-providers) to use. The default is `text2vec-openai`. Any vectorizer module supported by the Weaviate Python client can be used; an unknown name raises an error rather than silently loading unvectorized objects.
+- `module_config`: (dict) configurations of various Weaviate modules.
+- `multi_tenancy`: (bool) create collections as multi-tenant. The default is `false`.
+- `tenant`: (str) the tenant to load into. Requires `multi_tenancy`.
+- `auto_tenant_creation`: (bool) create the tenant on first write instead of failing. The default is `true`.
+- `auto_tenant_activation`: (bool) activate an inactive tenant on any operation against it instead of failing. The default is `true`.
+- `collection_config`: (dict) extra arguments passed to `collections.create`. See [Collection configuration](#collection-configuration).
 
 :::note
 `batch_retries` and `startup_period` are deprecated and have no effect. The Weaviate v4 client
@@ -399,6 +448,56 @@ batch_mode = "rate_limit"
 batch_requests_per_minute = 100
 ```
 
+### Collection configuration
+
+Most collection settings are reachable through `module_config`, which is passed straight to the
+vectorizer factory. That covers the vector index and quantization:
+
+```py
+from weaviate.classes.config import Configure
+import dlt
+
+destination = dlt.destinations.weaviate(  # ty: ignore[unresolved-attribute]
+    vectorizer="text2vec-cohere",
+    module_config={
+        "text2vec-cohere": {
+            "model": "embed-multilingual-v3.0",
+            "vector_index_config": Configure.VectorIndex.hnsw(
+                ef_construction=256,
+                max_connections=64,
+                quantizer=Configure.VectorIndex.Quantizer.bq(),
+            ),
+        }
+    },
+)
+```
+
+Everything else Weaviate accepts when creating a collection — `replication_config`,
+`sharding_config`, `inverted_index_config`, `generative_config`, `reranker_config`,
+`object_ttl_config`, `description`, `references` — goes through `collection_config`, which dlt
+merges into every collection it creates:
+
+```py
+from weaviate.classes.config import Configure
+import dlt
+
+destination = dlt.destinations.weaviate(  # ty: ignore[unresolved-attribute]
+    collection_config={
+        "description": "loaded by dlt",
+        "replication_config": Configure.replication(factor=3),
+        "generative_config": Configure.Generative.cohere(),
+    },
+)
+```
+
+`name`, `properties`, `vector_config` and `multi_tenancy_config` are derived by dlt from the
+schema and cannot be set here — passing one raises, rather than silently producing a collection
+that does not match the schema. An argument Weaviate does not accept raises too, listing the ones
+it does.
+
+Because the values are weaviate-client config objects, `collection_config` and the richer parts of
+`module_config` can only be set from Python, not from `secrets.toml`.
+
 ### Weaviate integration header
 
 dlt identifies itself to Weaviate with the `X-Weaviate-Client-Integration` header, set to
@@ -409,6 +508,24 @@ integration. To change or remove it, set the same header explicitly:
 [destination.weaviate.credentials.additional_headers]
 X-Weaviate-Client-Integration = "my-app/1.0"
 ```
+
+### Multi-tenancy
+
+Weaviate [multi-tenant collections](https://docs.weaviate.io/weaviate/manage-collections/multi-tenancy)
+keep each tenant's objects isolated. Enable it and name the tenant this pipeline loads into:
+
+```toml
+[destination.weaviate]
+multi_tenancy = true
+tenant = "my-tenant"
+```
+
+Tenants are created on demand, and an inactive tenant is activated by any operation against it.
+Without `auto_tenant_activation` a load into such a tenant fails with `tenant not active`, so dlt
+turns it on by default; Weaviate is making it the default too.
+
+dlt's own `_dlt_*` collections stay single-tenant: they hold pipeline bookkeeping, which is
+already keyed by pipeline name, not tenant data.
 
 ### Configure Weaviate modules
 

@@ -70,11 +70,22 @@ from dlt.common.destination.client import (
 )
 from dlt.common.storages import FileStorage
 
-from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
+from dlt.destinations.impl.weaviate.weaviate_adapter import (
+    VECTORIZE_HINT,
+    TOKENIZATION_HINT,
+    VECTOR_HINT,
+    NAMED_VECTORS_HINT,
+)
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
+from dlt.destinations.impl.weaviate.utils import (
+    get_vector_factory,
+    validate_collection_config,
+    normalize_module_config,
+)
 from dlt.destinations.impl.weaviate.configuration import (
     WeaviateClientConfiguration,
     TWeaviateBatchMode,
+    DEFAULT_VECTOR_NAME,
     WEAVIATE_CLIENT_MIN_VERSION,
     WEAVIATE_SERVER_SIDE_BATCH_MIN_VERSION,
 )
@@ -174,13 +185,21 @@ class LoadWeaviateJob(RunnableLoadJob):
         self.nested_indices = [
             i
             for i, field in self._schema.get_table_columns(self.load_table_name).items()
-            if field["data_type"] == "json"
+            if field["data_type"] == "json" and not field.get(VECTOR_HINT, False)
         ]
         self.date_indices = [
             i
             for i, field in self._schema.get_table_columns(self.load_table_name).items()
             if field["data_type"] == "date"
         ]
+        self.vector_column = next(
+            (
+                i
+                for i, field in self._schema.get_table_columns(self.load_table_name).items()
+                if field.get(VECTOR_HINT, False)
+            ),
+            None,
+        )
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             self.load_batch(f)
 
@@ -199,7 +218,9 @@ class LoadWeaviateJob(RunnableLoadJob):
             return collection.batch.rate_limit(requests_per_minute=config.batch_requests_per_minute)
         return collection.batch.dynamic()
 
-    def _object_from_line(self, line: str) -> Tuple[Dict[str, Any], Optional[str]]:
+    def _object_from_line(
+        self, line: str
+    ) -> Tuple[Dict[str, Any], Optional[str], Optional[Sequence[float]]]:
         data = json.loads(line)
         for key in self.nested_indices:
             if key in data:
@@ -212,7 +233,9 @@ class LoadWeaviateJob(RunnableLoadJob):
             if self.unique_identifiers
             else None
         )
-        return data, uuid
+        # the vector is sent alongside the object, not as one of its properties
+        vector = data.pop(self.vector_column, None) if self.vector_column else None
+        return data, uuid, vector
 
     @wrap_weaviate_error
     def load_batch(self, f: IO[str]) -> None:
@@ -220,7 +243,7 @@ class LoadWeaviateJob(RunnableLoadJob):
 
         Weaviate batch supports retries so we do not need to do that.
         """
-        collection = self._db_client.collections.get(self._collection_name)
+        collection = self._job_client.data_collection(self._collection_name)
         collection = collection.with_consistency_level(
             ConsistencyLevel[self._client_config.batch_consistency]
         )
@@ -238,8 +261,8 @@ class LoadWeaviateJob(RunnableLoadJob):
 
         with self._batch_context(collection) as batch:
             for line in f:
-                properties, uuid = self._object_from_line(line)
-                batch.add_object(properties=properties, uuid=uuid)
+                properties, uuid, vector = self._object_from_line(line)
+                batch.add_object(properties=properties, uuid=uuid, vector=vector)
 
         check_batch_result(collection.batch.failed_objects)
 
@@ -337,6 +360,25 @@ class WeaviateClient(JobClientBase, WithStateSync):
         )
         return "fixed_size"
 
+    def is_dlt_collection(self, full_collection_name: str) -> bool:
+        """Tells if a qualified collection name belongs to one of the dlt bookkeeping tables."""
+        return full_collection_name in {
+            self.make_qualified_collection_name(name)
+            for name in (
+                self.schema.version_table_name,
+                self.schema.loads_table_name,
+                self.schema.state_table_name,
+            )
+        }
+
+    def data_collection(self, full_collection_name: str) -> Any:
+        """Collection handle scoped to the configured tenant, for reads and writes of data."""
+        collection = self.db_client.collections.get(full_collection_name)
+        # dlt bookkeeping is shared across tenants, it is keyed by pipeline name already
+        if self.config.tenant and not self.is_dlt_collection(full_collection_name):
+            return collection.with_tenant(self.config.tenant)
+        return collection
+
     def make_qualified_collection_name(self, table_name: str) -> str:
         """Make a full Weaviate collection name from a table name by prepending
         the dataset name if it exists.
@@ -369,19 +411,19 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     def _config_to_dict(self, config: Any) -> Dict[str, Any]:
         """Convert a collection config to a dictionary format similar to v3"""
-        # Get vectorizer name - in v4 it's directly a Vectorizers enum
-        vectorizer_name = "none"
-        if config.vectorizer:
-            if hasattr(config.vectorizer, "value"):
-                vectorizer_name = config.vectorizer.value
-            else:
-                vectorizer_name = str(config.vectorizer)
+        vectorizer_name, source_properties = self._read_default_vector(config)
 
         result: Dict[str, Any] = {
             "class": config.name,
             "properties": [],
             "vectorizer": vectorizer_name,
         }
+        if vectorizer_name != "none":
+            result["sourceProperties"] = source_properties
+        # the config must round-trip: `initialize_storage` recreates collections from it
+        named_vectors = self._read_named_vectors(config)
+        if named_vectors:
+            result["namedVectors"] = named_vectors
 
         # Add vectorIndexConfig if available
         if config.vector_index_config:
@@ -410,20 +452,51 @@ class WeaviateClient(JobClientBase, WithStateSync):
                     else str(prop.tokenization)
                 )
 
-            # Add moduleConfig for vectorization skip info
-            # In v4 API, the skip value is in prop.vectorizer_config.skip
+            # `source_properties` of the vector decides what is vectorized, so a property
+            # is skipped exactly when it is not one of them
             if vectorizer_name != "none":
-                skip_vectorization = False
-                if hasattr(prop, "vectorizer_config") and prop.vectorizer_config:
-                    skip_vectorization = getattr(prop.vectorizer_config, "skip", False)
                 prop_dict["moduleConfig"] = {
-                    vectorizer_name: {
-                        "skip": skip_vectorization,
-                    }
+                    vectorizer_name: {"skip": prop.name not in source_properties}
                 }
             result["properties"].append(prop_dict)
 
         return result
+
+    def extra_collection_config(self) -> Dict[str, Any]:
+        """User supplied `collections.create` arguments, validated against the client."""
+        if not self.config.collection_config:
+            return {}
+        return validate_collection_config(
+            self.config.collection_config, self.db_client.collections.create
+        )
+
+    def _read_default_vector(self, config: Any) -> Tuple[str, List[str]]:
+        """Reads the vectorizer name and its source properties off a collection config."""
+        vector = (getattr(config, "vector_config", None) or {}).get(DEFAULT_VECTOR_NAME)
+        if vector is not None and vector.vectorizer is not None:
+            vectorizer = vector.vectorizer.vectorizer
+            return (
+                getattr(vectorizer, "value", str(vectorizer)),
+                list(vector.vectorizer.source_properties or []),
+            )
+        # collections created before dlt moved to `vector_config`
+        if config.vectorizer:
+            return getattr(config.vectorizer, "value", str(config.vectorizer)), []
+        return "none", []
+
+    def _read_named_vectors(self, config: Any) -> Dict[str, Any]:
+        """Reads named vectors off a collection config, ignoring the single default vector."""
+        vectors = getattr(config, "vector_config", None) or {}
+        named = {}
+        for name, vector in vectors.items():
+            if name == DEFAULT_VECTOR_NAME or vector.vectorizer is None:
+                continue
+            vectorizer = vector.vectorizer.vectorizer
+            named[name] = {
+                "vectorize": list(vector.vectorizer.source_properties or []),
+                "vectorizer": getattr(vectorizer, "value", str(vectorizer)),
+            }
+        return named
 
     def create_collection(
         self, collection_config: Dict[str, Any], full_collection_name: Optional[str] = None
@@ -448,22 +521,20 @@ class WeaviateClient(JobClientBase, WithStateSync):
             prop_config = self._make_property_config(prop)
             properties.append(prop_config)
 
-        # Determine vectorizer configuration
-        vectorizer = collection_config.get("vectorizer", "none")
-        vectorizer_config = None
-
-        if vectorizer == "none":
-            # No vectorization
-            vectorizer_config = Configure.Vectorizer.none()
-        else:
-            # Use the specified vectorizer
-            vectorizer_config = self._get_vectorizer_config(vectorizer)
-
-        # Create the collection
         self.db_client.collections.create(
             name=name,
             properties=properties,
-            vectorizer_config=vectorizer_config,
+            vector_config=self._get_vector_config(collection_config),
+            multi_tenancy_config=(
+                Configure.multi_tenancy(
+                    enabled=True,
+                    auto_tenant_creation=self.config.auto_tenant_creation,
+                    auto_tenant_activation=self.config.auto_tenant_activation,
+                )
+                if self.config.multi_tenancy and not self.is_dlt_collection(name)
+                else None
+            ),
+            **self.extra_collection_config(),
         )
 
     def _make_property_config(self, prop: Dict[str, Any]) -> Property:
@@ -502,47 +573,61 @@ class WeaviateClient(JobClientBase, WithStateSync):
             vectorize_property_name=False,
         )
 
-    def _get_vectorizer_config(self, vectorizer: str) -> Any:
-        """Get the vectorizer configuration based on vectorizer name"""
-        # Map vectorizer names to Configure.Vectorizer methods
-        vectorizer_map = {
-            "text2vec-openai": Configure.Vectorizer.text2vec_openai,
-            "text2vec-cohere": Configure.Vectorizer.text2vec_cohere,
-            "text2vec-contextionary": Configure.Vectorizer.text2vec_contextionary,
-            "text2vec-huggingface": Configure.Vectorizer.text2vec_huggingface,
-            "text2vec-palm": Configure.Vectorizer.text2vec_palm,
-        }
+    def _get_vector_config(self, collection_config: Dict[str, Any]) -> List[Any]:
+        """Builds the `vector_config` of a collection from its dlt schema."""
+        named_vectors = collection_config.get("namedVectors")
+        if named_vectors:
+            return [
+                self._make_vector_config(
+                    name,
+                    spec.get("vectorizer") or self._vectorizer_config,
+                    list(spec["vectorize"]),
+                )
+                for name, spec in named_vectors.items()
+            ]
 
-        if vectorizer in vectorizer_map:
-            # Get the module config if available
-            module_conf = self._module_config.get(vectorizer, {}) if self._module_config else {}
-            try:
-                # Filter out incompatible config keys for each vectorizer
-                if vectorizer == "text2vec-contextionary":
-                    # Contextionary accepts vectorize_collection_name
-                    filtered_conf = {
-                        k: v
-                        for k, v in module_conf.items()
-                        if k in ["vectorize_collection_name", "vectorizeClassName"]
-                    }
-                    # Map old v3 config key names to v4
-                    if "vectorizeClassName" in filtered_conf:
-                        filtered_conf["vectorize_collection_name"] = filtered_conf.pop(
-                            "vectorizeClassName"
-                        )
-                    return (
-                        vectorizer_map[vectorizer](**filtered_conf)
-                        if filtered_conf
-                        else vectorizer_map[vectorizer]()
-                    )
-                else:
-                    return vectorizer_map[vectorizer](**module_conf)
-            except TypeError:
-                # If module_conf keys don't match, try without config
-                return vectorizer_map[vectorizer]()
+        vectorizer = collection_config.get("vectorizer", "none")
+        if vectorizer != "none":
+            return [
+                self._make_vector_config(
+                    DEFAULT_VECTOR_NAME,
+                    vectorizer,
+                    self._source_properties(collection_config, vectorizer),
+                )
+            ]
 
-        # Default to none if not found
-        return Configure.Vectorizer.none()
+        # no vectorizer: either the user supplies vectors or the collection needs no index
+        skip_index = bool(collection_config.get("vectorIndexConfig", {}).get("skip"))
+        return [
+            Configure.Vectors.self_provided(
+                name=DEFAULT_VECTOR_NAME,
+                vector_index_config=Configure.VectorIndex.none() if skip_index else None,
+            )
+        ]
+
+    @staticmethod
+    def _source_properties(collection_config: Dict[str, Any], vectorizer: str) -> List[str]:
+        """Properties the collection vector is built from."""
+        sources = collection_config.get("sourceProperties")
+        if sources:
+            return list(sources)
+        # a config read back from Weaviate carries per-property skip flags instead
+        return [
+            prop["name"]
+            for prop in collection_config.get("properties", [])
+            if not prop.get("moduleConfig", {}).get(vectorizer, {}).get("skip", False)
+        ]
+
+    def _make_vector_config(self, name: str, vectorizer: str, source_properties: List[str]) -> Any:
+        # a named vector may carry user supplied vectors just like the default one
+        if vectorizer == "none":
+            return Configure.Vectors.self_provided(name=name)
+        factory = get_vector_factory(vectorizer)
+        module_conf = (self._module_config or {}).get(vectorizer, {})
+        kwargs = normalize_module_config(vectorizer, module_conf, factory)
+        # dlt generates collection names, so they are not words a vectorizer can embed
+        kwargs.setdefault("vectorize_collection_name", False)
+        return factory(name=name, source_properties=source_properties, **kwargs)
 
     def add_property_to_collection(self, collection_name: str, prop_schema: Dict[str, Any]) -> None:
         """Add a property to an existing Weaviate collection.
@@ -555,6 +640,18 @@ class WeaviateClient(JobClientBase, WithStateSync):
         collection = self.db_client.collections.get(full_name)
         prop_config = self._make_property_config(prop_schema)
         collection.config.add_property(prop_config)
+
+        # BREAKING: with the v3 `vectorizer_config` API a late-added column could still be
+        # vectorized via its own skip flag. `vector_config` fixes source properties at creation
+        # and Weaviate offers no way to extend them, so such a column is no longer vectorized.
+        if self._is_collection_vectorized(collection_name) and not prop_config.skip_vectorization:
+            logger.warning(
+                f"Column `{prop_schema['name']}` was added to the existing collection"
+                f" `{full_name}` with a vectorize hint, but Weaviate fixes a vector's source"
+                " properties when the collection is created. The column will be stored and"
+                " remains queryable, but is not part of the vector. Load into a new dataset to"
+                " vectorize it."
+            )
 
     def delete_collection(self, collection_name: str) -> None:
         """Delete a Weaviate collection.
@@ -584,7 +681,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             A list of objects from the collection.
         """
         full_name = self.make_qualified_collection_name(collection_name)
-        collection = self.db_client.collections.get(full_name)
+        collection = self.data_collection(full_name)
         response = collection.query.fetch_objects(
             limit=limit,
             return_properties=properties,
@@ -599,7 +696,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
             collection_name: The name of the collection to create the object in.
         """
         full_name = self.make_qualified_collection_name(collection_name)
-        collection = self.db_client.collections.get(full_name)
+        collection = self.data_collection(full_name)
         collection.data.insert(properties=obj)
 
     def drop_storage(self) -> None:
@@ -661,7 +758,10 @@ class WeaviateClient(JobClientBase, WithStateSync):
         """Create an empty collection to indicate that the storage is initialized."""
         self.db_client.collections.create(
             name=self.sentinel_collection,
-            vectorizer_config=Configure.Vectorizer.none(),
+            vector_config=Configure.Vectors.self_provided(
+                name=DEFAULT_VECTOR_NAME, vector_index_config=Configure.VectorIndex.none()
+            ),
+            **self.extra_collection_config(),
         )
 
     def _delete_sentinel_collection(self) -> None:
@@ -840,7 +940,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         self.get_collection_schema(table_name)
 
         full_name = self.make_qualified_collection_name(table_name)
-        collection = self.db_client.collections.get(full_name)
+        collection = self.data_collection(full_name)
 
         # build query
         if not properties:
@@ -880,9 +980,18 @@ class WeaviateClient(JobClientBase, WithStateSync):
             "properties": self._make_properties(table_name),
         }
 
+        named_vectors = self.schema.get_table(table_name).get(NAMED_VECTORS_HINT)
+        if named_vectors:
+            collection_schema["namedVectors"] = named_vectors
+            return collection_schema
+
         # check if any column requires vectorization
-        if self._is_collection_vectorized(table_name):
+        vectorized_columns = get_columns_names_with_prop(
+            self.schema.get_table(table_name), VECTORIZE_HINT
+        )
+        if vectorized_columns:
             collection_schema["vectorizer"] = self._vectorizer_config
+            collection_schema["sourceProperties"] = list(vectorized_columns)
             # Only include module config for the active vectorizer
             if self._module_config and self._vectorizer_config in self._module_config:
                 collection_schema["moduleConfig"] = {
@@ -890,7 +999,9 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 }
         else:
             collection_schema["vectorizer"] = "none"
-            collection_schema["vectorIndexConfig"] = {"skip": True}
+            # precomputed vectors still need an index to be searchable
+            if not self._has_precomputed_vector(table_name):
+                collection_schema["vectorIndexConfig"] = {"skip": True}
 
         return collection_schema
 
@@ -899,6 +1010,10 @@ class WeaviateClient(JobClientBase, WithStateSync):
         return (
             len(get_columns_names_with_prop(self.schema.get_table(table_name), VECTORIZE_HINT)) > 0
         )
+
+    def _has_precomputed_vector(self, table_name: str) -> bool:
+        """Tells if one of the columns carries a precomputed vector"""
+        return len(get_columns_names_with_prop(self.schema.get_table(table_name), VECTOR_HINT)) > 0
 
     def _make_properties(self, table_name: str) -> List[Dict[str, Any]]:
         """Creates a Weaviate properties schema from a table schema.
@@ -910,6 +1025,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
         return [
             self._make_property_schema(column_name, column, is_collection_vectorized)
             for column_name, column in self.schema.get_table_columns(table_name).items()
+            if not column.get(VECTOR_HINT, False)
         ]
 
     def _make_property_schema(
@@ -1025,7 +1141,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
     def query_class(self, class_name: str, properties: List[str]) -> Any:
         """Query a collection and return results in v3-compatible format for backwards compatibility"""
         full_name = self.make_qualified_collection_name(class_name)
-        collection = self.db_client.collections.get(full_name)
+        collection = self.data_collection(full_name)
 
         # Return a wrapper that provides .do() method for compatibility
         class QueryWrapper:

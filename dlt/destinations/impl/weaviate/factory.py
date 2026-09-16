@@ -87,6 +87,11 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
         batch_workers: int = None,
         batch_requests_per_minute: int = None,
         batch_consistency: TWeaviateBatchConsistency = None,
+        collection_config: t.Dict[str, t.Any] = None,
+        multi_tenancy: bool = None,
+        tenant: str = None,
+        auto_tenant_creation: bool = None,
+        auto_tenant_activation: bool = None,
         skip_init_checks: bool = None,
         conn_timeout: float = None,
         read_timeout: float = None,
@@ -118,6 +123,15 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             batch_requests_per_minute (int, optional): Request budget, applies to "rate_limit".
             batch_consistency (TWeaviateBatchConsistency, optional): Replica nodes that must
                 acknowledge a write: "ONE", "QUORUM" or "ALL".
+            collection_config (t.Dict[str, t.Any], optional): Extra arguments passed to
+                `collections.create` for every collection, such as `replication_config`,
+                `generative_config` or `inverted_index_config`.
+            multi_tenancy (bool, optional): Create collections as multi-tenant.
+            tenant (str, optional): Tenant to load into. Requires `multi_tenancy`.
+            auto_tenant_creation (bool, optional): Create the tenant on first write instead of
+                failing. Defaults to True.
+            auto_tenant_activation (bool, optional): Activate an inactive tenant on any
+                operation against it instead of failing. Defaults to True.
             skip_init_checks (bool, optional): Skip the client startup handshake. Defaults to True
                 for "cloud" and "custom", False for "local".
             conn_timeout (float, optional): Seconds for the connection handshake.
@@ -142,6 +156,11 @@ class weaviate(Destination[WeaviateClientConfiguration, "WeaviateClient"]):
             batch_workers=batch_workers,
             batch_requests_per_minute=batch_requests_per_minute,
             batch_consistency=batch_consistency,
+            collection_config=collection_config,
+            multi_tenancy=multi_tenancy,
+            tenant=tenant,
+            auto_tenant_creation=auto_tenant_creation,
+            auto_tenant_activation=auto_tenant_activation,
             skip_init_checks=skip_init_checks,
             conn_timeout=conn_timeout,
             read_timeout=read_timeout,

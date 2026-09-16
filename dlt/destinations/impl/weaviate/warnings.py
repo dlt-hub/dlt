@@ -11,3 +11,13 @@ def batch_option_without_v4_equivalent_deprecated(arg: str) -> None:
         Dlt100DeprecationWarning,
         stacklevel=1,
     )
+
+
+def vectorizer_renamed_deprecated(old_name: str, new_name: str) -> None:
+    warnings.warn(
+        f"Weaviate vectorizer `{old_name}` was renamed to `{new_name}`. Update"
+        f' `[destination.weaviate]\nvectorizer="{new_name}"` and the matching `module_config`'
+        " key.",
+        Dlt100DeprecationWarning,
+        stacklevel=1,
+    )
