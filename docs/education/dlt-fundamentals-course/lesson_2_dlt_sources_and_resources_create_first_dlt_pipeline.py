@@ -1,8 +1,9 @@
 # /// script
 # dependencies = [
-#     "dlt",
+#     "dlt[duckdb,parquet]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "pymysql",
 #     "sqlalchemy",
 # ]
@@ -50,6 +51,15 @@ def _(mo):
     - Run a simple pipeline with different types of data, such as dataframes, databases and REST APIs.
     - Use `dlt.resource`, `dlt.source` and `dlt.transformer`.
     - Build your first dlt pipeline for a REST API.
+    """)
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ---
+    ## **Install dlt**
     """)
     return
 
@@ -707,7 +717,9 @@ def _(mo):
     Use the `github_repos` resource as the main resource for the transformer:
 
     1. Get all repositories in the `dlt-hub` organization.
-    2. Feed these repository names into the `dlt` transformer and retrieve all issue comments for all `dlt-hub` repositories.
+    2. Feed these repository names into the `dlt` transformer and retrieve the first page of issue comments for each `dlt-hub` repository.
+
+    > **Note**: As in Exercise 1, you don't need authentication or pagination. A single request per repository returns the first page of comments.
     """)
     return
 

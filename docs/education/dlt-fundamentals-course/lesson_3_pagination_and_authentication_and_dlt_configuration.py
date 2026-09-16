@@ -1,15 +1,18 @@
 # /// script
+# requires-python = ">=3.14"
 # dependencies = [
 #     "dlt[duckdb]",
+#     "marimo>=0.24.0",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///
 
 import marimo
 
-__generated_with = "0.17.4"
+__generated_with = "0.24.0"
 app = marimo.App()
 
 
@@ -48,9 +51,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""In the previous lesson, we loaded data from the GitHub API to DuckDB,"""
-    )
+    mo.md(r"""
+    In the previous lesson, we loaded data from the GitHub API to DuckDB,
+    """)
     return
 
 
@@ -89,9 +92,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img1](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img1.webp)"""
-    )
+    mo.md(r"""
+    ![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img1](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img1.webp)
+    """)
     return
 
 
@@ -136,9 +139,9 @@ def _(requests):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""Got it! We can see the `Link` field in the response headers. Alternatively, you can access it directly using `response.links`:"""
-    )
+    mo.md(r"""
+    Got it! We can see the `Link` field in the response headers. Alternatively, you can access it directly using `response.links`:
+    """)
     return
 
 
@@ -199,9 +202,9 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""☝️ The pagination type was detected automatically, but you can also specify it explicitly:"""
-    )
+    mo.md(r"""
+    ☝️ The pagination type was detected automatically, but you can also specify it explicitly:
+    """)
     return
 
 
@@ -217,17 +220,17 @@ def _(RESTClient):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""The full list of available paginators is in the official [dlt documentation](https://dlthub.com/docs/general-usage/http/rest-client#paginators)."""
-    )
+    mo.md(r"""
+    The full list of available paginators is in the official [dlt documentation](https://dlthub.com/docs/general-usage/http/rest-client#paginators).
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img2](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img2.png)"""
-    )
+    mo.md(r"""
+    ![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img2](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img2.png)
+    """)
     return
 
 
@@ -295,9 +298,9 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""In Molab, simply click on the `Secrets` section in the left-side menu and add your access token."""
-    )
+    mo.md(r"""
+    In Molab, simply click on the `Secrets` section in the left-side menu and add your access token.
+    """)
     return
 
 
@@ -311,7 +314,9 @@ def _():
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""Use the `access_token` variable in the code below:""")
+    mo.md(r"""
+    Use the `access_token` variable in the code below:
+    """)
     return
 
 
@@ -330,9 +335,9 @@ def _(RESTClient, access_token):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""Let's rewrite our GitHub dlt pipeline using the RestAPI Client and the `access_token`."""
-    )
+    mo.md(r"""
+    Let's rewrite our GitHub dlt pipeline using the RestAPI Client and the `access_token`.
+    """)
     return
 
 
@@ -357,9 +362,9 @@ def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""You can see that all dlt [issue comments](https://github.com/dlt-hub/dlt/issues) were loaded into the DuckDB destination."""
-    )
+    mo.md(r"""
+    You can see that all dlt [issue comments](https://github.com/dlt-hub/dlt/issues) were loaded into the DuckDB destination.
+    """)
     return
 
 
@@ -420,14 +425,15 @@ def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
                 yield _page
 
         return (github_events, github_issue_comments)
+
     return DltResource, Iterable
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""Now, we'll use `dlt.secrets.value` in our source, enabling dlt's automatic secrets resolution. Note that we first reset all environment variables to demonstrate what happens if dlt tries to resolve a non-existing variable:"""
-    )
+    mo.md(r"""
+    Now, we'll use `dlt.secrets.value` in our source, enabling dlt's automatic secrets resolution. Note that we first reset all environment variables to demonstrate what happens if dlt tries to resolve a non-existing variable:
+    """)
     return
 
 
@@ -458,20 +464,23 @@ def _(BearerTokenAuth, DltResource, Iterable, RESTClient, TDataItems, dlt):
                 yield _page
 
         return (github_events, github_issue_comments)
+
     return (github_source_1,)
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""> Configs are defined in a similar way but are accessed using `dlt.config.value`. However, since configuration variables are internally managed by `dlt`, it is unlikely that you would need to explicitly use `dlt.config.value` in most cases."""
-    )
+    mo.md(r"""
+    > Configs are defined in a similar way but are accessed using `dlt.config.value`. However, since configuration variables are internally managed by `dlt`, it is unlikely that you would need to explicitly use `dlt.config.value` in most cases.
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""If you now run the pipeline, you will see the following error:""")
+    mo.md(r"""
+    If you now run the pipeline, you will see the following error:
+    """)
     return
 
 
@@ -655,15 +664,17 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""###  **Use dlt `secrets.toml` or `config.toml`**""")
+    mo.md(r"""
+    ###  **Use dlt `secrets.toml` or `config.toml`**
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""> Note that Colab is not well-suited for using `secrets.toml` or `config.toml` files. As a result, these sections will provide instructions rather than code cells, detailing how to use them in a local environment. You should test this functionality on your own machine. For Colab, it is recommended to use environment variables instead."""
-    )
+    mo.md(r"""
+    > Note that Colab is not well-suited for using `secrets.toml` or `config.toml` files. As a result, these sections will provide instructions rather than code cells, detailing how to use them in a local environment. You should test this functionality on your own machine. For Colab, it is recommended to use environment variables instead.
+    """)
     return
 
 
@@ -755,23 +766,24 @@ def _(mo):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img4](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img4.png)"""
-    )
+    mo.md(r"""
+    ![Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img4](https://storage.googleapis.com/dlt-blog-images/dlt-fundamentals-course/Lesson_3_Pagination_%26_Authentication_%26_dlt_Configuration_img4.png)
+    """)
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(
-        r"""✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb)!"""
-    )
+    mo.md(r"""
+    ✅ ▶ Proceed to the [next lesson](https://github.com/dlt-hub/dlt/blob/master/docs/education/dlt-fundamentals-course/lesson_4_using_pre_build_sources_and_destinations.ipynb)!
+    """)
     return
 
 
 @app.cell
 def _():
     import marimo as mo
+
     return (mo,)
 
 

@@ -8,7 +8,7 @@ from typing import Dict, Any
 EDUCATION_NOTEBOOKS_DIR = Path(__file__).parent.parent.parent / "education"
 TEMP_IPYNB_FILE_PREIFX = "tmp"
 
-MUST_INSTALL_PACKAGES = {"numpy", "pandas", "sqlalchemy"}
+MUST_INSTALL_PACKAGES = {"numpy", "pandas", "pyarrow", "sqlalchemy"}
 
 
 def replace_colab_imports_in_notebook(notebook_dict: Dict[str, Any]) -> Dict[str, Any]:

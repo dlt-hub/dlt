@@ -5,6 +5,7 @@
 #     "marimo>=0.24.0",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///

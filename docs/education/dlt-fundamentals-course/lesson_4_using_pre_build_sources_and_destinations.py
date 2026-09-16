@@ -4,6 +4,7 @@
 #     "dlt[pyiceberg]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "pymysql",
 #     "sqlalchemy",
 # ]

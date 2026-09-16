@@ -5,6 +5,7 @@
 #     "notion-client",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "pymysql",
 #     "sqlalchemy",
 # ]
