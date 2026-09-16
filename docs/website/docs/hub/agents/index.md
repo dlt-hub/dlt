@@ -12,7 +12,7 @@ This feature is in private preview
 
 An **agent job** is a dltHub job that runs an AI agent loop. It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace, query runs and logs through the dltHub Model Context Protocol (MCP) server, and it returns a structured result shown next to the job run it acted on.
 
-Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. What's described in [Deployments](deployments.md), [Triggers and scheduling](triggers.md), and [Job configuration](job-configuration.md) applies to agent jobs as well.
+Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. What's described in [Deployments](../pipeline-operations/deployments.md), [Triggers and scheduling](../pipeline-operations/triggers.md), and [Job configuration](../pipeline-operations/job-configuration.md) applies to agent jobs as well.
 
 The worked example on this page is `job-inspector`, an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It gets triggered when a job fails, reads the run record, the logs, and the job definition, and reports a classification of the failure with evidence and a proposed fix. It inspects pipeline jobs and agent jobs alike and doesn't change code or data.
 
@@ -29,7 +29,7 @@ The [dltHub AI harness](../ai-harness/introduction.md) ships agent definitions i
 
 ## Prerequisites
 
-1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](workspace-setup.md).
+1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](../pipeline-operations/workspace-setup.md).
 2. An **agent loop** installed locally. dlt ships two, `pydantic-ai` (default) and `claude-agent-sdk`:
 
    ```sh
@@ -356,7 +356,7 @@ The job is named after the agent definition (`job-inspector` becomes `job_inspec
 | `inputs_validator` | Called with the resolved inputs before the run. Its return value is merged into them. Use it to derive an input, for example a run id from a job ref |
 | `outputs_validator` | Called with the agent's output after the run. Its return value replaces the output |
 | `name`, `section` | Job name and configuration section, as on every job |
-| `trigger`, `execute`, `expose`, `require`, `spec` | The usual job options. See [Triggers and scheduling](triggers.md) and [Job configuration](job-configuration.md) |
+| `trigger`, `execute`, `expose`, `require`, `spec` | The usual job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md) |
 
 ### Triggers for agents
 
@@ -469,7 +469,7 @@ The agent run prints its transcript as it goes: what the model thinks, says, and
 - **`object`** lists the entities the run acted on. On the platform, the result appears on each of their pages.
 - **`trace`** records the model, limits, resolved inputs, the tools that were wired, skills and MCP tools used, turn and token counts, and per-turn tool calls.
 
-On the platform, inspect agent runs like any other run with `dlthub job runs list` and `dlthub job runs info`. See [Monitoring and debugging](monitoring.md).
+On the platform, inspect agent runs like any other run with `dlthub job runs list` and `dlthub job runs info`. See [Monitoring and debugging](../pipeline-operations/monitoring.md).
 
 ## Loops
 
@@ -496,6 +496,6 @@ Pick the loop on the job with `loop="claude-agent-sdk"`, or for a single run wit
 ## Next steps
 
 - [Toolkits](../ai-harness/toolkits.md) shows the `dlthub-platform` toolkit that ships `job-inspector`
-- [Triggers and scheduling](triggers.md) covers the schedule, interval, and follow-up triggers available to all jobs
-- [Job configuration](job-configuration.md) covers `execute`, `require`, `expose`, and TOML sections
-- [Monitoring and debugging](monitoring.md) shows how to list runs and read their results
+- [Triggers and scheduling](../pipeline-operations/triggers.md) covers the schedule, interval, and follow-up triggers available to all jobs
+- [Job configuration](../pipeline-operations/job-configuration.md) covers `execute`, `require`, `expose`, and TOML sections
+- [Monitoring and debugging](../pipeline-operations/monitoring.md) shows how to list runs and read their results

@@ -542,9 +542,13 @@ const sidebars = {
         "hub/pipeline-operations/deployments",
         "hub/pipeline-operations/triggers",
         "hub/pipeline-operations/job-configuration",
-        "hub/pipeline-operations/agents",
         "hub/pipeline-operations/monitoring",
       ],
+    },
+    {
+      type: "category",
+      label: "Agents",
+      items: ["hub/agents/index"],
     },
     {
       type: "category",
