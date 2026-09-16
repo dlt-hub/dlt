@@ -203,11 +203,13 @@ def _(mo):
 
 
 @app.cell
-def _(os):
+def _():
+    import os
+
     import dlt
 
-    dlt.secrets["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
-    return (dlt,)
+    os.environ["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
+    return dlt, os
 
 
 @app.cell(hide_code=True)
@@ -252,19 +254,18 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import duckdb
+def _(dlt):
+    pipeline = dlt.attach(pipeline_name="github_api_pipeline")
+    dataset = pipeline.dataset()
 
-    conn = duckdb.connect("github_api_pipeline.duckdb")
-    conn.sql("SET search_path = 'github_api_data'")
-    conn.sql("DESCRIBE").df()
-    return (conn,)
+    # List the tables that were created in the destination
+    dataset.tables
+    return (dataset,)
 
 
 @app.cell
-def _(conn):
-    data_table = conn.sql("SELECT * FROM github_api_resource").df()
-    data_table
+def _(dataset):
+    dataset.repos.df()
     return
 
 
@@ -569,21 +570,18 @@ def _(mo):
 
 
 @app.cell
-def _():
-    import os
+def _(os):
     import requests
 
     folder_name = "local_data"
     os.makedirs(folder_name, exist_ok=True)
     full_path = os.path.abspath(folder_name)
-
     url = "https://www.timestored.com/data/sample/userdata.parquet"
     resp = requests.get(url)
     resp.raise_for_status()
-
     with open(f"{full_path}/userdata.parquet", "wb") as f:
         f.write(resp.content)
-    return full_path, os
+    return (full_path,)
 
 
 @app.cell
@@ -726,12 +724,12 @@ def _(dlt, sql_database):
         "mysql+pymysql://rfamro@mysql-rfam-public.ebi.ac.uk:4497/Rfam",
         table_names=["family"],
     )
-    pipeline = dlt.pipeline(
+    pipeline_1 = dlt.pipeline(
         pipeline_name="fs_pipeline", destination="filesystem", dataset_name="fs_data"
     )
-    _load_info = pipeline.run(source, loader_file_format="parquet")
+    _load_info = pipeline_1.run(source, loader_file_format="parquet")
     print(_load_info)
-    return pipeline, source
+    return pipeline_1, source
 
 
 @app.cell(hide_code=True)
@@ -753,9 +751,9 @@ def _(mo):
 
 
 @app.cell
-def _(pipeline):
+def _(pipeline_1):
     # explore loaded data
-    pipeline.dataset().family.df()
+    pipeline_1.dataset().family.df()
     return
 
 
@@ -774,8 +772,8 @@ def _(mo):
 
 
 @app.cell
-def _(pipeline, source):
-    _load_info = pipeline.run(
+def _(pipeline_1, source):
+    _load_info = pipeline_1.run(
         source, loader_file_format="parquet", table_format="iceberg"
     )
     print(_load_info)
@@ -787,9 +785,7 @@ def _(mo):
     mo.md(r"""
     **Note:**
 
-    The open-source version of dlt supports basic functionality for **Iceberg**, but the dltHub team is currently working on an **extended** and **more powerful** Iceberg integration.
-
-    [Join the waiting list to learn more about dltHub and Iceberg.](https://info.dlthub.com/waiting-list)
+    The open-source version of dlt supports basic functionality for **Iceberg**. A more powerful Iceberg integration is available as part of **dltHub**: the [Iceberg destination](https://dlthub.com/docs/hub/ingestion/iceberg) loads data into Iceberg tables using the `pyiceberg` library, and supports multiple catalog types and both local and cloud storage backends.
     """)
     return
 
