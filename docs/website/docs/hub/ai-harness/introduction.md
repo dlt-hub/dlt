@@ -31,7 +31,7 @@ The AI Harness bundles four kinds of artifacts into installable units called [**
 | Rule | Always-on context the agent loads every session | Coding conventions, security constraints |
 | Workflow | Ordered sequence of skills with a fixed entry point, loaded as a rule so it's always active | REST API pipeline workflow, Deploy workflow |
 | MCP server | Tools the agent can call from inside a session | `dlt-workspace-mcp` exposes pipeline, schema, and secrets tools |
-| Agent | A system prompt with declared inputs, output, and access that dltHub runs unattended as a job | `job-inspector` diagnoses a failed job run (see [Agents](../pipeline-operations/agents.md)) |
+| Agent | A system prompt with declared inputs, output, and access that the dltHub platform runs unattended as a job | `job-inspector` diagnoses a failed job run (see [Agents](../pipeline-operations/agents.md)) |
 
 Every [dltHub workspace](../getting-started/installation.md#what-is-a-dlthub-workspace) starts with one toolkit, `init`, which ships an MCP server (`dlt-workspace-mcp`) and a router skill called `dlthub-router`. From there, [feature toolkits](toolkits.md) are added as you need them.
 

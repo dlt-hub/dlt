@@ -1,35 +1,36 @@
 ---
 title: Agents
-description: Run AI agents as jobs on the dltHub platform, for example to diagnose failed job runs
+description: Run background agents as jobs on the dltHub platform, for example to diagnose failed job runs
 keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.agent, job inspector, pydantic-ai, claude-agent-sdk, toolkits]
 ---
 
 # Agents
 
 :::warning
-This feature is in public preview
+This feature is in private preview
 :::
 
-An **agent job** is a dltHub job whose body is an AI agent loop. It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace, query runs and logs through the dltHub MCP server, and it returns a structured result shown next to the job run it acted on.
+An **agent job** is a dltHub job that runs an AI agent loop. It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace, query runs and logs through the dltHub MCP server, and it returns a structured result shown next to the job run it acted on.
 
-Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. [Deployments](deployments.md), [Triggers and scheduling](triggers.md), and [Job configuration](job-configuration.md) apply to them as to any job.
+Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. What is described in [Deployments](deployments.md), [Triggers and scheduling](triggers.md), and [Job configuration](job-configuration.md) applies to agent jobs as well.
 
-The worked example on this page is `job-inspector`, an agent shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It starts when a job fails, reads the run and its logs, and reports a diagnosis. It does not change code or data.
+The worked example on this page is `job-inspector`, an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It gets triggered when a job fails, reads the run record, the logs, and the job definition, and reports a classification of the failure with evidence and a proposed fix. It inspects pipeline jobs and agent jobs alike and does not change code or data.
 
-## Three terms
+## Terms
 
 | Term | What it is | Where it lives |
 |------|------------|----------------|
 | **Agent definition** | System prompt plus a declaration of the agent's inputs, output, tools, skills, rules, and access | `AGENT.md` file, or a decorated Python function |
 | **Agent job** | Definition plus the settings for your workspace: model, limits, trigger, instructions, loop | `run.agent(...)` in `__deployment__.py` |
-| **Agent run** | An execution of the job. It receives inputs and returns an output and a trace | Started by a trigger, `dlthub local run`, `dlthub run`, or the Web UI |
+| **Agent run** | An execution of the agent job. It receives inputs and returns an output and a trace | Started by a trigger, `dlthub local run`, `dlthub run`, or the Web UI |
+| **Agent loop** | The framework that runs the model turn by turn: `pydantic-ai` (default) or `claude-agent-sdk` | Selected with `loop=` on `run.agent` or `agent.loop` in configuration |
 
-Toolkits ship agent definitions, and your `__deployment__.py` declares the agent jobs built on them.
+The [dltHub AI harness](../ai-harness/introduction.md) ships agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
 ## Prerequisites
 
 1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](workspace-setup.md).
-2. An **agent loop** installed locally. dlt ships two; the default is `pydantic-ai`:
+2. An **agent loop** installed locally. dlt ships two, `pydantic-ai` (default) and `claude-agent-sdk`:
 
    ```sh
    uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"   # pydantic-ai loop (default)
@@ -65,57 +66,83 @@ The job is named after the agent definition, `job_inspector`. Run it locally aga
 
 ```sh
 # one agent run, by hand, on a failed run id from `dlthub job runs list`
-dlthub local run job_inspector -c failed_run_id=89826ee6-ed5d-478e-8ad1-415251f225e0
+dlthub local run job_inspector -c failed_run_id=<run-id>
 
 # push the job graph; every failed job tagged "ingest" now starts an inspector run
 dlthub deploy
 ```
 
-The transcript streams to your terminal. When the run ends you get a job result with a `status`, a markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
+The transcript streams to your terminal. When the run ends you get a job result with a `status`, a markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
 
 ## Write an agent definition
 
-An agent definition is a system prompt plus a declaration of what the agent takes, returns, and may touch. Write it as an `AGENT.md` or as a decorated Python function. Both make the same agent job.
+The `dlthub-platform` toolkit ships `job-inspector` ready to declare as a job. This section describes how to write your own agent definition, or how to adapt an installed one for your workspace.
+
+An agent definition consists of a system prompt and a declaration of the agent's inputs, output, tools, and access. It can be written as an `AGENT.md` file or as a decorated Python function. Both forms produce the same agent job.
 
 ### As an `AGENT.md`
 
-A toolkit installs its agents to `.claude/dlthub/agents/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts). Coding agents do not scan this folder for their own subagents. You can also keep an `AGENT.md` in any folder of the workspace and refer to it by its path.
+`dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts). Coding agents do not scan this folder for their own subagents. You can also keep an `AGENT.md` in any folder of the workspace and refer to it by its path.
 
-The YAML frontmatter holds the declarations and the markdown body is the system prompt. Only the body is required. A file with no frontmatter is a working agent named after its folder.
+The YAML frontmatter holds the declarations and the markdown body is the system prompt. Only the body is required. A file with no frontmatter is a working agent named after its folder. The example below is a shortened version of the `job-inspector` definition:
 
 ```md
 ---
 name: job-inspector
-description: Inspects a failed job run and reports a diagnosis. Read-only.
-tools: [telemetry]                          # dlthub MCP feature groups
-skills: [dlthub-platform:debug-deployment]  # loaded natively or inlined
+description: Inspects a failed job run and reports a diagnosis with a proposed fix. Read-only.
+tools: [jobs, logs, telemetry]              # feature groups of the dltHub MCP server
+skills: [dlthub-platform:debug-deployment]  # loaded on demand or inlined
 rules:  [dlthub-platform:job-resources]     # always inlined into the prompt
 
-access:                                     # what the job may touch
-  local:   [read]                           # read | write | execute | network
-  data:    [read]                           # read | write, governed by the profile
-  context: [read]                           # telemetry, runs, job definitions
+access:                                     # what the agent may touch
+  local:   [read, execute]                  # read | write | execute | network
+  data:    [read]                           # read | write
+  context: [read]                           # runs, logs, job definitions, telemetry
 
 inputs:
   type: object
   properties:
     failed_run_id:
       type: string
-      description: run id of the job that failed
+      description: run id of the failed job run to inspect
       entity_type: job-run                  # this input names a workspace entity
     failed_job_ref:
       type: string
-      description: job ref of the failed job
+      description: job ref of the failed job; its latest failed run is inspected when no run id is given
       entity_type: job
   required: {}
 
 output:
   type: object
   properties:
-    classification: { enum: [config, credentials, code, upstream_data, unknown] }
-    confidence:     { enum: [high, medium, low] }
-    evidence:       { type: array, items: { type: string } }
-  required: [classification, confidence]
+    status:
+      enum: [succeeded, failed, aborted]
+      description: Outcome of your task, as defined in your system prompt
+    summary:
+      type: string
+      description: Markdown. What you accomplished, or what blocked you when `status` is `aborted`
+    failed_run_id:                          # the run actually inspected, reported as an entity
+      type: string
+      entity_type: job-run
+    classification:
+      enum: [config, credentials, upstream_data, code, resources, transient, unknown]
+      description: The kind of failure, as defined in the "Classification" section of your system prompt
+    confidence:
+      enum: [high, medium, low]
+      description: How well the evidence supports the classification. `low` whenever the classification is `unknown`
+    evidence:
+      type: array
+      items:
+        type: object
+        properties:
+          source: { type: string }
+          excerpt: { type: string }
+    proposed_fix:
+      type: string
+      description: What a human should do next. You never apply it
+    requires_human:
+      type: boolean
+  required: [status, summary, classification, confidence, evidence, requires_human]
 
 defaults:                                   # the job and the run may override all of these
   trigger: [job.fail:*]
@@ -124,15 +151,16 @@ defaults:                                   # the job and the run may override a
   loop_run_args: { retries: 1 }
 ---
 You are a job inspector for a dltHub Platform workspace. You run unattended, seconds
-after a job failed. Explain the failure; do not repair it.
+after a job failed. Explain the failure. Do not repair it.
 
-Investigate job_ref '{{ failed_job_ref }}' from trigger `{{ run_context.trigger }}`
-with failed run id '{{ failed_run_id }}'. Any of the three may be empty.
+You were given run id '{{ failed_run_id }}' and job ref '{{ failed_job_ref }}', from
+trigger `{{ run_context.trigger }}`. Any of the three may be empty. Resolve them in this
+order and stop at the first that works:
 
-1. With a run id, read the run and its logs.
-2. Without one, resolve it from the job ref or the trigger.
-3. With neither, you have nothing to inspect: return `status: aborted` naming what was
-   missing.
+1. A run id: inspect that run.
+2. A job ref: take its latest failed run.
+3. A `job.fail:<job ref>` trigger: take the latest failed run of that job.
+4. Nothing: return `status: aborted` with a `summary` naming which inputs were empty.
 ```
 
 | Field | Meaning |
@@ -163,20 +191,22 @@ The body refers to inputs as `{{ name }}`. It can also refer to the run itself: 
 An input that names a workspace object carries `entity_type`: `job-run`, `job`, `pipeline`, `dataset`, or `workspace`. The agent receives the bare id (a run id, a job ref, a pipeline name). Declaring the type does two things:
 
 1. The run reports the entity in its result, so the run shows up on that entity's page in the Web UI.
-2. The first entity-typed input is how the Web UI offers the agent from an entity. On a failed run's row, every agent job with a `job-run` input is offered, and choosing one starts a run with that run id filled in.
+2. The first entity-typed input becomes `expose.object_input` in the deployment manifest. This is how the Web UI offers the agent job from an entity: on a failed run's row, every agent job with a `job-run` input is offered, and choosing one starts a run with that run id filled in.
 
 Declare the same name with `entity_type` on an **output** property when the agent may end up acting on a different entity than it was given. An output overwrites the input of the same name, so an inspector that resolved a run from a job ref reports the run it actually inspected.
 
 #### Output
 
-`output` is a JSON Schema of what the agent returns. Two properties are part of every agent's output and dlt adds them when the definition leaves them out:
+`output` is a JSON Schema of what the agent returns. Two properties are part of every agent's output and dltHub adds them when the definition leaves them out:
 
 | Property | Meaning |
 |----------|---------|
 | `status` | `succeeded` or `failed`, as your prompt defines them, or `aborted` when the task could not be done at all |
 | `summary` | Markdown. What the agent accomplished. For `aborted` it becomes the text of the exception that fails the run |
 
-Add the agent's own fields next to them. The model sees the whole schema, descriptions and enums included, so describe every field whose name does not say it all. Structured output guarantees the shape of the answer, so the body must define what each value means and when to pick it. Anthropic's structured output rejects `minimum`, `maximum`, and `minLength`, so put numeric bounds in the description.
+Declare both in the file so it shows the whole contract. dltHub overwrites a declaration that contradicts them, for example other `status` values or a `summary` that is not a string, with the standard values. A domain outcome gets its own field: a data-quality agent returns a `verdict`, and `status` keeps its meaning.
+
+Add the agent's own fields next to them. The model sees the whole schema, descriptions and enums included, so describe every field whose name does not say it all. Structured output guarantees the shape of the answer, so the body must define what each value means and when to pick it. The schema reaches the model as declared, except that `entity_type` moves into `$comment`. Anthropic's structured output rejects `minimum`, `maximum`, and `minLength`, so put numeric bounds in the description.
 
 #### Access
 
@@ -188,22 +218,24 @@ Add the agent's own fields next to them. The model sees the whole schema, descri
 | | `write` | `Write`, `Edit` |
 | | `execute` | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process |
 | | `network` | `WebFetch`, `WebSearch` |
-| `data` | `read`, `write` | Workspace data through the MCP server, enforced by the [profile](profiles.md) the run uses (`read` maps to `access`, `write` to `prod`) |
-| `context` | `read` | Runs, logs, job definitions, and telemetry through the MCP server |
+| `data` | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only and limits SQL to `SELECT` |
+| `context` | `read` | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated |
 
-`all` is shorthand for every verb on an axis. `local` maps to the same tool set on both loops, under the names Claude Code uses. Two limits hold whatever you declare: credential files (`*secrets.toml`, `.env`) are never readable by a file tool, and SQL queries through the MCP server are read-only.
+`all` is shorthand for every verb on an axis. `local` maps to the same tool set on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants.
 
-If a loop has no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
+The declaration is a request. The runtime grants what it can, and if a loop has no tool for a granted verb the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
+
+Write the policy into the body as well. "You are read-only" in the prompt helps the model understand its role, and the `access` block enforces it for the MCP tools. `local: execute` is the exception: the shell runs under the job's credentials and nothing restricts what it does with them, so an agent with `execute` and data access needs an explicit rule in the body never to write data.
 
 #### Tools, skills, and rules
 
-`tools` lists feature groups of the dltHub MCP server: `workspace`, `pipeline`, `toolkit`, `secrets`, `context`, and on the platform `jobs`, `logs`, `telemetry`. The agent gets exactly the groups listed, and within a group only the tools its `access` covers. Without `tools` no server is started.
+`tools` lists feature groups of the dltHub MCP server: `workspace`, `pipeline`, `toolkit`, `secrets`, `context`, on the platform `jobs`, `logs`, `telemetry`, plus groups other plugins contribute. The agent gets exactly the groups listed, and within a group only the tools its `access` covers. Without `tools` no server is started.
 
 `skills` and `rules` reference components of an installed toolkit as `<toolkit>:<name>`, or a workspace-relative path such as `.claude/skills/my-skill/SKILL.md`. Rules are inlined into the system prompt on both loops. On `claude-agent-sdk` skills are listed by name and loaded when the agent invokes one, as in Claude Code; on `pydantic-ai` their text is inlined. The agent gets only the listed components; other skills and rules installed in the workspace, including the `.claude/rules` folder, are not loaded. A reference that does not resolve is skipped with a warning.
 
 #### Defaults
 
-`defaults` holds the values that apply when the agent job and the run's configuration do not override them.
+`defaults` holds the values that apply when the agent job and the run's configuration do not override them. Put in `defaults` what should apply when nobody says otherwise. A requirement belongs in the body.
 
 ```yaml
 defaults:
@@ -345,8 +377,8 @@ A selector expands at deploy time to a follow-up trigger per matching job. The d
 Each trigger of the agent job produces an agent run. You start one by hand the way you run any job, locally or on the platform:
 
 ```sh
-dlthub local run job_inspector -c failed_run_id=89826ee6-...     # locally
-dlthub run job_inspector -c failed_run_id=89826ee6-... -f        # on the platform
+dlthub local run job_inspector -c failed_run_id=<run-id>     # locally
+dlthub run job_inspector -c failed_run_id=<run-id> -f        # on the platform
 ```
 
 Settings can be overridden for that run alone. Inputs and agent settings are ordinary job configuration under the job's section, so the same keys work on the command line, in `config.toml`, in the environment, and in the Web UI's run dialog:
@@ -409,12 +441,18 @@ The agent run prints its transcript as it goes: what the model thinks, says, and
   "result": {
     "status": "succeeded",
     "summary": "...",
+    "failed_run_id": "<run-id>",
+    "failed_job_ref": "jobs.github_pipeline.load_commits",
     "classification": "config",
     "confidence": "high",
-    "evidence": ["..."]
+    "evidence": [
+      { "source": "dlthub job runs logs <run-id> line 38", "excerpt": "..." }
+    ],
+    "proposed_fix": "...",
+    "requires_human": true
   },
   "object": [
-    { "type": "job-run", "id": "job-run/89826ee6-ed5d-478e-8ad1-415251f225e0" },
+    { "type": "job-run", "id": "job-run/<run-id>" },
     { "type": "job", "id": "job/jobs.github_pipeline.load_commits" }
   ],
   "trace": {
@@ -452,9 +490,8 @@ Pick the loop on the job with `loop="claude-agent-sdk"`, or for a single run wit
 
 - **Tools follow `access`.** An agent without `access` gets no file tools and no shell. MCP tools declare the access they require, and a tool the grant does not cover is not offered to the model.
 - **Credential files are never readable** by a file tool: `*secrets.toml`, `.env`, `.env.*`, on both loops, whatever `local` grants.
-- **SQL through the MCP server is read-only**, a single statement per call.
-- **Data access follows the profile.** `data: read` runs on the `access` profile, `data: write` on `prod`. See [Profiles](profiles.md).
-- **`execute` is not a sandbox.** A shell runs in the same process tree and virtual environment as the job, with the job's permissions on the runner. Grant it only to agents that need it.
+- **SQL through the MCP server is limited** to a single `SELECT` statement per call.
+- **`execute` runs in the job's own process.** A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
 
 ## Next steps
 
