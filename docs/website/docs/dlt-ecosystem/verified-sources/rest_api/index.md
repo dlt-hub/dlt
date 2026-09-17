@@ -3,7 +3,7 @@ title: REST APIs
 description: Loads data from REST APIs using a declarative configuration
 keywords: [rest api, restful api]
 ---
-# Overview
+# REST API
 
 You can use the REST API source to extract data from any REST API. Using a [declarative configuration](./basic.md#source-configuration), you can define:
 

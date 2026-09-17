@@ -3,7 +3,7 @@ title: Google Analytics
 description: dlt verified source for Google Analytics API
 keywords: [google analytics api, google analytics verified source, google analytics]
 ---
-# Google analytics
+# Google Analytics
 
 import Header from './_source-info-header.md';
 

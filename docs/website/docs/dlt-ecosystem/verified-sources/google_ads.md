@@ -3,7 +3,7 @@ title: Google Ads
 description: dlt verified source for Google Ads API
 keywords: [google ads api, google ads verified source, google ads]
 ---
-# Google ads
+# Google Ads
 
 import Header from './_source-info-header.md';
 

@@ -3,7 +3,9 @@ title: Overview
 description: Learn where configs are stored and how to write them
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
-# Key features
+# Overview
+
+## Key features
 
 1. **Separation of secrets and configs from code** - The main role of the configuration system is to keep sensitive information out of your source code.
 

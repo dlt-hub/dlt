@@ -3,7 +3,7 @@ title: "Data quality"
 description: Validate your data and control its quality
 keywords: ["dlthub", "data quality", "contracts", "check", "metrics"]
 ---
-# Overview
+# Data quality
 
 :::warning
 This feature is in public preview
