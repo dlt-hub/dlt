@@ -7,7 +7,7 @@ services:
     - '8080'
     - --scheme
     - http
-    image: cr.weaviate.io/semitechnologies/weaviate:1.36.23
+    image: cr.weaviate.io/semitechnologies/weaviate:1.39.5
     container_name: dlt_test_weaviate
     restart: on-failure
     ports:
