@@ -1280,6 +1280,50 @@ def test_nested_column_missing(
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
+def test_hard_delete_key_only_record_with_non_nullable_column(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    table_name = "test_hard_delete_non_nullable"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition="merge",
+        primary_key="id",
+        columns={
+            "required": {"nullable": False},
+            "deleted": {"hard_delete": True},
+        },
+    )
+    def data_resource(data):
+        yield data
+
+    p = destination_config.setup_pipeline("hard_delete_non_nullable", dev_mode=True)
+    info = p.run(
+        data_resource([{"id": 1, "required": "value", "deleted": None}]),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+
+    if destination_config.destination_type == "duckdb":
+        # Mimic a staging table created before hard-delete payload constraints were relaxed.
+        with p.sql_client() as sql_client:
+            with sql_client.with_staging_dataset():
+                staging_table = sql_client.make_qualified_table_name(table_name)
+                sql_client.execute_sql(
+                    f'ALTER TABLE {staging_table} ALTER COLUMN "required" SET NOT NULL'
+                )
+
+    info = p.run(data_resource([{"id": 1, "deleted": True}]), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 0
+    assert p.default_schema.tables[table_name]["columns"]["required"]["nullable"] is False
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
 @pytest.mark.parametrize("key_type", ["primary_key", "merge_key", "no_key"])
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
 def test_hard_delete_hint(
