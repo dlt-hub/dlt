@@ -233,6 +233,79 @@ def test_unique_keys_are_deduplicated(item_type: TestDataItemFormat) -> None:
     assert rows == [(1, "a"), (2, "b"), (3, "c"), (3, "d"), (3, "e"), (3, "f"), (4, "g")]
 
 
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_callable_primary_key_receives_single_row(item_type: TestDataItemFormat) -> None:
+    """A callable primary key must be called with a single representative row (dict-like),
+    same convention as other dynamic hints, not with the whole arrow table/dataframe.
+    """
+    data = [
+        {"created_at": 1, "id": "a"},
+        {"created_at": 2, "id": "b"},
+        {"created_at": 3, "id": "c"},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    def dynamic_pk(item: Any) -> str:
+        # written the standard way: a membership check on `item`. `item` must be a single
+        # row, not the whole table -- else this always takes the wrong branch
+        return "id" if "id" in item else "column_that_does_not_exist"
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at")):
+        yield from source_items
+
+    r = some_data()
+    r.incremental.primary_key = dynamic_pk
+
+    p = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+    p.run(r)
+    p.run(r)
+
+    with p.sql_client() as c:
+        with c.execute_query("SELECT created_at, id FROM some_data order by created_at") as cur:
+            rows = cur.fetchall()
+
+    # `dynamic_pk` resolves to "id": rows already loaded in the first run are deduplicated
+    assert rows == [(1, "a"), (2, "b"), (3, "c")]
+
+
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_callable_primary_key_resolving_to_empty_tuple_disables_dedup(
+    item_type: TestDataItemFormat,
+) -> None:
+    """A callable primary key resolving to `()` (the official "disable dedup" sentinel) must
+    disable deduplication, not raise `UnboundLocalError` on `unique_columns`.
+    """
+    data = [
+        {"created_at": 1, "id": "a"},
+        {"created_at": 1, "id": "a"},
+    ]
+    source_items = data_to_item_format(item_type, data)
+
+    @dlt.resource
+    def some_data(created_at=dlt.sources.incremental("created_at")):
+        yield from source_items
+
+    r = some_data()
+    r.incremental.primary_key = lambda item: ()
+
+    p = dlt.pipeline(
+        pipeline_name="p" + uniq_id(),
+        destination=dlt.destinations.duckdb(credentials=duckdb.connect(":memory:")),
+    )
+    p.run(r)
+
+    with p.sql_client() as c:
+        with c.execute_query("SELECT created_at, id FROM some_data order by created_at") as cur:
+            rows = cur.fetchall()
+
+    # deduplication disabled: both identical rows are kept
+    assert len(rows) == 2
+
+
 def test_pandas_index_as_dedup_key() -> None:
     from dlt.common.libs.pandas import pandas_to_arrow, pandas as pd
 
