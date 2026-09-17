@@ -547,13 +547,17 @@ const sidebars = {
     },
     {
       type: "category",
-      label: "Agents",
-      items: ["hub/agents/index"],
+      label: "Data quality & governance",
+      items: ["hub/data-quality/index", "hub/data-quality/advanced"],
     },
     {
       type: "category",
-      label: "Data quality & governance",
-      items: ["hub/data-quality/index", "hub/data-quality/advanced"],
+      label: "Agents",
+      items: [
+        { type: "doc", id: "hub/agents/index", label: "Background agents" },
+        { type: "doc", id: "hub/agents/agent-definitions", label: "Agent definitions" },
+        { type: "doc", id: "hub/agents/job-inspector", label: "Job inspector agent" },
+      ],
     },
     {
       type: "category",

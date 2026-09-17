@@ -58,7 +58,7 @@ The `dlt.hub.run` module provides four decorators:
 | `@run.pipeline` | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking) |
 | `@run.job` | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts) |
 | `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API) |
-| `@run.agent` | A background agent that runs unattended, for example to inspect a failed job run (see [Agents](../agents/index.md)) |
+| `@run.agent` | A background agent that runs unattended, for example to inspect a failed job run (see [Background agents](../agents/index.md)) |
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
 
