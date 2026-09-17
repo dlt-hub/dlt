@@ -3,9 +3,9 @@ title: Shopify
 description: dlt pipeline for Shopify API
 keywords: [shopify api, shopify pipeline, shopify]
 ---
-import Header from './_source-info-header.md';
-
 # Shopify
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -21,7 +21,7 @@ loads data using the 'Shopify API' or 'Shopify Partner API' to the destination o
 The resources that this verified source supports are:
 
 | Name                  | Description                                                                         |
-|-----------------------|-------------------------------------------------------------------------------------|
+| --------------------- | ----------------------------------------------------------------------------------- |
 | customers             | Individuals or entities who have created accounts on a Shopify-powered online store |
 | orders                | Transactions made by customers on an online store                                   |
 | products              | The individual items or goods that are available for sale                           |
@@ -32,6 +32,7 @@ The resources that this verified source supports are:
 ### Grab credentials
 
 #### Grab Admin API access token
+
 To load data using the Shopify API, you need an Admin API access token. This token can be obtained by following
 these steps:
 
@@ -47,6 +48,7 @@ these steps:
 1. Reveal and copy the Admin API token. Store it safely; it's shown only once.
 
 #### Grab Partner API access token
+
 To load data using the Shopify Partner API, you need a Partner API access token. This token can be obtained by following
 these steps:
 
@@ -119,17 +121,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python shopify_dlt_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `shopify_data`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -138,7 +146,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 `dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
-### Source `shopify_source`:
+### Source `shopify_source`
 
 This function returns a list of resources to load products, orders, and customers data from the Shopify API.
 
@@ -173,7 +181,7 @@ def shopify_source(
 
 `order_status`: Filter for order status: 'open', 'closed', 'cancelled', 'any' (Default: 'any').
 
-### Resource `products`:
+### Resource `products`
 
 This resource loads products from your Shopify shop into the destination. It supports incremental loading and pagination.
 
@@ -198,7 +206,8 @@ def products(
 
 Similar to the mentioned resource, there are two more resources "orders" and "customers", both support incremental loading and pagination.
 
-### Resource `shopify_partner_query`:
+### Resource `shopify_partner_query`
+
 This resource can be used to run custom GraphQL queries to load paginated data.
 
 ```py notype
@@ -233,8 +242,6 @@ def shopify_partner_query(
 `api_version`: The API version to use (e.g., 2024-01). Use `unstable` for the latest version.
 
 ## Customization
-
-
 
 ### Create your own pipeline
 
@@ -296,7 +303,9 @@ If you wish to create your own pipelines, you can leverage source and resource m
    )
    print(load_info)
    ```
+
 1. To load the first 10 transactions via a GraphQL query from the Shopify Partner API.
+
    ```py notype
     # Construct query to load transactions 100 per page, the `$after` variable is used to paginate
     query = """query Transactions($after: String) {

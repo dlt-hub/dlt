@@ -3,7 +3,6 @@ title: Transform data with dbt
 description: Transforming the data loaded by a dlt pipeline with dbt
 keywords: [transform, dbt, runner, dbt cloud]
 ---
-
 # Transform data with dbt
 
 [dbt](https://github.com/dbt-labs/dbt-core) is a framework that allows for the simple structuring of your transformations into DAGs. The benefits of using dbt include:
@@ -28,7 +27,9 @@ The dbt runner:
 For an example of how to use the dbt runner, see the [jaffle shop example](https://github.com/dlt-hub/dlt/blob/devel/docs/examples/archive/dbt_run_jaffle.py).
 Included below is another example where we run a `dlt` pipeline and then a dbt package via `dlt`:
 
-> 💡 Docstrings are available to read in your IDE.
+:::info
+Docstrings are available to read in your IDE.
+:::
 
 ```py
 # Load all Pipedrive endpoints to the pipedrive_raw dataset
@@ -78,6 +79,7 @@ for m in models:
 ```
 
 ## How to run dbt runner without pipeline
+
 You can use the dbt runner without a dlt pipeline. The example below will clone and run **jaffle shop** using a dbt profile that you supply.
 It assumes that dbt is installed in the current Python environment and the `profile.yml` is in the same folder as the Python script.
 
@@ -100,8 +102,8 @@ runner = create_runner(
 models = runner.run_all()
 ```
 
-
 Here's an example **duckdb** profile:
+
 ```yaml
 duckdb_dlt_dbt_test:
   target: analytics
@@ -114,8 +116,8 @@ duckdb_dlt_dbt_test:
         - httpfs
         - parquet
 ```
-You can run the example with dbt debug log: `RUNTIME__LOG_LEVEL=DEBUG python dbt_standalone.py`
 
+You can run the example with dbt debug log: `RUNTIME__LOG_LEVEL=DEBUG python dbt_standalone.py`
 
 ## dbt Cloud
 

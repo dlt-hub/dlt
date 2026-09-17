@@ -3,9 +3,9 @@ title: Google Analytics
 description: dlt verified source for Google Analytics API
 keywords: [google analytics api, google analytics verified source, google analytics]
 ---
-import Header from './_source-info-header.md';
+# Google Analytics
 
-# Google analytics
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -55,11 +55,11 @@ one, follow these steps:
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the
       "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 ### Grab Google OAuth credentials
 
@@ -102,8 +102,6 @@ python google_analytics/setup_script_gcp_oauth.py
 
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
-
-
 
 ### Share the Google Analytics property with the API
 
@@ -217,18 +215,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python google_analytics_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `dlt_google_analytics_pipeline`, but you may also use any custom name instead.
 
@@ -304,6 +308,7 @@ def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
 Similarly, there is a transformer function called `dimensions_table` that populates a table called "dimensions" with the data from each dimension.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.

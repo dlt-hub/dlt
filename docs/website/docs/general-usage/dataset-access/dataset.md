@@ -3,7 +3,6 @@ title: Access datasets in Python
 description: Conveniently access the data loaded to any destination in Python
 keywords: [destination, schema, data, access, retrieval]
 ---
-
 # Access loaded data in Python
 
 This guide explains how to access and change data that dlt loaded into your destination. After a pipeline run, use `pipeline.dataset()` to query the data. You can build the query with data frame expressions, Ibis, or SQL. You can read the result as records, Pandas frames, or Arrow tables.
@@ -52,7 +51,6 @@ arrow_table = customers_relation.arrow()
 A `Pipeline` object gives you a `Dataset`, which holds the credentials and the schema of your destination dataset. Build a query on the dataset to get a `Relation`. The `Relation` reads the data.
 
 **Note:** The `Dataset` and `Relation` objects defer their work. They query the destination only when you take an action that needs the data, for example a read into a DataFrame. See [Deferred query execution](#deferred-query-execution).
-
 
 ### Access the dataset
 
@@ -563,7 +561,6 @@ df = joined.df()
 
 To write a cross-destination join into a new table, use a transformation. See [Transformations of multiple datasets](../../hub/transformations/index.md#transformations-of-multiple-datasets). That page covers read-only engines (`filesystem`, `lance`), engines that can also write (`duckdb`, `ducklake`, `motherduck`), and the credentials dlt stores for the attach.
 
-
 ### Chain operations
 
 You can combine `select`, `limit`, and other methods.
@@ -766,7 +763,6 @@ expr = customers_expression.filter(
 
 You can learn more about the available expressions on the [ibis for sql users](https://ibis-project.org/tutorials/ibis-for-sql-users) page.
 
-
 ### Migrating from the previous dlt / ibis implementation
 
 As described above, first get one or many `Table` objects and construct your expression. Then pass the expression to the `Dataset` to get a `Relation`. The `Relation` executes the full query and reads the data.
@@ -812,12 +808,12 @@ joined_relation = dataset(joined_expression)
 df = joined_relation.df()
 ```
 
-
 ## Supported destinations
 
 Every SQL and filesystem destination that `dlt` supports can use this interface.
 
 ### Reading data from filesystem
+
 For filesystem destinations, `dlt` [uses **DuckDB** internally](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client) to create views on iceberg and delta tables, and on Parquet, JSONL, and csv files. You query these files with the same interface you use for SQL databases. For frequent reads, load the data into delta or iceberg tables. On those formats DuckDB reads only the parts the query needs.
 
 :::tip
@@ -912,8 +908,8 @@ ds = pipeline.dataset()
 # After (explicit single schema, equivalent to the old behavior):
 ds = pipeline.dataset(schema=pipeline.default_schema_name)
 ```
-:::
 
+:::
 
 ## Staging dataset
 
@@ -945,20 +941,20 @@ If you inspect the tables in this schema, you will find the `mydata_staging.user
 
 After a pipeline run the tables can look like this:
 
-**mydata_staging.users**
+`mydata_staging.users`
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
-| 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
+| id  | name    | _dlt_id        | _dlt_load_id     |
+| --- | ------- | -------------- | ---------------- |
+| 1   | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
+| 2   | Bob 2   | rX8ybgTeEmAmmA | 2345672350.98417 |
 
-**mydata.users**
+`mydata.users`
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
-| 2 | Bob 2 | rX8ybgTeEmAmmA | 2345672350.98417 |
-| 3 | Charlie | h8lehZEvT3fASQ | 1234563456.12345 |
+| id  | name    | _dlt_id        | _dlt_load_id     |
+| --- | ------- | -------------- | ---------------- |
+| 1   | Alice 2 | wX3f5vn801W16A | 2345672350.98417 |
+| 2   | Bob 2   | rX8ybgTeEmAmmA | 2345672350.98417 |
+| 3   | Charlie | h8lehZEvT3fASQ | 1234563456.12345 |
 
 The `mydata.users` table now contains the data from both pipeline runs.
 
@@ -995,56 +991,58 @@ The first run names the schema `mydata_20230912064403`, the second run names it 
 dlt automatically creates internal tables in the destination schema to track pipeline runs, support incremental loading, and manage schema versions. These tables use the `_dlt_` prefix.
 
 ### `_dlt_loads`
+
 This table records each pipeline run. Every run adds a new row with a unique `load_id`. The table tracks which loads are complete and supports chaining of transformations.
 
-
-| Column name          | Type      | Description                               |
-|----------------------|-----------|-------------------------------------------|
-| `load_id`            | STRING    | Unique identifier for the load job        |
-| `schema_name`        | STRING    | Name of the schema used during the load   |
-| `schema_version_hash`| STRING    | Hash of the schema version                |
-| `status`             | INTEGER   | Load status. Value `0` means completed    |
-| `inserted_at`        | TIMESTAMP | When the load was recorded                |
+| Column name           | Type      | Description                             |
+| --------------------- | --------- | --------------------------------------- |
+| `load_id`             | STRING    | Unique identifier for the load job      |
+| `schema_name`         | STRING    | Name of the schema used during the load |
+| `schema_version_hash` | STRING    | Hash of the schema version              |
+| `status`              | INTEGER   | Load status. Value `0` means completed  |
+| `inserted_at`         | TIMESTAMP | When the load was recorded              |
 
 Only rows with `status = 0` are complete. Other values mark incomplete or interrupted loads. The status column also coordinates multi-step transformations.
 
 ### `_dlt_pipeline_state`
+
 This table stores the internal state of the pipeline for each run. The state drives incremental loading. After an interrupted run, the pipeline resumes from this state.
 
-
-| Column name       | Type            | Description                                          |
-|-------------------|------------------|------------------------------------------------------|
-| `version`         | INTEGER          | Version of this state entry                         |
-| `engine_version`  | INTEGER          | Version of the dlt engine used                      |
-| `pipeline_name`   | STRING           | Name of the pipeline                                |
-| `state`           | STRING or BLOB   | Serialized Python dictionary of pipeline state      |
-| `created_at`      | TIMESTAMP        | When this state entry was created                   |
-| `version_hash`    | STRING           | Hash to detect changes in the state                 |
-| `_dlt_load_id`    | STRING           | Reference to related load in `_dlt_loads`           |
-| `_dlt_id`         | STRING           | Unique identifier for the pipeline state row        |
-
+| Column name      | Type           | Description                                    |
+| ---------------- | -------------- | ---------------------------------------------- |
+| `version`        | INTEGER        | Version of this state entry                    |
+| `engine_version` | INTEGER        | Version of the dlt engine used                 |
+| `pipeline_name`  | STRING         | Name of the pipeline                           |
+| `state`          | STRING or BLOB | Serialized Python dictionary of pipeline state |
+| `created_at`     | TIMESTAMP      | When this state entry was created              |
+| `version_hash`   | STRING         | Hash to detect changes in the state            |
+| `_dlt_load_id`   | STRING         | Reference to related load in `_dlt_loads`      |
+| `_dlt_id`        | STRING         | Unique identifier for the pipeline state row   |
 
 The state column contains a serialized Python dictionary that includes:
 
-    - Incremental progress, for example the last item or timestamp processed.
-    - Checkpoints for transformations.
-    - Source-specific metadata and config.
+```text
+- Incremental progress, for example the last item or timestamp processed.
+- Checkpoints for transformations.
+- Source-specific metadata and config.
+```
 
 With this state dlt resumes interrupted pipelines and skips data it already processed. A rerun of the same pipeline therefore produces the same result.
 
 dlt recalculates the `version_hash` on each update. dlt uses this table for last-value incremental loading. After a failed or stopped run, the next run reads the correct checkpoint from this table.
 
 ### `_dlt_version`
+
 This table tracks the history of all schema versions the pipeline used. Every time dlt updates the schema, for example when a source adds columns or tables, dlt writes a new entry to this table.
 
-| Column name     | Type            | Description                                      |
-|------------------|------------------|--------------------------------------------------|
-| `version`        | INTEGER          | Numeric version of the schema                   |
-| `engine_version` | INTEGER          | Version of the dlt engine used                  |
-| `inserted_at`    | TIMESTAMP        | Time the schema version entry was created       |
-| `schema_name`    | STRING           | Name of the schema                              |
-| `version_hash`   | STRING           | Unique hash representing the schema content     |
-| `schema`         | STRING or JSON   | Full schema in JSON format                      |
+| Column name      | Type           | Description                                 |
+| ---------------- | -------------- | ------------------------------------------- |
+| `version`        | INTEGER        | Numeric version of the schema               |
+| `engine_version` | INTEGER        | Version of the dlt engine used              |
+| `inserted_at`    | TIMESTAMP      | Time the schema version entry was created   |
+| `schema_name`    | STRING         | Name of the schema                          |
+| `version_hash`   | STRING         | Unique hash representing the schema content |
+| `schema`         | STRING or JSON | Full schema in JSON format                  |
 
 `_dlt_version` keeps previous schema definitions, so that:
 
@@ -1107,7 +1105,7 @@ print(table.limit(10).execute())
 
 This page shows how dlt, marimo, and [ibis](../../dlt-ecosystem/transformations/python.md#using-ibis) work together. You can explore loaded data, write data transformations, and create data applications.
 
-### Prerequisites
+### marimo Prerequisites
 
 To install marimo and ibis with the duckdb extras, run the following command:
 
@@ -1128,8 +1126,7 @@ marimo edit my_notebook.py
 
 The interface looks like this:
 
-![](./static/marimo_notebook.png)
-
+![empty marimo notebook](./static/marimo_notebook.png)
 
 ### Features
 
@@ -1154,14 +1151,13 @@ Available widgets: `pipeline_selector`, `load_package_viewer`, `schema_viewer`.
 
 ![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
 
-
 #### View dataset tables and columns
 
 After loading data with dlt, you can access it via the dataset interface, including a [native ibis connection](#ibis).
 
 In marimo, the **Datasources** panel provides a GUI to explore data tables and columns. marimo registers any cell variable that holds an ibis connection.
 
-![](./static/marimo_dataset.png)
+![marimo dataset viewer with ibis](./static/marimo_dataset.png)
 
 #### Access data with SQL
 
@@ -1171,8 +1167,7 @@ The **Add table to notebook** button creates a new SQL cell that you can use to 
 The **Datasources** panel displays a limited range of data types.
 :::
 
-![](./static/marimo_sql.png)
-
+![marimo SQL editor with ibis](./static/marimo_sql.png)
 
 #### Access data with Python
 
@@ -1184,12 +1179,11 @@ Use `.execute()`, `.to_pandas()`, `.to_polars()`, or `.to_pyarrow()` to run the 
 The **Datasources** panel displays a limited range of data types.
 :::
 
-![](./static/marimo_python.png)
+![marimo dataset viewer with ibis](./static/marimo_python.png)
 
 #### Create a dashboard and data apps
 
 You can [deploy marimo notebooks as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/), with the code hidden. Add [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), markdown, and charts from matplotlib, plotly, or altair. Together, dlt, marimo, and ibis build a dashboard on top of fresh data.
-
 
 ### Further reading
 

@@ -3,9 +3,9 @@ title: Workable
 description: dlt pipeline for Workable API
 keywords: [workable api, workable pipeline, workable]
 ---
-import Header from './_source-info-header.md';
-
 # Workable
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -16,7 +16,7 @@ This Workable `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/workable_pipeline.py)
 loads data using the “Workable API” to the destination of your choice.
 
-### Default endpoints
+## Default endpoints
 
 This verified source loads data from the following default endpoints:
 
@@ -25,7 +25,7 @@ This verified source loads data from the following default endpoints:
 | members           | Individuals who have access to your Workable account                                  |
 | recruiters        | Individuals who are responsible for managing the hiring and recruitment processes     |
 | stages            | Represent the different steps or phases in the hiring process for a job position      |
-| requisitions      | Formal requests made by an organization to fill a specific job opening or position     |
+| requisitions      | Formal requests made by an organization to fill a specific job opening or position    |
 | jobs              | Individual job postings or job listings created by employers or recruiters            |
 | custom_attributes | Additional fields or data points that you can define and assign to candidates or jobs |
 | events            | Specific occurrences or actions related to the hiring and recruitment process         |
@@ -49,8 +49,6 @@ Besides the main endpoints, for the "candidate" and "jobs" endpoints, the follow
 
 ## Setup guide
 
-
-
 ### Grab API credentials
 
 1. Log into Workable.
@@ -61,7 +59,6 @@ Besides the main endpoints, for the "candidate" and "jobs" endpoints, the follow
 
 > Note: The Workable UI, which is described here, might change.
 The full guide is available at [this link.](https://help.workable.com/hc/en-us/articles/115015785428-How-do-I-generate-an-API-key-access-token-Pro-)
-
 
 ### Initialize the verified source
 
@@ -245,7 +242,9 @@ To create your data pipeline using single loading and [incremental data loading]
 
    > For instance, the above loads data from January 1, 2022, with corresponding details.
 
-   > Note: Set the "load_details" parameter to True to load dependent endpoints. Otherwise, use False.
+  :::info
+  Note: Set the "load_details" parameter to True to load dependent endpoints. Otherwise, use False.
+  :::
 
 1. To load custom endpoints “candidates” and “members”:
 
@@ -265,6 +264,7 @@ To create your data pipeline using single loading and [incremental data loading]
    load_info = pipeline.run(load_data.with_resources("jobs","jobs_activities","jobs_application_form"))
    print(load_info)
    ```
+
    > Note: "load_details" parameter is set to True.
 
 1. To use incremental loading for the candidates endpoint, maintain the same pipeline and destination dataset names. The pipeline name helps retrieve the [state](../../general-usage/state) of the last run, essential for incremental data loading. Changing these names might trigger a [“dev_mode”](../../general-usage/pipeline#do-experiments-with-dev-mode), disrupting metadata tracking for [incremental data loading](../../general-usage/incremental-loading).

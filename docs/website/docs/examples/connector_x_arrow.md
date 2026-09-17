@@ -3,8 +3,7 @@ title: Load mysql table with ConnectorX & Arrow
 description: Load data from sql queries fast with connector x and arrow tables
 keywords: [connector x, pyarrow, zero copy]
 ---
-
-## About this Example
+# Load mysql table with ConnectorX & Arrow
 
 The example script below takes genome data from public **mysql** instance and then loads it into **duckdb**. Mind that your destination
 must support loading of parquet files as this is the format that `dlt` uses to save arrow tables. [Connector X](https://github.com/sfu-db/connector-x) allows to
@@ -20,7 +19,7 @@ We'll learn:
 - How to enable [incremental loading](../general-usage/incremental-loading) for efficient data extraction.
 - How to use build in ConnectionString credentials.
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 import connectorx as cx

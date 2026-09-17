@@ -3,7 +3,6 @@ title: "Source: MS SQL replication"
 description: MS SQL replication
 keywords: [MSSQL, CDC, Change Tracking, MSSQL replication]
 ---
-
 # MS SQL replication
 
 :::note
@@ -50,7 +49,6 @@ WITH (TRACK_COLUMNS_UPDATED = ON);
 * Install the Microsoft ODBC Driver for SQL Server according to the official [instructions](https://learn.microsoft.com/en-us/sql/connect/odbc/download-odbc-driver-for-sql-server?view=sql-server-ver16). If you prefer, there is also a [Python library alternative](https://www.pymssql.org/).
 
 * Specify the credentials for your SQL Server connection according to the [sql_database source instructions](../../dlt-ecosystem/verified-sources/sql_database/setup)
-
 
 ## Setting up the pipeline
 
@@ -136,6 +134,7 @@ incremental_resource = create_change_tracking_table(
 
 pipeline.run(incremental_resource)
 ```
+
 When running for the first time, it is necessary to pass the `tracking_version` in the `initial_tracking_version` argument. This will initialize incremental loading and keep the updated tracking version in the dlt state. In subsequent runs, you do not need to provide the initial value anymore.
 
 ### Incremental loading
@@ -271,8 +270,6 @@ if __name__ == "__main__":
 
 </details>
 
-
-
 ## Understanding the change tracking query
 
 The incremental loading process uses a SQL query that joins the CHANGETABLE function with the source table to fetch the latest changes. Here’s a simplified version of the query:
@@ -301,17 +298,16 @@ ORDER BY
  Since the query joins with the production table, there may be implications for locking and performance. Ensure your database can handle the additional load, and consider isolation levels if necessary.
 :::
 
-
 ## Full refresh
 
 :::warning
 Doing a full refresh will drop the destination table, i.e., delete data from the destination, and reset the state holding the tracking version.
 :::
 You can trigger a full refresh by performing a full load again and passing `drop_resources` to the run method (as described in the [pipeline configuration](../../general-usage/pipeline#selectively-drop-tables-and-resource-state-with-drop_resources)):
+
 ```py notype
 pipeline.run(initial_resource, refresh="drop_resources")
 ```
-
 
 ## Handling deletes
 

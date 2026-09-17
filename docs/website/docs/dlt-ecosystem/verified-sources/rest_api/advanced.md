@@ -3,12 +3,15 @@ title: REST API helpers
 description: Use the dlt RESTClient to interact with RESTful APIs and paginate the results
 keywords: [api, http, rest, restful, requests, restclient, paginate, pagination, json, retry, timeout, headers, response actions, advanced configuration]
 ---
+# REST API helpers
 
 dlt has built-in support for fetching data from APIs:
+
 - RESTClient for interacting with RESTful APIs and paginating the results
 - Requests wrapper for making simple HTTP requests with automatic retries and timeouts
 
 Additionally, dlt provides tools to simplify working with APIs:
+
 - [REST API generic source](./basic) integrates APIs using a declarative configuration to minimize custom code.
 - [OpenAPI source generator](../openapi-generator) automatically creates declarative API configurations from [OpenAPI specifications](https://swagger.io/specification/).
 
@@ -45,6 +48,7 @@ print(load_info)
 ```
 
 Here's what the code does:
+
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the GitHub API ([https://api.github.com](https://api.github.com)).
 2. The issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
 3. Here we specify the address of the endpoint we want to read from: `/repos/dlt-hub/dlt/issues`.
@@ -86,6 +90,7 @@ print(load_info)
 ```
 
 In the example above:
+
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONLinkPaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
 2. In `data_selector`, we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
 3. By default, the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.
@@ -93,6 +98,7 @@ In the example above:
 ## RESTClient
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
+
 - automatic pagination,
 - various authentication mechanisms,
 - customizable request/response handling.
@@ -780,6 +786,7 @@ The REST client acts as the OAuth client, which obtains a temporary access token
 Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to subclass `OAuth2ClientCredentials` and implement `build_access_token_request()` to suit the requirements of the specific authorization server you want to interact with.
 
 **Parameters:**
+
 - `access_token_url`: The URL to obtain the temporary access token.
 - `client_id`: Client identifier to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
@@ -823,8 +830,6 @@ client = RESTClient(base_url="https://api.zoom.us/v2", auth=oauth)
 
 response = client.get("/users")
 ```
-
-
 
 ### Implementing custom authentication
 
@@ -908,11 +913,14 @@ request_max_attempts = 5
 request_backoff_factor = 1
 request_max_retry_delay = 300
 ```
+
 :::
 
 ### Use custom session
+
 You can pass custom `requests` `Session` to `RESTClient`. `dlt` provides its own implementation where you can easily configure
 retry strategies, timeouts and other factors. For example:
+
 ```py
 from dlt.sources.helpers import requests
 from dlt.sources.helpers.rest_client import RESTClient
@@ -922,6 +930,7 @@ client = RESTClient(
     session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0).session
 )
 ```
+
 will set-up the client for a short connect and read timeouts with no retries.
 
 ### URL sanitization and secret protection
@@ -932,7 +941,6 @@ The RESTClient automatically sanitizes URLs in logs and error messages to preven
 - `secret`, `password`, `pwd`, `client_secret`
 
 For example, a URL like `https://api.example.com/data?api_key=secret123&page=1` will appear in logs as `https://api.example.com/data?api_key=***&page=1`.
-
 
 ## Troubleshooting
 
@@ -949,6 +957,7 @@ http_max_error_body_length = 8192  # Maximum characters (default: 8192)
 ```
 
 Example error with response body enabled:
+
 ```text
 HTTPError: 400 Client Error: Bad Request for url: https://api.example.com/data?api_key=***
 Response body: {"error": "Invalid date format", "code": "INVALID_DATE", "field": "start_date"}
@@ -1090,6 +1099,7 @@ request_max_attempts = 5
 request_backoff_factor = 1
 request_max_retry_delay = 300
 ```
+
 :::
 
 For more control, you can create your own instance of `dlt.sources.requests.Client` and use that instead of the global client.
@@ -1132,7 +1142,6 @@ http_client = Client(
 `requests.Client` is thread safe. We recommend to share sessions across threads for better performance.
 :::
 
-
 ### Handling API Rate Limits
 
 HTTP 429 errors indicate you've hit API rate limits. The dlt requests client retries these automatically and respects `Retry-After` headers. If rate limits persist, consider additional mitigation strategies.
@@ -1143,7 +1152,9 @@ HTTP 429 errors indicate you've hit API rate limits. The dlt requests client ret
 - **Implement backoff**: Increase wait times after failures (exponential backoff)
 - **Reduce calls**: Batch requests or cache results when possible
 
-> 💡 The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.
+:::info
+The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.
+:::
 
 ## Advanced configuration
 
@@ -1195,7 +1206,7 @@ Headers can be configured in two places:
 
 When both client-level and endpoint-level headers are specified, endpoint-level headers override client-level headers for the same header names.
 
-##### Client-level headers
+#### Client-level headers
 
 Client-level headers are static and applied to all requests:
 
@@ -1328,7 +1339,6 @@ This is an experimental feature and may change in future releases.
   - a callable accepting and returning the response object.
   - a list of callables, each accepting and returning the response object.
 
-
 #### Example A
 
 ```py
@@ -1419,9 +1429,10 @@ source_config = {
 
 In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
 
-
 ### Setup timeouts and retry strategies
+
 `rest_api` uses `dlt` custom sessions and `RESTClient` to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
+
 ```py notype
 from dlt.sources.helpers import requests
 
@@ -1431,6 +1442,7 @@ source_config: RESTAPIConfig = {
     },
 }
 ```
+
 will set-up all endpoints to use a short connect and read timeouts with no retries.
 Most settings can be configured using `toml` files or environment variables.
 

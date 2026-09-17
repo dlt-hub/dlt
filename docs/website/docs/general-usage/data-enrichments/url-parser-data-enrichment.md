@@ -3,7 +3,6 @@ title:  URL-parser data enrichment
 description: Enriching the url with various parameters.
 keywords: [data enrichment, url parser, referer data enrichment]
 ---
-
 # Data enrichment part three: URL parser data enrichment
 
 URL parser data enrichment involves extracting various URL components to gain additional insights and
@@ -141,6 +140,7 @@ We use a free service called [URL Parse API](https://urlparse.com/), to parse th
 need to register to use this service nor get an API key.
 
 1. Create a `url_parser` function as follows:
+
    ```py
    import requests
 
@@ -177,8 +177,8 @@ need to register to use this service nor get an API key.
 
 1. In creating the pipeline, the `url_parser` can be used in the following ways:
 
-   - Add map function
-   - Transformer function
+  - Add map function
+  - Transformer function
 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.

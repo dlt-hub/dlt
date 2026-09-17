@@ -3,7 +3,6 @@ title: "Destination: Iceberg"
 description: Iceberg destination
 keywords: [Iceberg, pyiceberg]
 ---
-
 # Iceberg
 
 :::note
@@ -23,7 +22,7 @@ The Iceberg destination in dlt allows you to load data into Iceberg tables using
 * Exposes data via DuckDB views using `pipeline.dataset()`
 * Supports partitioning
 
-##  Prerequisites
+## Prerequisites
 
 If you don't have a dltHub workspace yet, scaffold one with:
 
@@ -49,6 +48,7 @@ To configure Iceberg destination you need to choose and configure the catalog. T
 * generate and hand locations for newly generated tables (rest catalogs)
 
 Currently, the Iceberg destination supports two catalog types:
+
 * SQL-based catalog. Ideal for local development; stores metadata in SQLite or PostgreSQL
 * REST catalog. Used in production with systems like Lakekeeper or Polaris
 
@@ -86,6 +86,7 @@ aws_secret_access_key = "please set me up!"
 register_new_tables=true
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -101,6 +102,7 @@ export DESTINATION__ICEBERG__FILESYSTEM__CREDENTIALS__AWS_SECRET_ACCESS_KEY="ple
 export DESTINATION__ICEBERG__CAPABILITIES__REGISTER_NEW_TABLE=True
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
+
 </TabItem>
 </Tabs>
 
@@ -118,10 +120,10 @@ It supports two modes:
 
 The SQL catalog stores one table of the following schema:
 
-| catalog_name | table_namespace     | table_name  | metadata_location                                 | previous_metadata_location                                                          |
-|--------------|---------------------|-------------|---------------------------------------------------|---------------------------------------------------------------------------------------|
-| default      | jaffle_shop_dataset | orders | path/to/files                                     | path/to/files |
-| default      | jaffle_shop_dataset | _dlt_loads  | path/to/files  | path/to/files |
+| catalog_name | table_namespace     | table_name | metadata_location | previous_metadata_location |
+| ------------ | ------------------- | ---------- | ----------------- | -------------------------- |
+| default      | jaffle_shop_dataset | orders     | path/to/files     | path/to/files              |
+| default      | jaffle_shop_dataset | _dlt_loads | path/to/files     | path/to/files              |
 
 ### Lakekeeper catalog
 
@@ -159,6 +161,7 @@ bucket_url="s3://warehouse/"
 [destination.iceberg.capabilities]
 table_location_layout="lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -173,6 +176,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__OAUTH2-SERVER-URI=https://
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT=lakekeeper-warehouse/dlthub_demo/lakekeeper_demo/{dataset_name}/{table_name}
 ```
+
 </TabItem>
 
 </Tabs>
@@ -229,6 +233,7 @@ bucket_url="s3://warehouse"
 [destination.iceberg.capabilities]
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -242,6 +247,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__SCOPE=PRINCIPAL_ROLE:ALL
 export DESTINATION__ICEBERG__FILESYSTEM__BUCKET_URL=s3://warehouse/
 export DESTINATION__ICEBERG__CAPABILITIES__TABLE_LOCATION_LAYOUT={dataset_name}/{table_name}
 ```
+
 </TabItem>
 
 </Tabs>
@@ -253,12 +259,11 @@ For more information, refer to the [Lakekeeper section above](#lakekeeper-catalo
 dlt supports three AWS-backed Iceberg catalogs.
 Their names correspond to the `catalog_type` value you pass in your destination block:
 
-| `catalog_type`      | What it talks to under the hood |
-| ------------------- | ----------------------------------------------------------------------------------- |
-| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets |
+| `catalog_type`      | What it talks to under the hood                                                   |
+| ------------------- | --------------------------------------------------------------------------------- |
+| **`s3tables-rest`** | Uses the AWS S3 Tables Iceberg REST API endpoint, and S3 table buckets            |
 | **`glue-rest`**     | Uses the AWS Glue Iceberg REST API endpoint, Lake Formation, and S3 table buckets |
-| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets |
-
+| **`glue`**          | Uses the AWS Glue Catalog, and normal S3 buckets                                  |
 
 #### Catalog `[s3tables-rest]`
 
@@ -293,6 +298,7 @@ region_name           = "<region>"
 "rest.signing-name"   = "s3tables"
 "rest.signing-region" = "<region>"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -310,18 +316,21 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
   "rest.signing-region": "<region>"
 }'
 ```
+
 </TabItem>
 
 </Tabs>
 
-##### Prerequisites
+##### S3 Tables Catalog Prerequisites
 
 Create the S3 Table bucket first and grant the calling IAM principal s3tables:* actions read/write permissions on that bucket.
+
 * `warehouse` – full bucket ARN for your S3 Tables catalog.
 * `uri` – region-specific S3 Tables REST endpoint.
 * `rest.*` properties – mandatory SigV4 settings for every call.
 
 #### Catalog `[glue-rest]`
+
 Configure this catalog when you want to publish Iceberg tables directly into an S3 Tables bucket via the AWS Glue Iceberg REST API endpoint.
 
 :::note
@@ -356,6 +365,7 @@ region_name           = "<region>"
 "rest.signing-name"   = "glue"
 "rest.signing-region" = "<region>"
 ```
+
 </TabItem>
 <TabItem value="env">
 
@@ -375,8 +385,10 @@ export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES='{
 </TabItem>
 </Tabs>
 
-##### Prerequisites
+##### Glue REST Catalog Prerequisites
+
 Сreate the S3 Table bucket first and follow this AWS documentation to properly configure IAM, Glue, and Lake Formation: [Create an Iceberg catalog for S3 Tables via Glue REST](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-integrating-glue-endpoint.html)
+
 * `warehouse` – glue catalog arn for your S3 Tables catalog.
 * `uri` – region-specific Glue REST endpoint.
 * `rest.*` properties – mandatory SigV4 settings for every call.
@@ -408,6 +420,7 @@ aws_access_key_id     = "<aws_access_key_id>"
 aws_secret_access_key = "<aws_secret_access_key>"
 region_name           = "<region>"
 ```
+
 </TabItem> <TabItem value="env">
 
 ```sh
@@ -420,31 +433,33 @@ export DESTINATION__ICEBERG__CREDENTIALS__REGION_NAME="<region>"
 </TabItem>
 </Tabs>
 
-##### Prerequisites
+##### Glue Catalog Prerequisites
+
 An S3 bucket and an IAM principal allowed to read/write that bucket and access the Glue Data Catalog.
 
 * `bucket_url` – S3 prefix where Iceberg data and metadata files will live.
-
 
 ### Unity Catalog
 
 [Unity Catalog](https://www.databricks.com/product/unity-catalog) provides a REST API for Iceberg that allows external clients to access Databricks tables.
 
-#### Prerequisites
+#### Unity Catalog Prerequisites
 
 Before using Unity Catalog with the Iceberg destination, ensure you have:
 
 1. Unity Catalog enabled in your workspace
 2. External data access enabled for your metastore
 3. EXTERNAL USE SCHEMA privilege granted to your principal:
+
    ```sql
    GRANT EXTERNAL USE SCHEMA ON CATALOG <catalog_name> TO `user@company.com`;
    ```
+
    Where `<catalog_name>` is the name of the catalog you want to grant access to.
 
 For detailed setup instructions, see Databricks guide on [accessing tables from Apache Iceberg clients](https://learn.microsoft.com/en-us/azure/databricks/external-access/iceberg).
 
-#### Configuration
+#### Unity Catalog Configuration
 
 <Tabs
   groupId="filesystem-type"
@@ -467,6 +482,7 @@ warehouse = "dlt_ci"
 [destination.iceberg.credentials.properties]
 token = "please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="env">
@@ -477,6 +493,7 @@ export DESTINATION__ICEBERG__CREDENTIALS__URI=https://<workspace-url>/api/2.1/un
 export DESTINATION__ICEBERG__CREDENTIALS__WAREHOUSE=dlt_ci
 export DESTINATION__ICEBERG__CREDENTIALS__PROPERTIES__TOKEN=please set me up!
 ```
+
 </TabItem>
 
 </Tabs>
@@ -512,6 +529,7 @@ def my_resource():
 ```
 
 #### Key characteristics
+
 - Requires primary key or merge key columns
 - Supports only regular tables (nested tables not supported)
 - Automatically deduplicates data based on primary keys
@@ -522,7 +540,7 @@ def my_resource():
 The `upsert` strategy is similar to delete-insert strategy but with key differences in behavior and requirements:
 
 - Supports nested data: unlike `delete-insert`, `upsert` handles nested data
-    - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
+  - Note: nested data requires a column with the `unique` property (dlt will use `_dlt_id` by default)
 - Does not deduplicate records with duplicate primary keys in the incoming data
 - Upsert _does not_ support merge keys
 
@@ -555,6 +573,7 @@ The `delete-insert`, `upsert`, and `insert-only` merge strategies have been stre
 :::
 
 #### Known limitations
+
 - Orphaned nested table records: updates to nested structures that remove elements do not delete them from the destination table.
 
 ## Data access
@@ -565,6 +584,7 @@ When invoked, this creates an in-memory DuckDB database with views pointing to I
 The created views reflect the latest available snapshot. To ensure fresh data during development, use the `always_refresh_views` option. Views are materialized only on demand, based on query usage.
 
 ## Credentials for data access
+
 By default, credentials for accessing data are vended by the catalog, and per-table secrets are created automatically. This works best with cloud storage providers like AWS S3 using STS credentials.
 However, due to potential performance limitations with temporary credentials, we recommend defining the filesystem explicitly when working with `dataset()` or dltHub transformations.
 This approach allows for native DuckDB filesystem access, persistent secrets, and faster data access. For example, when using AWS S3 as the storage location
@@ -581,13 +601,13 @@ aws_secret_access_key = "please set me up!"
 Apache Iceberg supports [table partitioning](https://iceberg.apache.org/docs/latest/partitioning/) to optimize query performance.
 
 There are two ways to configure partitioning in dltHub Iceberg destination:
+
 * Using the [`iceberg_adapter`](#using-the-iceberg_adapter-function) function
 * Using column-level [`partition`](#using-column-level-partition-property) property
 
 ### Using the `iceberg_adapter` function
 
 The `iceberg_adapter` function allows you to configure partitioning for your Iceberg tables. This adapter supports various partition transformations that can be applied to your data columns.
-
 
 ```py
 import dlt
@@ -609,6 +629,7 @@ iceberg_adapter(
 Iceberg supports several transformation functions for partitioning. Use the `iceberg_partition` helper class to create partition specifications:
 
 #### Identity partitioning
+
 Partition by the exact value of a column (default for string columns when specified by name):
 
 ```py
@@ -620,6 +641,7 @@ iceberg_adapter(resource, partition=[iceberg_partition.identity("region")])
 ```
 
 #### Temporal transformations
+
 Extract time components from date/datetime columns:
 
 * `iceberg_partition.year(column_name)`: Partition by year
@@ -642,6 +664,7 @@ iceberg_adapter(
 ```
 
 #### Bucket partitioning
+
 Distribute data across a fixed number of buckets using a hash function:
 
 ```py
@@ -654,6 +677,7 @@ iceberg_adapter(
 ```
 
 #### Truncate partitioning
+
 Partition string values by a fixed prefix length:
 
 ```py
@@ -668,6 +692,7 @@ iceberg_adapter(
 ### Advanced partitioning examples
 
 #### Multi-column partitioning
+
 Combine multiple partition strategies:
 
 ```py
@@ -707,6 +732,7 @@ pipeline.run(sales_data)
 ```
 
 #### Custom partition field names
+
 Specify custom names for partition fields to make them more descriptive:
 
 ```py

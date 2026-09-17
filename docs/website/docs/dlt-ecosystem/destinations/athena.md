@@ -3,7 +3,6 @@ title: Athena
 description: AWS Athena `dlt` destination
 keywords: [aws, athena, glue catalog]
 ---
-
 # AWS Athena
 
 The Athena destination stores data as Parquet files in S3 buckets and creates [external tables in AWS Athena](https://docs.aws.amazon.com/athena/latest/ug/creating-tables.html). You can then query those tables with Athena SQL commands, which will scan the entire folder of Parquet files and return the results. This destination works very similarly to other SQL-based destinations, with the exception that the merge write disposition is not supported at this time. The `dlt` metadata will be stored in the same bucket as the Parquet files, but as iceberg tables. Athena also supports writing individual data tables as Iceberg tables, so they may be manipulated later. A common use case would be to strip GDPR data from them.
@@ -11,38 +10,48 @@ The Athena destination stores data as Parquet files in S3 buckets and creates [e
 <!--@@@DLT_DESTINATION_CAPABILITIES athena-->
 
 ## Install dlt with Athena
-**To install the dlt library with Athena dependencies:**
+
+To install the dlt library with Athena dependencies:
+
 ```sh
 pip install "dlt[athena]"
 ```
 
 ## Setup guide
+
 ### 1. Initialize the dlt project
 
 Let's start by initializing a new `dlt` project as follows:
+
    ```sh
    dlt init chess athena
    ```
-   > 💡 This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
 
+   :::info
+   This command will initialize your pipeline with chess as the source and AWS Athena as the destination using the filesystem staging destination.
+   :::
 
 ### 2. Setup bucket storage and Athena credentials
 
 First, install dependencies by running:
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or with `pip install "dlt[athena]"`, which will install `s3fs`, `pyarrow`, `pyathena`, and `botocore` packages.
 
 :::warning
 
 You may also install the dependencies independently. Try
+
 ```sh
 pip install dlt
 pip install s3fs
 pip install pyarrow
 pip install pyathena
 ```
+
 so pip does not fail on backtracking.
 :::
 
@@ -68,6 +77,7 @@ region_name="please set me up!" # set your AWS region, for example "eu-central-1
 ```
 
 If you have your credentials stored in `~/.aws/credentials`, just remove the **[destination.filesystem.credentials]** and **[destination.athena.credentials]** sections above and `dlt` will fall back to your **default** profile in local credentials. If you want to switch the profile, pass the profile name as follows (here: `dlt-ci-user`):
+
 ```toml
 [destination.filesystem.credentials]
 profile_name="dlt-ci-user"
@@ -79,17 +89,20 @@ profile_name="dlt-ci-user"
 ## Additional destination configuration
 
 You can provide an Athena workgroup like so:
+
 ```toml
 [destination.athena]
 athena_work_group="my_workgroup"
 ```
 
 You can force all tables to be in iceberg format and control Iceberg tables layout in the bucket:
+
 ```toml
 [destination.athena]
 force_iceberg=true
 table_location_layout="{dataset_name}/{table_name}"
 ```
+
 where `dataset_name` and `table_name` will be replaced by actual names.
 
 :::tip
@@ -100,6 +113,7 @@ In case your table is created in location that already exists, you can add rando
 [destination.athena]
 table_location_layout="{dataset_name}/{table_name}_{location_tag}"
 ```
+
 We observed the following error message:
 **com.amazonaws.services.s3.model.AmazonS3Exception: The specified key does not exist**
 when table with given name was deleted and re-created - but not always. Adding location tag
@@ -107,18 +121,21 @@ prevents this error from showing up.
 :::
 
 You can change the default catalog name
+
 ```toml
 [destination.athena]
 aws_data_catalog="awsdatacatalog"
 ```
 
 By default, `dlt` uses the same catalog for both the staging and production (non-staging) tables. You can explicitly set the staging catalog to use separate catalogs:
+
 ```toml
 [destination.athena]
 staging_aws_data_catalog="my-staging-catalog"
 ```
 
 and provide any other `PyAthena` connection setting
+
 ```toml
 [destination.athena.conn_properties]
 poll_interval=2
@@ -128,19 +145,23 @@ When `dlt` executes SQL queries that look up table names in the `INFORMATION_SCH
 it can be more effective to filter the tables in the code instead of doing it in the query.
 The threshold for this is usually 1000 tables, but we learned that for Athena a better default is
 90. You can change this threshold with the following setting:
+
 ```toml
 [destination.athena]
 info_tables_query_threshold=90
 ```
 
 You can specify the database location using db_location:
+
 ```toml
 [destination.athena]
 db_location="s3://[your_bucket_name]" # replace with your bucket name
 ```
 
 ## S3 Tables
+
 The `athena` destination supports storing data in an [S3 Tables](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables.html) bucket by setting an S3 Tables Catalog:
+
 ```toml
 [destination.athena]
 aws_data_catalog="s3tablescatalog/[your_table_bucket_name]"  # replace with your table bucket name
@@ -149,20 +170,21 @@ aws_data_catalog="s3tablescatalog/[your_table_bucket_name]"  # replace with your
 `dlt` assumes you already have a table bucket that's integrated with AWS analytics services. If that's not the case, look at these [instructions](https://docs.aws.amazon.com/AmazonS3/latest/userguide/s3-tables-getting-started.html#s1-tables-tutorial-create-bucket).
 
 Using S3 Tables with Athena implies that:
+
 - data is stored in Iceberg tables
-- table locations are managed by the S3 Tables Catalog 
+- table locations are managed by the S3 Tables Catalog
 - the `table_location_layout` setting is ignored
 - the `s3_tables` [naming convention](../../general-usage/naming-convention.md#available-naming-conventions) is used
 - **production (non-staging)** and **staging tables** are registered in separate catalogs:
-    - *production:* S3 Tables Catalog
-    - *staging:* regular catalog
+  - *production:* S3 Tables Catalog
+  - *staging:* regular catalog
 
 When `staging_aws_data_catalog` is not specified, `dlt` normally uses the same catalog for both staging and production tables. However, when using an S3 Tables Catalog, the staging catalog defaults to `awsdatacatalog` because staging tables are not Iceberg tables and cannot be registered in the S3 Tables Catalog.
-
 
 ## Write disposition
 
 The `athena` destination handles the write dispositions as follows:
+
 - `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append` (unless you're using [iceberg](#iceberg-data-tables) tables).
@@ -174,6 +196,7 @@ Data loading occurs by storing parquet files in an S3 bucket and defining a sche
 `dlt` internal tables are saved as Iceberg tables.
 
 ### Data types
+
 Athena tables store timestamps with millisecond precision, and with that precision, we generate parquet files. Keep in mind that Iceberg tables have microsecond precision.
 
 Athena does not support JSON fields, so JSON is stored as a string.
@@ -187,6 +210,7 @@ Athena does not support JSON fields, so JSON is stored as a string.
 Athena uses case-insensitive identifiers and **will lowercase all the identifiers** that are stored in the INFORMATION SCHEMA. Do not use [case-sensitive naming conventions](../../general-usage/naming-convention.md#case-sensitive-and-insensitive-destinations). Letter casing will be removed anyway, and you risk generating identifier collisions, which are detected by `dlt` and will fail the load process.
 
 Under the hood, Athena uses different SQL engines for DDL (catalog) and DML/Queries:
+
 * DDL uses HIVE escaping with ``````
 * Other queries use PRESTO and regular SQL escaping.
 
@@ -195,6 +219,7 @@ Under the hood, Athena uses different SQL engines for DDL (catalog) and DML/Quer
 Using a staging destination is mandatory when using the Athena destination. If you do not set staging to `filesystem`, `dlt` will automatically do this for you.
 
 If you decide to change the [filename layout](./filesystem#files-layout) from the default value, keep the following in mind so that Athena can reliably build your tables:
+
  - You need to provide the `{table_name}` placeholder, and this placeholder needs to be followed by a forward slash.
  - You need to provide the `{file_id}` placeholder, and it needs to be somewhere after the `{table_name}` placeholder.
  - `{table_name}` must be the first placeholder in the layout.
@@ -219,17 +244,18 @@ For every table created as an Iceberg table, the Athena destination will create 
 See [athena adapter](#athena-adapter) for partitioning and other options.
 
 You can also force all tables to be in iceberg format:
+
 ```toml
 [destination.athena]
 force_iceberg = true
 ```
 
 You can also adjust iceberg table properties:
+
 ```toml
 [destination.athena.table_properties]
 vacuum_max_snapshot_age_seconds = 86400
 ```
-
 
 ### LakeFormation tags
 
@@ -247,8 +273,8 @@ AWS lakeformation tags can be set on the database level when running a pipeline.
 
 [See full Lake Formation permission reference](https://docs.aws.amazon.com/lake-formation/latest/dg/lf-permissions-reference.html)
 
-
 Tags can be set on database level using the destination config
+
 ```toml
 [destination.athena.lakeformation_config]
 enabled = true
@@ -269,6 +295,7 @@ enabled = false
 The `merge` write disposition is supported for Athena when using Iceberg tables.
 
 :::note
+
 1. There is a risk of tables ending up in an inconsistent state in case a pipeline run fails mid-flight because Athena doesn't support transactions, and `dlt` uses multiple DELETE/UPDATE/INSERT statements to implement `merge`.
 2. `dlt` creates additional helper tables called `insert_<table name>` and `delete_<table name>` in the staging schema to work around Athena's lack of temporary tables.
 :::
@@ -345,4 +372,5 @@ athena_adapter(
 pipeline = dlt.pipeline("athena_example")
 pipeline.run(partitioned_data)
 ```
+
 <!--@@@DLT_TUBA athena-->

@@ -3,13 +3,11 @@ title: Usage
 description: basic usage of the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Usage
 
 import Header from '../_source-info-header.md';
 
-# Usage
-
 <Header/>
-
 
 ## Applying column-wise filtering on the data being ingested
 
@@ -33,6 +31,7 @@ source = sql_database(
 ```
 
 ## Write custom SQL queries
+
 We recommend that you create a SQL VIEW in your source database and extract data from it. In that case `dlt` will infer all column types and read data in
 shape you define in a view without any further customization.
 
@@ -55,7 +54,9 @@ def query_adapter_callback(
 
       return t_query
 ```
+
 In the snippet above we do a few interesting things:
+
 1. We create a text query with `sa.text`
 2. We change the condition on selecting incremental column from the default `ge` to `greater` (f" \{incremental.cursor_path\} > :start_value")
 3. We add additional computed columns: `1 as add_int, 'const' as add_text`. You can also join other table here.
@@ -74,9 +75,11 @@ def add_new_columns(table) -> None:
         if col_name not in table.c:
             table.append_column(sa.Column(col_name, col_type, **col_kwargs)) # type: ignore[arg-type]
 ```
+
 Otherwise `dlt` will attempt to infer the types from the extracted data.
 
 Here's how you call `sql_table` with those adapters:
+
 ```py notype
 import dlt
 from dlt.sources.sql_database import sql_table
@@ -92,6 +95,7 @@ table = sql_table(
 ## Add computed columns and custom incremental clauses
 
 You can add computed columns to the table definition by converting it into a subquery:
+
 ```py notype
 def add_max_timestamp(table):
     computed_max_timestamp = sa.sql.type_coerce(
@@ -101,6 +105,7 @@ def add_max_timestamp(table):
     subquery = sa.select(*table.c, computed_max_timestamp).subquery()
     return subquery
 ```
+
 We add new `max_timestamp` column that is a MAX of `created_at` and `updated_at` columns and then we convert it into a subquery
 because we intend to use it for incremental loading which will attach a `WHERE` clause to it.
 
@@ -114,16 +119,17 @@ read_table = sql_table(
     incremental=dlt.sources.incremental("max_timestamp"),
 )
 ```
+
 `dlt` will use your subquery instead of original `chat_message` table to generate incremental query. Note that you can further
 customize subquery with query adapter as in the example above.
 
 ## Transforming the data before load
+
 You have direct access to the extracted data through the resource objects (`sql_table()` or `sql_database().with_resources()`), each of which represents a single SQL table. These objects are generators that yield individual rows of the table, which can be modified by using custom Python functions. These functions can be applied to the resource using `add_map`.
 
 :::note
 The PyArrow backend does not yield individual rows but loads chunks of data as `ndarray`. In this case, the transformation function that goes into `add_map` should be configured to expect an `ndarray` input.
 :::
-
 
 Examples:
 1. Pseudonymizing data to hide personally identifiable information (PII) before loading it to the destination. (See [here](../../../general-usage/customising-pipelines/pseudonymizing_columns) for more information on pseudonymizing data with `dlt`)
@@ -187,8 +193,9 @@ Examples:
 You can deploy the `sql_database` pipeline with any of the `dlt` deployment methods, such as [GitHub Actions](../../../walkthroughs/deploy-a-pipeline/deploy-with-github-actions), [Airflow](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [Dagster](../../../walkthroughs/deploy-a-pipeline/deploy-with-dagster), etc. See [here](../../../walkthroughs/deploy-a-pipeline) for a full list of deployment methods.
 
 ### Running on Airflow
+
 When running on Airflow:
+
 1. Use the `dlt` [Airflow Helper](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer.md#2-modify-dag-file) to create tasks from the `sql_database` source. (If you want to run table extraction in parallel, you can do this by setting `decompose = "parallel-isolated"` when doing the source->DAG conversion. See [here](../../../walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer#2-modify-dag-file) for a code example.)
 2. Reflect tables at runtime with the `defer_table_reflect` argument.
 3. Set `allow_external_schedulers` to load data using [Airflow intervals](../../../general-usage/incremental/cursor.md#using-airflow-schedule-for-backfill-and-incremental-loading).
-

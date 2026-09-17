@@ -3,10 +3,10 @@ title: Deploy with GitHub Actions
 description: How to deploy a pipeline with GitHub Actions
 keywords: [how to, deploy a pipeline, github actions]
 ---
-
 # Deploy a pipeline with GitHub Actions
 
 Before you can deploy a pipeline, you will need to:
+
   1. [Install dlt](../../reference/installation.md);
   2. [Create a pipeline](../../tutorial/load-data-from-an-api.md);
   3. Sign up for a [GitHub](https://github.com) account, since you will be deploying using
@@ -29,11 +29,15 @@ python3 chess_pipeline.py # replace chess_pipeline.py with your pipeline file
 This should successfully load data from the source to the destination once.
 
 ## Initialize deployment
+
 First, you need to add additional dependencies that the `deploy` command requires:
+
 ```sh
 pip install "dlt[cli]"
 ```
+
 Then, the command below will create a GitHub workflow that runs your pipeline script every 30 minutes:
+
 ```sh
 dlt deploy chess_pipeline.py github-action --schedule "*/30 * * * *"
 ```
@@ -92,4 +96,3 @@ at the exact intervals or times you specify.
 - The minimum official supported interval is 5 minutes.
 - If you set it to 5 minutes, you can expect intervals between 5 and 30 minutes.
 - From practical experience, any intervals above 30 minutes work on average as expected.
-

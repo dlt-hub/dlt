@@ -3,8 +3,8 @@ title: Object store & filesystem
 description: Store data in remote file systems and object store services like AWS S3, Google Cloud Storage, or Azure Blob Storage
 keywords: [filesystem, s3, gcs, azure, blob storage, sftp, cloud storage, data lake, staging]
 ---
-
 # Object store & filesystem
+
 The filesystem destination stores data in remote file systems and cloud storage services like **AWS S3**, **Google Cloud Storage**, or **Azure Blob Storage**. Underneath, it uses [fsspec](https://github.com/fsspec/filesystem_spec) to abstract file operations. Its primary role is to be used as a staging area for other destinations, but you can also quickly build a data lake with it.
 
 ## Install dlt with filesystem
@@ -20,10 +20,12 @@ This installs the `s3fs` and `botocore` packages.
 :::warning
 
 You may also install the dependencies independently. Try:
+
 ```sh
 pip install dlt
 pip install s3fs
 ```
+
 so pip does not fail on backtracking.
 :::
 
@@ -32,6 +34,7 @@ so pip does not fail on backtracking.
 ## Initialize the dlt project
 
 Let's start by initializing a new dlt project as follows:
+
 ```sh
 dlt init chess filesystem
 ```
@@ -43,7 +46,9 @@ This command will initialize your pipeline with chess as the source and AWS S3 a
 ## Set up the destination and credentials
 
 ### AWS S3
+
 The command above creates a sample `secrets.toml` and requirements file for an AWS S3 bucket. You can install those dependencies by running:
+
 ```sh
 pip install -r requirements.txt
 ```
@@ -107,6 +112,7 @@ You need to create an S3 bucket and a user who can access that bucket. dlt does 
     ]
 }
 ```
+
 5. To obtain the access and secret key for the user, go to IAM > Users and in the “Security Credentials”, click on “Create Access Key”, and preferably select “Command Line Interface” and create the access key.
 6. Obtain the “Access Key” and “Secret Access Key” created that are to be used in "secrets.toml".
 
@@ -144,22 +150,26 @@ To pass additional arguments via env variables, use **stringified dictionary**:
 `DESTINATION__FILESYSTEM__KWARGS='{"use_ssl": true, "auto_mkdir": true}`
 
 You can also override default `fsspec` settings used by `dlt`:
+
 ```toml
 [destination.filesystem.kwargs]
 use_listings_cache=false  # listing cache disabled by default as you typically add files
 listings_expiry_time=60.0
 skip_instance_cache=false  # instance cache enabled by default, it is thread isolated anyway
 ```
+
 There's however no good reason to do that, except debugging `fsspec` internal problems. You could try
 to enable listing cache but this cache is not shared across threads which `dlt` load steps uses to
 parallelize writes. You may get unpredictable cache invalidation behavior.
 
 ### Google storage
+
 Run `pip install "dlt[gs]"` which will install the `gcfs` package.
 
 To edit the `dlt` credentials file with your secret info, open `.dlt/secrets.toml`.
 You'll see AWS credentials by default.
 Use Google cloud credentials that you may know from [BigQuery destination](bigquery)
+
 ```toml
 [destination.filesystem]
 bucket_url = "gs://[your_bucket_name]" # replace with your bucket name,
@@ -169,6 +179,7 @@ project_id = "project_id" # please set me up!
 private_key = "private_key" # please set me up!
 client_email = "client_email" # please set me up!
 ```
+
 :::note
 Note that you can share the same credentials with BigQuery, replace the `[destination.filesystem.credentials]` section with a less specific one: `[destination.credentials]` which applies to both destinations.
 :::
@@ -186,6 +197,7 @@ Edit the credentials in `.dlt/secrets.toml`, you'll see AWS credentials by defau
 #### Supported schemes
 
 `dlt` supports both forms of the blob storage urls:
+
 ```toml
 [destination.filesystem]
 bucket_url = "az://<container_name>/path" # replace with your container name and path
@@ -201,11 +213,13 @@ bucket_url = "abfss://<container_name>@<storage_account_name>.dfs.core.windows.n
 You can use `az`, `abfss`, `azure` and `abfs` url schemes.
 
 If you need to use a custom host for your storage account, you can set it up like below:
+
 ```toml
 [destination.filesystem.credentials]
 # The storage account name is always required
 azure_account_host = "<storage_account_name>.<host_base>"
 ```
+
 Remember to include `storage_account_name` with your base host i.e. `dlt_ci.blob.core.usgovcloudapi.net`.
 
 `dlt` will use this host to connect to Azure Blob Storage without any modifications:
@@ -214,9 +228,11 @@ Remember to include `storage_account_name` with your base host i.e. `dlt_ci.blob
 Use the Blob endpoint (`azure_account_host = "onelake.blob.fabric.microsoft.com"`).
 
 **IMPORTANT**: OneLake bucket URLs must use **GUIDs** for workspace and lakehouse, not display names:
+
 ```toml
 bucket_url = "abfss://<workspace_guid>@onelake.dfs.fabric.microsoft.com/<lakehouse_guid>/Files"
 ```
+
 Find GUIDs in your browser URL when viewing workspace/lakehouse in Fabric portal.
 :::
 
@@ -254,10 +270,12 @@ azure_tenant_id = "tenant_id" # please set me up!
 :::warning
 **Concurrent blob uploads**
 `dlt` limits the number of concurrent connections for a single uploaded blob to 1. By default, `adlfs` that we use splits blobs into 4 MB chunks and uploads them concurrently, which leads to gigabytes of used memory and thousands of connections for larger load packages. You can increase the maximum concurrency as follows:
+
 ```toml
 [destination.filesystem.kwargs]
 max_concurrency=3
 ```
+
 :::
 
 ### Hugging Face
@@ -282,9 +300,11 @@ kwargs = '{"auto_mkdir": true}'
 ```
 
 Or by setting an environment variable:
+
 ```sh
 export DESTINATION__FILESYSTEM__KWARGS = '{"auto_mkdir": true/false}'
 ```
+
 :::
 
 `dlt` correctly handles the native local file paths. Indeed, using the `file://` schema may not be intuitive, especially for Windows users.
@@ -308,6 +328,7 @@ bucket_url = '_storage/data'  # relative POSIX style path
 ```
 
 In the examples above, we define a few named filesystem destinations:
+
 * **unc_destination** demonstrates a Windows UNC path in native form.
 * **posix_destination** demonstrates a native POSIX (Linux/Mac) absolute path.
 * **relative_destination** demonstrates a native POSIX (Linux/Mac) relative path. In this case, the `filesystem` destination will store files in the `$cwd/_storage/data` path, where **$cwd** is your current working directory.
@@ -334,9 +355,11 @@ bucket_url = '\\?\C:\a\b\c'
 [destination.unc_extended]
 bucket_url='\\?\UNC\localhost\c$\a\b\c'
 ```
+
 :::
 
 ### SFTP
+
 Run `pip install "dlt[sftp]"` which will install the `paramiko` package alongside `dlt`, enabling secure SFTP transfers.
 
 Configure your SFTP credentials by editing the `.dlt/secrets.toml` file. By default, the file contains placeholders for AWS credentials. You should replace these with your SFTP credentials.
@@ -367,6 +390,7 @@ sftp_gss_trust_dns          # Trust DNS for GSS-API, defaults to True
 *sftp_transport_factory*    # Custom transport factory, defaults to None
 *sftp_auth_strategy*        # Authentication strategy, defaults to None
 ```
+
 :::note
 The `*` credentials indicate parameters that cannot be set through `.dlt/secrets.toml` and must be set through code instantiation.
 :::
@@ -386,7 +410,6 @@ SFTP authentication is attempted in the following order of priority:
 3. **Username/Password authentication**: If a password is provided (`sftp_password`), plain username/password authentication will be attempted.
 
 4. **GSS-API authentication**: If GSS-API (Kerberos) is enabled (`sftp_gss_auth=True`), authentication will use the Kerberos protocol. GSS-API may also be used for key exchange (`sftp_gss_kex=True`) and credential delegation (`sftp_gss_deleg_creds=True`). This method is useful in environments where Kerberos is set up, often in enterprise networks.
-
 
 #### 1. Key-based authentication
 
@@ -416,6 +439,7 @@ file_glob = "*"
 sftp_username = "foo"
 sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 ```
+
 The loaded key must be one of the following types stored in ~/.ssh/: id_rsa, id_dsa, or id_ecdsa.
 
 #### 3. Username and password authentication
@@ -432,15 +456,17 @@ sftp_username = "foo"                    # Replace "foo" with your SFTP username
 sftp_password = "pass"                   # Replace "pass" with your SFTP password
 ```
 
+### Notes
 
-### Notes:
 - **Key-based authentication**: Make sure your private key has the correct permissions (`chmod 600`), or SSH will refuse to use it.
 - **Timeouts**: It's important to adjust timeout values based on your network conditions to avoid connection issues.
 
 This configuration allows flexible SFTP authentication, whether you're using passwords, keys, or agents, and ensures secure communication between your local environment and the SFTP server.
 
 ## Write disposition
+
 The filesystem destination handles the write dispositions as follows:
+
 - `append` - files belonging to such tables are added to the dataset folder
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - falls back to `append`
@@ -467,6 +493,7 @@ Starting with dlt version 1.15.0, compressed `csv` and `jsonl` files automatical
 For more details on managing file compression, please visit our documentation on performance optimization: [Disabling and enabling file compression](../../reference/performance#disabling-and-enabling-file-compression).
 
 ## Files layout
+
 All the files are stored in a single folder with the name of the dataset that you passed to the `run` or `load` methods of the `pipeline`. In our example chess pipeline, it is **chess_players_games_data**.
 
 :::note
@@ -494,6 +521,7 @@ The default layout format has changed from `{schema_name}.{table_name}.{load_id}
 * `ext` - the format of the file, i.e., `jsonl` or `parquet`
 
 #### Date and time placeholders
+
 :::tip
 Keep in mind all values are lowercased.
 :::
@@ -540,6 +568,7 @@ Both `timestamp_ms` and `load_package_timestamp_ms` are in milliseconds (e.g., 1
 * `Q` - quarters 1, 2, 3, 4
 
 You can change the file name format by providing the layout setting for the filesystem destination like so:
+
 ```toml
 [destination.filesystem]
 layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming scheme
@@ -560,6 +589,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}" # current preconfigured naming s
 ```
 
 A few things to know when specifying your filename layout:
+
 - If you want a different base path that is common to all filenames, you can suffix your `bucket_url` rather than prefix your `layout` setting.
 - If you do not provide the `{ext}` placeholder, it will automatically be added to your layout at the end with a dot as a separator.
 - It is best practice to have a separator between each placeholder. Dots, dashes, and forward slashes are the most common separators.
@@ -572,6 +602,7 @@ A few things to know when specifying your filename layout:
 - `dlt` warns when a layout has such a separator. To silence the warning, set `warn_unsafe_layout_separators=False` on the destination.
 
 Please note:
+
 - `dlt` will mark complete loads by creating a json file in the `./_dlt_loads` folders that corresponds to the `_dlt_loads` table. For example, if the `chess__1685299832.jsonl` file is present in the loads folder, you can be sure that all files for the load package `1685299832` are completely loaded.
 
 ### Advanced layout configuration
@@ -656,6 +687,7 @@ layout="{table_name}/{load_id}.{file_id}.{ext}"
 ```
 
 Adopting this layout offers several advantages:
+
 1. **Efficiency:** It's fast and simple to process.
 2. **Compatibility:** Supports `replace` as the write disposition method.
 3. **Flexibility:** Compatible with various destinations, including Athena.
@@ -664,6 +696,7 @@ Adopting this layout offers several advantages:
 ## Supported file formats
 
 You can choose the following file formats:
+
 * [JSONL](../file-formats.md#jsonl) is used by default
 * [Parquet](../file-formats.md#parquet) is supported
 * [CSV](../file-formats.md#csv) is supported
@@ -671,10 +704,12 @@ You can choose the following file formats:
 ## Supported table formats
 
 You can choose the following table formats:
+
 * [Delta table](./delta-iceberg)
 * [Iceberg](./iceberg)
 
 ## Syncing of dlt state
+
 This destination fully supports [dlt state sync](../../general-usage/state#syncing-state-with-destination). To this end, special folders and files will be created at your destination which hold information about your pipeline state, schemas, and completed loads. These folders DO NOT respect your settings in the layout section. When using filesystem as a staging destination, not all of these folders are created, as the state and schemas are managed in the regular way by the final destination you have configured.
 
 You will also notice `init` files being present in the root folder and the special `dlt` folders. In the absence of the concepts of schemas and tables in blob storages and directories, `dlt` uses these special files to harmonize the behavior of the `filesystem` destination with the other implemented destinations.
@@ -684,6 +719,7 @@ When a load generates a new state, for example when using incremental loads, a n
 :::
 
 ## Data access
+
 `filesystem` implements [`sql_client`](../transformations/sql.md#the-filesystem-sql-client) which provides read only
 SQL access to files and iceberg/delta tables with duckdb dialect. This also enables [`pipeline.dataset()`](../../general-usage/dataset-access/dataset), giving you Python-native access to loaded data as Pandas DataFrames, PyArrow tables, or Python tuples.
 
@@ -695,9 +731,10 @@ You can enable views autorefresh:
 always_refresh_views=true
 ```
 
-
 ## Troubleshooting
+
 ### File Name Too Long Error
+
 When running your pipeline, you might encounter an error like `[Errno 36] File name too long Error`. This error occurs because the generated file name exceeds the maximum allowed length on your filesystem.
 
 To prevent the file name length error, set the `max_identifier_length` parameter for your destination. This truncates all identifiers (including filenames) to a specified maximum length.
@@ -715,6 +752,7 @@ pipeline = dlt.pipeline(
 ```
 
 :::note
+
 - `max_identifier_length` truncates all identifiers (tables, columns). Ensure the length maintains uniqueness to avoid collisions.
 - Adjust `max_identifier_length` based on your data structure and filesystem limits.
 :::

@@ -3,7 +3,6 @@ title: Workspace setup
 description: Convert a Python project into a dltHub platform workspace and configure credentials for dev, prod, and access profiles
 keywords: [dlthub platform, workspace, setup, login, profiles, credentials, configuration]
 ---
-
 # Workspace setup
 
 A workspace ready for the dltHub platform is a regular Python project with a few additions. You can easily convert any existing dlt project into a dltHub workspace.
@@ -64,11 +63,11 @@ The dltHub platform uses **profiles** to manage different configurations for dif
 
 The built-in profiles are:
 
-| Profile | Scope | Purpose | Credentials |
-|---------|-------|---------|-------------|
-| `dev` | Local only | Local development (default when running on your machine) | Local DuckDB / test credentials |
-| `tests` | Local only | Automated tests | Test credentials |
-| `prod` | Synced with backend | Production batch jobs running on the dltHub platform | Read/write access to your destination |
+| Profile  | Scope               | Purpose                                                     | Credentials                                  |
+| -------- | ------------------- | ----------------------------------------------------------- | -------------------------------------------- |
+| `dev`    | Local only          | Local development (default when running on your machine)    | Local DuckDB / test credentials              |
+| `tests`  | Local only          | Automated tests                                             | Test credentials                             |
+| `prod`   | Synced with backend | Production batch jobs running on the dltHub platform        | Read/write access to your destination        |
 | `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform | Read-only access (for safe data exploration) |
 
 Any custom profile you reference in a job decorator (e.g. `require={"profile": "analytics"}`) is also synced to the cloud configuration.

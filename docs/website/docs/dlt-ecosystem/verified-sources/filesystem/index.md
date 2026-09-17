@@ -3,11 +3,14 @@ title: Cloud storage and filesystem
 description: dlt-verified source for reading files from cloud storage and local file system
 keywords: [file system, files, filesystem, readers source, cloud storage, object storage, local file system]
 ---
+# Cloud storage and filesystem
+
 import Header from '../_source-info-header.md';
 
 <Header/>
 
 The filesystem source allows seamless loading of files from the following locations:
+
 * AWS S3
 * Google Cloud Storage
 * Google Drive
@@ -27,6 +30,7 @@ To load unstructured data (PDF, plain text, e-mail), please refer to the [unstru
 The Filesystem source doesn't just give you an easy way to load data from both remote and local files — it also comes with a powerful set of tools that let you customize the loading process to fit your specific needs.
 
 Filesystem source loads data in two steps:
+
 1. It [accesses the files](#1-initialize-a-filesystem-resource) in your remote or local file storage without actually reading the content yet. At this point, you can [filter files by metadata or name](#7-filter-files). You can also set up [incremental loading](#5-incremental-loading) to load only new files.
 2. [The reader](#2-choose-the-right-reader) reads the files' content and yields the records. At this step, you can filter out the actual data, enrich records with metadata from files, or [perform incremental loading](#load-new-records-based-on-a-specific-column) based on the file content.
 
@@ -226,6 +230,7 @@ aws_secret_access_key="Please set me up!"
 [sources.filesystem]
 bucket_url="s3://<bucket_name>/<path_to_files>/"
 ```
+
 </TabItem>
 
 <TabItem value="azure">
@@ -240,6 +245,7 @@ azure_storage_account_key="Please set me up!"
 [sources.filesystem]
 bucket_url="az://<container_name>/<path_to_files>/"
 ```
+
 </TabItem>
 
 <TabItem value="gcp">
@@ -261,6 +267,7 @@ bucket_url="gdrive://<folder_name>/<subfolder_or_file_path>/" # set file_glob=""
 [gstorage_pipeline_name.sources.filesystem]
 bucket_url="gs://<bucket_name>/<path_to_files>/"
 ```
+
 </TabItem>
 
 <TabItem value="sftp">
@@ -279,6 +286,7 @@ sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your privat
 [sources.filesystem]
 bucket_url = "sftp://[hostname]/[path]"
 ```
+
 </TabItem>
 
 <TabItem value="local">
@@ -329,6 +337,7 @@ If you use just the `filesystem` resource, it will only list files in the storag
 :::
 
 All parameters of the resource can be specified directly in code:
+
 ```py
 from dlt.sources.filesystem import filesystem
 
@@ -337,6 +346,7 @@ filesystem_source = filesystem(
   file_glob="*.csv"
 )
 ```
+
 or taken from the config:
 
 * python code:
@@ -348,6 +358,7 @@ or taken from the config:
   ```
 
 * configuration file:
+
   ```toml
   [sources.filesystem]
   bucket_url="file://Users/admin/Documents/csv_files"
@@ -358,7 +369,7 @@ Full list of `filesystem` resource parameters:
 
 * `bucket_url` - full URL of the bucket (could be a relative path in the case of the local filesystem).
 * `credentials` - cloud storage credentials of `AbstractFilesystem` instance (should be empty for the local filesystem). We recommend not specifying this parameter in the code, but putting it in a secrets file instead.
-* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL. 
+* `file_glob` -  file filter in glob format. Defaults to listing all non-recursive files in the bucket URL.
 
   :::info
   If the `bucket_url` is a specific file path, set `file_glob=""`.
@@ -440,6 +451,7 @@ Here are a few simple ways to load your data incrementally:
 3. [Combine loading only updated files and records](#combine-loading-only-updated-files-and-records). Finally, you can combine both methods. It could be useful if new records could be added to existing files, so you not only want to filter the modified files, but also the modified records.
 
 #### Load files based on modification date
+
 For example, to load only new CSV files with [incremental loading](../../../general-usage/incremental-loading.md), you can use the `apply_hints` method.
 
 ```py
@@ -499,20 +511,23 @@ print(load_info)
 ```
 
 ### 6. Split large incremental loads
+
 If you have many files to process or they are large you may choose to split pipeline runs into smaller chunks (where single file is the smallest). There are
 two methods to do that:
+
 * **Partitioning** where you split source data in several ranges, load them (possibly in parallel) and then continue to load data incrementally.
 * **Split** where you load data sequentially in small chunks
 
-**Partitioning works as follows:**
+#### Partitioning works as follows
 
 1. Obtain a list of files i.e. by just listing your resource `files = list(filesystem(...))`
 2. Order your list by `modification_date` or `file_url` and split it into equal chunks.
 3. For each chunk find min and max of the range
-4. Use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill. 
+4. Use [incremental with `end_value`](../../../general-usage/incremental/cursor.md#using-end_value-for-backfill) for backfill.
 5. You can load each partition in a loop or in parallel (i.e. in separate process).
 6. Continue regular incremental loading with `initial_value` set to the value at the end of the range (`modification_date` or `file_url`)
 and make the start range open to avoid duplicates.
+
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem
@@ -559,9 +574,9 @@ pipeline.run(file_resource)
 
 Please read [notes on parallelism](../../../general-usage/incremental/cursor.md#partition-large-backfills)
 
-**Split loading works as follows:**
+#### Split loading works as follows
 
-1. Use `incremental` property with **row_order** set. 
+1. Use `incremental` property with **row_order** set.
 2. Limit number of files returned per page when creating `filesystem` instance to get manageable chunks
 3. Limit the resource by number of pages or time
 4. Run pipeline in a loop as long as it is not empty
@@ -579,6 +594,7 @@ fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=increment
 while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
     print(pipeline.last_trace.last_load_info)
 ```
+
 **Note that you must set row_order on incremental to not miss a file**:
 
 ### 7. Filter files
@@ -587,7 +603,9 @@ If you need to filter out files based on their metadata, you can easily do this 
 Within your filtering function, you'll have access to [any field](#fileitem-fields) of the `FileItem` representation.
 
 #### Filter by name
+
 To filter only files that have `London` and `Berlin` in their names, you can do the following:
+
 ```py
 import dlt
 from dlt.sources.filesystem import filesystem, read_csv
@@ -610,6 +628,7 @@ from dlt.sources.filesystem import filesystem
 
 filtered_files = filesystem(bucket_url="s3://bucket_name", file_glob="**/*.json")
 ```
+
 :::
 
 #### Filter by size
@@ -829,7 +848,6 @@ print(load_info)
 print(listing)
 print(pipeline.last_trace.last_normalize_info)
 ```
-
 
 ## Troubleshoot
 

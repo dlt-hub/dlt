@@ -3,8 +3,7 @@ title: Export Arize Phoenix Telemetry
 description: Export traces, spans, and evaluations from Arize Phoenix to your data lake
 keywords: [arize, phoenix, opentelemetry, traces, spans, evaluations, observability, llm, export]
 ---
-
-## About this Example
+# Export Arize Phoenix Telemetry
 
 [Arize Phoenix](https://phoenix.arize.com/) is an open-source observability platform for AI and LLM
 applications. It captures traces, spans, and evaluations (e.g. relevance scores, hallucination checks)

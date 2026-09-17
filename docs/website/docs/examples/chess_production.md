@@ -3,8 +3,7 @@ title: Run chess pipeline in production
 description: Learn how run chess pipeline in production
 keywords: [incremental loading, example]
 ---
-
-## About this Example
+# Run chess pipeline in production
 
 In this example, you'll find a Python script that interacts with the Chess API to extract players and game data.
 
@@ -16,7 +15,7 @@ We'll learn how to:
 - Using context managers to independently retry pipeline stages.
 - Run basic tests utilizing `sql_client` and `normalize_info`.
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 import threading
