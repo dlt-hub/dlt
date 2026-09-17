@@ -13,6 +13,8 @@ class FabricSqlClient(SynapseSqlClient):
     """SQL client for Microsoft Fabric Warehouse
 
     Inherits all behavior from Synapse since Fabric Warehouse is built on Synapse technology.
+    Azure AD token injection (for token-based authentication) is handled by the shared
+    `PyOdbcMsSqlClient.open_connection`.
     """
 
     def __init__(
