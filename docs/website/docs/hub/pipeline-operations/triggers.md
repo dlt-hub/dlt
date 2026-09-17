@@ -30,6 +30,7 @@ This page covers all the trigger types and the related scheduling features.
 | `upstream_job.success` | Follow-up — fires when an upstream job completes successfully |
 | `upstream_job.fail` | Follow-up — fires when an upstream job fails |
 | `upstream_job.completed` | Follow-up — fires on success or failure |
+| `"job.fail:tag:ingest"` | Follow-up on every job matching a selector, used by [agent jobs](../agents/index.md#triggers-for-agents) |
 
 ## Multiple triggers
 
