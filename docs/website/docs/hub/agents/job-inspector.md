@@ -10,7 +10,7 @@ keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dl
 This feature is in private preview
 :::
 
-`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, and reports a classification of the failure with evidence and a proposed fix. It inspects pipeline jobs and agent jobs alike and doesn't change code or data.
+`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, and reports a classification of the failure with evidence and a proposed fix. It inspects any batch job and doesn't change code or data.
 
 You declare it like any other agent job. [Background agents](index.md) covers the mechanics this page builds on.
 
@@ -65,7 +65,7 @@ Both are optional, and a run resolves them in order:
 3. With a `job.fail:<job ref>` trigger, the latest failed run of that job is inspected.
 4. With none of them, the run ends with `status: aborted` and a `summary` naming the inputs that were empty.
 
-A run started from a `job.fail:` trigger arrives with the failed job filled in, and a run you start manually takes the inputs you give it on the command line or in configuration.
+A run started from a `job.fail:` trigger arrives with both inputs empty. The trigger string names the failed job, and the agent takes the job ref from `{{ run_context.trigger }}` in step 3. A run you start manually takes the inputs you give it on the command line or in configuration.
 
 ## What it reports
 
@@ -74,6 +74,7 @@ A run started from a `job.fail:` trigger arrives with the failed job filled in, 
 | `status` | `succeeded`, `failed`, or `aborted` |
 | `summary` | Markdown account of the diagnosis |
 | `failed_run_id` | The run it inspected, reported as an entity |
+| `failed_job_ref` | The job whose run it inspected, reported as an entity |
 | `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown` |
 | `confidence` | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown` |
 | `evidence` | A source and an excerpt per piece of evidence, taken from logs and run records |
@@ -91,6 +92,7 @@ The definition ships these defaults. The agent job and the individual run overri
 | `trigger` | `job.fail:*`, every failed job in the workspace |
 | `model` | `sonnet` |
 | `limits` | `max_turns: 30`, `max_tokens: 1000000` |
+| `loop_run_args` | `retries: 1`, the number of times pydantic-ai lets the model correct a failing tool call |
 
 Narrow the trigger and change the settings on the job:
 
@@ -114,7 +116,9 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=opus
 
 ## Guardrails
 
-The definition grants read access to the workspace, to data, and to runs, logs, and job definitions through the dltHub MCP server. The agent explains a failure. It doesn't edit code, deploy, or rerun a job, and a person applies the proposed fix.
+The definition grants `local: [read, execute]`, `data: [read]`, and `context: [read]`. The agent reads the workspace files and runs `dlthub job runs info` and `dlthub job runs logs` in a shell to read run records and logs. It reads data and runs, logs, and job definitions through the dltHub MCP server. It has no file write and no web access. The shell runs in the job's own process with the job's credentials, so the body rules the agent to stay read-only: it doesn't edit code, deploy, cancel, or rerun a job, and a person applies the proposed fix.
+
+`data: read` runs the agent on the `access` profile, so the data tools see the loaded data read-only.
 
 ## Next steps
 

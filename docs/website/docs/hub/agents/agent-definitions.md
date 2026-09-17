@@ -179,7 +179,7 @@ output:
 | | `write` | `Write`, `Edit` |
 | | `execute` | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process |
 | | `network` | `WebFetch`, `WebSearch` |
-| `data` | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only and limits SQL to `SELECT` |
+| `data` | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only and runs the job on the `access` profile, `write` on the `prod` profile. The SQL tool runs a single read-only statement whatever `data` grants |
 | `context` | `read` | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated |
 
 `all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants.

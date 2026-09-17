@@ -71,8 +71,8 @@ The job is named after the agent definition (`job-inspector` becomes `job_inspec
 | `loop` | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops) |
 | `loop_run_args` | Arguments passed to the framework, merged over the definition's defaults. `retries` sets how many times pydantic-ai allows the model to correct a failing tool call |
 | `verbosity` | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt |
-| `inputs_validator` | Called with the resolved inputs before the run. Its return value is merged into them. Use it to derive an input, for example a run id from a job ref |
-| `outputs_validator` | Called with the agent's output after the run. Its return value replaces the output |
+| `inputs_validator` | Called with the resolved inputs before the run. Its return value is merged into them. Use it to derive an input, for example a run id from a job ref. Accepted only when the agent is passed by reference. A decorated function drives the loop itself and passes the inputs to `loop.run()` |
+| `outputs_validator` | Called with the agent's output after the run. Its return value replaces the output. Accepted only when the agent is passed by reference |
 | `name`, `section` | Job name and configuration section, as on every job |
 | `trigger`, `execute`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md) |
 
@@ -158,11 +158,12 @@ A selector trigger expands at deploy time, so a `job.fail:` agent job starts wat
 
 ## Read the agent run result
 
-The agent run prints its transcript as it goes: the model's reasoning, its messages, the tool calls it makes, what each tool returned, and a closing line listing the tools, skills, and MCP tools used. `agent.verbosity` controls how much of it you see. `NO_COLOR` turns colors off. When the run ends, the launcher prints and delivers the job result:
+The agent run prints its transcript as it goes: the model's reasoning, its messages, the tool calls it makes, what each tool returned, and a closing line listing the tools, skills, and MCP tools used. `agent.verbosity` controls how much of it you see. The transcript is colored when a terminal is attached. Set `DLT_ECHO_FORCE_COLOR` to keep the colors in a log without a terminal, or `DLT_ECHO_NO_COLOR` to drop them. When the run ends, the launcher prints and delivers the job result:
 
 ```json
 {
   "type": "job.background_agent.dlthub-platform:job-inspector",
+  "engine_version": 1,
   "job_ref": "jobs.__deployment__.job_inspector",
   "status": "succeeded",
   "summary": "## Root cause: platform runner token conflict ...",
@@ -206,7 +207,7 @@ A loop is the framework that runs the agent. dltHub ships two agent loops and ad
 | | `pydantic-ai` (default) | `claude-agent-sdk` |
 |--|-------------------------|--------------------|
 | Models | Any provider pydantic-ai supports | Anthropic models, through a bundled Claude Code CLI |
-| Local tools | dlt's own file, search, shell, and web tools | Claude Code's tools, under the same names |
+| Local tools | dlt's own file, search, and shell tools. Web access comes from the model provider's own search and fetch tools | Claude Code's tools, under the same names |
 | Skills | Inlined into the system prompt | Listed by name and loaded on demand, as in Claude Code |
 | Install locally | `uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"` | `uv add claude-agent-sdk` |
 
