@@ -6,6 +6,7 @@ import pytest
 
 from tests.workspace.runner._runner.runner import run, _log, _log_job
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
     TFreshnessConstraint,
     TJobDefinition,
     TJobRef,
@@ -25,6 +26,7 @@ def _batch_job(
     if triggers is None:
         triggers = [f"manual:{ref}"]
     return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef(ref),
         "entry_point": TEntryPoint(
             module=f"{WORKSPACE}.batch_jobs",
@@ -100,6 +102,7 @@ def test_run_failing_job() -> None:
     """Failing job returns exit code 1."""
     jobs: List[TJobDefinition] = [
         {
+            "engine_version": MANIFEST_ENGINE_VERSION,
             "job_ref": TJobRef("jobs.test.failing"),
             "entry_point": TEntryPoint(
                 module="tests.workspace.runner.cases.failing_job",
@@ -118,6 +121,7 @@ def test_run_failing_job() -> None:
 def test_orphaned_event_trigger_exits() -> None:
     """Job waiting on failed upstream's success exits with warning."""
     failing: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef("jobs.test.upstream"),
         "entry_point": TEntryPoint(
             module="tests.workspace.runner.cases.failing_job",
@@ -242,6 +246,7 @@ def test_freshness_blocks_interval_job_when_upstream_not_fresh(
 ) -> None:
     """Interval job with freshness constraint is skipped when upstream hasn't completed."""
     upstream: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef("jobs.batch_jobs.backfill"),
         "entry_point": TEntryPoint(
             module=f"{WORKSPACE}.batch_jobs",
@@ -256,6 +261,7 @@ def test_freshness_blocks_interval_job_when_upstream_not_fresh(
         "default_trigger": TTrigger("schedule:* * * * *"),
     }
     downstream: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef("jobs.batch_jobs.transform"),
         "entry_point": TEntryPoint(
             module=f"{WORKSPACE}.batch_jobs",

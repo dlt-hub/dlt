@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.30.0"
+version = "1.30.1a0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.10, <3.15"
@@ -63,8 +63,9 @@ dependencies = [
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.30.0a1, <0.31",
-    "dlthub-client>=0.28.1",
+    "dlthub>=0.30.0a1, <0.32",
+    "dlthub-client>=0.28.3",
+    "pydantic>=2.10",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -228,6 +229,13 @@ dlt = "dlt._workspace.cli._dlt:_main"
 dlthub = "dlt._workspace.cli._dlt:_main_dlthub"
 
 [dependency-groups]
+agent = [
+    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0",
+    "aiohttp>=3.14.3",
+]
+agent-claude = [
+    "claude-agent-sdk>=0.2.144",
+]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
 # we use those deps in common tests to make sure they work without extra dependencies so if you add them
 # here you'll break everything
@@ -322,12 +330,11 @@ providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
 streamlit = ["streamlit>1.50"]
 dbt = [
-    "dbt-core>=1.7.0",
+    "dbt-core>=1.12.0",
     "dbt-redshift>=1.7.0; python_version < '3.14'",
     "dbt-bigquery>=1.7.0",
     "dbt-duckdb>=1.7.0",
-    "dbt-snowflake>=1.7.0",
-    "dbt-athena-community>=1.7.0; python_version < '3.14'",
+    "dbt-snowflake>=1.7.0",    
     "dbt-sqlserver>=1.7.0 ; python_version < '3.13'",
     "dbt-fabric>=1.7.0 ; python_version < '3.13'",
 ]
@@ -341,7 +348,7 @@ workspace-deps = [
     "ibis-framework>=12.0.0",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
-    "fastmcp>=3.0.0",
+    "fastmcp>=3.1.0",
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
@@ -453,6 +460,8 @@ exclude = [
     "tests/workspace/deployment/cases/local_workspace/*",
     "tests/workspace/cases/workspaces/launcher_flat/*",
     "tests/workspace/cases/workspaces/launcher_package/*",
+    "tests/workspace/cases/workspaces/agent_workspace/*",
+    "tests/workspace/cases/workspaces/agent_e2e_workspace/*",
 ]
 
 [[tool.mypy.overrides]]
@@ -526,6 +535,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "databricks.*",
+    "claude_agent_sdk",
+    "claude_agent_sdk.*",
+    "pydantic_ai",
+    "pydantic_ai.*",
     "mcp.*",
     "pymongo.*",
     "fastmcp.*",

@@ -1,6 +1,6 @@
 import argparse
 import sys
-from typing import Dict, List, Optional
+from typing import Any, Dict, List, Optional
 
 from dlt.common import json
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
@@ -164,13 +164,18 @@ def _add_pipeline_name(parser: argparse.ArgumentParser, _op: str) -> None:
     parser.add_argument("pipeline_name", nargs="?", help="Pipeline name")
 
 
-def _parse_config_args(pairs: List[str]) -> Dict[str, str]:
-    config: Dict[str, str] = {}
+def _parse_config_args(pairs: List[str]) -> Dict[str, Any]:
+    """`KEY=VALUE` pairs into a config dict. A dotted key nests, as config sections do."""
+    config: Dict[str, Any] = {}
     for pair in pairs:
         if "=" not in pair:
             raise ValueError(f"config must be KEY=VALUE, got: {pair!r}")
         key, value = pair.split("=", 1)
-        config[key] = value
+        *sections, name = key.split(".")
+        target = config
+        for section in sections:
+            target = target.setdefault(section, {})
+        target[name] = value
     return config
 
 
@@ -216,6 +221,9 @@ def _execute_one(
     from dlt._workspace.deployment.launchers._launcher import exec_process
 
     cli_config = _parse_config_args(getattr(args, "config", None) or [])
+    if verbosity := getattr(args, "verbosity", 0):
+        # the launcher runs in its own process and reads the level from the entry point config
+        cli_config.setdefault("agent", {}).setdefault("verbosity", verbosity + 1)
     info = fetch_run_info(
         selector=getattr(args, "selector_or_job_ref", None),
         selectors=selectors,
