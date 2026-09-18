@@ -5,6 +5,8 @@ keywords: [dlthub, github, cicd, deployment, workspace, gitops]
 ---
 # dltHub CI/CD deployment via GitHub Actions
 
+import Link from '../_book-onboarding-call.md';
+
 Follow this guide to manage dltHub workspace deployments using GitHub Actions for CI/CD. By the end, every change to your ELT solution will follow good software development practices: issues, branches, pull requests, reviews, etc.
 
 Benefits:
@@ -23,7 +25,7 @@ This page assumes basic familiarity with dltHub [profiles](../hub/pipeline-opera
 
 This section starts with a flowchart of the dltHub + GitHub development workflow. It is followed by an illustrative scenario.
 
-<div className="cicd-diagram">
+<div className="mermaid-td">
 
 ```mermaid
 flowchart TD
@@ -43,17 +45,6 @@ flowchart TD
 ```
 
 </div>
-<!--The style can't be defined inline because it won't applied to the descendant
-of the <div>. This means it won't be applied to the rendered mermaid chart.-->
-<style>{`
-  .cicd-diagram svg {
-    display: block;
-    margin: 0 auto;
-    max-height: 900px;
-    width: auto;
-    height: auto;
-  }
-`}</style>
 
 ### Scenario: how to fix a pipeline
 
@@ -80,11 +71,11 @@ of the <div>. This means it won't be applied to the rendered mermaid chart.-->
 
 5. Add the `staging-deploy` label on the GitHub pull request to trigger deployment to the staging dltHub workspace. Then, you can run pipelines on dltHub with small data loads.
 
-    <img
-      src="<https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-pr-actions.png">
-      alt="A pull request showing the code-quality and staging-deploy checks, with the staging-deploy label applied"
-      style={{display: 'block', margin: '0 auto', maxHeight: '500px', width: 'auto', height: 'auto'}}
-    />
+    <div className="doc-screenshot">
+
+    ![A pull request showing the code-quality and staging-deploy checks, with the staging-deploy label applied](https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-pr-actions.png)
+
+    </div>
 
 6. Get a pull request review of the code and the run results on the staging workspace.
 7. Merge to `main`. This will deploy the new `main` branch to the production dltHub workspace.
@@ -93,7 +84,11 @@ of the <div>. This means it won't be applied to the rendered mermaid chart.-->
 
 This approach allows team to scale from 10s to 100s to 1000s of pipelines without frictions. Good practices and hard requirements are codified. When something fails, you trace the issue to specific code changes.
 
-This guide is a starting point. The workflow can be tailored to your organization. `<CTA>`
+:::info
+This guide is a starting point. The workflow can be tailored to your organization.
+
+<Link/>
+:::
 
 - **Add a source**: Create the source under `workspace/sources`. Then, define the pipeline in `workspace/__deployment__.py` and register it in `__all__`.
 - **Manage Python dependencies**: Avoid Python dependency conflicts or slow pipeline jobs by creating dependency groups in `workspace/pyproject.toml`. Then, individual pipelines can specify `@run.pipeline(..., require= {"dependency_groups": ["<group-name>"]}`)
@@ -224,11 +219,11 @@ Prerequisites:
 
 If everything is set up properly, the push to `main` will trigger GitHub Actions to check the code and deploy to dltHub. It takes around 1 minute to complete.
 
-<img
-  src="<https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-first-deploy.png">
-  alt="successful GitHub actions on first deployment"
-  style={{display: 'block', margin: '0 auto', maxHeight: '400px', width: 'auto', height: 'auto'}}
-/>
+<div className="doc-screenshot doc-screenshot--small">
+
+![successful GitHub actions on first deployment](https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-first-deploy.png)
+
+</div>
 
 :::info
 We suggest setting **branch protection rules** on GitHub to make sure that failing automated checks block PR from being mergeable and require at least 1 pull request review before merging.
