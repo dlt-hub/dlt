@@ -39,7 +39,7 @@ from sqlalchemy import (
     schema as sqla_schema,
 )
 
-from sqlalchemy.dialects.postgresql import JSONB
+from sqlalchemy.dialects.postgresql import JSONB, MONEY
 
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import chunks, uniq_id
@@ -207,6 +207,7 @@ class PostgresSourceDB:
                 # Column("unsupported_daterange_1", DATERANGE, nullable=False),
                 Column("supported_text", Text, nullable=False),
                 Column("supported_int", Integer, nullable=False),
+                Column("unsupported_money", MONEY, nullable=False),
                 # Column("unsupported_array_1", ARRAY(Integer), nullable=False),
                 # Column("supported_datetime", DateTime(timezone=True), nullable=False),
             )
@@ -366,6 +367,7 @@ class PostgresSourceDB:
                 # unsupported_daterange_1="[2020-01-01, 2020-09-01]",
                 supported_text=mimesis.Text().word(),
                 supported_int=random.randint(0, 100),
+                unsupported_money=round(random.uniform(-99999, 99999), 2),
                 # unsupported_array_1=[1, 2, 3],
                 # supported_datetime="2015-08-12T01:25:22.468126+0100",
             )

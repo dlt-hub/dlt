@@ -1,6 +1,6 @@
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.dialects.mssql import DATETIMEOFFSET, UNIQUEIDENTIFIER
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET, MONEY, SMALLMONEY, UNIQUEIDENTIFIER
 from sqlalchemy.dialects.oracle import DATE as OracleDATE
 from sqlalchemy.dialects.postgresql import UUID
 
@@ -103,6 +103,27 @@ def test_datetime_timezone_mapping(sql_type: sa.types.TypeEngine, expected_tz: b
     col_schema = sqla_col_to_column_schema(table.c.col, "full")
     assert col_schema is not None
     assert col_schema["timezone"] is expected_tz
+
+
+@pytest.mark.parametrize(
+    "sql_type,expected_precision,expected_scale",
+    [
+        pytest.param(MONEY(), 19, 4, id="money"),
+        pytest.param(SMALLMONEY(), 10, 4, id="smallmoney"),
+    ],
+)
+def test_mssql_money_mapped_to_decimal(
+    sql_type: sa.types.TypeEngine,
+    expected_precision: int,
+    expected_scale: int,
+) -> None:
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("col", sql_type))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema is not None
+    assert col_schema["data_type"] == "decimal"
+    assert col_schema["precision"] == expected_precision
+    assert col_schema["scale"] == expected_scale
 
 
 def test_get_table_references() -> None:
