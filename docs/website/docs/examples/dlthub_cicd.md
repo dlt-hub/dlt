@@ -19,7 +19,121 @@ These properties are essential to enable AI-coding and agents productivity.
 This page assumes basic familiarity with dltHub [profiles](../hub/pipeline-operations/profiles.md), [triggers](../hub/pipeline-operations/triggers.md), and [secrets](../hub/pipeline-operations/secrets-management.md).
 :::
 
-## Tutorial
+## Development lifecycle
+
+This section starts with a flowchart of the dltHub + GitHub development workflow. It is followed by an illustrative scenario.
+
+<div className="cicd-diagram">
+
+```mermaid
+flowchart TD
+    A[local: code changes on feature branch] --> B[GitHub: open pull request]
+    B --> C{GitHub: automated checks}
+    C -- pass --> D{GitHub: has staging-deploy label?}
+    C -- fail --> A
+    D -- yes --> E[GitHub: deploy to dltHub staging workspace]
+    D -- no --> G[GitHub: review]
+    E --> F[dltHub: staging pipeline run with changes]
+    F -- success --> G
+    F -- fail --> A
+    G -- approve --> H[GitHub: merge feature branch to main]
+    G -- reject --> A
+    H --> I[GitHub: deploy to dltHub production workspace]
+    I --> J[dltHub: runs pipelines on schedule with changes]
+```
+
+</div>
+<!--The style can't be defined inline because it won't applied to the descendant
+of the <div>. This means it won't be applied to the rendered mermaid chart.-->
+<style>{`
+  .cicd-diagram svg {
+    display: block;
+    margin: 0 auto;
+    max-height: 900px;
+    width: auto;
+    height: auto;
+  }
+`}</style>
+
+### Scenario: how to fix a pipeline
+
+1. Branch off `main`.
+
+    ```shell
+    git checkout -b <feature-branch-name>
+    ```
+
+2. Make your changes (make a source incremental, add a pipeline, enable schema contract, etc.)
+3. Commit your code. Code quality checks and tests will run locally. This enables fast iterations for you and your agents.
+
+    ```shell
+    git commit -m "made quickbooks source incremental"
+    ```
+
+4. Push your code and open a pull request. This will trigger GitHub Actions to run automated checks remotely.
+
+    ```shell
+    git push
+    # include `--label` to trigger staging deployment
+    gh pr create --fill --label staging-deploy
+    ```
+
+5. Add the `staging-deploy` label on the GitHub pull request to trigger deployment to the staging dltHub workspace. Then, you can run pipelines on dltHub with small data loads.
+
+    <img
+      src="<https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-pr-actions.png">
+      alt="A pull request showing the code-quality and staging-deploy checks, with the staging-deploy label applied"
+      style={{display: 'block', margin: '0 auto', maxHeight: '500px', width: 'auto', height: 'auto'}}
+    />
+
+6. Get a pull request review of the code and the run results on the staging workspace.
+7. Merge to `main`. This will deploy the new `main` branch to the production dltHub workspace.
+
+## Teams using dltHub
+
+This approach allows team to scale from 10s to 100s to 1000s of pipelines without frictions. Good practices and hard requirements are codified. When something fails, you trace the issue to specific code changes.
+
+This guide is a starting point. The workflow can be tailored to your organization. `<CTA>`
+
+- **Add a source**: Create the source under `workspace/sources`. Then, define the pipeline in `workspace/__deployment__.py` and register it in `__all__`.
+- **Manage Python dependencies**: Avoid Python dependency conflicts or slow pipeline jobs by creating dependency groups in `workspace/pyproject.toml`. Then, individual pipelines can specify `@run.pipeline(..., require= {"dependency_groups": ["<group-name>"]}`)
+- **Add environments**: Tailor your workflow and add environments as you need. Simply add another `.dlt/<env>.config.toml` with matching dltHub workspace and GitHub environment.
+- **Promote via tags instead of `main`**: Manually deploy to `main` by using an explicit release step rather than deploying every merge. Edit `prod-deploy.yaml` to trigger on commits with specific tags.
+
+## Repository content
+
+Here's an overview of the files found in the repository:
+
+```text
+├── .github/workflows/           # GitHub Actions workflows
+│   ├── pr-checks.yaml           # lint, type-check, test; optional staging deploy
+│   └── prod-deploy.yaml         # deploy to production on push to `main`
+├── workspace/                   # dltHub workspace
+│   ├── .dlt/                    # workspace configuration
+│   │   ├── .workspace           
+│   │   ├── config.toml          # config shared by all profiles
+│   │   ├── prod.config.toml     # production-specific config
+│   │   └── stg.config.toml      # staging-specific config
+│   ├── sources/                 # dlt source definitions
+│   ├── notebooks/               # notebooks definitions
+│   ├── __deployment__.py        # production deployment: defines all pipelines
+│   ├── __staging__.py           # staging deployment: sets limits for staging runs
+│   └── pyproject.toml           # configure Python runtime and dependencies
+├── tests/                       # tests for sources, pipelines, deployments
+├── justfile                     # developer commands
+├── pyproject.toml               # configure developer tooling
+└── uv.lock                      # single lockfile for workspace + development
+```
+
+Key design decisions:
+
+- Separate developer tooling and dltHub workspace. Only the content of `workspace/` is deployed to dltHub. The developer tooling, tests, and CI/CD automations are defined outside of it. This handled using [`uv` workspaces](https://docs.astral.sh/uv/concepts/projects/workspaces/) and the files `pyproject.toml` and `workspace/pyproject.toml`.
+
+- dltHub workspace configurations committed to the repository `workspace/.dlt/{prod,stg}.config.toml`. Nonsensitive configuration changes are versioned-controlled, tested, and reviewed along the code. Sensitive credentials (i.e., secrets) are set on the dltHub platform or via an external secret provider.
+
+- `workspace/__deployment__.py` is the single reviewable source of truth for the dltHub workspace. It includes all the pipelines, jobs, and data apps definitions. `workspace/__staging__.py` reads its content and applies additional configuration for staging (e.g., remove scheduling, set data load limit)
+
+## Guide
 
 Prerequisites:
 
@@ -108,108 +222,17 @@ Prerequisites:
     git push
     ```
 
-If everything is set up properly, the push to `main` will trigger GitHub Actions to check the code and deploy to dltHub. It takes around 1min to complete.
+If everything is set up properly, the push to `main` will trigger GitHub Actions to check the code and deploy to dltHub. It takes around 1 minute to complete.
 
-![successful GitHub actions on first deployment](https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-first-deploy.png)
+<img
+  src="<https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-first-deploy.png">
+  alt="successful GitHub actions on first deployment"
+  style={{display: 'block', margin: '0 auto', maxHeight: '400px', width: 'auto', height: 'auto'}}
+/>
 
 :::info
 We suggest setting **branch protection rules** on GitHub to make sure that failing automated checks block PR from being mergeable and require at least 1 pull request review before merging.
 :::
-
-## Development lifecycle
-
-This section starts with a flowchart of the dltHub + GitHub development workflow. It is followed by an illustrative scenario.
-
-```mermaid
-flowchart TD
-    A[local: code changes on feature branch] --> B[GitHub: open pull request]
-    B --> C{GitHub: automated checks}
-    C -- pass --> D{GitHub: has staging-deploy label?}
-    C -- fail --> A
-    D -- yes --> E[GitHub: deploy to dltHub staging workspace]
-    D -- no --> G[GitHub: review]
-    E --> F[dltHub: staging pipeline run with changes]
-    F -- success --> G
-    F -- fail --> A
-    G -- approve --> H[GitHub: merge feature branch to main]
-    G -- reject --> A
-    H --> I[GitHub: deploy to dltHub production workspace]
-    I --> J[dltHub: runs pipelines on schedule with changes]
-```
-
-### Scenario: how to fix a pipeline
-
-1. Branch off `main`.
-
-    ```shell
-    git checkout -b <feature-branch-name>
-    ```
-
-2. Make your changes (make a source incremental, add a pipeline, enable schema contract, etc.)
-3. Commit your code. Code quality checks and tests will run locally. This enables fast iterations for you and your agents.
-
-    ```shell
-    git commit -m "made quickbooks source incremental"
-    ```
-
-4. Push your code and open a pull request. This will trigger GitHub Actions to run automated checks remotely.
-
-    ```shell
-    git push
-    # include `--label` to trigger staging deployment
-    gh pr create --fill --label staging-deploy
-    ```
-
-5. Add the `staging-deploy` label on the GitHub pull request to trigger deployment to the staging dltHub workspace. Then, you can run pipelines on dltHub with small data loads.
-
-   ![A pull request showing the code-quality and staging-deploy checks, with the staging-deploy label applied](https://storage.googleapis.com/dlt-blog-images/dlthub-cicd-blueprint/dlthub-github-pr-actions.png)
-
-6. Get a pull request review of the code and the run results on the staging workspace.
-7. Merge to `main`. This will deploy the new `main` branch to the production dltHub workspace.
-
-## Teams using dltHub
-
-This approach allows team to scale from 10s to 100s to 1000s of pipelines without frictions. Good practices and hard requirements are codified. When something fails, you trace the issue to specific code changes.
-
-This guide is a starting point. The workflow can be tailored to your organization. `<CTA>`
-
-- **Add a source**: Create the source under `workspace/sources`. Then, define the pipeline in `workspace/__deployment__.py` and register it in `__all__`.
-- **Manage Python dependencies**: Avoid Python dependency conflicts or slow pipeline jobs by creating dependency groups in `workspace/pyproject.toml`. Then, individual pipelines can specify `@run.pipeline(..., require= {"dependency_groups": ["<group-name>"]}`)
-- **Add a more environment**: Tailor your workflow and add environments as you need. Simply add another `.dlt/<env>.config.toml` with matching dltHub workspace and GitHub environment.
-- **Promote via tags instead of `main`**: Manually deploy to `main` by using an explicit release step rather than deploying every merge. Edit `prod-deploy.yaml` to trigger on commits with specific tags.
-
-## Repository content
-
-Here's an overview of the files found in the repository:
-
-```text
-├── .github/workflows/           # GitHub Actions workflows
-│   ├── pr-checks.yaml           # lint, type-check, test; optional staging deploy
-│   └── prod-deploy.yaml         # deploy to production on push to `main`
-├── workspace/                   # dltHub workspace
-│   ├── .dlt/                    # workspace configuration
-│   │   ├── .workspace           
-│   │   ├── config.toml          # config shared by all profiles
-│   │   ├── prod.config.toml     # production-specific config
-│   │   └── stg.config.toml      # staging-specific config
-│   ├── sources/                 # dlt source definitions
-│   ├── notebooks/               # notebooks definitions
-│   ├── __deployment__.py        # production deployment: defines all pipelines
-│   ├── __staging__.py           # staging deployment: sets limits for staging runs
-│   └── pyproject.toml           # configure Python runtime and dependencies
-├── tests/                       # tests for sources, pipelines, deployments
-├── justfile                     # developer commands
-├── pyproject.toml               # configure developer tooling
-└── uv.lock                      # single lockfile for workspace + development
-```
-
-Key design decisions:
-
-- Separate developer tooling and dltHub workspace. Only the content of `workspace/` is deployed to dltHub. The developer tooling, tests, and CI/CD automations are defined outside of it. This handled using [`uv` workspaces](https://docs.astral.sh/uv/concepts/projects/workspaces/) and the files `pyproject.toml` and `workspace/pyproject.toml`.
-
-- dltHub workspace configurations committed to the repository `workspace/.dlt/{prod,stg}.config.toml`. Non-sensitive configuration changes are versioned-controlled, tested, and reviewed along the code. Sensitive credentials (i.e., secrets) are set on the dltHub platform or via an external secret provider.
-
-- `workspace/__deployment__.py` is the single reviewable source of truth for the dltHub workspace. It includes all the pipelines, jobs, and data apps definitions. `workspace/__staging__.py` reads its content and applies additional configuration for staging (e.g., remove scheduling, set data load limit)
 
 ## Next steps
 
