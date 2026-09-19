@@ -653,6 +653,13 @@ def merge_table(
     for k, v in partial_table.items():
         if k in ("columns", "references"):
             continue
+        if k in TTableProcessingHints.__annotations__ and isinstance(v, dict):
+            # processing hints are written by normalize and load, not by the resource: a
+            # resource that says `max_nesting` must not erase `seen-data` on every extract
+            merged = {**(table.get(k) or {}), **v}
+            if table.get(k) != merged:
+                table[k] = merged  # type: ignore[literal-required]
+            continue
         if table.get(k) != v:
             table[k] = v  # type: ignore[literal-required]
     table["columns"] = updated_columns
