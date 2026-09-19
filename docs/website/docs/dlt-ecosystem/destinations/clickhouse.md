@@ -122,6 +122,8 @@ session_timezone = "Europe/Berlin"
 
 All [write dispositions](../../general-usage/incremental-loading#choosing-a-write-disposition) are supported.
 
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) merge strategy is supported. ClickHouse has no `MERGE`, so dlt copies the load into a new table, appends live rows whose primary keys are absent from that load, swaps the tables with [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange), and drops the previous table. Keys omitted from the load are kept. The database must use the `Atomic`, `Replicated` or `Shared` engine. Default `merge` (`delete-insert`) is unchanged: it still deletes matching keys from the live table, then inserts.
+
 If you set the [`replace` strategy](../../general-usage/full-loading.md) to `staging-optimized`, the destination tables will be atomically swapped with the staging tables via [`EXCHANGE TABLES`](https://clickhouse.com/docs/en/sql-reference/statements/exchange) (requires `Atomic`, `Replicated` or `Shared` database engine).
 
 ## Data loading
@@ -146,9 +148,11 @@ select_sequential_consistency = 0
 
 ### Merge on replicated clusters
 
-When merging tables that have nested children, `dlt` creates short-lived temp tables to stage delete
-keys and insert keys. The temp tables follow the configured `table_engine_type` so the staged rows replicate the same way the destination tables do. Single-table merges use lightweight `DELETE` directly
+When merging tables that have nested children with `delete-insert`, `dlt` creates short-lived temp tables to stage delete
+keys and insert keys. The temp tables follow the configured `table_engine_type` so the staged rows replicate the same way the destination tables do. Single-table `delete-insert` merges use lightweight `DELETE` directly
 and don't need temp tables.
+
+`upsert` rebuilds a side table with `CREATE TABLE ... AS` (same engine as the destination), then swaps it in. That table is created in the staging dataset and dropped after the swap.
 
 ## Datasets
 

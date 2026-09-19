@@ -1,6 +1,6 @@
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, cast
+from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, Tuple, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
@@ -22,10 +22,12 @@ from dlt.common.destination.client import (
 from dlt.common.schema import Schema, TColumnSchema
 from dlt.common.schema.typing import TColumnType, C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID
 from dlt.common import logger
+from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_dedup_sort_tuple,
     get_first_column_name_with_prop,
+    is_nested_table,
     is_nullable_column,
 )
 from dlt.common.storages import FileStorage
@@ -298,6 +300,86 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     def requires_temp_table_for_delete(cls) -> bool:
         return False
 
+    @classmethod
+    def gen_upsert_sql(
+        cls,
+        table_chain: Sequence[PreparedTableSchema],
+        sql_client: SqlClientBase[Any],
+        insert_only: bool = False,
+    ) -> List[str]:
+        """Replace matching primary keys and keep unmatched live rows via an atomic table swap."""
+        root_table = table_chain[0]
+        escape_column_id = sql_client.escape_column_name
+        escape_lit = sql_client.capabilities.escape_literal
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+
+        primary_keys = cls._escape_list(
+            get_columns_names_with_prop(root_table, "primary_key"),
+            escape_column_id,
+        )
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            root_table["name"]
+        )
+        hard_delete_col, deleted_cond = cls._get_hard_delete_col_and_cond(
+            root_table, escape_column_id, escape_lit
+        )
+        _, not_deleted_cond = cls._get_hard_delete_col_and_cond(
+            root_table, escape_column_id, escape_lit, invert=True
+        )
+        pk_tuple = ", ".join(primary_keys)
+        in_staging = f"({pk_tuple}) IN (SELECT {pk_tuple} FROM {staging_root_table_name})"
+        dataset_name = sql_client.fully_qualified_dataset_name()
+        staging_dataset_name = sql_client.fully_qualified_dataset_name(staging=True)
+
+        row_key_column: Optional[str] = None
+        if len(table_chain) > 1:
+            row_key_column = escape_column_id(
+                cls.get_row_key_col(table_chain, root_table, dataset_name, staging_dataset_name)
+            )
+
+        sql: List[str] = []
+        swaps: List[Tuple[str, str]] = []
+        for table in table_chain:
+            table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
+            swap_name = cls._new_temp_table_name(table["name"], "upsert_swap", sql_client)
+            columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
+            col_str = ", ".join(columns)
+
+            if is_nested_table(table):
+                root_key_column = escape_column_id(
+                    cls.get_root_key_col(table_chain, table, dataset_name, staging_dataset_name)
+                )
+                insert_sql = f"SELECT {col_str} FROM {staging_table_name}"
+                if hard_delete_col is not None:
+                    insert_sql += (
+                        f" WHERE {root_key_column} NOT IN (SELECT {row_key_column}"
+                        f" FROM {staging_root_table_name} WHERE {deleted_cond})"
+                    )
+                keep_where = (
+                    f"{root_key_column} NOT IN (SELECT {row_key_column} FROM {root_table_name}"
+                    f" WHERE {in_staging})"
+                )
+            else:
+                insert_sql = f"SELECT {col_str} FROM {staging_table_name}"
+                if hard_delete_col is not None:
+                    insert_sql += f" WHERE {not_deleted_cond}"
+                keep_where = f"NOT ({in_staging})"
+
+            sql.append(f"CREATE OR REPLACE TABLE {swap_name} AS {table_name}")
+            sql.append(f"INSERT INTO {swap_name} ({col_str}) {insert_sql}")
+            sql.append(
+                f"INSERT INTO {swap_name} ({col_str}) SELECT {col_str} FROM {table_name}"
+                f" WHERE {keep_where}"
+            )
+            swaps.append((swap_name, table_name))
+
+        for swap_name, table_name in swaps:
+            sql.append(f"EXCHANGE TABLES {swap_name} AND {table_name}")
+        for swap_name, _table_name in swaps:
+            sql.append(f"DROP TABLE IF EXISTS {swap_name}")
+        return sql
+
 
 class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
     """Atomic staging-optimized replace via `EXCHANGE TABLES`.
@@ -388,9 +470,13 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         new_jobs: Iterable[ParsedLoadJobFileName] = None,
     ) -> List[PreparedTableSchema]:
         loaded_tables = super().verify_schema(only_tables, new_jobs)
-        # probe the database engine early so staging-optimized fails fast at init,
-        # before any data is extracted or loaded into staging
-        if any(table.get("x-replace-strategy") == "staging-optimized" for table in loaded_tables):
+        # upsert and staging-optimized both EXCHANGE TABLES; fail before extract on an unsupported engine
+        needs_exchange = any(
+            table.get("x-replace-strategy") == "staging-optimized"
+            or resolve_merge_strategy(self.schema.tables, table, self.capabilities) == "upsert"
+            for table in loaded_tables
+        )
+        if needs_exchange:
             self._verify_database_supports_exchange()
         return loaded_tables
 
@@ -404,10 +490,10 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         if engine not in EXCHANGE_CAPABLE_DATABASE_ENGINES:
             supported = " or ".join(EXCHANGE_CAPABLE_DATABASE_ENGINES)
             raise DestinationTerminalException(
-                f"ClickHouse replace_strategy='staging-optimized' requires the {supported}"
-                f" database engine to use EXCHANGE TABLES (current: {engine}). Either choose"
-                " 'insert-from-staging' or 'truncate-and-insert', or recreate the database with"
-                " ENGINE = Atomic."
+                f"ClickHouse EXCHANGE TABLES requires the {supported} database engine"
+                f" (current: {engine}). Upsert and replace_strategy='staging-optimized' both swap"
+                " tables. Recreate the database with ENGINE = Atomic, or for replace choose"
+                " 'insert-from-staging' or 'truncate-and-insert'."
             )
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
@@ -430,10 +516,7 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             else self.type_mapper.to_destination_type(c, table)
         )
 
-        return (
-            f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_}"
-            .strip()
-        )
+        return f"{self.sql_client.escape_column_name(c['name'])} {type_with_nullability_modifier} {hints_}".strip()
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False

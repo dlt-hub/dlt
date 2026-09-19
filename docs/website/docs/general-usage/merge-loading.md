@@ -693,6 +693,7 @@ The `upsert` merge strategy is currently supported for these destinations:
 
 - `athena`
 - `bigquery`
+- `clickhouse`
 - `databricks`
 - `mssql`
 - `postgres`
@@ -714,7 +715,7 @@ Unlike the default `delete-insert` merge strategy, the `upsert` strategy:
 1. needs a `primary_key`
 2. expects this `primary_key` to be unique (`dlt` does not deduplicate)
 3. does not support `merge_key`
-4. uses `MERGE` or `UPDATE` operations to process updates
+4. uses `MERGE` or `UPDATE` operations to process updates without deleting unmatched keys (`clickhouse` rebuilds a table and swaps it instead)
 
 ### Example: `upsert` merge strategy
 

@@ -325,3 +325,60 @@ def test_clickhouse_merge_temp_table_engine(
         condition="1 = 1",
     )
     assert f"ENGINE = {expected_engine}" in insert_sql[0]
+
+
+def test_clickhouse_delete_insert_deletes_then_inserts(clickhouse_client: ClickHouseClient) -> None:
+    clickhouse_client.schema.update_table(
+        new_table(
+            "items",
+            write_disposition="merge",
+            columns=[
+                {"name": "id", "data_type": "bigint", "nullable": False, "primary_key": True},
+                {"name": "value", "data_type": "text", "nullable": True},
+            ],
+        )
+    )
+    prepared = clickhouse_client.prepare_load_table("items")
+    sql = [
+        " ".join(stmt.split())
+        for stmt in ClickHouseMergeJob.generate_sql([prepared], clickhouse_client.sql_client)
+    ]
+    assert any(stmt.startswith("DELETE") for stmt in sql)
+    assert any(stmt.startswith("INSERT INTO") for stmt in sql)
+    assert not any("EXCHANGE TABLES" in stmt for stmt in sql)
+
+
+def test_clickhouse_upsert_swaps_loaded_table(clickhouse_client: ClickHouseClient) -> None:
+    table = new_table(
+        "items",
+        write_disposition="merge",
+        columns=[
+            {"name": "id", "data_type": "bigint", "nullable": False, "primary_key": True},
+            {"name": "value", "data_type": "text", "nullable": True},
+        ],
+    )
+    table["x-merge-strategy"] = "upsert"  # type: ignore[typeddict-unknown-key]
+    clickhouse_client.schema.update_table(table)
+    prepared = clickhouse_client.prepare_load_table("items")
+    sql = ClickHouseMergeJob.generate_sql([prepared], clickhouse_client.sql_client)
+    flat = [" ".join(stmt.split()) for stmt in sql]
+
+    assert flat[0].startswith("CREATE OR REPLACE TABLE")
+    assert " AS " in flat[0]
+    assert "SELECT" not in flat[0]
+    assert flat[1].startswith("INSERT INTO")
+    assert "ROW_NUMBER()" not in flat[1]
+    assert flat[2].startswith("INSERT INTO")
+    assert "NOT (" in flat[2]
+    assert any(stmt.startswith("EXCHANGE TABLES") for stmt in flat)
+    assert flat[-1].startswith("DROP TABLE IF EXISTS")
+    exchange_at = next(i for i, stmt in enumerate(flat) if stmt.startswith("EXCHANGE TABLES"))
+    assert exchange_at > 2
+    assert not any(stmt.startswith("DELETE") for stmt in flat)
+
+    dest_name, staging_name = clickhouse_client.sql_client.get_qualified_table_names("items")
+    assert dest_name in flat[0]
+    assert staging_name in flat[1]
+    assert dest_name in flat[2]
+    assert staging_name in flat[2]
+    assert dest_name in flat[exchange_at]
