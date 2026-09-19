@@ -90,7 +90,12 @@ from dlt.pipeline.trace import PipelineTrace, PipelineStepTrace
 from dlt.pipeline.typing import TPipelineStep
 
 from tests.common.utils import TEST_SENTRY_DSN
-from tests.utils import capture_dlt_logger, get_test_storage_root, skipifwindows
+from tests.utils import (
+    TEST_DICT_CONFIG_PROVIDER,
+    capture_dlt_logger,
+    get_test_storage_root,
+    skipifwindows,
+)
 from tests.extract.utils import expect_extracted_file
 from tests.pipeline.utils import (
     PIPELINE_TEST_CASES_PATH,
@@ -4995,6 +5000,24 @@ def test_run_file_format_sets_table_schema() -> None:
 
     pipeline.extract(_data().with_name("_data_"))
     assert pipeline.default_schema.get_table("_datax")["file_format"] == "jsonl"
+
+
+def test_normalize_loader_file_format_config_sets_default_format() -> None:
+    pipeline = dlt.pipeline(
+        pipeline_name="test_normalize_loader_file_format_config_sets_default_format",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    pipeline.config.restore_from_destination = False
+
+    with TEST_DICT_CONFIG_PROVIDER().values({"normalize": {"loader_file_format": "jsonl"}}):
+        pipeline.extract([1, 2, 3], table_name="numbers")
+        normalize_info = pipeline.normalize()
+
+    jobs = pipeline._get_load_storage().normalized_packages.list_new_jobs(
+        normalize_info.loads_ids[0]
+    )
+    assert ParsedLoadJobFileName.parse(jobs[0]).file_format == "jsonl"
 
 
 @pytest.mark.parametrize(
