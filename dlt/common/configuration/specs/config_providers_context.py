@@ -100,9 +100,11 @@ class ConfigProvidersContainer:
 
 def _extra_providers() -> List[ConfigProvider]:
     """Providers that require initial providers to be instantiated as the are enabled via config"""
-    from dlt.common.configuration.resolve import resolve_configuration
+    from dlt.common.configuration.resolve import inject_section, resolve_configuration
+    from dlt.common.configuration.specs.config_section_context import ConfigSectionContext
 
-    providers_config = resolve_configuration(ConfigProvidersConfiguration())
+    with inject_section(ConfigSectionContext(), merge_existing=False):
+        providers_config = resolve_configuration(ConfigProvidersConfiguration())
     extra_providers = []
     if providers_config.enable_airflow_secrets:
         extra_providers.extend(_airflow_providers(providers_config.airflow_secrets))
