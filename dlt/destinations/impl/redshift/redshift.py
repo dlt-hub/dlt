@@ -13,6 +13,7 @@ else:
 
 from typing import Dict, List, Optional, Sequence
 
+from dlt.common.data_writers.escape import escape_redshift_literal
 from dlt.common.destination.client import (
     FollowupJobRequest,
     CredentialsConfiguration,
@@ -232,3 +233,17 @@ class RedshiftClient(InsertValuesJobClient, SupportsStagingDestination):
 
     def should_truncate_table_before_load_on_staging_destination(self, table_name: str) -> bool:
         return self.config.truncate_tables_on_staging_destination_before_load
+
+    def _get_table_update_sql(
+        self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
+    ) -> List[str]:
+        sql_result = super()._get_table_update_sql(table_name, new_columns, generate_alter)
+        qualified = self.sql_client.make_qualified_table_name(table_name)
+        for column in new_columns:
+            description = column.get("description")
+            if not description:
+                continue
+            col = self.sql_client.escape_column_name(column["name"])
+            escaped = escape_redshift_literal(description)
+            sql_result.append(f"COMMENT ON COLUMN {qualified}.{col} IS {escaped}")
+        return sql_result
