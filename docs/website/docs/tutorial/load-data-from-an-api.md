@@ -262,7 +262,7 @@ pipeline = dlt.pipeline(
 )
 
 load_info = pipeline.run(get_issues)
-normalize_info = pipeline.last_trace.last_normalize_info
+normalize_info = pipeline.last_trace.last_normalize_info  # ty: ignore[unresolved-attribute]
 
 # print(normalize_info.row_counts)
 """
@@ -353,7 +353,7 @@ pipeline = dlt.pipeline(
     dataset_name="github_data_merge",
 )
 load_info = pipeline.run(get_issues)
-normalize_info = pipeline.last_trace.last_normalize_info
+normalize_info = pipeline.last_trace.last_normalize_info  # ty: ignore[unresolved-attribute]
 
 # print(normalize_info.row_counts)
 #> {'_dlt_pipeline_state': 1}
@@ -404,9 +404,8 @@ pipeline = dlt.pipeline(
     dataset_name="github_data_merge",
 )
 load_info = pipeline.run(get_issues)
-row_counts = pipeline.last_trace.last_normalize_info
 
-print(row_counts)
+print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore[unresolved-attribute]
 print("------")
 print(load_info)
 ```
@@ -542,7 +541,7 @@ pipeline = dlt.pipeline(
     dataset_name='github_data',
 )
 load_info = pipeline.run(github_source())
-row_counts = pipeline.last_trace.last_normalize_info
+row_counts = pipeline.last_trace.last_normalize_info.row_counts  # ty: ignore[unresolved-attribute]
 ```
 
 ## Handle secrets

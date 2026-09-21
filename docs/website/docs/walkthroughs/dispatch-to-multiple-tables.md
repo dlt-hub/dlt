@@ -54,7 +54,7 @@ pipeline = dlt.pipeline(
     dataset_name="github_events_data",
 )
 load_info = pipeline.run(repo_events)
-row_counts = pipeline.last_trace.last_normalize_info
+row_counts = pipeline.last_trace.last_normalize_info.row_counts   # ty: ignore[unresolved-attribute]
 
 print(row_counts)
 print("------")

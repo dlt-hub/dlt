@@ -74,7 +74,9 @@ if __name__ == "__main__":
     # the pokemon_list resource does not need to be loaded
     pipeline.run(source("https://pokeapi.co/api/v2/pokemon"))
 
-    normalize_info = pipeline.last_trace.last_normalize_info
+    last_trace = pipeline.last_trace
+    assert last_trace is not None
+    normalize_info = last_trace.last_normalize_info
     assert normalize_info is not None
 
     row_counts = dict(normalize_info.row_counts)

@@ -71,7 +71,7 @@ if __name__ == "__main__":
 
     # use weaviate_adapter to tell destination to vectorize "text" column
     load_info = pipeline.run(weaviate_adapter(pdf_pipeline, vectorize="text"))
-    row_counts = pipeline.last_trace.last_normalize_info
+    row_counts = pipeline.last_trace.last_normalize_info.row_counts   # ty: ignore[unresolved-attribute]
     print(row_counts)
     print("------")
     print(load_info)

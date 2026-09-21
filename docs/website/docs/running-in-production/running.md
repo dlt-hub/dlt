@@ -46,23 +46,23 @@ The `load_info` contains plenty of useful information on the recently loaded dat
 You can also get the runtime trace from the pipeline. It contains timing information on `extract`, `normalize`, and `load` steps and also all the config and secret values with full information from where they were obtained. You can display and load trace info as shown below. Use your code editor to explore the `trace` object further. The `normalize` step information contains the counts of rows per table of data that was normalized and then loaded.
 
 ```py
-    # print human-friendly trace information
-    print(pipeline.last_trace)
-    # save trace to destination, sensitive data will be removed
-    pipeline.run([pipeline.last_trace], table_name="_trace")
+# print human-friendly trace information
+print(pipeline.last_trace)
+# save trace to destination, sensitive data will be removed
+pipeline.run([pipeline.last_trace], table_name="_trace")
 ```
 
 You can also access the last `extract`, `normalize`, and `load` infos directly:
 
-```py
-    # print human-friendly extract information
-    print(pipeline.last_trace.last_extract_info)
-    # print human-friendly normalization information
-    print(pipeline.last_trace.last_normalize_info)
-    # access row counts dictionary of normalize info
-    print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore
-    # print human-friendly load information
-    print(pipeline.last_trace.last_load_info)
+```py notype
+# print human-friendly extract information
+print(pipeline.last_trace.last_extract_info)
+# print human-friendly normalization information
+print(pipeline.last_trace.last_normalize_info)
+# access row counts dictionary of normalize info
+print(pipeline.last_trace.last_normalize_info.row_counts)  # ty: ignore
+# print human-friendly load information
+print(pipeline.last_trace.last_load_info)
 ```
 
 Please note that you can inspect the pipeline using [command line](../reference/command-line-interface.md#dlt-pipeline).
