@@ -56,7 +56,7 @@ filesystem_pipe = filesystem_resource | read_parquet()
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(filesystem_pipe.with_name("yellow_tripdata"))
 print(load_info)
-print(pipeline.last_trace.last_normalize_info)
+print(pipeline.last_trace.last_normalize_info)  # ty: ignore[unresolved-attribute]
 ```
 
 This section illustrates how to perform an efficient incremental load of Parquet files from a remote source, specifically an S3 bucket.
@@ -76,7 +76,7 @@ filesystem_pipe = filesystem_resource | read_parquet()
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(filesystem_pipe.with_name("table_name"))
 print(load_info)
-print(pipeline.last_trace.last_normalize_info)
+print(pipeline.last_trace.last_normalize_info)  # ty: ignore[unresolved-attribute]
 ```
 
 With `readers` source:
@@ -95,7 +95,7 @@ parquet_files = readers(
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
 load_info = pipeline.run(parquet_files.with_name("table_name"))
 print(load_info)
-print(pipeline.last_trace.last_normalize_info)
+print(pipeline.last_trace.last_normalize_info)  # ty: ignore[unresolved-attribute]
 ```
 
 ## Setup
@@ -592,7 +592,7 @@ fs_ = filesystem(bucket_url=bucket_url, file_glob="csv/*", incremental=increment
 
 # process one file in each run, you could also use max_time to process files i.e. for an hour
 while not pipeline.run(fs_.with_name("files").add_limit(1)).is_empty:
-    print(pipeline.last_trace.last_load_info)
+    print(pipeline.last_trace.last_load_info)  # ty: ignore[unresolved-attribute]
 ```
 
 **Note that you must set row_order on incremental to not miss a file**:
@@ -846,7 +846,7 @@ load_info = pipeline.run(
 # Pretty print the information on data that was loaded
 print(load_info)
 print(listing)
-print(pipeline.last_trace.last_normalize_info)
+print(pipeline.last_trace.last_normalize_info)  # ty: ignore[unresolved-attribute]
 ```
 
 ## Troubleshoot
