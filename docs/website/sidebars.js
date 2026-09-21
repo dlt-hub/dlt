@@ -589,6 +589,7 @@ const sidebars = {
         "examples/arize_phoenix_export",
         "examples/backfill_in_chunks",
         "examples/chess_production",
+        "examples/dlthub_cicd",
         "examples/connector_x_arrow",
         "examples/custom_config_provider",
         "examples/custom_destination_bigquery",
