@@ -5,10 +5,9 @@ drifts from decimal to text, a stale scale may remain on the column schema.
 precision_tuple_or_default must not return the scale for non-decimal types, or
 single-argument templates like VARCHAR(%i) crash with a TypeError.
 """
-from types import SimpleNamespace
-
 import pytest
 
+from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.destinations.type_mapping import TypeMapperImpl
 
 
@@ -26,7 +25,9 @@ class SnowflakeLikeMapper(TypeMapperImpl):
 
 @pytest.fixture
 def mapper():
-    capabilities = SimpleNamespace(decimal_precision=(38, 9), wei_precision=(38, 0))
+    capabilities = DestinationCapabilitiesContext()
+    capabilities.decimal_precision = (38, 9)
+    capabilities.wei_precision = (38, 0)
     return SnowflakeLikeMapper(capabilities)
 
 
