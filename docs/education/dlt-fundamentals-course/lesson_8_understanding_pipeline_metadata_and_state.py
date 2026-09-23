@@ -871,8 +871,6 @@ def _(subprocess):
 def _(mo):
     mo.md(r"""
     🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊
-
-    Please share your feedback with us: [Feedback Google Form](https://forms.gle/1NYrGcRj5gLQ4WDt8) 🌼
     """)
     return
 
