@@ -1,15 +1,21 @@
 from copy import deepcopy
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 
 import pytest
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.utils import custom_environ, uniq_id
-from dlt.destinations.impl.clickhouse.clickhouse import ClickHouseClient, ClickHouseMergeJob
+from dlt.destinations.impl.clickhouse import clickhouse as clickhouse_impl
+from dlt.destinations.impl.clickhouse.clickhouse import (
+    ClickHouseClient,
+    ClickHouseMergeJob,
+    LoadIdScopedClickHouseMergeJob,
+)
 from dlt.destinations.impl.clickhouse.configuration import (
     ClickHouseClientConfiguration,
     ClickHouseCredentials,
 )
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.utils import new_table, pipeline_state_table
 from tests.load.clickhouse.utils import clickhouse_client
 from tests.load.utils import TABLE_UPDATE, empty_schema
@@ -332,3 +338,82 @@ def test_clickhouse_merge_temp_table_engine(
         condition="1 = 1",
     )
     assert f"ENGINE = {expected_engine}" in insert_sql[0]
+
+
+@pytest.fixture
+def scoped_load_id(monkeypatch: pytest.MonkeyPatch) -> str:
+    load_id = "1234567890.123"
+    monkeypatch.setattr(clickhouse_impl, "load_package_state", lambda: {"load_id": load_id})
+    return load_id
+
+
+def _prepare_merge_table(
+    clickhouse_client: ClickHouseClient,
+    table_name: str,
+    primary_key: bool = False,
+    merge_key: bool = False,
+    hard_delete: bool = False,
+) -> PreparedTableSchema:
+    columns = deepcopy(TABLE_UPDATE[:3])
+    columns[0]["primary_key"] = primary_key
+    columns[0]["merge_key"] = merge_key
+    if hard_delete:
+        columns[2]["hard_delete"] = True
+    columns += [
+        {"name": "_dlt_load_id", "data_type": "text", "nullable": False},
+        {"name": "_dlt_id", "data_type": "text", "nullable": False, "row_key": True},
+    ]
+    clickhouse_client.schema.update_table(
+        new_table(table_name, write_disposition="merge", columns=columns)
+    )
+    return clickhouse_client.prepare_load_table(table_name)
+
+
+def _root_insert(sql: List[str], clickhouse_client: ClickHouseClient, table_name: str) -> str:
+    root_table_name = clickhouse_client.sql_client.make_qualified_table_name(table_name)
+    inserts = [stmt for stmt in sql if stmt.startswith(f"INSERT INTO {root_table_name}(")]
+    assert len(inserts) == 1
+    return inserts[0]
+
+
+@pytest.mark.parametrize("hard_delete", [False, True], ids=["no_hard_delete", "hard_delete"])
+def test_load_id_scoped_merge_scopes_merge_key_only_insert(
+    clickhouse_client: ClickHouseClient, scoped_load_id: str, hard_delete: bool
+) -> None:
+    """Without primary keys the root insert must not copy rows staged by concurrent loads."""
+    table = _prepare_merge_table(
+        clickhouse_client, "merge_key_table", merge_key=True, hard_delete=hard_delete
+    )
+    sql = LoadIdScopedClickHouseMergeJob.gen_merge_sql([table], clickhouse_client.sql_client)
+
+    insert = _root_insert(sql, clickhouse_client, "merge_key_table")
+    predicate = f"`_dlt_load_id` = '{scoped_load_id}'"
+    # the not-deleted condition contains an OR, so it must stay grouped
+    condition = "`col3` IS NULL OR `col3` = False" if hard_delete else "1 = 1"
+    assert insert.endswith(f"WHERE ({condition}) AND {predicate}")
+
+
+def test_load_id_scoped_merge_scopes_primary_key_insert_once(
+    clickhouse_client: ClickHouseClient, scoped_load_id: str
+) -> None:
+    table = _prepare_merge_table(clickhouse_client, "primary_key_table", primary_key=True)
+    sql = LoadIdScopedClickHouseMergeJob.gen_merge_sql([table], clickhouse_client.sql_client)
+
+    insert = _root_insert(sql, clickhouse_client, "primary_key_table")
+    assert insert.count(f"`_dlt_load_id` = '{scoped_load_id}'") == 1
+
+
+def test_load_id_scoped_insert_temp_table_without_primary_key(
+    clickhouse_client: ClickHouseClient, scoped_load_id: str
+) -> None:
+    insert_sql, _ = LoadIdScopedClickHouseMergeJob.gen_insert_temp_table_sql(
+        "items",
+        "staging",
+        clickhouse_client.sql_client,
+        primary_keys=[],
+        unique_column="`_dlt_id`",
+        condition="`deleted` IS NULL OR `deleted` = false",
+    )
+    assert insert_sql[0].endswith(
+        f"WHERE (`deleted` IS NULL OR `deleted` = false) AND `_dlt_load_id` = '{scoped_load_id}'"
+    )
