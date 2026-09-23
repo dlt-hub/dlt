@@ -629,7 +629,8 @@ def _(mo):
 
 
 @app.cell
-def _(TDataItems, dlt, os):
+def _(TDataItems, dlt):
+    import os
     from typing import Iterable
     from dlt.extract import DltResource
     from dlt.sources.helpers import requests
@@ -637,7 +638,7 @@ def _(TDataItems, dlt, os):
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-    dlt.secrets["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
+    os.environ["SOURCES__ACCESS_TOKEN"] = os.getenv("SECRET_KEY")
 
     @dlt.source
     def github_source(access_token: str = dlt.secrets.value) -> Iterable[DltResource]:
