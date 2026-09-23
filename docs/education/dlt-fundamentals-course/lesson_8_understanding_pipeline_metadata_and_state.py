@@ -869,9 +869,9 @@ def _(subprocess):
 
 @app.cell(hide_code=True)
 def _(mo):
-    mo.md(r"""
-    🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊
-    """)
+    mo.md(
+        r"""🎊🎊🎊 That's it! We hope you enjoyed this course and learned more about `dlt`! 🎊🎊🎊"""
+    )
     return
 
 
