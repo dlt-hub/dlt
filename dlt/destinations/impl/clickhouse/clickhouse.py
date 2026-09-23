@@ -365,13 +365,60 @@ class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
         )
 
     @classmethod
+    def _scope_condition(cls, condition: Optional[str]) -> str:
+        predicate = cls._load_id_predicate()
+        return predicate if not condition else f"({condition}) AND {predicate}"
+
+    @classmethod
+    def gen_insert_temp_table_sql(
+        cls,
+        table_name: str,
+        staging_root_table_name: str,
+        sql_client: SqlClientBase[Any],
+        primary_keys: Sequence[str],
+        unique_column: str,
+        dedup_sort: Tuple[str, TSortOrder] = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
+    ) -> Tuple[List[str], str]:
+        # with primary keys the read goes through the already scoped gen_select_from_dedup_sql
+        if not primary_keys:
+            condition = cls._scope_condition(condition)
+        return super().gen_insert_temp_table_sql(
+            table_name,
+            staging_root_table_name,
+            sql_client,
+            primary_keys,
+            unique_column,
+            dedup_sort,
+            condition,
+            condition_columns,
+            skip_dedup,
+        )
+
+    @classmethod
     def gen_merge_sql(
         cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
     ) -> List[str]:
         sql = super().gen_merge_sql(table_chain, sql_client)
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            table_chain[0]["name"]
+        )
+        # without primary keys the root insert bypasses gen_select_from_dedup_sql and would copy
+        # the staged rows of every concurrent load, duplicating them in the destination
+        predicate = cls._load_id_predicate()
+        staging_read = f" FROM {staging_root_table_name} WHERE "
+        for i, stmt in enumerate(sql):
+            if (
+                stmt.startswith(f"INSERT INTO {root_table_name}(")
+                and staging_read in stmt
+                and predicate not in stmt
+            ):
+                head, _, condition = stmt.rpartition(staging_read)
+                sql[i] = f"{head}{staging_read}{cls._scope_condition(condition)}"
         # drop only this load's rows from the shared staging table once merged
-        _, staging_root_table_name = sql_client.get_qualified_table_names(table_chain[0]["name"])
-        sql.append(f"DELETE FROM {staging_root_table_name} WHERE {cls._load_id_predicate()}")
+        sql.append(f"DELETE FROM {staging_root_table_name} WHERE {predicate}")
         return sql
 
 
