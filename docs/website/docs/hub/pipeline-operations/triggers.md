@@ -20,16 +20,16 @@ This page covers all the trigger types and the related scheduling features.
 
 ## Basic triggers
 
-| Trigger | Meaning |
-|---------|---------|
-| `trigger.every("5m")` | Recurring interval (`"5m"`, `"6h"`, seconds as float) |
-| `trigger.schedule("0 * * * *")` | Cron expression |
-| `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp |
-| `"*/5 * * * *"` | Bare cron string — auto-detected |
-| `upstream_job.success` | Follow-up — fires when an upstream job completes successfully |
-| `upstream_job.fail` | Follow-up — fires when an upstream job fails |
-| `upstream_job.completed` | Follow-up — fires on success or failure |
-| `"job.fail:tag:ingest"` | Follow-up on every job matching a selector, used by [agent jobs](../agents/index.md#triggers-for-agents) |
+| Trigger                                | Meaning                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `trigger.every("5m")`                  | Recurring interval (`"5m"`, `"6h"`, seconds as float)                                                    |
+| `trigger.schedule("0 * * * *")`        | Cron expression                                                                                          |
+| `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp                                                                                  |
+| `"*/5 * * * *"`                        | Bare cron string — auto-detected                                                                         |
+| `upstream_job.success`                 | Follow-up — fires when an upstream job completes successfully                                            |
+| `upstream_job.fail`                    | Follow-up — fires when an upstream job fails                                                             |
+| `upstream_job.completed`               | Follow-up — fires on success or failure                                                                  |
+| `"job.fail:tag:ingest"`                | Follow-up on every job matching a selector, used by [agent jobs](../agents/index.md#triggers-for-agents) |
 
 ## Multiple triggers
 

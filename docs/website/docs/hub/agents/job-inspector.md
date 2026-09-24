@@ -53,9 +53,9 @@ The transcript streams to your terminal. When the run ends you get a job result 
 
 ## Agent inputs
 
-| Input | Meaning |
-|-------|---------|
-| `failed_run_id` | Run id of the failed job run to inspect |
+| Input            | Meaning                                                                               |
+| ---------------- | ------------------------------------------------------------------------------------- |
+| `failed_run_id`  | Run id of the failed job run to inspect                                               |
 | `failed_job_ref` | Job ref of the failed job. Its latest failed run is inspected when no run id is given |
 
 Both are optional, and a run resolves them in order:
@@ -69,17 +69,17 @@ A run started from a `job.fail:` trigger arrives with both inputs empty. The tri
 
 ## What it reports
 
-| Field | Meaning |
-|-------|---------|
-| `status` | `succeeded`, `failed`, or `aborted` |
-| `summary` | Markdown account of the diagnosis |
-| `failed_run_id` | The run it inspected, reported as an entity |
-| `failed_job_ref` | The job whose run it inspected, reported as an entity |
+| Field            | Meaning                                                                                  |
+| ---------------- | ---------------------------------------------------------------------------------------- |
+| `status`         | `succeeded`, `failed`, or `aborted`                                                      |
+| `summary`        | Markdown account of the diagnosis                                                        |
+| `failed_run_id`  | The run it inspected, reported as an entity                                              |
+| `failed_job_ref` | The job whose run it inspected, reported as an entity                                    |
 | `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown` |
-| `confidence` | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown` |
-| `evidence` | A source and an excerpt per piece of evidence, taken from logs and run records |
-| `proposed_fix` | What a person should do next. The agent never applies it |
-| `requires_human` | Whether the fix needs a person to act |
+| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`          |
+| `evidence`       | A source and an excerpt per piece of evidence, taken from logs and run records           |
+| `proposed_fix`   | What a person should do next. The agent never applies it                                 |
+| `requires_human` | Whether the fix needs a person to act                                                    |
 
 On the platform the result appears on the failed run's page, because the agent reports that run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows the full result envelope and an inspector result in it.
 
@@ -87,11 +87,11 @@ On the platform the result appears on the failed run's page, because the agent r
 
 The definition ships these defaults. The agent job and the individual run override them.
 
-| Setting | Default |
-|---------|---------|
-| `trigger` | `job.fail:*`, every failed job in the workspace |
-| `model` | `sonnet` |
-| `limits` | `max_turns: 30`, `max_tokens: 1000000` |
+| Setting         | Default                                                                                  |
+| --------------- | ---------------------------------------------------------------------------------------- |
+| `trigger`       | `job.fail:*`, every failed job in the workspace                                          |
+| `model`         | `sonnet`                                                                                 |
+| `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                   |
 | `loop_run_args` | `retries: 1`, the number of times pydantic-ai lets the model correct a failing tool call |
 
 Narrow the trigger and change the settings on the job:

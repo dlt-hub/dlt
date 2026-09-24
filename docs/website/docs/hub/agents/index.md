@@ -18,14 +18,14 @@ This page covers declaring an agent as a job and running it locally and on the p
 
 ## Terms
 
-| Term | Definition | Where it lives |
-|------|------------|----------------|
-| Agent definition | System prompt plus a declaration of the agent's inputs, output, tools, skills, rules, and access | `AGENT.md` file, or a decorated Python function |
-| Agent loop | Framework that runs the model turn by turn: `pydantic-ai` (default) or `claude-agent-sdk` | Selected with `loop=` on `run.agent` or `agent.loop` in configuration |
-| Agent job | Definition plus the settings for your workspace: model, limits, trigger, instructions, loop | `run.agent(...)` in `__deployment__.py` |
-| Agent run | Execution of the agent job. It receives inputs and returns an output and a trace | Started by a trigger, `dlthub local run`, `dlthub run`, or the Web UI |
-| Access axis | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition |
-| Verb | What the agent may do on an axis: `read`, `write`, `execute`, `network` | Listed under the axis in `access` |
+| Term             | Definition                                                                                                                                                                          | Where it lives                                                        |
+| ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
+| Agent definition | System prompt plus a declaration of the agent's inputs, output, tools, skills, rules, and access                                                                                    | `AGENT.md` file, or a decorated Python function                       |
+| Agent loop       | Framework that runs the model turn by turn: `pydantic-ai` (default) or `claude-agent-sdk`                                                                                           | Selected with `loop=` on `run.agent` or `agent.loop` in configuration |
+| Agent job        | Definition plus the settings for your workspace: model, limits, trigger, instructions, loop                                                                                         | `run.agent(...)` in `__deployment__.py`                               |
+| Agent run        | Execution of the agent job. It receives inputs and returns an output and a trace                                                                                                    | Started by a trigger, `dlthub local run`, `dlthub run`, or the Web UI |
+| Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
+| Verb             | What the agent may do on an axis: `read`, `write`, `execute`, `network`                                                                                                             | Listed under the axis in `access`                                     |
 
 The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
@@ -63,18 +63,18 @@ inspector = run.agent(
 
 The job is named after the agent definition (`job-inspector` becomes `job_inspector`) in the declaring module's section. Every argument overrides the matching entry of the definition's `defaults`.
 
-| Argument | Meaning |
-|----------|---------|
-| `instructions` | First user message of each run. Use it for the task at hand. The system prompt describes the agent |
-| `model` | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials) |
-| `limits` | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted |
-| `loop` | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops) |
-| `loop_run_args` | Arguments passed to the framework, merged over the definition's defaults. `retries` sets how many times pydantic-ai allows the model to correct a failing tool call |
-| `verbosity` | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt |
-| `inputs_validator` | Called with the resolved inputs before the run. Its return value is merged into them. Use it to derive an input, for example a run id from a job ref. Accepted only when the agent is passed by reference. A decorated function drives the loop itself and passes the inputs to `loop.run()` |
-| `outputs_validator` | Called with the agent's output after the run. Its return value replaces the output. Accepted only when the agent is passed by reference |
-| `name`, `section` | Job name and configuration section, as on every job |
-| `trigger`, `execute`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md) |
+| Argument                                          | Meaning                                                                                                                                                                                                                                                                                      |
+| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `instructions`                                    | First user message of each run. Use it for the task at hand. The system prompt describes the agent                                                                                                                                                                                           |
+| `model`                                           | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials)                                                                                                                                                                    |
+| `limits`                                          | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted                                                                                                                                                                                                         |
+| `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                                                                                                                                           |
+| `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. `retries` sets how many times pydantic-ai allows the model to correct a failing tool call                                                                                                                          |
+| `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt                                                                                                                              |
+| `inputs_validator`                                | Called with the resolved inputs before the run. Its return value is merged into them. Use it to derive an input, for example a run id from a job ref. Accepted only when the agent is passed by reference. A decorated function drives the loop itself and passes the inputs to `loop.run()` |
+| `outputs_validator`                               | Called with the agent's output after the run. Its return value replaces the output. Accepted only when the agent is passed by reference                                                                                                                                                      |
+| `name`, `section`                                 | Job name and configuration section, as on every job                                                                                                                                                                                                                                          |
+| `trigger`, `execute`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md)                                                                                                                                 |
 
 ### Triggers for agents
 
@@ -101,9 +101,9 @@ dlthub run job_inspector -c failed_run_id=<run-id> -f        # on the platform
 
 You can override settings for a single run. Inputs and agent settings are ordinary job configuration under the job's section, so the same keys work on the command line, in `config.toml`, in the environment, and in the Web UI's run dialog:
 
-| What | Key | Example |
-|------|-----|---------|
-| Declared inputs | `jobs.<section>.<job>.<input>` | `-c failed_run_id=...` |
+| What                                         | Key                            | Example                                                                                        |
+| -------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Declared inputs                              | `jobs.<section>.<job>.<input>` | `-c failed_run_id=...`                                                                         |
 | Instructions, model, limits, loop, verbosity | `jobs.<section>.<job>.agent.*` | `-c agent.instructions="explain, do not fix"`, `-c agent.max_turns=10`, `-c agent.verbosity=2` |
 
 ```toml
@@ -123,14 +123,14 @@ Each source overrides the ones before it: the loop default, the definition's `de
 
 `model` is a `provider:model` id in the naming pydantic-ai uses, or one of these aliases:
 
-| Alias | Model |
-|-------|-------|
-| `sonnet` (default) | `anthropic:claude-sonnet-5` |
-| `opus` | `anthropic:claude-opus-5` |
-| `haiku` | `anthropic:claude-haiku-4-5` |
-| `fable` | `anthropic:claude-fable-5` |
+| Alias                         | Model                                                          |
+| ----------------------------- | -------------------------------------------------------------- |
+| `sonnet` (default)            | `anthropic:claude-sonnet-5`                                    |
+| `opus`                        | `anthropic:claude-opus-5`                                      |
+| `haiku`                       | `anthropic:claude-haiku-4-5`                                   |
+| `fable`                       | `anthropic:claude-fable-5`                                     |
 | `gpt`, `gpt-mini`, `gpt-nano` | `openai:gpt-5.5`, `openai:gpt-5.4-mini`, `openai:gpt-5.4-nano` |
-| `gemini`, `gemini-pro` | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview` |
+| `gemini`, `gemini-pro`        | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview`     |
 
 The `claude-agent-sdk` loop runs Anthropic models only.
 
@@ -204,12 +204,12 @@ On the platform, inspect agent runs like any other run with `dlthub job runs lis
 
 A loop is the framework that runs the agent. dltHub ships two agent loops and adds the matching dependency group to the job, so the runner installs it. A third-party loop can register through the `plug_agent_loop` plugin hook.
 
-| | `pydantic-ai` (default) | `claude-agent-sdk` |
-|--|-------------------------|--------------------|
-| Models | Any provider pydantic-ai supports | Anthropic models, through a bundled Claude Code CLI |
-| Local tools | dlt's own file, search, and shell tools. Web access comes from the model provider's own search and fetch tools | Claude Code's tools, under the same names |
-| Skills | Inlined into the system prompt | Listed by name and loaded on demand, as in Claude Code |
-| Install locally | `uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"` | `uv add claude-agent-sdk` |
+|                 | `pydantic-ai` (default)                                                                                        | `claude-agent-sdk`                                     |
+| --------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
+| Models          | Any provider pydantic-ai supports                                                                              | Anthropic models, through a bundled Claude Code CLI    |
+| Local tools     | dlt's own file, search, and shell tools. Web access comes from the model provider's own search and fetch tools | Claude Code's tools, under the same names              |
+| Skills          | Inlined into the system prompt                                                                                 | Listed by name and loaded on demand, as in Claude Code |
+| Install locally | `uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"`                                                  | `uv add claude-agent-sdk`                              |
 
 Both loops read the same declarations. `access` selects the local tools and `tools` selects the MCP server features. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn, so the limit means the same on both loops.
 
