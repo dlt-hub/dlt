@@ -59,6 +59,7 @@ dependencies = [
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
     "croniter>=6.0.0",
+    "marimo>=0.14.10",
 ]
 
 [project.optional-dependencies]
