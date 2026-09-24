@@ -356,14 +356,14 @@ This ordering is safe because the changes are merged. If the publication publish
 
 ## Views and materialized views
 
-Postgres logical replication publishes ordinary tables only: [regular views and materialized views cannot be part of a publication](https://www.postgresql.org/docs/current/sql-createpublication.html), so this source cannot replicate them. Passing a view name in `table_names` fails when dlt adds it to the publication:
+Postgres logical replication publishes ordinary tables only: [regular views and materialized views cannot be part of a publication](https://www.postgresql.org/docs/current/sql-createpublication.html), so this source cannot replicate them. Passing a view name in `table_names` fails when dlt adds it to the publication. On Postgres 15 and later:
 
 ```text
 ERROR:  cannot add relation "orders_v" to publication
 DETAIL:  This operation is not supported for views.
 ```
 
-A materialized view fails in the same way, with `DETAIL:  This operation is not supported for materialized views.`
+A materialized view fails in the same way, with `DETAIL:  This operation is not supported for materialized views.` On Postgres 14 and earlier, both cases report `ERROR:  "orders_v" is not a table` with `DETAIL:  Only tables can be added to publications.` instead.
 
 Replicating an entire schema with `table_names=None` does not include them either: `ALTER PUBLICATION ... ADD TABLES IN SCHEMA` covers the schema's tables and leaves views and materialized views out, and the list of tables to snapshot is reflected with the `sql_database` source, which does not reflect views unless you ask it to.
 
@@ -395,7 +395,7 @@ To load several views, use the `sql_database` source with `include_views=True`. 
 
 ### Rebuild the view in the destination
 
-The option that keeps the CDC guarantees is to replicate the tables the view is built on and to recreate its logic in the destination, with [SQL transformations](../transformations/sql) or [dbt](../transformations/dbt/dbt). The underlying tables stay in sync through the replication stream, and the view is recomputed where the data lands.
+The option that keeps the CDC guarantees is to replicate the tables the view is built on and to recreate its logic in the destination, with [SQL transformations](../transformations/sql) or [dbt](../transformations/dbt/dbt.md). The underlying tables stay in sync through the replication stream, and the view is recomputed where the data lands.
 
 ## Alternative: Using `xmin` for Change Data Capture (CDC)
 
