@@ -611,7 +611,9 @@ class DltSource(Iterable[TDataItem]):
             Container().injectable_context(source_context),
             Container().injectable_context(schema_context),
         ):
-            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(self._resources.selected_pipes)  # type: ignore
+            pipe_iterator: ManagedPipeIterator = ManagedPipeIterator.from_pipes(
+                self._resources.selected_pipes
+            )  # type: ignore
         pipe_iterator.set_context([section_context, state_context, schema_context, source_context])
         _iter = map(lambda item: item.item, pipe_iterator)
         return flatten_list_or_items(_iter)
@@ -629,10 +631,13 @@ class DltSource(Iterable[TDataItem]):
         # do not intercept dunder attributes (needed for copy/pickle/deepcopy)
         if resource_name.startswith("__") and resource_name.endswith("__"):
             raise AttributeError(resource_name)
+        resources = self.__dict__.get("_resources")
+        if resources is None:
+            raise AttributeError(resource_name)
         try:
-            return self._resources[resource_name]
+            return resources[resource_name]
         except KeyError:
-            all_resources = ", ".join(self._resources.keys())
+            all_resources = ", ".join(resources.keys())
             raise AttributeError(
                 f"Resource `{resource_name}` not found in source `{self.name}`. Available"
                 f" resources: {all_resources}"
