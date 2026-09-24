@@ -668,6 +668,7 @@ def ai_toolkit_info_command(
         ("Skills", info["skills"]),
         ("Commands", info["commands"]),
         ("Rules", info["rules"]),
+        ("Agents", info["agents"]),
     ]:
         if items:
             fmt.echo("\n%s:" % label)
