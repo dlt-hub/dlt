@@ -125,7 +125,7 @@ how many jobs there are and which ones failed. In `summary`, write a Markdown
 table with one row per job: name, last run status, and when it ran.
 ```
 
-Save it as `agents/workspace_report/AGENT.md` and declare it in `__deployment__.py` by its folder, for example to run every morning:
+Save it as `agents/workspace_report/AGENT.md` and declare it in `__deployment__.py` by its folder:
 
 ```py notype
 from dlt.hub import run
