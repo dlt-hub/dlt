@@ -330,7 +330,8 @@ def adjust_column_schema_to_capabilities(
 ) -> TColumnSchema:
     """Modify column schema in place according to destination capabilities.
     * timestamp and time precision are limited by min(destination max, parquet writer max)
-    * timezone is always removed (enables default behavior)
+    * timezone=False inferred from naive Arrow timestamps is preserved, other timezone hints fall back
+      to default behavior
     * default timestamp precision for destination is removed
     """
     data_type = column.get("data_type")
@@ -347,8 +348,9 @@ def adjust_column_schema_to_capabilities(
             ),
         )
 
-        # remove timezone flag to fallback to default tz-aware and let normalizer to correct the data
-        column.pop("timezone", None)
+        # preserve explicit timezone=False inferred from naive Arrow timestamps
+        if column.get("timezone") is not False:
+            column.pop("timezone", None)
 
         # do not write default precision
         if precision == caps.timestamp_precision:
