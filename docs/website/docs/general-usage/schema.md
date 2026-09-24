@@ -3,7 +3,6 @@ title: Schema
 description: Schema
 keywords: [schema, dlt schema, yaml]
 ---
-
 # Schema
 
 The schema describes the structure of normalized data (e.g., tables, columns, data types, etc.) and
@@ -13,8 +12,9 @@ the data during the normalization process. Users can affect this standard behavi
 loaded. Such hints can be passed in the code, i.e., to the `dlt.resource` decorator or `pipeline.run`
 method. Schemas can also be exported and imported as files, which can be directly modified.
 
-> 💡 `dlt` associates a schema with a [source](source.md) and a table schema with a
-> [resource](resource.md).
+:::info
+`dlt` associates a schema with a [source](source.md) and a table schema with a [resource](resource.md).
+:::
 
 ## Schema content hash and version
 
@@ -29,10 +29,12 @@ Each schema contains a numeric version which increases automatically whenever th
 saved. The numeric version is meant to be human-readable. There are cases (parallel processing) where
 the order is lost.
 
-> 💡 The schema in the destination is migrated if its hash is not stored in the `_dlt_versions` table. In
-> principle, many pipelines may send data to a single dataset. If table names clash, then a single
-> table with the union of the columns will be created. If columns clash, and they have different
-> types, etc., then the load may fail if the data cannot be coerced.
+:::info
+The schema in the destination is migrated if its hash is not stored in the `_dlt_versions` table. In
+principle, many pipelines may send data to a single dataset. If table names clash, then a single
+table with the union of the columns will be created. If columns clash, and they have different
+types, etc., then the load may fail if the data cannot be coerced.
+:::
 
 ## Naming convention
 
@@ -55,21 +57,29 @@ The default naming convention:
 1. Nesting is expressed as double `_` in names.
 1. It shortens the identifier if it exceeds the length at the destination.
 
-> 💡 The standard behavior of `dlt` is to **use the same naming convention for all destinations** so
-> users always see the same tables and columns in their databases.
+:::info
+The standard behavior of `dlt` is to **use the same naming convention for all destinations** so
+users always see the same tables and columns in their databases.
+:::
 
-> 💡 If you provide any schema elements that contain identifiers via decorators or arguments (i.e.,
-> `table_name` or `columns`), all the names used will be converted via the naming convention when
-> adding to the schema. For example, if you execute `dlt.run(... table_name="CamelCase")` the data
-> will be loaded into `camel_case`.
+:::info
+If you provide any schema elements that contain identifiers via decorators or arguments (i.e.,
+`table_name` or `columns`), all the names used will be converted via the naming convention when
+adding to the schema. For example, if you execute `dlt.run(... table_name="CamelCase")` the data
+will be loaded into `camel_case`.
+:::
 
-> 💡 Use simple, short, small caps identifiers for everything!
+:::info
+Use simple, short, small caps identifiers for everything!
+:::
 
 To retain the original naming convention (like keeping `"createdAt"` as it is instead of converting it to `"created_at"`), you can use the direct naming convention in "config.toml" as follows:
+
 ```toml
 [schema]
 naming="direct"
 ```
+
 :::warning
 Opting for `"direct"` naming bypasses most name normalization processes. This means any unusual characters present will be carried over unchanged to database tables and columns. Please be aware of this behavior to avoid potential issues.
 :::
@@ -86,9 +96,9 @@ The data normalizer is configurable, and users can plug in their own normalizers
 
 `dlt` ships with two JSON normalizer variants:
 
-| Normalizer module | Behavior |
-| --- | --- |
-| `dlt.common.normalizers.json.relational` | **Default.** Flattens nested data into relational tables. Coerces values across compatible types (e.g., `"123"` → `int`, `int` → `str`). |
+| Normalizer module                                    | Behavior                                                                                                                                   |
+| ---------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `dlt.common.normalizers.json.relational`             | **Default.** Flattens nested data into relational tables. Coerces values across compatible types (e.g., `"123"` → `int`, `int` → `str`).   |
 | `dlt.common.normalizers.json.relational_no_coercion` | Same relational flattening, but **never coerces across types**. Every type mismatch produces a [variant column](#variant-columns) instead. |
 
 To switch the normalizer, set it in `config.toml` using the shorthand name:
@@ -141,6 +151,7 @@ A column schema contains the following basic hints:
 3. `merge_key` marks a column as part of the merge key used by [merge load](./merge-loading.md).
 
 Hints below are used to create [nested references](#nested-references-root-and-nested-tables):
+
 1. `row_key` is a special form of primary key created by `dlt` to uniquely identify rows of data.
 2. `parent_key` is a special form of foreign key used by nested tables to refer to parent tables.
 3. `root_key` marks a column as part of the root key, which is a type of foreign key always referring to the root table.
@@ -174,10 +185,10 @@ data = [
 
 Once the pipeline runs, we will have the following schema:
 
-| name          | data_type     | nullable |
-| ------------- | ------------- | -------- |
-| id            | bigint        | true     |
-| human_name    | text          | true     |
+| name       | data_type | nullable |
+| ---------- | --------- | -------- |
+| id         | bigint    | true     |
+| human_name | text      | true     |
 
 Now imagine the data has changed and the `id` field also contains strings:
 
@@ -190,11 +201,11 @@ data = [
 
 The value `"idx-nr-456"` cannot be parsed as an integer, so `dlt` creates a variant column `id__v_text`:
 
-| name          | data_type     | nullable |
-| ------------- | ------------- | -------- |
-| id            | bigint        | true     |
-| human_name    | text          | true     |
-| id__v_text    | text          | true     |
+| name       | data_type | nullable |
+| ---------- | --------- | -------- |
+| id         | bigint    | true     |
+| human_name | text      | true     |
+| id__v_text | text      | true     |
 
 On the other hand, if the `id` field was already a string, then introducing new data with `id` containing other types will not change the schema because they can be coerced to string.
 
@@ -431,7 +442,7 @@ assert (
 ```
 
 :::note
-This merging behavior applies to all column-level hints passed via `apply_hints`, not only to 
+This merging behavior applies to all column-level hints passed via `apply_hints`, not only to
 compound hints.
 :::
 
@@ -495,9 +506,9 @@ assert not pipeline.default_schema.tables["my_table"]["columns"]["col_2"].get(
 
 `time` data type is saved in the destination **without timezone info**; if timezone is included, time is converted to UTC and then to naive.
 
-
 ### Handling of timestamp and time zones
-By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set 
+
+By default, `dlt` normalizes timestamps (tz-aware and naive) into time zone aware types in UTC timezone. Since `1.16.0`, it fully honors the `timezone` boolean hint if set
 explicitly on a column or by a source/resource. Normalizers do not infer this hint from data. The same rules apply for tabular data (arrow/pandas/polars) and Python objects:
 
 | input timestamp | `timezone` hint | normalized timestamp  |
@@ -517,6 +528,7 @@ naive timestamps are **read as UTC**, system timezone settings are ignored by `d
 `dlt` stores values in UTC by default. `dlt` can also store them in another timezone, called the [context timezone](#context-timezone). That timezone then takes UTC's place in the table above.
 
 Ultimately, the destination will interpret the timestamp values. Some destinations:
+
 - do not support naive timestamps (i.e. BigQuery) and will interpret them as naive UTC by attaching UTC timezone
 - do not support tz-aware timestamps (i.e. Dremio, Athena) and will strip timezones from timestamps being loaded
 - do not store timezone at all and all timestamps are converted to UTC
@@ -526,6 +538,7 @@ Ultimately, the destination will interpret the timestamp values. Some destinatio
 `dlt` sets sessions to UTC timezone to minimize chances of erroneous conversion.
 
 ### Handling dates
+
 * `date` carries no timezone. `dlt` passes dates to the destination as calendar days.
 * `dlt` takes the day of a **timestamp** in UTC, or in the [context timezone](#context-timezone) when you set one. `dlt` shifts a tz-aware timestamp to that timezone first, and reads a naive timestamp in it. Two timestamps that are the same instant always give the same day.
 * `dlt` converts a `date` into a **timestamp** as midnight without a timezone. The timestamp rules above then apply, so a `date` becomes midnight UTC.
@@ -561,13 +574,13 @@ with Container().injectable_context(TimezoneContext("Europe/Berlin")):
 
 Reading the same four cases as the table above, under a `Europe/Berlin` context timezone:
 
-| input timestamp | `timezone` hint | stored value                                    |
-| --------------- | --------------- | ----------------------------------------------- |
-| naive           | `None`, `True`  | read as Berlin, so the instant moves            |
-| naive           | `False`         | untouched, nothing to convert                   |
+| input timestamp | `timezone` hint | stored value                                                                     |
+| --------------- | --------------- | -------------------------------------------------------------------------------- |
+| naive           | `None`, `True`  | read as Berlin, so the instant moves                                             |
+| naive           | `False`         | untouched, nothing to convert                                                    |
 | tz-aware        | `None`, `True`  | `Europe/Berlin` in load package, but destination can change the storage timezone |
-| tz-aware        | `False`         | converted to Berlin, then naive |
-|                 |                 |                                                 |
+| tz-aware        | `False`         | converted to Berlin, then naive                                                  |
+|                 |                 |                                                                                  |
 
 :::note
 This is not the destination's **session timezone**, which decides how a destination renders stored
@@ -576,16 +589,19 @@ section on your destination's page.
 :::
 
 ### Handling precision
+
 The precision and scale are interpreted by the particular destination and are validated when a column is created. Destinations that do not support precision for a given data type will ignore it.
 
 The precision for **bigint** is mapped to available integer types, i.e., TINYINT, INT, BIGINT. The default is 64 bits (8 bytes) precision (BIGINT).
 
 Selected destinations honor precision hint on **timestamp**. Precision is a numeric value in range of 0 (seconds) to 9 (nanoseconds) and sets the fractional
 number of seconds stored in a column. The default value is 6 (microseconds) which is Python `datetime` precision. `postgres`, `duckdb`, `snowflake`, `synapse` and `mssql` allow setting precision. Additionally, `duckdb` and `filesystem` (via parquet) allow for nanosecond precision if:
+
 * you configure [parquet version](../dlt-ecosystem/file-formats.md#writer-settings) to **2.6**
 * you yield tabular data (arrow tables/pandas/polars). `dlt` coerces all Python datetime objects into `pendulum` with microsecond precision.
 
 ### Handling nulls
+
 In general, destinations are responsible for NULL enforcement. `dlt` does not verify nullability of data in arrow tables and Python objects. Note that:
 
 * there's an exception to that rule if a Python object (`dict`) contains explicit `None` for a non-nullable key. This check will be eliminated. Note that if a value
@@ -593,20 +609,24 @@ for a key is not present at all, nullability check is not done
 * nullability is checked by Arrow when saving parquet files. This is a new behavior and `dlt` normalizes it for older arrow versions.
 
 ### Structured types
+
 `dlt` has experimental support for structured types that currently piggyback on `json` data type and may be set only by yielding arrow tables. `dlt` does not
 evolve nested types and will not migrate destination schemas to match. Nested types are enabled for `filesystem`, `iceberg`, `delta` and `lancedb` destinations.
-
 
 :::info
 You can materialize a schema in the destination without loading data.
 See [Materialize schema without loading data](resource.md#materialize-schema-without-loading-data).
 :::
+
 ## Table references
+
 `dlt` tables refer to other tables. It supports two types of such references:
+
 1. **Nested reference** created automatically when nested data (i.e., a `json` document containing a nested list) is converted into relational form. These references use specialized column and table hints and are used, for example, when [merging data](merge-loading.md).
 2. **Table references** are optional, user-defined annotations that are not verified and enforced but may be used by downstream tools, for example, to generate automatic tests or models for the loaded data.
 
 ### Nested references: root and nested tables
+
 When `dlt` normalizes nested data into a relational schema, it automatically creates [**root** and **nested** tables](destination-tables.md) and links them using **nested references**.
 
 1. All tables receive a column with the `row_key` hint (named `_dlt_id` by default) to uniquely identify each row of data.
@@ -616,6 +636,7 @@ When `dlt` normalizes nested data into a relational schema, it automatically cre
 `parent` + `row_key` + `parent_key` form a **nested reference**: from the nested table to the `parent` table and are extensively used when loading data. Both `replace` and `merge` write dispositions.
 
 `row_key` is created as follows:
+
 1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy), [`insert-only`](merge-loading.md#insert-only-strategy), and
 [`scd2`](merge-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of the `primary_key` (or whole row, so-called `content_hash`, if PK is not defined).
 2. A deterministic hash of `parent_key`, `parent` table name, and position in the list (`_dlt_list_idx`)
@@ -626,8 +647,10 @@ You are able to bring your own `row_key` by adding a `_dlt_id` column/field to y
 `merge` write disposition requires an additional nested reference that goes from **nested** to **root** table, skipping all parent tables in between. This reference is created by [adding a column with a hint](merge-loading.md#forcing-root-key-propagation) `root_key` (named `_dlt_root_id` by default) to nested tables.
 
 ### Generate custom linking for nested tables
+
 Using `nested_hints` in `@dlt.resource` you can model your own relations between root and nested tables. You do that by specifying `primary_key` or `merge_key` on
 a nested table.
+
 ```py execute
 import dlt
 from dlt.common import Decimal
@@ -695,6 +718,7 @@ print(dict(row_count))
 ```
 
 In the above example we effectively convert `customers__purchases` table into a top level table that is linked to `customers` table `id` column with `customer_id` foreign key.
+
 1. we declare compound primary key on `purchases` on (customer_id, id) columns
 2. we add a mapping function that will push the customer `id` to `purchases` as `customer_id`
 3. we declare table reference from `purchases` to `customers` (this is optional)
@@ -765,8 +789,8 @@ tables:
     resource: customers
 ```
 
+### Table reference hints
 
-### Table references
 You can annotate tables with table references. `@dlt.resource` implements `references` argument that declares table references. Those references
 are not enforced by `dlt`. See [example](#generate-custom-linking-for-nested-tables) above.
 
@@ -794,6 +818,7 @@ settings:
 ```
 
 Alternatively, you can add and remove detections from code:
+
 ```py
   source = data_source()
   # remove iso time detector
@@ -801,6 +826,7 @@ Alternatively, you can add and remove detections from code:
   # convert UNIX timestamp (float, within a year from NOW) into timestamp
   source.schema.add_type_detection("timestamp")
 ```
+
 Above, we modify a schema that comes with a source to detect UNIX timestamps with the **timestamp** detector.
 
 ### Column hint rules
@@ -827,13 +853,17 @@ settings:
     root_key:
       - _dlt_root_id
 ```
+
 Above, we require an exact column name match for a hint to apply. You can also use a regular expression (which we call `SimpleRegex`) as follows:
+
 ```yaml
 settings:
     partition:
       - re:_timestamp$
 ```
+
 Above, we add a `partition` hint to all columns ending with `_timestamp`. You can do the same thing in the code:
+
 ```py
   from dlt.common.schema.typing import TSimpleRegex
   
@@ -859,6 +889,7 @@ settings:
 
 Above, we prefer the `timestamp` data type for all columns containing the **timestamp** substring and define a few exact matches, i.e., **created_at**.
 Here's the same thing in code:
+
 ```py
 from dlt.common.schema.typing import TSimpleRegex
 
@@ -872,10 +903,13 @@ source.schema.update_preferred_types(
 }
 )
 ```
+
 ### Applying data types directly with `@dlt.resource` and `apply_hints`
+
 `dlt` offers the flexibility to directly apply data types and hints in your code, bypassing the need for importing and adjusting schemas. This approach is ideal for rapid prototyping and handling data sources with dynamic schema requirements.
 
 ### Direct specification in `@dlt.resource`
+
 Directly define data types and their properties, such as nullability, within the `@dlt.resource` decorator. This eliminates the dependency on external schema files. For example:
 
 ```py
@@ -885,9 +919,11 @@ def my_resource():
     for i in range(10):
         yield {'my_column': i % 2 == 0}
 ```
+
 This code snippet sets up a nullable boolean column named `my_column` directly in the decorator.
 
 #### Using `apply_hints`
+
 When dealing with dynamically generated resources or needing to programmatically set hints, `apply_hints` is your tool. It's especially useful for applying hints across various collections or tables at once.
 
 For example, to apply a `json` data type across all collections from a MongoDB source:
@@ -906,14 +942,17 @@ pipeline = dlt.pipeline(
 )
 load_info = pipeline.run(source_data)
 ```
+
 This example iterates through MongoDB collections, applying the **json** [data type](schema#data-types) to a specified column, and then processes the data with `pipeline.run`.
 
 ## View and print the schema
+
 To view and print the default schema in a clear YAML format, use the command:
 
 ```py
 pipeline.default_schema.to_pretty_yaml()
 ```
+
 This can be used in a pipeline as:
 
 ```py
@@ -929,6 +968,7 @@ load_info = pipeline.run(source)
 # Print the default schema in a pretty YAML format
 print(pipeline.default_schema.to_pretty_yaml())
 ```
+
 This will display a structured YAML representation of your schema, showing details like tables, columns, data types, and metadata, including version, version_hash, and engine_version.
 
 ## Export and import schema files

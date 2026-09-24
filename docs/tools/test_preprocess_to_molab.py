@@ -97,6 +97,7 @@ def test_add_inline_dependencies_to_content() -> None:
 #     "dlt[bigquery,postgres]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "requests",
 #     "sqlalchemy",
 # ]

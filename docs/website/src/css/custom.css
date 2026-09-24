@@ -932,3 +932,26 @@ and (max-height : 850px) {
   height: auto;
   border-radius: 8px;
 }
+
+.mermaid-td svg {
+  display: block;
+  margin: 0 auto;
+  max-height: 900px;
+  width: auto;
+  height: auto;
+}
+
+.doc-screenshot {
+  text-align: center;
+}
+
+.doc-screenshot img {
+  display: inline-block;
+  max-height: 500px;
+  width: auto;
+  height: auto;
+}
+
+.doc-screenshot--small img {
+  max-height: 400px;
+}

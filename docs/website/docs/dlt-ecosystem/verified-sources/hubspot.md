@@ -3,9 +3,9 @@ title: Hubspot
 description: dlt verified source for Hubspot API
 keywords: [hubspot api, hubspot verified source, hubspot]
 ---
-import Header from './_source-info-header.md';
-
 # HubSpot
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -50,8 +50,9 @@ Follow these steps:
 
 1. In the “Scopes” tab, grant:
 
-   - Read scopes for CMS, CRM, and Settings.
-   - Permissions for:
+  - Read scopes for CMS, CRM, and Settings.
+  - Permissions for:
+
     ```text
     business-intelligence, actions, crm.export, e-commerce, oauth, tickets
     ```
@@ -60,10 +61,8 @@ Follow these steps:
 
 1. Click "Show token" and store it for ".dlt/secrets.toml".
 
-
 > Note: The HubSpot UI, which is described here, might change.
 The full guide is available at [this link.](https://knowledge.hubspot.com/integrations/how-do-i-get-my-hubspot-api-key)
-
 
 ### Initialize the verified source
 
@@ -106,17 +105,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python hubspot_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `hubspot_pipeline`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -235,7 +240,8 @@ verified source.
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
-    1. `include_history` loads property change history and entities as separate tables. By default, it is set as False.
+
+  1. `include_history` loads property change history and entities as separate tables. By default, it is set as False.
 
 1. By default, all the custom properties of a CRM object are extracted. If you want only particular fields,
     set the flag `include_custom_props=False` and add a list of properties with the `props` arg.
@@ -254,7 +260,6 @@ verified source.
    load_info = pipeline.run(load_data.with_resources("contacts"))
    ```
 
-
 1. To load the web analytics events of a given object type.
 
    ```py notype
@@ -263,12 +268,14 @@ verified source.
    load_info = pipeline.run([resource])
    print(load_info)
    ```
-    1. This function uses "object_type" and "object_id" as arguments.
 
-    1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
+  1. This function uses "object_type" and "object_id" as arguments.
+
+  1. This function loads data incrementally and tracks the `occurred_at.last_value` parameter from
     the previous pipeline run. Refer to our official documentation for more information on [incremental loading](../../general-usage/incremental-loading.md).
 
 ### Additional info
+
 If you encounter the following error while processing your request:
 :::warning ERROR
 Your request to HubSpot is too long to process. The maximum allowed query length is 2000 symbols, while your list is
@@ -287,6 +294,7 @@ To change this, you can pass `include_custom_props=False` when initializing the 
 ```py notype
 info = p.run(hubspot(include_custom_props=False))
 ```
+
 Or, if you wish to include them, you can modify `settings.py`.
 
 <!--@@@DLT_TUBA hubspot-->

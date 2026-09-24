@@ -3,7 +3,6 @@ title: Introduction
 description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
-
 # Getting started
 
 :::info
@@ -33,9 +32,11 @@ pip install dlt
 
 :::tip Working with the dltHub platform?
 If you want the managed platform, AI harness, transformations, and data quality features, get started here:
+
 ```sh
 uvx dlthub-start@latest
 ```
+
 See [Deploy your first pipeline](hub/getting-started/onboarding.md) for a walkthrough, or the
 [dltHub docs](hub/getting-started/introduction.md) for the full picture.
 :::
@@ -89,8 +90,10 @@ load_info = pipeline.run(source)
 print(load_info)
 print(pipeline.dataset().posts.df())
 ```
+
 :::tip
 LLMs are great at generating REST API pipelines!
+
 * [Follow LLM tutorial](hub/ingestion/rest-api-source.md) and start with one of [5,000+ sources](https://dlthub.com/workspace)
 * Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
 :::

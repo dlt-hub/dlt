@@ -3,7 +3,6 @@ title: Destination
 description: Declare and configure destinations to which to load data
 keywords: [destination, load data, configure destination, name destination]
 ---
-
 # Destination
 
 [Destination](glossary.md#destination) is a location in which `dlt` creates and maintains the current version of the schema and loads your data. Destinations come in various forms: databases, datalakes, vector stores, or files. `dlt` deals with this variety via destination type modules which you declare when creating a pipeline.
@@ -11,9 +10,11 @@ keywords: [destination, load data, configure destination, name destination]
 We maintain a set of [built-in destinations](../dlt-ecosystem/destinations/) that you can use right away.
 
 ## Declare the destination type
+
 We recommend that you declare the destination type when creating a pipeline instance with `dlt.pipeline`. This allows the `run` method to synchronize your local pipeline state with the destination and `extract` and `normalize` to create compatible load packages and schemas. You can also pass the destination to the `run` and `load` methods.
 
 * Use destination **shorthand type**
+
 ```py
 import dlt
 
@@ -23,6 +24,7 @@ pipeline = dlt.pipeline("pipeline", destination="filesystem")
 Above, we want to use the **filesystem** built-in destination. You can use shorthand types only for built-ins.
 
 * Use a [**named destination**](#use-named-destinations) with a configured type
+
 ```py
 import os
 import dlt
@@ -35,6 +37,7 @@ pipeline = dlt.pipeline("pipeline", destination="my_destination")
 Above, we use a custom destination name and configure the destination type to **filesystem** using an environment variable. This approach is especially useful when switching between destinations without modifying the actual pipeline code. See details in the [section on using named destinations](#use-named-destinations-to-switch-destinations-without-changing-code).
 
 * Use full **destination factory type**
+
 ```py
 import dlt
 
@@ -44,6 +47,7 @@ pipeline = dlt.pipeline("pipeline", destination="dlt.destinations.filesystem")
 Above, we use the built-in **filesystem** destination by providing a factory type `filesystem` from the module `dlt.destinations`. You can implement [your own destination](../walkthroughs/create-new-destination.md) and pass this external module as well.
 
 * Import **destination factory**
+
 ```py
 import dlt
 from dlt.destinations import filesystem
@@ -56,7 +60,9 @@ Above, we import the destination factory for **filesystem** and pass it to the p
 All examples above will create the same destination class with default parameters and pull required config and secret values from [configuration](credentials/index.md) - they are equivalent.
 
 ### Pass explicit parameters and a name to a destination factory
+
 You can instantiate the **destination factory** yourself to configure it explicitly. When doing this, you work with destinations the same way you work with [sources](source.md)
+
 ```py
 import dlt
 from dlt.destinations import filesystem
@@ -71,11 +77,12 @@ Above, we import and instantiate the `filesystem` destination factory. We pass t
 
 If a destination is not named, its shorthand type (the Python factory name) serves as the destination name. Name your destination explicitly if you need several separate configurations for destinations of the same type (i.e., when you wish to maintain credentials for development, staging, and production storage buckets in the same config file). The destination name is also stored in the [load info](../running-in-production/running.md#inspect-and-save-the-load-info-and-trace) and pipeline traces, so use explicit names when you need more descriptive identifiers (rather than generic names like `filesystem`).
 
-
 ## Configure a destination
+
 We recommend passing the credentials and other required parameters to configuration via TOML files, environment variables, or other [config providers](credentials/setup). This allows you, for example, to easily switch to production destinations after deployment.
 
 Use the [default config section layout](credentials/advanced#organize-configuration-and-secrets-with-sections) as shown below:
+
 ```toml
 [destination.filesystem]
 bucket_url="az://dlt-azure-bucket"
@@ -85,6 +92,7 @@ azure_storage_account_key="storage key"
 ```
 
 Alternatively, you can use environment variables:
+
 ```sh
 DESTINATION__FILESYSTEM__BUCKET_URL=az://dlt-azure-bucket
 DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME=dltdata
@@ -92,6 +100,7 @@ DESTINATION__FILESYSTEM__CREDENTIALS__AZURE_STORAGE_ACCOUNT_KEY="storage key"
 ```
 
 When using destination factories, use the destination name in the config section:
+
 ```toml
 [destination.production_az_bucket]
 bucket_url="az://dlt-azure-bucket"
@@ -101,6 +110,7 @@ azure_storage_account_key="storage key"
 ```
 
 For custom destination names passed to your pipeline (e.g., `destination="my_destination"`), dlt resolves the destination type from configuration. Add `destination_type` to specify which destination type to use:
+
 ```toml
 [destination.my_destination]
 destination_type="filesystem"
@@ -110,13 +120,12 @@ azure_storage_account_name="dltdata"
 azure_storage_account_key="storage key"
 ```
 
-
 Note that when you use the `dlt init` command to create or add a data source, `dlt` creates a sample configuration for the selected destination.
 
-
-
 ### Pass explicit credentials
+
 You can pass credentials explicitly when creating a destination factory instance. This replaces the `credentials` argument in `dlt.pipeline` and `pipeline.load` methods, which is now deprecated. You can pass the required credentials object, its dictionary representation, or the supported native form like below:
+
 ```py
 import dlt
 from dlt.destinations import postgres
@@ -130,9 +139,9 @@ pipeline = dlt.pipeline(
 )
 ```
 
-
 :::tip
 You can create and pass partial credentials, and `dlt` will fill in the missing data. Below, we pass a PostgreSQL connection string but without a password and expect that it will be present in environment variables (or any other [config provider](credentials/setup))
+
 ```py
 import dlt
 from dlt.destinations import postgres
@@ -142,7 +151,6 @@ from dlt.destinations import postgres
 prod_postgres = postgres(credentials="postgresql://loader@localhost:5432/dlt_data")
 pipeline = dlt.pipeline("pipeline", destination=prod_postgres)
 ```
-
 
 ```py
 import dlt
@@ -158,12 +166,13 @@ pipeline = dlt.pipeline(
 )
 ```
 
-
 Please read how to use [various built-in credentials types](credentials/complex_types).
 :::
 
 ### Inspect destination capabilities
+
 [Destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) tell `dlt` what a given destination can and cannot do. For example, it tells which file formats it can load, what the maximum query or identifier length is. Inspect destination capabilities as follows:
+
 ```py execute
 import dlt
 pipeline = dlt.pipeline("snowflake_test", destination="snowflake")
@@ -175,7 +184,9 @@ print(capabilities["preferred_loader_file_format"])
 ```
 
 ### Pass additional parameters and change destination capabilities
+
 The destination factory accepts additional parameters that will be used to pre-configure it and change destination capabilities.
+
 ```py execute
 import dlt
 destination = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
@@ -184,8 +195,8 @@ capabilities = dict(destination.capabilities())
 assert capabilities["naming_convention"] == "duck_case"
 assert capabilities["recommended_file_size"] == 120000
 ```
-The example above is overriding the `naming_convention` and `recommended_file_size` in the destination capabilities.
 
+The example above is overriding the `naming_convention` and `recommended_file_size` in the destination capabilities.
 
 ## Use named destinations
 
@@ -237,6 +248,7 @@ When resolving non-module destination string references (e.g., `"bigquery"` or `
 This means that, in the examples above, if the destination type was not properly configured or was not a valid destination type, dlt would have attempted to resolve `"my_destination"` as a shorthand for a built-in type and would have eventually failed.
 
 As another example, the following:
+
 ```py
 import os
 import dlt
@@ -245,12 +257,12 @@ os.environ["DESTINATION__BIGQUERY__DESTINATION_TYPE"] = "duckdb"
 
 pipeline = dlt.pipeline("pipeline", destination="bigquery")
 ```
+
 will be resolved as a DuckDB destination that is named `"bigquery"`, because a valid destination type `"duckdb"` is configured and dlt does not attempt to resolve the name `"bigquery"` as a shorthand for a built-in type!
 
 **Exception:** If `dlt.destination()` is used and the `destination_type` is explicitly provided as an argument, dlt will skip the shorthand fallback and only attempt named destination resolution.
 
 :::
-
 
 ### Configure multiple destinations of the same type
 
@@ -273,6 +285,7 @@ client_email = "please set me up!"
 ```
 
 And use it in the pipeline code as follows:
+
 ```py
 import dlt
 
@@ -325,9 +338,10 @@ client_email = "please set me up!"
 
 And keep the pipeline code intact.
 
-
 ## Access a destination
+
 When loading data, `dlt` will access the destination in two cases:
+
 1. At the beginning of the `run` method to sync the pipeline state with the destination (or if you call `pipeline.sync_destination` explicitly).
 2. In the `pipeline.load` method - to migrate the schema and load the load package.
 
@@ -357,10 +371,12 @@ pipeline.load(destination=filesystem(bucket_url=bucket_url))
 :::
 
 ## Control how `dlt` creates table, column, and other identifiers
+
 `dlt` maps identifiers found in the source data into destination identifiers (i.e., table and column names) using [naming conventions](naming-convention.md) which ensure that
 character set, identifier length, and other properties fit into what the given destination can handle. For example, our [default naming convention (**snake case**)](./naming-convention.md#use-default-naming-convention-snake_case) converts all names in the source (i.e., JSON document fields) into snake case, case-insensitive identifiers.
 
 Each destination declares its preferred naming convention, support for case-sensitive identifiers, and case folding function that case-insensitive identifiers follow. For example:
+
 1. Redshift - by default, does not support case-sensitive identifiers and converts all of them to lower case.
 2. Snowflake - supports case-sensitive identifiers and considers upper-cased identifiers as case-insensitive (which is the default case folding).
 3. DuckDb - does not support case-sensitive identifiers but does not case fold them, so it preserves the original casing in the information schema.
@@ -368,10 +384,12 @@ Each destination declares its preferred naming convention, support for case-sens
 5. BigQuery - all identifiers are case-sensitive; there's no case-insensitive mode available via case folding (but it can be enabled at the dataset level).
 
 You can change the naming convention used in [many different ways](naming-convention.md#configure-naming-convention). Below, we set the preferred naming convention on the Snowflake destination to `sql_cs` to switch Snowflake to case-sensitive mode:
+
 ```py
 import dlt
 snow_ = dlt.destinations.snowflake(naming_convention="sql_cs_v1")
 ```
+
 Setting the naming convention will impact all new schemas being created (i.e., on the first pipeline run) and will re-normalize all existing identifiers.
 
 :::warning
@@ -384,19 +402,24 @@ Destinations that support case-sensitive identifiers but use a case folding conv
 
 :::warning
 If you use a case-sensitive naming convention with a case-insensitive destination, `dlt` will:
+
 1. Fail the load if it detects an identifier collision due to case folding.
 2. Warn if any case folding is applied by the destination.
 :::
 
 ### Enable case-sensitive identifiers support
+
 Selected destinations may be configured so they start accepting case-sensitive identifiers. For example, it is possible to set case-sensitive collation on an **mssql** database and then tell `dlt` about it.
+
 ```py
 from dlt.destinations import mssql
 dest_ = mssql(has_case_sensitive_identifiers=True, naming_convention="sql_cs_v1")
 ```
+
 Above, we can safely use a case-sensitive naming convention without worrying about name collisions.
 
 You can configure the case sensitivity, **but configuring destination capabilities is not currently supported**.
+
 ```toml
 [destination.mssql]
 has_case_sensitive_identifiers=true
@@ -407,6 +430,7 @@ In most cases, setting the flag above just indicates to `dlt` that you switched 
 :::
 
 ## Writing to the destination
+
 ### Destination schema
 
 The destination schema (i.e., database schema) is a collection of tables that represent the data you loaded into the database.
@@ -491,18 +515,18 @@ Running this pipeline will create two tables in the destination, `users` (**root
 
 **mydata.users**
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
-| 2 | Bob | rX8ybgTeEmAmmA | 1234562350.98417 |
+| id  | name  | _dlt_id        | _dlt_load_id     |
+| --- | ----- | -------------- | ---------------- |
+| 1   | Alice | wX3f5vn801W16A | 1234562350.98417 |
+| 2   | Bob   | rX8ybgTeEmAmmA | 1234562350.98417 |
 
 **mydata.users__pets**
 
-| id | name | type | _dlt_id | _dlt_parent_id | _dlt_list_idx |
-| --- | --- | --- | --- | --- | --- |
-| 1 | Fluffy | cat | w1n0PEDzuP3grw | wX3f5vn801W16A | 0 |
-| 2 | Spot | dog | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1 |
-| 3 | Fido | dog | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0 |
+| id  | name   | type | _dlt_id        | _dlt_parent_id | _dlt_list_idx |
+| --- | ------ | ---- | -------------- | -------------- | ------------- |
+| 1   | Fluffy | cat  | w1n0PEDzuP3grw | wX3f5vn801W16A | 0             |
+| 2   | Spot   | dog  | 9uxh36VU9lqKpw | wX3f5vn801W16A | 1             |
+| 3   | Fido   | dog  | pe3FVtCWz8VuNA | rX8ybgTeEmAmmA | 0             |
 
 When inferring a database schema, dlt maps the structure of Python objects (i.e., from parsed JSON files) into nested tables and creates references between them.
 
@@ -520,6 +544,7 @@ This is how it works:
 During a pipeline run, dlt [normalizes both table and column names](schema.md#naming-convention) to ensure compatibility with the destination database's accepted format. All names from your source data will be transformed into snake_case and will only include alphanumeric characters. Please be aware that the names in the destination database may differ somewhat from those in your original input.
 
 ## Variant columns
+
 If your data has inconsistent types, `dlt` will dispatch the data to several **variant columns**. For example, if you have a resource (i.e., a JSON file) with a field named `answer` and your data contains boolean values, you will get a column named `answer` of type `BOOLEAN` in your destination. If, for some reason, on the next load, you get integer and string values in `answer`, the inconsistent data will go to `answer__v_bigint` and `answer__v_text` columns respectively.
 The general naming rule for variant columns is `<original name>__v_<type>` where `original_name` is the existing column name (with data type clash) and `type` is the name of the data type stored in the variant.
 
@@ -543,20 +568,20 @@ The rest of the pipeline definition remains the same. Running this pipeline will
 
 **mydata.users**
 
-| id | name | _dlt_id | _dlt_load_id |
-| --- | --- | --- | --- |
-| 1 | Alice | wX3f5vn801W16A | 1234562350.98417 |
-| 2 | Bob | rX8ybgTeEmAmmA | 1234562350.98417 |
-| 3 | Charlie | h8lehZEvT3fASQ | **1234563456.12345** |
+| id  | name    | _dlt_id        | _dlt_load_id         |
+| --- | ------- | -------------- | -------------------- |
+| 1   | Alice   | wX3f5vn801W16A | 1234562350.98417     |
+| 2   | Bob     | rX8ybgTeEmAmmA | 1234562350.98417     |
+| 3   | Charlie | h8lehZEvT3fASQ | **1234563456.12345** |
 
 The `_dlt_loads` table will look like this:
 
 **mydata._dlt_loads**
 
-| load_id | schema_name | status | inserted_at | schema_version_hash |
-| --- | --- | --- | --- | --- |
-| 1234562350.98417 | quick_start | 0 | 2023-09-12 16:45:51.17865+00 | aOEb...Qekd/58= |
-| **1234563456.12345** | quick_start | 0 | 2023-09-12 16:46:03.10662+00 | aOEb...Qekd/58= |
+| load_id              | schema_name | status | inserted_at                  | schema_version_hash |
+| -------------------- | ----------- | ------ | ---------------------------- | ------------------- |
+| 1234562350.98417     | quick_start | 0      | 2023-09-12 16:45:51.17865+00 | aOEb...Qekd/58=     |
+| **1234563456.12345** | quick_start | 0      | 2023-09-12 16:46:03.10662+00 | aOEb...Qekd/58=     |
 
 The `_dlt_loads` table tracks complete loads and allows chaining transformations on top of them. Many destinations do not support distributed and long-running transactions (e.g., Amazon Redshift). In that case, the user may see the partially loaded data. It is possible to filter such data out: any row with a `load_id` that does not exist in `_dlt_loads` is not yet completed. The same procedure may be used to identify and delete data for packages that never got completed.
 
@@ -651,7 +676,9 @@ A few things to know or keep in mind when using the filesystem SQL client:
 - Multi-schema support (dlt 1.25.0+): When a dataset includes multiple schemas, the filesystem SQL client creates views that span all schemas. If the same table name exists in multiple schemas at different physical locations (e.g. when the layout includes `{schema_name}/`), views are combined. If they share the same location, columns are merged into a single view. This means queries may return rows from multiple schemas — use `pipeline.dataset(schema="name")` to restrict to one schema.
 
 #### Refresh SQL client data view
+
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
+
 * globbing the table files once - when view is created
 * using the newest iceberg metadata to create view
 
@@ -693,19 +720,21 @@ make them `nullable`, then fill in values for the existing rows. Some databases 
 that is `non-nullable` and take a default value for existing rows in the same command. The columns you will need to
 create are:
 
-| name | type |
-| --- | --- |
+| name         | type                |
+| ------------ | ------------------- |
 | _dlt_load_id | text/string/varchar |
-| _dlt_id | text/string/varchar |
+| _dlt_id      | text/string/varchar |
 
 For nested tables, you may also need to create:
 
-| name | type |
-| --- | --- |
+| name           | type                |
+| -------------- | ------------------- |
 | _dlt_parent_id | text/string/varchar |
-| _dlt_root_id | text/string/varchar |
+| _dlt_root_id   | text/string/varchar |
 
 ## Create a new destination
+
 You have two ways to implement a new destination:
+
 1. You can use the `@dlt.destination` decorator and [implement a sink function](../dlt-ecosystem/destinations/destination.md). This is a perfect way to implement reverse ETL destinations that push data back to REST APIs.
 2. You can implement [a full destination](../walkthroughs/create-new-destination.md) where you have full control over load jobs and schema migration.

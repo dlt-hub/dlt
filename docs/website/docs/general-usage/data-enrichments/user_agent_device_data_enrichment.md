@@ -3,7 +3,6 @@ title:  User-agent device data enrichment
 description: Enriching the user-agent device data with average device price.
 keywords: [data enrichment, user-agent data, device enrichment]
 ---
-
 # Data enrichment part one: User-agent device data enrichment
 
 Data enrichment enhances raw data with valuable information from multiple sources, increasing its analytical and decision-making value.
@@ -20,17 +19,19 @@ We use SerpAPI to retrieve device prices using Google Shopping, but alternative 
 SerpAPI's free tier offers 100 free calls monthly. For production, consider upgrading to a higher plan.
 :::
 
-
 ## Creating a data enrichment pipeline
+
 You can either follow the example in the linked Colab notebook or follow this documentation to create the user-agent device data enrichment pipeline.
 
 ### A. Colab notebook
+
 The Colab notebook combines three data enrichment processes for a sample dataset, starting with "Data enrichment part one: User-agent device data".
 
 Here's the link to the notebook:
 **[Colab Notebook](https://colab.research.google.com/drive/1ZKEkf1LRSld7CWQFS36fUXjhJKPAon7P?usp=sharing).**
 
 ### B. Create a pipeline
+
 Alternatively, to create a data enrichment pipeline, you can start by creating the following directory structure:
 
 ```text
@@ -110,6 +111,7 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 1. Replace the value of the `api_key`.
 
 1. Create the `fetch_average_price()` function as follows:
+
    ```py
    import datetime
 
@@ -211,8 +213,9 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
 ### 3. Create your pipeline
 
 1. In creating the pipeline, the `fetch_average_price` can be used in the following ways:
-   - Add map function
-   - Transformer function
+
+  - Add map function
+  - Transformer function
 
    The `dlt` library's `transformer` and `add_map` functions serve distinct purposes in data
    processing.
@@ -226,7 +229,6 @@ The first step is to register on [SerpAPI](https://serpapi.com/) and obtain the 
    can be found under
    [Customize resources](../../general-usage/resource#customize-resources) in the
    documentation.
-
 
 1. Here, we create the pipeline and use the `add_map` functionality:
 

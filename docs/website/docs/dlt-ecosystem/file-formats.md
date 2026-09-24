@@ -3,7 +3,6 @@ title: Loader file format
 description: Loader file format determines how data is prepared and written to the destination by the pipeline
 keywords: [loader file format, jsonl, parquet, csv, insert-values, insert]
 ---
-
 # Loader file format
 
 ## Configure
@@ -25,7 +24,9 @@ pip install "dlt[parquet]"
 ```
 
 ### Destination autoconfig
+
 `dlt` uses [destination capabilities](../walkthroughs/create-new-destination.md#3-set-the-destination-capabilities) to configure the parquet writer:
+
 * It uses decimal and wei precision to pick the right **decimal type** and sets precision and scale.
 * It uses timestamp precision to pick the right **timestamp type** resolution (seconds, microseconds, or nanoseconds).
 * It uses `supports_dictionary_encoding` to control whether constant columns (like `_dlt_load_id`) use dictionary-encoded Arrow arrays. Dictionary encoding is memory-efficient for repeated values but not supported by all destinations. Defaults to `true`.
@@ -88,18 +89,18 @@ When your source/resource yields arrow tables / pandas DataFrames / polars DataF
 Find more similar examples [here](../reference/performance.md#extract)
 :::
 
-
-
 ### Timestamps and timezones
+
 `dlt` adds a timezone (UTC adjustment) to a timestamp column at every precision, from seconds to nanoseconds. `dlt` also creates TZ-aware timestamp columns in the destinations. [DuckDB is an exception here](./destinations/duckdb.md#supported-file-formats). A column with the `timezone` hint set to `False` stays naive, and the [context timezone](../general-usage/schema.md#context-timezone) decides which timezone `dlt` uses.
 
 #### Disable timezones / UTC adjustment flags
+
 You can generate parquet files without timezone adjustment information in two ways:
+
 1. Set the **flavor** to spark. All timestamps will be generated via the deprecated `int96` physical data type, without the logical one.
 2. Set `timestamp_timezone` to an empty string (`DATA_WRITER__TIMESTAMP_TIMEZONE=""`) to generate a logical type without UTC adjustment.
 
 To our best knowledge, Arrow will convert your timezone-aware DateTime(s) to UTC and store them in parquet without timezone information.
-
 
 ### Row group size
 
@@ -114,18 +115,20 @@ Keep in mind that `dlt` holds the tables in memory. Thus, 10,000,000 rows in the
 
 The `row_group_size` configuration setting has limited utility with the `pyarrow` writer. It may be useful when you write single very large pyarrow tables or when your in-memory buffer is really large.
 
-
 ## CSV
 
 **CSV** is the most basic file format for storing tabular data, where all values are strings and are separated by a delimiter (typically a comma).
 `dlt` uses it for specific use cases - mostly for performance and compatibility reasons.
 
 Internally, we use two implementations, picked based on the shape of the data items:
+
 - [Python standard library CSV writer](https://docs.python.org/3/library/csv.html) - used when resources yield Python objects (dicts)
 - PyArrow CSV writer - a very fast, multithreaded writer, used when resources yield [Arrow tables, pandas DataFrames, or polars DataFrames](./verified-sources/arrow-pandas.md)
 
 ### Settings
+
 `dlt` attempts to make both writers generate similarly looking files:
+
 * separators are commas
 * quotes are **"** and are escaped as **""**
 * `NULL` values are both empty strings and empty tokens as in the example below
@@ -134,6 +137,7 @@ Internally, we use two implementations, picked based on the shape of the data it
 * quoting style is "when needed"
 
 Example of NULLs:
+
 ```sh
 text1,text2,text3
 A,B,C
@@ -146,6 +150,7 @@ is not able to write unquoted `None` values, so we had to settle for `""`.
 Note: all destinations that support the `csv` format accept files written with the standard settings above.
 
 #### Write settings
+
 The settings below control how `dlt` writes `csv` files during **normalize** and are configured in the `[normalize.data_writer]` section. Changing them may be handy when working with the `filesystem` destination. Other destinations are tested
 with standard settings:
 
@@ -156,16 +161,16 @@ with standard settings:
 * `encoding_errors`: how characters that cannot be represented in `encoding` are treated (default: `strict` - the load fails). Use a [Python error handler name](https://docs.python.org/3/library/codecs.html#error-handlers), e.g., `replace` to substitute them with `?` or `backslashreplace` to keep them as escape sequences
 * `quoting`: controls when quotes should be generated around field values. Available options:
 
-    - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
-      - Python CSV writer: All non-numeric values are quoted
-      - PyArrow CSV writer: The exact behavior is not fully documented. We observed that in some cases, strings are not quoted as well
-    - `quote_all`: all values are quoted
-      - Supported by both Python CSV writer and PyArrow CSV writer
-    - `quote_minimal`: quote only fields containing special characters (delimiter, quote character, or line terminator)
-      - Supported by Python CSV writer only
-    - `quote_none`: never quote fields
-        - Python CSV writer: Uses escape character when delimiter appears in data
-        - PyArrow CSV writer: Raises an error if data contains special characters
+  - `quote_needed` (default): quote only values that need quoting, i.e., non-numeric values
+    - Python CSV writer: All non-numeric values are quoted
+    - PyArrow CSV writer: The exact behavior is not fully documented. We observed that in some cases, strings are not quoted as well
+  - `quote_all`: all values are quoted
+    - Supported by both Python CSV writer and PyArrow CSV writer
+  - `quote_minimal`: quote only fields containing special characters (delimiter, quote character, or line terminator)
+    - Supported by Python CSV writer only
+  - `quote_none`: never quote fields
+    - Python CSV writer: Uses escape character when delimiter appears in data
+    - PyArrow CSV writer: Raises an error if data contains special characters
 
 ```toml
 [normalize.data_writer]
@@ -189,6 +194,7 @@ NORMALIZE__DATA_WRITER__ENCODING=latin-1
 Note the `"$"` prefix before `"\r\n"` to escape the newline character when using environment variables.
 
 #### Read settings
+
 Destinations that copy `csv` files into tables (**postgres** and **snowflake**) read them according to their own `csv_format` configuration. These settings do not change how `dlt` writes files - they describe the file the destination is loading and are set on the destination, e.g.:
 
 ```toml
@@ -198,6 +204,7 @@ encoding="latin-1"
 ```
 
 When reading, `encoding` tells the destination how to decode the `csv` file (default: `utf-8`) and one option is used only when reading:
+
 * `on_error_continue`: skip lines with errors (only Snowflake)
 
 `csv_format` also accepts the write settings above - set them when the file being loaded deviates from the defaults, e.g., uses a different delimiter or has no header row.
@@ -213,12 +220,14 @@ If you nevertheless combine a custom write encoding with a database destination,
 :::
 
 ### Limitations
-**arrow writer**
+
+#### arrow writer
 
 * binary columns are supported only if they contain valid UTF-8 characters
 * json (nested, struct) types are not supported
 
-**csv writer**
+#### csv writer
+
 * binary columns are supported only if they contain valid UTF-8 characters (easy to add more encodings)
 * json columns dumped with json.dumps
 * **None** values are always quoted

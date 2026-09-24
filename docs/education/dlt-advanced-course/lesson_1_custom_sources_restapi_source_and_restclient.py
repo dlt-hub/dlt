@@ -3,6 +3,7 @@
 #     "dlt[duckdb]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///
@@ -69,7 +70,7 @@ def _():
     from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
     from dlt.sources.helpers.rest_client.paginators import HeaderLinkPaginator
 
-    dlt.secrets["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
+    os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
 
     @dlt.source
     def github_source(access_token: str = dlt.secrets.value) -> Iterable[DltResource]:
@@ -85,11 +86,11 @@ def _():
                 yield page
 
         @dlt.resource
-        def github_stargazers() -> Iterator[TDataItems]:
-            for page in client.paginate("repos/dlt-hub/dlt/stargazers"):
+        def github_issue_comments() -> Iterator[TDataItems]:
+            for page in client.paginate("repos/dlt-hub/dlt/issues/comments"):
                 yield page
 
-        return (github_events, github_stargazers)
+        return (github_events, github_issue_comments)
 
     pipeline = dlt.pipeline(
         pipeline_name="rest_client_github",
@@ -218,7 +219,7 @@ def _(mo):
 
 @app.cell
 def _(BearerTokenAuth, HeaderLinkPaginator, RESTClient, dlt, os):
-    dlt.secrets["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
+    os.environ["ACCESS_TOKEN"] = os.getenv("ACCESS_TOKEN")
     client = RESTClient(
         base_url="https://api.github.com",
         headers={"User-Agent": "MyApp/1.0"},
@@ -581,7 +582,7 @@ def _(
     dlt,
     os,
 ):
-    dlt.secrets["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
+    os.environ["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
 
     @dlt.resource(write_disposition="replace", name="python_articles")
     def get_articles(news_api_key: str = dlt.secrets.value) -> Iterator[TDataItems]:
@@ -620,7 +621,7 @@ def _(
     dlt,
     os,
 ):
-    dlt.secrets["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
+    os.environ["NEWS_API_KEY"] = os.getenv("NEWS_API_KEY")
 
     @dlt.resource(write_disposition="replace", name="top_articles")
     def get_top_articles(news_api_key: str = dlt.secrets.value) -> Iterator[TDataItems]:

@@ -3,9 +3,9 @@ title: Dataframe (pandas, pyarrow, polars)
 description: dlt source for Arrow tables, Pandas dataframes, and Polars DataFrames
 keywords: [arrow, pandas, polars, parquet, source, schema mismatch]
 ---
-import Header from './_source-info-header.md';
-
 # Arrow table / Pandas / Polars
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -39,6 +39,7 @@ pipeline = dlt.pipeline("orders_pipeline", destination="snowflake")
 
 pipeline.run(df, table_name="orders")
 ```
+
 Note that Pandas indexes are not saved by default (up from `dlt` version 1.4.1). If for some reason you need the destination,
 use `Table.from_pandas` with `preserve_index` set to True to explicitly convert the dataframe into arrow table.
 
@@ -100,6 +101,7 @@ as it requires processing the table row by row and rewriting data to disk.
 The output file format is chosen automatically based on the destination's capabilities, so you can load arrow, pandas, or polars frames to any destination, but performance will vary.
 
 ### Destinations that support parquet natively for direct loading
+
 * duckdb / motherduck / ducklake
 * redshift
 * bigquery
@@ -111,18 +113,17 @@ The output file format is chosen automatically based on the destination's capabi
 * synapse
 * lance/lancedb
 
-
 ## Handling schema mismatches across batches
 
 When a resource yields multiple Arrow tables, DataFrames, or Polars DataFrames, `dlt` concatenates them before writing to disk. By default, all batches must have **identical schemas** — any type difference (e.g., `int64` vs `float64`) raises an `ArrowInvalid` error. This is common when reading multiple source files where pandas infers slightly different types per file.
 
 The `arrow_concat_promote_options` setting controls how type differences are resolved:
 
-| Value | Behavior |
-|-------|----------|
-| `"none"` (default) | Requires identical schemas (zero-copy concatenation). Any schema difference — type **or** nullability — fails with a clear error and the file is **not** rotated. |
-| `"default"` | Reconciles nullability but allows **no** type differences: a parquet file is rotated on any type change. Lossless. |
-| `"permissive"` | If a unified schema exists (a common type exists for every column across all schemas), performs an **unsafe** cast of each batch into the first encountered schema — which may lose data/precision. Rotates only when no unified schema exists (e.g. cross-family types such as `timestamp` vs `int`). |
+| Value              | Behavior                                                                                                                                                                                                                                                                                               |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `"none"` (default) | Requires identical schemas (zero-copy concatenation). Any schema difference — type **or** nullability — fails with a clear error and the file is **not** rotated.                                                                                                                                      |
+| `"default"`        | Reconciles nullability but allows **no** type differences: a parquet file is rotated on any type change. Lossless.                                                                                                                                                                                     |
+| `"permissive"`     | If a unified schema exists (a common type exists for every column across all schemas), performs an **unsafe** cast of each batch into the first encountered schema — which may lose data/precision. Rotates only when no unified schema exists (e.g. cross-family types such as `timestamp` vs `int`). |
 
 In every mode the **first schema written to a file wins** — later batches are cast into it (or rotated to a new file) — and that first schema's metadata is preserved.
 
@@ -134,7 +135,8 @@ arrow_concat_promote_options = "permissive"
 ```sh
 DATA_WRITER__ARROW_CONCAT_PROMOTE_OPTIONS=permissive
 ```
-`dlt` will concatenate and cast batches according to promotion settings. 
+
+`dlt` will concatenate and cast batches according to promotion settings.
 If schema promotion is not possible - file will be rotated and incompatible batches will be split over many parquet files. A final data
 coercion will be performed by particular destination.
 
@@ -195,7 +197,9 @@ Look at the [Connector X + Arrow Example](../../examples/connector_x_arrow/) to 
 :::
 
 ## Loading JSON documents
+
 If you want to skip the default `dlt` JSON normalizer, you can use any available method to convert JSON documents into tabular data.
+
 * **pandas** has `read_json` and `json_normalize` methods
 * **pyarrow** can infer the table schema and convert JSON files into tables with `read_json`
 * **duckdb** can do the same with `read_json_auto`
@@ -214,7 +218,7 @@ Note that **duckdb** and **pyarrow** methods will generate [nested types](#loadi
 The Arrow data types are translated to dlt data types as follows:
 
 | Arrow type        | dlt type    | Notes                                                      |
-|-------------------|-------------|------------------------------------------------------------|
+| ----------------- | ----------- | ---------------------------------------------------------- |
 | `string`          | `text`      |                                                            |
 | `float`/`double`  | `double`    |                                                            |
 | `boolean`         | `bool`      |                                                            |
@@ -227,12 +231,13 @@ The Arrow data types are translated to dlt data types as follows:
 | `struct`          | `json`      |                                                            |
 |                   |             |                                                            |
 
-
 ## Loading nested types
+
 All struct types are represented as `json` and will be loaded as JSON (if the destination permits) or a string. Currently, we do not support **struct** types,
 even if they are present in the destination (except **BigQuery** which can be [configured to handle them](../destinations/bigquery.md#use-bigquery-schema-autodetect-for-nested-fields))
 
 If you want to represent nested data as separate tables, you must yield DataFrames and Arrow tables as records. In the examples above:
+
 ```py notype
 # yield pandas DataFrame as records
 pipeline.run(df.to_dict(orient='records'), table_name="orders")
@@ -243,4 +248,5 @@ pipeline.run(table.to_pylist(), table_name="orders")
 # yield polars DataFrame as records
 pipeline.run(df.to_dicts(), table_name="orders")
 ```
+
 Pandas, Arrow and Polars all allow streaming records in batches.

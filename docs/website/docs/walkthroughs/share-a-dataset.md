@@ -3,7 +3,6 @@ title: 'Moving from local to production'
 description: Share a local dataset by moving it to BigQuery
 keywords: [how to, share a dataset]
 ---
-
 # Moving from local to production
 
 In previous how-to guides, you used the local stack to create and run your pipeline. This saved you
@@ -84,10 +83,12 @@ The most common cases for the exception:
 
 1. The secrets are not in `secrets.toml` at all.
 1. They are placed in the wrong section. For example, the fragment below will not work:
+
   ```toml
   [destination.bigquery] # 'credentials' missed
   project_id = "project_id"
   ```
+
 1. You run the pipeline script from a **different** folder from which it is saved. For example,
    `python chess_demo/chess_pipeline.py` will run the script from the `chess_demo` folder but the
    current working directory is the folder above. This prevents `dlt` from finding
@@ -157,4 +158,3 @@ or
 ```
 
 you must enable billing.
-

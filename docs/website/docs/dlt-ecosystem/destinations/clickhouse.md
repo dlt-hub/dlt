@@ -3,12 +3,11 @@ title: ClickHouse
 description: ClickHouse `dlt` destination
 keywords: [ clickhouse, destination, data warehouse ]
 ---
-
 # ClickHouse
 
 ## Install dlt with ClickHouse
 
-**To install the DLT library with ClickHouse dependencies:**
+To install the dlt library with ClickHouse dependencies:
 
 ```sh
 pip install "dlt[clickhouse]"
@@ -78,8 +77,8 @@ To load data into ClickHouse, you need to create a ClickHouse database. While we
 
     Make sure your ClickHouse server is configured to accept HTTP connections on the port specified by `http_port`. For example:
 
-   - If you set `http_port = 8123` (default non-secure HTTP port), then ClickHouse should be listening for HTTP requests on port 8123.
-   - If you set `http_port = 8443`, then ClickHouse should be listening for secure HTTPS requests on port 8443.
+  - If you set `http_port = 8123` (default non-secure HTTP port), then ClickHouse should be listening for HTTP requests on port 8123.
+  - If you set `http_port = 8443`, then ClickHouse should be listening for secure HTTPS requests on port 8443.
 
    If you're using external staging, you can omit the `http_port` parameter, since clickhouse-connect will not be used in this case.
 
@@ -109,9 +108,11 @@ select_sequential_consistency = 1                       # Ensures read-after-wri
 ```
 
 ### Session timezone
+
 ClickHouse uses the server timezone unless you set one. `session_timezone` sets it per connection. It
 does not change the column types that `CREATE TABLE` produces: `dlt` writes the zone into the type
 itself, as `DateTime64(6, 'UTC')`.
+
 ```toml
 [destination.clickhouse.credentials]
 session_timezone = "Europe/Berlin"
@@ -290,6 +291,7 @@ This is different from dlt's `merge` write disposition, which deduplicates immed
 :::
 
 ## Sorting and partitioning
+
 You can use the `clickhouse_adapter` to specify a [sorting](https://clickhouse.com/docs/engines/table-engines/mergetree-family/mergetree#order_by) and/or [partition](https://clickhouse.com/docs/engines/table-engines/mergetree-family/custom-partitioning-key) key:
 
 ```py
@@ -307,6 +309,7 @@ clickhouse_adapter(
 ```
 
 `sort` and `partition` are used to generate the `ORDER BY` and `PARTITION BY` clauses of the table creation statement, and they accept either a **sequence of column names** or a **SQL expression**:
+
 1. **sequence of column names:** recommended if column transformations are not required
 2. **SQL expression:** use if column transformations are required
 
@@ -383,20 +386,24 @@ clickhouse_adapter(my_resource, partition="toYYYYMMDD(TIMESTAMP)")  # WRONG: non
 ```
 
 :::note
+
 - The sorting/partitioning key can only be set when the table is first created. The value for `sort`/`partition` is ignored for existing tables.
 - We explicitly mark the sorting/partition columns as **not nullable** in the examples above, because, by default, ClickHouse does not allow nullable columns in the sorting/partition key. Set `allow_nullable_key` to `True` in your [table settings](#mergetree-table-settings) if you insist on nullable key columns.
 :::
 
 ### `sort` and `partition` column hints
+
 `dlt` automatically creates `sort`/`partition` [column hints](../../general-usage/schema.md#tables-and-columns) for columns present in the `sort`/`partition` value provided to `clickhouse_adapter` (when this value is a SQL expression, we parse it to extract the column names).
 
 Although it's possible to set `sort`/`partition` column hints directly, we recommend using `clickhouse_adapter` instead.
 
 If you still choose to set `sort`/`partition` column hints yourself, know that:
+
 - columns are added to the `ORDER BY`/`PARTITION BY` clause in order of appearance in the schema
 - they may be overridden/removed if you also use `clickhouse_adapter`: the adapter takes precedence, and it will set column hints in accordance with the values provided to its `sort`/`partition` parameters
 
 ## MergeTree table settings
+
 Use the `settings` parameter of the `clickhouse_adapter` to specify [MergeTree settings](https://clickhouse.com/docs/operations/settings/merge-tree-settings) for the table:
 
 ```py
@@ -425,6 +432,7 @@ SETTINGS allow_nullable_key = true, max_suspicious_broken_parts = 500, deduplica
 ```
 
 ## Column codecs
+
 Use the `codecs` parameter of the `clickhouse_adapter` to specify [codecs](https://clickhouse.com/docs/sql-reference/statements/create/table#column_compression_codec) for the table's columns:
 
 ```py
@@ -516,6 +524,7 @@ dlt's staging mechanisms for ClickHouse.
 
 When using S3 for a staging area you can alternatively have ClickHouse authenticate using Role-based access with the
 [supported](https://clickhouse.com/docs/sql-reference/table-functions/s3#using-s3-credentials-clickhouse-cloud) `extra_credentials` argument by setting this with the destination credentials:
+
 ```py
 import dlt
 from dlt.destinations import clickhouse

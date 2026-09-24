@@ -3,7 +3,6 @@ title: Pipeline and dataset troubleshooting
 description: Troubleshoot pipelines and inspect loaded datasets using the local dltHub dashboard, a marimo-based web app
 keywords: [pipeline, schema, data, inspect, troubleshoot, dashboard]
 ---
-
 # Pipeline and dataset troubleshooting
 
 Once you have run a [pipeline](../../general-usage/pipeline.md) locally, you can launch a web app that displays detailed information about your pipeline. This app is built with the [marimo](https://marimo.io/) Python notebook framework. For this to work, you will need a few additional dependencies.
@@ -32,10 +31,10 @@ You can also customize the dashboard and create a personalized version tailored 
 
 ![Dashboard overview](https://storage.googleapis.com/dlt-blog-images/dashboard-overview.png)
 
-
 ## Quick start
 
 Install additional dependencies:
+
 ```sh
 pip install "dlt[hub]" pyarrow marimo ibis-framework
 ```
@@ -62,8 +61,9 @@ Use the pipeline name you defined in your Python code with the `pipeline_name` a
 ## Credentials
 
 `dlt` will resolve your destination [credentials](../../general-usage/credentials/setup.md) from:
-* `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from 
-* `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`. 
+
+* `secrets.toml` and `config.toml` in the `.dlt` folder of the current working directory (CWD), which is the directory you started the dashboard from
+* `secrets.toml` and `config.toml` in the global `dlt` folder at `~/.dlt`.
 * Environment variables
 
 It is best to run the dashboard from the same folder where you ran your pipeline, or to keep your credentials in the global folder.
@@ -75,6 +75,7 @@ It is best to run the dashboard from the same folder where you ran your pipeline
 This section is a development checklist for validating a new REST API pipeline using the dashboard.
 
 :::tip Quick checklist
+
 1. **Row counts look right?** → Dataset Browser
 2. **Incremental cursor advancing?** → Pipeline State
 3. **Schema structure correct?** → Schema Explorer
@@ -84,9 +85,9 @@ This section is a development checklist for validating a new REST API pipeline u
 
 ### 1) Am I grabbing data correctly?
 
-#### Pagination sanity
+#### 1.1) What to look for
 
-**What to look for**
+Pagination sanity:
 
 - If your first successful run shows a suspiciously round count (for example, **10 / 20 / 100**) for a resource whose page size matches that number, you probably captured only page 1.
 - Cross-check the source's expected volume (API docs, admin UI, or a known "ground truth") vs. what landed.
@@ -95,12 +96,14 @@ To do so, navigate to the Dataset Browser and load row counts:
 
 ![Dataset Browser row counts](https://storage.googleapis.com/dlt-blog-images/docs-dashboard-dq1.png)
 
-**Typical failure modes**
+#### 1.2) Typical failure modes
 
 - The wrong paginator pattern was chosen vs. the API docs (cursor vs. offset vs. page/size).
 - The API supports multiple pagination styles per endpoint and you implemented the wrong one.
 
-**What to do:** reread the endpoint's official documentation (or ask your agent to do so) and confirm the exact pagination contract (parameter names, response fields, end-of-data signal).
+#### 1.3) What to do
+
+Reread the endpoint's official documentation (or ask your agent to do so) and confirm the exact pagination contract (parameter names, response fields, end-of-data signal).
 
 ### 2) Am I loading data correctly?
 
@@ -112,11 +115,11 @@ Using `replace` write disposition is slower but simpler. If you are using it to 
 
 - Run **multiple increments** and check that each run only brings the delta.
 - Validate in two places:
-    - **Pipeline State**: the resource's cursor (for example, `last_extracted_at` / `last_value`) should advance to the end of the previous run. This is how it looks in the raw pipeline state:
+  - **Pipeline State**: the resource's cursor (for example, `last_extracted_at` / `last_value`) should advance to the end of the previous run. This is how it looks in the raw pipeline state:
 
     ![Pipeline state cursor](https://storage.googleapis.com/dlt-blog-images/docs-dashboard-dq2.png)
 
-    - **Pipeline Loads row counts**: Check how many rows each run loaded by running a query in the Dataset Browser:
+  - **Pipeline Loads row counts**: Check how many rows each run loaded by running a query in the Dataset Browser:
 
     ```sql
     SELECT _dlt_load_id, COUNT(*) FROM items GROUP BY 1
@@ -185,7 +188,7 @@ def example_complex_unnesting():
 
 ### 4) Do I have the right business data?
 
-**What to look for**
+#### 4.1) What to look for
 
 Open the Dataset Browser and run a query to see what you actually have:
 
@@ -197,13 +200,13 @@ SELECT * FROM {your_table} LIMIT 10
 - Are key columns present (IDs, timestamps, status fields)?
 - Is the data complete or are important fields showing up as `NULL`?
 
-**Typical failure modes**
+#### 4.2) Typical failure modes
 
 - The API returns a **summary view** by default; you need extra parameters (for example, `expand`, `include=changes`, `since=`) to get full details.
 - **Related data lives in separate endpoints** that you haven't added yet (for example, orders exist but order line items are a different endpoint).
 - **PII columns** (emails, phones, names) are present and need to be hashed or removed before analytics.
 
-**What to do**
+#### 4.3) What to do
 
 1. Check the API docs for expansion parameters that return nested/related data.
 2. Add additional endpoints to your source if you need related entities.
@@ -213,7 +216,7 @@ Use the Dataset Browser to explore the data, or the [marimo notebook](../../gene
 
 ### 5) Are my data types correct?
 
-**What to look for**
+#### 5.1) What to look for
 
 Open the Schema Explorer and check the `data_type` column for each field:
 
@@ -221,13 +224,13 @@ Open the Schema Explorer and check the `data_type` column for each field:
 - Dates should be `timestamp` or `date`, not `text`
 - Boolean fields should be `bool`, not `text`
 
-**Typical failure modes**
+#### 5.2) Typical failure modes
 
 - Numbers arrive as strings (`"amount": "100.00"`) because the API returns them quoted.
 - Timestamps in non-standard formats (for example, `"12/25/2024"` or Unix epochs) aren't auto-detected.
 - Boolean values come as `"true"`/`"false"` strings or `0`/`1` integers.
 
-**What to do**
+#### 5.3) What to do
 
 1. **Enable additional autodetectors** to catch more types automatically. Add to your config:
 
@@ -238,7 +241,8 @@ detections = ["iso_timestamp", "timestamp", "large_integer"]
 
 2. **Transform at extraction** using [`add_map`](../../dlt-ecosystem/transformations/add-map.md) to cast values before they hit the schema.
 
-**Docs:**
+#### Docs
+
 - [Schema → Data type autodetectors](../../general-usage/schema.md#data-type-autodetectors)
 - [`add_map` for custom record transformations](../../dlt-ecosystem/transformations/add-map.md)
 
@@ -312,9 +316,10 @@ This section provides a detailed overview of the most recent run for the selecte
 3. **Steps Overview**
 
     This table breaks down the total duration into the three phases of a dlt pipeline run: extract, normalize, and load.
-    - **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
-        - A long extract time suggests a slow source.
-        - Long normalize or load times often point to destination performance or data complexity issues.
+
+  - **Bottleneck Check:** Use the duration column to identify performance bottlenecks.
+  - A long extract time suggests a slow source.
+  - Long normalize or load times often point to destination performance or data complexity issues.
 
     **Deep Dive:** you can click on each step to see more specific details like table names, item counts, file sizes, and timestamps for that specific phase.
 
@@ -327,6 +332,7 @@ This section provides a detailed overview of the most recent run for the selecte
     ![Last run trace](https://storage.googleapis.com/dlt-blog-images/dashboard-trace.png)
 
 ### Pipeline loads
+
 This section displays a history of all load packages found in the _dlt_loads table. It tracks every load package committed to the destination.
 
 By selecting a specific load, you can:
@@ -334,7 +340,6 @@ By selecting a specific load, you can:
 * See exactly how many rows were added to each specific table in that run.
 * View the full schema that resulted from this load.
 * Download the raw schema as a YAML file for historical debugging.
-
 
 ![Pipeline loads](https://storage.googleapis.com/dlt-blog-images/dashboard-loads.png)
 
@@ -348,13 +353,14 @@ dlthub local pipeline show {pipeline_name} --edit
 dlthub local show --edit
 ```
 
-This will copy the dashboard code to the local folder and start marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode. 
+This will copy the dashboard code to the local folder and start marimo in edit mode. If a local copy already exists, it will not overwrite it but will start it in edit mode.
 
-Below is an example of a custom cell created to verify unique number of rows vs total rows to ensure there are no duplicates in each table after a new run. You can also use the Generate with AI feature to easily add custom cells for your own use cases.  
+Below is an example of a custom cell created to verify unique number of rows vs total rows to ensure there are no duplicates in each table after a new run. You can also use the Generate with AI feature to easily add custom cells for your own use cases.
 
 ![Adding custom cell in dashboard](https://storage.googleapis.com/dlt-blog-images/dashboards-custom-cell.png)
 
 Here is the [marimo](https://docs.marimo.io/api/) code used to generate the cell above. `mo` (marimo), `dlt`, and `utils` (from `dlt._workspace.helpers.dashboard`) are already available in the ejected dashboard:
+
 ```py notype
 @app.cell
 def _(dlt_pipeline: dlt.Pipeline, dlt_selected_schema_name):

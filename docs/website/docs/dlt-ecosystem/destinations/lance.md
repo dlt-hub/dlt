@@ -3,13 +3,11 @@ title: Lance
 description: Lance is an open-source columnar format for AI/ML that can be used as a destination in dlt.
 keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, branching, catalog]
 ---
-
 # Lance
 
 [Lance](https://lance.org) is an open-source columnar data format designed for AI/ML workloads, with native support for versioning, zero-copy access, and fast vector search. The `lance` destination lets you load data into Lance datasets stored on local disk or cloud object storage (S3, Azure, GCS).
 
 Optionally, the destination can generate **vector embeddings** using the [LanceDB](https://lancedb.com/) embedding functions library.
-
 
 <!--@@@DLT_DESTINATION_CAPABILITIES lance-->
 
@@ -112,10 +110,10 @@ You can pass storage-specific options via the `options` dict. These are forwarde
 
 For cloud storage, the following defaults are set automatically to prevent connection hangs:
 
-| Option | Default | Description |
-|---|---|---|
-| `connect_timeout` | `30s` | TCP connection timeout |
-| `timeout` | `120s` | Overall request timeout |
+| Option            | Default | Description             |
+| ----------------- | ------- | ----------------------- |
+| `connect_timeout` | `30s`   | TCP connection timeout  |
+| `timeout`         | `120s`  | Overall request timeout |
 
 You can override these or add additional options:
 
@@ -131,9 +129,9 @@ timeout = "300s"
 ## Catalog and storage
 
 The `lance` destination uses a [Lance Namespace](https://lance.org/format/namespace/) as catalog. Two different namespace specs are currently supported:
+
 - [Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) — used by default
 - [REST Namespace](https://lance.org/format/namespace/rest/catalog-spec/)  — experimental support only
-
 
 ### Directory Namespace
 
@@ -205,7 +203,6 @@ uri = "http://127.0.0.1:2333"
 api_key = "..."      # sent as x-api-key
 auth_token = "..."   # sent as Authorization: Bearer <auth_token>
 ```
-
 
 ## Branching
 

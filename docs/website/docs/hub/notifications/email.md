@@ -3,7 +3,6 @@ title: Send email notifications
 description: Subscribe to dltHub workspace failure alerts, or send your own emails from a job with SMTP.
 keywords: [email, smtp, gmail, notifications, alerting, alerts, hub, dltHub]
 ---
-
 # Send email notifications
 
 ## dltHub Platform alerts

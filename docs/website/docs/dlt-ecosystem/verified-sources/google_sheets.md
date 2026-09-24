@@ -3,9 +3,9 @@ title: Google Sheets
 description: dlt verified source for Google Sheets API
 keywords: [google sheets api, google sheets verified source, google sheets]
 ---
-import Header from './_source-info-header.md';
-
 # Google Sheets
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -54,11 +54,11 @@ one, follow these steps:
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the
       "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 #### Google OAuth credentials
 
@@ -103,8 +103,6 @@ follow these steps:
    token" that can be used to set up the ".dlt/secrets.toml".
 
 ### Prepare your data
-
-
 
 #### Share Google Sheet with the email
 
@@ -330,11 +328,13 @@ for resource in resources:
         "date": {"data_type": "timestamp"},
     })
 ```
+
 In this example, the `total_amount` column is enforced to be of type double, and `date` is enforced to be of type timestamp.
 This will ensure that all values in the `total_amount` column are treated as `double`, regardless of whether they are integers or decimals in the original Google Sheets data.
 And the `date` column will be represented as dates, not integers.
 
 For a single resource (e.g., `Sheet1`), you can simply use:
+
 ```py
 source.Sheet1.apply_hints(columns={
     "total_amount": {"data_type": "double"},
@@ -343,6 +343,7 @@ source.Sheet1.apply_hints(columns={
 ```
 
 To get the name of resources, you can use:
+
 ```py
 print(source.resources.keys())
 ```
@@ -414,11 +415,13 @@ headers, and data types as arguments.
 
 `write_disposition`: Dictates how data is loaded to the destination.
 
-> Please note:
->
-> 1. Empty rows are ignored.
-> 1. Empty cells are converted to None (and then to NULL by dlt).
-> 1. Data in columns without headers will be dropped.
+:::info
+Please note:
+
+1. Empty rows are ignored.
+1. Empty cells are converted to None (and then to NULL by dlt).
+1. Data in columns without headers will be dropped.
+:::
 
 ### Resource `spreadsheet_info`
 
@@ -569,6 +572,7 @@ Consider the following when using Google spreadsheets with Airflow:
 - If your execution environment (runner) is on a different machine, this might cause the data to be loaded twice, leading to inefficiencies.
 
 `Airflow helper caution`
+
 - Avoid using `scc decomposition` because it unnecessarily creates a new source instance for every specified data range. This is not efficient and can cause redundant tasks.
 
 #### Recommended Airflow deployment

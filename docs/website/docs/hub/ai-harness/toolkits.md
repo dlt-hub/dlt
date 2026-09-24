@@ -3,7 +3,6 @@ title: Toolkits
 description: The full catalog of dltHub AI Harness toolkits and how they fit into the ingest, validate, transform, deploy, observe cycle.
 keywords: [ai harness, toolkits, catalog, development cycle, rest-api-pipeline, sql-database-pipeline, transformations, dlthub-platform]
 ---
-
 # Toolkits
 
 A toolkit is a versioned bundle of skills, rules, and an MCP server, tied together by a workflow that tells the agent which skill to run at each step and how to leverage the MCP. Each toolkit covers one job: build a REST API pipeline, add data-quality checks, deploy a workspace, and so on. Toolkits also act as guardrails, keeping the agent from diverging from proven dlt patterns and data-engineering best practices. Head to [Installation](installation.md#adding-feature-toolkits) to install them.
@@ -12,13 +11,13 @@ A toolkit is a versioned bundle of skills, rules, and an MCP server, tied togeth
 
 Toolkits map onto a five-stage pipeline lifecycle. Each toolkit owns one stage and guides the agent through it end to end, starting from an **entry skill** and running the rest in sequence.
 
-| Stage | Purpose | Step-by-step guide |
-| --- | --- | --- |
-| [Ingest](#ingest) | Load data from sources (REST APIs, SQL databases, files) into a destination. | [REST API source with AI Harness](../ingestion/rest-api-source.md) |
-| [Validate](#validate) | Define column-level checks and load metrics to catch bad data early. | — |
-| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use. | [Explore and transform your data](../transformations/explore-and-transform.md) |
-| [Deploy](#deploy) | Ship pipelines and notebooks to the dltHub platform on a schedule. | [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) |
-| [Observe](#observe) | Explore loaded data and diagnose performance issues. | [Explore and transform your data](../transformations/explore-and-transform.md) |
+| Stage                   | Purpose                                                                      | Step-by-step guide                                                                     |
+| ----------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
+| [Ingest](#ingest)       | Load data from sources (REST APIs, SQL databases, files) into a destination. | [REST API source with AI Harness](../ingestion/rest-api-source.md)                     |
+| [Validate](#validate)   | Define column-level checks and load metrics to catch bad data early.         | —                                                                                      |
+| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use.           | [Explore and transform your data](../transformations/explore-and-transform.md)         |
+| [Deploy](#deploy)       | Ship pipelines and notebooks to the dltHub platform on a schedule.           | [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) |
+| [Observe](#observe)     | Explore loaded data and diagnose performance issues.                         | [Explore and transform your data](../transformations/explore-and-transform.md)         |
 
 ## Ingest
 
@@ -77,7 +76,6 @@ Load files (CSV, Parquet, JSONL, or custom) from local disk, S3, GCS, Azure, or 
 </details>
 </div>
 
-
 ## Validate
 
 ### `data-quality`
@@ -95,7 +93,6 @@ Inspect schema for candidates, define column-level validations and load metrics,
 
 </details>
 </div>
-
 
 ## Transform
 
@@ -116,7 +113,6 @@ Transform raw dlt pipeline data into a Canonical Data Model using Kimball dimens
 
 </details>
 </div>
-
 
 ## Deploy
 

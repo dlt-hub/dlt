@@ -3,8 +3,7 @@ title: Similarity searching with Qdrant
 description: Learn how to use the dlt source, Zendesk and dlt destination, Qdrant to conduct a similarity search on your tickets data.
 keywords: [similarity search, example]
 ---
-
-## About this Example
+# Similarity searching with Qdrant
 
 This article outlines a system to map vectorized ticket data from Zendesk to Qdrant, similar to our guide on the topic concerning [Weaviate](https://dlthub.com/docs/dlt-ecosystem/destinations/qdrant). In this example, we will:
 
@@ -25,7 +24,7 @@ pip install qdrant-client>=1.6.9
 pip install fastembed>=0.1.1
 ```
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 # NOTE: this line is only for dlt CI purposes, you may delete it if you are using this example

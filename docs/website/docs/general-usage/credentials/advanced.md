@@ -3,7 +3,7 @@ title: Access to configuration in code
 description: Access configuration via dlt function arguments or explicitly
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---
-
+# Access to configuration in code
 
 ## Access to configuration in dlt decorated functions
 
@@ -12,6 +12,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
 ### Injection rules
 
 1. Arguments passed explicitly are **never injected**. This makes the injection mechanism optional. Example with the Pipedrive source:
+
   ```py
   import os
   from typing import Iterator
@@ -27,6 +28,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   my_key = os.environ["MY_PIPEDRIVE_KEY"]
   my_source = pipedrive_source(pipedrive_api_key=my_key)
   ```
+
   You can specify `pipedrive_api_key` explicitly if you prefer not to use the [standard options](setup) for credential handling.
 
 2. Required arguments (without default values) **are never injected** and must be specified explicitly when calling. Example:
@@ -36,6 +38,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   def slack_data(channels_list: list[str], api_key: str = dlt.secrets.value):
     ...
   ```
+
   The `channels_list` argument won't be injected and will produce an error if not specified explicitly.
 
 3. Arguments with default values are injected if found in config providers. Otherwise, the default values from the function signature are used. Example:
@@ -53,6 +56,7 @@ keywords: [credentials, secrets.toml, secrets, config, configuration, environmen
   ):
     ...
   ```
+
   `dlt` first searches for `page_size`, `access_token`, and `start_date` in config providers in a [specific order](setup). If these values aren't found, it falls back to the default values.
 
 4. Arguments with special defaults `dlt.secrets.value` and `dlt.config.value` **must be injected** (or explicitly passed). If not found in config providers, `dlt` raises an exception.
@@ -85,11 +89,13 @@ def google_sheets(
 ```
 
 Benefits:
+
 1. You'll receive a properly typed list of strings as `tab_names`.
 2. You'll receive properly configured Google credentials (see [GCP Credential Configuration](complex_types#gcp-credentials)), which users can provide in different forms:
-   * `service.json` as a string or dictionary (in code or via config providers)
-   * Connection string (used in SQL Alchemy)
-   * Default credentials if nothing is passed (such as those available on Cloud Function runners)
+
+  * `service.json` as a string or dictionary (in code or via config providers)
+  * Connection string (used in SQL Alchemy)
+  * Default credentials if nothing is passed (such as those available on Cloud Function runners)
 
 ## Organize configuration and secrets with sections
 
@@ -167,11 +173,13 @@ from dlt.common.configuration.specs import GcpServiceAccountCredentials
 
 credentials = dlt.secrets.get("my_section.gcp_credentials", GcpServiceAccountCredentials)
 ```
+
 This creates a `GcpServiceAccountCredentials` instance from the values stored under the `my_section.gcp_credentials` key.
 
 ## Write configs and secrets in code
 
 You can also set values programmatically using `dlt.config` and `dlt.secrets`:
+
 ```py notype
 dlt.config["sheet_id"] = "23029402349032049"
 dlt.secrets["destination.postgres.credentials"] = BaseHook.get_connection('postgres_dsn').extra
@@ -231,6 +239,7 @@ def google_sheets(
 The `@dlt.source` decorator makes all arguments in the function configurable. The special defaults `dlt.secrets.value` and `dlt.config.value` indicate to `dlt` that these arguments are required and must either be passed explicitly or exist in the configuration. Additionally, `dlt.secrets.value` designates an argument as a secret.
 
 In this example:
+
 - `spreadsheet_id` is a **required config** argument
 - `tab_names` is a **required config** argument
 - `credentials` is a **required secret** argument (Google Sheets credentials as a dictionary)
@@ -266,6 +275,7 @@ class GoogleSheetsConfiguration(BaseConfiguration):
 ```
 
 ### All specs derive from [BaseConfiguration](https://github.com/dlt-hub/dlt/blob/devel/dlt/common/configuration/specs/base_configuration.py#L170)
+
 This class serves as a foundation for creating configuration objects with specific characteristics:
 
 - It provides methods to parse and represent the configuration in native form (`parse_native_representation` and `to_native_representation`).

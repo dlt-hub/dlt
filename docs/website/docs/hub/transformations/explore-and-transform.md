@@ -3,7 +3,6 @@ title: Explore and Transform your data with dltHub AI Harness
 description: Explore loaded pipeline data, build interactive dashboards, and transform data into a Canonical Data Model using dltHub AI Harness toolkits
 keywords: [cursor, claude, codex, llm, data exploration, transformations, marimo, dashboard, cdm, kimball, ai, workbench, toolkit]
 ---
-
 # Explore and Transform your data with dltHub AI Harness
 
 :::info
@@ -143,7 +142,6 @@ def dim_person(dataset: dlt.Dataset):
 
 The output script follows naming conventions based on business domain, not source system names (e.g. `person_interactions_to_cdm.py`).
 
-
 ### Anatomy of the transformations toolkit
 
 ```mermaid
@@ -170,5 +168,6 @@ By the end of this guide you should have:
 - A working `@dlt.hub.transformation` script that populates the CDM
 
 Next steps:
+
 - [Deploy and schedule your pipeline](../ingestion/rest-api-source.md#handover-to-other-toolkits) with the `dlthub-platform` toolkit
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

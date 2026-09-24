@@ -3,7 +3,6 @@ title: Workspace setup
 description: Convert a Python project into a dltHub platform workspace and configure credentials for dev, prod, and access profiles
 keywords: [dlthub platform, workspace, setup, login, profiles, credentials, configuration]
 ---
-
 # Workspace setup
 
 A workspace ready for the dltHub platform is a regular Python project with a few additions. You can easily convert any existing dlt project into a dltHub workspace.

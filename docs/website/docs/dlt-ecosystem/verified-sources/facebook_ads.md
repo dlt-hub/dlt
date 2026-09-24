@@ -3,9 +3,9 @@ title: Facebook Ads
 description: dlt verified source for Facebook Ads
 keywords: [facebook ads api, verified source, facebook ads]
 ---
-import Header from './_source-info-header.md';
+# Facebook Ads
 
-# Facebook ads
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -22,7 +22,7 @@ The endpoints that this verified source supports are:
 | ----------------- | ------------------------------------------------------------------------------ |
 | campaigns         | A structured marketing initiative that focuses on a specific objective or goal |
 | ad_sets           | A subset or group of ads within a campaign                                     |
-| ads               | An individual advertisement that is created and displayed within an ad set      |
+| ads               | An individual advertisement that is created and displayed within an ad set     |
 | creatives         | Visual and textual elements that make up an advertisement                      |
 | ad_leads          | Information collected from users who have interacted with lead generation ads  |
 | facebook_insights | Data on audience demographics, post reach, and engagement metrics              |
@@ -135,18 +135,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python facebook_ads_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `facebook_ads`. You may also
    use any custom name instead.
 

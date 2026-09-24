@@ -3,8 +3,7 @@ title: Custom destination with LanceDB
 description: Learn how use the custom destination to load to LanceDB.
 keywords: [destination, credentials, example, lancedb, custom destination, vectorstore, AI, LLM]
 ---
-
-## About this Example
+# Custom destination with LanceDB
 
 This example showcases a Python script that demonstrates the integration of LanceDB, an open-source vector database,
 as a custom destination within the dlt ecosystem.
@@ -20,7 +19,7 @@ We'll learn how to:
 - Delegate the embeddings to LanceDB using OpenAI Embeddings
 - Use Pydantic for unified dlt and lancedb schema validation
 
-### Full source code
+## Full source code
 
 ```py noexecute notype
 __source_name__ = "podcastindex"
