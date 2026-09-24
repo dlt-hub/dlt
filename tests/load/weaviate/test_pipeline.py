@@ -10,6 +10,7 @@ from dlt.common.schema.exceptions import (
 )
 from dlt.common.utils import uniq_id
 
+from dlt.destinations import weaviate
 from dlt.destinations.adapters import weaviate_adapter
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
@@ -481,3 +482,36 @@ def test_vectorize_property_without_data() -> None:
     # so mock the class otherwise the test will not pass
     value_column["x-weaviate-vectorize"] = False  # type: ignore[typeddict-unknown-key]
     assert_class(p, "Content", expected_items_count=6)
+
+
+def test_pipeline_with_separate_grpc_host() -> None:
+    """A custom connection can reach REST and gRPC on different hosts."""
+    p = dlt.pipeline(
+        pipeline_name="weaviate_grpc_host_" + uniq_id(),
+        destination=weaviate(
+            credentials={
+                "url": "http://127.0.0.1",
+                "http_port": 8080,
+                "grpc_port": 50051,
+                "grpc_host": "localhost",
+            },
+            connection_type="custom",
+            skip_init_checks=False,
+        ),
+        dataset_name="TestGrpcHost" + uniq_id(),
+        dev_mode=True,
+    )
+    info = p.run([{"doc_id": 1, "value": "loaded over a separate grpc host"}], table_name="content")
+    assert_load_info(info)
+
+    client: WeaviateClient
+    with p.destination_client() as client:  # type: ignore[assignment]
+        params = client.config.to_connector_params()
+        assert params["http_host"] == "127.0.0.1"
+        assert params["grpc_host"] == "localhost"
+
+        collection = client.db_client.collections.get(
+            client.make_qualified_collection_name("Content")
+        )
+        objects = collection.query.fetch_objects(limit=5).objects
+        assert [o.properties["value"] for o in objects] == ["loaded over a separate grpc host"]

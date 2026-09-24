@@ -16,7 +16,10 @@ from typing import (
 
 from datetime import datetime, timezone
 
+from packaging.version import Version
+
 from dlt.common.configuration.exceptions import ConfigurationValueError
+from dlt.common.utils import assert_min_pkg_version
 from dlt.common.destination.exceptions import (
     DestinationUndefinedEntity,
     DestinationTransientException,
@@ -26,6 +29,7 @@ from dlt.common.destination.exceptions import (
 import weaviate
 from weaviate.classes.config import (
     Configure,
+    ConsistencyLevel,
     Property,
     DataType,
     Tokenization,
@@ -68,7 +72,12 @@ from dlt.common.storages import FileStorage
 
 from dlt.destinations.impl.weaviate.weaviate_adapter import VECTORIZE_HINT, TOKENIZATION_HINT
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
-from dlt.destinations.impl.weaviate.configuration import WeaviateClientConfiguration
+from dlt.destinations.impl.weaviate.configuration import (
+    WeaviateClientConfiguration,
+    TWeaviateBatchMode,
+    WEAVIATE_CLIENT_MIN_VERSION,
+    WEAVIATE_SERVER_SIDE_BATCH_MIN_VERSION,
+)
 from dlt.destinations.impl.weaviate.exceptions import PropertyNameConflict, WeaviateBatchError
 from dlt.destinations.utils import get_pipeline_state_query_columns
 
@@ -175,57 +184,64 @@ class LoadWeaviateJob(RunnableLoadJob):
         with FileStorage.open_zipsafe_ro(self._file_path) as f:
             self.load_batch(f)
 
+    def _batch_context(self, collection: Any) -> Any:
+        """Opens the batch context manager selected by `batch_mode`."""
+        config = self._client_config
+        batch_mode = self._job_client.resolve_batch_mode()
+        if batch_mode == "stream":
+            return collection.batch.stream(concurrency=config.batch_workers)
+        if batch_mode == "fixed_size":
+            return collection.batch.fixed_size(
+                batch_size=config.batch_size,
+                concurrent_requests=config.batch_workers,
+            )
+        if batch_mode == "rate_limit":
+            return collection.batch.rate_limit(requests_per_minute=config.batch_requests_per_minute)
+        return collection.batch.dynamic()
+
+    def _object_from_line(self, line: str) -> Tuple[Dict[str, Any], Optional[str]]:
+        data = json.loads(line)
+        for key in self.nested_indices:
+            if key in data:
+                data[key] = json.dumps(data[key])
+        for key in self.date_indices:
+            if key in data:
+                data[key] = ensure_datetime_in_tz(data[key]).isoformat()
+        uuid = (
+            self.generate_uuid(data, self.unique_identifiers, self._collection_name)
+            if self.unique_identifiers
+            else None
+        )
+        return data, uuid
+
     @wrap_weaviate_error
     def load_batch(self, f: IO[str]) -> None:
         """Load all the lines from stream `f` using Weaviate batch.
+
         Weaviate batch supports retries so we do not need to do that.
         """
         collection = self._db_client.collections.get(self._collection_name)
+        collection = collection.with_consistency_level(
+            ConsistencyLevel[self._client_config.batch_consistency]
+        )
 
         @wrap_batch_error
         def check_batch_result(failed_objects: List[Any]) -> None:
-            """Check for failed objects and raise error if any"""
-            if failed_objects:
-                # Collect error messages from failed objects
-                errors = []
-                for obj in failed_objects:
-                    if hasattr(obj, "message"):
-                        errors.append(obj.message)
-                    else:
-                        errors.append(str(obj))
-                if errors:
-                    raise WeaviateBatchError({"error": [{"message": err} for err in errors]})
+            """Raises when the batch reported failed objects."""
+            if not failed_objects:
+                return
+            errors = [
+                obj.message if hasattr(obj, "message") else str(obj) for obj in failed_objects
+            ]
+            if errors:
+                raise WeaviateBatchError({"error": [{"message": err} for err in errors]})
 
-        # Collect all objects to insert
-        objects_to_insert = []
-        for line in f:
-            data = json.loads(line)
-            # serialize json types
-            for key in self.nested_indices:
-                if key in data:
-                    data[key] = json.dumps(data[key])
-            for key in self.date_indices:
-                if key in data:
-                    data[key] = ensure_datetime_in_tz(data[key]).isoformat()
-            if self.unique_identifiers:
-                uuid = self.generate_uuid(data, self.unique_identifiers, self._collection_name)
-            else:
-                uuid = None
+        with self._batch_context(collection) as batch:
+            for line in f:
+                properties, uuid = self._object_from_line(line)
+                batch.add_object(properties=properties, uuid=uuid)
 
-            objects_to_insert.append({"properties": data, "uuid": uuid})
-
-        # Use batch insert with the v4 API
-        with collection.batch.dynamic() as batch:
-            for obj in objects_to_insert:
-                batch.add_object(
-                    properties=obj["properties"],
-                    uuid=obj["uuid"],
-                )
-
-        # Check for failed objects
-        failed_objects = collection.batch.failed_objects
-        if failed_objects:
-            check_batch_result(failed_objects)
+        check_batch_result(collection.batch.failed_objects)
 
     def list_unique_identifiers(self, table_schema: PreparedTableSchema) -> Sequence[str]:
         if table_schema.get("write_disposition") == "merge":
@@ -263,6 +279,7 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         self.config: WeaviateClientConfiguration = config
         self.db_client: weaviate.WeaviateClient = None
+        self._server_version: Optional[Version] = None
 
         self._vectorizer_config = config.vectorizer
         self._module_config = config.module_config
@@ -279,85 +296,46 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
     @staticmethod
     def create_db_client(config: WeaviateClientConfiguration) -> weaviate.WeaviateClient:
-        """Create a Weaviate client using v4 API.
+        """Create a Weaviate client using the v4 API.
 
-        Supports three connection types:
-        - "cloud": For Weaviate Cloud Services (uses connect_to_weaviate_cloud)
-        - "local": For local Docker instances (uses connect_to_local)
-        - "custom": For self-hosted instances (uses connect_to_custom)
-
-        If connection_type is not specified, it's auto-detected from the URL:
-        - URLs containing ".weaviate.cloud" -> "cloud"
-        - URLs with "localhost" or "127.0.0.1" -> "local"
-        - Other URLs -> "custom" (requires http_port and grpc_port)
+        The connection type ("cloud", "local" or "custom") selects the `connect_to_*` helper;
+        when not configured it is inferred from the URL.
         """
-        url = config.credentials.url
-        api_key = config.credentials.api_key
-        headers = config.credentials.additional_headers or {}
-        connection_type = config.connection_type
-
-        # Create auth config if API key is provided
-        auth_config = None
-        if api_key:
-            auth_config = weaviate.auth.AuthApiKey(api_key)
-
-        # Auto-detect connection type if not specified
-        if connection_type is None:
-            if ".weaviate.cloud" in url or ".wcs.api.weaviate.io" in url:
-                connection_type = "cloud"
-            elif "localhost" in url or "127.0.0.1" in url:
-                connection_type = "local"
-            else:
-                connection_type = "custom"
-
+        assert_min_pkg_version(
+            "weaviate-client",
+            WEAVIATE_CLIENT_MIN_VERSION,
+            "Server-side batching and the current collection config API require this version.",
+        )
+        connection_type = config.resolve_connection_type()
+        params = config.to_connector_params()
         if connection_type == "cloud":
-            # Use connect_to_weaviate_cloud for Weaviate Cloud Services
-            # Ensure URL has https:// prefix
-            cluster_url = url if url.startswith("https://") else f"https://{url}"
-            return weaviate.connect_to_weaviate_cloud(
-                cluster_url=cluster_url,
-                auth_credentials=auth_config,
-                headers=headers,
-                skip_init_checks=True,
-            )
-        elif connection_type == "local":
-            # Use connect_to_local for local Docker instances
-            # Parse host from URL
-            host = url.replace("http://", "").replace("https://", "").split(":")[0]
-            http_port = config.credentials.http_port or 8080
-            grpc_port = config.credentials.grpc_port or 50051
-            return weaviate.connect_to_local(
-                host=host,
-                port=http_port,
-                grpc_port=grpc_port,
-                headers=headers,
-                auth_credentials=auth_config,
-            )
-        else:  # custom
-            # Use connect_to_custom for self-hosted instances
-            # Require explicit ports for custom connections
-            http_port = config.credentials.http_port
-            grpc_port = config.credentials.grpc_port
-            if http_port is None or grpc_port is None:
-                raise ConfigurationValueError(
-                    "http_port and grpc_port",
-                    "http_port and grpc_port are required when connection_type is 'custom'. "
-                    "Set them in [destination.weaviate.credentials] or use connection_type='local' "
-                    "for default ports (http: 8080, grpc: 50051).",
-                )
-            host = url.replace("http://", "").replace("https://", "").split(":")[0]
-            is_secure = url.startswith("https")
-            return weaviate.connect_to_custom(
-                http_host=host,
-                http_port=http_port,
-                http_secure=is_secure,
-                grpc_host=host,
-                grpc_port=grpc_port,
-                grpc_secure=is_secure,
-                auth_credentials=auth_config,
-                headers=headers,
-                skip_init_checks=True,
-            )
+            return weaviate.connect_to_weaviate_cloud(**params)
+        if connection_type == "local":
+            return weaviate.connect_to_local(**params)
+        return weaviate.connect_to_custom(**params)
+
+    def server_version(self) -> Version:
+        """Weaviate server version, fetched once per client."""
+        if self._server_version is None:
+            self._server_version = Version(cast(str, self.db_client.get_meta()["version"]))
+        return self._server_version
+
+    def supports_server_side_batching(self) -> bool:
+        return self.server_version() >= Version(WEAVIATE_SERVER_SIDE_BATCH_MIN_VERSION)
+
+    def resolve_batch_mode(self) -> TWeaviateBatchMode:
+        """Resolves `auto` against the server version. Other modes are returned unchanged."""
+        batch_mode = self.config.batch_mode
+        if batch_mode != "auto":
+            return batch_mode
+        if self.supports_server_side_batching():
+            return "stream"
+        logger.info(
+            f"Weaviate server {self.server_version()} is older than"
+            f" {WEAVIATE_SERVER_SIDE_BATCH_MIN_VERSION} and does not support server-side"
+            " batching. Falling back to `fixed_size` batching."
+        )
+        return "fixed_size"
 
     def make_qualified_collection_name(self, table_name: str) -> str:
         """Make a full Weaviate collection name from a table name by prepending
