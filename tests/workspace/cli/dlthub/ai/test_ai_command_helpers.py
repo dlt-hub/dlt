@@ -878,6 +878,19 @@ def test_toolkit_info(capsys: pytest.CaptureFixture[str]) -> None:
     assert ".claudeignore" in output
 
 
+def test_toolkit_info_lists_agents(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_toolkit_info_command shows the agents a toolkit carries."""
+    toolkit_dir = make_mock_toolkit()
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=toolkit_dir.parent
+    ):
+        ai_toolkit_info_command(name="test-toolkit", location="mock://repo", branch=None)
+    output = capsys.readouterr().out
+    assert "Agents:" in output
+    assert "find-crash" in output
+    assert "Test agent used by the toolkit install tests." in output
+
+
 def test_toolkit_info_not_found(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_toolkit_info_command warns on missing toolkit."""
     base = make_mock_workbench()

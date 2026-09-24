@@ -476,7 +476,7 @@ def fetch_workbench_toolkit_info(
         branch: Git branch to fetch. Uses default workbench branch when None.
 
     Returns:
-        Toolkit info with skills, commands, and rules, or None if not found.
+        Toolkit info with skills, commands, rules, and agents, or None if not found.
     """
     base = fetch_workbench_base(location, branch)
     toolkit_dir = base / name
@@ -513,6 +513,17 @@ def fetch_workbench_toolkit_info(
     if rules_dir.is_dir():
         rules = _components(sorted(rules_dir.glob("*.md")))
 
+    agents: List[TWorkbenchComponentInfo] = []
+    agents_dir = toolkit_dir / "agents"
+    if agents_dir.is_dir():
+        agents = _components(
+            [
+                p / "AGENT.md"
+                for p in sorted(agents_dir.iterdir())
+                if p.is_dir() and (p / "AGENT.md").exists()
+            ]
+        )
+
     servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
 
     info = TWorkbenchToolkitInfo(
@@ -520,6 +531,7 @@ def fetch_workbench_toolkit_info(
         skills=skills,
         commands=commands,
         rules=rules,
+        agents=agents,
         has_ignore=(toolkit_dir / ".claudeignore").is_file(),
     )
     if servers:
