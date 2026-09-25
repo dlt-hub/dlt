@@ -98,8 +98,6 @@ job_inspector = run.agent(
 )
 ```
 
-[//]: # (See [Job inspector agent]&#40;https://dlt-issue-4448-docs.services4758.workers.dev/docs/devel/hub/agents/job-inspector&#41; for all inputs, outputs, and defaults.)
-
 ## Build your own agent
 
 Write your own agent as an `AGENT.md` file or as a Python function with the `@run.agent` decorator.
@@ -165,5 +163,3 @@ async def workspace_report(run_context: run.TJobRunContext = None) -> WorkspaceR
     """
     return await run_context["ai_loop"].run()
 ```
-
-[//]: # (See [Agent definitions]&#40;https://dlt-issue-4448-docs.services4758.workers.dev/docs/devel/hub/agents/agent-definitions&#41; for the full format.)
