@@ -55,7 +55,7 @@ inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
     require={"profile": "access"},
-    model="opus",
+    model="sonnet",
     limits={"max_turns": 20},
     instructions="focus on the loader step",
 )
@@ -64,6 +64,8 @@ inspector = run.agent(
 The job is named after the agent definition (`job-inspector` becomes `job_inspector`) in the declaring module's section. Every argument overrides the matching entry of the definition's `defaults`.
 
 `access`, `tools`, `skills`, and `rules` aren't `defaults`. A referenced agent keeps the lists its definition declares and `run.agent` drops the arguments for them. A decorated function driving a referenced agent is the other way around: its argument replaces the definition's list, so `access={"local": ["read"]}` on such a function removes `context: read`. Pass every axis the agent needs, or leave the block to the definition.
+
+We strongly advise never to assign the production profile to an unattended agent. An agent job takes the read-only `access` profile by default, and the example pins it. See [Profile of an agent job](#profile-of-an-agent-job).
 
 | Argument                                          | Meaning                                                                                                                                                             |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -131,7 +133,13 @@ An agent that only ever runs when you start it takes no `trigger=` at all. The r
 
 ### Profile of an agent job
 
-An agent job is a batch job, so it runs on the `prod` [profile](../pipeline-operations/profiles.md) and holds the production credentials unless you say otherwise. Pin the read-only profile on every agent job:
+A [profile](../pipeline-operations/profiles.md) names the set of credentials a job runs with. It's a separate thing from the `access` declaration: `access` decides which tools the model is offered, the profile decides which credentials the job process holds. An agent granted `data: write` on a job running the `access` profile still can't write, because the credentials it holds can't.
+
+The profile covers profile-scoped configuration: `prod.secrets.toml`, `prod.config.toml`, and a variable set with `dlthub variable set --profile prod`. A variable set with `--workspace` carries no profile and reaches the job whatever it runs on, so a secret that must stay away from an agent belongs in a profile scope. `dlthub variable list` prints the scope of each one.
+
+Which profile an agent job runs on is decided for you unless you say otherwise. An agent job that declares none runs on the read-only `access` profile, so the production credentials stay out of its environment. Other batch jobs still default to `prod`; the agent job is the exception.
+
+Every workspace has an `access` profile, so the default applies wherever you deploy. Pin it on the job anyway, to state the intent in the code:
 
 ```py notype
 inspector = run.agent(
@@ -141,11 +149,13 @@ inspector = run.agent(
 )
 ```
 
-`access` decides which tools the model is offered. The profile decides which credentials the job process holds, so declare both. Work that needs production write credentials belongs in a pipeline or a plain job that a person wrote and reviewed, and the agent proposes it rather than performing it.
+A declared profile always wins, `prod` included, so nothing stops `require={"profile": "prod"}` on an agent job. Don't give an agent the production profile. An agent job runs unattended, with a model deciding what to do, and the production profile hands that decision the credentials to change your data. Work that needs production write credentials belongs in a pipeline or a plain job a person wrote and reviewed.
 
-The pin covers profile-scoped configuration: `prod.secrets.toml`, `prod.config.toml`, and a variable set with `dlthub variable set --profile prod`. A variable set with `--workspace` carries no profile and reaches the job whatever it runs on, so a secret that must stay away from an agent belongs in a profile scope. `dlthub variable list` prints the scope of each one.
+:::warning
+The profile is a name for a set of credentials, and dltHub doesn't check what those credentials can do. Before you run an unattended agent, make sure the destination credentials in your `access` profile are read-only at the destination itself: a read-only database role, a storage key without write permission. An `access` profile holding a writable credential gives the agent write access under a read-only name. [Define profiles](../pipeline-operations/profiles.md#define-profiles) covers where each profile's credentials live.
+:::
 
-Nothing rejects a missing pin at deploy time. Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any other name as given, so `prod` passes and a typo surfaces as missing credentials at run time. The profile also has to be `configured` in the workspace, which `dlthub info` lists. On `dlthub local run` the declaration is a warning rather than a switch: the run uses the active profile and reports the mismatch.
+Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any other name as given, so a typo surfaces as missing credentials at run time. On `dlthub local run` the declaration is a warning rather than a switch: the run uses the active profile and reports the mismatch.
 
 ## Run an agent job
 
@@ -171,7 +181,7 @@ You can override settings for a single local run. Inputs and agent settings are 
 failed_job_ref = "jobs.github_pipeline.load_commits"
 
 [jobs.__deployment__.job_inspector.agent]
-model = "opus"
+model = "sonnet"
 max_turns = 20
 verbosity = 0
 ```
@@ -180,30 +190,48 @@ Each source overrides the ones before it: the loop default, the definition's `de
 
 ### Model and credentials
 
-`model` is a `provider:model` id in the naming pydantic-ai uses, or one of these aliases:
+`model` is a `provider:model` id in the naming pydantic-ai uses, or an alias for one:
 
-| Alias                         | Model                                                          |
-| ----------------------------- | -------------------------------------------------------------- |
-| `sonnet` (default)            | `anthropic:claude-sonnet-5`                                    |
-| `opus`                        | `anthropic:claude-opus-5`                                      |
-| `haiku`                       | `anthropic:claude-haiku-4-5`                                   |
-| `fable`                       | `anthropic:claude-fable-5`                                     |
-| `gpt`, `gpt-mini`, `gpt-nano` | `openai:gpt-5.5`, `openai:gpt-5.4-mini`, `openai:gpt-5.4-nano` |
-| `gemini`, `gemini-pro`        | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview`     |
+| Provider     | `model`                                                                            | Alias                              |
+| ------------ | ---------------------------------------------------------------------------------- | ---------------------------------- |
+| Azure OpenAI | `azure:<deployment name>`                                                          | none                               |
+| Anthropic    | `anthropic:claude-sonnet-5`, `claude-opus-5`, `claude-haiku-4-5`, `claude-fable-5` | `sonnet`, `opus`, `haiku`, `fable` |
+| OpenAI       | `openai:gpt-5.5`, `openai:gpt-5.4-mini`, `openai:gpt-5.4-nano`                     | `gpt`, `gpt-mini`, `gpt-nano`      |
+| Google       | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview`                         | `gemini`, `gemini-pro`             |
 
-The `claude-agent-sdk` loop runs Anthropic models only.
+There's no default model. The workspace deploying the agent sets one, and a definition a toolkit ships names none, so the same definition works whatever provider you have.
+
+Azure OpenAI addresses a deployment on your own endpoint rather than a shared model, so it has no alias and needs `api_url` and `api_version` alongside the model and the key. The `claude-agent-sdk` loop runs Anthropic models only, so naming it in a workspace whose key is Azure or Google breaks the run.
 
 Credentials for the provider go under the job's `agent` section, in `secrets.toml` or the environment. Without them, the provider's default environment variables are used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on):
 
 ```toml
 # .dlt/secrets.toml
 [jobs.__deployment__.job_inspector.agent]
+model = "anthropic:claude-sonnet-5"
 api_key = "sk-ant-..."
-# api_url = "https://my-proxy.example.com"   # a proxy or a private deployment
-# api_version = "2024-10-21"                 # Azure only
 ```
 
-On the platform the runtime can supply a model endpoint of its own. If you set any of `model`, `api_key`, `api_url`, or `api_version`, the run takes all four from your configuration and ignores the runtime's endpoint. The run logs which endpoint it used.
+Azure OpenAI takes all four:
+
+```toml
+# .dlt/secrets.toml
+[jobs.__deployment__.job_inspector.agent]
+model = "azure:my-gpt-deployment"
+api_key = "..."
+api_url = "https://my-resource.openai.azure.com"
+api_version = "2024-10-21"                   # the api-version your deployment serves
+```
+
+Azure is the only provider pydantic-ai gives `api_version`. Elsewhere it's ignored with a warning, so leave it unset.
+
+On the platform the runtime can supply a model endpoint of its own. `model`, `api_key`, `api_url`, and `api_version` are one set: if you set any of them, the run takes all four from your configuration and ignores the runtime's endpoint. Setting `api_key` alone leaves `model` unset, so the run sends the wrong model name to your endpoint and fails with `401 API key is invalid`. The run logs which endpoint it used.
+
+On the platform, set the four as workspace variables rather than in `secrets.toml`. They arrive on the runner as environment and override the file:
+
+```sh
+printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
+```
 
 ### Deploy the agent job
 
@@ -215,9 +243,25 @@ dlthub deploy
 
 A selector trigger expands at deploy time, so a `job.fail:` agent job starts watching the jobs it matches as soon as the deployment lands. See [Deployments](../pipeline-operations/deployments.md).
 
+:::warning
+Check what a wide selector matched before you deploy a second agent job. `job.fail:*` and `job.fail:batch:` match every batch job in the workspace, agent jobs included. The declaring job is excluded, so an agent never triggers on its own failures, but two agents both watching `job.fail:*` do trigger each other: a failed run of A starts B, a failed run of B starts A, and the pair keeps going until you archive one. Scope each agent with a tag or a section selector, such as `job.fail:tag:ingest`. `dlthub deploy --show-manifest` prints the concrete triggers a selector expanded to. Excluding agent jobs from wide selectors is planned.
+:::
+
 ## Read the agent run result
 
-The agent run prints its transcript as it goes: the model's reasoning, its messages, the tool calls it makes, what each tool returned, and a closing line listing the tools, skills, and MCP tools used. `agent.verbosity` controls how much of it you see. The transcript is colored when a terminal is attached. Set `DLT_ECHO_FORCE_COLOR` to keep the colors in a log without a terminal, or `DLT_ECHO_NO_COLOR` to drop them. When the run ends, the launcher prints and delivers the job result:
+An agent run leaves three things behind, and they answer different questions:
+
+| What        | Where                                                                                  | Holds                                                                                                                                                                             |
+| ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Run log     | Your terminal on a local run, the run's **Logs** in the Web UI, `dlthub job runs logs` | Everything the run printed as it went: the model's reasoning, its messages, each tool call and what it returned, and a closing line listing the tools, skills, and MCP tools used |
+| Agent trace | The run's **Trace** in the Web UI, and `trace` in the result below                     | The structured record of the same run: model, limits, resolved inputs, the tools that were wired, turn and token counts, per-turn tool calls                                      |
+| Job result  | The run's **Summary** in the Web UI, `dlthub job runs info`                            | What the agent returned: `status`, `summary`, and the fields its `output` schema declares                                                                                         |
+
+The log is what the run printed, so you read it to follow what the agent did and why. The trace is queryable, so you read it to count turns and tokens or to check which tools a run was actually given.
+
+`agent.verbosity` controls how much reaches the log: `0` the outcome and tool names, `1` adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt. The log is colored when a terminal is attached. Set `DLT_ECHO_FORCE_COLOR` to keep the colors without a terminal, or `DLT_ECHO_NO_COLOR` to drop them.
+
+When the run ends, the launcher prints and delivers the job result:
 
 ```json
 {
@@ -284,11 +328,12 @@ Select the loop on the job with `loop="claude-agent-sdk"`, or for a single run w
 ## Guardrails
 
 - Tools follow the `access` declaration. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and a tool the grant doesn't cover isn't offered to the model.
+- An agent runs no code unless its definition grants `local: execute`. Without that verb it has no `Bash` and no `RunPython`, so it can read and reason but can't run anything on the runner. The agents the harness ships don't grant it.
 - Credential files are never readable by a file tool: `*secrets.toml`, `.env`, `.env.*`, on both loops, whatever `local` grants.
 - SQL through the MCP server is limited to a single `SELECT` statement per call.
 - `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. It also reaches around the file tools' credential rules. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
 - `data` is a grant you make deliberately: it opens the workspace data to a model-driven process. The agents the harness ships declare `local: read` and `context: read` and no `data`, and build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
-- Pin `require={"profile": "access"}` on every agent job, so the production credentials stay out of its environment. See [Profile of an agent job](#profile-of-an-agent-job).
+- An agent job declaring no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Next steps
 

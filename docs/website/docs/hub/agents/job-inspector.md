@@ -11,6 +11,8 @@ This feature is in private preview
 
 `job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, follows the traceback into the workspace source and a missing input back to the job that produces it, and reports a classification of the failure with evidence and a fix naming the target and the change. It inspects any batch job and doesn't change code or data.
 
+Point its trigger at as much of the workspace as you want watched: one job, every job in a module, every job carrying a tag, or every job in the workspace. You declare the inspector once whichever you pick, and it inspects whatever fails. See [Triggers for agents](index.md#triggers-for-agents).
+
 You declare it like any other agent job. [Background agents](index.md) covers the mechanics this page builds on.
 
 ## Install the toolkit
@@ -49,7 +51,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id>
 dlthub deploy
 ```
 
-The transcript streams to your terminal. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
+The run log streams to your terminal as the agent works: its reasoning, each tool call, and what each tool returned. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
 
 ## Agent inputs
 
@@ -122,7 +124,7 @@ The definition ships these defaults. The agent job and the individual run overri
 | `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                   |
 | `loop_run_args` | `retries: 2`, the number of times pydantic-ai lets the model correct a failing tool call |
 
-The definition names no model, so the run takes the `sonnet` default or the model you set on the job. Give it one at least as capable as Claude Sonnet 5.
+The definition names no model, so the model comes from the job or the workspace. Give it one at least as capable as Claude Sonnet 5.
 
 :::warning
 Narrow the trigger as soon as a second agent job is deployed. `job.fail:*` matches every batch job in the workspace, agent jobs included. The declaring job is excluded, so the inspector never triggers on its own failures, but two agents both watching `job.fail:*` do trigger each other: a failed run of A starts B, a failed run of B starts A, and the pair keeps going. A tag or section selector such as `job.fail:tag:ingest` scopes the inspector to the jobs you want watched. Excluding agent jobs from wide selectors is planned.
@@ -135,7 +137,7 @@ inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
     require={"profile": "access"},
-    model="opus",
+    model="sonnet",
     limits={"max_turns": 20},
     instructions="focus on the loader step",
 )
@@ -144,18 +146,18 @@ inspector = run.agent(
 Or for a single run:
 
 ```sh
-dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=opus
+dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 ```
 
 [Triggers for agents](index.md#triggers-for-agents) lists the selectors a `job.fail:` trigger accepts.
 
 ## Guardrails
 
-The definition grants `local: [read]` and `context: [read]`. The agent reads workspace files with `Read`, `Glob`, and `Grep`, and reads runs, logs, job definitions, and telemetry through the dltHub MCP server. It has no shell, by design: the credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection. The body rules it read-only on top of that: it doesn't edit code, deploy, cancel, or rerun a job, and a person applies the proposed fix.
-
-The definition declares no `data` axis. A diagnosis is built from run records, logs, job definitions, the dlt trace, and workspace source, and the agent can't query your destination. When the cause turns on what a table holds, the agent puts that in `open_points` and names the query that would settle it.
-
-Pin `require={"profile": "access"}` on the job. An agent job is a batch job, so without the pin it runs on `prod` with the production credentials in its environment. See [Profile of an agent job](index.md#profile-of-an-agent-job).
+- **Reads, never writes.** The definition grants `local: [read]` and `context: [read]`: `Read`, `Glob`, and `Grep` over workspace files, and runs, logs, job definitions, and telemetry through the dltHub MCP server.
+- **No shell, by design.** The credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection.
+- **No destination access.** The definition declares no `data` axis, so the agent can't query your data. A diagnosis is built from run records, logs, job definitions, the dlt trace, and workspace source. When the cause turns on what a table holds, the agent puts that in `open_points` and names the query that would settle it.
+- **No changes to your workspace.** The body rules it read-only on top of the grants: it doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
+- **Read-only credentials.** The job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 ## Next steps
 

@@ -124,7 +124,7 @@ The body refers to inputs as `{{ name }}`. It can also refer to the run itself: 
 
 ### Entity-typed inputs and outputs
 
-An input that names a workspace object carries `entity_type`: `job-run`, `job`, `pipeline`, `dataset`, or `workspace`. The agent receives the bare id (a run id, a job ref, a pipeline name). Declaring the type does two things:
+An input that names a workspace object carries `entity_type`: `job-run`, `job`, `pipeline`, `dataset`, or `workspace`. The agent receives the bare id (a run id, a [job ref](index.md#job-refs), a pipeline name). Declaring the type does two things:
 
 1. The run reports the entity in its result, so the run shows up on that entity's page in the Web UI.
 2. The first entity-typed input becomes `expose.object_input` in the deployment manifest. The Web UI reads it to offer the agent job from an entity. On a failed run's row it lists every agent job with a `job-run` input, and picking one starts a run with that run id filled in.
@@ -144,7 +144,9 @@ Declare both in the file so it shows the whole contract, and leave them as they 
 
 Declare the agent's own fields alongside `status` and `summary`. The model receives the whole output schema, every description and enum included, so give a description to each field whose name doesn't explain it. The schema describes the shape of the answer. The body says what each value means and when to pick it.
 
-Keep the schema small. A large one can stop a platform run before the container launches, with no error, no logs, and no start time on the run record. A schema of about 18,000 characters of JSON never started; the same agent with the schema flattened to under 8,000 ran normally. Flatten nested models and drop the fields the `summary` already covers.
+:::warning
+Keep the schema small. A large one can stop a platform run before the container launches, with no error, no logs, and no start time on the run record. Stay under about 8,000 characters of JSON: flatten nested models and drop the fields the `summary` already covers.
+:::
 
 The schema reaches the model as declared, with two exceptions:
 
@@ -171,6 +173,18 @@ output:
 
 `status` and `summary` stay out of the declaration here, so dltHub adds them. `verdict` carries the domain outcome, and its description tells the model when to pick each value.
 
+### Summary structure
+
+`summary` is Markdown, rendered on the run page. By default it carries three headings, each over short bullets:
+
+| Heading             | What the bullets answer                                                                      |
+| ------------------- | -------------------------------------------------------------------------------------------- |
+| `## Diagnosis`      | The root cause: what failed, where, and why. One bullet quotes the evidence line carrying it |
+| `## Recommendation` | The next action: the target and the change, written as the instruction itself                |
+| `## Confidence`     | The limits of the diagnosis: every entry of `open_points`, and why this confidence           |
+
+Declare your own headings in the body when your agent reports something else.
+
 ### Access declaration
 
 `access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis you leave out grants nothing. With no `access` at all the agent receives no file tools or shell, and its MCP server serves only the toolkit catalog.
@@ -186,7 +200,7 @@ output:
 
 `all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request through `RunPython` and `urllib`.
 
-`access` doesn't select the profile the job runs on. An agent job is a batch job and takes `prod` unless the job declares `require={"profile": "access"}`, so a `data` grant on an unpinned job reads production data with production credentials. See [Profile of an agent job](index.md#profile-of-an-agent-job).
+`access` doesn't select the profile the job runs on. An agent job takes the read-only `access` profile unless it declares otherwise, so a `data` grant reads through read-only credentials. Keep it that way: an unattended agent must not hold the production profile. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 The declaration is a request that the runtime grants as far as it can. If a loop has no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
 
@@ -212,18 +226,19 @@ defaults:
 
 `access`, `tools`, `skills`, and `rules` are declarations, not defaults. A job that references the definition keeps them as declared. A decorated function that drives the definition replaces each list it passes an argument for, every axis included.
 
-A definition a toolkit ships leaves `model` out, so an installer isn't handed a provider. The run then takes the `sonnet` default or the model the job sets.
+Leave `model` out of a definition you ship in a toolkit. Whoever installs it may be on Anthropic, OpenAI, Azure or Google, and a model you name is one they may not be able to reach. The job or the workspace picks it. Write in the body which models the prompt was written for, for example "at least as capable as Claude Sonnet 5".
 
 ### System prompt body
 
 The body is the system prompt. Write it as you would a skill, for a reader who has the tools and needs the context. Platform knowledge belongs in the referenced rules and skills. Keep the body under about two hundred lines and cover these points:
 
 1. State the role in two sentences, including that the agent runs unattended.
-2. Define `succeeded`, `failed`, and `aborted` for this agent. The schema doesn't. Under structured output the model tends to report `succeeded` when unsure, so say what counts as a failure.
+2. Define `succeeded`, `failed`, and `aborted` for this agent. The output schema lists the three values but says nothing about when each applies, so the model decides for itself unless the body tells it. Under structured output it leans towards `succeeded` when unsure, so spell out what counts as a failure.
 3. Say what to do with each input, and with its absence. Name the fallbacks in order and the point at which the answer is `aborted`.
 4. Give the first steps concretely. Which tool to call first, what to read, what to look for.
 5. Write constraints as rules, for example "Never edit code, never deploy, never rerun a job".
 6. Define every enum the output declares. Say what `unknown` or `low` means and that reporting it is a legitimate outcome.
+7. State the headings `summary` must carry and the shape of its bullets. See [Summary structure](#summary-structure).
 
 The model also receives the rules, the skills, the output schema, the workspace and temp folder paths, and the tools, so the body doesn't need to repeat them. The user turn of each run is the job's `instructions`, or "Go ahead" when none are set.
 
