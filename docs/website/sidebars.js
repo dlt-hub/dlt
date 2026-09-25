@@ -553,6 +553,15 @@ const sidebars = {
     },
     {
       type: "category",
+      label: "Agents",
+      items: [
+        { type: "doc", id: "hub/agents/index", label: "Background agents" },
+        { type: "doc", id: "hub/agents/agent-definitions", label: "Agent definitions" },
+        { type: "doc", id: "hub/agents/job-inspector", label: "Job inspector agent" },
+      ],
+    },
+    {
+      type: "category",
       label: "Data Apps",
       items: [
         "hub/data-discovery/datasets",

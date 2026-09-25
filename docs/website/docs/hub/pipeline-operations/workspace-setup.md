@@ -63,16 +63,16 @@ The dltHub platform uses **profiles** to manage different configurations for dif
 
 The built-in profiles are:
 
-| Profile  | Scope               | Purpose                                                     | Credentials                                  |
-| -------- | ------------------- | ----------------------------------------------------------- | -------------------------------------------- |
-| `dev`    | Local only          | Local development (default when running on your machine)    | Local DuckDB / test credentials              |
-| `tests`  | Local only          | Automated tests                                             | Test credentials                             |
-| `prod`   | Synced with backend | Production batch jobs running on the dltHub platform        | Read/write access to your destination        |
-| `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform | Read-only access (for safe data exploration) |
+| Profile  | Scope               | Purpose                                                                                                       | Credentials                                  |
+| -------- | ------------------- | ------------------------------------------------------------------------------------------------------------- | -------------------------------------------- |
+| `dev`    | Local only          | Local development (default when running on your machine)                                                      | Local DuckDB / test credentials              |
+| `tests`  | Local only          | Automated tests                                                                                               | Test credentials                             |
+| `prod`   | Synced with backend | Production batch jobs running on the dltHub platform                                                          | Read/write access to your destination        |
+| `access` | Synced with backend | Interactive notebooks and dashboards on the dltHub platform, and [agent jobs](../agents/index.md) that pin it | Read-only access (for safe data exploration) |
 
 Any custom profile you reference in a job decorator (e.g. `require={"profile": "analytics"}`) is also synced to the cloud configuration.
 
-When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`.
+When you run a script locally, dlt uses `dev`. When the dltHub platform executes a **batch job**, it uses `prod`. When the dltHub platform serves an **interactive job** (notebook, dashboard, MCP), it uses `access`. If `access` is not configured, interactive jobs fall back to `prod`. An **agent job** is a batch job and takes `prod` too, so declare `require={"profile": "access"}` on it to keep the production credentials out of its environment.
 
 See [profiles in dltHub](./profiles.md) for the full reference.
 

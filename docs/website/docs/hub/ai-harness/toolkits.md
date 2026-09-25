@@ -132,6 +132,8 @@ Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked e
 </details>
 </div>
 
+The toolkit also ships the `job-inspector` agent definition. Declare it as a job with `run.agent("dlthub-platform:job-inspector", ...)` and it diagnoses failed job runs unattended. See [Background agents](../agents/index.md).
+
 ## Observe
 
 ### `data-exploration`

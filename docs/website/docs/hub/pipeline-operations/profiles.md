@@ -8,12 +8,12 @@ keywords: [dltHub, profiles, workspace, configuration, secrets, environments]
 Profiles in `dlt` define **environment-specific configurations and secrets**.
 They allow you to manage separate settings for development, testing, and production using the same codebase.
 
-Each profile provides isolated configuration, credentials, and working directories for dlt pipelines, datasets, transformations, and notebooks. You don't need to write any additional code to benefit from profiles.
+Each profile provides isolated configuration, credentials, and working directories for dlt pipelines, datasets, transformations, notebooks, and agents. You don't need to write any additional code to benefit from profiles.
 
 Profiles are defined and managed through [**TOML files**](../../general-usage/credentials) located in the `.dlt` directory.
 They are compatible with the `secrets.toml` and `config.toml` files you may already know from OSS dlt.
 
-The [dltHub platform](https://app.dlthub.com) automatically uses certain profiles to deploy and run pipelines and notebooks.
+The [dltHub platform](https://app.dlthub.com) automatically uses certain profiles to deploy and run pipelines, notebooks, and agents.
 
 ## Enable the workspace and profiles
 
@@ -45,15 +45,15 @@ Once your workspace is scaffolded, you'll have two familiar `toml` files in `.dl
 
 **dltHub Workspace** predefines several profiles. `dev` and `tests` are local-only and never uploaded; `prod`, `access`, and any custom profile referenced in a job decorator are synchronized to the cloud configuration on every `dlthub deploy`.
 
-| Profile      | Scope           | Description                                                                                                                             |
-| ------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| **`dev`**    | Local only      | Default profile for local development.                                                                                                  |
-| **`tests`**  | Local only      | Profile for automated test runs and CI/CD.                                                                                              |
-| **`prod`**   | Synced to cloud | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).        |
-| **`access`** | Synced to cloud | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles). |
+| Profile      | Scope           | Description                                                                                                                                                                 |
+| ------------ | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **`dev`**    | Local only      | Default profile for local development.                                                                                                                                      |
+| **`tests`**  | Local only      | Profile for automated test runs and CI/CD.                                                                                                                                  |
+| **`prod`**   | Synced to cloud | Production profile, [used by the dltHub platform to run batch pipelines](./workspace-setup.md#understanding-workspace-profiles).                                            |
+| **`access`** | Synced to cloud | Read-only production profile [for interactive notebooks on the dltHub platform](./workspace-setup.md#understanding-workspace-profiles), and for the agent jobs that pin it. |
 
 :::note
-The `dev` profile is active by default when you create a workspace. The others become active when pinned locally or automatically selected by the dltHub platform (`prod` for batch jobs, `access` for interactive ones).
+The `dev` profile is active by default when you create a workspace. The others become active when pinned locally or automatically selected by the dltHub platform (`prod` for batch jobs, `access` for interactive jobs). An [agent job](../agents/index.md) is a batch job, so it takes `prod` unless it declares `require={"profile": "access"}`. Pin it on every agent job.
 :::
 
 View available profiles:

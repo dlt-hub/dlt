@@ -134,6 +134,7 @@ def load_commits():
 | -------------- | -------------------------------------------------------------------------------------- |
 | `tags`         | List of labels for grouping in the dashboard and matching CLI selectors (`tag:ingest`) |
 | `display_name` | Human-readable label shown in the dashboard                                            |
+| `manual`       | Whether the runner adds the `manual:` trigger. `True` by default                       |
 
 See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tags drive `dlthub job trigger` selectors.
 

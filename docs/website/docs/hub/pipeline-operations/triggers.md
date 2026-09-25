@@ -20,15 +20,21 @@ This page covers all the trigger types and the related scheduling features.
 
 ## Basic triggers
 
-| Trigger                                | Meaning                                                       |
-| -------------------------------------- | ------------------------------------------------------------- |
-| `trigger.every("5m")`                  | Recurring interval (`"5m"`, `"6h"`, seconds as float)         |
-| `trigger.schedule("0 * * * *")`        | Cron expression                                               |
-| `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp                                       |
-| `"*/5 * * * *"`                        | Bare cron string — auto-detected                              |
-| `upstream_job.success`                 | Follow-up — fires when an upstream job completes successfully |
-| `upstream_job.fail`                    | Follow-up — fires when an upstream job fails                  |
-| `upstream_job.completed`               | Follow-up — fires on success or failure                       |
+| Trigger                                | Meaning                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `trigger.every("5m")`                  | Recurring interval (`"5m"`, `"6h"`, seconds as float)                                                    |
+| `trigger.schedule("0 * * * *")`        | Cron expression                                                                                          |
+| `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp                                                                                  |
+| `"*/5 * * * *"`                        | Bare cron string — auto-detected                                                                         |
+| `upstream_job.success`                 | Follow-up — fires when an upstream job completes successfully                                            |
+| `upstream_job.fail`                    | Follow-up — fires when an upstream job fails                                                             |
+| `upstream_job.completed`               | Follow-up — fires on success or failure                                                                  |
+| `"job.fail:tag:ingest"`                | Follow-up on every job matching a selector, used by [agent jobs](../agents/index.md#triggers-for-agents) |
+| no `trigger=` at all                   | The job runs only when started by hand, and its runs carry a `manual:` trigger                           |
+
+A selector after `job.fail:` or `job.success:` takes the same forms `dlthub job trigger` takes: `tag:<tag>`, `batch:`, `*`, or a job ref. A job ref names one job: `jobs.<section>.<job>`, where the section is the module the job is declared in or the `section=` argument on its decorator. So `job.success:jobs.github_pipeline.load_commits` fires when the `load_commits` job in `github_pipeline.py` succeeds, and `job.fail:jobs.github_pipeline.*` fires on a failure of any job in that module. `dlthub job list` prints the job refs of a deployment. See [Job configuration via TOML](job-configuration.md#job-configuration-via-toml).
+
+The runner adds the `manual:` trigger itself, so passing `trigger.manual()` raises `InvalidTrigger: manual: triggers are added automatically`. Set `expose={"manual": False}` to keep the runner from adding it.
 
 ## Multiple triggers
 
