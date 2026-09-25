@@ -2215,3 +2215,65 @@ def test_insert_only_with_nested_tables(destination_config: DestinationTestConfi
     # Child1 exists so not re-inserted, Child2 unchanged,
     # Child3 and Child4 are new inserts
     assert len(parent_tables["parent_items__children"]) == 4
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        supports_merge=True,
+        # the sqlalchemy destination has its own merge job implementation;
+        # run against sqlite which needs no live database
+        subset=("sqlalchemy",),
+        destination_name="sqlalchemy_sqlite",
+    ),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("merge_strategy", ("delete-insert",))
+def test_hard_delete_hint_no_key_nested_sqlalchemy(
+    destination_config: DestinationTestConfiguration,
+    merge_strategy: TLoaderMergeStrategy,
+) -> None:
+    """Regression test: merge + hard_delete + no keys on a nested table, sqlalchemy destination.
+
+    Follow-up to #4481/#4482: the sqlalchemy merge job had the same latent bug in its
+    own `gen_merge_sql` implementation — `row_key_col_name`/`root_key_name` were only
+    assigned under `if not append_fallback:` while the hard-delete insert path used them
+    unconditionally, crashing with UnboundLocalError.
+
+    Without primary or merge keys the merge falls back to a staged append. Generating
+    the followup SQL must not fail in that case, also when the table chain is nested.
+    """
+    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+
+    table_name = "test_hard_delete_hint_no_key_nested_sqlalchemy"
+
+    @dlt.resource(
+        name=table_name,
+        write_disposition={"disposition": "merge", "strategy": merge_strategy},
+        columns={"deleted": {"hard_delete": True}},
+    )
+    def data_resource(data):
+        yield data
+
+    # no primary or merge keys: merge falls back to append
+    p = destination_config.setup_pipeline("hard_delete_no_key_nested_sqlalchemy", dev_mode=True)
+
+    data = [
+        {"id": 1, "deleted": False, "child": [{"c": "a"}, {"c": "b"}]},
+        {"id": 2, "deleted": True, "child": [{"c": "x"}]},
+    ]
+    info = p.run(data_resource(data), **destination_config.run_kwargs)
+    assert_load_info(info)
+    # hard-deleted root rows are excluded from the copy, nested rows are appended as-is
+    assert load_table_counts(p, table_name)[table_name] == 1
+    assert load_table_counts(p, table_name + "__child")[table_name + "__child"] == 3
+
+    # a second load appends again: there are no keys to match on
+    data = [
+        {"id": 3, "deleted": False, "child": [{"c": "y"}]},
+    ]
+    info = p.run(data_resource(data), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert load_table_counts(p, table_name)[table_name] == 2
+    assert load_table_counts(p, table_name + "__child")[table_name + "__child"] == 4
