@@ -365,6 +365,57 @@ def test_gcp_service_credentials_default_identity(
     assert str(gcpc) == (expected_str or f"{configured_email}@proj")
 
 
+@pytest.mark.parametrize(
+    "service_account_email,expected_str",
+    [
+        ("sa@proj.iam.gserviceaccount.com", "sa@proj.iam.gserviceaccount.com@proj"),
+        (None, "default credentials@proj"),
+    ],
+    ids=["impersonated-email", "no-email"],
+)
+def test_gcp_service_credentials_default_identity_native(
+    environment: Any, service_account_email: str, expected_str: str
+) -> None:
+    pytest.importorskip("google.auth")
+    from google.auth.credentials import Credentials
+
+    class ExternalAccountCredentials(Credentials):
+        def __init__(self) -> None:
+            super().__init__()
+            self._quota_project_id = "proj"
+            if service_account_email is not None:
+                self.service_account_email = service_account_email
+
+        def refresh(self, request: Any) -> None:
+            raise AssertionError("must not refresh")
+
+    native = ExternalAccountCredentials()
+    gcpc = resolve_configuration(GcpServiceAccountCredentials(), explicit_value=native)
+
+    assert gcpc.has_default_credentials()
+    assert gcpc.to_native_credentials() is native
+    assert gcpc.private_key is None
+    assert str(gcpc) == expected_str
+
+
+def test_gcp_service_credentials_native_service_account(environment: Any) -> None:
+    service_account = pytest.importorskip("google.oauth2.service_account")
+
+    native = service_account.Credentials(
+        signer=object(),
+        service_account_email="loader@iam.gserviceaccount.com",
+        token_uri="https://oauth2.googleapis.com/token",
+        project_id="chat-analytics",
+    )
+    gcpc = GcpServiceAccountCredentials()
+    gcpc.parse_native_representation(native)
+
+    # key based native credentials are kept in private key
+    assert gcpc.private_key is native
+    assert gcpc.to_native_credentials() is native
+    assert str(gcpc) == "loader@iam.gserviceaccount.com@chat-analytics"
+
+
 def test_gcp_oauth_credentials_native_representation(environment) -> None:
     with pytest.raises(InvalidGoogleNativeCredentialsType):
         GcpOAuthCredentials().parse_native_representation(1)

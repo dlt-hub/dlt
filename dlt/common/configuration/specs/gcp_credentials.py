@@ -388,6 +388,12 @@ class GcpServiceAccountCredentials(
             GcpDefaultCredentials.parse_native_representation(self, native_value)
         except NativeValueError:
             pass
+        else:
+            from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+
+            # other google credentials (ie. external account, compute engine) have no key fields
+            if not isinstance(native_value, ServiceAccountCredentials):
+                return
         GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(self, native_value)
 
     def _set_default_credentials(self, credentials: Any) -> None:
