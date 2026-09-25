@@ -82,17 +82,52 @@ Both validators are accepted only when the agent is passed by reference. A decor
 
 ### Triggers for agents
 
-Agent jobs take every trigger other jobs take. Two string triggers exist for reacting to job outcomes across the workspace. They accept a job ref or any selector `dlthub job trigger` accepts:
+Agent jobs take every trigger other jobs take. Two string triggers react to the outcome of other jobs in the workspace: `job.fail:` and `job.success:`. After the colon you write which jobs to watch, as a job ref or as a selector.
 
-```text
-job.fail:tag:ingest          every job tagged `ingest`
-job.fail:batch:              every batch job
-job.fail:jobs.mod.*          every job in section `mod`
-job.fail:*                   every job
-job.success:jobs.mod.load    one job, on success
+#### Job refs
+
+A job ref is the name the platform gives one job. It is built from where the job is declared, so you can read it off the source. This file declares two jobs:
+
+```py notype
+# github_pipeline.py
+from dlt.hub import run
+
+@run.pipeline("github", expose={"tags": ["ingest"]})
+def load_commits():
+    ...
+
+@run.job()
+def check_commits():
+    ...
 ```
 
+Deployed, they are `jobs.github_pipeline.load_commits` and `jobs.github_pipeline.check_commits`:
+
+| Part              | Where it comes from                                             |
+| ----------------- | --------------------------------------------------------------- |
+| `jobs`            | Fixed prefix on every job ref                                   |
+| `github_pipeline` | The section: the file the job is declared in, without the `.py` |
+| `load_commits`    | The decorated function's name                                   |
+
+The section is the filename. The pipeline name, `"github"` here, never appears in the ref. Pass `section="ingest"` to the decorator to set it yourself, which is what you do for jobs written inline in `__deployment__.py`, where the section would otherwise be `__deployment__`. `dlthub job list` prints the refs of a deployment.
+
+#### Selectors
+
+A selector matches a set of jobs at once. It takes the same forms `dlthub job trigger` takes:
+
+| Selector                            | Matches                                            |
+| ----------------------------------- | -------------------------------------------------- |
+| `jobs.github_pipeline.load_commits` | That one job                                       |
+| `jobs.github_pipeline.*`            | Every job declared in `github_pipeline.py`         |
+| `tag:ingest`                        | Every job tagged `ingest`, wherever it is declared |
+| `batch:`                            | Every batch job                                    |
+| `*`                                 | Every job in the workspace                         |
+
+So `trigger="job.fail:tag:ingest"` starts the agent whenever a job tagged `ingest` fails, and `trigger="job.success:jobs.github_pipeline.load_commits"` starts it when `load_commits` succeeds.
+
 A selector expands at deploy time to a follow-up trigger per matching job. The declaring job itself and interactive jobs are excluded. A run started manually arrives with a `manual:` trigger and only the inputs it was given, so the body must say what to do with empty input.
+
+An agent that only ever runs when you start it takes no `trigger=` at all. The runner adds the `manual:` trigger itself, so `trigger.manual()` is not something you pass: it raises `InvalidTrigger: manual: triggers are added automatically`.
 
 ### Profile of an agent job
 
@@ -118,10 +153,12 @@ Each trigger of the agent job produces an agent run. You can also start a run ma
 
 ```sh
 dlthub local run job_inspector -c failed_run_id=<run-id>     # locally
-dlthub run job_inspector -c failed_run_id=<run-id> -f        # on the platform
+dlthub run job_inspector -f                                  # on the platform
 ```
 
-You can override settings for a single run. Inputs and agent settings are ordinary job configuration under the job's section, so the same keys work on the command line, in `config.toml`, in the environment, and in the Web UI's run dialog:
+`-c` is a local flag. `dlthub run` does not take it, and a workspace variable holding an input key does not reach a remote run either. A remote run takes its inputs from the trigger that started it, or from the job's `config.toml` as deployed. To point a remote agent run at one specific run id today, put the value in `config.toml` and deploy, or run it locally.
+
+You can override settings for a single local run. Inputs and agent settings are ordinary job configuration under the job's section, so the same keys work on the command line, in `config.toml`, and in the environment:
 
 | What                                         | Key                            | Example                                                                                        |
 | -------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |

@@ -144,6 +144,8 @@ Declare both in the file so it shows the whole contract, and leave them as they 
 
 Declare the agent's own fields alongside `status` and `summary`. The model receives the whole output schema, every description and enum included, so give a description to each field whose name doesn't explain it. The schema describes the shape of the answer. The body says what each value means and when to pick it.
 
+Keep the schema small. A large one can stop a platform run before the container launches, with no error, no logs, and no start time on the run record. A schema of about 18,000 characters of JSON never started; the same agent with the schema flattened to under 8,000 ran normally. Flatten nested models and drop the fields the `summary` already covers.
+
 The schema reaches the model as declared, with two exceptions:
 
 - `entity_type` moves into `$comment`.
@@ -182,7 +184,7 @@ output:
 | `data`    | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only. The SQL tool runs a single read-only statement whatever `data` grants |
 | `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated               |
 
-`all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants.
+`all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request through `RunPython` and `urllib`.
 
 `access` doesn't select the profile the job runs on. An agent job is a batch job and takes `prod` unless the job declares `require={"profile": "access"}`, so a `data` grant on an unpinned job reads production data with production credentials. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
@@ -228,6 +230,8 @@ The model also receives the rules, the skills, the output schema, the workspace 
 ## Agent definition as a Python function
 
 A decorated function doesn't need an `AGENT.md` or a toolkit. Its docstring is the system prompt, its parameters are the inputs, and its return type is the output. The decorator arguments are the agent job's settings, and the body drives the loop it finds in `run_context["ai_loop"]`.
+
+Write the docstring as a prompt. It goes to the model on every run with its placeholders resolved, the same way an `AGENT.md` body does, and the [system prompt body](#system-prompt-body) points apply to it. The function body decides how the loop is driven, and the model reads none of it, so a rewrite of the function that trims the docstring to a description changes the agent.
 
 ```py notype
 from typing import Annotated, List, Literal

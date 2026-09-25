@@ -67,6 +67,18 @@ Both are optional, and a run resolves them in order:
 
 A run started from a `job.fail:` trigger arrives with both inputs empty. The trigger string names the failed job, and the agent takes the job ref from `{{ run_context.trigger }}` in step 3. A run you start manually takes the inputs you give it on the command line or in configuration.
 
+Only `job.fail:` resolves in step 3. A run started from a `job.success:` trigger reaches step 4 and ends `aborted`, because the trigger names a job but no failed run.
+
+### Inspect a run that succeeded
+
+Hand the inspector a run id and it reads that run whatever its status, so a green run is inspectable:
+
+```sh
+dlthub local run job_inspector -c failed_run_id=<run-id>
+```
+
+A green run that loaded nothing gets a description of the anomaly. The inspector reports the zero-row load in `summary` and leaves `fix_target` and `fix_change` empty, because a run that completed carries no error to trace back to a setting. Catch a silent shortfall with a [data quality](../data-quality/index.md) check on the loaded row count, and let that check's failed run be what starts the inspector.
+
 ## What it reports
 
 | Field            | Meaning                                                                                                               |
@@ -111,6 +123,10 @@ The definition ships these defaults. The agent job and the individual run overri
 | `loop_run_args` | `retries: 2`, the number of times pydantic-ai lets the model correct a failing tool call |
 
 The definition names no model, so the run takes the `sonnet` default or the model you set on the job. Give it one at least as capable as Claude Sonnet 5.
+
+:::warning
+Narrow the trigger as soon as a second agent job is deployed. `job.fail:*` matches every batch job in the workspace, agent jobs included. The declaring job is excluded, so the inspector never triggers on its own failures, but two agents both watching `job.fail:*` do trigger each other: a failed run of A starts B, a failed run of B starts A, and the pair keeps going. A tag or section selector such as `job.fail:tag:ingest` scopes the inspector to the jobs you want watched. Excluding agent jobs from wide selectors is planned.
+:::
 
 Narrow the trigger and change the settings on the job:
 
