@@ -15,6 +15,7 @@ from dlt.common.configuration.specs import (
     GcpOAuthCredentials,
     AwsCredentials,
 )
+from dlt.common.configuration.specs.gcp_credentials import GcpDefaultCredentials
 from dlt.common.configuration.specs.exceptions import (
     InvalidConnectionString,
     InvalidGoogleNativeCredentialsType,
@@ -296,6 +297,7 @@ def test_gcp_service_credentials_native_representation(environment) -> None:
     assert gcpc.private_key == "-----BEGIN PRIVATE KEY-----\n\n-----END PRIVATE KEY-----\n"
     assert gcpc.project_id == "chat-analytics"
     assert gcpc.client_email == "loader@iam.gserviceaccount.com"
+    assert str(gcpc) == "loader@iam.gserviceaccount.com@chat-analytics"
     # get native representation, it will also location
     _repr = gcpc.to_native_representation()
     assert "project_id" in _repr
@@ -323,6 +325,44 @@ def test_gcp_service_credentials_resolved_from_native_representation(environment
 
     environment["CREDENTIALS__PRIVATE_KEY"] = "loader"
     resolve_configuration(gcpc, accept_partial=False)
+
+
+class _FakeDefaultCredentials:
+    quota_project_id = None
+
+    def __init__(self, service_account_email: str = None) -> None:
+        if service_account_email is not None:
+            self.service_account_email = service_account_email
+
+
+@pytest.mark.parametrize(
+    "service_account_email,configured_email,expected_str",
+    [
+        (
+            "sa@proj.iam.gserviceaccount.com",
+            None,
+            "sa@proj.iam.gserviceaccount.com@proj",
+        ),
+        (None, None, "default credentials@proj"),
+        ("default", None, "default credentials@proj"),
+        ("sa@proj.iam.gserviceaccount.com", "me@proj.iam.gserviceaccount.com", None),
+    ],
+    ids=["impersonated-email", "no-email", "compute-engine-default", "configured-email-kept"],
+)
+def test_gcp_service_credentials_default_identity(
+    environment: Any, service_account_email: str, configured_email: str, expected_str: str
+) -> None:
+    default = _FakeDefaultCredentials(service_account_email)
+    gcpc = GcpServiceAccountCredentials()
+    gcpc.client_email = configured_email
+    with patch.object(
+        GcpDefaultCredentials, "_get_default_credentials", return_value=(default, "proj")
+    ):
+        resolve_configuration(gcpc)
+
+    assert gcpc.has_default_credentials()
+    assert gcpc.to_native_credentials() is default
+    assert str(gcpc) == (expected_str or f"{configured_email}@proj")
 
 
 def test_gcp_oauth_credentials_native_representation(environment) -> None:

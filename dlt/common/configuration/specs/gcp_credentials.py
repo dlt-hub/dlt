@@ -390,6 +390,13 @@ class GcpServiceAccountCredentials(
             pass
         GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(self, native_value)
 
+    def _set_default_credentials(self, credentials: Any) -> None:
+        super()._set_default_credentials(credentials)
+        # compute engine credentials report "default" until refreshed, which is not an identity
+        email = getattr(credentials, "service_account_email", None)
+        if not self.client_email and email and email != "default":
+            self.client_email = email
+
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
             # hand over to pyarrow's GcsFileSystem, which resolves and refreshes via Google ADC.
@@ -397,6 +404,11 @@ class GcpServiceAccountCredentials(
             return {"gcs.project-id": self.project_id}
         else:
             return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
+
+    def __str__(self) -> str:
+        if self.has_default_credentials() and not self.client_email:
+            return f"default credentials@{self.project_id}"
+        return super().__str__()
 
 
 @configspec
