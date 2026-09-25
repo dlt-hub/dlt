@@ -679,7 +679,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         skip_dedup: bool = root_table.get("x-stage-data-deduplicated", False)  # type: ignore[assignment]
 
         insert_temp_table_name: str = None
-        if len(table_chain) > 1:
+        # without keys we fall back to a staged append: there is nothing to deduplicate
+        # or correlate against, so no insert temp table is created
+        if len(table_chain) > 1 and not append_fallback:
             if len(primary_keys) > 0 or hard_delete_col is not None:
                 # condition_columns = [hard_delete_col] if not_deleted_cond is not None else None
                 condition_columns = None if hard_delete_col is None else [hard_delete_col]
@@ -704,13 +706,21 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
 
             insert_cond = not_deleted_cond if hard_delete_col is not None else "1 = 1"
-            if (len(primary_keys) > 0 and len(table_chain) > 1) or (
-                len(primary_keys) == 0
-                and is_nested_table(table)  # nested table
-                and hard_delete_col is not None
+            if not append_fallback and (
+                (len(primary_keys) > 0 and len(table_chain) > 1)
+                or (
+                    len(primary_keys) == 0
+                    and is_nested_table(table)  # nested table
+                    and hard_delete_col is not None
+                )
             ):
                 uniq_column = root_key_column if is_nested_table(table) else row_key_column
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
+            elif append_fallback and is_nested_table(table):
+                # without keys there is no insert temp table and nested rows cannot be
+                # correlated with their root rows (the hard delete column only exists on
+                # the root table): append nested rows as-is
+                insert_cond = "1 = 1"
 
             columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
             col_str = ", ".join(columns)
