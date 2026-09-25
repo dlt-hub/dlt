@@ -398,8 +398,11 @@ class GcpServiceAccountCredentials(
 
     def _set_default_credentials(self, credentials: Any) -> None:
         super()._set_default_credentials(credentials)
+        # user credentials from gcloud keep the email in `account`
+        email = getattr(credentials, "service_account_email", None) or getattr(
+            credentials, "account", None
+        )
         # compute engine credentials report "default" until refreshed, which is not an identity
-        email = getattr(credentials, "service_account_email", None)
         if not self.client_email and email and email != "default":
             self.client_email = email
 

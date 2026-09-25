@@ -330,9 +330,11 @@ def test_gcp_service_credentials_resolved_from_native_representation(environment
 class _FakeDefaultCredentials:
     quota_project_id = None
 
-    def __init__(self, service_account_email: str = None) -> None:
+    def __init__(self, service_account_email: str = None, account: str = None) -> None:
         if service_account_email is not None:
             self.service_account_email = service_account_email
+        if account is not None:
+            self.account = account
 
 
 @pytest.mark.parametrize(
@@ -363,6 +365,28 @@ def test_gcp_service_credentials_default_identity(
     assert gcpc.has_default_credentials()
     assert gcpc.to_native_credentials() is default
     assert str(gcpc) == (expected_str or f"{configured_email}@proj")
+
+
+@pytest.mark.parametrize(
+    "account,expected_str",
+    [
+        ("me@example.com", "me@example.com@proj"),
+        ("", "default credentials@proj"),
+    ],
+    ids=["account", "empty-account"],
+)
+def test_gcp_service_credentials_default_user_account(
+    environment: Any, account: str, expected_str: str
+) -> None:
+    default = _FakeDefaultCredentials(account=account)
+    gcpc = GcpServiceAccountCredentials()
+    with patch.object(
+        GcpDefaultCredentials, "_get_default_credentials", return_value=(default, "proj")
+    ):
+        resolve_configuration(gcpc)
+
+    assert gcpc.to_native_credentials() is default
+    assert str(gcpc) == expected_str
 
 
 @pytest.mark.parametrize(
