@@ -3,6 +3,7 @@ from pathlib import Path
 
 import pytest
 
+from dlt._workspace.cli.dlthub.ai.utils import TOOLKITS_INDEX_FILE
 from dlt._workspace.deployment.file_selector import (
     ConfigurationFileSelector,
     DEFAULT_IGNORES,
@@ -216,3 +217,23 @@ def test_configuration_file_selector() -> None:
             files_custom
         )
         assert {"dev.config.toml", "tests.config.toml"} <= files_custom
+
+
+def test_toolkits_index_ships_but_secrets_do_not() -> None:
+    """The agent launcher resolves `<toolkit>:<agent>` from the index, so it must reach the runner."""
+    with isolated_workspace("default") as ctx:
+        settings = Path(ctx.settings_dir)
+        settings.mkdir(parents=True, exist_ok=True)
+        (settings / TOOLKITS_INDEX_FILE).write_text("dlthub-platform:\n  version: '0.2.0'\n")
+        (settings / "secrets.toml").write_text("[destination]\n")
+        (settings / "config.toml").write_text("[runtime]\n")
+        (settings / "state").mkdir(exist_ok=True)
+        (settings / "state" / "local.duckdb").write_text("x")
+
+        files = {rel.as_posix() for _, rel in WorkspaceFileSelector(ctx, ignore_file=".ignorefile")}
+
+    assert f".dlt/{TOOLKITS_INDEX_FILE}" in files
+    # everything else under the settings dir stays out, secrets above all
+    assert ".dlt/secrets.toml" not in files
+    assert ".dlt/config.toml" not in files
+    assert ".dlt/state/local.duckdb" not in files

@@ -6,6 +6,7 @@ import pytest
 
 from tests.workspace.runner._runner.runner import run, select_jobs, _resolve_selectors
 from dlt._workspace.deployment.typing import (
+    MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
     TJobDefinition,
@@ -24,6 +25,7 @@ def _batch_job(
     if triggers is None:
         triggers = [f"manual:{ref}"]
     return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef(ref),
         "entry_point": TEntryPoint(
             module=f"{WORKSPACE}.batch_jobs",

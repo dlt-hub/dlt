@@ -74,6 +74,7 @@ from dlt._workspace.deployment.typing import (
     TInterfaceType,
     TJobExposeSpec,
     TJobExposeCategory,
+    TJobObjectInput,
     TExposeSpec,
     TRequireSpec,
     TEntryPoint,
