@@ -133,7 +133,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         dedup_sort = get_dedup_sort_tuple(root_table)  # column_name, 'asc' | 'desc'
         skip_dedup = root_table.get("x-stage-data-deduplicated", False)
 
-        if len(table_chain) > 1 and (primary_key_names or hard_delete_col_name is not None):
+        # without keys we fall back to a staged append: there is nothing to deduplicate
+        # or correlate against, so no insert temp table is created
+        if (
+            len(table_chain) > 1
+            and not append_fallback
+            and (primary_key_names or hard_delete_col_name is not None)
+        ):
             condition_column_names = (
                 None if hard_delete_col_name is None else [hard_delete_col_name]
             )
@@ -217,10 +223,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             staging_table_obj = sql_client.to_dataset_table(table_obj, staging=True)
             select_sql = staging_table_obj.select()
 
-            if (primary_key_names and len(table_chain) > 1) or (
-                not primary_key_names
-                and is_nested_table(table)
-                and hard_delete_col_name is not None
+            if not append_fallback and (
+                (primary_key_names and len(table_chain) > 1)
+                or (
+                    not primary_key_names
+                    and is_nested_table(table)
+                    and hard_delete_col_name is not None
+                )
             ):
                 uniq_column_name = root_key_name if is_nested_table(table) else row_key_col_name
                 uniq_column = staging_table_obj.c[uniq_column_name]
@@ -231,6 +240,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                         ).subquery()
                     )
                 )
+            elif append_fallback and is_nested_table(table):
+                # without keys there is no insert temp table and nested rows cannot be
+                # correlated with their root rows (the hard delete column only exists on
+                # the root table): append nested rows as-is
+                pass
             elif primary_key_names and len(table_chain) == 1 and not skip_dedup:
                 staging_primary_key_cols = [
                     staging_table_obj.c[col_name] for col_name in primary_key_names
