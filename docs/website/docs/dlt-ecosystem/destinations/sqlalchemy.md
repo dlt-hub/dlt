@@ -83,6 +83,10 @@ or
 export DESTINATION__SQLALCHEMY__CREDENTIALS="mysql://loader:<password>@localhost:3306/dlt_data"
 ```
 
+Some dialects need connection URL query parameters on top of the fields above, for example Oracle's `service_name`. Read
+[Oracle connection URL query parameters](#oracle-connection-url-query-parameters) to see how to pass them from `secrets.toml`
+and from environment variables.
+
 An SQLAlchemy `Engine` can also be passed directly by creating an instance of the destination:
 
 ```py
@@ -336,6 +340,119 @@ workers=1
 * VARCHAR precision is accepted in DDL but not stored by DuckDB.
 * Parquet files are loaded with batch INSERT statements: ADBC ingestion is not implemented for this dialect.
 
+## Notes on Oracle
+
+Install the [python-oracledb](https://oracle.github.io/python-oracledb/) driver and use the `oracle+oracledb` dialect in your
+connection URL:
+
+```sh
+pip install oracledb
+```
+
+### Oracle connection URL query parameters
+
+Oracle instances are usually addressed by a service name, and SQLAlchemy takes it as a query parameter of the connection URL,
+not as a connection field. In `secrets.toml`, query parameters live in their own table:
+
+```toml
+[destination.sqlalchemy.credentials]
+drivername = "oracle+oracledb"
+username = "loader"
+password = "<password>"
+host = "orahost"
+port = 1521
+
+[destination.sqlalchemy.credentials.query]
+service_name = "svc.example.com"
+```
+
+There is no environment variable for a single query parameter. `query` is one credentials field holding a dictionary, and the
+environment provider reads one variable per field instead of walking into the dictionary. A variable such as
+`DESTINATION__SQLALCHEMY__CREDENTIALS__QUERY__SERVICE_NAME` is therefore never read, the credentials resolve with `query` unset,
+and `dlt` connects without the service name.
+
+Two forms do work. Pass the whole connection URL in one variable, with the query parameters appended to it:
+
+```sh
+export DESTINATION__SQLALCHEMY__CREDENTIALS="oracle+oracledb://loader:<password>@orahost:1521/?service_name=svc.example.com"
+```
+
+Or keep the fields separate and pass the entire `query` dictionary as the value of one variable:
+
+```sh
+export DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME="oracle+oracledb"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME="loader"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD="<password>"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__HOST="orahost"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__PORT="1521"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__QUERY='{"service_name": "svc.example.com"}'
+```
+
+Both resolve to the same URL, `oracle+oracledb://loader:***@orahost:1521/?service_name=svc.example.com`, and any other parameter
+your listener needs (`sid`, `encoding`, `events`) is passed the same way.
+
+:::caution
+The `query` variable must hold valid JSON with double quotes. A Python-style value such as `{'service_name': 'svc.example.com'}`
+is rejected with `ConfigValueCannotBeCoercedException`. In the single-URL form, URL-encode characters like `@`, `/`, `?` and `#`
+in the password.
+:::
+
+### Oracle merge and staging datasets
+
+`merge` (both the `delete-insert` and the `scd2` strategy) and `replace` with the `insert-from-staging` or `staging-optimized`
+strategy first load data into a [staging dataset](../staging.md#staging-dataset) and then modify the final tables from there. The
+staging dataset is a second schema, named `<dataset_name>_staging` by default, and `dlt` creates it and writes to it **over the
+same connection as the final dataset**. There is no second credential involved: the SQLAlchemy destination cannot be combined
+with a `staging=` destination at all, because that slot is for [file staging](../staging.md#staging-storage) and
+`dlt.pipeline(staging=dlt.destinations.sqlalchemy(...))` raises `DestinationNoStagingMode`.
+
+In Oracle, a schema is a user, and a user can create tables only in the schema it owns. Creating the staging tables in any other
+schema requires the `CREATE ANY TABLE` system privilege, plus the privileges for the statements `dlt` then runs against those
+tables (`INSERT`, `SELECT`, `DELETE`, `DROP`). A user that owns schema `LOADER` cannot create tables in `LOADER_STAGING` without
+them, so a merge load into Oracle needs one of the following:
+
+1. **A pre-created staging schema.** `dlt` issues `CREATE SCHEMA <staging_dataset>` only when the schema is missing, and that
+   statement does not create a user in Oracle. Ask a DBA to create the schema (user) up front and point `dlt` at it with a fixed
+   `staging_dataset_name_layout`. A layout without the `%s` placeholder is used as the full name, so every dataset shares one
+   staging schema:
+
+   ```py
+   import dlt
+
+   dest_ = dlt.destinations.sqlalchemy(staging_dataset_name_layout="analytics_staging")
+
+   pipeline = dlt.pipeline(
+       pipeline_name="oracle_merge",
+       destination=dest_,
+       dataset_name="analytics",
+   )
+   ```
+
+   The same setting works in `config.toml`:
+
+   ```toml
+   [destination.sqlalchemy]
+   staging_dataset_name_layout = "analytics_staging"
+   ```
+
+2. **The privileges on that schema.** Pre-creating it removes the schema creation step, not the table creation, so the connecting
+   user still needs `CREATE ANY TABLE` and the object privileges above unless it owns the staging schema itself.
+
+3. **No staging dataset at all.** `append`, and `replace` with the `truncate-and-insert` strategy (the default for this
+   destination), write straight into the final tables and never touch a second schema. Use them when `CREATE ANY TABLE` is out of
+   reach.
+
+:::note
+`dlt` normalizes dataset names with the schema's [naming convention](../../general-usage/naming-convention.md), so
+`ANALYTICS_STAGING` becomes `analytics_staging`. That is the name you want: SQLAlchemy renders an all-lowercase identifier
+unquoted and Oracle folds it to the upper-case schema `ANALYTICS_STAGING`, while a quoted mixed- or upper-case name has to match
+the stored name exactly. Set `enable_dataset_name_normalization = false` on the destination if you must keep the case you wrote.
+:::
+
+### Oracle limitations
+
+* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
+
 ## Notes on other dialects
 
 We tested this destination on **mysql**, **sqlite**, **duckdb**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
@@ -353,10 +470,6 @@ Please report issues with particular dialects. We'll try to make them work.
 * Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
-
-### Oracle limitations
-
-* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
 ### Adapting destination for a dialect
 
