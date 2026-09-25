@@ -3,14 +3,13 @@ title: Job inspector agent
 description: Verified dltHub agent that diagnoses a failed job run and reports a classification with evidence and a proposed fix
 keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dlthub-platform toolkit, job.fail]
 ---
-
 # Job inspector agent
 
 :::warning
 This feature is in private preview
 :::
 
-`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, and reports a classification of the failure with evidence and a proposed fix. It inspects any batch job and doesn't change code or data.
+`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, follows the traceback into the workspace source and a missing input back to the job that produces it, and reports a classification of the failure with evidence and a fix naming the target and the change. It inspects any batch job and doesn't change code or data.
 
 You declare it like any other agent job. [Background agents](index.md) covers the mechanics this page builds on.
 
@@ -34,12 +33,13 @@ from github_pipeline import load_commits
 inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
+    require={"profile": "access"},
 )
 
 __all__ = ["load_commits", "inspector"]
 ```
 
-The job is named after the agent definition, `job_inspector`. Run it locally against a run that already failed, then deploy:
+The job is named after the agent definition, `job_inspector`. `require={"profile": "access"}` keeps the production credentials out of the job's environment. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run it locally against a run that already failed, then deploy:
 
 ```sh
 # a single manual run, on a failed run id from `dlthub job runs list`
@@ -49,7 +49,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id>
 dlthub deploy
 ```
 
-The transcript streams to your terminal. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
+The transcript streams to your terminal. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
 
 ## Agent inputs
 
@@ -69,19 +69,36 @@ A run started from a `job.fail:` trigger arrives with both inputs empty. The tri
 
 ## What it reports
 
-| Field            | Meaning                                                                                  |
-| ---------------- | ---------------------------------------------------------------------------------------- |
-| `status`         | `succeeded`, `failed`, or `aborted`                                                      |
-| `summary`        | Markdown account of the diagnosis                                                        |
-| `failed_run_id`  | The run it inspected, reported as an entity                                              |
-| `failed_job_ref` | The job whose run it inspected, reported as an entity                                    |
-| `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown` |
-| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`          |
-| `evidence`       | A source and an excerpt per piece of evidence, taken from logs and run records           |
-| `proposed_fix`   | What a person should do next. The agent never applies it                                 |
-| `requires_human` | Whether the fix needs a person to act                                                    |
+| Field            | Meaning                                                                                                               |
+| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `status`         | `succeeded`, `failed`, or `aborted`                                                                                   |
+| `summary`        | Markdown, in three sections: `Diagnosis`, `Recommendation`, `Confidence`. See [Summary format](#summary-format)       |
+| `failed_run_id`  | The run it inspected, reported as an entity                                                                           |
+| `failed_job_ref` | The job whose run it inspected, reported as an entity                                                                 |
+| `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown`                              |
+| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`                                       |
+| `evidence`       | A `source`, an `excerpt`, and a `provenance` per item. The source carries the line the excerpt sits on                |
+| `proposed_fix`   | What a person should do next, naming the target and the change. The agent never applies it                            |
+| `fix_target`     | The one thing the fix changes: a file path, a config key, a table or resource name, a secret name, or a job ref       |
+| `fix_change`     | The exact value or code change to apply to `fix_target`, such as `cursor_path="ordered_at"`. Empty when unestablished |
+| `open_points`    | What the agent couldn't verify, one entry each: a tool that failed, a file it didn't find, a value it inferred        |
+| `requires_human` | Whether the fix needs a person to act                                                                                 |
+
+`provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `destination_query`, `repository_comment`, `job_description`, or `inference`. The first seven are facts and the last three are claims, so `confidence: high` rests on at least one fact.
 
 On the platform the result appears on the failed run's page, because the agent reports that run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows the full result envelope and an inspector result in it.
+
+### Summary format
+
+`summary` holds three headings, each over short bullets:
+
+| Heading             | What the bullets answer                                                                                                                                  |
+| ------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `## Diagnosis`      | The root cause: what failed, where, and why. One bullet quotes the evidence line carrying it. For a pipeline job the first bullet names the failing step |
+| `## Recommendation` | The next action, written as the instruction itself and starting with its verb (`Set`, `Change`, `Unpause`), one action per bullet                        |
+| `## Confidence`     | The limits of the diagnosis: every entry of `open_points`, and why this confidence                                                                       |
+
+The format is meant to be pasted whole into a coding agent, so the Recommendation names the target and the value rather than asking the reader to investigate.
 
 ## Defaults and overrides
 
@@ -90,9 +107,10 @@ The definition ships these defaults. The agent job and the individual run overri
 | Setting         | Default                                                                                  |
 | --------------- | ---------------------------------------------------------------------------------------- |
 | `trigger`       | `job.fail:*`, every failed job in the workspace                                          |
-| `model`         | `sonnet`                                                                                 |
 | `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                   |
-| `loop_run_args` | `retries: 1`, the number of times pydantic-ai lets the model correct a failing tool call |
+| `loop_run_args` | `retries: 2`, the number of times pydantic-ai lets the model correct a failing tool call |
+
+The definition names no model, so the run takes the `sonnet` default or the model you set on the job. Give it one at least as capable as Claude Sonnet 5.
 
 Narrow the trigger and change the settings on the job:
 
@@ -100,6 +118,7 @@ Narrow the trigger and change the settings on the job:
 inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
+    require={"profile": "access"},
     model="opus",
     limits={"max_turns": 20},
     instructions="focus on the loader step",
@@ -116,9 +135,11 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=opus
 
 ## Guardrails
 
-The definition grants `local: [read, execute]`, `data: [read]`, and `context: [read]`. The agent reads the workspace files and runs `dlthub job runs info` and `dlthub job runs logs` in a shell to read run records and logs. It reads data and runs, logs, and job definitions through the dltHub MCP server. It has no file write and no web access. The shell runs in the job's own process with the job's credentials, so the body rules the agent to stay read-only: it doesn't edit code, deploy, cancel, or rerun a job, and a person applies the proposed fix.
+The definition grants `local: [read]` and `context: [read]`. The agent reads workspace files with `Read`, `Glob`, and `Grep`, and reads runs, logs, job definitions, and telemetry through the dltHub MCP server. It has no shell, by design: the credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection. The body rules it read-only on top of that: it doesn't edit code, deploy, cancel, or rerun a job, and a person applies the proposed fix.
 
-`data: read` runs the agent on the `access` profile, so the data tools see the loaded data read-only.
+The definition declares no `data` axis. A diagnosis is built from run records, logs, job definitions, the dlt trace, and workspace source, and the agent can't query your destination. When the cause turns on what a table holds, the agent puts that in `open_points` and names the query that would settle it.
+
+Pin `require={"profile": "access"}` on the job. An agent job is a batch job, so without the pin it runs on `prod` with the production credentials in its environment. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 ## Next steps
 

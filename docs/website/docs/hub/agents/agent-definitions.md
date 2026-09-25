@@ -3,7 +3,6 @@ title: Agent definitions
 description: Write a dltHub agent definition as an AGENT.md file or as a decorated Python function
 keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, access, tools, skills, rules, run.agent]
 ---
-
 # Agent definitions
 
 :::warning
@@ -31,9 +30,9 @@ skills: [dlthub-platform:debug-deployment]  # loaded on demand or inlined
 rules:  [dlthub-platform:job-resources]     # always inlined into the prompt
 
 access:                                     # what the agent may read, write, or run
-  local:   [read, execute]                  # read | write | execute | network
-  data:    [read]                           # read | write
+  local:   [read]                           # read | write | execute | network
   context: [read]                           # runs, logs, job definitions, telemetry
+                                            # no `data`: the diagnosis reads metadata and source, never rows
 
 inputs:
   type: object
@@ -71,20 +70,21 @@ output:
       items:
         type: object
         properties:
-          source: { type: string }
+          source: { type: string }          # with the line the excerpt sits on
           excerpt: { type: string }
+          provenance:
+            enum: [run_log, run_record, trace, job_definition, workspace_file, inference]
     proposed_fix:
       type: string
-      description: What a human should do next. You never apply it
+      description: What a human should do next, naming the target and the change. You never apply it
     requires_human:
       type: boolean
   required: [status, summary, classification, confidence, evidence, requires_human]
 
 defaults:                                   # the job and the run may override all of these
   trigger: [job.fail:*]
-  model: sonnet
   limits: { max_turns: 30, max_tokens: 1000000 }
-  loop_run_args: { retries: 1 }
+  loop_run_args: { retries: 2 }
 ---
 You are a job inspector for a dltHub Platform workspace. You run unattended, seconds
 after a job failed. Explain the failure. Do not repair it.
@@ -173,16 +173,18 @@ output:
 
 `access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis you leave out grants nothing. With no `access` at all the agent receives no file tools or shell, and its MCP server serves only the toolkit catalog.
 
-| Axis      | Verbs           | Grants                                                                                                                                                                                                                               |
-| --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                                                                                        |
-|           | `write`         | `Write`, `Edit`                                                                                                                                                                                                                      |
-|           | `execute`       | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process                                                                                                                                         |
-|           | `network`       | `WebFetch`, `WebSearch`                                                                                                                                                                                                              |
-| `data`    | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only and runs the job on the `access` profile, `write` on the `prod` profile. The SQL tool runs a single read-only statement whatever `data` grants |
-| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated                                                                                       |
+| Axis      | Verbs           | Grants                                                                                                                                                       |
+| --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                |
+|           | `write`         | `Write`, `Edit`                                                                                                                                              |
+|           | `execute`       | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process                                                                 |
+|           | `network`       | `WebFetch`, `WebSearch`                                                                                                                                      |
+| `data`    | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only. The SQL tool runs a single read-only statement whatever `data` grants |
+| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated               |
 
 `all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants.
+
+`access` doesn't select the profile the job runs on. An agent job is a batch job and takes `prod` unless the job declares `require={"profile": "access"}`, so a `data` grant on an unpinned job reads production data with production credentials. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 The declaration is a request that the runtime grants as far as it can. If a loop has no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
 
@@ -203,8 +205,12 @@ defaults:
   trigger: [job.fail:*]                 # trigger strings, selectors allowed
   model: sonnet                         # alias, or provider:model
   limits: {max_turns: 30, max_tokens: 1000000}
-  loop_run_args: {retries: 1}           # passed to the framework
+  loop_run_args: {retries: 2}           # passed to the framework
 ```
+
+`access`, `tools`, `skills`, and `rules` are declarations, not defaults. A job that references the definition keeps them as declared. A decorated function that drives the definition replaces each list it passes an argument for, every axis included.
+
+A definition a toolkit ships leaves `model` out, so an installer isn't handed a provider. The run then takes the `sonnet` default or the model the job sets.
 
 ### System prompt body
 
@@ -242,10 +248,11 @@ class CrashReport(run.TAgentOutput):
 
 
 @run.agent(
-    access={"local": ["read"], "data": ["read"], "context": ["read"]},
+    access={"local": ["read"], "context": ["read"]},
     tools=["telemetry"],
     skills=["dlthub-platform:debug-deployment"],
     trigger="job.fail:*",
+    require={"profile": "access"},
     limits={"max_turns": 30},
 )
 async def crash_inspector(
@@ -283,10 +290,16 @@ The schemas come from pydantic, so `Optional`, `Literal`, `List`, nested models,
 A function can also drive an installed agent definition. Pass it as `agent=`. The decorator arguments and the function override its fields:
 
 ```py notype
-@run.agent(agent="dlthub-platform:job-inspector", loop="claude-agent-sdk")
+@run.agent(
+    agent="dlthub-platform:job-inspector",
+    loop="claude-agent-sdk",
+    require={"profile": "access"},
+)
 async def inspect(run_context: run.TJobRunContext = None) -> run.TAgentOutput:
     return await run_context["ai_loop"].run()
 ```
+
+The function leaves `access`, `tools`, `skills`, and `rules` out here, so the definition's own lists stand. Passing one of them replaces the definition's list rather than adding to it, so an `access` argument has to name every axis the agent needs.
 
 ## Next steps
 

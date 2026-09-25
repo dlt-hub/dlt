@@ -3,7 +3,6 @@ title: Deployments
 description: Deploy dlt pipelines, jobs, and interactive applications to the dltHub platform with ad-hoc runs or a versioned deployment manifest
 keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reconciliation]
 ---
-
 # Deployments
 
 The dltHub platform offers two ways to get your code running in the cloud:

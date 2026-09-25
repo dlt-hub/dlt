@@ -3,7 +3,6 @@ title: Background agents
 description: Run background agents as jobs on the dltHub platform, for example to diagnose failed job runs
 keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.agent, job inspector, pydantic-ai, claude-agent-sdk, toolkits]
 ---
-
 # Background agents
 
 :::warning
@@ -55,6 +54,7 @@ from dlt.hub import run
 inspector = run.agent(
     "dlthub-platform:job-inspector",
     trigger="job.fail:tag:ingest",
+    require={"profile": "access"},
     model="opus",
     limits={"max_turns": 20},
     instructions="focus on the loader step",
@@ -63,24 +63,28 @@ inspector = run.agent(
 
 The job is named after the agent definition (`job-inspector` becomes `job_inspector`) in the declaring module's section. Every argument overrides the matching entry of the definition's `defaults`.
 
-| Argument                                          | Meaning                                                                                                                                                                                                                                                                                      |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `instructions`                                    | First user message of each run. Use it for the task at hand. The system prompt describes the agent                                                                                                                                                                                           |
-| `model`                                           | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials)                                                                                                                                                                    |
-| `limits`                                          | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted                                                                                                                                                                                                         |
-| `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                                                                                                                                           |
-| `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. `retries` sets how many times pydantic-ai allows the model to correct a failing tool call                                                                                                                          |
-| `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt                                                                                                                              |
-| `inputs_validator`                                | Called with the resolved inputs before the run. Its return value is merged into them. Use it to derive an input, for example a run id from a job ref. Accepted only when the agent is passed by reference. A decorated function drives the loop itself and passes the inputs to `loop.run()` |
-| `outputs_validator`                               | Called with the agent's output after the run. Its return value replaces the output. Accepted only when the agent is passed by reference                                                                                                                                                      |
-| `name`, `section`                                 | Job name and configuration section, as on every job                                                                                                                                                                                                                                          |
-| `trigger`, `execute`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md)                                                                                                                                 |
+`access`, `tools`, `skills`, and `rules` aren't `defaults`. A referenced agent keeps the lists its definition declares and `run.agent` drops the arguments for them. A decorated function driving a referenced agent is the other way around: its argument replaces the definition's list, so `access={"local": ["read"]}` on such a function removes `context: read`. Pass every axis the agent needs, or leave the block to the definition.
+
+| Argument                                          | Meaning                                                                                                                                                             |
+| ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `instructions`                                    | First user message of each run. Use it for the task at hand. The system prompt describes the agent                                                                  |
+| `model`                                           | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials)                                           |
+| `limits`                                          | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted                                                                                |
+| `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                  |
+| `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. `retries` sets how many times pydantic-ai allows the model to correct a failing tool call |
+| `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt     |
+| `inputs_validator`                                | Called with the resolved inputs before the run. Its return value is merged into them, so use it to derive an input such as a run id from a job ref                  |
+| `outputs_validator`                               | Called with the agent's output after the run. Its return value replaces the output                                                                                  |
+| `name`, `section`                                 | Job name and configuration section, as on every job                                                                                                                 |
+| `trigger`, `execute`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md)        |
+
+Both validators are accepted only when the agent is passed by reference. A decorated function drives the loop itself and passes the inputs to `loop.run()`.
 
 ### Triggers for agents
 
 Agent jobs take every trigger other jobs take. Two string triggers exist for reacting to job outcomes across the workspace. They accept a job ref or any selector `dlthub job trigger` accepts:
 
-```
+```text
 job.fail:tag:ingest          every job tagged `ingest`
 job.fail:batch:              every batch job
 job.fail:jobs.mod.*          every job in section `mod`
@@ -89,6 +93,24 @@ job.success:jobs.mod.load    one job, on success
 ```
 
 A selector expands at deploy time to a follow-up trigger per matching job. The declaring job itself and interactive jobs are excluded. A run started manually arrives with a `manual:` trigger and only the inputs it was given, so the body must say what to do with empty input.
+
+### Profile of an agent job
+
+An agent job is a batch job, so it runs on the `prod` [profile](../pipeline-operations/profiles.md) and holds the production credentials unless you say otherwise. Pin the read-only profile on every agent job:
+
+```py notype
+inspector = run.agent(
+    "dlthub-platform:job-inspector",
+    trigger="job.fail:tag:ingest",
+    require={"profile": "access"},
+)
+```
+
+`access` decides which tools the model is offered. The profile decides which credentials the job process holds, so declare both. Work that needs production write credentials belongs in a pipeline or a plain job that a person wrote and reviewed, and the agent proposes it rather than performing it.
+
+The pin covers profile-scoped configuration: `prod.secrets.toml`, `prod.config.toml`, and a variable set with `dlthub variable set --profile prod`. A variable set with `--workspace` carries no profile and reaches the job whatever it runs on, so a secret that must stay away from an agent belongs in a profile scope. `dlthub variable list` prints the scope of each one.
+
+Nothing rejects a missing pin at deploy time. Manifest validation refuses a local-only profile (`dev`, `tests`) and takes any other name as given, so `prod` passes and a typo surfaces as missing credentials at run time. The profile also has to be `configured` in the workspace, which `dlthub info` lists. On `dlthub local run` the declaration is a warning rather than a switch: the run uses the active profile and reports the mismatch.
 
 ## Run an agent job
 
@@ -166,7 +188,7 @@ The agent run prints its transcript as it goes: the model's reasoning, its messa
   "engine_version": 1,
   "job_ref": "jobs.__deployment__.job_inspector",
   "status": "succeeded",
-  "summary": "## Root cause: platform runner token conflict ...",
+  "summary": "## Diagnosis\n\n- The `load_commits` job failed in the extract step ...",
   "result": {
     "status": "succeeded",
     "summary": "...",
@@ -175,9 +197,16 @@ The agent run prints its transcript as it goes: the model's reasoning, its messa
     "classification": "config",
     "confidence": "high",
     "evidence": [
-      { "source": "dlthub job runs logs <run-id> line 38", "excerpt": "..." }
+      {
+        "source": "dlthub job runs logs <run-id> line 38",
+        "excerpt": "...",
+        "provenance": "run_log"
+      }
     ],
     "proposed_fix": "...",
+    "fix_target": "pipelines/github.py",
+    "fix_change": "cursor_path=\"updated_at\"",
+    "open_points": [],
     "requires_human": true
   },
   "object": [
@@ -217,10 +246,12 @@ Select the loop on the job with `loop="claude-agent-sdk"`, or for a single run w
 
 ## Guardrails
 
-- Tools follow the access profile. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and a tool the grant doesn't cover isn't offered to the model.
+- Tools follow the `access` declaration. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and a tool the grant doesn't cover isn't offered to the model.
 - Credential files are never readable by a file tool: `*secrets.toml`, `.env`, `.env.*`, on both loops, whatever `local` grants.
 - SQL through the MCP server is limited to a single `SELECT` statement per call.
-- `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
+- `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. It also reaches around the file tools' credential rules. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
+- `data` is a grant you make deliberately: it opens the workspace data to a model-driven process. The agents the harness ships declare `local: read` and `context: read` and no `data`, and build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
+- Pin `require={"profile": "access"}` on every agent job, so the production credentials stay out of its environment. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Next steps
 
