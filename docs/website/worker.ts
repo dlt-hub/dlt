@@ -5,6 +5,16 @@ import REDIRECTS from "./redirects.compiled.js";
 
 const ROUTE_404 = "/docs/404";
 
+async function notFound(request, env): Promise<Response> {
+  const page = await env.ASSETS.fetch(new Request(new URL(ROUTE_404, request.url), request));
+  if (!page.ok) {
+    return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+  }
+  const headers = new Headers(page.headers);
+  headers.set("cache-control", "public, max-age=300");
+  return new Response(page.body, { status: 404, headers });
+}
+
 const handler = {
   async fetch(request, env, _ctx) {
     const url = new URL(request.url);
@@ -26,10 +36,16 @@ const handler = {
       }
     }
 
+    // The 404 page is served in place, with a 404 status. It used to be a
+    // 301 to /docs/404, which answers 200, so every dead docs URL looked
+    // like a live page to crawlers (a soft 404) and inherited nothing.
+    if (url.pathname === ROUTE_404 || url.pathname === `${ROUTE_404}/`) {
+      return notFound(request, env);
+    }
+
     const res = await env.ASSETS.fetch(request);
     if (res.status === 404) {
-      url.pathname = ROUTE_404;
-      return Response.redirect(url.toString(), 301);
+      return notFound(request, env);
     }
     return res; // unchanged response (transparent externally)
   },
