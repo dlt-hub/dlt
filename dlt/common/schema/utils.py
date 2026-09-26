@@ -1129,7 +1129,7 @@ def create_root_child_reference(tables: TSchemaTables, table_name: str) -> TTabl
     child_root_key: str = get_first_column_name_with_prop(child_table, "root_key")
     if child_root_key is None:
         raise ValueError(
-            "No `root_key` found for table `{table_name}`. Set `root_key=True` on"
+            f"No `root_key` found for table `{table_name}`. Set `root_key=True` on"
             " the `@dlt.source` producing this data to generate a `_dlt_root_id` column."
         )
     root_row_key: str = get_first_column_name_with_prop(root_table, "row_key")
