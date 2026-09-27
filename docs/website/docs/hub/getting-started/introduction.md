@@ -1,5 +1,6 @@
 ---
-title: Introduction
+title: Platform introduction
+sidebar_label: Introduction
 description: Introduction to dltHub
 keywords: [dlthub, introduction, capabilities, platform, workspace]
 ---

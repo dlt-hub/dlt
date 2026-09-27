@@ -1,5 +1,6 @@
 ---
-title: Introduction
+title: Getting started with dlt
+sidebar_label: Introduction
 description: Introduction to dlt
 keywords: [introduction, who, what, how]
 ---
