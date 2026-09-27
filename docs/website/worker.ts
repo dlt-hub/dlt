@@ -25,15 +25,26 @@ const handler = {
       return Response.redirect(url.toString(), 301);
     }
 
-    // handle redirects
+    // handle redirects (a trailing-slash variant of a redirected path resolves
+    // in one hop instead of two)
+    const bare = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
     for (const redirect of REDIRECTS) {
-      if (url.pathname === redirect.from) {
+      if (url.pathname === redirect.from || bare === redirect.from) {
         // split off the fragment - URL.pathname would percent-encode a "#"
         const [pathname, hash] = redirect.to.split("#");
         url.pathname = pathname;
         if (hash) url.hash = hash;
         return Response.redirect(url.toString(), 301);
       }
+    }
+
+    // Trailing-slash URLs get a permanent redirect to the canonical path.
+    // The assets layer (html_handling: drop-trailing-slash) answers them with
+    // a 307, and a temporary redirect does not reliably consolidate links:
+    // /docs/dlt-ecosystem/destinations/ alone has ~30 followed backlinks.
+    if (bare !== url.pathname) {
+      url.pathname = bare;
+      return Response.redirect(url.toString(), 301);
     }
 
     // The 404 page is served in place, with a 404 status. It used to be a
