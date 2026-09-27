@@ -214,6 +214,25 @@ def test_pipeline_name_flows_through_resolve() -> None:
     assert value2 is None
 
 
+@pytest.mark.timeout(5)
+@pytest.mark.parametrize("list_secrets", [False, True])
+def test_lookup_can_resolve_its_own_credentials(list_secrets: bool) -> None:
+    class CredentialVaultProvider(MockVaultProvider):
+        def _look_vault(self, full_key: str, hint: type) -> Optional[str]:
+            if full_key == "password":
+                credential, _ = self.get_value("vault_token", TSecretValue, None)
+                assert credential == "dummy-token"
+            return super()._look_vault(full_key, hint)
+
+    provider = CredentialVaultProvider(list_secrets=list_secrets)
+    provider.set_secret("password", "dummy-secret")
+    provider.set_secret("vault_token", "dummy-token")
+
+    assert provider.get_value("password", TSecretValue, None) == ("dummy-secret", "password")
+    assert provider._look_vault_calls.count("vault_token") == 1
+    assert provider._look_vault_calls.count("password") == 1
+
+
 @pytest.mark.parametrize("list_secrets", [False, True])
 @pytest.mark.parametrize(
     "vault_key,fragment,pipeline_name,sections",

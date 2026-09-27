@@ -2,7 +2,7 @@ import abc
 import contextlib
 import re
 import string
-from threading import Lock
+from threading import RLock
 from typing import Any, Dict, Optional, Set, Tuple
 
 from dlt.common import logger
@@ -65,7 +65,8 @@ class VaultDocProvider(BaseDocProvider):
         self.only_secrets = only_secrets
         self.only_toml_fragments = only_toml_fragments
         self.list_secrets = list_secrets
-        self._vault_lock = Lock()
+        # A vault lookup may resolve its own credentials through this provider.
+        self._vault_lock = RLock()
         self._vault_lookups: Dict[str, Any] = {}
         self._available_keys: Optional[Set[str]] = None
         if list_secrets and (only_toml_fragments or only_secrets):
@@ -80,7 +81,7 @@ class VaultDocProvider(BaseDocProvider):
     def get_value(
         self, key: str, hint: type, pipeline_name: str, *sections: str
     ) -> Tuple[Optional[Any], str]:
-        # Fragments share one document, so reads must wait for the entire merge sequence.
+        # Fragments share one document, so other threads must wait for the entire merge sequence.
         with self._vault_lock:
             # global settings must be updated first
             self._update_from_vault(SECRETS_TOML_KEY, None, AnyType, None, ())
