@@ -413,6 +413,14 @@ const REDIRECTS = [
     from: "/docs/plus/features/ai",
     to: "/docs/hub/ai-harness/introduction",
   },
+  {
+    from: "/docs/guides/schema-management",
+    to: "/docs/general-usage/schema-evolution",
+  },
+  {
+    from: "/docs/dlt-ecosystem/visualizations/understanding-the-tables",
+    to: "/docs/general-usage/destination-tables",
+  },
 ];
 
 module.exports = REDIRECTS;
