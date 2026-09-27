@@ -114,7 +114,7 @@ const sidebars = {
           type: "link",
           label: "10k+ AI Context assets",
           description: "Build a custom dlt REST API source with your agent",
-          href: "https://dlthub.com/workspace",
+          href: "https://dlthub.com/context",
         },
         {
           type: "category",

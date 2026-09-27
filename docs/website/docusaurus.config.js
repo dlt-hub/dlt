@@ -99,6 +99,10 @@ const config = {
           exclude: [
             // '**/_*.{js,jsx,ts,tsx,md,mdx}',
             // '**/_*/**',
+            // the defaults above would also drop the generated `__init__.md` API reference
+            // pages, so only the hand-written partials are excluded; they can still be imported
+            "_*.{md,mdx}",
+            "dlt-ecosystem/**/_*.{md,mdx}",
             "**/*.test.{js,jsx,ts,tsx}",
             "**/__tests__/**",
           ],
@@ -112,6 +116,10 @@ const config = {
         },
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
+        },
+        sitemap: {
+          // the search page is not content
+          ignorePatterns: ["/docs/search"],
         },
       },
     ],
@@ -248,7 +256,7 @@ const config = {
             items: [
               {
                 label: "Scaffoldings",
-                href: "https://dlthub.com/workspace",
+                href: "https://dlthub.com/context",
                 className: "footer-link",
               },
             ],

@@ -13,7 +13,7 @@ Looking for the managed dltHub platform, AI harness, transformations, or data qu
 
 ## What is dlt?
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with coding agents: [Agent-native workflow](hub/ingestion/rest-api-source.md) will take your pipeline code to data in a notebook for over [8,000+ sources](https://dlthub.com/workspace).
+dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect and transform the data. dlt and the dlt docs are built from the ground up to be used with coding agents: [Agent-native workflow](hub/ingestion/rest-api-source.md) will take your pipeline code to data in a notebook for over [8,000+ sources](https://dlthub.com/context).
 
 dlt is designed to be easy to use, flexible, and scalable:
 
@@ -94,7 +94,7 @@ print(pipeline.dataset().posts.df())
 :::tip
 LLMs are great at generating REST API pipelines!
 
-* [Follow LLM tutorial](hub/ingestion/rest-api-source.md) and start with one of [5,000+ sources](https://dlthub.com/workspace)
+* [Follow LLM tutorial](hub/ingestion/rest-api-source.md) and start with one of [5,000+ sources](https://dlthub.com/context)
 * Follow the [REST API source tutorial](./tutorial/rest-api) to learn more about the source configuration and pagination methods.
 :::
 
