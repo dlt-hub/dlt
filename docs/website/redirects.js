@@ -401,6 +401,18 @@ const REDIRECTS = [
     from: "/docs/general-usage/dataset-access/",
     to: "/docs/general-usage/dataset-access/dataset",
   },
+  {
+    from: "/docs/hub/features/ai",
+    to: "/docs/hub/ai-harness/introduction",
+  },
+  {
+    from: "/docs/hub/features/mcp-server",
+    to: "/docs/hub/ai-harness/introduction",
+  },
+  {
+    from: "/docs/plus/features/ai",
+    to: "/docs/hub/ai-harness/introduction",
+  },
 ];
 
 module.exports = REDIRECTS;
