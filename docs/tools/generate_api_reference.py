@@ -24,6 +24,7 @@ import re
 from functools import partial
 from typing import Any
 
+import docspec
 from pydoc_markdown import PydocMarkdown
 from pydoc_markdown.contrib.processors.smart import SmartProcessor
 
@@ -62,6 +63,11 @@ NOINDEX_MODULE_SEGMENTS = frozenset(
 
 NOINDEX_HEAD = '<head>\n  <meta name="robots" content="noindex, follow" />\n</head>\n'
 
+#: search engines show about this many characters of a description
+MAX_DESCRIPTION_LENGTH = 155
+#: how many class and function names a generated description lists
+MAX_DESCRIPTION_MEMBERS = 4
+
 sub = partial(re.sub, flags=re.M)
 
 
@@ -75,6 +81,63 @@ def is_private_module(module_name: str) -> bool:
 def is_noindex_module(module_name: str) -> bool:
     """Tells if a module is an implementation detail that search engines should not index."""
     return any(part in NOINDEX_MODULE_SEGMENTS for part in module_name.split("."))
+
+
+def plain_text(markdown: str) -> str:
+    """Reduces a docstring fragment to a single line of plain text."""
+    text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", markdown)  # links keep their label
+    text = re.sub(r"[`*_]{1,2}([^`*_]+)[`*_]{1,2}", r"\1", text)  # inline code and emphasis
+    return re.sub(r"\s+", " ", text).strip()
+
+
+def shorten(text: str, limit: int = MAX_DESCRIPTION_LENGTH) -> str:
+    """Cuts `text` at a word boundary so it fits in `limit` characters."""
+    if len(text) <= limit:
+        return text
+    return text[: limit - 3].rsplit(" ", 1)[0].rstrip(",;:") + "..."
+
+
+def docstring_summary(module: docspec.Module) -> str | None:
+    """Returns the first sentence of the module docstring, if it describes the module."""
+    if not module.docstring or not module.docstring.content.strip():
+        return None
+    paragraph = plain_text(module.docstring.content.strip().split("\n\n")[0])
+    # license headers are not a description
+    if len(paragraph) < 20 or paragraph.lower().startswith(("copyright", "license")):
+        return None
+    sentence = re.split(r"(?<=[.!?])\s", paragraph, maxsplit=1)[0]
+    return shorten(sentence if len(sentence) >= 20 else paragraph)
+
+
+def members_summary(module: docspec.Module) -> str:
+    """Describes a module by the public classes and functions it defines."""
+    # overloads repeat a name, dict keeps the first occurrence in source order
+    names = list(
+        dict.fromkeys(
+            member.name
+            for member in module.members
+            # imported names are `Indirection`s and are skipped
+            if isinstance(member, (docspec.Class, docspec.Function))
+            and not member.name.startswith("_")
+        )
+    )
+    description = f"Python API reference for {module.name}"
+    if not names:
+        return f"{description}."
+    listed = names[:MAX_DESCRIPTION_MEMBERS]
+    rest = len(names) - len(listed)
+    if rest:
+        members = f"{', '.join(listed)} and {rest} more"
+    elif len(listed) > 1:
+        members = f"{', '.join(listed[:-1])} and {listed[-1]}"
+    else:
+        members = listed[0]
+    return shorten(f"{description}: {members}.")
+
+
+def describe_module(module: docspec.Module) -> str:
+    """Builds the page description for a module."""
+    return docstring_summary(module) or members_summary(module)
 
 
 class DltProcessor(SmartProcessor):
@@ -144,8 +207,11 @@ def build_config(output_dir: pathlib.Path) -> dict[str, Any]:
     }
 
 
-def render_api_reference(output_dir: pathlib.Path) -> None:
-    """Loads the `dlt` modules and renders them into `output_dir`."""
+def render_api_reference(output_dir: pathlib.Path) -> dict[str, str]:
+    """Loads the `dlt` modules and renders them into `output_dir`.
+
+    Returns the page description of every rendered module, keyed by module name.
+    """
     output_dir.mkdir(parents=True, exist_ok=True)
 
     session = PydocMarkdown()
@@ -156,8 +222,11 @@ def render_api_reference(output_dir: pathlib.Path) -> None:
 
     # private modules are not part of the public API, so they get no pages at all
     modules = [module for module in session.load_modules() if not is_private_module(module.name)]
+    # described before processing, which escapes docstrings for MDX
+    descriptions = {module.name: describe_module(module) for module in modules}
     session.process(modules)
     session.render(modules)
+    return descriptions
 
 
 def module_name_from_path(api_reference_dir: pathlib.Path, page: pathlib.Path) -> str:
@@ -168,18 +237,23 @@ def module_name_from_path(api_reference_dir: pathlib.Path, page: pathlib.Path) -
     return ".".join(parts)
 
 
-def mark_noindex_pages(api_reference_dir: pathlib.Path) -> None:
-    """Adds a robots `noindex` tag to implementation-detail pages.
+def add_page_metadata(api_reference_dir: pathlib.Path, descriptions: dict[str, str]) -> None:
+    """Sets the page description and marks implementation-detail pages `noindex`.
 
-    Docusaurus also leaves pages with this tag out of the sitemap.
+    Without a description Docusaurus uses the first heading, e.g. "BigQueryClient Objects".
+    Docusaurus also leaves `noindex` pages out of the sitemap.
     """
     for page in sorted(api_reference_dir.rglob("*.md")):
-        if not is_noindex_module(module_name_from_path(api_reference_dir, page)):
-            continue
+        module_name = module_name_from_path(api_reference_dir, page)
         content = page.read_text(encoding="utf-8")
-        # the head block goes right after the front matter
         _, front_matter, body = content.split("---\n", 2)
-        page.write_text(f"---\n{front_matter}---\n\n{NOINDEX_HEAD}{body}", encoding="utf-8")
+        description = descriptions.get(module_name)
+        if description:
+            # a JSON string is a valid YAML scalar and escapes quotes and colons
+            front_matter += f"description: {json.dumps(description, ensure_ascii=False)}\n"
+        # the head block goes right after the front matter
+        head = f"\n{NOINDEX_HEAD}" if is_noindex_module(module_name) else ""
+        page.write_text(f"---\n{front_matter}---\n{head}{body}", encoding="utf-8")
 
 
 def simplify_sidebar_labels(items: list[Any]) -> None:
@@ -224,9 +298,9 @@ def main() -> None:
     args = parser.parse_args()
 
     output_dir = args.output_dir.resolve()
-    render_api_reference(output_dir)
+    descriptions = render_api_reference(output_dir)
     clean_sidebar(output_dir / RELATIVE_OUTPUT_PATH)
-    mark_noindex_pages(output_dir / RELATIVE_OUTPUT_PATH)
+    add_page_metadata(output_dir / RELATIVE_OUTPUT_PATH, descriptions)
 
 
 if __name__ == "__main__":
