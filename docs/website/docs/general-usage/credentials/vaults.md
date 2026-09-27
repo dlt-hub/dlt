@@ -42,11 +42,7 @@ Fragments are TOML documents and are merged into the in-memory configuration in 
 
 ### Caching
 
-Retrieved values and completed lookups (including “not found”) are cached by each provider instance. Changes in the vault are normally picked up when the process restarts. `clear_lookup_cache()` clears the lookup markers; it does not clear already loaded values or the list of available keys.
-
-Concurrent `get_value()` calls on the same provider are serialized, including vault requests and fragment merging. A caller waits for an ongoing resolution before reading the shared document, so it cannot mistake a pending lookup for a missing secret or read a partially merged fragment.
-
-Exceptions raised while listing, retrieving, or storing a fragment are propagated and do not mark that lookup as completed. A later call can try again. The shared vault provider does not add automatic retries on top of the backend SDK's retry policy. A backend response treated as “not found” (including permission errors that a provider handles this way) remains cached.
+Retrieved values and completed lookups (including “not found”) are cached for the lifetime of the provider. Restart the process to pick up changes in the vault. Failed requests that raise an exception can be retried on a later lookup.
 
 ## Configure the vault provider
 
