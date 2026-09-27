@@ -133,7 +133,7 @@ const config = {
       {
         siteTitle: "dlt - data load tool",
         siteDescription:
-          "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 8000+ source connectors.",
+          "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors.",
         excludeFromMd: ["api_reference/"],
         excludeFromIndex: ["devel/"],
         groupDepth: 2,
@@ -255,7 +255,7 @@ const config = {
             title: "Workspace",
             items: [
               {
-                label: "Scaffoldings",
+                label: "Context",
                 href: "https://dlthub.com/context",
                 className: "footer-link",
               },
