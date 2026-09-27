@@ -15,6 +15,10 @@ async function notFound(request, env): Promise<Response> {
   return new Response(page.body, { status: 404, headers });
 }
 
+// the theme's search page marks itself noindex with `property="robots"`, which search
+// engines ignore; a response header is honoured
+const NOINDEX_ROUTES = new Set(["/docs/search"]);
+
 // guards against a cycle in the redirect rules
 const MAX_REDIRECT_HOPS = 10;
 
@@ -80,6 +84,12 @@ const handler = {
     // serve the not-found page with a real 404 status instead of redirecting to it
     if (res.status === 404) {
       return notFound(request, env);
+    }
+
+    if (NOINDEX_ROUTES.has(url.pathname)) {
+      const noindex = new Response(res.body, res);
+      noindex.headers.set("X-Robots-Tag", "noindex, follow");
+      return noindex;
     }
     return res; // unchanged response (transparent externally)
   },
