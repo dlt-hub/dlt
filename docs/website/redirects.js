@@ -510,6 +510,10 @@ const REDIRECTS = [
     from: "/docs/hub/production/observability",
     to: "/docs/hub/pipeline-operations/monitoring",
   },
+  {
+    from: "/docs/hub/getting-started/playground-workspace",
+    to: "/docs/hub/pipeline-operations/playground-workspace",
+  },
 ];
 
 module.exports = REDIRECTS;
