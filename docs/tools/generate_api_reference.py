@@ -41,7 +41,40 @@ EXCLUDED_MODULES = (
     "dlt.reflection",
 )
 
+#: modules under any of these path segments are implementation details: their pages stay
+#: in the reference and the sidebar but are kept out of search engine indexes
+NOINDEX_MODULE_SEGMENTS = frozenset(
+    {
+        "__main__",
+        "data_writers",
+        "exceptions",
+        "impl",
+        "libs",
+        "normalizers",
+        "runners",
+        "runtime",
+        "storages",
+        "typing",
+        "utils",
+        "warnings",
+    }
+)
+
+NOINDEX_HEAD = '<head>\n  <meta name="robots" content="noindex, follow" />\n</head>\n'
+
 sub = partial(re.sub, flags=re.M)
+
+
+def is_private_module(module_name: str) -> bool:
+    """Tells if any part of a dotted module name is private, e.g. `dlt._workspace.helpers`."""
+    return any(
+        part.startswith("_") and not part.startswith("__") for part in module_name.split(".")
+    )
+
+
+def is_noindex_module(module_name: str) -> bool:
+    """Tells if a module is an implementation detail that search engines should not index."""
+    return any(part in NOINDEX_MODULE_SEGMENTS for part in module_name.split("."))
 
 
 class DltProcessor(SmartProcessor):
@@ -121,9 +154,32 @@ def render_api_reference(output_dir: pathlib.Path) -> None:
     # registered pydoc-markdown plugin; it replaces the default `SmartProcessor`
     session.processors.append(DltProcessor())
 
-    modules = session.load_modules()
+    # private modules are not part of the public API, so they get no pages at all
+    modules = [module for module in session.load_modules() if not is_private_module(module.name)]
     session.process(modules)
     session.render(modules)
+
+
+def module_name_from_path(api_reference_dir: pathlib.Path, page: pathlib.Path) -> str:
+    """Maps a rendered page back to its module, e.g. `dlt/pipeline/__init__.md` -> `dlt.pipeline`."""
+    parts = list(page.relative_to(api_reference_dir).with_suffix("").parts)
+    if parts[-1] == "__init__":
+        parts.pop()
+    return ".".join(parts)
+
+
+def mark_noindex_pages(api_reference_dir: pathlib.Path) -> None:
+    """Adds a robots `noindex` tag to implementation-detail pages.
+
+    Docusaurus also leaves pages with this tag out of the sitemap.
+    """
+    for page in sorted(api_reference_dir.rglob("*.md")):
+        if not is_noindex_module(module_name_from_path(api_reference_dir, page)):
+            continue
+        content = page.read_text(encoding="utf-8")
+        # the head block goes right after the front matter
+        _, front_matter, body = content.split("---\n", 2)
+        page.write_text(f"---\n{front_matter}---\n\n{NOINDEX_HEAD}{body}", encoding="utf-8")
 
 
 def simplify_sidebar_labels(items: list[Any]) -> None:
@@ -170,6 +226,7 @@ def main() -> None:
     output_dir = args.output_dir.resolve()
     render_api_reference(output_dir)
     clean_sidebar(output_dir / RELATIVE_OUTPUT_PATH)
+    mark_noindex_pages(output_dir / RELATIVE_OUTPUT_PATH)
 
 
 if __name__ == "__main__":
