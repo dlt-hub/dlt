@@ -1,5 +1,6 @@
 ---
-title: Installation
+title: Install dltHub
+sidebar_label: Installation
 description: Install dlt[hub], create a workspace, and license paid features
 keywords: [installation, dlthub, dlthub-init, dlthub-start, workspace mode, license]
 ---
