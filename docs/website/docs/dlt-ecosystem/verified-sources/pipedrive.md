@@ -11,7 +11,8 @@ import Header from './_source-info-header.md';
 
 [Pipedrive](https://developers.pipedrive.com/docs/api/v1) is a cloud-based sales Customer
 Relationship Management (CRM) tool designed to help businesses manage leads and deals, track
-communication, and automate sales processes.
+communication, and automate sales processes. For other CRMs, see the [Salesforce](./salesforce.md)
+and [HubSpot](./hubspot.md) sources.
 
 This Pipedrive `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/pipedrive_pipeline.py)

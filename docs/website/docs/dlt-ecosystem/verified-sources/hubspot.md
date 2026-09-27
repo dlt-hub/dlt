@@ -10,7 +10,8 @@ import Header from './_source-info-header.md';
 <Header/>
 
 HubSpot is a customer relationship management (CRM) software and inbound marketing platform that
-helps businesses attract visitors, engage customers, and close leads.
+helps businesses attract visitors, engage customers, and close leads. For other CRMs, see the
+[Salesforce](./salesforce.md) and [Pipedrive](./pipedrive.md) sources.
 
 This HubSpot `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/hubspot_pipeline.py)
