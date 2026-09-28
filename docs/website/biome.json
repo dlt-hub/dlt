@@ -4,8 +4,9 @@
     "includes": [
       "redirects.js",
       "worker.ts",
-      "tools/**/*.{js,ts}",
-      "scripts/**/*.{js,ts}",
+      "worker-routing.mjs",
+      "tools/**/*.{js,ts,mjs}",
+      "scripts/**/*.{js,ts,mjs}",
       "plugins/**/*.{js,ts}",
       "sidebars.js",
       "docusaurus.config.js",

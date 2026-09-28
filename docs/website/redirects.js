@@ -331,27 +331,6 @@ const REDIRECTS = [
   // the DataTalksClub zoomcamp). Without these they answer 404.
   {
     from: "/docs/general-usage/http/rest-client",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
-  },
-  {
-    from: "/docs/general-usage/http/requests",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
-  },
-  {
-    from: "/docs/general-usage/http/overview",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
-  },
-  // moved pages that still receive traffic
-  {
-    from: "/docs/general-usage",
-    to: "/docs/general-usage/source",
-  },
-  {
-    from: "/docs/general-usage/http/overview",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#restclient",
-  },
-  {
-    from: "/docs/general-usage/http/rest-client",
     to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#restclient",
   },
   {
@@ -359,12 +338,17 @@ const REDIRECTS = [
     to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#requests-wrapper",
   },
   {
+    from: "/docs/general-usage/http/overview",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#restclient",
+  },
+  {
     from: "/docs/general-usage/dashboard",
     to: "/docs/hub/ingestion/dashboard",
   },
   {
+    // the reference section landing page - the API reference has its own entry below
     from: "/docs/reference",
-    to: "/docs/api_reference/dlt/__init__",
+    to: "/docs/reference/command-line-interface",
   },
   {
     from: "/docs/api_reference",
@@ -387,10 +371,6 @@ const REDIRECTS = [
     to: "/docs/dlt-ecosystem/verified-sources",
   },
   {
-    from: "/docs/general-usage/dataset-access/streamlit",
-    to: "/docs/hub/cookbook/build-streamlit-dashboard",
-  },
-  {
     from: "/docs/dlt-ecosystem/verified-sources/filesystem/basic",
     to: "/docs/dlt-ecosystem/verified-sources/filesystem",
   },
@@ -407,18 +387,6 @@ const REDIRECTS = [
     to: "/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer",
   },
   {
-    from: "/docs/dlt-ecosystem/verified-sources/filesystem/advanced",
-    to: "/docs/dlt-ecosystem/verified-sources/filesystem",
-  },
-  {
-    from: "/docs/dlt-ecosystem/transformations/dbt/dbt_cloud",
-    to: "/docs/dlt-ecosystem/transformations/dbt#dbt-cloud",
-  },
-  {
-    from: "/docs/walkthroughs/add-a-verified-source",
-    to: "/docs/dlt-ecosystem/verified-sources",
-  },
-  {
     from: "/docs/walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook",
     to: "/docs/walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions",
   },
@@ -428,23 +396,11 @@ const REDIRECTS = [
   },
   {
     from: "/docs/dlt-ecosystem/transformations/dbt/dbt_cloud",
-    to: "/docs/dlt-ecosystem/transformations/dbt",
+    to: "/docs/dlt-ecosystem/transformations/dbt#dbt-cloud",
   },
   {
     from: "/docs/general-usage/dataset-access/",
     to: "/docs/general-usage/dataset-access/dataset",
-  },
-  {
-    from: "/docs/reference",
-    to: "/docs/reference/command-line-interface",
-  },
-  {
-    from: "/docs/reference/explainers/airflow-gcp-cloud-composer",
-    to: "/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer",
-  },
-  {
-    from: "/docs/running-in-production",
-    to: "/docs/running-in-production/running",
   },
   {
     from: "/docs/hub/features/ai",
@@ -465,6 +421,24 @@ const REDIRECTS = [
   {
     from: "/docs/dlt-ecosystem/visualizations/understanding-the-tables",
     to: "/docs/general-usage/destination-tables",
+  },
+  // pages that moved in earlier docs restructures and currently end on the
+  // not-found page (backlink crawl, Sept 2026)
+  {
+    from: "/docs/general-usage",
+    to: "/docs/general-usage/source",
+  },
+  {
+    from: "/docs/general-usage/dataset-access/streamlit",
+    to: "/docs/hub/cookbook/build-streamlit-dashboard",
+  },
+  {
+    from: "/docs/dlt-ecosystem/verified-sources/filesystem/advanced",
+    to: "/docs/dlt-ecosystem/verified-sources/filesystem",
+  },
+  {
+    from: "/docs/running-in-production",
+    to: "/docs/running-in-production/running",
   },
   {
     from: "/docs/hub/features/data-access",

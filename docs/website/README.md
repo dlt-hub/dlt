@@ -92,6 +92,7 @@ $ npm run check-orphan-docs:all  # same, but also fails on unlisted orphans (lis
 $ npm run compile-redirects      # regenerate redirects.compiled.js from sources
 $ npm run verify-llms            # llms.txt index check
 $ npm run verify-redirects       # redirect targets check (requires a prior `npm run build`)
+$ npm test                       # unit tests for the worker routing helpers
 ```
 
 Run `verify-redirects` (or a full `npm run build`) whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
@@ -120,6 +121,8 @@ Edit [`redirects.js`](redirects.js) — that file is the **devel** version's red
 
 The compile step (see below) prefixes both fields with `/docs/devel/` when emitting the version-scoped output. So the entry above ends up matching the URL `/docs/devel/old/path` in production — exactly where the page lives in this version.
 
+A `from` path may only appear **once**. The worker resolves paths through a map where the first rule wins, so a second rule for the same `from` would never fire; `compile-redirects` fails the build on duplicates. To change where a path goes, edit the existing entry.
+
 Pre-snapshotted versions (currently just `master`) have their own redirect files under `versioned_redirects/version-<v>.js`. Those are populated by `tools/update_versions.js`, which clones each tag and snapshots its `docs/website/redirects.js`. You don't edit those files by hand — to change `master`'s redirects, edit `redirects.js` on the `master` branch and push.
 
 The lone catchall `{ from: "/", to: "/docs/devel/intro" }` is the exception: its `from` doesn't start with `/docs/`, so the compiler treats it as version-independent and passes it through unchanged.
@@ -135,7 +138,7 @@ It rewrites each entry's leading `/docs/` to `/docs/<version-path>/` (devel → 
 
 ### Where the compiled file is used
 
-- **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry; no version-routing logic in the worker.
+- **Cloudflare worker (`worker.ts`)** — imports `redirects.compiled.js`. Wrangler bundles the import into the deployed worker. Exact pathname match per entry; no version-routing logic in the worker. Rules, trailing slashes and the legacy `/plus/` → `/hub/` forward are followed to the final target (see `worker-routing.mjs`), so a moved page answers with a single `301` instead of a chain. A chain that does not settle within 10 hops is left to the assets binding rather than redirected to a half-resolved path.
 - **`scripts/verify-redirects.js`** — loads `redirects.compiled.js`, checks each `to` resolves to an HTML page in `build/docs/<rel>`, and **also recompiles in memory** from the per-version sources and diffs the result against the on-disk compiled file to guard against a stale compiled file.
 
 
