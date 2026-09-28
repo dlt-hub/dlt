@@ -20,7 +20,7 @@ You declare it like any other agent job. [Background agents](index.md) covers th
 Meet the [prerequisites](index.md#prerequisites) for agent jobs, then install the toolkit:
 
 ```sh
-uv run dlthub ai toolkit install dlthub-platform
+dlthub ai toolkit install dlthub-platform
 ```
 
 ## Quick start: inspect failed jobs
