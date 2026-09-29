@@ -1,10 +1,9 @@
 """Job run types, protocol, and DuckDB-backed store."""
 
-from datetime import datetime  # noqa: I251
+from datetime import datetime
 from typing import Literal, Optional, Protocol
 
-from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import NotRequired, TypedDict
 
 
@@ -148,17 +147,17 @@ class DuckDBJobRunsStore:
             "run_id": r[0],
             "job_ref": r[1],
             "trigger": r[2],
-            "scheduled_at": ensure_pendulum_datetime_utc(r[3]),
+            "scheduled_at": ensure_datetime_in_tz(r[3]),
             "status": r[6],
         }
         if r[4] is not None:
-            run["started_at"] = ensure_pendulum_datetime_utc(r[4])
+            run["started_at"] = ensure_datetime_in_tz(r[4])
         if r[5] is not None:
-            run["finished_at"] = ensure_pendulum_datetime_utc(r[5])
+            run["finished_at"] = ensure_datetime_in_tz(r[5])
         if r[7] is not None:
-            run["interval_start"] = ensure_pendulum_datetime_utc(r[7])
+            run["interval_start"] = ensure_datetime_in_tz(r[7])
         if r[8] is not None:
-            run["interval_end"] = ensure_pendulum_datetime_utc(r[8])
+            run["interval_end"] = ensure_datetime_in_tz(r[8])
         return run
 
     def close(self) -> None:

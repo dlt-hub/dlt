@@ -48,6 +48,16 @@ class InvalidManifest(DeploymentException):
         return cls(result)
 
 
+class ManifestEngineNoUpgradePath(DeploymentException, ValueError):
+    def __init__(self, subject: str, from_engine: int, to_engine: int) -> None:
+        self.from_engine = from_engine
+        self.to_engine = to_engine
+        super().__init__(
+            f"No {subject} migration path from engine {from_engine} to {to_engine}. A manifest"
+            " written by a newer dlt cannot be downgraded — upgrade dlt to read it."
+        )
+
+
 class InvalidJobRef(DeploymentException, ValueError):
     def __init__(self, ref: str, reason: str) -> None:
         self.ref = ref

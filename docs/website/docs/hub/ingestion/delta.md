@@ -3,7 +3,6 @@ title: "Destination: Delta"
 description: Delta destination
 keywords: [delta, delta lake]
 ---
-
 # Delta
 
 :::note
@@ -15,6 +14,7 @@ The Delta destination is based on the [filesystem destination](../../dlt-ecosyst
 ## Setup
 
 Make sure you have installed the necessary dependencies:
+
 ```sh
 pip install deltalake
 ```
@@ -52,6 +52,7 @@ The credentials can be defined in the `secrets.toml`:
 aws_access_key_id="Please set me up!"
 aws_secret_access_key="Please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="azure">
@@ -62,6 +63,7 @@ aws_secret_access_key="Please set me up!"
 azure_storage_account_name="Please set me up!"
 azure_storage_account_key="Please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="gcp">
@@ -77,6 +79,7 @@ client_email="Please set me up!"
 private_key="Please set me up!"
 project_id="Please set me up!"
 ```
+
 </TabItem>
 
 <TabItem value="sftp">
@@ -91,10 +94,10 @@ sftp_username = "foo"
 sftp_key_filename = "/path/to/id_rsa"     # Replace with the path to your private key file
 sftp_key_passphrase = "your_passphrase"   # Optional: passphrase for your private key
 ```
+
 </TabItem>
 
 </Tabs>
-
 
 The Delta destination can also be defined in Python as follows:
 
@@ -105,6 +108,7 @@ pipeline = dlt.pipeline("loads_delta", destination="delta")
 ## Write dispositions
 
 The Delta destination handles the write dispositions as follows:
+
 - `append` - files belonging to such tables are added to the dataset folder.
 - `replace` - all files that belong to such tables are deleted from the dataset folder, and then the current set of files is added.
 - `merge` - can be used with the `upsert` [merge strategy](../../general-usage/merge-loading.md#upsert-strategy) and the `insert-only` [merge strategy](../../general-usage/merge-loading.md#insert-only-strategy).
@@ -155,6 +159,7 @@ Partition evolution (changing partition columns after a table has been created) 
 :::
 
 ## Table access helper functions
+
 You can use the `get_delta_tables` helper functions to access the native [DeltaTable](https://delta-io.github.io/delta-rs/api/delta_table/) objects.
 
 ```py
@@ -173,6 +178,7 @@ delta_tables["another_delta_table"].optimize.z_order(["col_a", "col_b"])
 ```
 
 ## Table format
+
 The Delta destination automatically assigns the `delta` table format to all resources that it will load. You can still fall back to storing files by setting `table_format` to native on the resource level:
 
   ```py
@@ -186,6 +192,7 @@ The Delta destination automatically assigns the `delta` table format to all reso
   ```
 
 ## Storage options and configuration
+
 You can pass storage options and configuration by configuring both `destination.filesystem.deltalake_storage_options` and
 `destination.filesystem.deltalake_configuration`:
 

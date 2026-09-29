@@ -3,7 +3,6 @@ title: Send Slack notifications
 description: Notify Slack when a dltHub job succeeds or fails.
 keywords: [slack, notifications, alerting, hub, dltHub]
 ---
-
 # Send Slack notifications
 
 dlt ships a small helper, `send_slack_message`, that posts to a Slack [incoming webhook](https://api.slack.com/messaging/webhooks). Combined with `pipeline.runtime_config.slack_incoming_hook`, it gives you a one-line way to alert a channel when a job finishes or fails.
@@ -12,7 +11,7 @@ dlt ships a small helper, `send_slack_message`, that posts to a Slack [incoming 
 
 Create an incoming webhook for the channel that should receive alerts:
 
-1. Open https://api.slack.com/messaging/webhooks.
+1. Open [https://api.slack.com/messaging/webhooks](https://api.slack.com/messaging/webhooks).
 2. Create a new Slack app (or pick an existing one), enable **Incoming Webhooks**, and add a webhook to your workspace.
 3. Pick the destination channel. You'll get a URL of the form `https://hooks.slack.com/services/T…/B…/…`.
 
@@ -74,7 +73,7 @@ def my_job():
 The `if hook:` check skips the Slack call when no webhook is configured. The same script works in any profile, whether you've set up notifications or not.
 
 :::tip Notify on schema changes
-You can also notify Slack whenever a load surfaces new tables or columns. The [dlt chess pipeline](../../examples/chess_production.md) shows this pattern by inspecting `schema_update` on each load package and posting a message when new tables or columns appear.
+You can also notify Slack whenever a load surfaces new tables or columns. The dlt chess pipeline shows this pattern by inspecting `schema_update` on each load package and posting a message when new tables or columns appear.
 :::
 
 ## Deploy and trigger

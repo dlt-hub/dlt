@@ -9,6 +9,7 @@ from dlt._workspace.deployment.manifest import (
     ManifestValidationResult,
     generate_manifest_hash,
     bump_manifest_version,
+    migrate_job_definition,
     migrate_manifest,
     save_manifest,
     load_manifest,
@@ -90,4 +91,6 @@ from dlt._workspace.deployment.typing import (
     TFilesManifest,
     TJobsDeploymentManifest,
     TWorkspaceRequirementsManifest,
+    resolve_incremental_mode,
+    resolve_refresh_propagation,
 )

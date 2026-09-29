@@ -275,7 +275,7 @@ class InvalidParentResourceIsAFunction(DltResourceException):
 class DeletingResourcesNotSupported(DltResourceException):
     def __init__(self, source_name: str, resource_name: str) -> None:
         super().__init__(
-            resource_name, f"Resource cannot be removed the the source `{source_name}`"
+            resource_name, f"Resource cannot be removed from the source `{source_name}`"
         )
 
 

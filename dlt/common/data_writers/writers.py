@@ -47,6 +47,7 @@ from dlt.common.destination import (
 from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import StrAny, TDataItem, TDataItems
+from dlt.common.time import get_context_timezone_name
 
 if TYPE_CHECKING:
     from dlt.common.libs.pyarrow import pyarrow as pa
@@ -323,7 +324,7 @@ class ParquetDataWriter(DataWriter):
         version: Optional[str] = "2.4",
         compression: Optional[ParquetCompression] = "snappy",
         data_page_size: Optional[int] = None,
-        timestamp_timezone: str = "UTC",
+        timestamp_timezone: str = None,
         row_group_size: Optional[int] = None,
         coerce_timestamps: Optional[Literal["s", "ms", "us", "ns"]] = None,
         allow_truncated_timestamps: bool = False,
@@ -342,6 +343,9 @@ class ParquetDataWriter(DataWriter):
             self.parquet_format.update(_format.as_dict_nondefault())
         else:
             self.parquet_format = _format
+        self.timestamp_timezone = (
+            get_context_timezone_name() if timestamp_timezone is None else timestamp_timezone
+        )
 
     def _create_writer(self, schema: "pa.Schema") -> "pa.parquet.ParquetWriter":
         from dlt.common.libs.pyarrow import pyarrow
@@ -374,9 +378,7 @@ class ParquetDataWriter(DataWriter):
         from dlt.common.libs.pyarrow import columns_to_arrow
 
         # build schema
-        self.schema = columns_to_arrow(
-            columns_schema, self._caps, self.parquet_format.timestamp_timezone
-        )
+        self.schema = columns_to_arrow(columns_schema, self._caps, self.timestamp_timezone)
         # find row items that are of the json type (could be abstracted out for use in other writers?)
         self.nested_indices = [
             i for i, field in columns_schema.items() if field["data_type"] == "json"

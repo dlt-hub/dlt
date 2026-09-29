@@ -472,7 +472,7 @@ class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination)
         # Table options.
         table_options: DictStrAny = {
             "description": (
-                f"'{table.get(TABLE_DESCRIPTION_HINT)}'"
+                escape_bigquery_literal(table.get(TABLE_DESCRIPTION_HINT))
                 if table.get(TABLE_DESCRIPTION_HINT)
                 else None
             ),

@@ -3,26 +3,23 @@ name = "dlt-docs-tools"
 version = "0.1.0"
 description = "Add your description here"
 readme = "README.md"
-requires-python = ">=3.10, <3.13" #  databind not available over 3.10, we need to update the build
+requires-python = ">=3.10, <3.13"
 
 # NOTE: working here is always dev enviroment, so we don't need a dev group
 dependencies = [
     "dlt[duckdb,postgres,bigquery,mssql,databricks,qdrant,sql_database,weaviate,hub,lancedb]",
-    "docstring-parser>=0.11",
     "flake8>=7.0.0,<8",
     "modal>=1.2.1",
     "mypy>=1.11.0,<1.13.0",
     "nbqa>=1.9.1",
-    "openai>=2.6.1",
-    "pydoc-markdown>=4.8.2,<5",
+    "prek>=0.4.14,<0.5",
     "pytest>=8.4.2",
     "python-dotenv>=1.2.1",
     "requests>=2.30.5",
-    "ruff>=0.3.2,<0.4",
+    "ruff>=0.16.0,<0.17.0",
     "types-pyyaml>=6.0.12.20250915",
     "types-regex>=2025.10.23.20251023",
     "types-requests>=2.32.4.20250913",
-    "watchdog>=6.0.0",
     "SQLAlchemy>=1.4.0",
     "pymysql>=1.1.0,<2",
     "pypdf2>=3.0.1,<4",
@@ -42,9 +39,12 @@ dependencies = [
     "weaviate-client>=4.0.0,<5.0.0",
     "regex>=2025.10.23",
     "pytest-forked>=1.6.0",
-    "databind>=4.5.2",
     "marimo>=0.17.4",
     "logfire>=4.32.1",
+    "pytest-examples>=0.0.11",
+    "pytest-xdist>=3.8.0",
+    "ty>=0.0.72",
+    "mdsmith>=0.55.1",
 ]
 
 [dependency-groups]
@@ -52,42 +52,52 @@ hub = [
     "dlt[hub]"
 ]
 
-[tool.hatch.build.targets.sdist]
-include = [
-    "docs_tools/**/*.py",
-]
+# this project is only an environment for the docs tooling, tests and snippets,
+# it is never built or installed. the tools in `tools/` are run with
+# `uv run [--script] tools/<tool>.py`
+[tool.uv]
+package = false
 
-[tool.hatch.build.targets.wheel]
-packages = ["docs_tools"]
-include = [
-    "docs_tools/**/*.py",
-]
+[tool.ruff]
+line-length = 100
+target-version = "py310"
 
-[build-system]
-requires = ["hatchling"]
-build-backend = "hatchling.build"
+# TODO ideally, this should match the ruff configuration from the root
+# `pyproject.toml`. There could be docs-specific checks in the extend-select
+# clause though.
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F"]
+ignore = ["F811", "F821", "F401", "F841", "E402", "F704"]
 
-[project.scripts]
-lint-embedded-snippets = "docs_tools.snippets.lint_embedded_snippets:main"
-fix-grammar = "docs_tools.grammar.fix_grammar_gpt:main"
-preprocess-docs = "docs_tools.markdown.preprocess_docs:main"
-clean-pydoc-sidebar = "docs_tools.api_docs.clean_pydoc_sidebar:main"
-prepare-examples-tests = "docs_tools.examples.prepare_examples_tests:main"
+# ty is used for linting docs snippets because it's faster, lighter, and
+# incremental, which allows to run it in parallel over individual snippets.
+# This would hang forever with `mypy`.
+[tool.ty.environment]
+python-version = "3.10"
+
+[tool.ty.rules]
+redundant-cast = "warn"
+unused-type-ignore-comment = "ignore"
+unresolved-import = "ignore"
+empty-body = "ignore"
+invalid-parameter-default = "ignore"
 
 [tool.uv.sources]
 dlt = { path = "..", editable = true }
 
 [tool.pytest.ini_options]
 pythonpath = [".."]
-norecursedirs = [".direnv", ".eggs", "build", "dist"]
-addopts = "--showlocals --durations 10 -m 'not rfam'"
-xfail_strict = true
-log_cli_level = "INFO"
 console_output_style = "count"
-python_files = ["test_*.py", "*_test.py", "*snippets.py", "*snippet.pytest"]
-python_functions = ["*_test", "test_*", "*_snippet"]
-filterwarnings = ["ignore::DeprecationWarning"]
+addopts = [
+    "-p", "xdist",        # load the xdist parallel execution plugin
+    "-n", "auto",         # auto-detect worker count from available CPUs
+    "-rn",             # only show failed/errored test summary lines
+    "--tb=short",      # compact tracebacks on failure
+    "-p", "no:warnings",  # suppress Python warnings output
+]
 markers = [
-    "no_load: marks tests that do not load anything",
-    "rfam: marks tests that use rfam db"
+    "lint_snippets: parametrizes a test with all lintable docs snippets/examples (see pytest_generate_tests)",
+    "typecheck_snippets: parametrizes a test with all type-checkable docs snippets/examples (see pytest_generate_tests)",
+    "run_snippets: parametrizes a test with all runnable docs pages/examples (see pytest_generate_tests)",
+    "example: expensive snippet to run",
 ]

@@ -40,6 +40,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     CODEC_HINT,
+    EXCHANGE_CAPABLE_DATABASE_ENGINES,
     HINT_TO_CLICKHOUSE_ATTR,
     PARTITION_HINT,
     SETTINGS_HINT,
@@ -301,7 +302,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
     """Atomic staging-optimized replace via `EXCHANGE TABLES`.
 
-    Requires the destination database to use the `Atomic` or `Shared` engine.
+    Requires the destination database to use the `Atomic`, `Replicated` or `Shared` engine.
     The previous destination data lands in the staging slot after the swap; dlt
     truncates staging tables at the start of the next load.
     """
@@ -394,14 +395,16 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         return loaded_tables
 
     def _verify_database_supports_exchange(self) -> None:
-        # `EXCHANGE TABLES` is only supported on Atomic and Shared database engines
+        # `Replicated` derives from `Atomic` and supports EXCHANGE, but reports its own engine
+        # name in system.databases, so every exchange-capable engine must be listed explicitly
         result = self.sql_client.execute_sql(
             "SELECT engine FROM system.databases WHERE name = currentDatabase()"
         )
         engine = result[0][0] if result else "unknown"
-        if engine not in ("Atomic", "Shared"):
+        if engine not in EXCHANGE_CAPABLE_DATABASE_ENGINES:
+            supported = " or ".join(EXCHANGE_CAPABLE_DATABASE_ENGINES)
             raise DestinationTerminalException(
-                "ClickHouse replace_strategy='staging-optimized' requires the Atomic or Shared"
+                f"ClickHouse replace_strategy='staging-optimized' requires the {supported}"
                 f" database engine to use EXCHANGE TABLES (current: {engine}). Either choose"
                 " 'insert-from-staging' or 'truncate-and-insert', or recreate the database with"
                 " ENGINE = Atomic."

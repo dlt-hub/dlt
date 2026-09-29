@@ -15,9 +15,11 @@ To perform a full load on one or more of your resources, choose the `write_dispo
 p = dlt.pipeline(destination="bigquery", dataset_name="github")
 issues = []
 reactions = ["%2B1", "-1", "smile", "tada", "thinking_face", "heart", "rocket", "eyes"]
+headers: dict[str, str] = {}
+repo_name = "dlt-hub/dlt"
 for reaction in reactions:
     for page_no in range(1, 3):
-      page = requests.get(f"https://api.github.com/repos/{REPO_NAME}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
+      page = requests.get(f"https://api.github.com/repos/{repo_name}/issues?state=all&sort=reactions-{reaction}&per_page=100&page={page_no}", headers=headers)
       print(f"Got page for {reaction} page {page_no}, requests left", page.headers["x-ratelimit-remaining"])
       issues.extend(page.json())
 p.run(issues, write_disposition="replace", primary_key="id", table_name="issues")

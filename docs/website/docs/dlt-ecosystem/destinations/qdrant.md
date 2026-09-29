@@ -3,12 +3,10 @@ title: Qdrant
 description: Qdrant is a high-performance vector search engine/database that can be used as a destination in dlt.
 keywords: [qdrant, vector database, destination, dlt]
 ---
-
 # Qdrant
 
 [Qdrant](https://qdrant.tech/) is an open-source, high-performance vector search engine/database. It deploys as an API service, providing a search for the nearest high-dimensional vectors.
 This destination helps you load data into Qdrant from [dlt resources](../../general-usage/resource.md).
-
 
 <!--@@@DLT_DESTINATION_CAPABILITIES qdrant-->
 
@@ -34,12 +32,13 @@ In this setup guide, we are using the [Qdrant Cloud](https://cloud.qdrant.io/) t
 If no configuration options are provided, the default fallback will be `http://localhost:6333` with no API key.
 
 You can use Qdrant without a backend, where the database is stored in a file:
+
 ```toml
 [destination.qdrant]
 qd_path = "db.qdrant"
 ```
-Data will be stored in `db.qdrant` file placed in current working directory.
 
+Data will be stored in `db.qdrant` file placed in current working directory.
 
 3. Define the source of the data. For starters, let's load some data from a simple data structure:
 
@@ -61,32 +60,20 @@ movies = [
         "year": 1999,
     }
 ]
-```
 
-4. Define the pipeline:
-
-```py
 pipeline = dlt.pipeline(
     pipeline_name="movies",
     destination="qdrant",
     dataset_name="MoviesDataset",
 )
-```
 
-5. Run the pipeline:
-
-```py
 info = pipeline.run(
     qdrant_adapter(
         movies,
         embed="title",
     )
 )
-```
 
-6. Check the results:
-
-```py
 print(info)
 ```
 
@@ -99,6 +86,8 @@ To use vector search after the data has been loaded, you must specify which fiel
 The `qdrant_adapter` is a helper function that configures the resource for the Qdrant destination:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
 qdrant_adapter(data, embed="title")
 ```
 
@@ -112,6 +101,8 @@ Returns: [dlt resource](../../general-usage/resource.md) object that you can pas
 Example:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
 qdrant_adapter(
     resource,
     embed=["title", "description"],
@@ -121,6 +112,9 @@ qdrant_adapter(
 When using the `qdrant_adapter`, it's important to apply it directly to resources, not to the whole source. Here's an example:
 
 ```py
+from dlt.sources.sql_database import sql_database
+from dlt.destinations.adapters import qdrant_adapter
+
 products_tables = sql_database().with_resources("products", "customers")
 
 pipeline = dlt.pipeline(
@@ -150,6 +144,9 @@ The [replace](../../general-usage/full-loading.md) disposition replaces the data
 In the movie example from the [setup guide](#setup-guide), we can use the `replace` disposition to reload the data every time we run the pipeline:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -165,6 +162,9 @@ The [merge](../../general-usage/incremental-loading.md) write disposition merges
 For the `merge` disposition, you need to specify a `primary_key` for the resource:
 
 ```py
+from dlt.destinations.adapters import qdrant_adapter
+
+movies = [{"id": 1, "title": "Blade Runner", "year": 1982}, ...]
 info = pipeline.run(
     qdrant_adapter(
         movies,
@@ -249,4 +249,3 @@ You can find the setup instructions to run Qdrant [here](https://qdrant.tech/doc
 Qdrant destination supports syncing of the `dlt` state.
 
 <!--@@@DLT_TUBA qdrant-->
-

@@ -1,4 +1,5 @@
 """Detect optional dataframe libs without forcing their import."""
+import importlib
 import sys
 from types import ModuleType
 from typing import Any, Optional
@@ -73,9 +74,14 @@ def is_instance_lib(obj: Any, *, class_ref: str) -> bool:
     if module_name not in sys.modules:
         return False
 
-    module: ModuleType = sys.modules[module_name]
-    target_class: Any = module
-    for part in import_parts[1:]:
+    target_class: Any = sys.modules[module_name]
+    for idx, part in enumerate(import_parts[1:], start=1):
+        # packages do not necessarily re-export their submodules: import them on demand
+        if isinstance(target_class, ModuleType) and not hasattr(target_class, part):
+            try:
+                importlib.import_module(".".join(import_parts[: idx + 1]))
+            except ImportError:
+                return False
         target_class = getattr(target_class, part)
 
     return isinstance(obj, target_class)

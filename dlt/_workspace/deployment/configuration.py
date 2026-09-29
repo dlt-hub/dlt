@@ -8,6 +8,19 @@ from typing import Literal, Optional
 
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration
+from dlt.common.pipeline import TRefreshMode
+
+from dlt._workspace.deployment.typing import TIncrementalSource
+
+
+@configspec
+class JobConfiguration(BaseConfiguration):
+    """Job behavior settings resolvable from config in `jobs` sections."""
+
+    incremental_mode: Optional[TIncrementalSource] = None
+    """How incrementals obtain their range during a job run."""
+    auto_refresh_pipeline_mode: Optional[TRefreshMode] = None
+    """Refresh mode applied to every pipeline in the job when a refresh run is requested."""
 
 
 @configspec

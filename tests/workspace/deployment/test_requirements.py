@@ -23,6 +23,7 @@ from dlt._workspace.cli.dlthub.utils import fetch_init_plan
 from dlt._workspace.deployment.manifest import default_dashboard_job
 from dlt._workspace.deployment.requirements import (
     MAIN_GROUP,
+    PRE_TRACKING_DLT_INSTALL_SPEC,
     REQUIREMENTS_ENGINE_VERSION,
     WorkspaceRequirementsError,
     _BASE_LAUNCHER_SPECS,
@@ -31,6 +32,7 @@ from dlt._workspace.deployment.requirements import (
     default_requirements_manifest,
     export_workspace_requirements,
     get_dlt_requirement_spec,
+    get_pkg_install_spec,
     load_requirements,
     migrate_requirements,
     python_version,
@@ -252,6 +254,23 @@ def test_migrate_requirements_unknown_path_raises() -> None:
         migrate_requirements({}, 99, REQUIREMENTS_ENGINE_VERSION)
 
 
+def test_migrate_requirements_v1_backfills_dlt_version() -> None:
+    """Engine-1 manifests (no dlt_version) load as engine 2 with the 1.28.0 default."""
+    data = json.dumps(
+        {
+            "engine_version": 1,
+            "python_version": "3.11",
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+            "launcher_requirements": {},
+        }
+    ).encode("utf-8")
+    manifest = load_requirements(io.BytesIO(data))
+    assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert manifest["dlt_version"] == PRE_TRACKING_DLT_INSTALL_SPEC
+    assert manifest["dlt_version"]["version"] == "1.28.0"
+
+
 def test_load_unknown_engine_version_raises() -> None:
     data = json.dumps(
         {
@@ -353,6 +372,9 @@ def test_default_dashboard_job_declares_dashboard_group() -> None:
 def test_default_requirements_manifest_shape() -> None:
     manifest = default_requirements_manifest()
     assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    # dlt version + source captured at export time
+    assert manifest["dlt_version"] == get_pkg_install_spec("dlt")
+    assert manifest["dlt_version"]["version"]
     assert manifest["default_groups"] == [MAIN_GROUP]
     # empty main + dashboard group
     assert manifest["groups"] == {
@@ -540,17 +562,17 @@ def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> N
 @pytest.mark.parametrize(
     "spec, pruned, kept, dlt_injected",
     [
-        ("dlt[hub]>=1.0", {"dlthub", "croniter"}, set(), False),
-        ("dlthub>=0.1", {"dlthub"}, {"croniter"}, True),
-        ("dlthub-client", {"croniter"}, {"dlthub"}, True),
-        ("dlt>=1.0", set(), {"dlthub", "croniter"}, False),
+        ("dlt[hub]>=1.0", {"dlthub"}, set(), False),
+        ("dlthub>=0.1", {"dlthub"}, set(), True),
+        ("dlthub-client", set(), {"dlthub"}, True),
+        ("dlt>=1.0", set(), {"dlthub"}, False),
     ],
     ids=["dlt-hub-extra", "dlthub", "dlthub-client", "plain-dlt"],
 )
 def test_export_prunes_implied_packages(
     spec: str, pruned: Set[str], kept: Set[str], dlt_injected: bool
 ) -> None:
-    """`dlt[hub]` pulls dlthub + croniter; dlthub / dlthub-client pull croniter."""
+    """`dlt[hub]` pulls dlthub; croniter is a core dep, not a launcher spec."""
     with isolated_workspace("deps_none") as ctx:
         Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
         with patch(_SHUTIL_WHICH, return_value=None):

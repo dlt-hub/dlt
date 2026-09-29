@@ -3,9 +3,9 @@ title: Zendesk
 description: dlt pipeline for Zendesk API
 keywords: [zendesk api, zendesk pipeline, zendesk]
 ---
-import Header from './_source-info-header.md';
-
 # Zendesk
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -20,12 +20,12 @@ of your choice.
 
 Endpoints that can be loaded using this verified source are:
 
-| Name                       | Description                                                                                                                                                                                                                                                                                                                                                                                  |
-| -------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| SUPPORT_ENDPOINTS          | "users", "sla_policies", "groups", "organizations", "brands"                                                                                                                                                                                                                                                                                                                                 |
+| Name                       | Description                                                                                                                                                                                                                                                                                                                                                                                   |
+| -------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| SUPPORT_ENDPOINTS          | "users", "sla_policies", "groups", "organizations", "brands"                                                                                                                                                                                                                                                                                                                                  |
 | SUPPORT_EXTRA_ENDPOINTS    | "activities", "automations", "custom_agent_roles", "dynamic_content", "group memberships",<br/> "job_status", "macros", "organization_fields", "organization memberships", "recipient_addresses", <br/> "requests", "satisfaction_ratings", "sharing_agreements", "skips", "suspended_tickets", "targets", <br/> "ticket_forms", "ticket_metrics", "triggers", "user_fields", "views", "tags" |
-| TALK_ENDPOINTS             | "calls", "addresses", "greeting_categories", "greetings", "ivrs", <br/> "phone_numbers", "settings", "lines", "agents_activity"                                                                                                                                                                                                                                                              |
-| INCREMENTAL_TALK_ENDPOINTS | "calls", "logs"                                                                                                                                                                                                                                                                                                                                                                              |
+| TALK_ENDPOINTS             | "calls", "addresses", "greeting_categories", "greetings", "ivrs", <br/> "phone_numbers", "settings", "lines", "agents_activity"                                                                                                                                                                                                                                                               |
+| INCREMENTAL_TALK_ENDPOINTS | "calls", "logs"                                                                                                                                                                                                                                                                                                                                                                               |
 
 > To get the complete list of endpoints, please refer to
 > ["zendesk/settings.py".](https://github.com/dlt-hub/verified-sources/blob/master/sources/zendesk/settings.py)
@@ -54,7 +54,7 @@ tokens or OAuth tokens.
 
 #### Grab subdomain
 
-1. Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+1. Log into Zendesk to find your subdomain in the URL. E.g., for [https://www.dlthub.zendesk.com](https://www.dlthub.zendesk.com), the
    subdomain is "dlthub".
 
 #### Grab Zendesk support API token
@@ -111,7 +111,7 @@ Zendesk chat can be authenticated using this method:
 
 #### Subdomain
 
-Log into Zendesk to find your subdomain in the URL. E.g., for https://www.dlthub.zendesk.com, the
+Log into Zendesk to find your subdomain in the URL. E.g., for [https://www.dlthub.zendesk.com](https://www.dlthub.zendesk.com), the
 subdomain is "dlthub".
 
 #### Grab Zendesk chat OAuth token
@@ -122,13 +122,15 @@ To generate a Zendesk chat OAuth token, please refer to this
 
 1. Access Zendesk Chat directly or through the top right "Chat" option in Zendesk product.
 1. Navigate to "Settings" > "Account" > "API" > "Add API client".
-1. Fill in the client name, company, and redirect URLs (default: http://localhost:8080).
+1. Fill in the client name, company, and redirect URLs (default: [http://localhost:8080](http://localhost:8080)).
 1. Record the "CLIENT_ID" and "SUBDOMAIN".
 1. Format the below URL with your own CLIENT_ID and SUBDOMAIN, paste it into a new browser tab, and
    press Enter.
+
    ```sh
    https://www.zopim.com/oauth2/authorizations/new?response_type=token&client_id=CLIENT_ID&scope=read%20write&subdomain=SUBDOMAIN
    ```
+
 1. The call will be made, possibly asking you to log in and select 'Allow' to generate the token.
 1. If the call succeeds, your browser's address field will contain your new OAuth token (returned as
    the access_token value).
@@ -146,7 +148,6 @@ Zendesk Talk fetches the data using the Zendesk Talk API.
 1. Obtaining credentials for Zendesk Talk mirrors the process for
    [Zendesk support](#zendesk-support).
 1. Use existing Zendesk support credentials or create new ones.
-
 
 > Note: The Zendesk UI, which is described here, might change.
 The full guide is available at [this link.](https://developer.zendesk.com/documentation/ticketing/working-with-oauth/creating-and-using-oauth-tokens-with-the-api/)
@@ -191,12 +192,12 @@ To get started with your data pipeline, follow these steps:
     For data retrieval from Zendesk Support or Talk, choose one of the following verification
     methods:
 
-      - Method 1 ([subdomain](#subdomain) + email address + password)
-      - Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
-      - Method 3 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-support-oauth-token))
+  - Method 1 ([subdomain](#subdomain) + email address + password)
+  - Method 2 ([subdomain](#subdomain) + email address + [API token](#grab-zendesk-support-api-token))
+  - Method 3 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-support-oauth-token))
 
     To load data from Zendesk Chat, use the following method for authentication:
-      - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
+  - Method 1 ([subdomain](#subdomain) + [OAuth token](#grab-zendesk-chat-oauth-token))
 
    > Note: Use the Zendesk Support OAuth token for configuring Zendesk Support, and for
    > Chat, utilize the OAuth token specific to Zendesk Chat.
@@ -241,7 +242,7 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 This function retrieves data from Zendesk Talk for phone calls and voicemails.
 
-```py
+```py notype
 @dlt.source(max_table_nesting=2)
 def zendesk_talk(
     credentials: TZendeskCredentials = dlt.secrets.value,
@@ -262,7 +263,7 @@ run.
 
 This function loads data from the Zendesk Talk endpoint.
 
-```py
+```py notype
 def talk_resource(
     zendesk_client: ZendeskAPIClient,
     talk_endpoint_name: str,
@@ -282,16 +283,16 @@ def talk_resource(
 
 Other functions similar to the source `zendesk_talk` and resources similar to `talk_endpoint` are:
 
-| Function Name             | Type      | Description                                                                                       |
-|---------------------------| --------- |---------------------------------------------------------------------------------------------------|
-| zendesk_chat              | source    | Retrieves data from Zendesk Chat for chat interactions                                            |
-| chats_table_resource      | resource  | Retrieves chats from Zendesk                                                                      |
-| talk_incremental_resource | resource  | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
-| zendesk_support           | source    | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
-| ticket_events             | resource  | Retrieves records of all changes made to a ticket, including state, etc.                          |
-| tickets                   | resource  | Retrieves the data for the ticket table, which can be pivoted and columns renamed                 |
-| ticket_metric_events      | resource  | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
-| basic_resource            | resource  | Retrieves basic loader for Zenpy endpoints with pagination support                                |
+| Function Name             | Type     | Description                                                                                       |
+| ------------------------- | -------- | ------------------------------------------------------------------------------------------------- |
+| zendesk_chat              | source   | Retrieves data from Zendesk Chat for chat interactions                                            |
+| chats_table_resource      | resource | Retrieves chats from Zendesk                                                                      |
+| talk_incremental_resource | resource | Retrieves data incrementally from a Zendesk Talk endpoint.                                        |
+| zendesk_support           | source   | Retrieves data from Zendesk Support for tickets, users, brands, organizations, and groups         |
+| ticket_events             | resource | Retrieves records of all changes made to a ticket, including state, etc.                          |
+| tickets                   | resource | Retrieves the data for the ticket table, which can be pivoted and columns renamed                 |
+| ticket_metric_events      | resource | Retrieves ticket metric events from the start date, defaulting to January 1st of the current year |
+| basic_resource            | resource | Retrieves basic loader for Zenpy endpoints with pagination support                                |
 
 ## Customization
 
@@ -312,7 +313,7 @@ verified source.
 
 1. To load data related to support, talk, and chat:
 
-   ```py
+   ```py notype
     # Zendesk support source function
     data_support = zendesk_support(load_all=True)
     # Zendesk chat source function
@@ -326,7 +327,7 @@ verified source.
 
 1. To load data related to support, chat, and talk in incremental mode:
 
-   ```py
+   ```py notype
    pipeline = dlt.pipeline(
         pipeline_name="dlt_zendesk_pipeline",  # Use a custom name if desired
         destination="duckdb",  # Choose the appropriate destination (e.g., duckdb, redshift, post)
@@ -347,7 +348,7 @@ verified source.
 1. To load historical data in weekly ranges from Jan 1st, 2023, then switch to incremental loading
    for new tickets.
 
-   ```py
+   ```py notype
     # Load ranges of dates between January 1st, 2023, and today
     min_start_date = pendulum.DateTime(year=2023, month=1, day=1).in_timezone("UTC")
     max_end_date = pendulum.today()

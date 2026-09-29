@@ -2,9 +2,10 @@ from types import TracebackType
 from typing import Optional, Sequence, List, Dict, Type, Iterable, Any
 import threading
 
+from datetime import datetime, timezone
+
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID
 from dlt.common.schema.utils import (
@@ -456,7 +457,13 @@ class QdrantClient(JobClientBase, WithStateSync):
         )
 
     def complete_load(self, load_id: str) -> None:
-        values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]
+        values = [
+            load_id,
+            self.schema.name,
+            0,
+            str(datetime.now(timezone.utc)),
+            self.schema.version_hash,
+        ]
         assert len(values) == len(self.loads_collection_properties)
         properties = {k: v for k, v in zip(self.loads_collection_properties, values)}
         loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
@@ -481,7 +488,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         values = [
             schema.version,
             schema.ENGINE_VERSION,
-            str(pendulum.now().isoformat()),
+            str(datetime.now(timezone.utc).isoformat()),
             schema.name,
             schema.stored_version_hash,
             schema_str,

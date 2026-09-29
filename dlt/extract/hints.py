@@ -47,7 +47,7 @@ from dlt.common.schema.utils import (
     validate_merge_filter,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -471,7 +471,7 @@ class DltResourceHints:
         Args:
             table_name (TTableHintTemplate[str]): name of the table which resource will generate
 
-            parent_table_parent (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
+            parent_table_name (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
 
             incremental (Incremental, optional): Enables the incremental loading for a resource.
 
@@ -864,7 +864,7 @@ class DltResourceHints:
                         if wd[ts] is None:
                             continue
                         try:
-                            ensure_pendulum_datetime_utc(wd[ts])
+                            ensure_datetime(wd[ts])
                         except Exception:
                             raise ValueError(f"could not parse `{ts}` value `{wd[ts]}`")
 

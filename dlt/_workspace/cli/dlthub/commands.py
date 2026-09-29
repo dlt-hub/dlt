@@ -361,7 +361,7 @@ def _add_common_run_args(
         parser.add_argument(
             "--refresh",
             action="store_true",
-            help="Request a refresh run. Honored unless the job declares refresh=block.",
+            help="Request a refresh run.",
         )
 
 
@@ -516,7 +516,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         pipeline_run_p.add_argument(
             "--refresh",
             action="store_true",
-            help="Request a refresh run. Honored unless the job declares refresh=block.",
+            help=(
+                "Request a refresh run. Honored unless the job declares refresh_propagation=block."
+            ),
         )
         pipeline_run_p.add_argument(
             "--dry-run",

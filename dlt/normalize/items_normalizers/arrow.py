@@ -120,7 +120,10 @@ class ArrowItemsNormalizer(ItemsNormalizer):
                 # we may need to normalize
                 if is_native_arrow_writer and should_normalize is None:
                     should_normalize = pyarrow.should_normalize_arrow_schema(
-                        batch.schema, columns_schema, schema.naming
+                        batch.schema,
+                        columns_schema,
+                        schema.naming,
+                        self.config.destination_capabilities,
                     )[0]
                     if should_normalize:
                         logger.info(
@@ -175,7 +178,10 @@ class ArrowItemsNormalizer(ItemsNormalizer):
         if not must_rewrite:
             # in rare cases normalization may be needed
             must_rewrite = pyarrow.should_normalize_arrow_schema(
-                arrow_schema, self.schema.get_table_columns(root_table_name), self.schema.naming
+                arrow_schema,
+                self.schema.get_table_columns(root_table_name),
+                self.schema.naming,
+                self.config.destination_capabilities,
             )[0]
         if must_rewrite:
             logger.info(

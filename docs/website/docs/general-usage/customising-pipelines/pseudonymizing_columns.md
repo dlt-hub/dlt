@@ -3,7 +3,6 @@ title: Pseudonymizing columns
 description: Pseudonymizing (or anonymizing) columns by replacing the special characters
 keywords: [pseudonymize, anonymize, columns, special characters]
 ---
-
 # Pseudonymizing columns
 
 Pseudonymization is a deterministic way to hide personally identifiable information (PII), enabling us to consistently achieve the same mapping. If instead you wish to anonymize, you can delete the data or replace it with a constant. In the example below, we create a dummy source with a PII column called "name", which we replace with deterministic hashes (i.e., replacing the German umlaut).
@@ -61,4 +60,4 @@ load_info = pipeline.run(source_instance)
 
 For production use cases with SQL database sources, you'll want a reusable masking function that takes column names as parameters, supports multiple masking methods (replace with asterisks or nullify), and works with all `sql_database` backends (PyArrow, Pandas, SQLAlchemy).
 
-See the full [data masking example](../../examples/data_masking.md) for a production-ready implementation using closures.
+See the full data masking for a production-ready implementation using closures.

@@ -1,5 +1,7 @@
 from typing import Callable, Dict, Union
 
+# NOTE: pendulum stays here. `path_utils.prepare_datetime_params` renders `current_datetime` with
+# pendulum format tokens, so a stdlib datetime cannot produce the layout placeholders
 from pendulum.datetime import DateTime
 from typing_extensions import TypeAlias
 

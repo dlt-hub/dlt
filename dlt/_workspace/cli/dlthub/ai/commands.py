@@ -467,7 +467,7 @@ def _warning_message(code: str) -> str:
     if code == "not_initialized":
         return f"Workspace not yet initialized ({fmt.cli_cmd('init')} not yet run)"
     if code == "no_init_toolkit":
-        return f"MCP server and workflow rules not available ({fmt.cli_cmd('ai init')} not yet run)"
+        return f"Workflow rules not available ({fmt.cli_cmd('ai init')} not yet run)"
     if code == "no_toolkits":
         return "No toolkit with workflow is installed!"
     if code == "mcp_unavailable":
