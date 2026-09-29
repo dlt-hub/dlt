@@ -125,8 +125,8 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert repo_storage.has_folder("tools")
     # only tools present
     assert len(repo_storage.list_folder_dirs(".")) == 2  # .git tools
-    # seven files inside
-    assert len(repo_storage.list_folder_files("tools")) == 7
+    # the external repo adds tools over time, so only check that the folder has files
+    assert len(repo_storage.list_folder_files("tools")) > 0
 
     # checkout the other one
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")

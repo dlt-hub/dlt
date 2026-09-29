@@ -103,9 +103,7 @@ def chess(
     # it uses `paralellized` flag to enable parallel run in thread pool.
     @dlt.transformer(data_from=players, write_disposition="replace", parallelized=True)
     def players_profiles(username: Any) -> TDataItems:
-        print(
-            f"getting {username} profile via thread {threading.current_thread().name}"
-        )
+        print(f"getting {username} profile via thread {threading.current_thread().name}")
         sleep(1)  # add some latency to show parallel runs
         return _get_data_with_retry(f"player/{username}")
 
