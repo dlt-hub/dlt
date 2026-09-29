@@ -295,6 +295,16 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return f"ALTER TABLE {table_name} UPDATE"
 
     @classmethod
+    def gen_scd2_key_present_sql(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        merge_keys: Sequence[str],
+    ) -> str:
+        key_tuple = ", ".join(merge_keys)
+        return f"({key_tuple}) IN (SELECT {key_tuple} FROM {staging_root_table_name})"
+
+    @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
         return False
 
