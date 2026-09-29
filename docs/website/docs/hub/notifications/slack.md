@@ -17,6 +17,8 @@ Configuring Slack alerts in the dltHub Web UI is the preferred way to monitor pi
 
 With platform alerts, dltHub dispatches rich notifications to your Slack channels whenever a pipeline run fails or succeeds.
 
+![dltHub workspace Slack alert configuration](https://storage.googleapis.com/dlt-blog-images/dlthub-screenshot-slack-alert-config.png)
+
 ### Step 1: Create an incoming webhook in Slack
 
 1. Open the [Slack Incoming Webhooks guide](https://api.slack.com/messaging/webhooks).

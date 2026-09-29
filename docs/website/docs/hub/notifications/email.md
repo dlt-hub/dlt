@@ -17,6 +17,8 @@ Configuring alerts in the dltHub Web UI is the preferred way to monitor your wor
 
 With platform alerts, dltHub sends transactional email notifications when pipeline runs fail or complete successfully.
 
+![dltHub workspace email alert configuration](https://storage.googleapis.com/dlt-blog-images/dlthub-screenshot-email-alert-config.png)
+
 ### How to configure
 
 1. Open the dltHub Web UI and navigate to your workspace.
