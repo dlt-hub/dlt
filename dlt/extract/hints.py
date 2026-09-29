@@ -22,6 +22,7 @@ from dlt.common.schema.typing import (
     TWriteDispositionConfig,
     TMergeDispositionDict,
     TScd2StrategyDict,
+    TCdcStrategyDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
@@ -33,6 +34,7 @@ from dlt.common.exceptions import ValueErrorWithKnownValues
 from dlt.common.typing import TTableNames, TypedDict, Unpack
 from dlt.common.schema.utils import (
     DEFAULT_WRITE_DISPOSITION,
+    MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER,
     is_nested_table,
     may_be_nested,
     merge_column,
@@ -42,6 +44,7 @@ from dlt.common.schema.utils import (
     new_table,
     normalize_table_identifiers,
     remove_compound_props,
+    validate_merge_filter,
 )
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -721,8 +724,21 @@ class DltResourceHints:
         if deduplicated := md_dict.get("deduplicated"):
             dict_["x-stage-data-deduplicated"] = deduplicated
 
-        if merge_filter := md_dict.get("merge_filter"):
-            dict_["x-merge-filter"] = merge_filter
+        if merge_input_filter := md_dict.get("merge_input_filter"):
+            dict_["x-merge-input-filter"] = merge_input_filter
+
+        if merge_output_filter := md_dict.get("merge_output_filter"):
+            dict_["x-merge-output-filter"] = merge_output_filter
+
+        if merge_strategy == "cdc":
+            if row_version := cast(TCdcStrategyDict, md_dict).get("row_version_column_name"):
+                # unlike scd2, cdc identifies records by primary key and keeps `_dlt_id`
+                dict_["columns"][row_version] = {
+                    **dict_["columns"].get(row_version, {}),
+                    "name": row_version,
+                    "nullable": False,
+                    "x-row-version": True,
+                }
 
         if merge_strategy == "scd2":
             md_dict = cast(TScd2StrategyDict, md_dict)
@@ -824,6 +840,17 @@ class DltResourceHints:
                 raise ValueErrorWithKnownValues(
                     "write_disposition['strategy']", wd["strategy"], MERGE_STRATEGIES
                 )
+
+            for hint_name in ("merge_input_filter", "merge_output_filter"):
+                if filter_ := wd.get(hint_name):
+                    validate_merge_filter(hint_name, cast(str, filter_))
+            # the default strategy depends on the destination, so schema verification checks it
+            if (
+                wd.get("strategy") == "delete-insert"
+                and wd.get("merge_input_filter")
+                and not wd.get("merge_output_filter")
+            ):
+                raise ValueError(MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER)
 
             if wd.get("strategy") == "scd2":
                 wd = cast(TScd2StrategyDict, wd)

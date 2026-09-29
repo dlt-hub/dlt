@@ -16,6 +16,9 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.schema.utils import (
+    MERGE_FILTER_PLACEHOLDERS,
+    MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER,
+    validate_merge_filter,
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     has_column_with_prop,
@@ -132,7 +135,11 @@ def verify_schema_merge_disposition(
     load_tables: Sequence[PreparedTableSchema],
     capabilities: DestinationCapabilitiesContext,
     warnings: bool = True,
+    input_filter_placeholders: Sequence[str] = (),
+    output_filter_placeholders: Sequence[str] = MERGE_FILTER_PLACEHOLDERS,
 ) -> List[Exception]:
+    """Verifies the merge hints of `load_tables`. Verifies merge filters against the
+    placeholders that the destination expands. Returns exceptions for errors and logs warnings."""
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
@@ -171,9 +178,27 @@ def verify_schema_merge_disposition(
                     )
                 )
                 continue
+            has_input_filter = "x-merge-input-filter" in table
+            has_output_filter = "x-merge-output-filter" in table
+            for hint_name, x_hint, placeholders in (
+                ("merge_input_filter", "x-merge-input-filter", input_filter_placeholders),
+                ("merge_output_filter", "x-merge-output-filter", output_filter_placeholders),
+            ):
+                if filter_ := table.get(x_hint):
+                    try:
+                        validate_merge_filter(hint_name, cast(str, filter_), placeholders)
+                    except ValueError as filter_ex:
+                        exception_log.append(
+                            SchemaCorruptedException(
+                                schema.name, f"Table `{table_name}`: {filter_ex}"
+                            )
+                        )
             if merge_strategy == "delete-insert":
-                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
-                    table, "merge_key"
+                if (
+                    not has_column_with_prop(table, "primary_key")
+                    and not has_column_with_prop(table, "merge_key")
+                    # an output filter selects the rows to replace without keys
+                    and not has_output_filter
                 ):
                     log(
                         f"Table {table_name} has `write_disposition` set to `merge`"
@@ -196,24 +221,26 @@ def verify_schema_merge_disposition(
                         f" `{merge_strategy}` merge strategy. Merge key is not supported"
                         " for this strategy and will be ignored."
                     )
-            if "x-merge-filter" in table and merge_strategy not in ("cdc", "scd2"):
-                if merge_strategy == "delete-insert":
-                    # narrowing the delete would leave the out-of-scope rows behind while the
-                    # insert still adds the staging rows, duplicating the key
-                    exception_log.append(
-                        SchemaCorruptedException(
-                            schema.name,
-                            f"`merge_filter` is set for table `{table['name']}` with the"
-                            " `delete-insert` merge strategy, which would duplicate records"
-                            " outside the filter. Use `merge_key` to limit the scope, or switch"
-                            " to the `cdc` or `scd2` merge strategy.",
-                        )
+            if has_input_filter and merge_strategy == "delete-insert" and not has_output_filter:
+                exception_log.append(
+                    SchemaCorruptedException(
+                        schema.name,
+                        f"Table `{table_name}`: {MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER}",
                     )
-                else:
+                )
+            if has_input_filter or has_output_filter:
+                if merge_strategy in ("upsert", "insert-only"):
                     log(
-                        f"Found `merge_filter` for table `{table['name']}` with"
-                        f" `{merge_strategy}` merge strategy. Merge filter is only supported"
-                        " for `cdc` and `scd2` strategies and will be ignored."
+                        f"Table `{table['name']}` has a merge filter and the"
+                        f" `{merge_strategy}` merge strategy. dlt ignores merge filters for this"
+                        " strategy. dlt supports them for the `delete-insert`, `scd2` and `cdc`"
+                        " strategies."
+                    )
+                elif has_column_with_prop(table, "merge_key"):
+                    log(
+                        f"Table `{table['name']}` has `merge_key` and a merge filter. The merge"
+                        " filter selects the destination records to delete or retire, so dlt"
+                        " ignores `merge_key`."
                     )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:

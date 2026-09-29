@@ -1,6 +1,6 @@
 from packaging.version import Version
 from collections.abc import Mapping
-from typing import Optional, Dict, Union, List
+from typing import Optional, Dict, Union, List, Tuple, cast
 from pathlib import Path
 
 from dlt import version, Pipeline
@@ -12,12 +12,13 @@ from dlt.common.schema.typing import TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_columns_names_with_prop,
-    get_merge_compare_columns,
+    get_merge_changed_cond,
 )
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.configuration.specs import CredentialsConfiguration
+from dlt.destinations.exceptions import MergeDispositionException
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 
 try:
@@ -129,13 +130,10 @@ def merge_delta_table(
 
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
     if strategy in ("upsert", "insert-only", "cdc"):
+        input_predicate: Optional[str] = None
+        delete_predicate: Optional[str] = None
         if strategy == "cdc":
-            # delta merge predicates are row-wise and cannot hold the subquery a scope needs
-            if get_columns_names_with_prop(schema, "merge_key") or "x-merge-filter" in schema:
-                raise ValueError(
-                    "`merge_key` and `merge_filter` are not supported by the `cdc` merge strategy"
-                    f' on Delta tables. Table: "{load_table_name}".'
-                )
+            input_predicate, delete_predicate = _delta_merge_predicates(schema)
         evolve_delta_table_schema(table, data.schema)
 
         if "parent" in schema:
@@ -156,22 +154,38 @@ def merge_delta_table(
         if strategy == "upsert":
             qry = qry.when_matched_update_all()
         elif strategy == "cdc":
-            compare_columns = get_merge_compare_columns(schema)
-            changed_cond = " OR ".join(
-                [f"(source.{c} IS DISTINCT FROM target.{c})" for c in compare_columns]
-            )
+            changed_cond = get_merge_changed_cond(schema, "source", "target")
+            if input_predicate:
+                changed_cond = (
+                    f"({changed_cond}) AND ({input_predicate})" if changed_cond else input_predicate
+                )
             if changed_cond:
                 qry = qry.when_matched_update_all(predicate=changed_cond)
-        qry = qry.when_not_matched_insert_all()
+        qry = qry.when_not_matched_insert_all(predicate=input_predicate)
         if strategy == "cdc":
-            # the loaded data is a full snapshot, so whatever it lacks is gone from the source
-            qry = qry.when_not_matched_by_source_delete()
+            qry = qry.when_not_matched_by_source_delete(predicate=delete_predicate)
         qry.execute()
     else:
-        raise ValueError(
-            f'Merge strategy "{strategy}" is not supported for Delta tables. '
-            f'Table: "{load_table_name}".'
+        raise MergeDispositionException(
+            table.table_uri,
+            "",
+            [load_table_name],
+            f"dlt does not support the `{strategy}` merge strategy for Delta tables.",
         )
+
+
+def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Optional[str]]:
+    """Returns the input and output merge filters as Delta merge predicates.
+
+    `{table}` expands to the `target` alias and `{staging_table}` to the `source` alias.
+    The filesystem client `verify_schema` verifies the placeholders before loading.
+    """
+    input_filter = cast(Optional[str], schema.get("x-merge-input-filter"))
+    output_filter = cast(Optional[str], schema.get("x-merge-output-filter"))
+    return (
+        input_filter.format(staging_table="source", table="target") if input_filter else None,
+        output_filter.format(table="target") if output_filter else None,
+    )
 
 
 def truncate_delta_table(table: DeltaTable) -> None:

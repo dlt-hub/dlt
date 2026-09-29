@@ -48,7 +48,11 @@ from dlt.common.storages.fsspec_filesystem import glob_files
 from dlt.common.time import ensure_pendulum_datetime_utc
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
+from dlt.common.schema.utils import (
+    MERGE_FILTER_PLACEHOLDERS,
+    get_columns_names_with_prop,
+    is_nested_table,
+)
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -866,8 +870,14 @@ class FilesystemClient(
         self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
         # TODO: finetune verify_schema_merge_disposition ie. hard deletes are not supported
+        # delta merge predicates name the merged tables by their `source` and `target` aliases
         if exceptions := verify_schema_merge_disposition(
-            self.schema, loaded_tables, self.capabilities, warnings=True
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            warnings=True,
+            input_filter_placeholders=MERGE_FILTER_PLACEHOLDERS,
+            output_filter_placeholders=("table",),
         ):
             # filesystem falls back to append when merge is not supported
             filtered = []
@@ -909,6 +919,19 @@ class FilesystemClient(
                 if self.config.protocol == "hf":
                     message = "the `hf` protocol does not support table formats"
                 exception_log.append(TableFormatNotSupported(table_format, table["name"], message))
+            if (
+                table_format == "delta"
+                and resolve_merge_strategy(self.schema.tables, table, self.capabilities) == "cdc"
+                and get_columns_names_with_prop(table, "merge_key")
+            ):
+                # selecting target rows by staged values needs a subquery, which Delta cannot run
+                exception_log.append(
+                    SchemaCorruptedException(
+                        self.schema.name,
+                        "dlt does not support `merge_key` with the `cdc` merge strategy on Delta"
+                        f" table `{table['name']}`. Use `merge_output_filter` instead.",
+                    )
+                )
         return exception_log
 
     def update_stored_schema(

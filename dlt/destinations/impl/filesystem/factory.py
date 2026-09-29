@@ -44,7 +44,7 @@ def filesystem_merge_strategies_selector(
     if table_format == "delta":
         return supported_merge_strategies
     elif table_format == "iceberg":
-        # pyiceberg `upsert` cannot delete rows that the snapshot no longer has
+        # pyiceberg `upsert` cannot delete rows absent from the loaded data
         return [s for s in supported_merge_strategies if s != "cdc"]
     else:
         return []

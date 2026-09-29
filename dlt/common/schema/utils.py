@@ -1,10 +1,23 @@
 import re
+import string
 import base64
 import hashlib
 import warnings
 import yaml
 from copy import deepcopy, copy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Iterable,
+    List,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+    cast,
+)
 
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime_utc
@@ -824,17 +837,73 @@ def has_column_with_prop(
     return len(get_columns_names_with_prop(table, column_prop, include_incomplete)) > 0
 
 
+MERGE_FILTER_PLACEHOLDERS = ("table", "staging_table")
+MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER = (
+    "`merge_input_filter` requires `merge_output_filter` with the `delete-insert` merge"
+    " strategy. Without an output filter, dlt deletes destination records by key, also for"
+    " records that the input filter discards. Set `merge_output_filter` to the records that"
+    " this load replaces, or filter the data with `add_filter`."
+)
+
+
+def validate_merge_filter(
+    hint_name: str, filter_: str, placeholders: Sequence[str] = MERGE_FILTER_PLACEHOLDERS
+) -> None:
+    """Raises `ValueError` if merge filter `filter_` is malformed or uses other `placeholders`."""
+    try:
+        used = {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
+    except ValueError as format_ex:
+        raise ValueError(
+            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. Write a literal brace as"
+            " `{{` or `}}`."
+        ) from format_ex
+    if unknown := sorted(used.difference(placeholders)):
+        available = ", ".join("`{" + name + "}`" for name in placeholders) or "none"
+        raise ValueError(
+            f"`{hint_name}` `{filter_}` uses unknown placeholders"
+            f" {', '.join('`{' + name + '}`' for name in unknown)}. The available placeholders"
+            f" are {available}. Write a literal brace as `{{{{` or `}}}}`."
+        )
+
+
 def get_merge_compare_columns(table: TTableSchema) -> List[str]:
     """Returns names of columns whose values decide whether a merged row changed.
 
-    Excludes keys and the dlt columns that change on every load.
+    Returns only the row version column when the table has one. Otherwise excludes keys and the
+    dlt columns that change on every load.
     """
+    if row_version := get_first_column_name_with_prop(table, "x-row-version"):
+        return [row_version]
+    # TODO: use normalized _dlt prefix to prune dlt columns - C_DLT_LOAD_ID is not normalized and wrong
     key_props = ("primary_key", "row_key", "parent_key", "root_key", "hard_delete")
     return [
         name
         for name, column in table["columns"].items()
         if name != C_DLT_LOAD_ID and not any(column.get(prop) for prop in key_props)
     ]
+
+
+def get_merge_changed_cond(
+    table: TTableSchema,
+    source_alias: str,
+    target_alias: str,
+    escape_id: Callable[[str], str] = str,
+) -> Optional[str]:
+    """Returns SQL condition that holds when a source row differs from its target row.
+
+    Returns `None` when the table has no columns to compare.
+    """
+    compare_columns = get_merge_compare_columns(table)
+    if not compare_columns:
+        return None
+    if get_first_column_name_with_prop(table, "x-row-version"):
+        # the row version is not nullable, so a direct comparison is exact
+        column = escape_id(compare_columns[0])
+        return f"{source_alias}.{column} <> {target_alias}.{column}"
+    return " OR ".join(
+        f"({source_alias}.{c} IS DISTINCT FROM {target_alias}.{c})"
+        for c in map(escape_id, compare_columns)
+    )
 
 
 def get_dedup_sort_tuple(

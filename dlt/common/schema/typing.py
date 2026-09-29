@@ -267,9 +267,12 @@ class TWriteDispositionDict(TypedDict):
 
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
-    merge_filter: Optional[str]
-    """SQL condition narrowing the destination rows a merge may delete or retire. Applies to
-    strategies that honor `merge_key`."""
+    merge_input_filter: Optional[str]
+    """SQL condition that selects the loaded rows to merge. dlt discards the other loaded rows.
+    For `cdc` and `scd2` on SQL destinations, it also limits the destination rows that the merge
+    can delete or retire."""
+    merge_output_filter: Optional[str]
+    """SQL condition that selects the destination rows that the merge can delete or retire."""
 
 
 class TDeleteInsertStrategyDict(TMergeDispositionDict):
@@ -283,11 +286,18 @@ class TScd2StrategyDict(TMergeDispositionDict, total=False):
     row_version_column_name: Optional[str]
 
 
+class TCdcStrategyDict(TMergeDispositionDict, total=False):
+    row_version_column_name: Optional[str]
+    """Column that changes when a record changes. `cdc` compares only this column to detect
+    changed records."""
+
+
 TWriteDispositionConfig = Union[
     TWriteDisposition,
     TWriteDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
+    TCdcStrategyDict,
     TDeleteInsertStrategyDict,
 ]
 
