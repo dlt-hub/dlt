@@ -357,6 +357,22 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         WHEN MATCHED THEN DELETE
         """
 
+    @classmethod
+    def gen_delete_nested_rows_sql(
+        cls,
+        table_name: str,
+        root_key_column: str,
+        root_keys_select: str,
+        root_keys_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        # Delta rejects a subquery nested in a DELETE condition, so the root keys go to a view
+        temp_view_name = cls._new_temp_table_name("root_keys", "delete", sql_client)
+        return [
+            cls._to_temp_table(root_keys_select, temp_view_name, root_keys_column, sql_client),
+            cls.gen_delete_from_sql(table_name, root_key_column, temp_view_name, root_keys_column),
+        ]
+
 
 class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TRecordBatch]):
     def __init__(

@@ -382,6 +382,19 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
+    def gen_delete_nested_rows_sql(
+        cls,
+        table_name: str,
+        root_key_column: str,
+        root_keys_select: str,
+        root_keys_column: str,
+        sql_client: SqlClientBase[Any],
+    ) -> List[str]:
+        """Generate statements deleting rows of nested `table_name` whose root key is selected by
+        `root_keys_select`, a query returning `root_keys_column`."""
+        return [f"DELETE FROM {table_name} WHERE {root_key_column} IN ({root_keys_select});"]
+
+    @classmethod
     def gen_concat_sql(cls, columns: Sequence[str]) -> str:
         return f"CONCAT({', '.join(columns)})"
 
@@ -434,18 +447,24 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         return [key_present] if key_present else []
 
     @classmethod
+    def gen_column_qualifier(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
+        """Returns the name that qualifies columns of destination table `table_name`."""
+        return sql_client.make_qualified_table_name(table_name)
+
+    @classmethod
     def gen_absent_rows_cond(
         cls,
-        table_name: str,
+        table_qualifier: str,
         staging_root_table_name: str,
         match_columns: Sequence[str],
         partition_clauses: Sequence[str],
         input_filter: Optional[str] = None,
     ) -> str:
-        """Generate condition selecting `table_name` rows absent from staging.
+        """Generate condition selecting destination rows absent from staging.
 
         Rows are matched on `match_columns` and narrowed by `partition_clauses`. Staging rows
-        excluded by `input_filter` do not count as present.
+        excluded by `input_filter` do not count as present. `table_qualifier` qualifies the
+        destination columns in the correlated subquery.
         """
         if len(match_columns) == 1:
             # not correlated, so destinations without correlated subqueries accept it
@@ -459,7 +478,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             staging_source = staging_root_table_name
             if input_filter:
                 staging_source = f"(SELECT * FROM {staging_root_table_name} WHERE {input_filter})"
-            on_str = " AND ".join([f"s.{c} = {table_name}.{c}" for c in match_columns])
+            on_str = " AND ".join([f"s.{c} = {table_qualifier}.{c}" for c in match_columns])
             conds = [f"NOT EXISTS (SELECT 1 FROM {staging_source} s WHERE {on_str})"]
         conds.extend(partition_clauses)
         return " AND ".join(conds)
@@ -724,12 +743,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     )
                 )
                 # nested rows are selected through their root rows, so delete them first
-                sql.append(f"""
-                    DELETE FROM {nested_table_name}
-                    WHERE {root_key_column} IN (
-                        SELECT {row_key_column} FROM {root_table_name} WHERE {output_filter}
-                    );
-                """)
+                sql.extend(
+                    cls.gen_delete_nested_rows_sql(
+                        nested_table_name,
+                        root_key_column,
+                        f"SELECT {row_key_column} FROM {root_table_name} WHERE {output_filter}",
+                        row_key_column,
+                        sql_client,
+                    )
+                )
             sql.append(f"DELETE FROM {root_table_name} WHERE {output_filter};")
         elif not append_fallback:
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
@@ -990,7 +1012,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
 
         absent_cond = cls.gen_absent_rows_cond(
-            root_table_name,
+            cls.gen_column_qualifier(root_table["name"], sql_client),
             staging_root_table_name,
             primary_keys,
             partition_clauses,
@@ -1006,12 +1028,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     sql_client.fully_qualified_dataset_name(staging=True),
                 )
             )
-            sql.append(f"""
-                DELETE FROM {table_name}
-                WHERE {root_key_column} IN (
-                    SELECT {root_row_key_column} FROM {root_table_name} WHERE {absent_cond}
-                );
-            """)
+            sql.extend(
+                cls.gen_delete_nested_rows_sql(
+                    table_name,
+                    root_key_column,
+                    f"SELECT {root_row_key_column} FROM {root_table_name} WHERE {absent_cond}",
+                    root_row_key_column,
+                    sql_client,
+                )
+            )
         sql.append(f"DELETE FROM {root_table_name} WHERE {absent_cond};")
         return sql
 
@@ -1160,11 +1185,12 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 """)
 
                 if not insert_only:
-                    # delete records for elements no longer in the list
+                    # delete records for elements no longer in the list. nested row keys derive from
+                    # the parent, so only staged rows of the selected parents can match
                     sql.append(f"""
                         DELETE FROM {table_name}
                         WHERE {nested_root_key_column} IN ({filtered_root_keys})
-                        AND {nested_row_key_column} NOT IN (SELECT {nested_row_key_column} FROM {nested_staging_source} s);
+                        AND {nested_row_key_column} NOT IN (SELECT {nested_row_key_column} FROM {staging_table_name} s);
                     """)
                     # delete nested records of hard-deleted parents
                     if hard_delete_col is not None:
@@ -1174,10 +1200,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         )
                         if input_filter:
                             hard_deleted_parents += f" AND ({input_filter})"
-                        sql.append(f"""
-                            DELETE FROM {table_name}
-                            WHERE {nested_root_key_column} IN ({hard_deleted_parents});
-                        """)
+                        sql.extend(
+                            cls.gen_delete_nested_rows_sql(
+                                table_name,
+                                nested_root_key_column,
+                                hard_deleted_parents,
+                                root_row_key_column,
+                                sql_client,
+                            )
+                        )
         return sql
 
     @classmethod
@@ -1251,7 +1282,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
         # scd2 identifies records by row hash and retires active ones only
         retire_cond = cls.gen_absent_rows_cond(
-            root_table_name,
+            cls.gen_column_qualifier(root_table["name"], sql_client),
             staging_root_table_name,
             [hash_],
             [is_active, *partition_clauses],

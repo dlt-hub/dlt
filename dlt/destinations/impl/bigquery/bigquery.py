@@ -58,6 +58,7 @@ from dlt.destinations.job_impl import (
     FinalizedLoadJobWithFollowupJobs,
     ReferenceFollowupJobRequest,
 )
+from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
 from dlt.destinations.sql_client import SqlClientBase
 
@@ -198,6 +199,11 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
             f" s WHERE {clause.format(d='d', s='s')})"
             for clause in key_clauses
         ]
+
+    @classmethod
+    def gen_column_qualifier(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
+        # a path cannot qualify a column, the last identifier is the implicit alias of the table
+        return sql_client.make_qualified_table_name_path(table_name)[-1]
 
 
 class BigQueryClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
