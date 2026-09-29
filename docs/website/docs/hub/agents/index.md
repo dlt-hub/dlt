@@ -1,7 +1,7 @@
 ---
 title: Background agents
 description: Run background agents as jobs on the dltHub platform, for example to diagnose failed job runs
-keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.agent, job inspector, pydantic-ai, claude-agent-sdk, toolkits]
+keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.agent, job inspector, pydantic-ai, toolkits]
 ---
 # Background agents
 
@@ -20,8 +20,8 @@ This page covers declaring an agent as a job and running it locally and on the p
 | Term             | Definition                                                                                                                                                                          | Where it lives                                                        |
 | ---------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------- |
 | Agent definition | System prompt plus a declaration of the agent's inputs, output, tools, skills, rules, and access                                                                                    | `AGENT.md` file, or a decorated Python function                       |
-| Agent loop       | Framework that runs the model turn by turn: `pydantic-ai` (default) or `claude-agent-sdk`                                                                                           | Selected with `loop=` on `run.agent` or `agent.loop` in configuration |
-| Agent job        | Definition plus the settings for your workspace: model, limits, trigger, instructions, loop                                                                                         | `run.agent(...)` in `__deployment__.py`                               |
+| Agent loop       | Framework that runs the model turn by turn. dltHub runs agents on `pydantic-ai`                                                                                                     | Workspace dependency, installed on the runner at deploy time          |
+| Agent job        | Definition plus the settings for your workspace: model, limits, trigger, instructions                                                                                               | `run.agent(...)` in `__deployment__.py`                               |
 | Agent run        | Execution of the agent job. It receives inputs and returns an output and a trace                                                                                                    | Started by a trigger, `dlthub local run`, `dlthub run`, or the Web UI |
 | Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
 | Verb             | What the agent may do on an axis: `read`, `write`, `execute`, `network`                                                                                                             | Listed under the axis in `access`                                     |
@@ -31,17 +31,14 @@ The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent defi
 ## Prerequisites
 
 1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](../pipeline-operations/workspace-setup.md).
-2. An agent loop installed locally. dltHub ships two agent loops, `pydantic-ai` (default) and `claude-agent-sdk`:
+2. The `pydantic-ai` agent loop installed locally:
 
    ```sh
-   uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"   # pydantic-ai loop (default)
-   uv add claude-agent-sdk                                        # claude-agent-sdk loop
+   uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"
    ```
 
-   You install a loop for local runs. On deploy, each agent job declares the dependency group of its
-   loop, and the platform runner installs that group before the run starts. A job that uses
-   `claude-agent-sdk` runs on the platform even when your machine has only `pydantic-ai`. See
-   [Agent loops](#agent-loops).
+   You install it for local runs. On deploy, each agent job declares the loop's dependency group
+   and the platform runner installs it before the run starts. See [Agent loop](#agent-loop).
 3. Credentials for a model provider. Locally, the provider's default environment variables work (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on). See [Model and credentials](#model-and-credentials) for the configuration keys.
 
 ## Declare the agent job
@@ -72,7 +69,6 @@ We strongly advise never to assign the production profile to an unattended agent
 | `instructions`                                    | First user message of each run. Use it for the task at hand. The system prompt describes the agent                                                                  |
 | `model`                                           | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials)                                           |
 | `limits`                                          | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted                                                                                |
-| `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                  |
 | `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. `retries` sets how many times pydantic-ai allows the model to correct a failing tool call |
 | `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt     |
 | `inputs_validator`                                | Called with the resolved inputs before the run. Its return value is merged into them, so use it to derive an input such as a run id from a job ref                  |
@@ -170,10 +166,10 @@ dlthub run job_inspector -f                                  # on the platform
 
 You can override settings for a single local run. Inputs and agent settings are ordinary job configuration under the job's section, so the same keys work on the command line, in `config.toml`, and in the environment:
 
-| What                                         | Key                            | Example                                                                                        |
-| -------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Declared inputs                              | `jobs.<section>.<job>.<input>` | `-c failed_run_id=...`                                                                         |
-| Instructions, model, limits, loop, verbosity | `jobs.<section>.<job>.agent.*` | `-c agent.instructions="explain, do not fix"`, `-c agent.max_turns=10`, `-c agent.verbosity=2` |
+| What                                   | Key                            | Example                                                                                        |
+| -------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
+| Declared inputs                        | `jobs.<section>.<job>.<input>` | `-c failed_run_id=...`                                                                         |
+| Instructions, model, limits, verbosity | `jobs.<section>.<job>.agent.*` | `-c agent.instructions="explain, do not fix"`, `-c agent.max_turns=10`, `-c agent.verbosity=2` |
 
 ```toml
 # .dlt/config.toml
@@ -201,7 +197,7 @@ Each source overrides the ones before it: the loop default, the definition's `de
 
 There's no default model. The workspace deploying the agent sets one, and a definition a toolkit ships names none, so the same definition works whatever provider you have.
 
-Azure OpenAI addresses a deployment on your own endpoint rather than a shared model, so it has no alias and needs `api_url` and `api_version` alongside the model and the key. The `claude-agent-sdk` loop runs Anthropic models only, so naming it in a workspace whose key is Azure or Google breaks the run.
+Azure OpenAI addresses a deployment on your own endpoint rather than a shared model, so it has no alias and needs `api_url` and `api_version` alongside the model and the key.
 
 Credentials for the provider go under the job's `agent` section, in `secrets.toml` or the environment. Without them, the provider's default environment variables are used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on):
 
@@ -310,29 +306,22 @@ When the run ends, the launcher prints and delivers the job result:
 
 On the platform, inspect agent runs like any other run with `dlthub job runs list` and `dlthub job runs info`. See [Monitoring and debugging](../pipeline-operations/monitoring.md).
 
-## Agent loops
+## Agent loop
 
-A loop is the framework that runs the agent. dltHub ships two agent loops and adds the matching dependency group to the job, so the runner installs it. A third-party loop can register through the `plug_agent_loop` plugin hook.
+A loop is the framework that runs the agent. dltHub runs agents on `pydantic-ai` and adds its dependency group to the job, so the runner installs it. It works with any provider pydantic-ai supports. A third-party loop can register through the `plug_agent_loop` plugin hook.
 
-|                 | `pydantic-ai` (default)                                                                                        | `claude-agent-sdk`                                     |
-| --------------- | -------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| Models          | Any provider pydantic-ai supports                                                                              | Anthropic models, through a bundled Claude Code CLI    |
-| Local tools     | dlt's own file, search, and shell tools. Web access comes from the model provider's own search and fetch tools | Claude Code's tools, under the same names              |
-| Skills          | Inlined into the system prompt                                                                                 | Listed by name and loaded on demand, as in Claude Code |
-| Install locally | `uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"`                                                  | `uv add claude-agent-sdk`                              |
+The loop reads the agent definition. `access` selects the local tools: dlt's own file, search, and shell tools, with web access coming from the model provider's own search and fetch tools. `tools` selects the MCP server features. Skills are inlined into the system prompt. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn.
 
-Both loops read the same declarations. `access` selects the local tools and `tools` selects the MCP server features. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn, so the limit means the same on both loops.
-
-Select the loop on the job with `loop="claude-agent-sdk"`, or for a single run with `-c agent.loop=claude-agent-sdk`. On `claude-agent-sdk` the workspace's `CLAUDE.md` loads as in any Claude Code session. The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives the rules and the MCP server it declares.
+The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives the rules and the MCP server it declares.
 
 ## Guardrails
 
-- Tools follow the `access` declaration. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and a tool the grant doesn't cover isn't offered to the model.
+- Tools follow the `access` declaration. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and a tool the grant doesn't cover isn't offered to the model. A tool declaring nothing is taken to need everything, so a plugin tool without a declaration reaches no agent.
 - An agent runs no code unless its definition grants `local: execute`. Without that verb it has no `Bash` and no `RunPython`, so it can read and reason but can't run anything on the runner. The agents the harness ships don't grant it.
-- Credential files are never readable by a file tool: `*secrets.toml`, `.env`, `.env.*`, on both loops, whatever `local` grants.
+- Credential files are never readable by a file tool: `*secrets.toml`, `.env`, `.env.*`, whatever `local` grants. The `secrets` feature group is the way an agent sees them: `secrets_list` and `secrets_view_redacted` need `local: read` and return every value as `***`, and `secrets_update_fragment` writes a secrets file and needs `local: write`. Grant `tools: [secrets]` and `local: write` together only to an agent meant to change credentials.
 - SQL through the MCP server is limited to a single `SELECT` statement per call.
 - `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. It also reaches around the file tools' credential rules. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
-- `data` is a grant you make deliberately: it opens the workspace data to a model-driven process. The agents the harness ships declare `local: read` and `context: read` and no `data`, and build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
+- `data` is a grant you make deliberately: it opens the workspace data to a model-driven process. `read` serves the read tools only, and the SQL tool takes a single `SELECT`. The agents the harness ships declare `local: read` and `context: read` and no `data`, and build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
 - An agent job declaring no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Next steps

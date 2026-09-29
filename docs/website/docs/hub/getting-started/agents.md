@@ -100,11 +100,9 @@ job_inspector = run.agent(
 
 ## Build your own agent
 
-Write your own agent as an `AGENT.md` file or as a Python function with the `@run.agent` decorator.
+Write your own agent as an `AGENT.md` file. The YAML frontmatter declares the tools, access, and output, and the Markdown body is the system prompt.
 
-The examples below define `workspace_report`, an agent that reads the status of every job in the workspace and writes a report.
-
-In an `AGENT.md`, the YAML frontmatter declares the tools, access, and output, and the Markdown body is the system prompt:
+The examples below define `workspace_report`, an agent that reads the status of every job in the workspace and writes a report:
 
 ```md
 ---
@@ -137,7 +135,7 @@ __all__ = [
 workspace_report = run.agent("agents/workspace_report", name="workspace_report")
 ```
 
-In a Python function, the docstring is the system prompt, the parameters are the inputs, and the return type is the output schema:
+Reach for the Python form when the schemas should come from Python types, or when code has to run around the loop. The docstring is the system prompt, the parameters are the inputs, and the return type is the output schema. See [Agent definition as a Python function](../agents/agent-definitions.md#agent-definition-as-a-python-function-advanced). The same agent, written this way:
 
 ```py notype
 from typing import List
