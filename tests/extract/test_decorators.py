@@ -1158,6 +1158,44 @@ def test_resource_sets_invalid_write_disposition() -> None:
     assert "write_disposition" in str(py_ex.value)
 
 
+@pytest.mark.parametrize(
+    "disposition,expected",
+    [
+        ({"merge_output_filter": "id = {nope}"}, "unknown placeholders `{nope}`"),
+        ({"merge_output_filter": "id = {table.id}"}, "unknown placeholders `{table.id}`"),
+        ({"merge_input_filter": "name LIKE '{'"}, "cannot parse"),
+        (
+            {"strategy": "delete-insert", "merge_input_filter": "bucket = 'new'"},
+            "requires `merge_output_filter`",
+        ),
+    ],
+    ids=["unknown_placeholder", "attribute_placeholder", "unbalanced_brace", "input_only"],
+)
+def test_resource_rejects_invalid_merge_filter(disposition: Any, expected: str) -> None:
+    write_disposition: Any = {"disposition": "merge", **disposition}
+    with pytest.raises(ValueError) as py_ex:
+
+        @dlt.resource(write_disposition=write_disposition)
+        def invalid_filter():
+            yield [1, 2, 3]
+
+    assert expected in str(py_ex.value)
+
+    # apply_hints validates the same way
+    @dlt.resource
+    def valid_resource():
+        yield [1, 2, 3]
+
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(write_disposition=write_disposition)
+    assert expected in str(py_ex.value)
+
+    # a doubled brace is a literal brace
+    valid_resource.apply_hints(
+        write_disposition={"disposition": "merge", "merge_output_filter": "name LIKE '{{x}}'"}
+    )
+
+
 def test_custom_source_impl() -> None:
     class TypedSource(DltSource):
         def users(self, mode: str) -> DltResource:

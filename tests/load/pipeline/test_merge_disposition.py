@@ -2,7 +2,7 @@ from copy import copy
 import os
 import pytest
 import random
-from typing import List, Optional
+from typing import Any, List, Optional, Sequence, Tuple
 import yaml
 
 import dlt
@@ -24,7 +24,7 @@ from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import DestinationCapabilitiesException
 from dlt.common.libs.pyarrow import row_tuples_to_arrow
 
-from dlt.extract import DltResource
+from dlt.extract import DltResource, DltSource
 from dlt.extract.hints import TResourceHints
 from dlt.sources.helpers.transform import skip_first, take_first
 from dlt.pipeline.exceptions import PipelineStepFailed
@@ -2146,6 +2146,54 @@ def test_insert_only_with_nested_tables(destination_config: DestinationTestConfi
     assert len(parent_tables["parent_items__children"]) == 4
 
 
+NEW_BUCKET = "bucket = 'new'"
+
+# 1 and 4 are in bucket 'old' and not reloaded: a merge filter keeps them.
+# 3 is in bucket 'new' and not reloaded. 6 is loaded into bucket 'old': only an input filter
+# discards it. 7 moves from bucket 'old' to 'new'
+FILTER_TARGET = [
+    {"id": 1, "bucket": "old", "v": 10},
+    {"id": 2, "bucket": "new", "v": 20},
+    {"id": 3, "bucket": "new", "v": 30},
+    {"id": 4, "bucket": "old", "v": 40},
+    {"id": 7, "bucket": "old", "v": 70},
+]
+FILTER_INPUT = [
+    {"id": 2, "bucket": "new", "v": 22},
+    {"id": 5, "bucket": "new", "v": 50},
+    {"id": 6, "bucket": "old", "v": 60},
+    {"id": 7, "bucket": "new", "v": 77},
+]
+
+
+def filter_resource(
+    strategy: str,
+    data: Sequence[StrAny],
+    input_filter: str = None,
+    output_filter: str = None,
+    append: bool = False,
+) -> DltSource:
+    """Source over the merge filter scenario data, seeding with `append` on the first load."""
+    disposition: Any = {"disposition": "merge", "strategy": strategy}
+    if input_filter:
+        disposition["merge_input_filter"] = input_filter
+    if output_filter:
+        disposition["merge_output_filter"] = output_filter
+
+    # the append seed must create the root key the later merges need on nested tables
+    @dlt.source(root_key=True)
+    def filter_source():
+        @dlt.resource(
+            name="items", primary_key="id", write_disposition="append" if append else disposition
+        )
+        def items():
+            yield data
+
+        return items
+
+    return filter_source()
+
+
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
@@ -2158,8 +2206,8 @@ def test_insert_only_with_nested_tables(destination_config: DestinationTestConfi
     ids=lambda x: x.name,
 )
 def test_cdc_strategy(destination_config: DestinationTestConfiguration) -> None:
-    """Loaded data is a full snapshot: absent records are deleted, changed records updated
-    and unchanged records left untouched."""
+    """Loaded data is a full snapshot. Absent records are deleted, changed records are updated,
+    and unchanged records do not change."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
 
     def make_resource(data: List[StrAny]) -> DltResource:
@@ -2252,7 +2300,7 @@ def test_cdc_composite_primary_key(destination_config: DestinationTestConfigurat
     )
 
     # (eu, 1) unchanged, (eu, 2) updated, (us, 1) absent, (us, 2) new. (eu, 2) and (us, 2)
-    # share the id, so a single-column match would collapse them
+    # have the same id, so a match on one column collapses them
     assert_load_info(
         p.run(
             make_resource(
@@ -2290,8 +2338,8 @@ def test_cdc_composite_primary_key(destination_config: DestinationTestConfigurat
 def test_cdc_unchanged_snapshot_rewrites_nothing(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Re-loading an identical snapshot must not rewrite any record, which is what keeps
-    downstream change consumers (e.g. Snowflake Streams) free of noise."""
+    """A reload of an identical snapshot updates no record. As a result, change consumers (for
+    example Snowflake Streams) see no changes."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
 
     @dlt.resource(
@@ -2315,12 +2363,70 @@ def test_cdc_unchanged_snapshot_rewrites_nothing(
 
 @pytest.mark.parametrize(
     "destination_config",
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_filesystem_configs=True,
+        supports_merge=True,
+        bucket_subset=(FILE_BUCKET,),
+    ),
+    ids=lambda x: x.name,
+)
+def test_cdc_row_version_column(destination_config: DestinationTestConfiguration) -> None:
+    """With `row_version_column_name`, `cdc` updates a record only when its row version
+    changes. Changes in other columns are ignored."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    def make_resource(data: Sequence[StrAny]) -> DltResource:
+        @dlt.resource(
+            name="items",
+            primary_key="id",
+            table_format=destination_config.table_format,
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "cdc",
+                "row_version_column_name": "version",
+            },
+        )
+        def items():
+            yield data
+
+        return items()
+
+    p = destination_config.setup_pipeline("cdc_row_version", dev_mode=True)
+    assert_load_info(
+        p.run(
+            make_resource(
+                [{"id": 1, "name": "a", "version": 1}, {"id": 2, "name": "b", "version": 1}]
+            ),
+            **destination_config.run_kwargs,
+        )
+    )
+    before = {r["id"]: r["_dlt_load_id"] for r in load_tables_to_dicts(p, "items")["items"]}
+
+    # 1 changes its name but keeps its version, 2 gets a new version
+    assert_load_info(
+        p.run(
+            make_resource(
+                [{"id": 1, "name": "a2", "version": 1}, {"id": 2, "name": "b2", "version": 2}]
+            ),
+            **destination_config.run_kwargs,
+        )
+    )
+    rows = {r["id"]: r for r in load_tables_to_dicts(p, "items")["items"]}
+    assert rows[1]["name"] == "a"
+    assert rows[1]["_dlt_load_id"] == before[1]
+    assert rows[2]["name"] == "b2"
+    assert rows[2]["_dlt_load_id"] != before[2]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
 def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> None:
-    """Records flagged with `hard_delete` are removed even while present in the snapshot,
-    and a record that arrives already flagged is never inserted."""
+    """Records flagged with `hard_delete` are deleted, also when the snapshot contains them. A
+    record that arrives already flagged is not inserted."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
 
     def make_resource(data: List[StrAny]) -> DltResource:
@@ -2348,7 +2454,7 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
         )
     )
 
-    # id 1 flagged deleted, id 2 kept, id 3 arrives already deleted and must never be inserted
+    # id 1 flagged deleted, id 2 kept, id 3 arrives already deleted and is not inserted
     assert_load_info(
         p.run(
             make_resource(
@@ -2375,11 +2481,9 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
 def test_cdc_nested_tables(
     destination_config: DestinationTestConfiguration, hard_delete: bool
 ) -> None:
-    """Nested rows follow their parent when it is removed, whether the parent is absent from
-    the snapshot or flagged for hard delete, and removed list elements are deleted."""
+    """Nested rows are deleted with their parent, when the parent is absent from the snapshot or
+    flagged for hard delete. List elements absent from the load are deleted."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
-    if destination_config.table_format:
-        pytest.skip("Removing elements from a nested column is not supported on open tables.")
 
     columns: Optional[TTableSchemaColumns] = (
         {"deleted": {"hard_delete": True, "data_type": "bool"}} if hard_delete else None
@@ -2410,8 +2514,8 @@ def test_cdc_nested_tables(
         )
     )
 
-    # parent 1 loses child 2 and gains child 4; parent 2 goes away with its children, either
-    # by vanishing from the snapshot or by being flagged
+    # parent 1 loses child 2 and gains child 4. Parent 2 and its children are deleted, because
+    # it is absent from the snapshot or flagged
     snapshot: List[StrAny] = [
         {"id": 1, "name": "P1", "deleted": False, "children": [{"c": 1}, {"c": 4}]}
     ]
@@ -2425,7 +2529,7 @@ def test_cdc_nested_tables(
     assert [r["id"] for r in tables["parent_items"]] == [1]
     assert_records_as_set(tables["parent_items__children"], [{"c": 1}, {"c": 4}])
 
-    # no nested row may outlive its parent
+    # every nested row has a parent
     parent_ids = {r["_dlt_id"] for r in load_tables_to_dicts(p, "parent_items")["parent_items"]}
     children = load_tables_to_dicts(p, "parent_items__children")["parent_items__children"]
     assert all(c["_dlt_root_id"] in parent_ids for c in children)
@@ -2436,63 +2540,41 @@ def test_cdc_nested_tables(
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-def test_cdc_merge_filter(destination_config: DestinationTestConfiguration) -> None:
-    """`merge_filter` is a static condition limiting which destination records may be deleted.
-    It never filters the snapshot, so records outside the window are still loaded."""
+@pytest.mark.parametrize(
+    "filters",
+    [(None, None), (None, NEW_BUCKET), (NEW_BUCKET, None), (NEW_BUCKET, NEW_BUCKET)],
+    ids=["no_filter", "output_only", "input_only", "both"],
+)
+def test_cdc_merge_filters(
+    destination_config: DestinationTestConfiguration, filters: Tuple[str, str]
+) -> None:
+    """The output filter selects the destination records that may be deleted, the input filter
+    the loaded records that are merged. An input filter alone also limits deletion."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
-    if destination_config.table_format:
-        pytest.skip("Delta merge predicates cannot express a scope condition.")
 
-    def make_resource(data: List[StrAny]) -> DltResource:
-        @dlt.resource(
-            name="events",
-            primary_key="id",
-            write_disposition={
-                "disposition": "merge",
-                "strategy": "cdc",
-                "merge_filter": "bucket = 'new'",
-            },
-        )
-        def events():
-            yield data
-
-        return events()
-
-    p = destination_config.setup_pipeline("cdc_filter", dev_mode=True)
+    input_filter, output_filter = filters
+    p = destination_config.setup_pipeline("cdc_filters", dev_mode=True)
     assert_load_info(
         p.run(
-            make_resource(
-                [
-                    {"id": 1, "bucket": "old", "value": 1},
-                    {"id": 2, "bucket": "new", "value": 2},
-                    {"id": 3, "bucket": "new", "value": 3},
-                ]
-            ),
+            filter_resource("cdc", FILTER_TARGET, append=True),
+            **destination_config.run_kwargs,
+        )
+    )
+    assert_load_info(
+        p.run(
+            filter_resource("cdc", FILTER_INPUT, input_filter, output_filter),
             **destination_config.run_kwargs,
         )
     )
 
-    # id 2 updated, id 3 absent from the snapshot and inside the window so it is deleted,
-    # id 1 is outside the window and must survive. id 4 is outside the window but present in
-    # the snapshot, so it must be loaded rather than silently dropped
-    assert_load_info(
-        p.run(
-            make_resource(
-                [{"id": 2, "bucket": "new", "value": 22}, {"id": 4, "bucket": "old", "value": 4}]
-            ),
-            **destination_config.run_kwargs,
-        )
-    )
-
-    tables = load_tables_to_dicts(p, "events", exclude_system_cols=True)
-    assert_records_as_set(
-        tables["events"],
-        [
-            {"id": 1, "bucket": "old", "value": 1},
-            {"id": 2, "bucket": "new", "value": 22},
-            {"id": 4, "bucket": "old", "value": 4},
-        ],
-    )
+    ids = sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"])
+    # 3 is in bucket 'new' and absent from the load, so it is always deleted
+    if output_filter is None and input_filter is None:
+        assert ids == [2, 5, 6, 7]  # absent records are deleted, loaded records inserted
+    elif input_filter is None:
+        assert ids == [1, 2, 4, 5, 6, 7]  # 1 and 4 are outside the filter and kept, 6 is inserted
+    else:
+        assert ids == [1, 2, 4, 5, 7]  # 6 is outside the input filter and is discarded
 
 
 @pytest.mark.parametrize(
@@ -2501,11 +2583,8 @@ def test_cdc_merge_filter(destination_config: DestinationTestConfiguration) -> N
     ids=lambda x: x.name,
 )
 def test_cdc_merge_key(destination_config: DestinationTestConfiguration) -> None:
-    """`merge_key` limits deletion to the partitions the snapshot actually covers, so the
-    scope follows the data instead of a hand-written condition."""
+    """`merge_key` limits deletion to the partitions present in the loaded data."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
-    if destination_config.table_format:
-        pytest.skip("Delta merge predicates cannot express a scope subquery.")
 
     def make_resource(data: List[StrAny]) -> DltResource:
         @dlt.resource(
@@ -2533,8 +2612,8 @@ def test_cdc_merge_key(destination_config: DestinationTestConfiguration) -> None
         )
     )
 
-    # the snapshot only covers bucket 'new', so id 3 is deleted while id 1 survives
-    # untouched in the 'old' bucket the snapshot says nothing about
+    # the snapshot has records in bucket 'new' only. As a result, id 3 is deleted and id 1 in
+    # bucket 'old' is kept
     assert_load_info(
         p.run(
             make_resource([{"id": 2, "bucket": "new", "value": 22}]),
@@ -2557,8 +2636,8 @@ def test_cdc_merge_key(destination_config: DestinationTestConfiguration) -> None
 def test_cdc_empty_snapshot_keeps_records(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """A resource that yields nothing produces no load job, so the table is not emptied.
-    Pins the documented limitation."""
+    """A resource that yields nothing produces no load job, so the table keeps its records.
+    This behavior is a documented limitation."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
 
     @dlt.resource(
@@ -2581,26 +2660,383 @@ def test_cdc_empty_snapshot_keeps_records(
     destinations_configs(default_sql_configs=True, supports_merge=True, subset=("duckdb",)),
     ids=lambda x: x.name,
 )
-def test_merge_filter_rejected_on_delete_insert(
-    destination_config: DestinationTestConfiguration,
+@pytest.mark.parametrize(
+    "disposition,expected",
+    [
+        ({"merge_input_filter": NEW_BUCKET}, "requires `merge_output_filter`"),
+        (
+            {
+                "strategy": "cdc",
+                "merge_input_filter": "id IN (SELECT id FROM {staging_table})",
+            },
+            "unknown placeholders `{staging_table}`",
+        ),
+    ],
+    ids=["default_strategy_input_only", "staging_table_in_input_filter"],
+)
+def test_merge_filter_rejected_before_load(
+    destination_config: DestinationTestConfiguration, disposition: Any, expected: str
 ) -> None:
-    """`delete-insert` inserts unconditionally, so narrowing its delete would duplicate every
-    record outside the filter. It must be rejected rather than silently corrupt the table."""
+    """Merge filter errors the decorator cannot detect fail the schema verification."""
 
     @dlt.resource(
         name="items",
         primary_key="id",
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "delete-insert",
-            "merge_filter": "bucket = 'new'",
-        },
+        write_disposition={"disposition": "merge", **disposition},
     )
     def items():
         yield [{"id": 1, "bucket": "new"}]
 
-    p = destination_config.setup_pipeline("di_filter", dev_mode=True)
+    p = destination_config.setup_pipeline("filter_rejected", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as exc:
         p.run(items(), **destination_config.run_kwargs)
     assert isinstance(exc.value.__cause__, SchemaCorruptedException)
-    assert "duplicate records" in str(exc.value.__cause__)
+    assert expected in str(exc.value.__cause__)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_delete_insert_output_filter_replaces_partition(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """The load replaces the destination records selected by the output filter. Other records
+    are untouched even when the load carries their key."""
+    p = destination_config.setup_pipeline("di_partition", dev_mode=True)
+    assert_load_info(
+        p.run(
+            filter_resource("delete-insert", FILTER_TARGET, append=True),
+            **destination_config.run_kwargs,
+        )
+    )
+    assert_load_info(
+        p.run(
+            filter_resource("delete-insert", FILTER_INPUT, output_filter=NEW_BUCKET),
+            **destination_config.run_kwargs,
+        )
+    )
+
+    rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+    # 3 is in bucket 'new' and not reloaded, so it is deleted. 1 and 4 are in bucket 'old' and
+    # kept. 7 moved buckets: its old copy is not deleted, so the key is duplicated (documented)
+    assert sorted(r["id"] for r in rows) == [1, 2, 4, 5, 6, 7, 7]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True, subset=("duckdb",)),
+    ids=lambda x: x.name,
+)
+def test_delete_insert_output_filter_without_keys(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """With an output filter `delete-insert` replaces rows without keys instead of appending."""
+
+    def resource(disposition: Any):
+        @dlt.resource(name="items", write_disposition=disposition)
+        def items():
+            yield [{"id": 1, "bucket": "new"}, {"id": 2, "bucket": "new"}]
+
+        return items()
+
+    keyed = {"disposition": "merge", "strategy": "delete-insert", "merge_output_filter": NEW_BUCKET}
+    p = destination_config.setup_pipeline("di_keyless", dev_mode=True)
+    assert_load_info(p.run(resource(keyed), **destination_config.run_kwargs))
+    assert_load_info(p.run(resource(keyed), **destination_config.run_kwargs))
+    # an append fallback doubles these rows
+    assert load_table_counts(p, "items")["items"] == 2
+
+    # keyless and unfiltered still appends, as before
+    p2 = destination_config.setup_pipeline("di_keyless_plain", dev_mode=True)
+    plain = {"disposition": "merge", "strategy": "delete-insert"}
+    assert_load_info(p2.run(resource(plain), **destination_config.run_kwargs))
+    assert_load_info(p2.run(resource(plain), **destination_config.run_kwargs))
+    assert load_table_counts(p2, "items")["items"] == 4
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True, subset=("duckdb",)),
+    ids=lambda x: x.name,
+)
+def test_merge_filter_placeholders(destination_config: DestinationTestConfiguration) -> None:
+    """An output filter using `{table}` and `{staging_table}` reproduces the default
+    `delete-insert` delete."""
+    handwritten = "EXISTS (SELECT 1 FROM {staging_table} s WHERE s.id = {table}.id)"
+
+    def load(pipeline_name: str, output_filter: str = None):
+        p = destination_config.setup_pipeline(pipeline_name, dev_mode=True)
+        for data in (FILTER_TARGET, FILTER_INPUT):
+            assert_load_info(
+                p.run(
+                    filter_resource(
+                        "delete-insert",
+                        data,
+                        output_filter=output_filter,
+                        append=data is FILTER_TARGET,
+                    ),
+                    **destination_config.run_kwargs,
+                )
+            )
+        return sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"])
+
+    # the hand-written predicate gives the same result as the default delete
+    assert load("ph_written", handwritten) == load("ph_stock")
+
+
+PARTITIONED_TARGET = [
+    {"id": 1, "v": "a", "part": "p15"},
+    {"id": 2, "v": "b", "part": "p15"},
+    {"id": 3, "v": "c", "part": "p16"},
+]
+# 3 is reloaded into p15 while its stored copy sits in p16
+PARTITIONED_INPUT = [
+    {"id": 1, "v": "a2", "part": "p15"},
+    {"id": 3, "v": "c2", "part": "p15"},
+]
+PARTITION = "part = 'p15'"
+# not correlated, since ClickHouse cannot reference the outer table from a subquery
+PARTITION_LOCAL_KEY = PARTITION + " AND id IN (SELECT id FROM {staging_table})"
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "strategy,output_filter,expected",
+    [
+        (
+            "delete-insert",
+            PARTITION_LOCAL_KEY,
+            [(1, "a2", "p15"), (2, "b", "p15"), (3, "c", "p16"), (3, "c2", "p15")],
+        ),
+        ("delete-insert", PARTITION, [(1, "a2", "p15"), (3, "c", "p16"), (3, "c2", "p15")]),
+        ("cdc", PARTITION, [(1, "a2", "p15"), (3, "c2", "p15")]),
+    ],
+    ids=["delete_insert_local_key", "delete_insert_partition", "cdc_partition"],
+)
+def test_delete_insert_partition_local_primary_key(
+    destination_config: DestinationTestConfiguration,
+    strategy: TLoaderMergeStrategy,
+    output_filter: str,
+    expected: List[Tuple[int, str, str]],
+) -> None:
+    """`delete-insert` can treat the primary key as unique within a partition only, while
+    `cdc` matches on it globally and moves the record between partitions."""
+    skip_if_unsupported_merge_strategy(destination_config, strategy)
+
+    p = destination_config.setup_pipeline("partition_local_key", dev_mode=True)
+    assert_load_info(
+        p.run(
+            filter_resource(strategy, PARTITIONED_TARGET, append=True),
+            **destination_config.run_kwargs,
+        )
+    )
+    assert_load_info(
+        p.run(
+            filter_resource(strategy, PARTITIONED_INPUT, output_filter=output_filter),
+            **destination_config.run_kwargs,
+        )
+    )
+
+    rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+    assert sorted((r["id"], r["v"], r["part"]) for r in rows) == sorted(expected)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_cdc_composite_key_input_filter(destination_config: DestinationTestConfiguration) -> None:
+    """A loaded record that the input filter discards does not count as present. Its stored
+    copy that matches the filter is deleted, although another record has the same id."""
+    skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    def make_resource(data: Sequence[StrAny], write_disposition: Any) -> DltResource:
+        @dlt.resource(
+            name="items", primary_key=["id", "region"], write_disposition=write_disposition
+        )
+        def items():
+            yield data
+
+        return items()
+
+    p = destination_config.setup_pipeline("cdc_composite_input", dev_mode=True)
+    target = [
+        {"id": 1, "region": "a", "bucket": "new", "v": 10},
+        {"id": 1, "region": "b", "bucket": "new", "v": 20},
+        {"id": 2, "region": "a", "bucket": "old", "v": 30},
+    ]
+    assert_load_info(p.run(make_resource(target, "append"), **destination_config.run_kwargs))
+
+    cdc = {"disposition": "merge", "strategy": "cdc", "merge_input_filter": NEW_BUCKET}
+    # (1, b) is reloaded into bucket 'old', so it is discarded and its stored copy deleted
+    load = [
+        {"id": 1, "region": "a", "bucket": "new", "v": 11},
+        {"id": 1, "region": "b", "bucket": "old", "v": 21},
+    ]
+    assert_load_info(p.run(make_resource(load, cdc), **destination_config.run_kwargs))
+
+    rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+    assert_records_as_set(
+        rows,
+        [
+            {"id": 1, "region": "a", "bucket": "new", "v": 11},
+            {"id": 2, "region": "a", "bucket": "old", "v": 30},
+        ],
+    )
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "strategy,output_filter",
+    [("cdc", None), ("delete-insert", NEW_BUCKET)],
+    ids=["cdc", "delete_insert"],
+)
+def test_merge_input_filter_nested_tables(
+    destination_config: DestinationTestConfiguration,
+    strategy: TLoaderMergeStrategy,
+    output_filter: Optional[str],
+) -> None:
+    """Nested rows of a record that the input filter discards are not inserted. Nested rows of
+    records outside the filter do not change."""
+    skip_if_unsupported_merge_strategy(destination_config, strategy)
+
+    p = destination_config.setup_pipeline("input_filter_nested", dev_mode=True)
+    target = [
+        {"id": 1, "bucket": "new", "children": [{"c": "a"}]},
+        {"id": 2, "bucket": "new", "children": [{"c": "b"}]},
+        {"id": 3, "bucket": "old", "children": [{"c": "c"}]},
+    ]
+    # cdc derives root row ids from the primary key. An append seed gives random ids, which the
+    # cleanup of nested rows cannot match
+    seed = filter_resource(strategy, target, append=strategy == "delete-insert")
+    assert_load_info(p.run(seed, **destination_config.run_kwargs))
+    load = [
+        {"id": 1, "bucket": "new", "children": [{"c": "a2"}, {"c": "a3"}]},
+        {"id": 4, "bucket": "old", "children": [{"c": "d"}]},
+        {"id": 5, "bucket": "new", "children": [{"c": "e"}]},
+    ]
+    assert_load_info(
+        p.run(
+            filter_resource(strategy, load, input_filter=NEW_BUCKET, output_filter=output_filter),
+            **destination_config.run_kwargs,
+        )
+    )
+
+    tables = load_tables_to_dicts(p, "items", "items__children")
+    assert sorted(r["id"] for r in tables["items"]) == [1, 3, 5]
+    assert sorted(r["c"] for r in tables["items__children"]) == ["a2", "a3", "c", "e"]
+    parent_ids = {r["_dlt_id"] for r in tables["items"]}
+    assert all(c["_dlt_root_id"] in parent_ids for c in tables["items__children"])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_delete_insert_output_filter_nested_tables(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Nested rows are replaced with their parents, also for parents the load does not carry,
+    and nested rows of parents outside the output filter are untouched."""
+    p = destination_config.setup_pipeline("di_partition_nested", dev_mode=True)
+
+    def load(data: Sequence[StrAny], append: bool = False) -> None:
+        resource = filter_resource("delete-insert", data, output_filter="part = 'A'", append=append)
+        assert_load_info(p.run(resource, **destination_config.run_kwargs))
+
+    def observed() -> Tuple[List[int], List[str]]:
+        tables = load_tables_to_dicts(p, "items", "items__child")
+        parent_ids = {r["_dlt_id"] for r in tables["items"]}
+        assert all(c["_dlt_root_id"] in parent_ids for c in tables["items__child"])
+        return (
+            sorted(r["id"] for r in tables["items"]),
+            sorted(r["val"] for r in tables["items__child"]),
+        )
+
+    load(
+        [
+            {"id": 1, "part": "A", "child": [{"val": "c1"}]},
+            {"id": 2, "part": "A", "child": [{"val": "c2"}]},
+            {"id": 3, "part": "B", "child": [{"val": "c3"}, {"val": "c4"}]},
+        ],
+        append=True,
+    )
+
+    update = [
+        {"id": 1, "part": "A", "child": [{"val": "c1_updated"}]},
+        {"id": 2, "part": "A", "child": [{"val": "c2"}]},
+    ]
+    load(update)
+    assert observed() == ([1, 2, 3], ["c1_updated", "c2", "c3", "c4"])
+    # the same load again must not accumulate nested rows
+    load(update)
+    assert observed() == ([1, 2, 3], ["c1_updated", "c2", "c3", "c4"])
+
+    load(
+        [
+            {"id": 1, "part": "A", "child": [{"val": "c1_v3"}, {"val": "c1_extra"}]},
+            {"id": 2, "part": "A", "child": [{"val": "c2"}]},
+        ]
+    )
+    assert observed() == ([1, 2, 3], ["c1_extra", "c1_v3", "c2", "c3", "c4"])
+
+    # 2 is not reloaded, so it is deleted with its nested rows
+    load([{"id": 1, "part": "A", "child": [{"val": "c1_final"}]}])
+    assert observed() == ([1, 3], ["c1_final", "c3", "c4"])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_delete_insert_output_filter_hard_delete(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """A record flagged for hard delete is deleted by the output filter and not inserted."""
+
+    def make_resource(data: Sequence[StrAny], write_disposition: Any) -> DltResource:
+        @dlt.resource(
+            name="items",
+            primary_key="id",
+            write_disposition=write_disposition,
+            columns={"deleted": {"hard_delete": True, "data_type": "bool"}},
+        )
+        def items():
+            yield data
+
+        return items()
+
+    p = destination_config.setup_pipeline("di_partition_hard_delete", dev_mode=True)
+    target = [
+        {"id": 1, "v": "a", "part": "A", "deleted": False},
+        {"id": 2, "v": "b", "part": "A", "deleted": False},
+        {"id": 3, "v": "c", "part": "B", "deleted": False},
+    ]
+    assert_load_info(p.run(make_resource(target, "append"), **destination_config.run_kwargs))
+
+    disposition = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "merge_output_filter": "part = 'A'",
+    }
+    load = [
+        {"id": 1, "v": "a", "part": "A", "deleted": True},
+        {"id": 2, "v": "b2", "part": "A", "deleted": False},
+    ]
+    assert_load_info(p.run(make_resource(load, disposition), **destination_config.run_kwargs))
+
+    rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+    assert sorted((r["id"], r["v"], r["part"]) for r in rows) == [(2, "b2", "A"), (3, "c", "B")]

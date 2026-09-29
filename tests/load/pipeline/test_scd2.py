@@ -12,7 +12,6 @@ from dlt.common.pendulum import pendulum
 from dlt.common.pipeline import LoadInfo
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
-from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
 from dlt.common.time import ensure_pendulum_datetime_utc, reduce_pendulum_datetime_precision
 from dlt.extract.resource import DltResource
@@ -1222,16 +1221,16 @@ def test_scd2_validity_column_position(
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-def test_merge_filter(destination_config: DestinationTestConfiguration) -> None:
-    """`merge_filter` narrows which absent records get retired, leaving records outside the
-    condition active even though the snapshot no longer carries them."""
+def test_merge_output_filter(destination_config: DestinationTestConfiguration) -> None:
+    """The output filter limits which absent records are retired. Absent records outside the
+    filter stay active."""
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
-            "merge_filter": "bucket = 'new'",
+            "merge_output_filter": "bucket = 'new'",
         },
     )
     def dim_test(data):
@@ -1244,7 +1243,8 @@ def test_merge_filter(destination_config: DestinationTestConfiguration) -> None:
     assert_load_info(info)
     assert [row[TO] for row in get_table(p, "dim_test")] == [None, None]
 
-    # both records vanish from the snapshot, only the one inside the condition is retired
+    # both records are absent from the snapshot. Only the record that matches the output filter
+    # is retired
     info = p.run(dim_test([{"bucket": "new", "foo": "bar"}]), **destination_config.run_kwargs)
     assert_load_info(info)
     ts2 = get_load_package_created_at(p, info)
@@ -1259,3 +1259,66 @@ def test_merge_filter(destination_config: DestinationTestConfiguration) -> None:
         {"bucket": "new", "foo": "bar", TO: None},
     ]
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("output_filter", [None, "bucket = 'new'"], ids=["input", "input_output"])
+def test_merge_input_filter(
+    destination_config: DestinationTestConfiguration, output_filter: Optional[str]
+) -> None:
+    """A loaded record that the input filter discards is not inserted, and its nested rows are
+    not inserted. Stored records outside the filter are not retired."""
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    def make_resource(data: List[Dict[str, Any]], filtered: bool) -> DltResource:
+        disposition: Any = {"disposition": "merge", "strategy": "scd2"}
+        if filtered:
+            disposition["merge_input_filter"] = "bucket = 'new'"
+            if output_filter:
+                disposition["merge_output_filter"] = output_filter
+
+        @dlt.resource(name="dim_test", write_disposition=disposition)
+        def dim_test():
+            yield data
+
+        return dim_test()
+
+    def row(bucket: str, foo: str) -> Dict[str, Any]:
+        key = f"{bucket}-{foo}"
+        return {"bucket": bucket, "foo": foo, "children": [{"c": key, "grand": [{"g": key}]}]}
+
+    info = p.run(
+        make_resource([row("old", "foo"), row("new", "foo")], filtered=False),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+
+    info = p.run(
+        make_resource([row("new", "bar"), row("old", "baz")], filtered=True),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    ts2 = get_load_package_created_at(p, info)
+
+    actual = [
+        {k: v for k, v in r.items() if k in ("bucket", "foo", TO)}
+        for r in get_table(p, "dim_test", ts_columns=[FROM, TO])
+    ]
+    expected = [
+        {"bucket": "old", "foo": "foo", TO: None},
+        {"bucket": "new", "foo": "foo", TO: ts2},
+        {"bucket": "new", "foo": "bar", TO: None},
+    ]
+    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+
+    tables = load_tables_to_dicts(p, "dim_test__children", "dim_test__children__grand")
+    assert sorted(c["c"] for c in tables["dim_test__children"]) == ["new-bar", "new-foo", "old-foo"]
+    assert sorted(g["g"] for g in tables["dim_test__children__grand"]) == [
+        "new-bar",
+        "new-foo",
+        "old-foo",
+    ]
