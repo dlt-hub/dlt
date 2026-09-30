@@ -2797,7 +2797,9 @@ def test_delete_insert_output_filter_replaces_partition(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True, subset=("duckdb",)),
+    destinations_configs(
+        default_sql_configs=True, supports_merge=True, subset=("duckdb", "sqlalchemy")
+    ),
     ids=lambda x: x.name,
 )
 def test_delete_insert_output_filter_without_keys(
@@ -2829,7 +2831,9 @@ def test_delete_insert_output_filter_without_keys(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True, subset=("duckdb",)),
+    destinations_configs(
+        default_sql_configs=True, supports_merge=True, subset=("duckdb", "sqlalchemy")
+    ),
     ids=lambda x: x.name,
 )
 def test_merge_filter_placeholders(destination_config: DestinationTestConfiguration) -> None:
