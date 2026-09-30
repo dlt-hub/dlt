@@ -1,27 +1,70 @@
 ---
 title: Send email notifications
-description: Subscribe to dltHub workspace failure alerts, or send your own emails from a job with SMTP.
-keywords: [email, smtp, gmail, notifications, alerting, alerts, hub, dltHub]
+description: Subscribe to dltHub workspace failure and success alerts, or send custom emails from your pipeline code with SMTP.
+keywords: [email, alerts, notifications, failure alerts, run alerts, hub, dltHub, smtp]
 ---
 # Send email notifications
 
-## dltHub Platform alerts
+dltHub provides native email alerting managed directly from the Web UI, with no pipeline code changes required. You can also send custom emails directly from your pipeline code using SMTP.
 
-Failure alerts by email: subscribe to workspace alerts and get an email when a run fails. Manage
-subscriptions from the **Alerts** tab in workspace settings.
+---
 
-![Alerts settings showing the job run failure alerts toggle and role selection](https://storage.googleapis.com/dlt-blog-images/workspace-images/alerts.png)
+## dltHub platform alerts
 
-## Custom email notification on pipeline failure
-
-:::note
-Platform alerts above notify you when a **job run** fails, whatever the cause. The custom
-notification below covers **pipeline failures** only: it runs inside your job, so it cannot report a
-job that fails before your code runs or is killed mid-run.
+:::tip Recommended
+Configuring alerts in the dltHub Web UI is the preferred way to monitor your workloads. It requires no code or secrets in your repository and captures platform-level failures (such as container crashes, timeouts, memory limits, and dependency issues) that occur outside your pipeline code.
 :::
 
-If you need a different channel, recipient list, or message body than the platform alerts provide,
-send the email from the job itself. The pattern below uses Python's standard `smtplib` with Gmail SMTP, but the same shape works for any SMTP server (Outlook, Workspace SMTP relay, or transactional providers like Resend, SendGrid, Mailgun).
+With platform alerts, dltHub sends transactional email notifications when pipeline runs fail or complete successfully.
+
+![dltHub workspace email alert configuration](https://storage.googleapis.com/dlt-blog-images/dlthub-screenshot-email-alert-config.png)
+
+### How to configure
+
+1. Open the dltHub Web UI and navigate to your workspace.
+
+2. In the left navigation, go to **Settings > Alerts** (`/w/<workspace_id>/settings/alerts`).
+
+3. Under **Alerts Configuration**, locate the trigger you want to configure:
+
+  - **Job run failures**: Fires whenever a job or pipeline run transitions to failed status.
+  - **Job run successes**: Fires whenever a job or pipeline run transitions to completed status.
+
+4. Toggle the alert switch **On**.
+
+5. Under **Email Recipients**, select who should receive the email:
+
+  - **Workspace owners only**: Default for failure alerts. Delivers to users with the Workspace Owner or Org Owner role.
+  - **All workspace members**: Sends notifications to all human members belonging to the workspace.
+  - **( ) No email recipients**: Disables email delivery for this trigger (useful when routing notifications exclusively to Slack).
+
+6. Under **Scope**, choose which jobs to monitor:
+
+  - **All jobs**: Delivers alerts for any job run in the workspace.
+  - **Specific pipelines**: Filters alerts to a selected list of pipelines.
+
+7. Click **Save** in the bottom changes bar to apply your configuration.
+
+### What the email includes
+
+Platform alert emails are pre-formatted and sent via high-deliverability infrastructure. Each email includes:
+
+- The name of the pipeline and workspace.
+- The failure reason and error excerpt (for failure alerts).
+- The exact UTC timestamp of the run.
+- A direct link to open the run details and logs in the dltHub Web UI.
+
+---
+
+## Custom email notification on pipeline failure (in-code alternative)
+
+:::note When to use custom in-code emails
+Platform alerts above notify you when a **job run** fails, whatever the cause. The custom notification below covers **pipeline failures** only: it runs inside your job, so it cannot report a job that fails before your code runs or is killed mid-run by the container runtime.
+
+Use this custom approach only if you need custom email templates, attachments, or need to send alerts to external recipients outside your dltHub workspace.
+:::
+
+If you need a different channel, recipient list, or message body than the platform alerts provide, send the email from the job itself. The pattern below uses Python's standard `smtplib` with Gmail SMTP, but the same shape works for any SMTP server (Outlook, Workspace SMTP relay, or transactional providers like Resend, SendGrid, Mailgun).
 
 ### Prerequisites
 
