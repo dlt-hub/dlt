@@ -19,9 +19,11 @@ from dlt.common.typing import (
     extract_union_types,
     get_args,
     get_origin,
+    get_type_globals,
     get_type_hints,
     is_optional_type,
     is_typeddict,
+    resolve_single_annotation,
 )
 
 from dlt._workspace.deployment.exceptions import InvalidJobSchema
@@ -97,9 +99,15 @@ def inputs_from_function(
     return schema
 
 
+def return_hint(f: AnyFun) -> Any:
+    """Return annotation of `f`, resolved when the module stores annotations as strings."""
+    hint = inspect.signature(f).return_annotation
+    return resolve_single_annotation(hint, globalns=get_type_globals(f))
+
+
 def job_result_from_return(f: AnyFun, source: str) -> Optional[Dict[str, Any]]:
     """Output JSON Schema of `f`, or `None` unless it returns a TypedDict."""
-    hint = inspect.signature(f).return_annotation
+    hint = return_hint(f)
     if not is_typeddict(hint):
         return None
     return output_schema(hint, source)
@@ -278,5 +286,6 @@ __all__ = [
     "job_result_from_return",
     "model_schema",
     "output_schema",
+    "return_hint",
     "spec_from_inputs_schema",
 ]

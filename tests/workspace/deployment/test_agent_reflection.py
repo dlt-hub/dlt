@@ -71,14 +71,20 @@ def test_output_comes_from_the_return_type() -> None:
 
 
 @pytest.mark.parametrize(
-    "annotation", [NotAnAgentOutput, Dict[str, Any]], ids=["plain-typeddict", "dict"]
+    "annotation,match",
+    [
+        (NotAnAgentOutput, "TAgentOutput"),
+        (Dict[str, Any], "TAgentOutput"),
+        ("NoSuchType", "could not be resolved"),
+    ],
+    ids=["plain-typeddict", "dict", "unresolvable-name"],
 )
-def test_output_must_derive_from_the_agent_output(annotation: Any) -> None:
+def test_output_must_derive_from_the_agent_output(annotation: Any, match: str) -> None:
     def wrong() -> Any:
         pass
 
     wrong.__annotations__["return"] = annotation
-    with pytest.raises(InvalidAgentSpec, match="TAgentOutput"):
+    with pytest.raises(InvalidAgentSpec, match=match):
         output_from_return(wrong, SOURCE)
 
 
@@ -123,10 +129,15 @@ class BareOutput(TAgentOutput):
 
 
 @pytest.mark.parametrize(
-    "annotation", [None, Any, TAgentOutput, BareOutput], ids=["none", "any", "base", "empty-sub"]
+    "annotation",
+    [None, Any, TAgentOutput, BareOutput, "TAgentOutput", "BareOutput"],
+    ids=["none", "any", "base", "empty-sub", "pep563-base", "pep563-sub"],
 )
 def test_output_defaults_to_the_job_result(annotation: Any) -> None:
-    """Saying nothing about the result means the agent reports `status` and `summary`."""
+    """Saying nothing about the result means the agent reports `status` and `summary`.
+
+    A string annotation is what `from __future__ import annotations` stores.
+    """
 
     def bare(run_context: TJobRunContext = None) -> Any:
         pass

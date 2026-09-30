@@ -631,8 +631,8 @@ class _Report(TypedDict):
 
 @pytest.mark.parametrize(
     "hint,declares",
-    [(_Report, True), (Dict[str, Any], False), (str, False), (None, False)],
-    ids=["typeddict", "dict", "str", "none"],
+    [(_Report, True), ("_Report", True), (Dict[str, Any], False), (str, False), (None, False)],
+    ids=["typeddict", "pep563-typeddict", "dict", "str", "none"],
 )
 def test_a_job_declares_an_output_only_when_it_returns_one(hint: Any, declares: bool) -> None:
     """`output` is the result contract, and a TypedDict return type is how a job declares one."""
