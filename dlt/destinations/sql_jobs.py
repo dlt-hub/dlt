@@ -382,6 +382,19 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         """
 
     @classmethod
+    def gen_filtered_root_keys_sql(
+        cls,
+        staging_root_table_name: str,
+        root_row_key_column: str,
+        input_filter: Optional[str],
+    ) -> str:
+        """Generate query selecting the row keys of staged root rows that pass `input_filter`."""
+        select_sql = f"SELECT {root_row_key_column} FROM {staging_root_table_name}"
+        if input_filter:
+            select_sql += f" WHERE {input_filter}"
+        return select_sql
+
+    @classmethod
     def gen_delete_nested_rows_sql(
         cls,
         table_name: str,
@@ -852,8 +865,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # nested tables do not have the root columns the input filter is written against
         filtered_root_row_keys: str = None
         if input_filter and len(table_chain) > 1:
-            filtered_root_row_keys = (
-                f"SELECT {row_key_column} FROM {staging_root_table_name} WHERE {input_filter}"
+            filtered_root_row_keys = cls.gen_filtered_root_keys_sql(
+                staging_root_table_name, row_key_column, input_filter
             )
 
         # insert from staging to dataset
@@ -1133,9 +1146,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         # generate statements for nested tables if they exist
         if nested_tables:
             # nested tables do not have the root columns the input filter is written against
-            filtered_root_keys = f"SELECT {root_row_key_column} FROM {staging_root_table_name}"
-            if input_filter:
-                filtered_root_keys += f" WHERE {input_filter}"
+            filtered_root_keys = cls.gen_filtered_root_keys_sql(
+                staging_root_table_name, root_row_key_column, input_filter
+            )
             for table in nested_tables:
                 nested_row_key_column = escape_column_id(
                     cls.get_row_key_col(
@@ -1314,7 +1327,13 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             # - if row hash changes all is right
             # - if it does not we only capture new records, while we should replace existing with those in stage
             # - this write disposition is way more similar to regular merge (how root tables are handled is different, other tables handled same)
-            # scd2 nested tables have no root key, so filter each level by its staged parent
+            # the root `_dlt_id` keeps `row_key` with a user row version, otherwise it is the hash
+            root_row_key_name = get_first_column_name_with_prop(root_table, "row_key")
+            root_row_key = escape_column_id(root_row_key_name) if root_row_key_name else hash_
+            filtered_root_keys = cls.gen_filtered_root_keys_sql(
+                staging_root_table_name, root_row_key, input_filter
+            )
+            # without a root key, filter each level by its staged parent
             filter_by_table: Dict[str, str] = {root_table["name"]: input_filter}
             for table in nested_tables:
                 row_key_column = escape_column_id(
@@ -1333,20 +1352,32 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     f"{row_key_column} NOT IN (SELECT {row_key_column} FROM {table_name})"
                 )
                 if input_filter:
-                    parent = next(t for t in table_chain if t["name"] == table["parent"])
-                    # the root row key is the row hash, unless a row version column is set
-                    parent_row_key = escape_column_id(
-                        get_first_column_name_with_prop(parent, "row_key")
-                        or get_first_column_name_with_prop(parent, "x-row-version")
-                    )
-                    parent_key = escape_column_id(
-                        get_first_column_name_with_prop(table, "parent_key")
-                    )
-                    _, parent_staging_name = sql_client.get_qualified_table_names(parent["name"])
-                    nested_filter = (
-                        f"{parent_key} IN (SELECT {parent_row_key} FROM {parent_staging_name}"
-                        f" WHERE {filter_by_table[parent['name']]})"
-                    )
+                    if root_key := get_first_column_name_with_prop(table, "root_key"):
+                        nested_filter = f"{escape_column_id(root_key)} IN ({filtered_root_keys})"
+                    else:
+                        parent = next(t for t in table_chain if t["name"] == table["parent"])
+                        parent_row_key = (
+                            root_row_key
+                            if parent is root_table
+                            else escape_column_id(
+                                cls.get_row_key_col(
+                                    table_chain,
+                                    parent,
+                                    sql_client.fully_qualified_dataset_name(),
+                                    sql_client.fully_qualified_dataset_name(staging=True),
+                                )
+                            )
+                        )
+                        parent_key = escape_column_id(
+                            get_first_column_name_with_prop(table, "parent_key")
+                        )
+                        _, parent_staging_name = sql_client.get_qualified_table_names(
+                            parent["name"]
+                        )
+                        nested_filter = (
+                            f"{parent_key} IN (SELECT {parent_row_key} FROM {parent_staging_name}"
+                            f" WHERE {filter_by_table[parent['name']]})"
+                        )
                     filter_by_table[table["name"]] = nested_filter
                     insert_where += f" AND {nested_filter}"
                 sql.append(f"""

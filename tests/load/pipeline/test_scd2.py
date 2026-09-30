@@ -1285,25 +1285,31 @@ def test_merge_output_filter(destination_config: DestinationTestConfiguration) -
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("output_filter", [None, "bucket = 'new'"], ids=["input", "input_output"])
+@pytest.mark.parametrize("root_key", [False, True], ids=["parent_chain", "root_key"])
 def test_merge_input_filter(
-    destination_config: DestinationTestConfiguration, output_filter: Optional[str]
+    destination_config: DestinationTestConfiguration, output_filter: Optional[str], root_key: bool
 ) -> None:
     """A loaded record that the input filter discards is not inserted, and its nested rows are
     not inserted. Stored records outside the filter are not retired."""
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
-    def make_resource(data: List[Dict[str, Any]], filtered: bool) -> DltResource:
+    def make_resource(data: List[Dict[str, Any]], filtered: bool) -> Any:
         disposition: Any = {"disposition": "merge", "strategy": "scd2"}
         if filtered:
             disposition["merge_input_filter"] = "bucket = 'new'"
             if output_filter:
                 disposition["merge_output_filter"] = output_filter
 
-        @dlt.resource(name="dim_test", write_disposition=disposition)
-        def dim_test():
-            yield data
+        # nested tables are filtered through the root key when it is propagated
+        @dlt.source(root_key=root_key)
+        def dim_source():
+            @dlt.resource(name="dim_test", write_disposition=disposition)
+            def dim_test():
+                yield data
 
-        return dim_test()
+            return dim_test
+
+        return dim_source()
 
     def row(bucket: str, foo: str) -> Dict[str, Any]:
         key = f"{bucket}-{foo}"
@@ -1334,6 +1340,7 @@ def test_merge_input_filter(
     assert_records_as_set(actual, expected)  # type: ignore[arg-type]
 
     tables = load_tables_to_dicts(p, "dim_test__children", "dim_test__children__grand")
+    assert all(("_dlt_root_id" in g) == root_key for g in tables["dim_test__children__grand"])
     assert sorted(c["c"] for c in tables["dim_test__children"]) == ["new-bar", "new-foo", "old-foo"]
     assert sorted(g["g"] for g in tables["dim_test__children__grand"]) == [
         "new-bar",

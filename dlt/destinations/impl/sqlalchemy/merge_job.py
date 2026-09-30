@@ -546,10 +546,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         sqla_statements.append(insert_statement)
 
         nested_tables = table_chain[1:]
-        # the root row key is the row hash, unless a row version column is set
-        root_row_key = get_first_column_name_with_prop(
-            root_table, "row_key"
-        ) or get_first_column_name_with_prop(root_table, "x-row-version")
+        # the root `_dlt_id` keeps `row_key` with a user row version, otherwise it is the hash
+        root_row_key = get_first_column_name_with_prop(root_table, "row_key") or hash_
         filtered_root_keys = cls._gen_filtered_root_keys_sqla(
             staging_root_table_obj, root_row_key, input_filter
         )
@@ -576,9 +574,16 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                     nested_filter = staging_table_obj.c[root_key].in_(filtered_root_keys)
                 else:
                     parent = next(t for t in table_chain if t["name"] == table["parent"])
-                    parent_row_key = get_first_column_name_with_prop(
-                        parent, "row_key"
-                    ) or get_first_column_name_with_prop(parent, "x-row-version")
+                    parent_row_key = (
+                        root_row_key
+                        if parent is root_table
+                        else cls.get_row_key_col(
+                            table_chain,
+                            parent,
+                            sql_client.fully_qualified_dataset_name(),
+                            sql_client.fully_qualified_dataset_name(staging=True),
+                        )
+                    )
                     parent_key = get_first_column_name_with_prop(table, "parent_key")
                     staging_parent_obj = sql_client.to_dataset_table(
                         sql_client.get_existing_table(parent["name"]), staging=True
