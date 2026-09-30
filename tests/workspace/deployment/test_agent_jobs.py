@@ -11,6 +11,8 @@ import pytest
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.plugins import PluginContext
+from dlt.common.libs.pydantic import BaseModel
+from dlt.common.typing import TypedDict
 
 from dlt._workspace.deployment.agent.loop import AgentLoop
 from dlt._workspace.deployment.agent.typing import TAgentLimits, TAgentSpec
@@ -370,6 +372,45 @@ def test_an_agent_declaring_no_access_still_states_it() -> None:
     job.declare(__name__, "minimal")
     with agent_workspace():
         assert job.to_job_definition()["access"] == {}
+
+
+class _ExitCode(TypedDict):
+    exit_code: int
+
+
+class _ExitCodeModel(BaseModel):
+    exit_code: int
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        {"type": "object", "properties": {"exit_code": {"type": "integer"}}},
+        _ExitCode,
+        _ExitCodeModel,
+    ],
+    ids=["schema", "typeddict", "pydantic"],
+)
+def test_the_agent_argument_can_carry_only_the_output(output: Any) -> None:
+    """The function stays the agent: its docstring the prompt, its parameters the inputs.
+
+    `agent=` then adds what the signature cannot say, here the output as a schema or a model.
+    """
+
+    @agent(agent=cast(TAgentSpec, {"name": "reporter", "output": output}), loop=MOCK_LOOP)
+    async def exit_code(run_context: Any = None, depth: int = 2) -> None:
+        """Report the exit code. Look {{ depth }} runs back."""
+
+    with agent_workspace():
+        job_def = exit_code.to_job_definition()
+
+    assert set(job_def["output"]["properties"]) == {"exit_code", "status", "summary"}
+    assert job_def["output"]["properties"]["exit_code"]["type"] == "integer"
+    assert set(job_def["inputs"]["properties"]) == {"depth"}
+    assert exit_code.agent_spec["system_prompt"].startswith("Report the exit code.")
+    if isinstance(output, dict):
+        # the dict handed to the decorator is left as it was
+        assert "status" not in output["properties"]
 
 
 def test_an_agent_without_a_description_leaves_the_job_without_one() -> None:

@@ -63,6 +63,7 @@ from dlt._workspace.deployment.agent.manifest import (
     agent_manifest_path,
     resolve_agent_dir,
     to_agent_definition,
+    validate_agent_spec,
 )
 from dlt._workspace.deployment.agent.reflection import agent_source, agent_spec_from_function
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
@@ -841,24 +842,26 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
 
     def resolve_agent_spec(self, workspace_root: str) -> TAgentSpec:
         """The agent in full: declared by the decorated function, given inline, or named."""
-        if self.agent_spec is None:
-            base: Optional[TAgentSpec] = None
-            if self.agent_ref:
-                agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
-                base = load_agent_spec(agent_dir)
-                self.agent_file = os.path.relpath(agent_manifest_path(agent_dir), workspace_root)
+        base = self.agent_spec
+        if base is not None:
+            # given inline: a copy, so the caller's dict is not rewritten below
+            base = cast(TAgentSpec, dict(base))
+        elif self.agent_ref:
+            agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
+            base = load_agent_spec(agent_dir)
+            self.agent_file = os.path.relpath(agent_manifest_path(agent_dir), workspace_root)
 
-            if self.is_declared:
-                self.agent_spec = base
-            else:
-                source = agent_source(self._f, self.name)
-                self.agent_spec = agent_spec_from_function(
-                    self._f, source, self.agent_declaration, base
-                )
-                # a function-declared agent has no AGENT.md: it is the module it lives in
-                self.agent_file = _workspace_relative(source, workspace_root)
-                if not self.agent_ref:
-                    self.agent_ref = f"{self._f.__module__}:{get_callable_name(self._f)}"
+        if self.is_declared:
+            self.agent_spec = validate_agent_spec(base, self.agent_ref)
+        else:
+            source = agent_source(self._f, self.name)
+            self.agent_spec = agent_spec_from_function(
+                self._f, source, self.agent_declaration, base
+            )
+            # a function-declared agent has no AGENT.md: it is the module it lives in
+            self.agent_file = _workspace_relative(source, workspace_root)
+            if not self.agent_ref:
+                self.agent_ref = f"{self._f.__module__}:{get_callable_name(self._f)}"
         # the agent declares the result. A declared job's inputs are the agent's too; a
         # decorated one takes them from its signature, which is what configuration can inject
         self.output = self.agent_spec["output"]

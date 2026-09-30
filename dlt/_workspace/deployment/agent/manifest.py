@@ -88,7 +88,7 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
     if not declared.get("description"):
         # a bare `description:` reads as null in YAML, and no description is not an empty one
         spec.pop("description", None)
-    spec["output"] = with_standard_output(declared.get("output"))
+    spec["output"] = with_standard_output(declared.get("output"), source)
     spec["inputs"] = declared.get("inputs") or {}
     if "prompt" in spec["inputs"]:
         raise InvalidAgentSpec(source, "inputs must not declare 'prompt'. Put the task in the body")

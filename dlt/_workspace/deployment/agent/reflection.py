@@ -3,7 +3,7 @@
 import inspect
 from copy import deepcopy
 from functools import lru_cache
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Mapping, Optional, Type, Union, cast
 
 from dlt.common.typing import AnyFun
 from dlt.common.utils import get_callable_name
@@ -46,18 +46,18 @@ def _standard_output() -> Dict[str, Any]:
     return output_schema(TAgentOutput, "TAgentOutput")
 
 
-def with_standard_output(declared: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def with_standard_output(
+    declared: Union[Dict[str, Any], Type[Any], None], source: str = "output"
+) -> Dict[str, Any]:
     """Declared output plus `status` and `summary`, which `TAgentOutput` alone defines.
 
-    Args:
-        declared (Optional[Dict[str, Any]]): Output JSON Schema an `AGENT.md` carries, if any.
-
-    Returns:
-        Dict[str, Any]: The declaration with the standard fields written over it.
+    `declared` is a JSON Schema, or a TypedDict or pydantic model one is read from.
     """
     standard = deepcopy(_standard_output())
     if not declared:
         return standard
+    if not isinstance(declared, Mapping):
+        declared = output_schema(declared, source)
     schema = deepcopy(dict(declared))
     schema["type"] = "object"
     schema["properties"] = {**(schema.get("properties") or {}), **standard["properties"]}
