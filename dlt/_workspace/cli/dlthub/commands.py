@@ -307,7 +307,13 @@ class AiCommand(SupportsCliCommand):
 def _add_common_run_args(
     parser: argparse.ArgumentParser, *, include_interval_and_refresh: bool
 ) -> None:
-    """Shared arg surface for `dlthub local run` / `local serve` / `local pipeline run`."""
+    """Shared arg surface for `dlthub local run` / `local serve` / `local pipeline run`.
+
+    `selector_or_job_ref`'s tab-completion is wired up generically in
+    `_dlt.py::_create_parser`, alongside the same positional on plugin-contributed commands
+    (`dlthub run`/`serve`, `dlthub job run`/`job serve`) - see
+    `dlthub.utils.complete_selector_or_job_ref`.
+    """
     parser.add_argument(
         "selector_or_job_ref",
         nargs="?",
