@@ -15,6 +15,7 @@ from dlt._workspace.deployment.agent.reflection import (
     output_from_return,
 )
 from dlt._workspace.deployment.agent.typing import TAgentOutput
+from dlt._workspace.deployment.reflection import Entity, output_schema
 from dlt._workspace.deployment.typing import TJobRunContext
 
 SOURCE = "/ws/jobs.py:inspector"
@@ -245,6 +246,54 @@ def test_annotated_describes_what_the_agent_reads() -> None:
     assert inputs["run_id"]["description"] == "the run to look at"
     assert inputs["depth"]["description"] == "how deep to dig"
     assert "description" not in inputs["untouched"]
+
+
+class _Evidence(TypedDict):
+    source: Annotated[str, Doc("where it was found")]
+    run_id: NotRequired[Annotated[str, Entity("job-run")]]
+
+
+class _Nested(TAgentOutput):
+    main: _Evidence
+    items: List[_Evidence]
+    maybe: Optional[_Evidence]
+    by_key: NotRequired[Dict[str, _Evidence]]
+
+
+class _Node(TypedDict):
+    children: List["_Node"]
+
+
+def test_markers_survive_nesting() -> None:
+    """`Doc` and `Entity` on a nested TypedDict reach its definition however it is embedded."""
+    schema = output_schema(_Nested, SOURCE)
+
+    evidence = schema["$defs"]["_Evidence"]
+    assert evidence["properties"]["source"]["description"] == "where it was found"
+    assert evidence["properties"]["run_id"]["entity_type"] == "job-run"
+    assert evidence["required"] == ["source"]
+    # every embedding points at that one definition
+    ref = {"$ref": "#/$defs/_Evidence"}
+    properties = schema["properties"]
+    assert properties["main"] == ref
+    assert properties["items"]["items"] == ref
+    assert ref in properties["maybe"]["anyOf"]
+    assert properties["by_key"]["additionalProperties"] == ref
+    # a type referring to itself still builds
+    assert "children" in output_schema(_Node, SOURCE)["$defs"]["_Node"]["properties"]
+
+
+def test_same_named_nested_types_keep_their_own_descriptions() -> None:
+    Item = TypedDict("Item", {"a": Annotated[str, Doc("from one module")]})
+    Other = TypedDict("Item", {"b": Annotated[str, Doc("from another")]})  # type: ignore[name-match]
+    Other.__module__ = "elsewhere"
+    Both = TypedDict("Both", {"one": Item, "two": Other})
+
+    defs = output_schema(Both, SOURCE)["$defs"]
+    described = sorted(
+        field["description"] for item in defs.values() for field in item["properties"].values()
+    )
+    assert described == ["from another", "from one module"]
 
 
 def test_agent_output_is_the_payload_alone() -> None:
