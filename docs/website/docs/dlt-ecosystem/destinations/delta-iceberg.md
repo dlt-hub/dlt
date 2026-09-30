@@ -97,7 +97,7 @@ Note that not all authentication methods are supported when using Delta table fo
 
 ## Table format `merge` support
 
-The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies are supported for `delta`.
+The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy), [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy), and [`cdc`](../../general-usage/merge-loading.md#cdc-strategy) merge strategies are supported for `delta`.
 
 ```py
 @dlt.resource(
@@ -111,9 +111,12 @@ def my_upsert_resource():
 
 ### Known limitations
 
-- `hard_delete` hint not supported
-- Deleting records from nested tables not supported
+- dlt merges each Delta table on its own, so a nested table does not know about its parent rows.
+- `upsert` and `cdc` support the [`hard_delete`](../../general-usage/merge-loading.md#delete-records) hint only for tables without nested tables. With nested tables, dlt stops before the load starts. `insert-only` ignores the `hard_delete` hint.
+- `cdc` supports the [merge filters](../../general-usage/merge-loading.md#merge_output_filter-and-merge_input_filter) only for tables without nested tables, and does not support `merge_key`.
+- `upsert` does not delete records from nested tables.
   - This means updates to JSON columns that involve element removals are not propagated. For example, if you first load `{"key": 1, "nested": [1, 2]}` and then load `{"key": 1, "nested": [1]}`, then the record for element `2` will not be deleted from the nested table.
+  - `cdc` deletes these records, because it treats the load as a complete snapshot.
 
 By default, dlt runs Delta table upserts in streamed mode to reduce memory pressure. To enable the use of source table statistics to derive an early pruning predicate, set:
 

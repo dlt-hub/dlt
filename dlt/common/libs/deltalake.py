@@ -151,17 +151,21 @@ def merge_delta_table(
             target_alias="target",
             streamed_exec=streamed_exec,
         )
+        insert_predicate = input_predicate
+        hard_delete_col = get_first_column_name_with_prop(schema, "hard_delete")
+        if strategy in ("upsert", "cdc") and hard_delete_col:
+            deleted_cond, not_deleted_cond = _delta_hard_delete_conds(schema, hard_delete_col)
+            # the first matching clause wins, so deletes go before updates
+            qry = qry.when_matched_delete(predicate=_and_predicates(deleted_cond, input_predicate))
+            insert_predicate = _and_predicates(not_deleted_cond, input_predicate)
         if strategy == "upsert":
             qry = qry.when_matched_update_all()
         elif strategy == "cdc":
             changed_cond = get_merge_changed_cond(schema, "source", "target")
-            if input_predicate:
-                changed_cond = (
-                    f"({changed_cond}) AND ({input_predicate})" if changed_cond else input_predicate
-                )
-            if changed_cond:
-                qry = qry.when_matched_update_all(predicate=changed_cond)
-        qry = qry.when_not_matched_insert_all(predicate=input_predicate)
+            update_predicate = _and_predicates(changed_cond, input_predicate)
+            if update_predicate:
+                qry = qry.when_matched_update_all(predicate=update_predicate)
+        qry = qry.when_not_matched_insert_all(predicate=insert_predicate)
         if strategy == "cdc":
             qry = qry.when_not_matched_by_source_delete(predicate=delete_predicate)
         qry.execute()
@@ -172,6 +176,21 @@ def merge_delta_table(
             [load_table_name],
             f"dlt does not support the `{strategy}` merge strategy for Delta tables.",
         )
+
+
+def _delta_hard_delete_conds(schema: TTableSchema, column_name: str) -> Tuple[str, str]:
+    """Returns predicates selecting source rows marked as deleted and rows that are not."""
+    column = f"source.{column_name}"
+    if schema["columns"][column_name].get("data_type") == "bool":
+        return f"{column} = true", f"({column} IS NULL OR {column} = false)"
+    return f"{column} IS NOT NULL", f"{column} IS NULL"
+
+
+def _and_predicates(*predicates: Optional[str]) -> Optional[str]:
+    present = [p for p in predicates if p]
+    if not present:
+        return None
+    return " AND ".join(f"({p})" for p in present)
 
 
 def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Optional[str]]:

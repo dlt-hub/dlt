@@ -21,7 +21,7 @@ from dlt.common.schema.exceptions import (
     UnboundColumnException,
     CannotCoerceNullException,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy, TTableSchemaColumns
+from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat, TTableSchemaColumns
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -1277,7 +1277,11 @@ def test_nested_column_missing(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("key_type", ["primary_key", "merge_key", "no_key"])
@@ -1290,12 +1294,15 @@ def test_hard_delete_hint(
     if merge_strategy == "upsert" and key_type != "primary_key":
         pytest.skip("`upsert` merge strategy requires `primary_key`")
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+    if destination_config.table_format == "iceberg":
+        pytest.skip("pyiceberg `upsert` does not support the `hard_delete` hint")
     # no_key setting will have the effect that hard deletes have no effect, since hard delete records
     # can not be matched
     table_name = "test_hard_delete_hint"
 
     @dlt.resource(
         name=table_name,
+        table_format=destination_config.table_format,
         write_disposition={"disposition": "merge", "strategy": merge_strategy},
         columns={"deleted": {"hard_delete": True}},
     )
@@ -1376,6 +1383,10 @@ def test_hard_delete_hint(
     counts = load_table_counts(p, table_name)[table_name]
     assert load_table_counts(p, table_name)[table_name] == 1
 
+    # Delta rejects `hard_delete` with nested tables, see test_delta_merge_rejected_before_load
+    if destination_config.table_format == "delta":
+        return
+
     table_name = "test_hard_delete_hint_nested"
     data_resource.apply_hints(table_name=table_name)
 
@@ -1442,7 +1453,11 @@ def test_hard_delete_hint(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("merge_strategy", ("delete-insert", "upsert"))
@@ -1451,11 +1466,14 @@ def test_hard_delete_hint_config(
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+    if destination_config.table_format == "iceberg":
+        pytest.skip("pyiceberg `upsert` does not support the `hard_delete` hint")
 
     table_name = "test_hard_delete_hint_non_bool"
 
     @dlt.resource(
         name=table_name,
+        table_format=destination_config.table_format,
         write_disposition={"disposition": "merge", "strategy": merge_strategy},
         primary_key="id",
         columns={
@@ -2243,6 +2261,7 @@ def filter_resource(
     input_filter: str = None,
     output_filter: str = None,
     append: bool = False,
+    table_format: TTableFormat = None,
 ) -> DltSource:
     """Source over the merge filter scenario data, seeding with `append` on the first load."""
     disposition: Any = {"disposition": "merge", "strategy": strategy}
@@ -2255,7 +2274,10 @@ def filter_resource(
     @dlt.source(root_key=True)
     def filter_source():
         @dlt.resource(
-            name="items", primary_key="id", write_disposition="append" if append else disposition
+            name="items",
+            primary_key="id",
+            table_format=table_format,
+            write_disposition="append" if append else disposition,
         )
         def items():
             yield data
@@ -2270,9 +2292,8 @@ def filter_resource(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -2338,7 +2359,11 @@ def test_cdc_strategy(destination_config: DestinationTestConfiguration) -> None:
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_cdc_composite_primary_key(destination_config: DestinationTestConfiguration) -> None:
@@ -2349,6 +2374,7 @@ def test_cdc_composite_primary_key(destination_config: DestinationTestConfigurat
         @dlt.resource(
             name="items",
             primary_key=["region", "id"],
+            table_format=destination_config.table_format,
             write_disposition={"disposition": "merge", "strategy": "cdc"},
         )
         def items():
@@ -2400,9 +2426,8 @@ def test_cdc_composite_primary_key(destination_config: DestinationTestConfigurat
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -2436,9 +2461,8 @@ def test_cdc_unchanged_snapshot_rewrites_nothing(
     "destination_config",
     destinations_configs(
         default_sql_configs=True,
-        table_format_filesystem_configs=True,
+        table_format_local_configs=True,
         supports_merge=True,
-        bucket_subset=(FILE_BUCKET,),
     ),
     ids=lambda x: x.name,
 )
@@ -2492,7 +2516,11 @@ def test_cdc_row_version_column(destination_config: DestinationTestConfiguration
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
     ids=lambda x: x.name,
 )
 def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> None:
@@ -2504,6 +2532,7 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
         @dlt.resource(
             name="accounts",
             primary_key="id",
+            table_format=destination_config.table_format,
             write_disposition={"disposition": "merge", "strategy": "cdc"},
             columns={"deleted": {"hard_delete": True, "data_type": "bool"}},
         )
@@ -2545,7 +2574,11 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("hard_delete", [False, True], ids=["absent_parent", "flagged_parent"])
@@ -2555,6 +2588,8 @@ def test_cdc_nested_tables(
     """Nested rows are deleted with their parent, when the parent is absent from the snapshot or
     flagged for hard delete. List elements absent from the load are deleted."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
+    if hard_delete and destination_config.table_format == "delta":
+        pytest.skip("Delta rejects `hard_delete` with nested tables.")
 
     columns: Optional[TTableSchemaColumns] = (
         {"deleted": {"hard_delete": True, "data_type": "bool"}} if hard_delete else None
@@ -2564,6 +2599,7 @@ def test_cdc_nested_tables(
         @dlt.resource(
             name="parent_items",
             primary_key="id",
+            table_format=destination_config.table_format,
             write_disposition={"disposition": "merge", "strategy": "cdc"},
             columns=columns,
         )
@@ -2608,32 +2644,49 @@ def test_cdc_nested_tables(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+    ),
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize(
-    "filters",
-    [(None, None), (None, NEW_BUCKET), (NEW_BUCKET, None), (NEW_BUCKET, NEW_BUCKET)],
+    "use_input_filter,use_output_filter",
+    [(False, False), (False, True), (True, False), (True, True)],
     ids=["no_filter", "output_only", "input_only", "both"],
 )
 def test_cdc_merge_filters(
-    destination_config: DestinationTestConfiguration, filters: Tuple[str, str]
+    destination_config: DestinationTestConfiguration,
+    use_input_filter: bool,
+    use_output_filter: bool,
 ) -> None:
     """The output filter selects the destination records that may be deleted, the input filter
-    the loaded records that are merged. An input filter alone also limits deletion."""
+    the loaded records that are merged. An input filter alone also limits deletion, except on
+    Delta."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
 
-    input_filter, output_filter = filters
+    table_format = destination_config.table_format
+    # Delta merge predicates qualify columns with the `target` and `source` aliases
+    is_delta = table_format == "delta"
+    input_filter = output_filter = None
+    if use_input_filter:
+        input_filter = "{staging_table}.bucket = 'new'" if is_delta else NEW_BUCKET
+    if use_output_filter:
+        output_filter = "{table}.bucket = 'new'" if is_delta else NEW_BUCKET
+
     p = destination_config.setup_pipeline("cdc_filters", dev_mode=True)
     assert_load_info(
         p.run(
-            filter_resource("cdc", FILTER_TARGET, append=True),
+            filter_resource("cdc", FILTER_TARGET, append=True, table_format=table_format),
             **destination_config.run_kwargs,
         )
     )
     assert_load_info(
         p.run(
-            filter_resource("cdc", FILTER_INPUT, input_filter, output_filter),
+            filter_resource(
+                "cdc", FILTER_INPUT, input_filter, output_filter, table_format=table_format
+            ),
             **destination_config.run_kwargs,
         )
     )
@@ -2644,8 +2697,86 @@ def test_cdc_merge_filters(
         assert ids == [2, 5, 6, 7]  # absent records are deleted, loaded records inserted
     elif input_filter is None:
         assert ids == [1, 2, 4, 5, 6, 7]  # 1 and 4 are outside the filter and kept, 6 is inserted
+    elif output_filter is None and is_delta:
+        assert ids == [2, 5, 7]  # on Delta the input filter does not limit deletes
     else:
         assert ids == [1, 2, 4, 5, 7]  # 6 is outside the input filter and is discarded
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(table_format_local_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "hints,record,expected",
+    [
+        ({"merge_key": "bucket"}, {"id": 1, "bucket": "new"}, "`merge_key` with the `cdc`"),
+        (
+            {"merge_output_filter": "{staging_table}.bucket = 'new'"},
+            {"id": 1, "bucket": "new"},
+            "unknown placeholders `{staging_table}`",
+        ),
+        (
+            {"merge_output_filter": "{table}.bucket = 'new'"},
+            {"id": 1, "bucket": "new", "children": [{"c": 1}]},
+            "merge filters with the `cdc`",
+        ),
+        (
+            {"columns": {"deleted": {"hard_delete": True, "data_type": "bool"}}},
+            {"id": 1, "bucket": "new", "deleted": False, "children": [{"c": 1}]},
+            "`hard_delete` hint with the `cdc`",
+        ),
+        (
+            {
+                "strategy": "upsert",
+                "columns": {"deleted": {"hard_delete": True, "data_type": "bool"}},
+            },
+            {"id": 1, "bucket": "new", "deleted": False, "children": [{"c": 1}]},
+            "`hard_delete` hint with the `upsert`",
+        ),
+    ],
+    ids=[
+        "merge_key",
+        "staging_table_in_output_filter",
+        "filter_nested",
+        "hard_delete_nested",
+        "upsert_hard_delete_nested",
+    ],
+)
+def test_delta_merge_rejected_before_load(
+    destination_config: DestinationTestConfiguration,
+    hints: Dict[str, Any],
+    record: StrAny,
+    expected: str,
+) -> None:
+    """Merge settings Delta cannot run fail the schema verification before any merge."""
+    if destination_config.table_format != "delta":
+        pytest.skip("Checks the Delta rules.")
+
+    disposition: Any = {"disposition": "merge", "strategy": "cdc"}
+    resource_hints: Dict[str, Any] = {}
+    for key, value in hints.items():
+        if key == "strategy" or (key.startswith("merge_") and key != "merge_key"):
+            disposition[key] = value
+        else:
+            resource_hints[key] = value
+
+    @dlt.resource(
+        name="items",
+        primary_key="id",
+        table_format="delta",
+        write_disposition=disposition,
+        **resource_hints,
+    )
+    def items():
+        yield [record]
+
+    p = destination_config.setup_pipeline("delta_merge_rejected", dev_mode=True)
+    with pytest.raises(PipelineStepFailed) as exc:
+        p.run(items(), **destination_config.run_kwargs)
+    assert isinstance(exc.value.__cause__, SchemaCorruptedException)
+    assert expected in str(exc.value.__cause__)
 
 
 @pytest.mark.parametrize(

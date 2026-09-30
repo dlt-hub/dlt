@@ -52,6 +52,7 @@ from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
     MERGE_FILTER_PLACEHOLDERS,
     get_columns_names_with_prop,
+    get_nested_tables,
     is_nested_table,
 )
 from dlt.common.storages import FileStorage, fsspec_from_config
@@ -925,19 +926,50 @@ class FilesystemClient(
                 if self.config.protocol == "hf":
                     message = "the `hf` protocol does not support table formats"
                 exception_log.append(TableFormatNotSupported(table_format, table["name"], message))
-            if (
-                table_format == "delta"
-                and resolve_merge_strategy(self.schema.tables, table, self.capabilities) == "cdc"
-                and get_columns_names_with_prop(table, "merge_key")
-            ):
-                # selecting target rows by staged values needs a subquery, which Delta cannot run
-                exception_log.append(
-                    SchemaCorruptedException(
-                        self.schema.name,
-                        "dlt does not support `merge_key` with the `cdc` merge strategy on Delta"
-                        f" table `{table['name']}`. Use `merge_output_filter` instead.",
-                    )
+            if table_format == "delta":
+                merge_strategy = resolve_merge_strategy(
+                    self.schema.tables, table, self.capabilities
                 )
+                # each Delta table merges alone, so nested rows cannot follow their root
+                has_nested_tables = bool(
+                    get_nested_tables(self.schema.tables, table["name"], include_self=False)
+                )
+                if merge_strategy == "cdc":
+                    if get_columns_names_with_prop(table, "merge_key"):
+                        # selecting rows by staged values needs a subquery, Delta has none
+                        exception_log.append(
+                            SchemaCorruptedException(
+                                self.schema.name,
+                                "dlt does not support `merge_key` with the `cdc` merge strategy"
+                                f" on Delta table `{table['name']}`. Use `merge_output_filter`"
+                                " instead.",
+                            )
+                        )
+                    if has_nested_tables and (
+                        "x-merge-input-filter" in table or "x-merge-output-filter" in table
+                    ):
+                        exception_log.append(
+                            SchemaCorruptedException(
+                                self.schema.name,
+                                "dlt does not support merge filters with the `cdc` merge strategy"
+                                f" on Delta table `{table['name']}`, because it has nested"
+                                " tables. Remove the merge filters or the nested data.",
+                            )
+                        )
+                if (
+                    merge_strategy in ("upsert", "cdc")
+                    and has_nested_tables
+                    and get_columns_names_with_prop(table, "hard_delete")
+                ):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            self.schema.name,
+                            "dlt does not support the `hard_delete` hint with the"
+                            f" `{merge_strategy}` merge strategy on Delta table"
+                            f" `{table['name']}`, because it has nested tables. Remove the"
+                            " `hard_delete` hint or the nested data.",
+                        )
+                    )
         return exception_log
 
     def update_stored_schema(

@@ -996,5 +996,3 @@ Nested rows follow their parent row. dlt deletes the nested rows of a deleted pa
 ### Limitations of `cdc`
 
 - The `primary_key` of the snapshot must be unique. `dlt` does not deduplicate the loaded data for this strategy.
-- If a resource yields no records, dlt creates no load job for its table. As a result, an empty source does **not** empty the destination table.
-- On the `delta` table format, `cdc` does not support `merge_key`. On the `filesystem` destination, the `iceberg` table format does not support `cdc`.
