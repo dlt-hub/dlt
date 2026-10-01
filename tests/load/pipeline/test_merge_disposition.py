@@ -2989,29 +2989,65 @@ def test_merge_key_source_filter(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True, subset=("duckdb",)),
+    destinations_configs(
+        default_sql_configs=True,
+        table_format_local_configs=True,
+        supports_merge=True,
+        subset=LOCAL_DESTINATIONS,
+    ),
     ids=lambda x: x.name,
 )
-def test_cdc_empty_snapshot_keeps_records(
-    destination_config: DestinationTestConfiguration,
+@pytest.mark.parametrize("materialize", [False, True], ids=["no_job", "empty_job"])
+@pytest.mark.parametrize(
+    "scope",
+    [None, "merge_key", "destination_scope"],
+    ids=["whole_table", "merge_key", "destination_scope"],
+)
+def test_cdc_empty_snapshot(
+    destination_config: DestinationTestConfiguration, materialize: bool, scope: Optional[str]
 ) -> None:
-    """A resource that yields nothing produces no load job, so the table keeps its records.
-    This behavior is a documented limitation."""
+    """A resource that yields nothing produces no load job, so `cdc` deletes nothing. A
+    materialized table schema produces an empty load job, so `cdc` deletes every record that the
+    destination scope selects. An empty snapshot has no `merge_key` partitions, so it deletes
+    nothing with `merge_key`."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
+    is_delta = destination_config.table_format == "delta"
+    if scope == "merge_key" and is_delta:
+        pytest.skip("Delta rejects `merge_key` with `cdc`")
+    disposition: Any = {"disposition": "merge", "strategy": "cdc"}
+    if scope == "destination_scope":
+        disposition["destination_scope"] = "{table}.region = 'eu'" if is_delta else "region = 'eu'"
 
     @dlt.resource(
         name="items",
         primary_key="id",
-        write_disposition={"disposition": "merge", "strategy": "cdc"},
+        merge_key="region" if scope == "merge_key" else None,
+        table_format=destination_config.table_format,
+        write_disposition=disposition,
     )
     def items(data: List[StrAny]):
-        yield data
+        if data:
+            yield data
+        elif materialize:
+            yield dlt.mark.materialize_table_schema()
 
     p = destination_config.setup_pipeline("cdc_empty", dev_mode=True)
-    assert_load_info(p.run(items([{"id": 1}, {"id": 2}]), **destination_config.run_kwargs))
-    p.run(items([]), **destination_config.run_kwargs)
+    seed: List[StrAny] = [
+        {"id": 1, "region": "eu"},
+        {"id": 2, "region": "eu"},
+        {"id": 3, "region": "us"},
+    ]
+    assert_load_info(p.run(items(seed), **destination_config.run_kwargs))
+    info = p.run(items([]), **destination_config.run_kwargs)
+    if materialize:
+        assert_load_info(info)
 
-    assert load_table_counts(p, "items")["items"] == 2
+    expected = 3
+    if materialize and scope is None:
+        expected = 0
+    elif materialize and scope == "destination_scope":
+        expected = 1
+    assert load_table_counts(p, "items")["items"] == expected
 
 
 @pytest.mark.parametrize(
