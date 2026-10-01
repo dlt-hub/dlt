@@ -17,14 +17,13 @@ from dlt.common.schema.typing import (
     TTableSchema,
 )
 from dlt.common.schema.utils import (
-    MERGE_CONDITION_PLACEHOLDERS,
-    validate_merge_condition,
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     has_column_with_prop,
     is_nested_table,
     pipeline_state_table,
 )
+from dlt.common.destination.utils import MERGE_CONDITION_PLACEHOLDERS, validate_merge_condition
 
 from dlt.destinations.exceptions import DatabaseTransientException
 from dlt.extract import DltResource, resource as make_resource, DltSource

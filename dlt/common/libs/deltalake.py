@@ -9,11 +9,8 @@ from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
 from dlt.common.schema.typing import UPSERT_MERGE_STRATEGIES, TWriteDisposition, TTableSchema
-from dlt.common.schema.utils import (
-    get_first_column_name_with_prop,
-    get_columns_names_with_prop,
-    get_merge_changed_cond,
-)
+from dlt.common.schema.utils import get_first_column_name_with_prop, get_columns_names_with_prop
+from dlt.common.destination.utils import get_merge_changed_cond
 from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnownValues
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import assert_min_pkg_version

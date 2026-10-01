@@ -17,7 +17,6 @@ from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
-    get_merge_changed_cond,
     get_validity_column_names,
     get_active_record_timestamp,
     is_nested_table,
@@ -26,6 +25,7 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.utils import get_merge_changed_cond
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import FollowupJobRequestImpl
 from dlt.destinations.sql_client import SqlClientBase

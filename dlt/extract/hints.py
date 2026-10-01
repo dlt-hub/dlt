@@ -42,8 +42,8 @@ from dlt.common.schema.utils import (
     new_table,
     normalize_table_identifiers,
     remove_compound_props,
-    validate_merge_condition,
 )
+from dlt.common.destination.utils import validate_merge_condition
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_datetime
 from dlt.common.utils import clone_dict_nested
