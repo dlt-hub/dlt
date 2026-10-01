@@ -37,6 +37,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
+    UPSERT_MERGE_STRATEGIES,
 )
 from dlt.common.storages.exceptions import (
     CurrentLoadPackageStateNotAvailable,
@@ -50,7 +51,6 @@ from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.utils import (
-    MERGE_FILTER_PLACEHOLDERS,
     get_columns_names_with_prop,
     get_nested_tables,
     is_nested_table,
@@ -877,14 +877,15 @@ class FilesystemClient(
         self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
         # TODO: finetune verify_schema_merge_disposition ie. hard deletes are not supported
-        # delta merge predicates name the merged tables by their `source` and `target` aliases
+        # Delta merge predicates name the merged tables by their `source` and `target` aliases
         if exceptions := verify_schema_merge_disposition(
             self.schema,
             loaded_tables,
             self.capabilities,
             warnings=True,
-            input_filter_placeholders=MERGE_FILTER_PLACEHOLDERS,
-            output_filter_placeholders=("table",),
+            # the source filter selects the merge source, so it cannot read the target
+            source_filter_placeholders=("staging_table",),
+            destination_scope_placeholders=("table",),
         ):
             # filesystem falls back to append when merge is not supported
             filtered = []
@@ -930,34 +931,42 @@ class FilesystemClient(
                 merge_strategy = resolve_merge_strategy(
                     self.schema.tables, table, self.capabilities
                 )
-                # each Delta table merges alone, so nested rows cannot follow their root
+                # the job merges each Delta table alone, so root row conditions miss nested rows
                 has_nested_tables = bool(
                     get_nested_tables(self.schema.tables, table["name"], include_self=False)
                 )
                 if merge_strategy == "cdc":
                     if get_columns_names_with_prop(table, "merge_key"):
-                        # selecting rows by staged values needs a subquery, Delta has none
+                        # `merge_key` selects rows by staged values with a subquery. Delta
+                        # predicates have no subqueries
                         exception_log.append(
                             SchemaCorruptedException(
                                 self.schema.name,
                                 "dlt does not support `merge_key` with the `cdc` merge strategy"
-                                f" on Delta table `{table['name']}`. Use `merge_output_filter`"
+                                f" on Delta table `{table['name']}`. Use `destination_scope`"
                                 " instead.",
                             )
                         )
-                    if has_nested_tables and (
-                        "x-merge-input-filter" in table or "x-merge-output-filter" in table
-                    ):
-                        exception_log.append(
-                            SchemaCorruptedException(
-                                self.schema.name,
-                                "dlt does not support merge filters with the `cdc` merge strategy"
-                                f" on Delta table `{table['name']}`, because it has nested"
-                                " tables. Remove the merge filters or the nested data.",
-                            )
-                        )
+                # upsert has no destination scope
+                has_merge_conditions = "x-merge-source-filter" in table or (
+                    merge_strategy == "cdc" and "x-merge-destination-scope" in table
+                )
                 if (
-                    merge_strategy in ("upsert", "cdc")
+                    merge_strategy in UPSERT_MERGE_STRATEGIES
+                    and has_nested_tables
+                    and has_merge_conditions
+                ):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            self.schema.name,
+                            "dlt does not support `source_filter` or `destination_scope` with the"
+                            f" `{merge_strategy}` merge strategy on Delta table `{table['name']}`."
+                            " The table has nested tables. Remove the merge conditions or the"
+                            " nested data.",
+                        )
+                    )
+                if (
+                    merge_strategy in UPSERT_MERGE_STRATEGIES
                     and has_nested_tables
                     and get_columns_names_with_prop(table, "hard_delete")
                 ):
@@ -965,9 +974,32 @@ class FilesystemClient(
                         SchemaCorruptedException(
                             self.schema.name,
                             "dlt does not support the `hard_delete` hint with the"
-                            f" `{merge_strategy}` merge strategy on Delta table"
-                            f" `{table['name']}`, because it has nested tables. Remove the"
-                            " `hard_delete` hint or the nested data.",
+                            f" `{merge_strategy}` merge strategy on Delta table `{table['name']}`."
+                            " The table has nested tables. Remove the `hard_delete` hint or the"
+                            " nested data.",
+                        )
+                    )
+            elif table_format == "iceberg":
+                merge_strategy = resolve_merge_strategy(
+                    self.schema.tables, table, self.capabilities
+                )
+                if merge_strategy == "upsert" and "x-merge-source-filter" in table:
+                    # pyiceberg merges Arrow data and cannot apply a SQL condition
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            self.schema.name,
+                            "dlt does not support `source_filter` with the `upsert` merge"
+                            f" strategy on Iceberg table `{table['name']}`. Filter the data with"
+                            " `add_filter` instead.",
+                        )
+                    )
+                if merge_strategy == "upsert" and table.get("x-merge-skip-unchanged-rows"):
+                    # pyiceberg compares all columns, `_dlt_load_id` included, so every row changes
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            self.schema.name,
+                            "dlt does not support `skip_unchanged_rows` with the `upsert` merge"
+                            f" strategy on Iceberg table `{table['name']}`.",
                         )
                     )
         return exception_log

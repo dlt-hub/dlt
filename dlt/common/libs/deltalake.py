@@ -8,7 +8,7 @@ from dlt.common import logger
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.libs.pyarrow import cast_arrow_schema_types
 from dlt.common.libs.utils import load_open_tables
-from dlt.common.schema.typing import TWriteDisposition, TTableSchema
+from dlt.common.schema.typing import UPSERT_MERGE_STRATEGIES, TWriteDisposition, TTableSchema
 from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_columns_names_with_prop,
@@ -18,7 +18,6 @@ from dlt.common.exceptions import MissingDependencyException, ValueErrorWithKnow
 from dlt.common.typing import DictStrAny
 from dlt.common.utils import assert_min_pkg_version
 from dlt.common.configuration.specs import CredentialsConfiguration
-from dlt.destinations.exceptions import MergeDispositionException
 from dlt.common.configuration.specs.mixins import WithObjectStoreRsCredentials
 
 try:
@@ -129,57 +128,55 @@ def merge_delta_table(
     """Merges in-memory Arrow data into on-disk Delta table."""
 
     strategy = schema["x-merge-strategy"]  # type: ignore[typeddict-item]
-    if strategy in ("upsert", "insert-only", "cdc"):
-        input_predicate: Optional[str] = None
-        delete_predicate: Optional[str] = None
-        if strategy == "cdc":
-            input_predicate, delete_predicate = _delta_merge_predicates(schema)
-        evolve_delta_table_schema(table, data.schema)
-
-        if "parent" in schema:
-            unique_column = get_first_column_name_with_prop(schema, "unique")
-            predicate = f"target.{unique_column} = source.{unique_column}"
-        else:
-            primary_keys = get_columns_names_with_prop(schema, "primary_key")
-            predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
-
-        partition_by = get_columns_names_with_prop(schema, "partition")
-        qry = table.merge(
-            source=ensure_delta_compatible_arrow_data(data, partition_by),
-            predicate=predicate,
-            source_alias="source",
-            target_alias="target",
-            streamed_exec=streamed_exec,
+    if strategy != "insert-only" and strategy not in UPSERT_MERGE_STRATEGIES:
+        # the filesystem destination rejects unsupported strategies when it verifies the schema
+        raise ValueError(
+            f'Merge strategy "{strategy}" is not supported for Delta tables. '
+            f'Table: "{load_table_name}".'
         )
-        insert_predicate = input_predicate
-        hard_delete_col = get_first_column_name_with_prop(schema, "hard_delete")
-        if strategy in ("upsert", "cdc") and hard_delete_col:
+    evolve_delta_table_schema(table, data.schema)
+
+    if "parent" in schema:
+        unique_column = get_first_column_name_with_prop(schema, "unique")
+        predicate = f"target.{unique_column} = source.{unique_column}"
+    else:
+        primary_keys = get_columns_names_with_prop(schema, "primary_key")
+        predicate = " AND ".join([f"target.{c} = source.{c}" for c in primary_keys])
+
+    source_predicate, delete_predicate = _delta_merge_predicates(schema)
+    if strategy != "insert-only" and source_predicate:
+        # discarded records match nothing, so their stored copies are absent from the merge source
+        predicate = _and_predicates(predicate, source_predicate)
+
+    partition_by = get_columns_names_with_prop(schema, "partition")
+    qry = table.merge(
+        source=ensure_delta_compatible_arrow_data(data, partition_by),
+        predicate=predicate,
+        source_alias="source",
+        target_alias="target",
+        streamed_exec=streamed_exec,
+    )
+    if strategy == "insert-only":
+        qry = qry.when_not_matched_insert_all()
+    else:
+        insert_predicate = source_predicate
+        if hard_delete_col := get_first_column_name_with_prop(schema, "hard_delete"):
             deleted_cond, not_deleted_cond = _delta_hard_delete_conds(schema, hard_delete_col)
-            # the first matching clause wins, so deletes go before updates
-            qry = qry.when_matched_delete(predicate=_and_predicates(deleted_cond, input_predicate))
-            insert_predicate = _and_predicates(not_deleted_cond, input_predicate)
-        if strategy == "upsert":
-            qry = qry.when_matched_update_all()
-        elif strategy == "cdc":
+            # the first matching clause wins, so the delete clause comes before the update clause
+            qry = qry.when_matched_delete(predicate=deleted_cond)
+            insert_predicate = _and_predicates(not_deleted_cond, source_predicate)
+        changed_cond = None
+        if schema.get("x-merge-skip-unchanged-rows"):
             changed_cond = get_merge_changed_cond(schema, "source", "target")
-            update_predicate = _and_predicates(changed_cond, input_predicate)
-            if update_predicate:
-                qry = qry.when_matched_update_all(predicate=update_predicate)
+        qry = qry.when_matched_update_all(predicate=changed_cond)
         qry = qry.when_not_matched_insert_all(predicate=insert_predicate)
         if strategy == "cdc":
             qry = qry.when_not_matched_by_source_delete(predicate=delete_predicate)
-        qry.execute()
-    else:
-        raise MergeDispositionException(
-            table.table_uri,
-            "",
-            [load_table_name],
-            f"dlt does not support the `{strategy}` merge strategy for Delta tables.",
-        )
+    qry.execute()
 
 
 def _delta_hard_delete_conds(schema: TTableSchema, column_name: str) -> Tuple[str, str]:
-    """Returns predicates selecting source rows marked as deleted and rows that are not."""
+    """Returns a predicate that selects source rows marked as deleted and one for the other rows."""
     column = f"source.{column_name}"
     if schema["columns"][column_name].get("data_type") == "bool":
         return f"{column} = true", f"({column} IS NULL OR {column} = false)"
@@ -194,16 +191,17 @@ def _and_predicates(*predicates: Optional[str]) -> Optional[str]:
 
 
 def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Optional[str]]:
-    """Returns the input and output merge filters as Delta merge predicates.
+    """Returns the `source_filter` and `destination_scope` as Delta merge predicates.
 
-    `{table}` expands to the `target` alias and `{staging_table}` to the `source` alias.
-    The filesystem client `verify_schema` verifies the placeholders before loading.
+    In `source_filter`, `{staging_table}` expands to the `source` alias. In `destination_scope`,
+    `{table}` expands to the `target` alias. `FilesystemClient.verify_schema` verifies the
+    placeholders before the load.
     """
-    input_filter = cast(Optional[str], schema.get("x-merge-input-filter"))
-    output_filter = cast(Optional[str], schema.get("x-merge-output-filter"))
+    source_filter = cast(Optional[str], schema.get("x-merge-source-filter"))
+    destination_scope = cast(Optional[str], schema.get("x-merge-destination-scope"))
     return (
-        input_filter.format(staging_table="source", table="target") if input_filter else None,
-        output_filter.format(table="target") if output_filter else None,
+        source_filter.format(staging_table="source", table="target") if source_filter else None,
+        destination_scope.format(table="target") if destination_scope else None,
     )
 
 
