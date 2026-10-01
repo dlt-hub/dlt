@@ -125,7 +125,7 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert repo_storage.has_folder("tools")
     # only tools present
     assert len(repo_storage.list_folder_dirs(".")) == 2  # .git tools
-    # the external repo adds tools over time, so only check that the folder has files
+    # the external repo adds tools over time, so the test asserts only that the folder has files
     assert len(repo_storage.list_folder_files("tools")) > 0
 
     # checkout the other one

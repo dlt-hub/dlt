@@ -25,6 +25,7 @@ from dlt.common.time import (
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
+from tests.load.pipeline.utils import LOCAL_DESTINATIONS
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -1236,19 +1237,19 @@ def test_scd2_validity_column_position(
 
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
+    destinations_configs(default_sql_configs=True, supports_merge=True, subset=LOCAL_DESTINATIONS),
     ids=lambda x: x.name,
 )
-def test_merge_output_filter(destination_config: DestinationTestConfiguration) -> None:
-    """The output filter limits which absent records are retired. Absent records outside the
-    filter stay active."""
+def test_destination_scope(destination_config: DestinationTestConfiguration) -> None:
+    """The destination scope limits which absent records `scd2` retires. Absent records outside the
+    destination scope stay active."""
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
         write_disposition={
             "disposition": "merge",
             "strategy": "scd2",
-            "merge_output_filter": "bucket = 'new'",
+            "destination_scope": "bucket = 'new'",
         },
     )
     def dim_test(data):
@@ -1261,8 +1262,8 @@ def test_merge_output_filter(destination_config: DestinationTestConfiguration) -
     assert_load_info(info)
     assert [row[TO] for row in get_table(p, "dim_test")] == [None, None]
 
-    # both records are absent from the snapshot. Only the record that matches the output filter
-    # is retired
+    # both stored records are absent from the loaded data. `scd2` retires only the record in the
+    # destination scope
     info = p.run(dim_test([{"bucket": "new", "foo": "bar"}]), **destination_config.run_kwargs)
     assert_load_info(info)
     ts2 = get_load_package_created_at(p, info)
@@ -1284,23 +1285,35 @@ def test_merge_output_filter(destination_config: DestinationTestConfiguration) -
     destinations_configs(default_sql_configs=True, supports_merge=True),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("output_filter", [None, "bucket = 'new'"], ids=["input", "input_output"])
+@pytest.mark.parametrize(
+    "source_filter,destination_scope",
+    [
+        ("bucket = 'new'", None),
+        ("bucket = 'new'", "bucket = 'new'"),
+        # Databricks rejects a subquery nested in another subquery of an UPDATE condition
+        ("bucket IN (SELECT LOWER('new'))", None),
+    ],
+    ids=["filter", "filter_scope", "filter_subquery"],
+)
 @pytest.mark.parametrize("root_key", [False, True], ids=["parent_chain", "root_key"])
-def test_merge_input_filter(
-    destination_config: DestinationTestConfiguration, output_filter: Optional[str], root_key: bool
+def test_source_filter(
+    destination_config: DestinationTestConfiguration,
+    source_filter: str,
+    destination_scope: Optional[str],
+    root_key: bool,
 ) -> None:
-    """A loaded record that the input filter discards is not inserted, and its nested rows are
-    not inserted. Stored records outside the filter are not retired."""
+    """`scd2` does not insert a record that the source filter discards, or its nested rows. It
+    does not retire stored records outside the destination scope."""
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     def make_resource(data: List[Dict[str, Any]], filtered: bool) -> Any:
         disposition: Any = {"disposition": "merge", "strategy": "scd2"}
         if filtered:
-            disposition["merge_input_filter"] = "bucket = 'new'"
-            if output_filter:
-                disposition["merge_output_filter"] = output_filter
+            disposition["source_filter"] = source_filter
+            if destination_scope:
+                disposition["destination_scope"] = destination_scope
 
-        # nested tables are filtered through the root key when it is propagated
+        # the merge applies the source filter to nested tables via the root key or the parent chain
         @dlt.source(root_key=root_key)
         def dim_source():
             @dlt.resource(name="dim_test", write_disposition=disposition)
@@ -1332,8 +1345,9 @@ def test_merge_input_filter(
         {k: v for k, v in r.items() if k in ("bucket", "foo", TO)}
         for r in get_table(p, "dim_test", ts_columns=[FROM, TO])
     ]
+    # the source filter does not limit what `scd2` retires. Only the destination scope does
     expected = [
-        {"bucket": "old", "foo": "foo", TO: None},
+        {"bucket": "old", "foo": "foo", TO: None if destination_scope else ts2},
         {"bucket": "new", "foo": "foo", TO: ts2},
         {"bucket": "new", "foo": "bar", TO: None},
     ]
