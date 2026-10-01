@@ -262,6 +262,7 @@ MERGE_STRATEGY_OPTIONS: Dict[str, Sequence[TLoaderMergeStrategy]] = {
     # only strategies that delete or retire absent destination records have a destination scope
     "destination_scope": ("delete-insert", "scd2", "cdc"),
     "skip_unchanged_rows": UPSERT_MERGE_STRATEGIES,
+    "row_version_column_name": ("scd2", "upsert", "cdc"),
 }
 """Merge strategy options and the strategies that support them."""
 REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))

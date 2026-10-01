@@ -1158,16 +1158,18 @@ def test_resource_sets_invalid_write_disposition() -> None:
     assert "write_disposition" in str(py_ex.value)
 
 
-@pytest.mark.parametrize("strategy", ["upsert", "cdc"])
+@pytest.mark.parametrize("strategy", ["upsert", "cdc", None], ids=["upsert", "cdc", "default"])
 @pytest.mark.parametrize("skip_unchanged_rows", [False, True], ids=["update", "skip"])
-def test_skip_unchanged_rows_hints(strategy: str, skip_unchanged_rows: bool) -> None:
-    """The table schema has the `x-row-version` hint only when the merge skips unchanged rows."""
+def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows: bool) -> None:
+    """The table schema has the `x-row-version` hint only when the merge skips unchanged rows.
+    Without a strategy, the hints are kept for the strategy that the destination picks."""
     write_disposition: Any = {
         "disposition": "merge",
-        "strategy": strategy,
         "skip_unchanged_rows": skip_unchanged_rows,
         "row_version_column_name": "version",
     }
+    if strategy:
+        write_disposition["strategy"] = strategy
 
     @dlt.resource(primary_key="id", write_disposition=write_disposition)
     def items():
@@ -1201,6 +1203,10 @@ def test_skip_unchanged_rows_hints(strategy: str, skip_unchanged_rows: bool) -> 
             {"strategy": "insert-only", "source_filter": "bucket = 'new'"},
             "dlt supports `source_filter` only with the `delete-insert`, `scd2`, `upsert`, `cdc`",
         ),
+        (
+            {"strategy": "delete-insert", "row_version_column_name": "version"},
+            "dlt supports `row_version_column_name` only with the `scd2`, `upsert`, `cdc`",
+        ),
     ],
     ids=[
         "unknown_placeholder",
@@ -1210,6 +1216,7 @@ def test_skip_unchanged_rows_hints(strategy: str, skip_unchanged_rows: bool) -> 
         "skip_unchanged_scd2",
         "scope_upsert",
         "filter_insert_only",
+        "row_version_delete_insert",
     ],
 )
 def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str) -> None:

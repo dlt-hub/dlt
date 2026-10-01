@@ -222,13 +222,14 @@ def verify_schema_merge_disposition(
                     )
             # the resource rejects these options for an explicit strategy. Only the destination
             # knows the default strategy
-            for option, x_hint in (
-                ("source_filter", "x-merge-source-filter"),
-                ("destination_scope", "x-merge-destination-scope"),
-                ("skip_unchanged_rows", "x-merge-skip-unchanged-rows"),
-            ):
-                strategies = MERGE_STRATEGY_OPTIONS[option]
-                if table.get(x_hint) and merge_strategy not in strategies:
+            set_options = {
+                "source_filter": table.get("x-merge-source-filter"),
+                "destination_scope": table.get("x-merge-destination-scope"),
+                "skip_unchanged_rows": table.get("x-merge-skip-unchanged-rows"),
+                "row_version_column_name": get_first_column_name_with_prop(table, "x-row-version"),
+            }
+            for option, strategies in MERGE_STRATEGY_OPTIONS.items():
+                if set_options[option] and merge_strategy not in strategies:
                     supported = ", ".join(f"`{s}`" for s in strategies)
                     log(
                         f"Table `{table_name}` sets `{option}` with the `{merge_strategy}` merge"

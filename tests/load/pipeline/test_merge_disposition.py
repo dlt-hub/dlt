@@ -2489,21 +2489,25 @@ def test_cdc_composite_primary_key(destination_config: DestinationTestConfigurat
     ),
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("merge_strategy", ["upsert", "cdc"])
+@pytest.mark.parametrize(
+    "merge_strategy", ["upsert", "cdc", None], ids=["upsert", "cdc", "default"]
+)
 def test_skip_unchanged_rows_rewrites_nothing(
     destination_config: DestinationTestConfiguration,
-    merge_strategy: TLoaderMergeStrategy,
+    merge_strategy: Optional[TLoaderMergeStrategy],
 ) -> None:
     """With `skip_unchanged_rows`, a reload of identical data updates no record. As a result,
-    change consumers (for example Snowflake Streams) see no changes."""
-    skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+    change consumers (for example Snowflake Streams) see no changes. Without a strategy, the
+    option applies to the strategy that the destination picks."""
+    if merge_strategy:
+        skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
+    elif destination_config.table_format != "delta":
+        pytest.skip("Only the delta table format defaults to `upsert`")
     if destination_config.table_format == "iceberg":
         pytest.skip("Iceberg rejects `skip_unchanged_rows`")
-    disposition: Any = {
-        "disposition": "merge",
-        "strategy": merge_strategy,
-        "skip_unchanged_rows": True,
-    }
+    disposition: Any = {"disposition": "merge", "skip_unchanged_rows": True}
+    if merge_strategy:
+        disposition["strategy"] = merge_strategy
 
     @dlt.resource(
         name="items",

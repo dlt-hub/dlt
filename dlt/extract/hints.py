@@ -26,7 +26,6 @@ from dlt.common.schema.typing import (
     DEFAULT_VALIDITY_COLUMN_NAMES,
     MERGE_STRATEGIES,
     MERGE_STRATEGY_OPTIONS,
-    UPSERT_MERGE_STRATEGIES,
     TTableReferenceParam,
 )
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -729,19 +728,19 @@ class DltResourceHints:
         if destination_scope := md_dict.get("destination_scope"):
             dict_["x-merge-destination-scope"] = destination_scope
 
-        if merge_strategy in UPSERT_MERGE_STRATEGIES:
-            if md_dict.get("skip_unchanged_rows"):
-                dict_["x-merge-skip-unchanged-rows"] = True
-            # the merge compares the row version only if `skip_unchanged_rows` is `True`
-            row_version = md_dict.get("row_version_column_name")
-            if row_version and md_dict.get("skip_unchanged_rows"):
-                # unlike scd2, upsert and cdc identify records by primary key and keep `_dlt_id`
-                dict_["columns"][row_version] = {
-                    **dict_["columns"].get(row_version, {}),
-                    "name": row_version,
-                    "nullable": False,
-                    "x-row-version": True,
-                }
+        # without a strategy the destination picks one and warns if it does not support the option
+        if md_dict.get("skip_unchanged_rows"):
+            dict_["x-merge-skip-unchanged-rows"] = True
+        # the merge compares the row version only if `skip_unchanged_rows` is `True`
+        row_version = md_dict.get("row_version_column_name")
+        if merge_strategy != "scd2" and row_version and md_dict.get("skip_unchanged_rows"):
+            # unlike scd2, upsert and cdc identify records by primary key and keep `_dlt_id`
+            dict_["columns"][row_version] = {
+                **dict_["columns"].get(row_version, {}),
+                "name": row_version,
+                "nullable": False,
+                "x-row-version": True,
+            }
 
         if merge_strategy == "scd2":
             if "boundary_timestamp" in md_dict:
@@ -858,15 +857,16 @@ class DltResourceHints:
                             f" not with `{strategy}`. Use one of these strategies or remove"
                             f" `{option}`."
                         )
+            # scd2 identifies records by the row version, the other strategies only compare it
             if (
-                strategy in UPSERT_MERGE_STRATEGIES
+                strategy != "scd2"
                 and md.get("row_version_column_name")
                 and not md.get("skip_unchanged_rows")
             ):
                 logger.warning(
-                    f"dlt ignores `row_version_column_name` with the `{strategy}` merge strategy,"
-                    " because `skip_unchanged_rows` is not `True`. To compare the row version, set"
-                    " `skip_unchanged_rows` to `True`."
+                    f"dlt ignores `row_version_column_name` with the `{strategy or 'default'}`"
+                    " merge strategy, because `skip_unchanged_rows` is not `True`. To compare the"
+                    " row version, set `skip_unchanged_rows` to `True`."
                 )
 
             if strategy == "scd2":
