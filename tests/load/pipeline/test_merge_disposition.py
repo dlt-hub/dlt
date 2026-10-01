@@ -21,7 +21,12 @@ from dlt.common.schema.exceptions import (
     UnboundColumnException,
     CannotCoerceNullException,
 )
-from dlt.common.schema.typing import TLoaderMergeStrategy, TTableFormat, TTableSchemaColumns
+from dlt.common.schema.typing import (
+    TDataType,
+    TLoaderMergeStrategy,
+    TTableFormat,
+    TTableSchemaColumns,
+)
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -2148,7 +2153,8 @@ def test_insert_only_strategy(destination_config: DestinationTestConfiguration) 
     ids=lambda x: x.name,
 )
 def test_insert_only_with_hard_delete(destination_config: DestinationTestConfiguration) -> None:
-    """Test insert-only strategy filters out hard-deleted records from staging."""
+    """`insert-only` does not insert records flagged for hard delete and never deletes or updates
+    existing records, also when they arrive flagged."""
     skip_if_unsupported_merge_strategy(destination_config, "insert-only")
 
     p = destination_config.setup_pipeline("insert_only_hard_delete", dev_mode=True)
@@ -2179,7 +2185,9 @@ def test_insert_only_with_hard_delete(destination_config: DestinationTestConfigu
         table_format=destination_config.table_format,
     )
     def items_with_deleted():
+        # id 1 exists and arrives flagged: insert-only neither updates nor deletes it
         yield [
+            {"id": 1, "name": "Alice Deleted", "deleted": True},
             {"id": 3, "name": "Charlie", "deleted": True},
             {"id": 4, "name": "Dave", "deleted": False},
         ]
@@ -2591,10 +2599,19 @@ def test_skip_unchanged_rows_row_version_column(
     ),
     ids=lambda x: x.name,
 )
-def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> None:
+@pytest.mark.parametrize("hard_delete_type", ["bool", "text"])
+def test_cdc_hard_delete(
+    destination_config: DestinationTestConfiguration, hard_delete_type: TDataType
+) -> None:
     """`cdc` deletes records flagged with `hard_delete`, also when the snapshot contains them.
-    `cdc` does not insert a record that arrives already flagged."""
+    `cdc` does not insert a record that arrives already flagged. A text column flags a record with
+    any non-NULL value."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
+
+    def flag(deleted: bool) -> Any:
+        if hard_delete_type == "bool":
+            return deleted
+        return "D" if deleted else None
 
     def make_resource(data: List[StrAny]) -> DltResource:
         @dlt.resource(
@@ -2602,7 +2619,7 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
             primary_key="id",
             table_format=destination_config.table_format,
             write_disposition={"disposition": "merge", "strategy": "cdc"},
-            columns={"deleted": {"hard_delete": True, "data_type": "bool"}},
+            columns={"deleted": {"hard_delete": True, "data_type": hard_delete_type}},
         )
         def accounts():
             yield data
@@ -2614,8 +2631,8 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
         p.run(
             make_resource(
                 [
-                    {"id": 1, "name": "Alice", "deleted": False},
-                    {"id": 2, "name": "Bob", "deleted": False},
+                    {"id": 1, "name": "Alice", "deleted": flag(False)},
+                    {"id": 2, "name": "Bob", "deleted": flag(False)},
                 ]
             ),
             **destination_config.run_kwargs,
@@ -2627,9 +2644,9 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
         p.run(
             make_resource(
                 [
-                    {"id": 1, "name": "Alice", "deleted": True},
-                    {"id": 2, "name": "Bob", "deleted": False},
-                    {"id": 3, "name": "Charlie", "deleted": True},
+                    {"id": 1, "name": "Alice", "deleted": flag(True)},
+                    {"id": 2, "name": "Bob", "deleted": flag(False)},
+                    {"id": 3, "name": "Charlie", "deleted": flag(True)},
                 ]
             ),
             **destination_config.run_kwargs,
@@ -2637,7 +2654,7 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
     )
 
     tables = load_tables_to_dicts(p, "accounts", exclude_system_cols=True)
-    assert_records_as_set(tables["accounts"], [{"id": 2, "name": "Bob", "deleted": False}])
+    assert_records_as_set(tables["accounts"], [{"id": 2, "name": "Bob", "deleted": flag(False)}])
 
 
 @pytest.mark.parametrize(
@@ -2650,11 +2667,16 @@ def test_cdc_hard_delete(destination_config: DestinationTestConfiguration) -> No
     ids=lambda x: x.name,
 )
 @pytest.mark.parametrize("hard_delete", [False, True], ids=["absent_parent", "flagged_parent"])
+@pytest.mark.parametrize(
+    "skip_unchanged_rows", [False, True], ids=["update_matched", "skip_unchanged"]
+)
 def test_cdc_nested_tables(
-    destination_config: DestinationTestConfiguration, hard_delete: bool
+    destination_config: DestinationTestConfiguration, hard_delete: bool, skip_unchanged_rows: bool
 ) -> None:
     """`cdc` deletes nested rows with their parent when the parent is absent from the snapshot or
-    flagged for hard delete. `cdc` also deletes list elements absent from the snapshot."""
+    flagged for hard delete. `cdc` also deletes list elements absent from the snapshot. Change
+    detection is per table: with `skip_unchanged_rows`, a parent whose own columns did not change
+    keeps its `_dlt_load_id` although its nested rows changed."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
     if hard_delete and destination_config.table_format == "delta":
         pytest.skip("Delta rejects `hard_delete` with nested tables.")
@@ -2662,13 +2684,18 @@ def test_cdc_nested_tables(
     columns: Optional[TTableSchemaColumns] = (
         {"deleted": {"hard_delete": True, "data_type": "bool"}} if hard_delete else None
     )
+    disposition: Any = {
+        "disposition": "merge",
+        "strategy": "cdc",
+        "skip_unchanged_rows": skip_unchanged_rows,
+    }
 
     def make_resource(data: List[StrAny]) -> DltResource:
         @dlt.resource(
             name="parent_items",
             primary_key="id",
             table_format=destination_config.table_format,
-            write_disposition={"disposition": "merge", "strategy": "cdc"},
+            write_disposition=disposition,
             columns=columns,
         )
         def parent_items():
@@ -2688,6 +2715,9 @@ def test_cdc_nested_tables(
             **destination_config.run_kwargs,
         )
     )
+    load_ids = {
+        r["id"]: r["_dlt_load_id"] for r in load_tables_to_dicts(p, "parent_items")["parent_items"]
+    }
 
     # parent 1 loses child 2 and gains child 4. `cdc` deletes parent 2 and its children,
     # because parent 2 is absent from the snapshot or flagged
@@ -2705,9 +2735,12 @@ def test_cdc_nested_tables(
     assert_records_as_set(tables["parent_items__children"], [{"c": 1}, {"c": 4}])
 
     # every nested row has a parent
-    parent_ids = {r["_dlt_id"] for r in load_tables_to_dicts(p, "parent_items")["parent_items"]}
+    parents = load_tables_to_dicts(p, "parent_items")["parent_items"]
+    parent_ids = {r["_dlt_id"] for r in parents}
     children = load_tables_to_dicts(p, "parent_items__children")["parent_items__children"]
     assert all(c["_dlt_root_id"] in parent_ids for c in children)
+    # parent 1 did not change, only its children did
+    assert (parents[0]["_dlt_load_id"] == load_ids[1]) is skip_unchanged_rows
 
 
 @pytest.mark.parametrize(
