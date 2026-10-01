@@ -356,6 +356,7 @@ The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives 
 
 - [Agent definitions](agent-definitions.md) covers the `AGENT.md` and Python function forms
 - [Job inspector agent](job-inspector.md) is the verified agent that diagnoses failed job runs
+- [Job inspector evaluator](job-inspector-eval.md) grades an inspector run against the inspector's own instructions
 - [Toolkits](../ai-harness/toolkits.md) shows the `dlthub-platform` toolkit that ships `job-inspector`
 - [Triggers and scheduling](../pipeline-operations/triggers.md) covers the schedule, interval, and follow-up triggers available to all jobs
 - [Job configuration](../pipeline-operations/job-configuration.md) covers `execute`, `require`, `expose`, and TOML sections

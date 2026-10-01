@@ -160,6 +160,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 ## Next steps
 
 - [Background agents](index.md) covers declaring, running, and deploying agent jobs
+- [Job inspector evaluator](job-inspector-eval.md) grades an inspector run against these instructions
 - [Toolkits](../ai-harness/toolkits.md#dlthub-platform) shows the rest of the `dlthub-platform` toolkit
 - [Triggers and scheduling](../pipeline-operations/triggers.md) covers the triggers available to all jobs
 - [Monitoring and debugging](../pipeline-operations/monitoring.md) shows how to list runs and read their results

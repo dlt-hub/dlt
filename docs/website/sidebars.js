@@ -558,6 +558,7 @@ const sidebars = {
         { type: "doc", id: "hub/agents/index", label: "Background agents" },
         { type: "doc", id: "hub/agents/agent-definitions", label: "Agent definitions" },
         { type: "doc", id: "hub/agents/job-inspector", label: "Job inspector agent" },
+        { type: "doc", id: "hub/agents/job-inspector-eval", label: "Job inspector evaluator" },
       ],
     },
     {
