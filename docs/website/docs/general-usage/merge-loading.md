@@ -840,6 +840,27 @@ def my_insert_only_resource():
 ...
 ```
 
+### Nested tables without a root key
+
+`insert-only` never deletes nested records, so it does not need the `root key` (`_dlt_root_id`). It merges nested tables by their row key, which dlt derives from the parent `_dlt_id` and the position in the list. By default, dlt still propagates the root key for `insert-only`. To save storage space, disable it on the source. Unlike the general rule for [disabling root key propagation](#disable-root-key-propagation), this works for any nesting depth:
+
+```py
+@dlt.source(root_key=False)
+def events_source():
+    @dlt.resource(
+        write_disposition={"disposition": "merge", "strategy": "insert-only"},
+        primary_key="event_id",
+    )
+    def events():
+        yield [{"event_id": 1, "tags": [{"name": "a", "props": [{"k": "v"}]}]}]
+
+    return events
+```
+
+:::caution
+`upsert` and `cdc` delete nested records by the root key. If you may switch the resource to one of these strategies later, keep the root key. dlt cannot add `_dlt_root_id` to tables that already contain data.
+:::
+
 ## `cdc` strategy
 
 :::note
