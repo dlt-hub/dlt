@@ -52,6 +52,8 @@ api_url = "<endpoint URL>"
 api_version = "2024-12-01-preview"  # Azure endpoints only
 ```
 
+A model set here overrides `model=` on an individual agent job. To give one job a different model, set it under that job's section instead. See [Which model a run uses](../agents/index.md#which-model-a-run-uses).
+
 Set the API key yourself, in your own terminal, so your coding agent never sees it. Export it for local runs, and store it as a workspace secret for deployed runs, because the platform runner can't read your shell:
 
 ```sh

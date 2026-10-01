@@ -229,6 +229,8 @@ defaults:
 
 Leave `model` out of a definition you ship in a toolkit. Whoever installs it may be on Anthropic, OpenAI, Azure or Google, and a model you name is one they may not be able to reach. The job or the workspace picks it. Write in the body which models the prompt was written for, for example "at least as capable as Claude Sonnet 5".
 
+A `defaults.model` is the weakest declaration of the four that can name a model: the job overrides it, and configuration overrides the job. See [Which model a run uses](index.md#which-model-a-run-uses).
+
 ### System prompt body
 
 The body is the system prompt. Write it as you would a skill, for a reader who has the tools and needs the context. Platform knowledge belongs in the referenced rules and skills. Keep the body under about two hundred lines and cover these points:

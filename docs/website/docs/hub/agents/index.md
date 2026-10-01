@@ -182,7 +182,7 @@ max_turns = 20
 verbosity = 0
 ```
 
-Each source overrides the ones before it: the loop default, the definition's `defaults`, the `run.agent` argument, the run's configuration.
+Each source overrides the ones before it: the loop default, the definition's `defaults`, the `run.agent` argument, the run's configuration. This holds for the model, the limits, the instructions, the verbosity, and `loop_run_args`. See [Which model a run uses](#which-model-a-run-uses).
 
 ### Model and credentials
 
@@ -195,9 +195,37 @@ Each source overrides the ones before it: the loop default, the definition's `de
 | OpenAI       | `openai:gpt-5.5`, `openai:gpt-5.4-mini`, `openai:gpt-5.4-nano`                     | `gpt`, `gpt-mini`, `gpt-nano`      |
 | Google       | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview`                         | `gemini`, `gemini-pro`             |
 
-There's no default model. The workspace deploying the agent sets one, and a definition a toolkit ships names none, so the same definition works whatever provider you have.
+A definition a toolkit ships names no model, so the same definition works whatever provider you have. The workspace deploying it picks one.
 
 Azure OpenAI addresses a deployment on your own endpoint rather than a shared model, so it has no alias and needs `api_url` and `api_version` alongside the model and the key.
+
+#### Which model a run uses
+
+Four places can name a model. The lowest row that names one wins:
+
+| Where             | Key or argument                                         | Set in                                                                                                    |
+| ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Loop default      | `sonnet`, which resolves to `anthropic:claude-sonnet-5` | The `pydantic-ai` loop. It applies when nothing else names a model                                        |
+| Agent definition  | `defaults.model`                                        | `AGENT.md`, or `model=` on a decorated function's definition                                              |
+| Agent job         | `model=`                                                | `run.agent(...)` in `__deployment__.py`                                                                   |
+| Run configuration | `agent.model`                                           | `jobs.<section>.<job>.agent.model`, the workspace-wide `[agent]` block, `AGENT__MODEL`, `-c agent.model=` |
+
+Configuration beats the job, with no warning that it did. A workspace-wide `[agent] model` in `config.toml` or an `AGENT__MODEL` workspace variable therefore overrides `model=` on every agent job in the workspace, including a job that pins a model on purpose. To pin a model for one job and leave the rest on the workspace default, set it under that job's section:
+
+```toml
+# .dlt/config.toml
+[agent]
+model = "azure:gpt-5.6-sol"            # every agent job in the workspace
+
+[jobs.__deployment__.job_inspector.agent]
+model = "anthropic:claude-sonnet-5"    # this one job
+```
+
+The loop logs the model and the endpoint it resolved to when the run starts: `Agent job-inspector runs anthropic:claude-sonnet-5 on the user endpoint`. Read that line, or `trace.model` in the job result, to see what a run actually used. A model name no provider recognizes fails the run with `UnsupportedAgentModel` rather than falling back.
+
+A decorated function driving the loop itself overrides all four for one run by passing `model=` to `loop.run()`.
+
+The limits follow the same order, with `max_turns: 50` as the loop default and no loop default for `max_tokens`.
 
 Credentials for the provider go under the job's `agent` section, in `secrets.toml` or the environment. Without them, the provider's default environment variables are used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on):
 
@@ -221,7 +249,7 @@ api_version = "2024-10-21"                   # the api-version your deployment s
 
 Azure is the only provider pydantic-ai gives `api_version`. Elsewhere it's ignored with a warning, so leave it unset.
 
-On the platform the runtime can supply a model endpoint of its own. `model`, `api_key`, `api_url`, and `api_version` are one set: if you set any of them, the run takes all four from your configuration and ignores the runtime's endpoint. Setting `api_key` alone leaves `model` unset, so the run sends the wrong model name to your endpoint and fails with `401 API key is invalid`. The run logs which endpoint it used.
+On the platform the runtime can supply a model endpoint of its own. `model`, `api_key`, `api_url`, and `api_version` are one set: setting any of them makes the run take all four from your configuration and ignore the runtime's endpoint. The ones you left unset fall back to their own defaults rather than to the runtime's, so `api_key` and `api_url` without `model` send `anthropic:claude-sonnet-5` to your endpoint and fail with `401 API key is invalid`. Set all four or none. The run logs which endpoint it used.
 
 On the platform, set the four as workspace variables rather than in `secrets.toml`. They arrive on the runner as environment and override the file:
 
