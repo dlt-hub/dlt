@@ -358,20 +358,72 @@ class DatabricksMergeJob(SqlMergeFollowupJob):
         """
 
     @classmethod
-    def gen_delete_nested_rows_sql(
+    def gen_delete_where_sql(
         cls,
         table_name: str,
-        root_key_column: str,
-        root_keys_select: str,
-        root_keys_column: str,
+        condition: str,
+        key_columns: Sequence[str],
         sql_client: SqlClientBase[Any],
+        *,
+        has_nested_subquery: bool,
     ) -> List[str]:
-        # Delta rejects a subquery nested in a DELETE condition, so the root keys go to a view
-        temp_view_name = cls._new_temp_table_name("root_keys", "delete", sql_client)
+        if not has_nested_subquery:
+            return super().gen_delete_where_sql(
+                table_name,
+                condition,
+                key_columns,
+                sql_client,
+                has_nested_subquery=has_nested_subquery,
+            )
+        # Delta rejects nested subqueries in DELETE conditions, also through views, but accepts
+        # them in the MERGE source
         return [
-            cls._to_temp_table(root_keys_select, temp_view_name, root_keys_column, sql_client),
-            cls.gen_delete_from_sql(table_name, root_key_column, temp_view_name, root_keys_column),
+            f"MERGE INTO {table_name} d USING"
+            f" {cls._gen_matched_keys_source(table_name, condition, key_columns)}"
+            " WHEN MATCHED THEN DELETE"
         ]
+
+    @classmethod
+    def gen_update_where_sql(
+        cls,
+        table_name: str,
+        set_clause: str,
+        condition: str,
+        key_columns: Sequence[str],
+        sql_client: SqlClientBase[Any],
+        *,
+        has_nested_subquery: bool,
+        key_cond: Optional[str] = None,
+    ) -> List[str]:
+        if not has_nested_subquery:
+            return super().gen_update_where_sql(
+                table_name,
+                set_clause,
+                condition,
+                key_columns,
+                sql_client,
+                has_nested_subquery=has_nested_subquery,
+                key_cond=key_cond,
+            )
+        # Delta rejects nested subqueries in UPDATE conditions, also through views, but accepts
+        # them in the MERGE source
+        source = cls._gen_matched_keys_source(table_name, condition, key_columns)
+        if key_cond:
+            source += f" AND {key_cond}"
+        return [
+            f"MERGE INTO {table_name} d USING {source} WHEN MATCHED THEN UPDATE SET {set_clause}"
+        ]
+
+    @staticmethod
+    def _gen_matched_keys_source(
+        table_name: str, condition: str, key_columns: Sequence[str]
+    ) -> str:
+        """Returns the MERGE source with the distinct keys of rows that match `condition`,
+        and its ON clause."""
+        # distinct, because MERGE fails when several source rows match one target row
+        keys = ", ".join(key_columns)
+        on_str = " AND ".join(f"d.{c} = k.{c}" for c in key_columns)
+        return f"(SELECT DISTINCT {keys} FROM {table_name} WHERE {condition}) k ON {on_str}"
 
 
 class DatabricksZerobusLoadJob(BatchedFileLoadJob[TRecordBatch], ABC, Generic[TRecordBatch]):
