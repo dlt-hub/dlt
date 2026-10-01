@@ -22,6 +22,7 @@ class RuntimeConfiguration(BaseConfiguration):
         "{asctime}|[{levelname}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}"
     )
     log_level: str = "WARNING"
+    log_output: str = "stderr"
     request_timeout: float = 60
     """Timeout for http requests"""
     request_max_attempts: int = 5
