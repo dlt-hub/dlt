@@ -9,11 +9,9 @@ keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dl
 This feature is in private preview
 :::
 
-`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, follows the traceback into the workspace source and a missing input back to the job that produces it, and reports a classification of the failure with evidence and a fix naming the target and the change. It inspects any batch job and doesn't change code or data.
+`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails and reads the run record, the logs, and the job definition, following the traceback into the workspace source and a missing input back to the job that produces it. It reports a classification of the failure with evidence and a fix naming the target and the change. It inspects any batch job and changes no code or data.
 
-Point its trigger at as much of the workspace as you want watched: one job, every job in a module, every job carrying a tag, or every job in the workspace. You declare the inspector once whichever you pick, and it inspects whatever fails. See [Triggers for agents](index.md#triggers-for-agents).
-
-You declare it like any other agent job. [Background agents](index.md) covers the mechanics this page builds on.
+Point its trigger at as much of the workspace as you want watched: one job, every job in a module, every job carrying a tag, or every job in the workspace. You declare the inspector once whichever you pick. See [Triggers for agents](index.md#triggers-for-agents), and [Background agents](index.md) for the mechanics this page builds on.
 
 ## Install the toolkit
 
@@ -28,7 +26,6 @@ dlthub ai toolkit install dlthub-platform
 Declare the `job-inspector` agent as a job in `__deployment__.py` and point its trigger at the jobs you want it to watch:
 
 ```py notype
-"""GitHub ingest workspace with a failure inspector."""
 from dlt.hub import run
 from github_pipeline import load_commits
 
@@ -51,7 +48,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id>
 dlthub deploy
 ```
 
-The run log streams to your terminal as the agent works: its reasoning, each tool call, and what each tool returned. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
+The run log streams to your terminal as the agent works: its reasoning, each tool call, and what each tool returned. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, `requires_human`).
 
 ## Agent inputs
 
@@ -79,7 +76,7 @@ Hand the inspector a run id and it reads that run whatever its status, so a gree
 dlthub local run job_inspector -c failed_run_id=<run-id>
 ```
 
-A green run that loaded nothing gets a description of the anomaly. The inspector reports the zero-row load in `summary` and leaves `fix_target` and `fix_change` empty, because a run that completed carries no error to trace back to a setting. Catch a silent shortfall with a [data quality](../data-quality/index.md) check on the loaded row count, and let that check's failed run be what starts the inspector.
+A green run that loaded nothing gets a description of the anomaly. The inspector reports the zero-row load in `summary` and leaves `fix_target` and `fix_change` empty, because a completed run carries no error to trace back to a setting. Catch a silent shortfall with a [data quality](../data-quality/index.md) check on the loaded row count, and start the inspector from that check's failed run.
 
 ## What it reports
 
@@ -127,7 +124,7 @@ The definition ships these defaults. The agent job and the individual run overri
 The definition names no model, so the model comes from the job or the workspace. Give it one at least as capable as Claude Sonnet 5.
 
 :::warning
-Narrow the trigger as soon as a second agent job is deployed. `job.fail:*` matches every batch job in the workspace, agent jobs included. The declaring job is excluded, so the inspector never triggers on its own failures, but two agents both watching `job.fail:*` do trigger each other: a failed run of A starts B, a failed run of B starts A, and the pair keeps going. A tag or section selector such as `job.fail:tag:ingest` scopes the inspector to the jobs you want watched. Excluding agent jobs from wide selectors is planned.
+Narrow the trigger as soon as a second agent job is deployed. `job.fail:*` matches every batch job in the workspace, agent jobs included. The declaring job is excluded, so the inspector never triggers on its own failures, but two agents both watching `job.fail:*` trigger each other without stopping. A tag or section selector such as `job.fail:tag:ingest` scopes the inspector to the jobs you want watched. Excluding agent jobs from wide selectors is planned.
 :::
 
 Narrow the trigger and change the settings on the job:
@@ -153,8 +150,8 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 
 ## Guardrails
 
-- **Reads, never writes.** The definition grants `local: [read]` and `context: [read]`: `Read`, `Glob`, and `Grep` over workspace files, and runs, logs, job definitions, and telemetry through the dltHub MCP server. Its feature groups are `jobs`, `logs`, `telemetry`, `workspace`, `pipeline`, `secrets`, and `config`.
-- **No shell, by design.** The credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection.
+- **Read grants only.** The definition grants `local: [read]` and `context: [read]`: `Read`, `Glob`, and `Grep` over workspace files, and runs, logs, job definitions, and telemetry through the dltHub MCP server. Its feature groups are `jobs`, `logs`, `telemetry`, `workspace`, `pipeline`, `secrets`, and `config`.
+- **No shell.** The credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection.
 - **No destination access.** The definition declares no `data` axis, so the agent can't query your data. A diagnosis is built from run records, logs, job definitions, the dlt trace, and workspace source. When the cause turns on what a table holds, the agent puts that in `open_points` and names the query that would settle it.
 - **Credentials as `***`.** The `secrets` group serves `secrets_list` and `secrets_view_redacted`. Writing a secrets file needs `local: write`, which the definition doesn't grant, so that tool is never offered. The credential check reads the redacted view and the profile's variables, and the body forbids putting any value other than `***` in the output.
 - **No changes to your workspace.** The body rules it read-only on top of the grants: it doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.

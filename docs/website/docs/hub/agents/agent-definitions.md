@@ -1,6 +1,6 @@
 ---
 title: Agent definitions
-description: Write a dltHub agent definition as an AGENT.md file, or as a decorated Python function for the advanced cases
+description: Write a dltHub agent definition as an AGENT.md file, or as a decorated Python function
 keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, access, tools, skills, rules, run.agent]
 ---
 # Agent definitions
@@ -9,30 +9,29 @@ keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, 
 This feature is in private preview
 :::
 
-Installed toolkits ship verified agent definitions ready to declare as jobs, such as the [job inspector agent](job-inspector.md) in the `dlthub-platform` toolkit. This page describes how to write your own, or how to adapt an installed one for your workspace.
+Installed toolkits ship verified agent definitions ready to declare as jobs, such as the [job inspector agent](job-inspector.md) in the `dlthub-platform` toolkit. This page describes how to write your own, or how to adapt an installed one.
 
-An agent definition consists of a system prompt and a declaration of the agent's inputs, output, tools, and access. Write it as an `AGENT.md` file. Toolkits ship their agents in that form, `dlthub ai toolkit install` copies them into your workspace, and you adapt one or write your own without touching Python.
+An agent definition consists of a system prompt and a declaration of the agent's inputs, output, tools, and access. Write it as an `AGENT.md` file. Toolkits ship their agents in that form, and `dlthub ai toolkit install` copies them into your workspace.
 
 A decorated Python function produces the same agent job and covers the cases an `AGENT.md` can't reach. See [Agent definition as a Python function](#agent-definition-as-a-python-function-advanced).
 
 ## Agent definition in an `AGENT.md` file
 
-`dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts). Coding agents don't scan this folder for their own subagents. You can also keep an `AGENT.md` in any folder of the workspace and refer to it by its path.
+`dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts). Coding agents don't scan this folder for their own subagents. An `AGENT.md` can also sit in any folder of the workspace and be referred to by its path.
 
-The YAML frontmatter holds the declarations and the Markdown body is the system prompt. Only the body is required. A file with no frontmatter is a working agent named after its folder. The example below is a shortened version of the `job-inspector` definition:
+The YAML frontmatter holds the declarations and the Markdown body is the system prompt. Only the body is required: a file with no frontmatter is a working agent named after its folder. The example below is a shortened `job-inspector` definition:
 
 ```md
 ---
 name: job-inspector
 description: Inspects a failed job run and reports a diagnosis with a proposed fix. Read-only.
-tools: [jobs, logs, telemetry]              # feature groups of the dltHub MCP server
-skills: [dlthub-platform:debug-deployment]  # loaded on demand or inlined
-rules:  [dlthub-platform:job-resources]     # always inlined into the prompt
+tools: [jobs, logs, telemetry]
+skills: [dlthub-platform:debug-deployment]
+rules:  [dlthub-platform:job-resources]
 
-access:                                     # what the agent may read, write, or run
-  local:   [read]                           # read | write | execute | network
-  context: [read]                           # runs, logs, job definitions, telemetry
-                                            # no `data`: the diagnosis reads metadata and source, never rows
+access:
+  local:   [read]
+  context: [read]
 
 inputs:
   type: object
@@ -40,7 +39,7 @@ inputs:
     failed_run_id:
       type: string
       description: run id of the failed job run to inspect
-      entity_type: job-run                  # this input names a workspace entity
+      entity_type: job-run
     failed_job_ref:
       type: string
       description: job ref of the failed job; its latest failed run is inspected when no run id is given
@@ -56,7 +55,7 @@ output:
     summary:
       type: string
       description: Markdown. What you accomplished, or what blocked you when `status` is `aborted`
-    failed_run_id:                          # the run actually inspected, reported as an entity
+    failed_run_id:
       type: string
       entity_type: job-run
     classification:
@@ -70,7 +69,7 @@ output:
       items:
         type: object
         properties:
-          source: { type: string }          # with the line the excerpt sits on
+          source: { type: string }
           excerpt: { type: string }
           provenance:
             enum: [run_log, run_record, trace, job_definition, workspace_file, inference]
@@ -81,7 +80,7 @@ output:
       type: boolean
   required: [status, summary, classification, confidence, evidence, requires_human]
 
-defaults:                                   # the job and the run may override all of these
+defaults:
   trigger: [job.fail:*]
   limits: { max_turns: 30, max_tokens: 1000000 }
   loop_run_args: { retries: 2 }
@@ -90,8 +89,8 @@ You are a job inspector for a dltHub Platform workspace. You run unattended, sec
 after a job failed. Explain the failure. Do not repair it.
 
 You were given run id '{{ failed_run_id }}' and job ref '{{ failed_job_ref }}', from
-trigger `{{ run_context.trigger }}`. Any of the three may be empty. Resolve them in this
-order and stop at the first that works:
+trigger `{{ run_context.trigger }}`. Any of the three may be empty. Resolve them in
+this order and stop at the first that works:
 
 1. A run id: inspect that run.
 2. A job ref: take its latest failed run.
@@ -115,7 +114,7 @@ order and stop at the first that works:
 
 `inputs` is a JSON Schema. Every property becomes a configuration key of the job, so you can set it with `-c failed_run_id=...` on the command line, under `[jobs.<section>.<job>]` in `config.toml` or the environment, or through a run argument the trigger carries. Values are typed: `-c depth=3` resolves to an `int` when the schema declares one.
 
-The body refers to inputs as `{{ name }}`. It can also refer to the run itself: `{{ run_context.trigger }}`, `{{ run_context.run_id }}`, `{{ run_context.refresh }}`, and on a job with an interval `{{ run_context.interval_start }}` and `{{ run_context.interval_end }}`. Placeholders are rendered before the first turn.
+The body refers to inputs as `{{ name }}`, and to the run itself as `{{ run_context.trigger }}`, `{{ run_context.run_id }}`, `{{ run_context.refresh }}`, and on a job with an interval `{{ run_context.interval_start }}` and `{{ run_context.interval_end }}`. Placeholders are rendered before the first turn.
 
 - A required input with no value fails the run like any missing job argument.
 - An optional input with no value renders as empty text. The body must say what to do then, and when to abort.
@@ -127,9 +126,9 @@ The body refers to inputs as `{{ name }}`. It can also refer to the run itself: 
 An input that names a workspace object carries `entity_type`: `job-run`, `job`, `pipeline`, `dataset`, or `workspace`. The agent receives the bare id (a run id, a [job ref](index.md#job-refs), a pipeline name). Declaring the type does two things:
 
 1. The run reports the entity in its result, so the run shows up on that entity's page in the Web UI.
-2. The first entity-typed input becomes `expose.object_input` in the deployment manifest. The Web UI reads it to offer the agent job from an entity. On a failed run's row it lists every agent job with a `job-run` input, and picking one starts a run with that run id filled in.
+2. The first entity-typed input becomes `expose.object_input` in the deployment manifest. The Web UI reads it to offer the agent job from an entity: a failed run's row lists every agent job with a `job-run` input, and picking one starts a run with that run id filled in.
 
-Declare the same name with `entity_type` on an output property when the agent may end up acting on a different entity than it was given. An output overwrites the input of the same name, so an inspector that resolved a run from a job ref reports the run it actually inspected.
+Declare the same name with `entity_type` on an output property when the agent may act on a different entity than it was given. An output overwrites the input of the same name, so an inspector that resolved a run from a job ref reports the run it inspected.
 
 ### Output schema
 
@@ -140,9 +139,9 @@ Declare the same name with `entity_type` on an output property when the agent ma
 | `status`  | `succeeded` or `failed`, as your prompt defines them, or `aborted` when the task couldn't be done at all     |
 | `summary` | Markdown. What the agent accomplished. For `aborted` it becomes the text of the exception that fails the run |
 
-Declare both in the file so it shows the whole contract, and leave them as they stand. dltHub replaces any declaration that differs from the standard one. Adding a `status` value or typing `summary` as something other than a string has no effect: the standard `status` and `summary` are used instead. Put a domain outcome in a field of its own, so a data-quality agent returns a `verdict` and `status` keeps its meaning.
+Declare both in the file to show the whole contract, and leave them as they stand. dltHub replaces any declaration that differs from the standard one, so adding a `status` value or typing `summary` as something other than a string has no effect. A domain outcome belongs in a field of its own, so a data-quality agent returns a `verdict` and `status` keeps its meaning.
 
-Declare the agent's own fields alongside `status` and `summary`. The model receives the whole output schema, every description and enum included, so give a description to each field whose name doesn't explain it. The schema describes the shape of the answer. The body says what each value means and when to pick it.
+The model receives the whole output schema, descriptions and enums included, so give a description to each field whose name doesn't explain it. The body says what each value means and when to pick it.
 
 :::warning
 Keep the schema small. A large one can stop a platform run before the container launches, with no error, no logs, and no start time on the run record. Stay under about 8,000 characters of JSON: flatten nested models and drop the fields the `summary` already covers.
@@ -164,14 +163,14 @@ output:
       description: pass when every check passed, warn when only soft checks failed, fail otherwise
     checked_run_id:
       type: string
-      entity_type: job-run                # travels to the model in `$comment`
+      entity_type: job-run
     rows_checked:
       type: integer
-      description: How many rows you read, between 1 and 1000000   # a bound belongs here, `minimum` is rejected
+      description: How many rows you read, between 1 and 1000000
   required: [status, summary, verdict]
 ```
 
-`status` and `summary` stay out of the declaration here, so dltHub adds them. `verdict` carries the domain outcome, and its description tells the model when to pick each value.
+`status` and `summary` stay out of the declaration here, so dltHub adds them.
 
 ### Summary structure
 
@@ -187,7 +186,7 @@ Declare your own headings in the body when your agent reports something else.
 
 ### Access declaration
 
-`access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis you leave out grants nothing. With no `access` at all the agent receives no file tools or shell, and its MCP server serves only the toolkit catalog.
+`access` is declared per axis: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis you leave out grants nothing. With no `access` at all the agent receives no file tools or shell, and its MCP server serves only the toolkit catalog.
 
 | Axis      | Verbs           | Grants                                                                                                                                                |
 | --------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -202,9 +201,9 @@ Declare your own headings in the body when your agent reports something else.
 
 `access` doesn't select the profile the job runs on. An agent job takes the read-only `access` profile unless it declares otherwise, so a `data` grant reads through read-only credentials. Keep it that way: an unattended agent must not hold the production profile. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
-The declaration is a request that the runtime grants as far as it can. If the loop has no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
+The runtime grants the declaration as far as it can. With no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
 
-Write the policy into the body as well. "You are read-only" in the prompt helps the model understand its role, and the `access` block enforces it for the MCP tools. `local: execute` is the exception: the shell runs under the job's credentials and nothing restricts what it does with them, so an agent with `execute` and data access needs an explicit rule in the body never to write data.
+Write the policy into the body as well. "You are read-only" in the prompt helps the model understand its role, and `access` enforces it for the tools. The shell is the exception: it runs under the job's credentials with nothing restricting what it does with them, so an agent with `local: execute` and data access needs an explicit rule in the body never to write data.
 
 ### Tools, skills, and rules
 
@@ -223,10 +222,10 @@ defaults:
   trigger: [job.fail:*]                 # trigger strings, selectors allowed
   model: sonnet                         # alias, or provider:model
   limits: {max_turns: 30, max_tokens: 1000000}
-  loop_run_args: {retries: 2}           # passed to the framework
+  loop_run_args: {retries: 2}
 ```
 
-`access`, `tools`, `skills`, and `rules` are declarations, not defaults. A job that references the definition keeps them as declared. A decorated function that drives the definition replaces each list it passes an argument for, every axis included.
+`access`, `tools`, `skills`, and `rules` sit outside `defaults`. A job that references the definition keeps them as declared. A decorated function that drives the definition replaces each list it passes an argument for, every axis included.
 
 Leave `model` out of a definition you ship in a toolkit. Whoever installs it may be on Anthropic, OpenAI, Azure or Google, and a model you name is one they may not be able to reach. The job or the workspace picks it. Write in the body which models the prompt was written for, for example "at least as capable as Claude Sonnet 5".
 
@@ -235,9 +234,9 @@ Leave `model` out of a definition you ship in a toolkit. Whoever installs it may
 The body is the system prompt. Write it as you would a skill, for a reader who has the tools and needs the context. Platform knowledge belongs in the referenced rules and skills. Keep the body under about two hundred lines and cover these points:
 
 1. State the role in two sentences, including that the agent runs unattended.
-2. Define `succeeded`, `failed`, and `aborted` for this agent. The output schema lists the three values but says nothing about when each applies, so the model decides for itself unless the body tells it. Under structured output it leans towards `succeeded` when unsure, so spell out what counts as a failure.
+2. Define `succeeded`, `failed`, and `aborted` for this agent. The schema lists the values but not when each applies, and under structured output the model leans towards `succeeded` when unsure, so spell out what counts as a failure.
 3. Say what to do with each input, and with its absence. Name the fallbacks in order and the point at which the answer is `aborted`.
-4. Give the first steps concretely. Which tool to call first, what to read, what to look for.
+4. Give the first steps concretely: which tool to call first, what to read, what to look for.
 5. Write constraints as rules, for example "Never edit code, never deploy, never rerun a job".
 6. Define every enum the output declares. Say what `unknown` or `low` means and that reporting it is a legitimate outcome.
 7. State the headings `summary` must carry and the shape of its bullets. See [Summary structure](#summary-structure).
@@ -252,7 +251,9 @@ Write the definition in Python when you need the schemas to come from Python typ
 
 A decorated function doesn't need an `AGENT.md` or a toolkit. Its docstring is the system prompt, its parameters are the inputs, and its return type is the output. The decorator arguments are the agent job's settings, and the body drives the loop it finds in `run_context["ai_loop"]`.
 
-Write the docstring as a prompt. It goes to the model on every run with its placeholders resolved, the same way an `AGENT.md` body does, and the [system prompt body](#system-prompt-body) points apply to it. The function body decides how the loop is driven, and the model reads none of it, so a rewrite of the function that trims the docstring to a description changes the agent.
+Write the docstring as a prompt. It goes to the model on every run with its placeholders resolved, the same way an `AGENT.md` body does, and the [system prompt body](#system-prompt-body) points apply to it. The model reads none of the function body, so trimming the docstring to a description changes the agent.
+
+Both forms resolve to the same validated spec. The model reads the body or the docstring, and dlt resolves every other field before the first turn. A tool the declaration leaves out is never built, so the model is never offered it. A field that breaks the contract fails when the definition loads, with `InvalidAgentSpec`.
 
 ```py notype
 from typing import Annotated, List, Literal
@@ -263,7 +264,7 @@ from dlt.hub import run
 
 
 class CrashReport(run.TAgentOutput):
-    """`status` and `summary` come from the base."""
+    # `status` and `summary` come from the base
     classification: Annotated[
         Literal["config", "credentials", "code", "upstream_data", "unknown"],
         run.Doc("What kind of failure it was"),
@@ -310,7 +311,7 @@ async def crash_inspector(
 | `access=`, `tools=`, `skills=`, `rules=`                           | Matching `AGENT.md` fields                                                         |
 | `model=`, `limits=`, `loop_run_args=`, `instructions=`, `trigger=` | Agent job settings, `defaults` in an `AGENT.md`                                    |
 
-The schemas come from pydantic, so `Optional`, `Literal`, `List`, nested models, and `NotRequired` behave as they do everywhere else. The function may be `def` or `async def`. Most functions return the loop's output as is. The example body shows the function can also inspect `loop.trace`, run the loop twice, or skip it.
+The schemas come from pydantic, so `Optional`, `Literal`, `List`, nested models, and `NotRequired` behave as they do everywhere else. The function may be `def` or `async def`. Most functions return the loop's output as is; the example above also inspects `loop.trace`.
 
 A function can also drive an installed agent definition. Pass it as `agent=`. The decorator arguments and the function override its fields:
 

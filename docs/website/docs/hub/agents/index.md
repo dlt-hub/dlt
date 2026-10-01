@@ -13,7 +13,7 @@ An agent job is a dltHub job that runs an AI agent loop. It runs unattended on a
 
 Agent jobs are declared, run, and deployed like every other job: in `__deployment__.py`, with `dlthub local run` locally and `dlthub deploy` on the platform. What's described in [Deployments](../pipeline-operations/deployments.md), [Triggers and scheduling](../pipeline-operations/triggers.md), and [Job configuration](../pipeline-operations/job-configuration.md) applies to agent jobs as well.
 
-This page covers declaring an agent as a job and running it locally and on the platform. [Agent definitions](agent-definitions.md) covers the definition itself. The examples use `job-inspector`, the agent the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit ships. See [Job inspector agent](job-inspector.md) for what it does and how to declare it.
+This page covers declaring an agent as a job and running it locally and on the platform. [Agent definitions](agent-definitions.md) covers the definition itself. The examples use `job-inspector` from the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. See [Job inspector agent](job-inspector.md) for what it does.
 
 ## Terms
 
@@ -26,7 +26,7 @@ This page covers declaring an agent as a job and running it locally and on the p
 | Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
 | Verb             | What the agent may do on an axis: `read`, `write`, `execute`, `network`                                                                                                             | Listed under the axis in `access`                                     |
 
-The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
+The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace to adapt. Your `__deployment__.py` declares the agent jobs built on them, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
 ## Prerequisites
 
@@ -37,8 +37,8 @@ The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent defi
    uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"
    ```
 
-   You install it for local runs. On deploy, each agent job declares the loop's dependency group
-   and the platform runner installs it before the run starts. See [Agent loop](#agent-loop).
+   This covers local runs. On deploy, each agent job declares the loop's dependency group and
+   the platform runner installs it. See [Agent loop](#agent-loop).
 3. Credentials for a model provider. Locally, the provider's default environment variables work (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on). See [Model and credentials](#model-and-credentials) for the configuration keys.
 
 ## Declare the agent job
@@ -60,9 +60,9 @@ inspector = run.agent(
 
 The job is named after the agent definition (`job-inspector` becomes `job_inspector`) in the declaring module's section. Every argument overrides the matching entry of the definition's `defaults`.
 
-`access`, `tools`, `skills`, and `rules` aren't `defaults`. A referenced agent keeps the lists its definition declares and `run.agent` drops the arguments for them. A decorated function driving a referenced agent is the other way around: its argument replaces the definition's list, so `access={"local": ["read"]}` on such a function removes `context: read`. Pass every axis the agent needs, or leave the block to the definition.
+`access`, `tools`, `skills`, and `rules` sit outside `defaults`. A referenced agent keeps the lists its definition declares, and `run.agent` drops the arguments for them. On a decorated function driving a referenced agent, the argument replaces the definition's list, so `access={"local": ["read"]}` there removes `context: read`. Pass every axis the agent needs, or leave the block to the definition.
 
-We strongly advise never to assign the production profile to an unattended agent. An agent job takes the read-only `access` profile by default, and the example pins it. See [Profile of an agent job](#profile-of-an-agent-job).
+Never assign the production profile to an unattended agent. An agent job takes the read-only `access` profile by default, and the example pins it. See [Profile of an agent job](#profile-of-an-agent-job).
 
 | Argument                                          | Meaning                                                                                                                                                             |
 | ------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -84,7 +84,7 @@ Agent jobs take every trigger other jobs take. Two string triggers react to the 
 
 #### Job refs
 
-A job ref is the name the platform gives one job. It is built from where the job is declared, so you can read it off the source. This file declares two jobs:
+A job ref is the name the platform gives a job. It is built from where the job is declared, so you can read it off the source. This file declares two jobs:
 
 ```py notype
 # github_pipeline.py
@@ -125,15 +125,15 @@ So `trigger="job.fail:tag:ingest"` starts the agent whenever a job tagged `inges
 
 A selector expands at deploy time to a follow-up trigger per matching job. The declaring job itself and interactive jobs are excluded. A run started manually arrives with a `manual:` trigger and only the inputs it was given, so the body must say what to do with empty input.
 
-An agent that only ever runs when you start it takes no `trigger=` at all. The runner adds the `manual:` trigger itself, so `trigger.manual()` is not something you pass: it raises `InvalidTrigger: manual: triggers are added automatically`.
+An agent that only runs when you start it takes no `trigger=` at all. The runner adds the `manual:` trigger itself, and passing `trigger.manual()` raises `InvalidTrigger: manual: triggers are added automatically`.
 
 ### Profile of an agent job
 
-A [profile](../pipeline-operations/profiles.md) names the set of credentials a job runs with. It's a separate thing from the `access` declaration: `access` decides which tools the model is offered, the profile decides which credentials the job process holds. An agent granted `data: write` on a job running the `access` profile still can't write, because the credentials it holds can't.
+A [profile](../pipeline-operations/profiles.md) names the set of credentials a job runs with, separately from the `access` declaration. `access` decides which tools the model is offered. The profile decides which credentials the job process holds, so an agent granted `data: write` on a job running the `access` profile still can't write.
 
 The profile covers profile-scoped configuration: `prod.secrets.toml`, `prod.config.toml`, and a variable set with `dlthub variable set --profile prod`. A variable set with `--workspace` carries no profile and reaches the job whatever it runs on, so a secret that must stay away from an agent belongs in a profile scope. `dlthub variable list` prints the scope of each one.
 
-Which profile an agent job runs on is decided for you unless you say otherwise. An agent job that declares none runs on the read-only `access` profile, so the production credentials stay out of its environment. Other batch jobs still default to `prod`; the agent job is the exception.
+An agent job that declares no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Other batch jobs still default to `prod`.
 
 Every workspace has an `access` profile, so the default applies wherever you deploy. Pin it on the job anyway, to state the intent in the code:
 
@@ -145,7 +145,7 @@ inspector = run.agent(
 )
 ```
 
-A declared profile always wins, `prod` included, so nothing stops `require={"profile": "prod"}` on an agent job. Don't give an agent the production profile. An agent job runs unattended, with a model deciding what to do, and the production profile hands that decision the credentials to change your data. Work that needs production write credentials belongs in a pipeline or a plain job a person wrote and reviewed.
+A declared profile always wins, `prod` included, so nothing stops `require={"profile": "prod"}` on an agent job. Don't do it. An agent job runs unattended with a model deciding what to do, and the production profile hands that decision the credentials to change your data. Work that needs production write credentials belongs in a pipeline or a plain job a person wrote and reviewed.
 
 :::warning
 The profile is a name for a set of credentials, and dltHub doesn't check what those credentials can do. Before you run an unattended agent, make sure the destination credentials in your `access` profile are read-only at the destination itself: a read-only database role, a storage key without write permission. An `access` profile holding a writable credential gives the agent write access under a read-only name. [Define profiles](../pipeline-operations/profiles.md#define-profiles) covers where each profile's credentials live.
@@ -240,12 +240,12 @@ dlthub deploy
 A selector trigger expands at deploy time, so a `job.fail:` agent job starts watching the jobs it matches as soon as the deployment lands. See [Deployments](../pipeline-operations/deployments.md).
 
 :::warning
-Check what a wide selector matched before you deploy a second agent job. `job.fail:*` and `job.fail:batch:` match every batch job in the workspace, agent jobs included. The declaring job is excluded, so an agent never triggers on its own failures, but two agents both watching `job.fail:*` do trigger each other: a failed run of A starts B, a failed run of B starts A, and the pair keeps going until you archive one. Scope each agent with a tag or a section selector, such as `job.fail:tag:ingest`. `dlthub deploy --show-manifest` prints the concrete triggers a selector expanded to. Excluding agent jobs from wide selectors is planned.
+Check what a wide selector matched before you deploy a second agent job. `job.fail:*` and `job.fail:batch:` match every batch job in the workspace, agent jobs included. The declaring job is excluded, so an agent never triggers on its own failures, but two agents both watching `job.fail:*` trigger each other until you archive one. Scope each agent with a tag or a section selector, such as `job.fail:tag:ingest`. `dlthub deploy --show-manifest` prints the concrete triggers a selector expanded to. Excluding agent jobs from wide selectors is planned.
 :::
 
 ## Read the agent run result
 
-An agent run leaves three things behind, and they answer different questions:
+An agent run leaves three things behind:
 
 | What        | Where                                                                                  | Holds                                                                                                                                                                             |
 | ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
@@ -253,7 +253,7 @@ An agent run leaves three things behind, and they answer different questions:
 | Agent trace | The run's **Trace** in the Web UI, and `trace` in the result below                     | The structured record of the same run: model, limits, resolved inputs, the tools that were wired, turn and token counts, per-turn tool calls                                      |
 | Job result  | The run's **Summary** in the Web UI, `dlthub job runs info`                            | What the agent returned: `status`, `summary`, and the fields its `output` schema declares                                                                                         |
 
-The log is what the run printed, so you read it to follow what the agent did and why. The trace is queryable, so you read it to count turns and tokens or to check which tools a run was actually given.
+Read the log to follow what the agent did and why. The trace is queryable, so it answers how many turns and tokens a run took and which tools it was given.
 
 `agent.verbosity` controls how much reaches the log: `0` the outcome and tool names, `1` adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt. The log is colored when a terminal is attached. Set `DLT_ECHO_FORCE_COLOR` to keep the colors without a terminal, or `DLT_ECHO_NO_COLOR` to drop them.
 
@@ -317,11 +317,11 @@ The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives 
 ## Guardrails
 
 - Tools follow the `access` declaration. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and a tool the grant doesn't cover isn't offered to the model. A tool declaring nothing is taken to need everything, so a plugin tool without a declaration reaches no agent.
-- An agent runs no code unless its definition grants `local: execute`. Without that verb it has no `Bash` and no `RunPython`, so it can read and reason but can't run anything on the runner. The agents the harness ships don't grant it.
+- An agent runs no code unless its definition grants `local: execute`. Without that verb it has no `Bash` and no `RunPython`. The agents the harness ships don't grant it.
 - Credential files are never readable by a file tool: `*secrets.toml`, `.env`, `.env.*`, whatever `local` grants. The `secrets` feature group is the way an agent sees them: `secrets_list` and `secrets_view_redacted` need `local: read` and return every value as `***`, and `secrets_update_fragment` writes a secrets file and needs `local: write`. Grant `tools: [secrets]` and `local: write` together only to an agent meant to change credentials.
 - SQL through the MCP server is limited to a single `SELECT` statement per call.
-- `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. It also reaches around the file tools' credential rules. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
-- `data` is a grant you make deliberately: it opens the workspace data to a model-driven process. `read` serves the read tools only, and the SQL tool takes a single `SELECT`. The agents the harness ships declare `local: read` and `context: read` and no `data`, and build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
+- `execute` runs in the job's own process tree and virtual environment, with the job's credentials on the runner, and it reaches around the file tools' credential rules. Grant it only to agents that need it, and give an agent with `execute` and data access an explicit rule never to write data.
+- `data` opens the workspace data to a model-driven process, so grant it deliberately. `read` serves the read tools only, and the SQL tool takes a single `SELECT`. The agents the harness ships declare `local: read` and `context: read` and no `data`, and build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
 - An agent job declaring no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Next steps
