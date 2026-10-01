@@ -21,6 +21,8 @@ Meet the [prerequisites](index.md#prerequisites) for agent jobs, then install th
 dlthub ai toolkit install dlthub-platform
 ```
 
+[Set up with your coding agent](../getting-started/agents.md#set-up-with-your-coding-agent) carries a prompt that does the whole setup, from an empty directory to a declared inspector job.
+
 ## Quick start: inspect failed jobs
 
 Declare the `job-inspector` agent as a job in `__deployment__.py` and point its trigger at the jobs you want it to watch:

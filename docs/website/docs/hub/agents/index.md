@@ -30,6 +30,8 @@ The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent defi
 
 ## Prerequisites
 
+A coding agent can do this setup for you. Paste the prompt in [Set up with your coding agent](../getting-started/agents.md#set-up-with-your-coding-agent), which initializes the workspace, installs the toolkit, and declares the inspector job.
+
 1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](../pipeline-operations/workspace-setup.md).
 2. The `pydantic-ai` agent loop installed locally:
 
@@ -354,6 +356,7 @@ The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives 
 
 ## Next steps
 
+- [Getting started with agents](../getting-started/agents.md) sets up a workspace and the inspector job from a coding agent prompt
 - [Agent definitions](agent-definitions.md) covers the `AGENT.md` and Python function forms
 - [Job inspector agent](job-inspector.md) is the verified agent that diagnoses failed job runs
 - [Job inspector evaluator](job-inspector-eval.md) grades an inspector run against the inspector's own instructions
