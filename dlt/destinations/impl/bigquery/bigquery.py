@@ -60,7 +60,6 @@ from dlt.destinations.job_impl import (
 )
 from dlt.destinations.sql_client import SqlClientBase
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
-from dlt.destinations.sql_client import SqlClientBase
 
 
 # file_id prefix marking the single aggregated reference job that atomic replace loads with
@@ -192,17 +191,19 @@ class BigQueryMergeJob(SqlMergeFollowupJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         return [
             f"FROM {root_table_name} AS d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} AS"
-            f" s WHERE {clause.format(d='d', s='s')})"
+            f" s WHERE {cls._gen_staging_rows_cond(clause.format(d='d', s='s'), source_filter)})"
             for clause in key_clauses
         ]
 
     @classmethod
     def gen_column_qualifier(cls, table_name: str, sql_client: SqlClientBase[Any]) -> str:
-        # a path cannot qualify a column, the last identifier is the implicit alias of the table
+        # BigQuery cannot qualify a column with a path. The last identifier is the implicit alias
+        # of the table
         return sql_client.make_qualified_table_name_path(table_name)[-1]
 
 

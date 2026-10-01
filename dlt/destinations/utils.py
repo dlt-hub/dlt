@@ -11,14 +11,14 @@ from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
+    MERGE_STRATEGY_OPTIONS,
     TColumnType,
     TLoaderReplaceStrategy,
     TTableSchema,
 )
 from dlt.common.schema.utils import (
-    MERGE_FILTER_PLACEHOLDERS,
-    MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER,
-    validate_merge_filter,
+    MERGE_CONDITION_PLACEHOLDERS,
+    validate_merge_condition,
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
     has_column_with_prop,
@@ -135,11 +135,12 @@ def verify_schema_merge_disposition(
     load_tables: Sequence[PreparedTableSchema],
     capabilities: DestinationCapabilitiesContext,
     warnings: bool = True,
-    input_filter_placeholders: Sequence[str] = (),
-    output_filter_placeholders: Sequence[str] = MERGE_FILTER_PLACEHOLDERS,
+    source_filter_placeholders: Sequence[str] = (),
+    destination_scope_placeholders: Sequence[str] = MERGE_CONDITION_PLACEHOLDERS,
 ) -> List[Exception]:
-    """Verifies the merge hints of `load_tables`. Verifies merge filters against the
-    placeholders that the destination expands. Returns exceptions for errors and logs warnings."""
+    """Verifies the merge hints of `load_tables`. Verifies `source_filter` and `destination_scope`
+    against the placeholders that the destination expands. Returns exceptions for errors and
+    logs warnings."""
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
@@ -178,15 +179,14 @@ def verify_schema_merge_disposition(
                     )
                 )
                 continue
-            has_input_filter = "x-merge-input-filter" in table
-            has_output_filter = "x-merge-output-filter" in table
+            has_destination_scope = "x-merge-destination-scope" in table
             for hint_name, x_hint, placeholders in (
-                ("merge_input_filter", "x-merge-input-filter", input_filter_placeholders),
-                ("merge_output_filter", "x-merge-output-filter", output_filter_placeholders),
+                ("source_filter", "x-merge-source-filter", source_filter_placeholders),
+                ("destination_scope", "x-merge-destination-scope", destination_scope_placeholders),
             ):
                 if filter_ := table.get(x_hint):
                     try:
-                        validate_merge_filter(hint_name, cast(str, filter_), placeholders)
+                        validate_merge_condition(hint_name, cast(str, filter_), placeholders)
                     except ValueError as filter_ex:
                         exception_log.append(
                             SchemaCorruptedException(
@@ -197,8 +197,8 @@ def verify_schema_merge_disposition(
                 if (
                     not has_column_with_prop(table, "primary_key")
                     and not has_column_with_prop(table, "merge_key")
-                    # an output filter selects the rows to replace without keys
-                    and not has_output_filter
+                    # without keys, the destination scope selects the rows that this load replaces
+                    and not has_destination_scope
                 ):
                     log(
                         f"Table {table_name} has `write_disposition` set to `merge`"
@@ -221,27 +221,31 @@ def verify_schema_merge_disposition(
                         f" `{merge_strategy}` merge strategy. Merge key is not supported"
                         " for this strategy and will be ignored."
                     )
-            if has_input_filter and merge_strategy == "delete-insert" and not has_output_filter:
-                exception_log.append(
-                    SchemaCorruptedException(
-                        schema.name,
-                        f"Table `{table_name}`: {MERGE_INPUT_FILTER_WITHOUT_OUTPUT_FILTER}",
+            # the resource rejects these options for an explicit strategy. Only the destination
+            # knows the default strategy
+            for option, x_hint in (
+                ("source_filter", "x-merge-source-filter"),
+                ("destination_scope", "x-merge-destination-scope"),
+                ("skip_unchanged_rows", "x-merge-skip-unchanged-rows"),
+            ):
+                strategies = MERGE_STRATEGY_OPTIONS[option]
+                if table.get(x_hint) and merge_strategy not in strategies:
+                    supported = ", ".join(f"`{s}`" for s in strategies)
+                    log(
+                        f"Table `{table_name}` sets `{option}` with the `{merge_strategy}` merge"
+                        f" strategy. dlt ignores this option, because only the {supported} merge"
+                        " strategies support it. Use one of these strategies or remove the option."
                     )
+            if (
+                has_destination_scope
+                and merge_strategy in MERGE_STRATEGY_OPTIONS["destination_scope"]
+                and has_column_with_prop(table, "merge_key")
+            ):
+                log(
+                    f"Table `{table_name}` has `merge_key` and `destination_scope`. The"
+                    " destination scope selects the destination records to delete or retire, so"
+                    " dlt ignores `merge_key`."
                 )
-            if has_input_filter or has_output_filter:
-                if merge_strategy in ("upsert", "insert-only"):
-                    log(
-                        f"Table `{table['name']}` has a merge filter and the"
-                        f" `{merge_strategy}` merge strategy. dlt ignores merge filters for this"
-                        " strategy. dlt supports them for the `delete-insert`, `scd2` and `cdc`"
-                        " strategies."
-                    )
-                elif has_column_with_prop(table, "merge_key"):
-                    log(
-                        f"Table `{table['name']}` has `merge_key` and a merge filter. The merge"
-                        " filter selects the destination records to delete or retire, so dlt"
-                        " ignores `merge_key`."
-                    )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                 exception_log.append(
