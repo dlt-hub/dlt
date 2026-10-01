@@ -679,6 +679,8 @@ adding the transform with `add_map`.
 
 Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. Validity column values for records in nested tables can be obtained by joining the root table using `_dlt_root_id` (`root_key`).
 
+`dlt` propagates `_dlt_root_id` to nested tables automatically when an `scd2` resource is loaded for the first time. If the nested tables were already created without it, `dlt` does not add it on its own, because adding a `NOT NULL` column to existing tables fails on many destinations. To add it, follow [forcing root key propagation](#forcing-root-key-propagation).
+
 ### Limitations
 
 * You cannot use columns like `updated_at` or integer `version` of a record that are unique within a `primary_key` (even if it is defined). The hash column
