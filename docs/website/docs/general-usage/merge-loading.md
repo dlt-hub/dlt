@@ -966,6 +966,28 @@ Nested rows follow their parent row. dlt deletes the nested rows of a deleted pa
 ### Limitations of `cdc`
 
 - The `primary_key` of the snapshot must be unique. `dlt` does not deduplicate the loaded data for this strategy.
+- A resource that yields no records produces no load job, so `cdc` deletes nothing. To delete the records of an empty snapshot, read [Delete all records with an empty snapshot](#delete-all-records-with-an-empty-snapshot).
+
+### Delete all records with an empty snapshot
+
+If the source system returns no records, yield [`dlt.mark.materialize_table_schema()`](resource.md#materialize-schema-without-rows). dlt then runs an empty load job, and the merge deletes every destination record. With `destination_scope`, it deletes only the records in the destination scope. With `merge_key`, it deletes nothing, because an empty snapshot has no partitions:
+
+```py
+@dlt.resource(
+    primary_key="id",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "cdc",
+        "destination_scope": "region = 'eu'",
+    },
+)
+def customers():
+    rows = fetch_customers(region="eu")  # ty: ignore[unresolved-reference]
+    if not rows:
+        # an empty load job deletes every record in the destination scope
+        yield dlt.mark.materialize_table_schema()
+    yield from rows
+```
 
 ## Merge conditions
 
@@ -1003,7 +1025,7 @@ On the `delta` table format, write this condition as `{table}.updated_at >= '202
 The destination evaluates both conditions. Write them with destination column names and SQL syntax. `destination_scope` replaces `merge_key`: if you set it, dlt **ignores `merge_key`**. On BigQuery, a `merge_key` compiles to a subquery, and the subquery prevents partition pruning. A destination scope can prune partitions.
 
 :::caution
-If you can filter the data at extract time, use [`add_filter`](../general-usage/resource#filter-transform-and-pivot-data). `source_filter` discards loaded records without an error. The load reports success, and the trace shows these records as extracted and normalized.
+If you can filter the data at extract time, use [`resource.add_filter()`](resource.md#filter-transform-and-pivot-data). `source_filter` discards loaded records without an error. The load reports success, and the trace shows these records as extracted and normalized.
 :::
 
 :::warning
