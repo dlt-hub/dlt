@@ -255,6 +255,15 @@ TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "
 
 WRITE_DISPOSITIONS: Sequence[TWriteDisposition] = sorted(get_args(TWriteDisposition))
 MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = sorted(get_args(TLoaderMergeStrategy))
+UPSERT_MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = ("upsert", "cdc")
+"""Strategies that merge by primary key and share the `upsert` options."""
+MERGE_STRATEGY_OPTIONS: Dict[str, Sequence[TLoaderMergeStrategy]] = {
+    "source_filter": ("delete-insert", "scd2", "upsert", "cdc"),
+    # only strategies that delete or retire absent destination records have a destination scope
+    "destination_scope": ("delete-insert", "scd2", "cdc"),
+    "skip_unchanged_rows": UPSERT_MERGE_STRATEGIES,
+}
+"""Merge strategy options and the strategies that support them."""
 REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
@@ -267,29 +276,55 @@ class TWriteDispositionDict(TypedDict):
 
 class TMergeDispositionDict(TWriteDispositionDict, total=False):
     strategy: Optional[TLoaderMergeStrategy]
-    merge_input_filter: Optional[str]
-    """SQL condition that selects the loaded rows to merge. dlt discards the other loaded rows.
-    For `cdc` and `scd2` on SQL destinations, it also limits the destination rows that the merge
-    can delete or retire."""
-    merge_output_filter: Optional[str]
+
+
+class TSourceFilterDict(TypedDict, total=False):
+    source_filter: Optional[str]
+    """SQL condition that selects the merge source from the loaded rows. dlt discards the other
+    loaded rows."""
+
+
+class TDestinationScopeDict(TypedDict, total=False):
+    destination_scope: Optional[str]
     """SQL condition that selects the destination rows that the merge can delete or retire."""
 
 
-class TDeleteInsertStrategyDict(TMergeDispositionDict):
+class TDeleteInsertStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, total=False
+):
+    strategy: Literal["delete-insert"]
     deduplicated: Optional[bool]
 
 
-class TScd2StrategyDict(TMergeDispositionDict, total=False):
+class TScd2StrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, total=False
+):
+    strategy: Literal["scd2"]
     validity_column_names: Optional[List[str]]
     active_record_timestamp: Optional[TAnyDateTime]
     boundary_timestamp: Optional[TAnyDateTime]
     row_version_column_name: Optional[str]
 
 
-class TCdcStrategyDict(TMergeDispositionDict, total=False):
+class TUpsertOptionsDict(TypedDict, total=False):
+    skip_unchanged_rows: Optional[bool]
+    """If `True`, dlt does not update destination records that equal their loaded record.
+    Defaults to `False`."""
     row_version_column_name: Optional[str]
-    """Column that changes when a record changes. `cdc` compares only this column to detect
-    changed records."""
+    """Column that changes when a record changes. With `skip_unchanged_rows`, dlt compares only
+    this column to detect changed records."""
+
+
+class TUpsertStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TUpsertOptionsDict, total=False
+):
+    strategy: Literal["upsert"]
+
+
+class TCdcStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TUpsertOptionsDict, total=False
+):
+    strategy: Literal["cdc"]
 
 
 TWriteDispositionConfig = Union[
@@ -297,6 +332,7 @@ TWriteDispositionConfig = Union[
     TWriteDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
+    TUpsertStrategyDict,
     TCdcStrategyDict,
     TDeleteInsertStrategyDict,
 ]

@@ -366,8 +366,8 @@ def test_typeddict_friendly_exceptions() -> None:
         wrong_dict["write_disposition"] = {"strategy": "scd2"}
         validate_dict(EndpointResource, wrong_dict, ".")
     print(e.value)
-    # Union of 6 types and callable
-    assert len(e.value.nested_exceptions) == 7
+    # Union of 7 types and callable
+    assert len(e.value.nested_exceptions) == 8
 
     # this has wrong disposition string
     with pytest.raises(DictValidationException) as e:
@@ -375,8 +375,8 @@ def test_typeddict_friendly_exceptions() -> None:
         wrong_dict["write_disposition"] = "unknown"  # type: ignore[assignment]
         validate_dict(EndpointResource, wrong_dict, ".")
     print(e.value)
-    # Union of 6 types and callable
-    assert len(e.value.nested_exceptions) == 7
+    # Union of 7 types and callable
+    assert len(e.value.nested_exceptions) == 8
 
     # this has wrong nested type
     with pytest.raises(DictValidationException) as e:

@@ -1158,20 +1158,61 @@ def test_resource_sets_invalid_write_disposition() -> None:
     assert "write_disposition" in str(py_ex.value)
 
 
+@pytest.mark.parametrize("strategy", ["upsert", "cdc"])
+@pytest.mark.parametrize("skip_unchanged_rows", [False, True], ids=["update", "skip"])
+def test_skip_unchanged_rows_hints(strategy: str, skip_unchanged_rows: bool) -> None:
+    """The table schema has the `x-row-version` hint only when the merge skips unchanged rows."""
+    write_disposition: Any = {
+        "disposition": "merge",
+        "strategy": strategy,
+        "skip_unchanged_rows": skip_unchanged_rows,
+        "row_version_column_name": "version",
+    }
+
+    @dlt.resource(primary_key="id", write_disposition=write_disposition)
+    def items():
+        yield [{"id": 1, "version": 1}]
+
+    table = items().compute_table_schema()
+    assert bool(table.get("x-merge-skip-unchanged-rows")) is skip_unchanged_rows
+    version_column = table["columns"].get("version", {})
+    assert bool(version_column.get("x-row-version")) is skip_unchanged_rows
+
+
 @pytest.mark.parametrize(
     "disposition,expected",
     [
-        ({"merge_output_filter": "id = {nope}"}, "unknown placeholders `{nope}`"),
-        ({"merge_output_filter": "id = {table.id}"}, "unknown placeholders `{table.id}`"),
-        ({"merge_input_filter": "name LIKE '{'"}, "cannot parse"),
+        ({"destination_scope": "id = {nope}"}, "unknown placeholders `{nope}`"),
+        ({"destination_scope": "id = {table.id}"}, "unknown placeholders `{table.id}`"),
+        ({"source_filter": "name LIKE '{'"}, "cannot parse"),
         (
-            {"strategy": "delete-insert", "merge_input_filter": "bucket = 'new'"},
-            "requires `merge_output_filter`",
+            {"strategy": "delete-insert", "skip_unchanged_rows": True},
+            "dlt supports `skip_unchanged_rows` only with the `upsert`, `cdc`",
+        ),
+        (
+            {"strategy": "scd2", "skip_unchanged_rows": True},
+            "dlt supports `skip_unchanged_rows` only with the `upsert`, `cdc`",
+        ),
+        (
+            {"strategy": "upsert", "destination_scope": "bucket = 'new'"},
+            "dlt supports `destination_scope` only with the `delete-insert`, `scd2`, `cdc`",
+        ),
+        (
+            {"strategy": "insert-only", "source_filter": "bucket = 'new'"},
+            "dlt supports `source_filter` only with the `delete-insert`, `scd2`, `upsert`, `cdc`",
         ),
     ],
-    ids=["unknown_placeholder", "attribute_placeholder", "unbalanced_brace", "input_only"],
+    ids=[
+        "unknown_placeholder",
+        "attribute_placeholder",
+        "unbalanced_brace",
+        "skip_unchanged_delete_insert",
+        "skip_unchanged_scd2",
+        "scope_upsert",
+        "filter_insert_only",
+    ],
 )
-def test_resource_rejects_invalid_merge_filter(disposition: Any, expected: str) -> None:
+def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str) -> None:
     write_disposition: Any = {"disposition": "merge", **disposition}
     with pytest.raises(ValueError) as py_ex:
 
@@ -1192,7 +1233,7 @@ def test_resource_rejects_invalid_merge_filter(disposition: Any, expected: str) 
 
     # a doubled brace is a literal brace
     valid_resource.apply_hints(
-        write_disposition={"disposition": "merge", "merge_output_filter": "name LIKE '{{x}}'"}
+        write_disposition={"disposition": "merge", "destination_scope": "name LIKE '{{x}}'"}
     )
 
 
