@@ -241,11 +241,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     ) -> List[str]:
         """Generate sql clauses that may be used to select or delete rows in root table of destination dataset
 
-        Only rows of the merge source match the keys. A list of clauses may be
-        returned for engines that do not support OR in subqueries. Like BigQuery
+        A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         key_cond = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
+        # only rows of the merge source match the keys
         return [
             f"FROM {root_table_name} as d WHERE EXISTS (SELECT 1 FROM {staging_root_table_name} as"
             f" s WHERE {cls._gen_staging_rows_cond(key_cond, source_filter)})"
@@ -414,11 +414,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         *,
         has_nested_subquery: bool,
     ) -> List[str]:
-        """Generate statements that delete the rows of `table_name` that match `condition`.
-
-        `has_nested_subquery` is true when a subquery in `condition` can contain another subquery.
-        `key_columns` identify the rows for destinations that cannot run such a condition.
-        """
+        """Generate statements that delete the rows of `table_name` that match `condition`."""
         return [f"DELETE FROM {table_name} WHERE {condition};"]
 
     @classmethod
@@ -434,12 +430,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         key_cond: Optional[str] = None,
     ) -> List[str]:
         """Generate statements that apply `set_clause` to the rows of `table_name` that match
-        `condition`.
-
-        `has_nested_subquery` is true when a subquery in `condition` can contain another subquery.
-        `key_columns` identify the rows for destinations that cannot run such a condition. If the
-        keys are not unique, `key_cond` selects rows among the rows that share a key.
-        """
+        `condition`."""
         return [f"{cls.gen_update_table_prefix(table_name)} {set_clause} WHERE {condition};"]
 
     @classmethod
@@ -519,11 +510,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         partition_clauses: Sequence[str],
         source_filter: Optional[str] = None,
     ) -> str:
-        """Generate a condition that selects the destination rows absent from the merge source.
-
-        The condition matches rows on `match_columns`. `partition_clauses` limit the match.
-        `table_qualifier` qualifies the destination columns in the correlated subquery.
-        """
+        """Generate a condition that selects the destination rows absent from the merge source."""
         if len(match_columns) == 1:
             # not correlated, so destinations without correlated subqueries accept it
             column = match_columns[0]
@@ -536,6 +523,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             staging_source = staging_root_table_name
             if source_filter:
                 staging_source = f"(SELECT * FROM {staging_root_table_name} WHERE {source_filter})"
+            # the deleted or updated table has no alias, so its qualified name prefixes its columns
             on_str = " AND ".join([f"s.{c} = {table_qualifier}.{c}" for c in match_columns])
             conds = [f"NOT EXISTS (SELECT 1 FROM {staging_source} s WHERE {on_str})"]
         conds.extend(partition_clauses)
@@ -1023,8 +1011,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         Override for backends that don't support DELETE in MERGE (e.g., DuckLake).
         When `insert_only`, uses `not_deleted_cond` to pre-filter staging.
-        `changed_cond` limits updates and `insert_cond` limits inserts. `source_filter` selects the
-        merge source.
         """
         sql: List[str] = []
         on_str = " AND ".join([f"d.{c} = s.{c}" for c in primary_keys])
@@ -1080,10 +1066,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         primary_keys: Sequence[str],
         root_row_key_column: Optional[str],
     ) -> List[str]:
-        """Generate statements that delete the destination rows absent from the merge source.
-
-        Nested rows go first.
-        """
+        """Generate statements that delete the destination rows absent from the merge source."""
         sql: List[str] = []
         root_table = table_chain[0]
         escape_column_id = sql_client.escape_column_name
@@ -1106,6 +1089,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             partition_clauses,
             source_filter=source_filter,
         )
+        # nested rows go first: their delete selects them through root rows that still exist
         for table in table_chain[1:]:
             table_name, _ = sql_client.get_qualified_table_names(table["name"])
             root_key_column = escape_column_id(
@@ -1148,12 +1132,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         skip_unchanged: bool = False,
     ) -> List[str]:
         """Generate statements that merge the staging root table by primary key and nested tables
-        by row key.
-
-        `delete_absent` first deletes the destination rows absent from the merge source,
-        only in the `merge_key` partitions or the destination scope. `skip_unchanged` does not
-        update unchanged rows.
-        """
+        by row key."""
         sql: List[str] = []
         root_table = table_chain[0]
         root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
@@ -1192,6 +1171,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             )
 
         if delete_absent:
+            # only in the `merge_key` partitions or the destination scope
             sql.extend(
                 cls._gen_delete_absent_sql(
                     table_chain, sql_client, primary_keys, root_row_key_column

@@ -191,14 +191,11 @@ def _and_predicates(*predicates: Optional[str]) -> Optional[str]:
 
 
 def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Optional[str]]:
-    """Returns the `source_filter` and `destination_scope` as Delta merge predicates.
-
-    In `source_filter`, `{staging_table}` expands to the `source` alias. In `destination_scope`,
-    `{table}` expands to the `target` alias. `FilesystemClient.verify_schema` verifies the
-    placeholders before the load.
-    """
+    """Returns `source_filter` and `destination_scope` as Delta merge predicates."""
     source_filter = cast(Optional[str], schema.get("x-merge-source-filter"))
     destination_scope = cast(Optional[str], schema.get("x-merge-destination-scope"))
+    # `{staging_table}` is the `source` alias and `{table}` the `target` alias. schema verification
+    # rejects any other placeholder before the load
     return (
         source_filter.format(staging_table="source", table="target") if source_filter else None,
         destination_scope.format(table="target") if destination_scope else None,

@@ -422,8 +422,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
     ) -> List[Any]:
         """Generate conditions that select the destination rows that a merge can delete or retire.
 
-        `destination_scope` replaces `merge_key`. Only rows of the merge source count as present.
-        Returns an empty list when the merge can delete or retire rows in the whole table.
+        `destination_scope` replaces `merge_key`. Returns an empty list when the merge can delete
+        or retire rows in the whole table.
         """
         if destination_scope:
             return [sa.text(destination_scope)]
@@ -432,6 +432,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         root_merge_key_cols = [root_table_obj.c[key] for key in merge_keys]
         staging_merge_key_cols = [staging_root_table_obj.c[key] for key in merge_keys]
         present_keys = sa.select(cls._gen_concat_sqla(staging_merge_key_cols))
+        # only rows of the merge source count as present
         if source_filter:
             present_keys = present_keys.where(sa.text(source_filter))
         return [cls._gen_concat_sqla(root_merge_key_cols).in_(present_keys)]
