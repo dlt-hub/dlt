@@ -1,6 +1,9 @@
-import pytest
+import io
+import logging
+import sys
 from importlib.metadata import version as pkg_version
 
+import pytest
 from pytest_mock import MockerFixture
 
 from dlt.common import logger
@@ -71,6 +74,109 @@ def test_github_info_extract(environment: DictStrStr) -> None:
     }
 
 
+def test_logger_defaults_to_stderr(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    test_logger = logger._create_logger(
+        logger_name="dlt_test_default_stderr",
+        level="INFO",
+        fmt="{levelname}|{message}",
+        component="test",
+        version={},
+    )
+
+    owned_handlers = [
+        handler for handler in test_logger.handlers if isinstance(handler, logger._DltStreamHandler)
+    ]
+
+    assert len(owned_handlers) == 1
+    assert owned_handlers[0].stream is sys.stderr
+    assert test_logger.propagate is False
+
+    test_logger.info("DEFAULT_STDERR_TEST")
+
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "INFO|DEFAULT_STDERR_TEST\n"
+
+
+def test_logger_outputs_to_stdout(capsys: pytest.CaptureFixture[str]) -> None:
+    test_logger = logger._create_logger(
+        logger_name="dlt_test_stdout",
+        level="INFO",
+        fmt="{levelname}|{message}",
+        component="test",
+        version={},
+        log_output="stdout",
+    )
+
+    owned_handlers = [
+        handler for handler in test_logger.handlers if isinstance(handler, logger._DltStreamHandler)
+    ]
+
+    assert len(owned_handlers) == 1
+    assert owned_handlers[0].stream is sys.stdout
+    assert test_logger.propagate is False
+
+    test_logger.info("STDOUT_TEST")
+
+    captured = capsys.readouterr()
+    assert captured.out == "INFO|STDOUT_TEST\n"
+    assert captured.err == ""
+
+
+def test_logger_propagates_to_parent(caplog: pytest.LogCaptureFixture) -> None:
+    test_logger = logger._create_logger(
+        logger_name="dlt_test_propagate",
+        level="INFO",
+        fmt="{levelname}|{message}",
+        component="test",
+        version={},
+        log_output="propagate",
+    )
+
+    assert test_logger.propagate is True
+
+    with caplog.at_level("INFO"):
+        test_logger.info("PROPAGATE_TEST")
+
+    matching_records = [
+        record
+        for record in caplog.records
+        if record.name == "dlt_test_propagate" and record.getMessage() == "PROPAGATE_TEST"
+    ]
+    assert len(matching_records) == 1
+
+
+def test_logger_propagation_preserves_levels(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    test_logger = logger._create_logger(
+        logger_name="dlt_test_propagation_levels",
+        level="INFO",
+        fmt="{levelname}|{message}",
+        component="test",
+        version={},
+        log_output="propagate",
+    )
+
+    with caplog.at_level("INFO"):
+        test_logger.info("LEVEL_INFO")
+        test_logger.warning("LEVEL_WARNING")
+        test_logger.error("LEVEL_ERROR")
+
+    received = [
+        (record.levelname, record.getMessage())
+        for record in caplog.records
+        if record.name == "dlt_test_propagation_levels"
+    ]
+    assert received == [
+        ("INFO", "LEVEL_INFO"),
+        ("WARNING", "LEVEL_WARNING"),
+        ("ERROR", "LEVEL_ERROR"),
+    ]
+
+
 @pytest.mark.forked
 def test_text_logger_init(environment: DictStrStr, mocker: MockerFixture) -> None:
     mock_image_env(environment)
@@ -95,6 +201,114 @@ def test_text_logger_init(environment: DictStrStr, mocker: MockerFixture) -> Non
         1 / 0
     except ZeroDivisionError:
         logger.exception("DIV")
+
+
+def test_propagate_removes_dlt_handler_without_duplicate(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    test_logger = logger._create_logger(
+        logger_name="dlt_test_switch_to_propagate",
+        level="INFO",
+        fmt="{levelname}|{message}",
+        component="test",
+        version={},
+        log_output="stderr",
+    )
+    assert (
+        sum(isinstance(handler, logger._DltStreamHandler) for handler in test_logger.handlers) == 1
+    )
+
+    reinitialized = logger._create_logger(
+        logger_name="dlt_test_switch_to_propagate",
+        level="INFO",
+        fmt="{levelname}|{message}",
+        component="test",
+        version={},
+        log_output="propagate",
+    )
+
+    assert reinitialized is test_logger
+    assert reinitialized.propagate is True
+    assert not any(
+        isinstance(handler, logger._DltStreamHandler) for handler in reinitialized.handlers
+    )
+
+    with caplog.at_level("INFO"):
+        reinitialized.info("SWITCHED_TO_PROPAGATE")
+
+    received = [
+        record
+        for record in caplog.records
+        if record.name == "dlt_test_switch_to_propagate"
+        and record.getMessage() == "SWITCHED_TO_PROPAGATE"
+    ]
+    assert len(received) == 1
+
+
+def test_external_handler_survives_reinitialization() -> None:
+    name = "dlt_test_external_handler"
+    test_logger = logging.getLogger(name)
+
+    external_stream = io.StringIO()
+    external_handler = logging.StreamHandler(external_stream)
+    external_formatter = logging.Formatter("EXTERNAL:{message}", style="{")
+    external_handler.setFormatter(external_formatter)
+    test_logger.addHandler(external_handler)
+
+    try:
+        for mode in ("stderr", "stdout", "propagate"):
+            reinitialized = logger._create_logger(
+                logger_name=name,
+                level="INFO",
+                fmt="{levelname}|{message}",
+                component="test",
+                version={},
+                log_output=mode,
+            )
+
+            assert reinitialized is test_logger
+            assert external_handler in test_logger.handlers
+            assert external_handler.formatter is external_formatter
+            assert external_handler.stream is external_stream
+
+        test_logger.info("HANDLER_KEPT")
+        assert external_stream.getvalue() == "EXTERNAL:HANDLER_KEPT\n"
+    finally:
+        test_logger.removeHandler(external_handler)
+        external_handler.close()
+
+
+def test_reinitialization_keeps_single_dlt_handler(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    name = "dlt_test_reinitialization"
+    previous_handler = None
+
+    for mode in ("stderr", "stderr", "stdout", "stdout", "propagate", "stderr"):
+        test_logger = logger._create_logger(
+            logger_name=name,
+            level="INFO",
+            fmt="{levelname}|{message}",
+            component="test",
+            version={},
+            log_output=mode,
+        )
+        owned = [
+            handler
+            for handler in test_logger.handlers
+            if isinstance(handler, logger._DltStreamHandler)
+        ]
+
+        assert len(owned) == (0 if mode == "propagate" else 1)
+        if owned and previous_handler is not None:
+            assert owned[0] is previous_handler
+
+        previous_handler = owned[0] if owned else None
+
+    test_logger.info("REINIT_ONCE")
+    captured = capsys.readouterr()
+    assert captured.out == ""
+    assert captured.err == "INFO|REINIT_ONCE\n"
 
 
 @pytest.mark.forked
