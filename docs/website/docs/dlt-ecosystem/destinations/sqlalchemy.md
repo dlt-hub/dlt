@@ -528,7 +528,7 @@ The following write dispositions are supported:
 
 - `append`
 - `replace` with `truncate-and-insert` and `insert-from-staging` replace strategies. `staging-optimized` falls back to `insert-from-staging`.
-- `merge` with `delete-insert` and `scd2` merge strategies. Both strategies support the [merge filters](../../general-usage/merge-loading.md#merge_output_filter-and-merge_input_filter).
+- `merge` with `delete-insert` and `scd2` merge strategies. Both strategies support [`destination_scope` and `source_filter`](../../general-usage/merge-loading.md#merge-conditions).
 
 ## Data loading
 
