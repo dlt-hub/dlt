@@ -989,8 +989,8 @@ class FilesystemClient(
                         SchemaCorruptedException(
                             self.schema.name,
                             "dlt does not support `source_filter` with the `upsert` merge"
-                            f" strategy on Iceberg table `{table['name']}`. Filter the data with"
-                            " `add_filter` instead.",
+                            f" strategy on Iceberg table `{table['name']}`. Filter the yielded"
+                            " items with `resource.add_filter()` instead.",
                         )
                     )
                 if merge_strategy == "upsert" and table.get("x-merge-skip-unchanged-rows"):
