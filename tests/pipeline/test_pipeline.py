@@ -5791,6 +5791,74 @@ def test_merge_without_root_key() -> None:
     assert_table_counts(p, {"customers__purchases": 3, "customers": 3})
 
 
+def test_scd2_propagates_root_key_to_new_nested_tables() -> None:
+    """Fresh scd2 pipelines propagate `_dlt_root_id` to nested tables."""
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def dim_test():
+        yield [
+            {"id": 1, "name": "simon", "purchases": [{"id": 1, "price": Decimal("1.50")}]},
+            {"id": 2, "name": "violet", "purchases": [{"id": 2, "price": Decimal("1.70")}]},
+        ]
+
+    p = dlt.pipeline(
+        pipeline_name="test_scd2_root_key_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="local",
+        dev_mode=True,
+    )
+    load_info = p.run(dim_test())
+    assert_load_info(load_info)
+
+    nested_table = p.default_schema.tables["dim_test__purchases"]
+    assert "_dlt_root_id" in nested_table["columns"]
+    assert get_first_column_name_with_prop(nested_table, "root_key") == "_dlt_root_id"
+    # root key values are actually populated
+    df = p.dataset()["dim_test__purchases"].df()
+    assert set(df["_dlt_root_id"].dropna().tolist()) != set()
+    assert df["_dlt_root_id"].nunique() == 2
+
+
+def test_scd2_existing_nested_tables_do_not_gain_root_key() -> None:
+    """Schemas with scd2 nested tables created before root key propagation must not be
+    migrated: adding `_dlt_root_id` would require a NOT NULL column on existing tables."""
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={"disposition": "merge", "strategy": "scd2"},
+    )
+    def dim_test():
+        yield [
+            {"id": 1, "name": "simon", "purchases": [{"id": 1, "price": Decimal("1.50")}]},
+            {"id": 2, "name": "violet", "purchases": [{"id": 2, "price": Decimal("1.70")}]},
+        ]
+
+    p = dlt.pipeline(
+        pipeline_name="test_scd2_root_key_" + uniq_id(),
+        destination="duckdb",
+        dataset_name="local",
+        dev_mode=True,
+    )
+
+    @dlt.source(root_key=False)
+    def dim_src():
+        return dim_test
+
+    # first run with propagation disabled reproduces a schema created before scd2 propagated the root key
+    load_info = p.run(dim_src())
+    assert_load_info(load_info)
+    assert "_dlt_root_id" not in p.default_schema.tables["dim_test__purchases"]["columns"]
+
+    # a second run with default settings finds the nested table already in the schema and
+    # does not enable propagation, so no NOT NULL column migration is attempted
+    load_info = p.run(dim_test())
+    assert_load_info(load_info)
+    assert "_dlt_root_id" not in p.default_schema.tables["dim_test__purchases"]["columns"]
+
+
 def test_pipeline_repr() -> None:
     sentinel = object()
     p = dlt.pipeline(pipeline_name="repr_pipeline", destination="duckdb")

@@ -980,7 +980,7 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         ("delete-insert", None, False, True),
         ("upsert", None, False, True),
         ("insert-only", None, False, True),
-        ("scd2", None, False, False),
+        ("scd2", None, False, True),
         ("append", None, False, False),
         ("replace", None, False, False),
         # Test with root_key_propagation explicitly True (should always be True)
@@ -1016,7 +1016,7 @@ def test_caching_perf(norm: RelationalNormalizer) -> None:
         "delete-insert_default_no-nested_requires-key",
         "upsert_default_no-nested_requires-key",
         "insert-only_default_no-nested_requires-key",
-        "scd2_default_no-nested_no-key-required",
+        "scd2_default_no-nested_requires-key",
         "append_default_no-nested_no-key-required",
         "replace_default_no-nested_no-key-required",
         # Names for explicit True tests
@@ -1082,6 +1082,42 @@ def test_requires_root_key(
             f"root_key_propagation={root_key_propagation}, "
             f"has_nested_with_root_key={has_nested_with_root_key}"
         )
+
+
+@pytest.mark.parametrize(
+    "root_key_propagation, expected",
+    [
+        # existing scd2 pipelines have nested tables without root_key: propagating it now
+        # would require a NOT NULL column migration that many destinations reject
+        (None, False),
+        (True, True),
+        (False, False),
+    ],
+    ids=[
+        "scd2_default_existing-nested_no-key-required",
+        "scd2_explicit-true_existing-nested_requires-key",
+        "scd2_explicit-false_existing-nested_no-key-required",
+    ],
+)
+def test_requires_root_key_scd2_existing_nested(
+    norm: RelationalNormalizer,
+    root_key_propagation: Optional[bool],
+    expected: bool,
+) -> None:
+    table_1 = new_table("table_1", write_disposition="merge")
+    # do not call extend schema, set table directly
+    norm.schema.tables["table_1"] = table_1
+    # nested table without root_key, as created by pipelines predating scd2 propagation
+    nested_table = new_table("table_1__nested", parent_table_name="table_1")
+    norm.schema.tables["table_1__nested"] = nested_table
+
+    with Container().injectable_context(
+        DestinationCapabilitiesContext(supported_merge_strategies=["scd2"])
+    ):
+        result = normalize_helpers.requires_root_key(
+            norm.schema, table_1, root_key_propagation=root_key_propagation
+        )
+        assert result == expected
 
 
 def test_dlt_table_no_root_key(norm: RelationalNormalizer) -> None:
@@ -1159,15 +1195,21 @@ def test_get_root_row_id_type(
             False,
             {"custom_id": "_dlt_root_id"},
         ),
-        # Case 5: Table with merge strategy that doesn't require root key
-        ({"table_name": "table5", "write_disposition": "merge"}, "scd2", False, {}),
+        # Case 5: scd2 table with no nested tables yet - root key propagation is enabled
+        # (nested tables created later do not need a NOT NULL column migration)
+        (
+            {"table_name": "table5", "write_disposition": "merge"},
+            "scd2",
+            False,
+            {"_dlt_id": "_dlt_root_id"},
+        ),
     ],
     ids=[
         "merge_delete-insert_adds_propagation",
         "append_no_nested_no_propagation",
         "append_with_nested_root_key_adds_propagation",
         "custom_row_key_propagation",
-        "merge_scd2_no_propagation",
+        "merge_scd2_no_nested_adds_propagation",
     ],
 )
 def test_extend_table(

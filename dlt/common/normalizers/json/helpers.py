@@ -138,8 +138,12 @@ def requires_root_key(
     """Checks if table chain containing `table` requires root_key to propagate.
 
     1. if there's any table with `root_key` in table chain already - we always propagate
-    2. if write disposition is merge and merge strategy is "delete-insert", "upsert" and root_key_propagation is not False
-    3. root_key_propagation is True
+    2. if write disposition is merge and merge strategy is "delete-insert", "upsert" or "insert-only"
+       and root_key_propagation is not False
+    3. if merge strategy is "scd2" and root_key_propagation is not set, propagate only if the root
+       table has no nested tables yet. adding `root_key` to existing nested tables requires
+       a NOT NULL column migration which many destinations reject
+    4. root_key_propagation is True
     """
     table_name = root_table["name"]
     assert not is_nested_table(root_table), f"{table_name} cannot be nested table"
@@ -147,11 +151,17 @@ def requires_root_key(
         merge_requires = False
     else:
         merge_strategy = resolve_merge_strategy(schema.tables, root_table)
-        merge_requires = (
-            merge_strategy in ["delete-insert", "upsert", "insert-only"]
-            if root_key_propagation is None
-            else root_key_propagation
-        )
+        if root_key_propagation is None:
+            merge_requires = merge_strategy in [
+                "delete-insert",
+                "upsert",
+                "insert-only",
+            ] or (
+                merge_strategy == "scd2"
+                and not get_nested_tables(schema.tables, table_name, include_self=False)
+            )
+        else:
+            merge_requires = root_key_propagation
     return merge_requires or any(
         has_column_with_prop(t, "root_key", include_incomplete=True)
         for t in get_nested_tables(schema.tables, table_name)
