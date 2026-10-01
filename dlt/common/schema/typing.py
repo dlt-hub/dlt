@@ -274,55 +274,52 @@ class TWriteDispositionDict(TypedDict):
     disposition: TWriteDisposition
 
 
-class TMergeDispositionDict(TWriteDispositionDict, total=False):
-    strategy: Optional[TLoaderMergeStrategy]
+class TMergeDispositionDict(TWriteDispositionDict):
+    strategy: NotRequired[TLoaderMergeStrategy]
+    """The destination picks its default strategy when not set."""
 
 
-class TSourceFilterDict(TypedDict, total=False):
-    source_filter: Optional[str]
+class TSourceFilterDict(TypedDict):
+    source_filter: NotRequired[str]
     """SQL condition that selects the merge source from the loaded rows. dlt discards the other
     loaded rows."""
 
 
-class TDestinationScopeDict(TypedDict, total=False):
-    destination_scope: Optional[str]
+class TDestinationScopeDict(TypedDict):
+    destination_scope: NotRequired[str]
     """SQL condition that selects the destination rows that the merge can delete or retire."""
 
 
-class TDeleteInsertStrategyDict(
-    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, total=False
-):
+class TDeleteInsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
     strategy: Literal["delete-insert"]
-    deduplicated: Optional[bool]
+    deduplicated: NotRequired[bool]
 
 
-class TScd2StrategyDict(
-    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, total=False
-):
+class TScd2StrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
     strategy: Literal["scd2"]
-    validity_column_names: Optional[List[str]]
-    active_record_timestamp: Optional[TAnyDateTime]
-    boundary_timestamp: Optional[TAnyDateTime]
-    row_version_column_name: Optional[str]
+    validity_column_names: NotRequired[List[str]]
+    active_record_timestamp: NotRequired[Optional[TAnyDateTime]]
+    """`None` marks active records with `NULL`."""
+    boundary_timestamp: NotRequired[Optional[TAnyDateTime]]
+    """`None` resets the boundary to the load package creation time."""
+    row_version_column_name: NotRequired[str]
 
 
-class TUpsertOptionsDict(TypedDict, total=False):
-    skip_unchanged_rows: Optional[bool]
+class TUpsertOptionsDict(TypedDict):
+    skip_unchanged_rows: NotRequired[bool]
     """If `True`, dlt does not update destination records that equal their loaded record.
     Defaults to `False`."""
-    row_version_column_name: Optional[str]
+    row_version_column_name: NotRequired[str]
     """Column that changes when a record changes. With `skip_unchanged_rows`, dlt compares only
     this column to detect changed records."""
 
 
-class TUpsertStrategyDict(
-    TWriteDispositionDict, TSourceFilterDict, TUpsertOptionsDict, total=False
-):
+class TUpsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TUpsertOptionsDict):
     strategy: Literal["upsert"]
 
 
 class TCdcStrategyDict(
-    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TUpsertOptionsDict, total=False
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TUpsertOptionsDict
 ):
     strategy: Literal["cdc"]
 

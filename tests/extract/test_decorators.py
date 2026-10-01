@@ -1232,9 +1232,8 @@ def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str)
     assert expected in str(py_ex.value)
 
     # a doubled brace is a literal brace
-    valid_resource.apply_hints(
-        write_disposition={"disposition": "merge", "destination_scope": "name LIKE '{{x}}'"}
-    )
+    literal_brace: Any = {"disposition": "merge", "destination_scope": "name LIKE '{{x}}'"}
+    valid_resource.apply_hints(write_disposition=literal_brace)
 
 
 def test_custom_source_impl() -> None:
