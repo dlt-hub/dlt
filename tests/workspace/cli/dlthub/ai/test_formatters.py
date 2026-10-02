@@ -153,6 +153,16 @@ def test_read_md_name_desc(
     assert desc == expected_desc
 
 
+def test_read_md_name_desc_default_name() -> None:
+    """`default_name` beats the file stem, and a frontmatter `name` beats both."""
+    md = Path("SKILL.md")
+    md.write_text("---\ndescription: A description\n---\n", encoding="utf-8")
+    assert read_md_name_desc(md, "my-skill") == ("my-skill", "A description")
+    assert read_md_name_desc(md) == ("SKILL", "A description")
+    md.write_text("---\nname: named\n---\n", encoding="utf-8")
+    assert read_md_name_desc(md, "my-skill")[0] == "named"
+
+
 _TEMPLATE = MOCK_AGENTS_MD_TEMPLATE
 _HEADING = "## ALWAYS ACTIVATE those skills"
 _SECTION_WITH_A = "%s\n- `skill-a`\n" % _HEADING

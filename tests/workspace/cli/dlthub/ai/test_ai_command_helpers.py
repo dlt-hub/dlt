@@ -32,6 +32,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     load_toolkits_index,
     resolve_toolkit_dependencies,
+    fetch_workbench_toolkit_info,
     fetch_workbench_toolkits,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
@@ -889,6 +890,23 @@ def test_toolkit_info_lists_agents(capsys: pytest.CaptureFixture[str]) -> None:
     assert "Agents:" in output
     assert "find-crash" in output
     assert "Test agent used by the toolkit install tests." in output
+
+
+def test_toolkit_info_names_skills_and_agents_by_folder() -> None:
+    """A SKILL.md or AGENT.md without `name` takes its folder name, not the file stem."""
+    toolkit_dir = make_mock_toolkit()
+    for folder, md in (("skills/quiet-skill", "SKILL.md"), ("agents/quiet-agent", "AGENT.md")):
+        (toolkit_dir / folder).mkdir()
+        (toolkit_dir / folder / md).write_text(
+            "---\ndescription: No name.\n---\n", encoding="utf-8"
+        )
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=toolkit_dir.parent
+    ):
+        info = fetch_workbench_toolkit_info("test-toolkit", "mock://repo", None)
+    assert info is not None
+    assert [s["name"] for s in info["skills"]] == ["find-source", "quiet-skill"]
+    assert [a["name"] for a in info["agents"]] == ["find-crash", "quiet-agent"]
 
 
 def test_toolkit_info_not_found(capsys: pytest.CaptureFixture[str]) -> None:
