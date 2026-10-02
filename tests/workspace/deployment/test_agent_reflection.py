@@ -250,7 +250,7 @@ def test_annotated_describes_what_the_agent_reads() -> None:
 
 class _Evidence(TypedDict):
     source: Annotated[str, Doc("where it was found")]
-    run_id: NotRequired[Annotated[str, Entity("job-run")]]
+    run_id: NotRequired[Annotated[str, Entity("job-runs")]]
 
 
 class _Nested(TAgentOutput):
@@ -270,7 +270,7 @@ def test_markers_survive_nesting() -> None:
 
     evidence = schema["$defs"]["_Evidence"]
     assert evidence["properties"]["source"]["description"] == "where it was found"
-    assert evidence["properties"]["run_id"]["entity_type"] == "job-run"
+    assert evidence["properties"]["run_id"]["entity_type"] == "job-runs"
     assert evidence["required"] == ["source"]
     # every embedding points at that one definition
     ref = {"$ref": "#/$defs/_Evidence"}

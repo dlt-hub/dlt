@@ -120,7 +120,7 @@ def test_declared_agent_job_definition() -> None:
     # the first entity-typed input tells the UI which entity's menu offers this job, and where
     # the chosen entity goes
     assert definition["expose"]["object_input"] == {
-        "entity_type": "job-run",
+        "entity_type": "job-runs",
         "input": "jobs.__deployment__.job_inspector.failed_run_id",
     }
 

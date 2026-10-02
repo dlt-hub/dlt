@@ -241,7 +241,7 @@ def annotated_description(annotation: Any) -> Optional[str]:
 
 
 class Entity:
-    """`Annotated[str, Entity("job-run")]`: the value is the unique id of a workspace entity."""
+    """`Annotated[str, Entity("job-runs")]`: the value is the unique id of a workspace entity."""
 
     def __init__(self, type: THubEntityType) -> None:  # noqa: A002
         self.type = type

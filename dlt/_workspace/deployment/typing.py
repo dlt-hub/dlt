@@ -90,7 +90,7 @@ TInterfaceType = Literal["gui", "rest_api", "mcp"]
 TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook", "background_agent"]
 """UI category for grouping jobs in the runtime interface."""
 
-THubEntityType = Literal["job-run", "job", "workspace", "pipeline", "dataset"]
+THubEntityType = Literal["job-runs", "job", "workspace", "pipeline", "dataset"]
 """Kinds of workspace entity a job can act on. Hyphenated: the values are URI path segments."""
 
 
@@ -349,7 +349,7 @@ class THubEntity(TypedDict):
 
     type: THubEntityType  # noqa: A003
     id: str  # noqa: A003
-    """`{type}/{unique id}`: `job-run/9ac2…`, `dataset/duckdb_prod/github_events`."""
+    """`{type}/{unique id}`: `job-runs/9ac2…`, `dataset/duckdb_prod/github_events`."""
 
 
 class TJobResult(TypedDict):

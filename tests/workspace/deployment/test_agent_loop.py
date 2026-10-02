@@ -487,14 +487,14 @@ def test_loops_hand_entity_types_to_the_model_as_comments(workspace: Any) -> Non
         if isinstance(loop, PydanticAILoop):
             agent_spec = loop._agent_spec_dict(loop._build_model())
             schemas = [agent_spec["deps_schema"], agent_spec["output_schema"]]
-            assert schemas[0]["properties"]["failed_run_id"]["$comment"] == "entity_type: job-run"
+            assert schemas[0]["properties"]["failed_run_id"]["$comment"] == "entity_type: job-runs"
         else:
             options = cast(ClaudeAgentSdkLoop, loop)._build_options("system")
             schemas = [options.output_format["schema"]]
         assert '"entity_type"' not in json.dumps(schemas), loop_cls.LOOP_TYPE
         assert schemas[-1]["properties"]["classification"]["$comment"] == "entity_type: job"
         # the manifest schema keeps the keyword
-        assert loop.spec["inputs"]["properties"]["failed_run_id"]["entity_type"] == "job-run"
+        assert loop.spec["inputs"]["properties"]["failed_run_id"]["entity_type"] == "job-runs"
 
 
 def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) -> None:

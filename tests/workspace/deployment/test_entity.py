@@ -13,13 +13,13 @@ from dlt._workspace.deployment.typing import THubEntityType
 @pytest.mark.parametrize(
     "entity_type,unique_id,expected",
     [
-        ("job-run", "9ac2", "job-run/9ac2"),
+        ("job-runs", "9ac2", "job-runs/9ac2"),
         ("job", "agents.job_inspector", "job/agents.job_inspector"),
         ("pipeline", "github_actions", "pipeline/github_actions"),
         ("dataset", "duckdb_prod/github_events", "dataset/duckdb_prod/github_events"),
         ("workspace", "github_actions", "workspace/github_actions"),
     ],
-    ids=["job-run", "job", "pipeline", "dataset", "workspace"],
+    ids=["job-runs", "job", "pipeline", "dataset", "workspace"],
 )
 def test_entity_id_is_type_slash_unique_id(
     entity_type: THubEntityType, unique_id: str, expected: str
@@ -29,14 +29,14 @@ def test_entity_id_is_type_slash_unique_id(
 
 INPUTS: Dict[str, Any] = {
     "properties": {
-        "investigated_run_id": {"type": "string", "entity_type": "job-run"},
+        "investigated_run_id": {"type": "string", "entity_type": "job-runs"},
         "depth": {"type": "integer"},
         "dataset": {"type": "string", "entity_type": "dataset"},
     }
 }
 OUTPUT: Dict[str, Any] = {
     "properties": {
-        "investigated_run_id": {"type": "string", "entity_type": "job-run"},
+        "investigated_run_id": {"type": "string", "entity_type": "job-runs"},
         "produced": {"type": "string", "entity_type": "dataset"},
         "status": {"type": "string"},
     }
@@ -53,7 +53,7 @@ def test_objects_come_from_inputs_and_outputs_overwrite() -> None:
         "jobs.x.y",
     )
     assert objects == [
-        {"type": "job-run", "id": "job-run/b7e1"},
+        {"type": "job-runs", "id": "job-runs/b7e1"},
         {"type": "dataset", "id": "dataset/duckdb_prod/events"},
         {"type": "dataset", "id": "dataset/duckdb_prod/costs"},
     ]
@@ -63,9 +63,9 @@ def test_objects_skip_what_nobody_supplied_and_collapse_duplicates() -> None:
     # an unset input is not an entity, and a payload that is not a mapping contributes nothing
     assert hub_objects(INPUTS, {"depth": 3}, OUTPUT, "done", "jobs.x.y") == []
     # the same entity named twice is one entity
-    twice = {"properties": {"other": {"type": "string", "entity_type": "job-run"}}}
+    twice = {"properties": {"other": {"type": "string", "entity_type": "job-runs"}}}
     objects = hub_objects(INPUTS, {"investigated_run_id": "9ac2"}, twice, {"other": "9ac2"}, "j")
-    assert objects == [{"type": "job-run", "id": "job-run/9ac2"}]
+    assert objects == [{"type": "job-runs", "id": "job-runs/9ac2"}]
 
 
 def test_model_schema_moves_entity_type_into_a_comment() -> None:
@@ -73,8 +73,8 @@ def test_model_schema_moves_entity_type_into_a_comment() -> None:
     schema: Dict[str, Any] = {
         "type": "object",
         "properties": {
-            "run_id": {"type": "string", "entity_type": "job-run", "$comment": "the failed run"},
-            "runs": {"type": "array", "items": {"type": "string", "entity_type": "job-run"}},
+            "run_id": {"type": "string", "entity_type": "job-runs", "$comment": "the failed run"},
+            "runs": {"type": "array", "items": {"type": "string", "entity_type": "job-runs"}},
             # a property that happens to be called entity_type is data, not the keyword
             "entity_type": {"type": "string"},
         },
@@ -82,15 +82,15 @@ def test_model_schema_moves_entity_type_into_a_comment() -> None:
     converted = model_schema(schema)
     assert converted["properties"]["run_id"] == {
         "type": "string",
-        "$comment": "the failed run; entity_type: job-run",
+        "$comment": "the failed run; entity_type: job-runs",
     }
     assert converted["properties"]["runs"]["items"] == {
         "type": "string",
-        "$comment": "entity_type: job-run",
+        "$comment": "entity_type: job-runs",
     }
     assert converted["properties"]["entity_type"] == {"type": "string"}
     # the manifest keeps the keyword, only the model's copy changes
-    assert schema["properties"]["run_id"]["entity_type"] == "job-run"
+    assert schema["properties"]["run_id"]["entity_type"] == "job-runs"
 
 
 def test_an_unknown_entity_type_is_refused() -> None:

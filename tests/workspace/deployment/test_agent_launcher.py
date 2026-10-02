@@ -340,8 +340,8 @@ def test_cli_config_reaches_the_agent_configuration(workspace: Any, loop_type: s
 
     assert output["result"]["ran"]["model"] == "anthropic:claude-opus-5"
     assert output["trace"]["inputs"]["failed_run_id"] == "r-7"
-    # the input is declared `entity_type: job-run`, so the run says which run it acted on
-    assert output["object"] == [{"type": "job-run", "id": "job-run/r-7"}]
+    # the input is declared `entity_type: job-runs`, so the run says which run it acted on
+    assert output["object"] == [{"type": "job-runs", "id": "job-runs/r-7"}]
 
 
 def test_function_form_drives_the_loop_the_launcher_built(workspace: Any, loop_type: str) -> None:

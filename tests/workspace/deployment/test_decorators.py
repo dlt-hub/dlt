@@ -667,7 +667,7 @@ def test_entity_annotation_reaches_the_schema() -> None:
 
     @job
     def inspect(
-        run_id: Annotated[str, Entity("job-run")] = dlt.config.value,
+        run_id: Annotated[str, Entity("job-runs")] = dlt.config.value,
         dataset: Annotated[str, Entity("dataset")] = None,
         depth: int = 3,
     ):
@@ -676,11 +676,11 @@ def test_entity_annotation_reaches_the_schema() -> None:
     job_def = inspect.to_job_definition()
     properties = job_def["inputs"]["properties"]
 
-    assert properties["run_id"]["entity_type"] == "job-run"
+    assert properties["run_id"]["entity_type"] == "job-runs"
     assert properties["dataset"]["entity_type"] == "dataset"
     assert "entity_type" not in properties["depth"]
     assert job_def["expose"]["object_input"] == {
-        "entity_type": "job-run",
+        "entity_type": "job-runs",
         "input": f"{inspect.job_ref}.run_id",
     }
 

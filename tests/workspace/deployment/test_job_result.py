@@ -36,7 +36,7 @@ AGENT_RESULT: TAgentJobResult = {
     "engine_version": 1,
     "status": "succeeded",
     "summary": "found the cause",
-    "object": [{"type": "job-run", "id": "job-run/r-9"}],
+    "object": [{"type": "job-runs", "id": "job-runs/r-9"}],
     # the view reads a handful of trace fields, so a partial one exercises it
     "trace": cast(
         TAgentTrace,
@@ -171,7 +171,7 @@ def test_launcher_delivers_the_result_to_the_beacon(beacon: List[Tuple[str, str]
                 "job.background_agent.dlthub-platform:job-inspector",
                 "succeeded",
                 "found the cause",
-                "job-run: job-run/r-9",
+                "job-runs: job-runs/r-9",
                 "pydantic-ai on claude-sonnet-5, 3 turns, 165 tokens",
                 "local tools: Grep (read), Bash (execute)",
                 # the payload is pretty-printed rather than dumped as a repr
