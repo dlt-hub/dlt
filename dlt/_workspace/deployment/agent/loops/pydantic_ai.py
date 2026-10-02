@@ -42,6 +42,7 @@ from dlt._workspace.typing import (
 )
 
 try:
+    from jsonschema import Draft202012Validator  # type: ignore[import-untyped]
     from fastmcp.client.transports import StdioTransport
     from pydantic_ai import Agent, ModelRetry, Tool, ToolFailed
     from pydantic_ai.capabilities import AbstractCapability
@@ -181,6 +182,22 @@ class ToolRetryBudget(AbstractCapability[Any]):
         return f"{ctx.tool_name} failed{retries}: {reason}"
 
 
+def output_validator(schema: Dict[str, Any]) -> Callable[[Any], Any]:
+    """Re-asks the model, within the output budget, for an answer the output schema rejects."""
+    validator = Draft202012Validator(schema)
+
+    def validate(answer: Any) -> Any:
+        errors = sorted(validator.iter_errors(answer), key=lambda e: list(e.absolute_path))
+        if errors:
+            raise ModelRetry(
+                "The answer does not match the output schema: "
+                + "; ".join(f"{e.json_path}: {e.message}" for e in errors)
+            )
+        return answer
+
+    return validate
+
+
 def _answer_text(answer: Dict[str, Any]) -> str:
     """What the agent said when it answered: its summary, or the whole answer."""
     return str(answer.get("summary") or answer)
@@ -265,6 +282,7 @@ class PydanticAILoop(AgentLoop):
             toolsets=self._build_toolsets(),
             capabilities=[ToolRetryBudget(self.tool_retries)],
         )
+        agent.output_validator(output_validator(self.spec["output"]))
         # `AgentSpec.instructions` is a handlebars template whenever `deps_schema` is set, and
         # dlt has already rendered the prompt: a `{{ }}` left in a rule, a skill or an example
         # would be silently dropped. A function is taken verbatim.

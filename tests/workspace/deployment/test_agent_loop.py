@@ -841,13 +841,17 @@ def test_a_malformed_tool_call_never_ends_the_run(workspace: Any, retries: int) 
         assert "after 2 retries" in failed[0].content
 
 
-@pytest.mark.parametrize("answer", ['{"status": "succ'], ids=["truncated"])
+@pytest.mark.parametrize(
+    "answer",
+    ['{"status": "succ', json.dumps({"status": "unknown", "extra": 1})],
+    ids=["truncated", "against-schema"],
+)
 @pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
 def test_invalid_structured_output_keeps_its_own_budget(
     workspace: Any, retries: int, answer: str
 ) -> None:
-    """Structured output that fails to parse is retried once, or `retries` times, then ends
-    the run."""
+    """Structured output that fails to parse or to match the output schema is retried once, or
+    `retries` times, then ends the run."""
     invalid = (OUTPUT_TOOL_NAME, answer)
     budget = retries or 1
     loop = _scripted_loop(workspace, retries, [invalid] * (budget + 1))
@@ -860,6 +864,12 @@ def test_invalid_structured_output_keeps_its_own_budget(
     with capture_run_messages() as messages:
         output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
     assert output["status"] == "succeeded"
+    retried, _ = _tool_parts(messages)
+    if answer.startswith('{"status": "unknown"'):
+        # the model hears every violation at once
+        said = str(retried[0].content)
+        assert "$.status: 'unknown' is not one of" in said
+        assert "'summary' is a required property" in said
 
 
 def test_a_tool_error_past_the_budget_fails_the_call(workspace: Any) -> None:
