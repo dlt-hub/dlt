@@ -199,6 +199,8 @@ Each source overrides the ones before it: the loop default, the definition's `de
 | OpenAI       | `openai:gpt-5.5`, `openai:gpt-5.4-mini`, `openai:gpt-5.4-nano`                     | `gpt`, `gpt-mini`, `gpt-nano`      |
 | Google       | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview`                         | `gemini`, `gemini-pro`             |
 
+Background agents are tested on Anthropic and Azure OpenAI. The agents the harness ships are written and graded against those two. The other providers pydantic-ai supports are wired and reachable, with no test coverage of ours behind them.
+
 A definition a toolkit ships names no model, so the same definition works whatever provider you have. The workspace deploying it picks one.
 
 Azure OpenAI addresses a deployment on your own endpoint rather than a shared model, so it has no alias and needs `api_url` and `api_version` alongside the model and the key.
@@ -231,7 +233,13 @@ A decorated function driving the loop itself overrides all four for one run by p
 
 The limits follow the same order, with `max_turns: 50` as the loop default and no loop default for `max_tokens`.
 
-Credentials for the provider go under the job's `agent` section, in `secrets.toml` or the environment. Without them, the provider's default environment variables are used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on):
+#### Bring your own model key
+
+The key is yours. dltHub operates no model endpoint and supplies no key, so every agent run bills your provider account and a workspace with no key reachable fails each run where the loop builds the provider. Nothing about a run is metered or capped on the dltHub side, so the limits in [`limits`](#declare-the-agent-job) are what bounds a run's cost.
+
+`model`, `api_key`, `api_url`, and `api_version` are one set. Setting any of them makes the run read all four from your configuration, and the ones you left unset fall back to their own defaults, so `api_key` and `api_url` without `model` send `anthropic:claude-sonnet-5` to your endpoint and fail with `401 API key is invalid`. Name the model whenever you name a url. The run logs which endpoint it resolved to.
+
+Locally, the four go under the job's `agent` section in `secrets.toml`, or in the environment. Without `api_key` the provider's own environment variable is used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on), which keeps the key out of the workspace:
 
 ```toml
 # .dlt/secrets.toml
@@ -251,15 +259,23 @@ api_url = "https://my-resource.openai.azure.com"
 api_version = "2024-10-21"                   # the api-version your deployment serves
 ```
 
-Azure is the only provider pydantic-ai gives `api_version`. Elsewhere it's ignored with a warning, so leave it unset.
-
-On the platform the runtime can supply a model endpoint of its own. `model`, `api_key`, `api_url`, and `api_version` are one set: setting any of them makes the run take all four from your configuration and ignore the runtime's endpoint. The ones you left unset fall back to their own defaults rather than to the runtime's, so `api_key` and `api_url` without `model` send `anthropic:claude-sonnet-5` to your endpoint and fail with `401 API key is invalid`. Set all four or none. The run logs which endpoint it used.
-
-On the platform, set the four as workspace variables rather than in `secrets.toml`. They arrive on the runner as environment and override the file:
+On the platform the runner reads no local file, so set the four as workspace variables. They arrive on the runner as environment and override `secrets.toml`:
 
 ```sh
+dlthub variable set AGENT__MODEL --value 'anthropic:claude-sonnet-5' --workspace
 printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
 ```
+
+| Variable             | Anthropic                   | Azure OpenAI                           |
+| -------------------- | --------------------------- | -------------------------------------- |
+| `AGENT__MODEL`       | `anthropic:claude-sonnet-5` | `azure:<deployment name>`              |
+| `AGENT__API_KEY`     | your Anthropic key          | your Azure key                         |
+| `AGENT__API_URL`     | unset                       | `https://<resource>.openai.azure.com`  |
+| `AGENT__API_VERSION` | unset                       | the api-version your deployment serves |
+
+Set with `--workspace` these carry no profile and reach every agent job in the workspace, which is what you want for a key and what to watch for with the model. See [Which model a run uses](#which-model-a-run-uses).
+
+Azure is the only provider pydantic-ai gives `api_version`. Elsewhere it's ignored with a warning, so leave it unset.
 
 ### Deploy the agent job
 

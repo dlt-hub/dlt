@@ -43,6 +43,8 @@ in a command, or write them to a file.
 
 ## Set the model credentials
 
+The key is yours. dltHub operates no model endpoint and supplies no key, so every agent run bills your provider account. Agents are tested on Anthropic and Azure OpenAI.
+
 Add the model and the endpoint URL to `.dlt/config.toml`. Every agent job in the workspace uses them:
 
 ```toml
