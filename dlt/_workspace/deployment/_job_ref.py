@@ -10,7 +10,7 @@ def job_category(
     expose: Optional[Mapping[str, Any]], deliver: Optional[Mapping[str, Any]], job_type: str
 ) -> str:
     """Label a job is grouped under: `expose.category`, else `pipeline` when it delivers to one,
-    else its `job_type`. The CLI summary and a run's result type use the same rule."""
+    else its `job_type`."""
     if expose and expose.get("category"):
         return str(expose["category"])
     if deliver and deliver.get("pipeline_name"):

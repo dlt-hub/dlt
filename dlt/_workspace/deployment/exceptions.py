@@ -168,8 +168,9 @@ class InvalidJobResultType(DeploymentException, ValueError):
     def __init__(self, result_type: str) -> None:
         self.result_type = result_type
         super().__init__(
-            f"Job result type {result_type!r} is not `job.<category>.<name>`. The launcher"
-            " builds it; a job passes only the name to `run.result(..., type=)`."
+            f"Job result type {result_type!r} is not `<category>.<name>` with `job` or"
+            " `background_agent` as the category. The launcher builds it; a job passes only"
+            " the name to `run.result(..., type=)`."
         )
 
 

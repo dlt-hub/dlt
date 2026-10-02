@@ -138,7 +138,7 @@ def _finish(
             output = validated
     status = output.get("status", "succeeded")
     job_result: TAgentJobResult = {
-        "type": job.agent_ref or job.name,
+        "type": job.result_name,
         "engine_version": JOB_RESULT_ENGINE_VERSION,
         "status": status,
         "summary": output.get("summary", ""),

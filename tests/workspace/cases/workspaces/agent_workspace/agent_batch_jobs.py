@@ -14,3 +14,8 @@ def daily_ingest() -> Dict[str, Any]:
 @job
 def transform() -> str:
     return "transformed"
+
+
+@job
+def nightly() -> Dict[str, Any]:
+    return result({"rows": 1})

@@ -1,5 +1,5 @@
 from datetime import datetime  # noqa: I251
-from typing import Any, Dict, List, Literal, Mapping, NamedTuple, NewType, Optional, Union
+from typing import Any, Dict, Final, List, Literal, Mapping, NamedTuple, NewType, Optional, Union
 
 from dlt.common.pipeline import TRefreshMode
 from dlt.common.typing import Annotated, NotRequired, TypedDict
@@ -89,6 +89,12 @@ TInterfaceType = Literal["gui", "rest_api", "mcp"]
 
 TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook", "background_agent"]
 """UI category for grouping jobs in the runtime interface."""
+
+TJobResultCategory = Literal["job", "background_agent"]
+"""First segment of a result `type`: `background_agent` for agent jobs, `job` for all others."""
+
+JOB_RESULT_CATEGORY: Final = "job"
+BACKGROUND_AGENT_CATEGORY: Final = "background_agent"
 
 THubEntityType = Literal["job-runs", "job", "workspace", "pipeline", "dataset"]
 """Kinds of workspace entity a job can act on. Hyphenated: the values are URI path segments."""
@@ -356,7 +362,8 @@ class TJobResult(TypedDict):
     """Structured result of a job run, delivered to the dlthub beacon. The launcher builds it."""
 
     type: str  # noqa: A003
-    """`job.{category}.{name}`: the category says which envelope this is, the name which payload."""
+    """`job.{name}` for a job, `background_agent.{name}` for an agent job. The name is what
+    `run.result(type=)` declared, else the job name; for an agent its reference or name."""
     engine_version: int
     result: NotRequired[Any]
     """JSON-serializable payload produced by the job."""

@@ -1,7 +1,7 @@
 """Structured job results and their delivery to the dlthub beacon."""
 
 from contextlib import contextmanager
-from typing import Any, ClassVar, Dict, Iterator, List, Mapping, Optional, Tuple
+from typing import Any, ClassVar, Dict, Iterator, List, Mapping, Optional, Tuple, cast, get_args
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.base_configuration import (
@@ -15,11 +15,8 @@ from dlt._workspace.deployment.typing import (
     JOB_RESULT_PAYLOAD_TYPE,
     TJobRef,
     TJobResult,
+    TJobResultCategory,
 )
-
-
-RESULT_TYPE_PREFIX = "job"
-"""First segment of every result type: `job.{category}.{name}`."""
 
 
 @configspec
@@ -47,28 +44,28 @@ def running_job(job_ref: TJobRef) -> Iterator[None]:
         ctx.job_stack.pop()
 
 
-def result_type(category: str, name: str) -> str:
-    """`job.{category}.{name}`: the category names the envelope, the name the payload."""
-    return f"{RESULT_TYPE_PREFIX}.{category}.{name}"
+def result_type(category: TJobResultCategory, name: str) -> str:
+    """`{category}.{name}`: the category names the envelope, the name the payload."""
+    return f"{category}.{name}"
 
 
 def parse_result_type(type_: str) -> Tuple[str, str]:
-    """Splits `job.{category}.{name}` into category and name. The name may contain dots.
+    """Splits `{category}.{name}` into category and name. The name may contain dots.
 
     Raises:
-        InvalidJobResultType: The string does not start with `job.` or lacks a name.
+        InvalidJobResultType: The category is unknown or the name is missing.
     """
-    parts = type_.split(".", 2)
-    if len(parts) != 3 or parts[0] != RESULT_TYPE_PREFIX or not parts[1] or not parts[2]:
+    category, _, name = type_.partition(".")
+    if category not in get_args(TJobResultCategory) or not name:
         raise InvalidJobResultType(type_)
-    return parts[1], parts[2]
+    return category, name
 
 
 def job_result(
     result: Any = None,
     /,
     *,
-    type: str,  # noqa: A002
+    type: Optional[str] = None,  # noqa: A002
     engine_version: int = JOB_RESULT_ENGINE_VERSION,
 ) -> Any:
     """Declares the structured result of the current job run and returns `result` unchanged.
@@ -79,8 +76,8 @@ def job_result(
 
     Args:
         result (Any): JSON-serializable payload.
-        type (str): Name of the payload shape, e.g. `"etl_summary"`. The launcher prefixes it
-            with `job.{category}.` when the run finishes.
+        type (Optional[str]): Name of the payload shape, e.g. `"etl_summary"`. Defaults to the
+            job name. The launcher prefixes it with the result category when the run finishes.
         engine_version (int): Version of that shape.
 
     Returns:
@@ -88,7 +85,11 @@ def job_result(
     """
     ctx = Container()[JobRunContext]
     if len(ctx.job_stack) == 1:
-        ctx.result = {"type": type, "engine_version": engine_version, "result": result}
+        # `take_job_result` fills in the type when none was declared
+        declared = cast(TJobResult, {"engine_version": engine_version, "result": result})
+        if type:
+            declared["type"] = type
+        ctx.result = declared
     return result
 
 
@@ -109,17 +110,20 @@ def job_inputs() -> Optional[Dict[str, Any]]:
     return Container()[JobRunContext].inputs
 
 
-def take_job_result(job_ref: TJobRef, category: str) -> Optional[TJobResult]:
+def take_job_result(
+    job_ref: TJobRef, category: TJobResultCategory, name: str
+) -> Optional[TJobResult]:
     """Returns and clears the declared result, with `type` and `job_ref` filled in.
 
-    This is the one place the result type is built, so the category is always the launcher's.
+    This is the one place the result type is built: the launcher's category, then the declared
+    name or `name`, the job's own.
     """
     ctx = Container()[JobRunContext]
     result = ctx.result
     ctx.result = None
     if result is None:
         return None
-    result["type"] = result_type(category, result["type"])
+    result["type"] = result_type(category, result.get("type") or name)
     result["job_ref"] = job_ref
     return result
 

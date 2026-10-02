@@ -64,6 +64,8 @@ async def async_job(run_context: TJobRunContext = None) -> str:
 
 inline = agent(INLINE_AGENT, loop=MOCK_LOOP)
 
+by_path = agent(".claude/dlthub/agents/job-inspector", name="by_path", loop=MOCK_LOOP)
+
 
 @agent(agent=AGENT_REF, loop=MOCK_LOOP)
 def driver(run_context: TJobRunContext = None) -> Dict[str, Any]:

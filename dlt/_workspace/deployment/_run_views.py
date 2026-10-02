@@ -15,7 +15,7 @@ from dlt._workspace.deployment._run_typing import (
 )
 from dlt._workspace.deployment.exceptions import AmbiguousJobSelector
 from dlt._workspace.deployment.job_result import parse_result_type
-from dlt._workspace.deployment.typing import TJobDefinition, TJobResult
+from dlt._workspace.deployment.typing import BACKGROUND_AGENT_CATEGORY, TJobDefinition, TJobResult
 
 
 TCandidate = Tuple[TJobDefinition, str]
@@ -53,7 +53,7 @@ def print_job_result(result: TJobResult) -> None:
     _echo("")
     _echo("Result  [%s]" % fmt.style(result["type"], fg="cyan"))
     # the category says an agent ran, and so that status, summary and trace are there
-    if category == "background_agent":
+    if category == BACKGROUND_AGENT_CATEGORY:
         status = fields.get("status", "")
         _echo("  status:     %s" % fmt.style(status, fg=STATUS_COLORS.get(status, "white")))
         if summary := fields.get("summary"):

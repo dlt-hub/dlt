@@ -114,7 +114,7 @@ def test_agent_reports_what_dlt_wired(
     on_claude = loop_type == LOOP_CLAUDE_AGENT_SDK
 
     assert output["status"] == "succeeded", seen
-    assert output["type"] == f"job.background_agent.{type_name}"
+    assert output["type"] == f"background_agent.{type_name}"
     assert trace["loop_type"] == loop_type
 
     # dlt's side: what `local: read` bought, and what the server was told to serve

@@ -236,7 +236,7 @@ def test_launcher_runs_a_declared_agent(beacon: List[Tuple[str, str]]) -> None:
         output = agent_run(_entry("inspector"), run_id="r-1", trigger="job.fail:jobs.b.ingest")
         drain_beacon()
 
-    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
     assert output["status"] == "succeeded"
     assert output["trace"]["turn_count"] == 3
 
