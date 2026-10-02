@@ -1431,71 +1431,69 @@ def test_hard_delete_hint(
     assert load_table_counts(p, table_name)[table_name] == 1
 
     # Delta rejects `hard_delete` with nested tables: test_merge_rejected_before_load
-    if destination_config.table_format == "delta":
-        return
+    if destination_config.table_format != "delta":
+        table_name = "test_hard_delete_hint_nested"
+        data_resource.apply_hints(table_name=table_name)
 
-    table_name = "test_hard_delete_hint_nested"
-    data_resource.apply_hints(table_name=table_name)
-
-    # insert two records with childs and grandchilds
-    data = [
-        {
-            "id": 1,
-            "child_1": ["foo", "bar"],
-            "child_2": [
-                {"grandchild_1": ["foo", "bar"], "grandchild_2": True},
-                {"grandchild_1": ["bar", "baz"], "grandchild_2": False},
-            ],
-            "deleted": flag(False),
-        },
-        {
-            "id": 2,
-            "child_1": ["baz"],
-            "child_2": [{"grandchild_1": ["baz"], "grandchild_2": True}],
-            "deleted": flag(False),
-        },
-    ]
-    info = p.run(data_resource(data), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 2
-    assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 3
-    assert load_table_counts(p, table_name + "__child_2")[table_name + "__child_2"] == 3
-    assert (
-        load_table_counts(p, table_name + "__child_2__grandchild_1")[
-            table_name + "__child_2__grandchild_1"
+        # insert two records with childs and grandchilds
+        data = [
+            {
+                "id": 1,
+                "child_1": ["foo", "bar"],
+                "child_2": [
+                    {"grandchild_1": ["foo", "bar"], "grandchild_2": True},
+                    {"grandchild_1": ["bar", "baz"], "grandchild_2": False},
+                ],
+                "deleted": flag(False),
+            },
+            {
+                "id": 2,
+                "child_1": ["baz"],
+                "child_2": [{"grandchild_1": ["baz"], "grandchild_2": True}],
+                "deleted": flag(False),
+            },
         ]
-        == 5
-    )
+        info = p.run(data_resource(data), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, table_name)[table_name] == 2
+        assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 3
+        assert load_table_counts(p, table_name + "__child_2")[table_name + "__child_2"] == 3
+        assert (
+            load_table_counts(p, table_name + "__child_2__grandchild_1")[
+                table_name + "__child_2__grandchild_1"
+            ]
+            == 5
+        )
 
-    # delete first record
-    data = [
-        {"id": 1, "deleted": flag(True)},
-    ]
-    info = p.run(data_resource(data), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 1
-    assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 1
-    assert (
-        load_table_counts(p, table_name + "__child_2__grandchild_1")[
-            table_name + "__child_2__grandchild_1"
+        # delete first record
+        data = [
+            {"id": 1, "deleted": flag(True)},
         ]
-        == 1
-    )
+        info = p.run(data_resource(data), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, table_name)[table_name] == 1
+        assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 1
+        assert (
+            load_table_counts(p, table_name + "__child_2__grandchild_1")[
+                table_name + "__child_2__grandchild_1"
+            ]
+            == 1
+        )
 
-    # delete second record
-    data = [
-        {"id": 2, "deleted": flag(True)},
-    ]
-    info = p.run(data_resource(data), **destination_config.run_kwargs)
-    assert_load_info(info)
-    assert load_table_counts(p, table_name)[table_name] == 0
-    assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 0
-    assert (
-        load_table_counts(p, table_name + "__child_2__grandchild_1")[
-            table_name + "__child_2__grandchild_1"
+        # delete second record
+        data = [
+            {"id": 2, "deleted": flag(True)},
         ]
-        == 0
-    )
+        info = p.run(data_resource(data), **destination_config.run_kwargs)
+        assert_load_info(info)
+        assert load_table_counts(p, table_name)[table_name] == 0
+        assert load_table_counts(p, table_name + "__child_1")[table_name + "__child_1"] == 0
+        assert (
+            load_table_counts(p, table_name + "__child_2__grandchild_1")[
+                table_name + "__child_2__grandchild_1"
+            ]
+            == 0
+        )
 
     # more than one `hard_delete` column hint fails the schema verification. The failed package
     # stays pending, so nothing runs on this pipeline afterwards
@@ -2080,9 +2078,8 @@ def test_merge_strategy_snapshot(
     merge_strategy: TLoaderMergeStrategy,
     skip_unchanged_rows: bool,
 ) -> None:
-    """The second load keeps one record, changes one, drops one and adds one. `upsert` updates
-    and keeps the absent record, `insert-only` only inserts, `cdc` updates and deletes the absent
-    record. With `skip_unchanged_rows`, the unchanged record keeps its `_dlt_load_id`."""
+    """Seeds three records and loads a snapshot that keeps one, changes one, drops one and adds
+    one. Checks the surviving records per strategy and which records the merge rewrote."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     if skip_unchanged_rows and destination_config.table_format == "iceberg":
         pytest.skip("Iceberg rejects `skip_unchanged_rows`")
@@ -2100,15 +2097,17 @@ def test_merge_strategy_snapshot(
     alice = {"id": 1, "name": "Alice", "value": 100}
     bob = {"id": 2, "name": "Bob", "value": 200}
     charlie = {"id": 3, "name": "Charlie", "value": 300}
+    # seed three records
     p = destination_config.setup_pipeline("merge_snapshot", dev_mode=True)
     assert_load_info(p.run(snapshot([alice, bob, charlie]), **destination_config.run_kwargs))
     load_ids = load_ids_by_key(p, "items")
 
-    # 1 unchanged, 2 changed, 3 absent, 4 new
+    # load a snapshot where alice is unchanged, bob changed, charlie absent and dave new
     bob_changed = {**bob, "value": 999}
     dave = {"id": 4, "name": "Dave", "value": 400}
     assert_load_info(p.run(snapshot([alice, bob_changed, dave]), **destination_config.run_kwargs))
 
+    # upsert updates bob and keeps charlie, insert-only keeps bob as loaded, cdc deletes charlie
     expected = {
         "upsert": [alice, bob_changed, charlie, dave],
         "insert-only": [alice, bob, charlie, dave],
@@ -2117,10 +2116,11 @@ def test_merge_strategy_snapshot(
     rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
     assert_records_as_set(rows, expected)
 
+    # the unchanged alice keeps her load id only if the merge compares rows or never updates
     new_load_ids = load_ids_by_key(p, "items")
-    # an update rewrites the unchanged record unless the merge compares the rows
     unchanged_kept = skip_unchanged_rows or merge_strategy == "insert-only"
     assert (new_load_ids[1] == load_ids[1]) is unchanged_kept
+    # the changed bob is rewritten by every strategy that updates
     assert (new_load_ids[2] == load_ids[2]) is (merge_strategy == "insert-only")
 
 
@@ -2162,13 +2162,13 @@ def test_skip_unchanged_rows(
     merge_strategy: Optional[TLoaderMergeStrategy],
     row_version: bool,
 ) -> None:
-    """With `skip_unchanged_rows`, the merge updates only the records that changed, so change
-    consumers (for example Snowflake Streams) see only changes. With `row_version_column_name`,
-    only that column decides. Without a strategy, the option applies to the strategy that the
-    destination picks."""
+    """Seeds three versioned records and reloads them with one unchanged, one with a new name and
+    one with a new version. Checks which records the merge rewrote when all columns or only the
+    row version decide."""
     if merge_strategy:
         skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     elif destination_config.table_format != "delta":
+        # without a strategy the option must apply to the strategy that the destination picks
         pytest.skip("Only the delta table format defaults to `upsert`")
     if destination_config.table_format == "iceberg":
         pytest.skip("Iceberg rejects `skip_unchanged_rows`")
@@ -2186,20 +2186,24 @@ def test_skip_unchanged_rows(
     rows: List[Dict[str, Any]] = [
         {"id": i, "name": name, "version": 1} for i, name in enumerate("abc", start=1)
     ]
+    # seed three records in version 1
     p = destination_config.setup_pipeline("skip_unchanged", dev_mode=True)
     assert_load_info(p.run(snapshot(rows), **destination_config.run_kwargs))
     before = load_ids_by_key(p, "items")
 
-    # 1 is unchanged, 2 changes only its name, 3 changes its version
+    # reload: 1 is unchanged, 2 changes only its name, 3 changes only its version
     rows[1]["name"] = "b2"
     rows[2]["version"] = 2
     assert_load_info(p.run(snapshot(rows), **destination_config.run_kwargs))
 
+    # the unchanged record is not rewritten, so change consumers (ie. Snowflake Streams) skip it
     after = load_ids_by_key(p, "items")
     assert after[1] == before[1]
-    # the row version ignores the changed name
+    # with a row version column, a changed name alone does not count as a change
     assert (after[2] == before[2]) is row_version
+    # a changed version is a change in both modes
     assert after[3] != before[3]
+    # the skipped update also keeps the stale name
     names = {r["id"]: r["name"] for r in load_tables_to_dicts(p, "items")["items"]}
     assert names[2] == ("b" if row_version else "b2")
 
@@ -2217,8 +2221,9 @@ def test_skip_unchanged_rows(
 def test_cdc_composite_primary_key(
     destination_config: DestinationTestConfiguration, source_filter: Optional[str]
 ) -> None:
-    """Records with the same `id` and a different `region` stay distinct. A loaded record that the
-    source filter discards is absent from the merge source, so `cdc` deletes its stored copy."""
+    """Seeds records that share an `id` across regions and reloads them with one record changed
+    and one moved out of the source filter. Checks that the merge matches on both key columns and
+    that `cdc` deletes the discarded record."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
     if source_filter:
         source_filter = merge_condition(source_filter, destination_config, "staging_table")
@@ -2232,6 +2237,7 @@ def test_cdc_composite_primary_key(
             **options,
         )
 
+    # seed two eu records and one us record that shares its id with (eu, 1)
     p = destination_config.setup_pipeline("cdc_composite", dev_mode=True)
     assert_load_info(
         p.run(
@@ -2246,8 +2252,7 @@ def test_cdc_composite_primary_key(
         )
     )
 
-    # (eu, 1) unchanged, (eu, 2) updated, (us, 1) moves to bucket 'old', (us, 2) new. (eu, 2) and
-    # (us, 2) share the id, so a match on one column collapses them
+    # reload: (eu, 1) unchanged, (eu, 2) updated, (us, 1) moves to bucket 'old', (us, 2) new
     us_1 = {"region": "us", "id": 1, "bucket": "old", "value": 301}
     us_2 = {"region": "us", "id": 2, "bucket": "new", "value": 400}
     assert_load_info(
@@ -2265,6 +2270,7 @@ def test_cdc_composite_primary_key(
         )
     )
 
+    # (eu, 2) and (us, 2) share the id and both survive, so the merge matched on both columns
     expected = [
         {"region": "eu", "id": 1, "bucket": "new", "value": 100},
         {"region": "eu", "id": 2, "bucket": "new", "value": 999},
@@ -2290,11 +2296,12 @@ def test_cdc_composite_primary_key(
 def test_cdc_hard_delete(
     destination_config: DestinationTestConfiguration, hard_delete_type: TDataType
 ) -> None:
-    """`cdc` deletes records flagged with `hard_delete`, also when the snapshot contains them.
-    `cdc` does not insert a record that arrives already flagged. A text column flags a record with
-    any non-NULL value."""
+    """Seeds two records and reloads them with one flagged for hard delete next to a new record
+    that arrives flagged. Checks that `cdc` deletes the flagged record and never inserts the new
+    one."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
 
+    # a text column flags a record with any non-NULL value
     def flag(deleted: bool) -> Any:
         if hard_delete_type == "bool":
             return deleted
@@ -2309,6 +2316,7 @@ def test_cdc_hard_delete(
             columns={"deleted": {"hard_delete": True, "data_type": hard_delete_type}},
         )
 
+    # seed two live records
     p = destination_config.setup_pipeline("cdc_hard_delete", dev_mode=True)
     assert_load_info(
         p.run(
@@ -2322,7 +2330,7 @@ def test_cdc_hard_delete(
         )
     )
 
-    # id 1 is flagged, id 2 stays, id 3 arrives flagged and `cdc` does not insert it
+    # reload: 1 is flagged, 2 is unchanged, 3 is new and arrives flagged
     assert_load_info(
         p.run(
             snapshot(
@@ -2336,6 +2344,7 @@ def test_cdc_hard_delete(
         )
     )
 
+    # the flag deletes 1 although the snapshot contains it, and cdc never inserts the flagged 3
     tables = load_tables_to_dicts(p, "accounts", exclude_system_cols=True)
     assert_records_as_set(tables["accounts"], [{"id": 2, "name": "Bob", "deleted": flag(False)}])
 
@@ -2356,10 +2365,9 @@ def test_cdc_hard_delete(
 def test_cdc_nested_tables(
     destination_config: DestinationTestConfiguration, hard_delete: bool, skip_unchanged_rows: bool
 ) -> None:
-    """`cdc` deletes nested rows with their parent when the parent is absent from the snapshot or
-    flagged for hard delete. `cdc` also deletes list elements absent from the snapshot. Change
-    detection is per table: with `skip_unchanged_rows`, a parent whose own columns did not change
-    keeps its `_dlt_load_id` although its nested rows changed."""
+    """Seeds two parents with children and reloads a snapshot that drops or flags one parent and
+    replaces a child of the other. Checks that nested rows follow their parents and that change
+    detection is per table."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
     if hard_delete and destination_config.table_format == "delta":
         pytest.skip("Delta rejects `hard_delete` with nested tables.")
@@ -2378,6 +2386,7 @@ def test_cdc_nested_tables(
             skip_unchanged_rows=skip_unchanged_rows,
         )
 
+    # seed two parents with children
     p = destination_config.setup_pipeline("cdc_nested", dev_mode=True)
     assert_load_info(
         p.run(
@@ -2392,8 +2401,7 @@ def test_cdc_nested_tables(
     )
     load_ids = load_ids_by_key(p, "parent_items")
 
-    # parent 1 loses child 2 and gains child 4. `cdc` deletes parent 2 and its children,
-    # because parent 2 is absent from the snapshot or flagged
+    # reload: parent 1 loses child 2 and gains child 4, parent 2 is absent or arrives flagged
     snapshot_rows: List[StrAny] = [
         {"id": 1, "name": "P1", "deleted": False, "children": [{"c": 1}, {"c": 4}]}
     ]
@@ -2401,13 +2409,15 @@ def test_cdc_nested_tables(
         snapshot_rows.append({"id": 2, "name": "P2", "deleted": True, "children": [{"c": 3}]})
     assert_load_info(p.run(snapshot(snapshot_rows), **destination_config.run_kwargs))
 
+    # parent 2 is deleted with its children
     tables = load_tables_to_dicts(
         p, "parent_items", "parent_items__children", exclude_system_cols=True
     )
     assert [r["id"] for r in tables["parent_items"]] == [1]
+    # the list of parent 1 follows the snapshot: child 2 is deleted, child 4 inserted
     assert_records_as_set(tables["parent_items__children"], [{"c": 1}, {"c": 4}])
     assert_nested_rows_have_parents(p, "parent_items", "parent_items__children")
-    # parent 1 did not change, only its children did
+    # change detection is per table: parent 1 did not change although its children did
     assert (load_ids_by_key(p, "parent_items")[1] == load_ids[1]) is skip_unchanged_rows
 
 
@@ -2423,14 +2433,21 @@ def test_cdc_nested_tables(
 @pytest.mark.parametrize(
     "merge_strategy,source_filter,destination_scope,expected_ids",
     [
+        # cdc deletes the stored records absent from the load: 1, 3 and 4
         ("cdc", None, None, [2, 5, 6, 7]),
+        # the scope limits the deletes to bucket 'new', so only 3 is deleted
         ("cdc", None, NEW_BUCKET, [1, 2, 4, 5, 6, 7]),
+        # the filter discards 6 from the load and alone does not limit the deletes
         ("cdc", NEW_BUCKET, None, [2, 5, 7]),
         ("cdc", NEW_BUCKET, NEW_BUCKET, [1, 2, 4, 5, 7]),
+        # upsert never deletes, the filter discards 6
         ("upsert", NEW_BUCKET, None, [1, 2, 3, 4, 5, 7]),
+        # the scope replaces the key match: 2 and 3 are deleted, the old copy of 7 stays
         ("delete-insert", None, NEW_BUCKET, [1, 2, 4, 5, 6, 7, 7]),
+        # the key match deletes 2 and 7, the filter discards 6
         ("delete-insert", NEW_BUCKET, None, [1, 2, 3, 4, 5, 7]),
         ("delete-insert", NEW_BUCKET, NEW_BUCKET, [1, 2, 4, 5, 7, 7]),
+        # a scope with placeholders rewrites the key match and gives the same result
         ("delete-insert", None, HANDWRITTEN_KEY_SCOPE, [1, 2, 3, 4, 5, 6, 7]),
     ],
     ids=[
@@ -2452,10 +2469,9 @@ def test_merge_conditions(
     destination_scope: Optional[str],
     expected_ids: List[int],
 ) -> None:
-    """The destination scope selects the destination records that the merge can delete, and
-    replaces the key match of `delete-insert`, so a record that moves out of the scope keeps its
-    old copy. The source filter selects the merge source and alone does not limit deletes. A
-    destination scope with placeholders can rewrite the default key match of `delete-insert`."""
+    """Seeds `STORED_RECORDS` and merges `LOADED_RECORDS` with a source filter, a destination
+    scope or both. Checks which records survive: the filter selects the merge source, the scope
+    selects the stored records that the merge may delete."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     if source_filter and destination_config.table_format == "iceberg":
         pytest.skip("Iceberg rejects `source_filter`")
@@ -2468,6 +2484,7 @@ def test_merge_conditions(
         destination_scope = merge_condition(destination_scope, destination_config, "table")
     table_format = destination_config.table_format
 
+    # seed the stored records as they are, without a merge
     p = destination_config.setup_pipeline("merge_conditions", dev_mode=True)
     assert_load_info(
         p.run(
@@ -2475,6 +2492,7 @@ def test_merge_conditions(
             **destination_config.run_kwargs,
         )
     )
+    # merge the loaded records with the conditions
     assert_load_info(
         p.run(
             merge_resource(
@@ -2488,6 +2506,7 @@ def test_merge_conditions(
         )
     )
 
+    # the ids that survive are explained per case in the parametrization
     assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == expected_ids
 
 
@@ -2588,8 +2607,8 @@ def test_merge_rejected_before_load(
     record: StrAny,
     expected: str,
 ) -> None:
-    """Merge settings that the resource cannot check but the destination cannot run fail the
-    schema verification before any merge."""
+    """Loads one record with merge settings that the resource accepts but the destination cannot
+    run. Checks that the schema verification rejects them before any load job."""
     if destination_config.table_format != table_format:
         pytest.skip(f"Checks the {table_format or 'SQL'} rules.")
 
@@ -2611,6 +2630,7 @@ def test_merge_rejected_before_load(
     def items():
         yield [record]
 
+    # the resource accepts the settings, the schema verification of the load rejects them
     p = destination_config.setup_pipeline("merge_rejected", dev_mode=True)
     with pytest.raises(PipelineStepFailed) as exc:
         p.run(items(), **destination_config.run_kwargs)
@@ -2642,13 +2662,15 @@ def test_merge_key_source_filter(
     strategy: TLoaderMergeStrategy,
     conditions: Dict[str, str],
 ) -> None:
-    """`merge_key` selects the partitions of the merge source. A destination scope replaces
-    `merge_key`."""
+    """Seeds four records in three buckets and reloads two of them with `merge_key` on the
+    bucket, a source filter that discards one, and a destination scope. Checks which partitions
+    the merge replaces."""
     skip_if_unsupported_merge_strategy(destination_config, strategy)
 
     def events(data: List[StrAny], **options: Any) -> DltSource:
         return merge_resource(data, strategy, name="events", merge_key="bucket", **options)
 
+    # seed four records in the buckets 'old', 'new' and 'mid'
     p = destination_config.setup_pipeline("merge_key_source_filter", dev_mode=True)
     assert_load_info(
         p.run(
@@ -2664,7 +2686,7 @@ def test_merge_key_source_filter(
         )
     )
 
-    # the source filter discards 5
+    # reload: 2 changes in bucket 'new', 5 is new in bucket 'mid' but the source filter discards it
     assert_load_info(
         p.run(
             events(
@@ -2706,10 +2728,9 @@ def test_merge_key_source_filter(
 def test_cdc_empty_snapshot(
     destination_config: DestinationTestConfiguration, materialize: bool, scope: Optional[str]
 ) -> None:
-    """A resource that yields nothing produces no load job, so `cdc` deletes nothing. A
-    materialized table schema produces an empty load job, so `cdc` deletes every record that the
-    destination scope selects. An empty snapshot has no `merge_key` partitions, so it deletes
-    nothing with `merge_key`."""
+    """Seeds three records and loads an empty snapshot as a plain list or as a materialized table
+    schema, without scope, with a `merge_key` or with a destination scope. Checks which records
+    `cdc` deletes."""
     skip_if_unsupported_merge_strategy(destination_config, "cdc")
     if scope == "merge_key" and destination_config.table_format == "delta":
         pytest.skip("Delta rejects `merge_key` with `cdc`")
@@ -2726,6 +2747,7 @@ def test_cdc_empty_snapshot(
             destination_scope=destination_scope,
         )
 
+    # seed two eu records and one us record
     p = destination_config.setup_pipeline("cdc_empty", dev_mode=True)
     seed: List[StrAny] = [
         {"id": 1, "region": "eu"},
@@ -2733,15 +2755,24 @@ def test_cdc_empty_snapshot(
         {"id": 3, "region": "us"},
     ]
     assert_load_info(p.run(snapshot(seed), **destination_config.run_kwargs))
+
+    # load the empty snapshot: a plain list yields no load job, a materialized schema an empty one
     empty = dlt.mark.materialize_table_schema() if materialize else []
     info = p.run(snapshot(empty), **destination_config.run_kwargs)
     if materialize:
         assert_load_info(info)
 
-    expected = 3
-    if materialize and scope is None:
+    if not materialize:
+        # without a load job no merge runs
+        expected = 3
+    elif scope is None:
+        # the empty merge source matches no stored record, so cdc deletes all
         expected = 0
-    elif materialize and scope == "destination_scope":
+    elif scope == "merge_key":
+        # the empty snapshot has no merge key partitions, so cdc deletes nothing
+        expected = 3
+    else:
+        # the destination scope selects the eu records and cdc deletes them
         expected = 1
     assert load_table_counts(p, "items")["items"] == expected
 
@@ -2757,8 +2788,9 @@ def test_cdc_empty_snapshot(
 def test_delete_insert_without_keys(
     destination_config: DestinationTestConfiguration, destination_scope: Optional[str]
 ) -> None:
-    """Without keys, `delete-insert` appends. With a destination scope, it replaces the rows that
-    the scope selects."""
+    """Loads the same rows twice without keys, with and without a destination scope. Checks that
+    `delete-insert` appends unless the scope selects the earlier rows."""
+    # load the same two rows twice
     rows = [{"id": 1, "bucket": "new"}, {"id": 2, "bucket": "new"}]
     p = destination_config.setup_pipeline("di_keyless", dev_mode=True)
     for _ in range(2):
@@ -2770,6 +2802,7 @@ def test_delete_insert_without_keys(
                 **destination_config.run_kwargs,
             )
         )
+    # without keys nothing matches and both loads stay, the scope deletes the first load
     assert load_table_counts(p, "items")["items"] == (2 if destination_scope else 4)
 
 
@@ -2781,12 +2814,15 @@ def test_delete_insert_without_keys(
 @pytest.mark.parametrize(
     "strategy,destination_scope,expected",
     [
+        # the scope deletes only the loaded keys within p15, so 2 stays and 3 is inserted twice
         (
             "delete-insert",
             PARTITION_LOCAL_KEY,
             [(1, "a2", "p15"), (2, "b", "p15"), (3, "c", "p16"), (3, "c2", "p15")],
         ),
+        # the scope deletes all of p15, the copy of 3 in p16 stays
         ("delete-insert", PARTITION, [(1, "a2", "p15"), (3, "c", "p16"), (3, "c2", "p15")]),
+        # cdc matches 3 across partitions and moves it to p15, 2 is absent and deleted
         ("cdc", PARTITION, [(1, "a2", "p15"), (3, "c2", "p15")]),
     ],
     ids=["delete_insert_local_key", "delete_insert_partition", "cdc_partition"],
@@ -2797,10 +2833,12 @@ def test_delete_insert_partition_local_primary_key(
     destination_scope: str,
     expected: List[Tuple[int, str, str]],
 ) -> None:
-    """`delete-insert` can treat the primary key as unique within a partition only, while
-    `cdc` matches on it globally and moves the record between partitions."""
+    """Seeds two partitions and merges a load into one of them that carries a key stored in the
+    other. Checks whether the key is unique within the partition or globally, per strategy and
+    scope."""
     skip_if_unsupported_merge_strategy(destination_config, strategy)
 
+    # seed 1 and 2 in p15 and 3 in p16
     p = destination_config.setup_pipeline("partition_local_key", dev_mode=True)
     assert_load_info(
         p.run(
@@ -2808,6 +2846,7 @@ def test_delete_insert_partition_local_primary_key(
             **destination_config.run_kwargs,
         )
     )
+    # merge 1 and 3 into p15
     assert_load_info(
         p.run(
             merge_resource(PARTITIONED_INPUT, strategy, destination_scope=destination_scope),
@@ -2815,6 +2854,7 @@ def test_delete_insert_partition_local_primary_key(
         )
     )
 
+    # the parametrization explains which copies survive per strategy and scope
     rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
     assert sorted((r["id"], r["v"], r["part"]) for r in rows) == sorted(expected)
 
@@ -2838,10 +2878,12 @@ def test_source_filter_nested_tables(
     destination_scope: Optional[str],
     source_filter: str,
 ) -> None:
-    """The merge does not insert nested rows of a record that the source filter discards. Nested
-    rows outside the destination scope do not change. The source filter can contain a subquery."""
+    """Seeds three records with children and loads records where the source filter discards one.
+    Checks that the merge never inserts the discarded record or its children and that nested rows
+    outside the destination scope stay."""
     skip_if_unsupported_merge_strategy(destination_config, strategy)
 
+    # seed three records with a child each, 3 is in bucket 'old'
     p = destination_config.setup_pipeline("source_filter_nested", dev_mode=True)
     target = [
         {"id": 1, "bucket": "new", "children": [{"c": "a"}]},
@@ -2852,6 +2894,8 @@ def test_source_filter_nested_tables(
     # which the merge cannot match when it deletes nested rows
     seed = merge_resource(target, strategy, append=strategy == "delete-insert")
     assert_load_info(p.run(seed, **destination_config.run_kwargs))
+
+    # load: 1 replaces its child, 4 is in bucket 'old' and the filter discards it, 5 is new
     load = [
         {"id": 1, "bucket": "new", "children": [{"c": "a2"}, {"c": "a3"}]},
         {"id": 4, "bucket": "old", "children": [{"c": "d"}]},
@@ -2866,16 +2910,18 @@ def test_source_filter_nested_tables(
         )
     )
 
+    # the discarded 4 and its child are never inserted
     tables = load_tables_to_dicts(p, "items", "items__children")
     if strategy == "upsert":
-        # upsert keeps 2, which is absent from the load
+        # upsert keeps 2 and 3 with their children although the load lacks them
         assert sorted(r["id"] for r in tables["items"]) == [1, 2, 3, 5]
         assert sorted(r["c"] for r in tables["items__children"]) == ["a2", "a3", "b", "c", "e"]
     elif strategy == "cdc":
-        # without a destination scope, cdc deletes 3 and its nested rows
+        # without a destination scope, cdc deletes 2 and 3 with their children
         assert sorted(r["id"] for r in tables["items"]) == [1, 5]
         assert sorted(r["c"] for r in tables["items__children"]) == ["a2", "a3", "e"]
     else:
+        # the scope replaces bucket 'new' with its children, 3 is outside the scope and stays
         assert sorted(r["id"] for r in tables["items"]) == [1, 3, 5]
         assert sorted(r["c"] for r in tables["items__children"]) == ["a2", "a3", "c", "e"]
     assert_nested_rows_have_parents(p, "items", "items__children")
@@ -2889,8 +2935,9 @@ def test_source_filter_nested_tables(
 def test_delete_insert_destination_scope_nested_tables(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """`delete-insert` replaces nested rows with their parents, also for parents that the load does
-    not carry. Nested rows of parents outside the destination scope do not change."""
+    """Seeds two partitions with children and reloads one partition several times. Checks that
+    `delete-insert` replaces nested rows with their parents, also for parents that the load does
+    not carry, and leaves the other partition alone."""
     p = destination_config.setup_pipeline("di_partition_nested", dev_mode=True)
 
     def load(data: Sequence[StrAny], append: bool = False) -> None:
@@ -2907,6 +2954,7 @@ def test_delete_insert_destination_scope_nested_tables(
             sorted(r["val"] for r in tables["items__child"]),
         )
 
+    # seed partition A with 1 and 2 and partition B with 3
     load(
         [
             {"id": 1, "part": "A", "child": [{"val": "c1"}]},
@@ -2916,6 +2964,7 @@ def test_delete_insert_destination_scope_nested_tables(
         append=True,
     )
 
+    # reload partition A: 1 replaces its child. 3 and its children are outside the scope and stay
     update = [
         {"id": 1, "part": "A", "child": [{"val": "c1_updated"}]},
         {"id": 2, "part": "A", "child": [{"val": "c2"}]},
@@ -2926,6 +2975,7 @@ def test_delete_insert_destination_scope_nested_tables(
     load(update)
     assert observed() == ([1, 2, 3], ["c1_updated", "c2", "c3", "c4"])
 
+    # 1 gains a second child
     load(
         [
             {"id": 1, "part": "A", "child": [{"val": "c1_v3"}, {"val": "c1_extra"}]},
@@ -2934,7 +2984,7 @@ def test_delete_insert_destination_scope_nested_tables(
     )
     assert observed() == ([1, 2, 3], ["c1_extra", "c1_v3", "c2", "c3", "c4"])
 
-    # 2 is not reloaded, so the merge deletes it with its nested rows
+    # 2 is not reloaded, so the scope deletes it with its nested rows
     load([{"id": 1, "part": "A", "child": [{"val": "c1_final"}]}])
     assert observed() == ([1, 3], ["c1_final", "c3", "c4"])
 
@@ -2947,8 +2997,11 @@ def test_delete_insert_destination_scope_nested_tables(
 def test_delete_insert_destination_scope_hard_delete(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """A record flagged for hard delete is deleted by the destination scope and not inserted."""
+    """Seeds two partitions and reloads one with a record flagged for hard delete. Checks that the
+    scope deletes the flagged record and the merge does not insert it back."""
     columns: TTableSchemaColumns = {"deleted": {"hard_delete": True, "data_type": "bool"}}
+
+    # seed partition A with 1 and 2 and partition B with 3
     p = destination_config.setup_pipeline("di_partition_hard_delete", dev_mode=True)
     target = [
         {"id": 1, "v": "a", "part": "A", "deleted": False},
@@ -2962,6 +3015,7 @@ def test_delete_insert_destination_scope_hard_delete(
         )
     )
 
+    # reload partition A: 1 is flagged, 2 changes
     load = [
         {"id": 1, "v": "a", "part": "A", "deleted": True},
         {"id": 2, "v": "b2", "part": "A", "deleted": False},
@@ -2973,6 +3027,7 @@ def test_delete_insert_destination_scope_hard_delete(
         )
     )
 
+    # the scope deletes 1 and 2, only 2 is inserted back, 3 is outside the scope and stays
     rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
     assert sorted((r["id"], r["v"], r["part"]) for r in rows) == [(2, "b2", "A"), (3, "c", "B")]
 
@@ -2985,9 +3040,12 @@ def test_delete_insert_destination_scope_hard_delete(
 def test_delete_insert_no_keys_hard_delete_nested(
     destination_config: DestinationTestConfiguration,
 ) -> None:
-    """Without keys, `delete-insert` appends. It does not insert records flagged for hard delete or
-    their nested rows."""
+    """Loads records with children without keys, the second load with a record flagged for hard
+    delete. Checks that `delete-insert` appends and never inserts the flagged record or its
+    child."""
     columns: TTableSchemaColumns = {"deleted": {"hard_delete": True, "data_type": "bool"}}
+
+    # load 1, then 2 together with the flagged 3
     p = destination_config.setup_pipeline("di_no_keys_hard_delete", dev_mode=True)
     for data in (
         [{"id": 1, "deleted": False, "child": [{"val": "a"}]}],
@@ -3003,6 +3061,7 @@ def test_delete_insert_no_keys_hard_delete_nested(
             )
         )
 
+    # the second load appends to the first, the flagged 3 and its child are never inserted
     tables = load_tables_to_dicts(p, "items", "items__child", exclude_system_cols=True)
     assert sorted(r["id"] for r in tables["items"]) == [1, 2]
     assert sorted(r["val"] for r in tables["items__child"]) == ["a", "b"]
@@ -3018,7 +3077,8 @@ def test_source_filter_with_bool_hard_delete(
     destination_config: DestinationTestConfiguration,
     merge_strategy: TLoaderMergeStrategy,
 ) -> None:
-    """Records whose bool `hard_delete` flag is NULL do not bypass the source filter."""
+    """Loads records with a NULL bool `hard_delete` flag and a source filter. Checks that the NULL
+    flag does not bypass the filter."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     options: Any = {"source_filter": "id > 0"}
     if merge_strategy == "delete-insert":
