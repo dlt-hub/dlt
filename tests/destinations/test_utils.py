@@ -7,7 +7,11 @@ from dlt.common.destination import Destination
 from dlt.common.destination.utils import prepare_load_table
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
-from dlt.destinations.utils import get_resource_for_adapter, verify_schema_merge_disposition
+from dlt.destinations.utils import (
+    get_resource_for_adapter,
+    verify_schema_merge_disposition,
+    verify_unsupported_merge_options,
+)
 from dlt.extract import DltResource
 
 from tests.utils import capture_dlt_logger
@@ -91,3 +95,44 @@ def test_verify_merge_options_with_default_strategy(
     )
     for option in ("skip_unchanged_rows", "row_version_column_name"):
         assert (f"`{option}`" in warnings) is (option in ignored_options)
+
+
+@pytest.mark.parametrize("write_disposition", ["append", "merge"])
+def test_verify_unsupported_merge_options(write_disposition: str) -> None:
+    """A destination that cannot apply a merge option rejects it, only on merge tables."""
+    disposition: Any = write_disposition
+    if write_disposition == "merge":
+        disposition = {
+            "disposition": "merge",
+            "strategy": "upsert",
+            "skip_unchanged_rows": True,
+            "source_filter": "id > 0",
+        }
+
+    @dlt.resource(
+        primary_key="id", columns={"id": {"data_type": "bigint"}}, write_disposition=disposition
+    )
+    def items():
+        yield [{"id": 1}]
+
+    schema = Schema("test")
+    table = schema.update_table(items().compute_table_schema())
+    caps = Destination.from_reference("lancedb").capabilities()
+    load_table = prepare_load_table(schema.tables, table, caps)
+    exceptions = verify_unsupported_merge_options(
+        schema, [load_table], caps, "lancedb", ("skip_unchanged_rows", "source_filter")
+    )
+    if write_disposition == "append":
+        assert exceptions == []
+    else:
+        assert [str(e) for e in exceptions] == [
+            (
+                "In schema `test`: dlt does not support `skip_unchanged_rows` with the `upsert`"
+                " merge strategy on `lancedb` table `items`."
+            ),
+            (
+                "In schema `test`: dlt does not support `source_filter` with the `upsert` merge"
+                " strategy on `lancedb` table `items`. Filter the yielded items with"
+                " `resource.add_filter()` instead."
+            ),
+        ]

@@ -101,6 +101,7 @@ from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
+    verify_unsupported_merge_options,
 )
 
 if TYPE_CHECKING:
@@ -980,28 +981,17 @@ class FilesystemClient(
                         )
                     )
             elif table_format == "iceberg":
-                merge_strategy = resolve_merge_strategy(
-                    self.schema.tables, table, self.capabilities
+                # pyiceberg merges Arrow data: it cannot apply a SQL condition and it compares
+                # all columns, `_dlt_load_id` included, so every row changes
+                exception_log.extend(
+                    verify_unsupported_merge_options(
+                        self.schema,
+                        [table],
+                        self.capabilities,
+                        "iceberg",
+                        ("source_filter", "skip_unchanged_rows"),
+                    )
                 )
-                if merge_strategy == "upsert" and "x-merge-source-filter" in table:
-                    # pyiceberg merges Arrow data and cannot apply a SQL condition
-                    exception_log.append(
-                        SchemaCorruptedException(
-                            self.schema.name,
-                            "dlt does not support `source_filter` with the `upsert` merge"
-                            f" strategy on Iceberg table `{table['name']}`. Filter the yielded"
-                            " items with `resource.add_filter()` instead.",
-                        )
-                    )
-                if merge_strategy == "upsert" and table.get("x-merge-skip-unchanged-rows"):
-                    # pyiceberg compares all columns, `_dlt_load_id` included, so every row changes
-                    exception_log.append(
-                        SchemaCorruptedException(
-                            self.schema.name,
-                            "dlt does not support `skip_unchanged_rows` with the `upsert` merge"
-                            f" strategy on Iceberg table `{table['name']}`.",
-                        )
-                    )
         return exception_log
 
     def update_stored_schema(

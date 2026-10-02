@@ -753,7 +753,7 @@ The option works the same way for the [`cdc` strategy](#cdc-strategy).
 
 Change detection compares all columns except the `primary_key`, the `hard_delete` column, and the dlt columns `_dlt_id`, `_dlt_load_id`, `_dlt_parent_id`, and `_dlt_root_id`. dlt sets the `_dlt_load_id` of an updated record to the current load. An unchanged record keeps the `_dlt_load_id` of its last change. Change detection also applies to nested rows, so dlt does not update an unchanged list element.
 
-On the `filesystem` destination, the `iceberg` table format does not support `skip_unchanged_rows` with `upsert`. With it, dlt stops before the load starts.
+On the `filesystem` destination, the `iceberg` table format does not support `skip_unchanged_rows` with `upsert`. The vector destinations `lancedb`, `lance`, `qdrant` and `weaviate` do not support it either, because their `upsert` updates every matched record. With it, dlt stops before the load starts.
 
 #### Detect changes with your own row version
 
@@ -778,7 +778,7 @@ Without `skip_unchanged_rows`, dlt ignores `row_version_column_name` and logs a 
 
 ### Filter the loaded records
 
-Set `source_filter` to merge only the loaded records that match a SQL condition. dlt discards the other loaded records. For the rules, read [Merge conditions](#merge-conditions). `upsert` does not delete records that are absent from the loaded data, so it does not support `destination_scope`.
+Set `source_filter` to merge only the loaded records that match a SQL condition. dlt discards the other loaded records. For the rules, read [Merge conditions](#merge-conditions). `upsert` does not delete records that are absent from the loaded data, so it does not support `destination_scope`. The `iceberg` table format and the vector destinations cannot apply a SQL condition, so they reject `source_filter` before the load starts.
 
 ### `upsert` versus `delete-insert`
 

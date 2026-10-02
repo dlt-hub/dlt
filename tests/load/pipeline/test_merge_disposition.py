@@ -2086,6 +2086,10 @@ def test_merge_strategy_snapshot(
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
     if skip_unchanged_rows and destination_config.table_format == "iceberg":
         pytest.skip("Iceberg rejects `skip_unchanged_rows`")
+    if destination_config.destination_type in ("qdrant", "weaviate"):
+        pytest.skip("`load_tables_to_dicts` cannot read vector stores without a SQL client")
+    if skip_unchanged_rows and destination_config.destination_type in ("lance", "lancedb"):
+        pytest.skip("Vector stores reject `skip_unchanged_rows`")
     options: Any = {"skip_unchanged_rows": True} if skip_unchanged_rows else {}
 
     def snapshot(data: List[StrAny]) -> DltSource:
@@ -2118,6 +2122,26 @@ def test_merge_strategy_snapshot(
     unchanged_kept = skip_unchanged_rows or merge_strategy == "insert-only"
     assert (new_load_ids[1] == load_ids[1]) is unchanged_kept
     assert (new_load_ids[2] == load_ids[2]) is (merge_strategy == "insert-only")
+
+
+@pytest.mark.parametrize(
+    "destination_config", destinations_configs(default_vector_configs=True), ids=lambda x: x.name
+)
+@pytest.mark.parametrize("option", ["skip_unchanged_rows", "source_filter"])
+def test_vector_store_rejects_merge_options(
+    destination_config: DestinationTestConfiguration, option: str
+) -> None:
+    """Runs an `upsert` with an option that vector stores cannot apply, because they update every
+    matched record and run no SQL condition. Checks that the load is rejected before it starts."""
+    value: Any = True if option == "skip_unchanged_rows" else NEW_BUCKET
+    p = destination_config.setup_pipeline("vector_merge_options", dev_mode=True)
+    with pytest.raises(PipelineStepFailed) as exc:
+        p.run(
+            merge_resource([{"id": 1, "bucket": "new"}], "upsert", **{option: value}),
+            **destination_config.run_kwargs,
+        )
+    assert isinstance(exc.value.__cause__, SchemaCorruptedException)
+    assert f"`{option}`" in str(exc.value.__cause__)
 
 
 @pytest.mark.parametrize(
@@ -2535,13 +2559,13 @@ def test_merge_conditions(
             "iceberg",
             {"strategy": "upsert", "source_filter": NEW_BUCKET},
             {"id": 1, "bucket": "new"},
-            "`source_filter` with the `upsert` merge strategy on Iceberg",
+            "`source_filter` with the `upsert` merge strategy on `iceberg` table",
         ),
         (
             "iceberg",
             {"strategy": "upsert", "skip_unchanged_rows": True},
             {"id": 1, "bucket": "new"},
-            "`skip_unchanged_rows` with the `upsert` merge strategy on Iceberg",
+            "`skip_unchanged_rows` with the `upsert` merge strategy on `iceberg` table",
         ),
     ],
     ids=[

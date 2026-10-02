@@ -12,6 +12,7 @@ from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
     MERGE_STRATEGY_OPTIONS,
+    MERGE_DISPOSITION_HINTS,
     TColumnType,
     TLoaderReplaceStrategy,
     TTableSchema,
@@ -129,6 +130,43 @@ def verify_schema_replace_disposition(
     return exception_log
 
 
+def _get_merge_options(table: PreparedTableSchema) -> Dict[str, Any]:
+    """Returns the merge disposition keys that `table` stores as hints, by key name."""
+    options: Dict[str, Any] = {
+        key: table.get(hint) for key, hint in MERGE_DISPOSITION_HINTS.items()
+    }
+    options["row_version_column_name"] = get_first_column_name_with_prop(table, "x-row-version")
+    return options
+
+
+def verify_unsupported_merge_options(
+    schema: Schema,
+    load_tables: Sequence[PreparedTableSchema],
+    capabilities: DestinationCapabilitiesContext,
+    target: str,
+    options: Sequence[str],
+) -> List[Exception]:
+    """Returns an exception for each merge table in `load_tables` that sets one of the merge
+    `options` that `target` (a destination type or table format) cannot apply."""
+    exception_log: List[Exception] = []
+    for table in load_tables:
+        merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+        if merge_strategy is None:
+            continue
+        set_options = _get_merge_options(table)
+        for option in options:
+            # `verify_schema_merge_disposition` warns about options that the strategy ignores
+            if set_options[option] and merge_strategy in MERGE_STRATEGY_OPTIONS[option]:
+                message = (
+                    f"dlt does not support `{option}` with the `{merge_strategy}` merge strategy"
+                    f" on `{target}` table `{table['name']}`."
+                )
+                if option == "source_filter":
+                    message += " Filter the yielded items with `resource.add_filter()` instead."
+                exception_log.append(SchemaCorruptedException(schema.name, message))
+    return exception_log
+
+
 def verify_schema_merge_disposition(
     schema: Schema,
     load_tables: Sequence[PreparedTableSchema],
@@ -222,12 +260,7 @@ def verify_schema_merge_disposition(
                     )
             # the resource rejects these options for an explicit strategy. Only the destination
             # knows the default strategy
-            set_options = {
-                "source_filter": table.get("x-merge-source-filter"),
-                "destination_scope": table.get("x-merge-destination-scope"),
-                "skip_unchanged_rows": table.get("x-merge-skip-unchanged-rows"),
-                "row_version_column_name": get_first_column_name_with_prop(table, "x-row-version"),
-            }
+            set_options = _get_merge_options(table)
             for option, strategies in MERGE_STRATEGY_OPTIONS.items():
                 if set_options[option] and merge_strategy not in strategies:
                     supported = ", ".join(f"`{s}`" for s in strategies)
