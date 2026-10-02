@@ -297,9 +297,9 @@ def test_the_body_carries_the_inputs_to_the_model(workspace: Any, loop_type: str
     system_prompt = output["result"]["ran"]["system_prompt"]
     assert "with failed run id 'r-42'" in system_prompt
     assert "from trigger `job.fail:jobs.b.ingest`" in system_prompt
-    # an input nobody supplied renders blank, and the trace says which
+    # an optional input nobody supplied renders blank, which is no reason to warn
     assert "job_ref ''" in system_prompt
-    assert output["trace"]["unresolved_placeholders"] == ["failed_job_ref"]
+    assert output["trace"]["unresolved_placeholders"] == []
 
 
 def test_run_args_fill_declared_inputs(workspace: Any, loop_type: str) -> None:

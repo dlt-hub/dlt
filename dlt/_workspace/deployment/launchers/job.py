@@ -166,7 +166,7 @@ def job_sections(job: JobFactory[Any, Any]) -> Tuple[str, ...]:
 def configured_inputs(job: JobFactory[Any, Any], spec: Type[BaseConfiguration]) -> Dict[str, Any]:
     """The job's inputs resolved as job config, so `-c`, env vars and toml all fill them."""
     config = resolve_configuration(spec(), sections=job_sections(job))
-    # an input nobody supplied stays out, so a system prompt reports it as unresolved
+    # an input nobody supplied stays out of the inputs and the trace
     return {k: v for k, v in dict(config).items() if v is not None}
 
 

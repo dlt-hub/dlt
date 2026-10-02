@@ -504,6 +504,36 @@ def test_loops_hand_entity_types_to_the_model_as_comments(workspace: Any) -> Non
         assert loop.spec["inputs"]["properties"]["failed_run_id"]["entity_type"] == "job-runs"
 
 
+@pytest.mark.parametrize(
+    "required,placeholder,warned",
+    [
+        ({}, "failed_job_ref", []),
+        (["failed_job_ref"], "failed_job_ref", ["failed_job_ref"]),
+        ({}, "failed_jobref", ["failed_jobref"]),
+    ],
+    ids=["optional-unset", "required-missing", "undeclared"],
+)
+def test_only_a_blank_that_may_not_be_blank_warns(
+    workspace: Any,
+    caplog: pytest.LogCaptureFixture,
+    dlt_logger_name: str,
+    required: Any,
+    placeholder: str,
+    warned: List[str],
+) -> None:
+    """An optional input left unset renders blank in silence; a typo or a missing required one warns."""
+    loop = _loop(workspace, PydanticAILoop)
+    loop.spec["inputs"]["required"] = required
+    loop._system_prompt = f"Inspect '{{{{ {placeholder} }}}}' from `{{{{ run_context.trigger }}}}`."
+
+    with caplog.at_level(logging.WARNING, logger=dlt_logger_name):
+        rendered = loop.render_system_prompt({"run_context": {"trigger": "job.fail:*"}})
+
+    assert rendered == "Inspect '' from `job.fail:*`."
+    assert loop._unresolved_placeholders == warned
+    assert ("unresolved placeholders" in caplog.text) == bool(warned)
+
+
 def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) -> None:
     """The system prompt is the rendered body plus what the loop inlines; the turn stays a turn."""
 
@@ -517,7 +547,7 @@ def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) 
         assert "Resource changes are proposals" in rendered, loop_cls.LOOP_TYPE
         assert "focus on the loader step" not in rendered, loop_cls.LOOP_TYPE
         assert loop.user_turn == "focus on the loader step", loop_cls.LOOP_TYPE
-        assert loop._unresolved_placeholders == ["failed_job_ref"], loop_cls.LOOP_TYPE
+        assert loop._unresolved_placeholders == [], loop_cls.LOOP_TYPE
     # the claude loop hands the framework what it rendered; the pydantic one has its own test
     assert cast(Any, loop)._build_options(rendered).system_prompt == rendered
 

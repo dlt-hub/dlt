@@ -181,6 +181,15 @@ class AgentLoop(ABC):
     def render_system_prompt(self, inputs: Mapping[str, Any]) -> str:
         """The assembled system prompt with this run's inputs substituted into its placeholders."""
         prompt, unresolved = render_placeholders(self._system_prompt, inputs)
+        # an optional input left unset renders blank by design; only a name the definition
+        # does not declare, or a required input that is missing, is worth a warning
+        declared = self.spec["inputs"].get("properties") or {}
+        required = set(self.spec["inputs"].get("required") or ())
+        unresolved = [
+            name
+            for name in unresolved
+            if (root := name.partition(".")[0]) not in declared or root in required
+        ]
         self._unresolved_placeholders = unresolved
         if unresolved:
             logger.warning(
