@@ -57,7 +57,7 @@ def connect(
 
 
 def quote_string(string: str) -> str:
-    return "'" + string.strip("'") + "'"
+    return "'" + string.replace("'", "''") + "'"
 
 
 def format_datetime(d: datetime) -> str:

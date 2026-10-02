@@ -369,7 +369,7 @@ class dynstr(str):
     __slots__ = "dyn"
 
     def __new__(cls, placeholder: str, dyn: Callable[..., str]) -> Self:
-        # Create a new str instance
+        # create a new str instance
         instance = super().__new__(cls, placeholder)
         return instance
 

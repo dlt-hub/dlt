@@ -130,9 +130,10 @@ Groups defined so far:
 | [G3 — Transformations and materialization](#g3--transformations-and-materialization) | relations, transformations, model jobs, eager and lazy paths |
 | [G4 — Identifiers and SQL generation](#g4--identifiers-and-sql-generation) | naming conventions, case-folding, query binding |
 | [G5 — Configuration and credentials](#g5--configuration-and-credentials) | configs, credentials, secrets |
-| [G6 — Jobs, triggers and the deployment manifest](#g6--jobs-triggers-and-the-deployment-manifest) | jobs, job runs, launchers, triggers, selectors |
-| [G7 — Agents, loops and prompts](#g7--agents-loops-and-prompts) | agent definitions, agent jobs, agent runs, loops, system prompts, user turns, traces |
-| [G8 — Workspace access and tools](#g8--workspace-access-and-tools) | the `access` declaration, axes, verbs, tools, feature groups |
+| [G6 — Merge strategies and merge conditions](#g6--merge-strategies-and-merge-conditions) | merge strategies, deletes, retirement, source filter, destination scope, placeholders |
+| [G7 — Jobs, triggers and the deployment manifest](#g7--jobs-triggers-and-the-deployment-manifest) | jobs, job runs, launchers, triggers, selectors |
+| [G8 — Agents, loops and prompts](#g8--agents-loops-and-prompts) | agent definitions, agent jobs, agent runs, loops, system prompts, user turns, traces |
+| [G9 — Workspace access and tools](#g9--workspace-access-and-tools) | the `access` declaration, axes, verbs, tools, feature groups |
 
 Two rules apply across every group:
 
@@ -165,7 +166,7 @@ Two rules apply across every group:
 
 - **`access` is a verb for the act, and a noun for what a job may touch.** Keep the verb for the
   act of reading data: "the engine accesses the data", not "data access is one-way". The noun is
-  legal only in the sense G8 defines — the `access` declaration, and the grant that answers it.
+  legal only in the sense G9 defines — the `access` declaration, and the grant that answers it.
   dlt's docs already write "grant access", "read access" and "denied access" 40 times over; that
   usage was always compliant and stays.
 - **`reach` is not always `access`.** "`SET SESSION` would not reach the cloned sessions" means
@@ -265,7 +266,72 @@ Two rules apply across every group:
 
 ---
 
-### G6 — Jobs, triggers and the deployment manifest
+### G6 — Merge strategies and merge conditions
+
+**Included**
+
+| Concept | Write |
+|---|---|
+| removing destination records (`delete-insert`, `upsert`, `cdc`, hard deletes) | **delete** |
+| closing the validity of an `scd2` record | **retire** (never "delete" for `scd2`) |
+| loaded records that `source_filter` does not select | **discard**, **discarded** |
+| writing loaded records to the destination | **insert** (a new record), **update** (an existing one) |
+| a record in the destination that the loaded data does not contain | **absent** |
+| the part of a table a load replaces | **partition** (conceptual, as `merge_key` docs already use it) |
+| the loaded data under `cdc` | **snapshot** |
+| the upstream system whose records `cdc` mirrors | **source system** |
+| the loaded records that the source filter selects (all loaded records without a filter) | **merge source** (a noun) |
+| the `source_filter` option in prose | **source filter** |
+| the `destination_scope` option in prose | **destination scope** |
+| `source_filter`, `destination_scope` together | **merge conditions** |
+| `{table}`, `{staging_table}` | **placeholders**; "expand" for substitution |
+| data in docs and messages | **records**; **rows** only in code docstrings and comments, and in "nested rows" |
+
+**Excluded**
+
+| Never | Because |
+|---|---|
+| region, window, bare "scope" (for the records a merge can delete or retire) | say **destination scope** for the option, **partition** for the concept |
+| input filter, output filter, merge filter(s), merge scope | old names — say **source filter**, **destination scope**, **merge conditions** |
+| filtered staging (data, rows, records), filtered load, filtered loaded data, bare "the source" (for the merge source) | say **merge source** |
+| bare "the source", upstream, origin (for the system `cdc` mirrors) | say **source system**; `@dlt.source` keeps its name |
+| owns, is authoritative for (a load and its records) | say "the records that this load replaces" |
+| clear, remove, wipe (for a merge delete) | one verb — **delete** |
+| drop, exclude, filter out, land (for loaded records) | **discard** for records the source filter does not select, **insert** for records that are written |
+| supersede, take precedence (between merge conditions and `merge_key`) | say "dlt ignores `merge_key`" |
+| strand, migrate (a record that changes partition) | say "the record moves to another partition" |
+| knob | say **setting** or name the hint |
+
+**Rulings**
+
+- **The bans are for the merge meaning only.** `region` stays legal for cloud regions and data columns,
+  `window` for browser windows and the attribution window in `lag.md`, `scope` for OAuth and config scopes,
+  `drop` for dropping tables and the `dlt pipeline drop` command, `remove` outside merge deletes.
+- **"source" in "source filter" is the merge source**, the loaded data, as in `MERGE ... USING source`. It is
+  not `@dlt.source`. Never shorten "source filter" to "the source", and never write "destination scope" as
+  "the scope".
+- **The merge source is what the merge works on.** Keys, `merge_key` partitions and absent records come from the
+  merge source, not from all loaded records. The destination scope does not depend on it.
+- **`loaded data` and `loaded records` stay legal** for everything loaded, before the source filter. Write
+  "merge source" only where a source filter can apply. Without one, the two are the same.
+- **"MERGE source" in SQL context is legal.** `MERGE ... USING` names its input the source; uppercase `MERGE`
+  marks that meaning (Databricks comments).
+- **Only strategies that delete or retire absent records have a destination scope**: `delete-insert`,
+  `scd2`, `cdc`. `upsert` also deletes (with `hard_delete`), so "strategies that delete" is not the rule.
+- **`delete` vs `retire`.** `scd2` never deletes on absence, so "`scd2` deletes absent records" is a content
+  error, not only a vocabulary one.
+- **`snapshot` is legal only for `cdc` loaded data.** Iceberg and Delta snapshots are a different technical noun.
+  Do not write "snapshot" for Iceberg `upsert` limits: write "absent from the loaded data".
+- **Placeholders differ per destination.** Do not write "`{table}` expands to the destination table" without
+  naming the destination type: on Delta it expands to `target`.
+
+Newly non-compliant: "region", "window", bare "scope", "owns", "clear", "supersede" in merge prose, and the
+old option names ("input filter", "output filter", "merge filters"), and "filtered staging" or bare "the source"
+for the merge source. Newly compliant: "destination scope" for the `destination_scope` option, "merge source".
+
+---
+
+### G7 — Jobs, triggers and the deployment manifest
 
 **Included**
 
@@ -290,7 +356,7 @@ Two rules apply across every group:
 | task, workload, script (for a dlt job) | one name — **job**; the runtime's `Script` model keeps its own name |
 | job execution, invocation (for one run) | **job run**, the noun the manifest and the beacon use |
 | primary trigger | **default trigger**, the name of the manifest field |
-| manifest (unqualified, for `AGENT.md`) | **deployment manifest** is the only manifest; see G7 |
+| manifest (unqualified, for `AGENT.md`) | **deployment manifest** is the only manifest; see G8 |
 
 **Rulings**
 
@@ -298,12 +364,12 @@ Two rules apply across every group:
   command `dlthub local run` is a technical name (Rule 8.6) and stays.
 - **launcher, runner and runtime are three things.** The launcher is dlt code. The runner is a
   machine. The runtime is the platform. Never swap them, and never write "the runtime launches".
-- **`task` is legal in two places only:** the work an agent must do (G7), and an Airflow task when
+- **`task` is legal in two places only:** the work an agent must do (G8), and an Airflow task when
   the sentence says "Airflow task". It is never a dlt job.
 
 ---
 
-### G7 — Agents, loops and prompts
+### G8 — Agents, loops and prompts
 
 Three nouns carry the feature, and they nest: a definition is written once, a job adds how it
 operates, a run is one execution.
@@ -318,7 +384,7 @@ operates, a run is one execution.
 | the definition plus the runtime settings that say how it operates: model, limits, trigger, instructions, loop, identity | **agent job** (`run.agent(...)`; what pydantic-ai and claude-agent-sdk call an Agent, and what the web UI lists as one) |
 | one execution of an agent job: inputs in, output and trace out, settings overridable for that run | **agent run** (`Agent.run()` in the frameworks) |
 | what the model returns: `status`, `summary` and the declared fields | **agent output** |
-| the envelope the launcher delivers | **job result** (G6 owns it; an agent job's is `TAgentJobResult`) |
+| the envelope the launcher delivers | **job result** (G7 owns it; an agent job's is `TAgentJobResult`) |
 | the binding to one agent framework | **loop**, or **agent loop** |
 | the text the model gets as its role and task | **system prompt** |
 | the first message of the run | **user turn** |
@@ -339,7 +405,7 @@ operates, a run is one execution.
 | prompt (bare) | say which one: **system prompt** or **user turn** |
 | spec (bare, for an agent) | bare `spec` is the configspec; write **agent definition** |
 | trace (bare, for an agent) | bare `trace` is the pipeline trace; write **agent trace** |
-| manifest (for `AGENT.md`) | **agent file**; the manifest is the deployment manifest (G6) |
+| manifest (for `AGENT.md`) | **agent file**; the manifest is the deployment manifest (G7) |
 | framework (as a loop's name) | name it: **pydantic-ai**, **claude-agent-sdk** |
 
 **Rulings**
@@ -363,7 +429,7 @@ operates, a run is one execution.
 
 ---
 
-### G8 — Workspace access and tools
+### G9 — Workspace access and tools
 
 **Included**
 
@@ -405,12 +471,14 @@ operates, a run is one execution.
   derives that profile from `access.data`. One concept, one word (Rule 1.11).
 - **`tools:` in an `AGENT.md` holds feature groups, not tools.** Write "feature groups" whenever the
   sentence is about that field, or a reader counts 4 tools and gets 19.
+
 ---
 
 ### Legal technical nouns — never replace, any group (Rules 1.5, 1.8)
 
 attach, attach alias, attach info, attach statement, catalog, config, data location, dataset,
-destination, duckdb, iceberg, materialization, model job, pipeline, relation, scanner, vended.
+destination, destination scope, duckdb, iceberg, materialization, merge condition, model job, partition,
+pipeline, placeholder, relation, scanner, snapshot (`cdc` only), source filter, vended.
 
 access, access axis, agent, agent definition, agent definition reference, agent file, agent job,
 agent output, agent run, agent trace, default trigger, feature group, instructions, job, job definition, job ref, job result,

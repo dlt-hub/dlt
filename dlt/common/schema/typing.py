@@ -249,12 +249,31 @@ TTableProcessingHints = TypedDict(
 
 
 TWriteDisposition = Literal["skip", "append", "replace", "merge"]
-TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only"]
+TLoaderMergeStrategy = Literal["delete-insert", "scd2", "upsert", "insert-only", "cdc"]
 TLoaderReplaceStrategy = Literal["truncate-and-insert", "insert-from-staging", "staging-optimized"]
 
 
 WRITE_DISPOSITIONS: Sequence[TWriteDisposition] = sorted(get_args(TWriteDisposition))
 MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = sorted(get_args(TLoaderMergeStrategy))
+UPSERT_MERGE_STRATEGIES: Sequence[TLoaderMergeStrategy] = ("upsert", "cdc")
+"""Strategies that merge by primary key and share the `upsert` options."""
+MERGE_STRATEGY_OPTIONS: Dict[str, Sequence[TLoaderMergeStrategy]] = {
+    "source_filter": ("delete-insert", "scd2", "upsert", "cdc"),
+    # only strategies that delete or retire absent destination records have a destination scope
+    "destination_scope": ("delete-insert", "scd2", "cdc"),
+    "skip_unchanged_rows": UPSERT_MERGE_STRATEGIES,
+    "row_version_column_name": ("scd2", "upsert", "cdc"),
+}
+"""Merge strategy options and the strategies that support them."""
+MERGE_DISPOSITION_HINTS: Dict[str, str] = {
+    "strategy": "x-merge-strategy",
+    "deduplicated": "x-stage-data-deduplicated",
+    "source_filter": "x-merge-source-filter",
+    "destination_scope": "x-merge-destination-scope",
+    "skip_unchanged_rows": "x-merge-skip-unchanged-rows",
+}
+"""Table hints that store the keys of the merge write disposition dict. The column names in the
+dict, like `row_version_column_name`, mark their columns with column hints instead."""
 REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]
@@ -266,18 +285,53 @@ class TWriteDispositionDict(TypedDict):
 
 
 class TMergeDispositionDict(TWriteDispositionDict):
-    strategy: Optional[TLoaderMergeStrategy]
+    strategy: NotRequired[TLoaderMergeStrategy]
+    """The destination picks its default strategy when not set."""
 
 
-class TDeleteInsertStrategyDict(TMergeDispositionDict):
-    deduplicated: Optional[bool]
+class TSourceFilterDict(TypedDict):
+    source_filter: NotRequired[str]
+    """SQL condition that selects the merge source from the loaded rows. dlt discards the other
+    loaded rows."""
 
 
-class TScd2StrategyDict(TMergeDispositionDict, total=False):
-    validity_column_names: Optional[List[str]]
-    active_record_timestamp: Optional[TAnyDateTime]
-    boundary_timestamp: Optional[TAnyDateTime]
-    row_version_column_name: Optional[str]
+class TDestinationScopeDict(TypedDict):
+    destination_scope: NotRequired[str]
+    """SQL condition that selects the destination rows that the merge can delete or retire."""
+
+
+class TDeleteInsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
+    strategy: Literal["delete-insert"]
+    deduplicated: NotRequired[bool]
+
+
+class TScd2StrategyDict(TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict):
+    strategy: Literal["scd2"]
+    validity_column_names: NotRequired[List[str]]
+    active_record_timestamp: NotRequired[Optional[TAnyDateTime]]
+    """`None` marks active records with `NULL`."""
+    boundary_timestamp: NotRequired[Optional[TAnyDateTime]]
+    """`None` resets the boundary to the load package creation time."""
+    row_version_column_name: NotRequired[str]
+
+
+class TUpsertOptionsDict(TypedDict):
+    skip_unchanged_rows: NotRequired[bool]
+    """If `True`, dlt does not update destination records that equal their loaded record.
+    Defaults to `False`."""
+    row_version_column_name: NotRequired[str]
+    """Column that changes when a record changes. With `skip_unchanged_rows`, dlt compares only
+    this column to detect changed records."""
+
+
+class TUpsertStrategyDict(TWriteDispositionDict, TSourceFilterDict, TUpsertOptionsDict):
+    strategy: Literal["upsert"]
+
+
+class TCdcStrategyDict(
+    TWriteDispositionDict, TSourceFilterDict, TDestinationScopeDict, TUpsertOptionsDict
+):
+    strategy: Literal["cdc"]
 
 
 TWriteDispositionConfig = Union[
@@ -285,6 +339,8 @@ TWriteDispositionConfig = Union[
     TWriteDispositionDict,
     TMergeDispositionDict,
     TScd2StrategyDict,
+    TUpsertStrategyDict,
+    TCdcStrategyDict,
     TDeleteInsertStrategyDict,
 ]
 

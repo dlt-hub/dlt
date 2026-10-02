@@ -1,4 +1,5 @@
-from typing import Sequence, Tuple, Optional, List, Union, cast
+from functools import partial
+from typing import Any, Dict, Sequence, Tuple, Optional, List, Union, cast
 import operator
 from dlt.common.libs.sql_alchemy import sa
 
@@ -50,14 +51,57 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         temp_metadata = sa.MetaData()
 
-        append_fallback = (len(primary_key_names) + len(merge_key_names)) == 0
+        source_filter, destination_scope = cls.get_merge_conditions(root_table, sql_client)
+
+        # a destination scope selects the rows to delete without keys
+        append_fallback = (
+            len(primary_key_names) + len(merge_key_names)
+        ) == 0 and destination_scope is None
 
         sqla_statements = []
 
-        if not append_fallback:
+        # the job resolves key columns only where it uses them. Tables can lack keys that the
+        # statements do not need
+        get_row_key_col_name = partial(
+            cls.get_row_key_col,
+            table_chain,
+            root_table,
+            sql_client.fully_qualified_dataset_name(),
+            sql_client.fully_qualified_dataset_name(staging=True),
+        )
+        get_root_key_col_name = partial(
+            cls.get_root_key_col,
+            table_chain,
+            dataset_name=sql_client.fully_qualified_dataset_name(),
+            staging_dataset_name=sql_client.fully_qualified_dataset_name(staging=True),
+        )
+        row_key_col_name: str = None
+
+        if destination_scope is not None:
+            if len(table_chain) > 1:
+                row_key_col_name = get_row_key_col_name()
+            # only the destination scope selects rows, so the destination can prune partitions
+            for table in table_chain[1:]:
+                chain_table_obj = sql_client.get_existing_table(table["name"])
+                root_key_name = get_root_key_col_name(table)
+                # the merge selects nested rows by their root rows, so it deletes them first
+                sqla_statements.append(
+                    chain_table_obj.delete().where(
+                        chain_table_obj.c[root_key_name].in_(
+                            sa.select(root_table_obj.c[row_key_col_name]).where(
+                                sa.text(destination_scope)
+                            )
+                        )
+                    )
+                )
+            sqla_statements.append(root_table_obj.delete().where(sa.text(destination_scope)))
+        elif not append_fallback:
             key_clause = cls._generate_key_table_clauses(
                 primary_key_names, merge_key_names, root_table_obj, staging_root_table_obj
             )
+            if source_filter:
+                # only rows of the merge source match the keys
+                key_clause = sa.and_(key_clause, sa.text(source_filter))
 
             # Generate the delete statements
             if len(table_chain) == 1 and not cls.requires_temp_table_for_delete():
@@ -70,12 +114,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 )
                 sqla_statements.append(delete_statement)
             else:
-                row_key_col_name = cls.get_row_key_col(
-                    table_chain,
-                    root_table,
-                    sql_client.fully_qualified_dataset_name(),
-                    sql_client.fully_qualified_dataset_name(staging=True),
-                )
+                row_key_col_name = get_row_key_col_name()
                 row_key_col = root_table_obj.c[row_key_col_name]
                 # Use a real table cause sqlalchemy doesn't have TEMPORARY TABLE abstractions
                 delete_temp_table = sa.Table(
@@ -143,6 +182,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 else []
             )
 
+            if row_key_col_name is None:
+                row_key_col_name = get_row_key_col_name()
             staging_row_key_col = staging_root_table_obj.c[row_key_col_name]
 
             # Create the insert "temporary" table (but use a concrete table)
@@ -211,6 +252,15 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             )
             sqla_statements.append(insert_into_temp_table)
 
+        # the source filter refers to root columns, which nested tables do not have
+        filtered_root_row_keys = None
+        if source_filter and len(table_chain) > 1:
+            if row_key_col_name is None:
+                row_key_col_name = get_row_key_col_name()
+            filtered_root_row_keys = cls._gen_filtered_root_keys_sqla(
+                staging_root_table_obj, row_key_col_name, source_filter
+            )
+
         # Insert from staging to dataset
         for table in table_chain:
             table_obj = sql_client.get_existing_table(table["name"])
@@ -222,7 +272,9 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 and is_nested_table(table)
                 and hard_delete_col_name is not None
             ):
-                uniq_column_name = root_key_name if is_nested_table(table) else row_key_col_name
+                uniq_column_name = (
+                    get_root_key_col_name(table) if is_nested_table(table) else row_key_col_name
+                )
                 uniq_column = staging_table_obj.c[uniq_column_name]
                 select_sql = select_sql.where(
                     uniq_column.in_(
@@ -269,6 +321,16 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
                 if hard_delete_col_name is not None:
                     select_sql = select_sql.where(not_delete_cond)
+
+            if source_filter:
+                if is_nested_table(table):
+                    select_sql = select_sql.where(
+                        staging_table_obj.c[get_root_key_col_name(table)].in_(
+                            filtered_root_row_keys
+                        )
+                    )
+                else:
+                    select_sql = select_sql.where(sa.text(source_filter))
 
             insert_statement = table_obj.insert().from_select(
                 [col.name for col in table_obj.columns], select_sql
@@ -337,6 +399,45 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             return sa.true()  # type: ignore[no-any-return]
 
     @classmethod
+    def _gen_filtered_root_keys_sqla(
+        cls,
+        staging_root_table_obj: sa.Table,
+        root_row_key_column: str,
+        source_filter: Optional[str],
+    ) -> Any:
+        """Generate a query that selects the row keys of the root rows in the merge source."""
+        select_sql = sa.select(staging_root_table_obj.c[root_row_key_column])
+        if source_filter:
+            select_sql = select_sql.where(sa.text(source_filter))
+        return select_sql
+
+    @classmethod
+    def _gen_merge_partition_clauses_sqla(
+        cls,
+        merge_keys: Sequence[str],
+        root_table_obj: sa.Table,
+        staging_root_table_obj: sa.Table,
+        source_filter: Optional[str],
+        destination_scope: Optional[str],
+    ) -> List[Any]:
+        """Generate conditions that select the destination rows that a merge can delete or retire.
+
+        `destination_scope` replaces `merge_key`. Returns an empty list when the merge can delete
+        or retire rows in the whole table.
+        """
+        if destination_scope:
+            return [sa.text(destination_scope)]
+        if not merge_keys:
+            return []
+        root_merge_key_cols = [root_table_obj.c[key] for key in merge_keys]
+        staging_merge_key_cols = [staging_root_table_obj.c[key] for key in merge_keys]
+        present_keys = sa.select(cls._gen_concat_sqla(staging_merge_key_cols))
+        # only rows of the merge source count as present
+        if source_filter:
+            present_keys = present_keys.where(sa.text(source_filter))
+        return [cls._gen_concat_sqla(root_merge_key_cols).in_(present_keys)]
+
+    @classmethod
     def _gen_concat_sqla(
         cls, columns: Sequence[sa.Column]
     ) -> Union[sa.sql.elements.BinaryExpression, sa.Column]:
@@ -387,10 +488,15 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         active_record_timestamp = get_active_record_timestamp(root_table)
 
+        source_filter, destination_scope = cls.get_merge_conditions(root_table, sql_client)
+        # only rows of the merge source count as present
+        present_hashes = sa.select(staging_root_table_obj.c[hash_])
+        if source_filter:
+            present_hashes = present_hashes.where(sa.text(source_filter))
         update_statement = (
             root_table_obj.update()
             .values({to: sa.text(boundary_literal)})
-            .where(root_table_obj.c[hash_].notin_(sa.select(staging_root_table_obj.c[hash_])))
+            .where(root_table_obj.c[hash_].notin_(present_hashes))
         )
 
         if active_record_timestamp is None:
@@ -404,16 +510,12 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
 
         update_statement = update_statement.where(root_is_active_clause)
 
+        # `scd2` retires absent records only in the `merge_key` partitions or the destination scope
         merge_keys = get_columns_names_with_prop(root_table, "merge_key")
-        if merge_keys:
-            root_merge_key_cols = [root_table_obj.c[key] for key in merge_keys]
-            staging_merge_key_cols = [staging_root_table_obj.c[key] for key in merge_keys]
-
-            update_statement = update_statement.where(
-                cls._gen_concat_sqla(root_merge_key_cols).in_(
-                    sa.select(cls._gen_concat_sqla(staging_merge_key_cols))
-                )
-            )
+        partition_clauses = cls._gen_merge_partition_clauses_sqla(
+            merge_keys, root_table_obj, staging_root_table_obj, source_filter, destination_scope
+        )
+        update_statement = update_statement.where(*partition_clauses)
 
         sqla_statements.append(update_statement)
 
@@ -434,17 +536,29 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             else:
                 select_cols.append(staging_root_table_obj.c[col.name])
 
+        insert_select = sa.select(*select_cols).where(
+            staging_root_table_obj.c[hash_].notin_(
+                sa.select(root_table_obj.c[hash_]).where(root_is_active_clause)
+            )
+        )
+        if source_filter:
+            insert_select = insert_select.where(sa.text(source_filter))
         insert_statement = root_table_obj.insert().from_select(
-            [col.name for col in root_table_obj.columns],
-            sa.select(*select_cols).where(
-                staging_root_table_obj.c[hash_].notin_(
-                    sa.select(root_table_obj.c[hash_]).where(root_is_active_clause)
-                )
-            ),
+            [col.name for col in root_table_obj.columns], insert_select
         )
         sqla_statements.append(insert_statement)
 
         nested_tables = table_chain[1:]
+        # with a user row version, the root `_dlt_id` keeps `row_key`. Otherwise the row hash is
+        # the row key
+        root_row_key = get_first_column_name_with_prop(root_table, "row_key") or hash_
+        filtered_root_keys = cls._gen_filtered_root_keys_sqla(
+            staging_root_table_obj, root_row_key, source_filter
+        )
+        # without a root key, the merge filters each nested level by its staged parent
+        filter_by_table: Dict[str, Any] = {}
+        if source_filter:
+            filter_by_table[root_table["name"]] = sa.text(source_filter)
         for table in nested_tables:
             row_key_column = cls.get_row_key_col(
                 table_chain,
@@ -456,13 +570,38 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             table_obj = sql_client.get_existing_table(table["name"])
             staging_table_obj = sql_client.to_dataset_table(table_obj, staging=True)
 
-            insert_statement = table_obj.insert().from_select(
-                [col.name for col in table_obj.columns],
-                staging_table_obj.select().where(
-                    staging_table_obj.c[row_key_column].notin_(
-                        sa.select(table_obj.c[row_key_column])
+            nested_select = staging_table_obj.select().where(
+                staging_table_obj.c[row_key_column].notin_(sa.select(table_obj.c[row_key_column]))
+            )
+            if source_filter:
+                if root_key := get_first_column_name_with_prop(table, "root_key"):
+                    nested_filter = staging_table_obj.c[root_key].in_(filtered_root_keys)
+                else:
+                    parent = next(t for t in table_chain if t["name"] == table["parent"])
+                    parent_row_key = (
+                        root_row_key
+                        if parent is root_table
+                        else cls.get_row_key_col(
+                            table_chain,
+                            parent,
+                            sql_client.fully_qualified_dataset_name(),
+                            sql_client.fully_qualified_dataset_name(staging=True),
+                        )
                     )
-                ),
+                    parent_key = get_first_column_name_with_prop(table, "parent_key")
+                    staging_parent_obj = sql_client.to_dataset_table(
+                        sql_client.get_existing_table(parent["name"]), staging=True
+                    )
+                    nested_filter = staging_table_obj.c[parent_key].in_(
+                        sa.select(staging_parent_obj.c[parent_row_key]).where(
+                            filter_by_table[parent["name"]]
+                        )
+                    )
+                filter_by_table[table["name"]] = nested_filter
+                nested_select = nested_select.where(nested_filter)
+
+            insert_statement = table_obj.insert().from_select(
+                [col.name for col in table_obj.columns], nested_select
             )
             sqla_statements.append(insert_statement)
 

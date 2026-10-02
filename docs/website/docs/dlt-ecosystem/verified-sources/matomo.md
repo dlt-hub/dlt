@@ -3,9 +3,9 @@ title: Matomo
 description: dlt verified source for Matomo
 keywords: [matomo api, matomo verified source, matomo]
 ---
-import Header from './_source-info-header.md';
-
 # Matomo
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -17,10 +17,10 @@ loads data using the “Matomo API” to the destination of your choice.
 
 The endpoints that this verified source supports are:
 
-| Name              | Description                                                                     |
-| ----------------- |---------------------------------------------------------------------------------|
-| matomo_reports    | Detailed analytics summaries of website traffic, visitor behavior, and more     |
-| matomo_visits     | Individual user sessions on your website, pages viewed, visit duration, and more |
+| Name           | Description                                                                      |
+| -------------- | -------------------------------------------------------------------------------- |
+| matomo_reports | Detailed analytics summaries of website traffic, visitor behavior, and more      |
+| matomo_visits  | Individual user sessions on your website, pages viewed, visit duration, and more |
 
 ## Setup guide
 
@@ -35,7 +35,7 @@ The endpoints that this verified source supports are:
 1. Click "Create New Token."
 1. Your token is displayed.
 1. Copy the access token and update it in the `.dlt/secrets.toml` file.
-1. Your Matomo URL is the web address in your browser when logged into Matomo, typically "https://mycompany.matomo.cloud/". Update it in the `.dlt/config.toml`.
+1. Your Matomo URL is the web address in your browser when logged into Matomo, typically "[https://mycompany.matomo.cloud/](https://mycompany.matomo.cloud/)". Update it in the `.dlt/config.toml`.
 1. The site_id is a unique ID for each monitored site in Matomo, found in the URL or via Administration > Measurables > Manage under ID.
 
 > Note: The Matomo UI, which is described here, might change.
@@ -88,6 +88,7 @@ To get started with your data pipeline, follow these steps:
    site_id = 0 # please set me up!
    live_events_site_id = 0 # please set me up!
    ```
+
 1. Replace the value of `url` and `site_id` with the one that [you copied above](matomo.md#grab-credentials).
 
 1. To monitor live events on a website, enter the `live_event_site_id` (usually it is the same as `site_id`).
@@ -97,17 +98,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python matomo_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `matomo`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -121,11 +128,15 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function executes and loads a set of reports defined in "queries" for a specific Matomo site identified by "site_id".
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+from dlt.common.typing import DictStrAny
+
 @dlt.source(max_table_nesting=2)
 def matomo_reports(
     api_token: str = dlt.secrets.value,
     url: str = dlt.config.value,
-    queries: List[DictStrAny] = dlt.config.value,
+    queries: list[DictStrAny] = dlt.config.value,
     site_id: int = dlt.config.value,
 ) -> Iterable[DltResource]:
    ...
@@ -146,6 +157,8 @@ def matomo_reports(
 The function loads visits from the current day and the past `initial_load_past_days` on the first run. In subsequent runs, it continues from the last load and skips active visits until they are closed.
 
 ```py
+from dlt.extract import DltResource
+
 @dlt.source()
 def matomo_visits(
     api_token: str = dlt.secrets.value,
@@ -155,7 +168,7 @@ def matomo_visits(
     visit_timeout_seconds: int = 1800,
     visit_max_duration_seconds: int = 3600,
     get_live_event_visitors: bool = False,
-) -> List[DltResource]:
+) -> list[DltResource]:
    ...
 ```
 
@@ -179,7 +192,7 @@ def matomo_visits(
 
 This function retrieves site visits within a specified timeframe. If a start date is given, it begins from that date. If not, it retrieves all visits up until now.
 
-```py
+```py notype
 @dlt.resource(
     name="visits", write_disposition="append", primary_key="idVisit", selected=True
 )
@@ -212,7 +225,7 @@ This is an [incremental](../../general-usage/incremental-loading) resource metho
 
 This function retrieves unique visit information from get_last_visits.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=get_last_visits,
     write_disposition="merge",
@@ -220,7 +233,7 @@ This function retrieves unique visit information from get_last_visits.
     primary_key="visitorId",
 )
 def get_unique_visitors(
-    visits: List[DictStrAny], client: MatomoAPIClient, site_id: int
+    visits: list[DictStrAny], client: MatomoAPIClient, site_id: int
 ) -> Iterator[TDataItem]:
    ...
 ```
@@ -251,16 +264,17 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load the data from reports.
 
-   ```py
+   ```py notype
    data_reports = matomo_reports()
    load_info = pipeline.run(data_reports)
    print(load_info)
    ```
+
    > "site_id" defined in ".dlt/config.toml"
 
 1. To load custom data from reports using queries.
 
-   ```py
+   ```py notype
    queries = [
        {
            "resource_name": "custom_report_name",
@@ -277,11 +291,12 @@ If you wish to create your own pipelines, you can leverage source and resource m
    load_info = pipeline.run(load_data)
    print(load_info)
    ```
+
    > You can pass queries and site_id in the ".dlt/config.toml" as well.
 
 1. To load data from reports and visits.
 
-   ```py
+   ```py notype
    data_reports = matomo_reports()
    data_events = matomo_visits()
    load_info = pipeline.run([data_reports, data_events])
@@ -290,7 +305,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data on live visits and visitors, and only retrieve data from today.
 
-   ```py
+   ```py notype
    load_data = matomo_visits(initial_load_past_days=1, get_live_event_visitors=True)
    load_info = pipeline.run(load_data)
    print(load_info)
