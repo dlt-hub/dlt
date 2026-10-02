@@ -108,9 +108,11 @@ class TypeMapperImpl(DataTypeMapper):
 
         if precision is None:
             return None
-        elif scale is None:
-            return (precision,)
-        return (precision, scale)
+        # NOTE: scale is only meaningful for decimal/wei (handled above). A stale
+        # scale may linger on the column after a data_type drift (e.g. decimal ->
+        # text) and must not be passed to single-argument templates like
+        # VARCHAR(%i), which would raise a TypeError.
+        return (precision,)
 
     def decimal_precision(
         self, precision: Optional[int] = None, scale: Optional[int] = None
