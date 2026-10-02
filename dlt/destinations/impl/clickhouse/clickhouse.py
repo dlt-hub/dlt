@@ -271,7 +271,11 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
+        staging_rows = staging_root_table_name
+        if source_filter:
+            staging_rows = f"(SELECT * FROM {staging_root_table_name} WHERE {source_filter})"
         if for_delete:
             # ClickHouse lightweight DELETE doesn't support table aliases or
             # correlated subqueries with qualified column references.
@@ -281,14 +285,12 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
                     col_tuple = ", ".join(cols)
                     sql.append(
                         f"FROM {root_table_name} WHERE ({col_tuple}) IN"
-                        f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                        f" (SELECT {col_tuple} FROM {staging_rows})"
                     )
             return sql
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
-        return [
-            f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
-        ]
+        return [f"FROM {root_table_name} AS d JOIN {staging_rows} AS s ON {join_conditions}"]
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:

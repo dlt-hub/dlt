@@ -327,8 +327,9 @@ TEST_FULL_PATHS = \
 test-pipeline-full:
 	$(call RUN_XDIST_SAFE_SPLIT,$(TEST_FULL_PATHS))
 
+# sqlalchemy 2.1 defaults postgresql:// to psycopg 3, which the postgres extra does not install
 install-sqlalchemy2:
-	uv run pip install --upgrade sqlalchemy
+	uv run pip install --upgrade "sqlalchemy>=2.0.18,<2.1"
 
 TEST_SQL_DATABASE_PATHS = tests/sources/sql_database tests/common/libs/
 

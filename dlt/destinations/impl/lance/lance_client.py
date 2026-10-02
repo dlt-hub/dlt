@@ -66,6 +66,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages import ParsedLoadJobFileName
+from dlt.destinations.utils import verify_unsupported_merge_options
 from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
     LanceNamespaceHandle,
@@ -392,6 +393,17 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         # tables receiving data files are not truncated in `initialize_storage`
         self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
         for load_table in loaded_tables:
             # Skip nested tables as they inherit behavior from parent tables
