@@ -98,7 +98,7 @@ A green run that loaded nothing gets a description of the anomaly. The inspector
 | `open_points`    | What the agent couldn't verify, one entry each: a tool that failed, a file it didn't find, a value it inferred        |
 | `requires_human` | Whether the fix needs a person to act                                                                                 |
 
-`provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `destination_query`, `repository_comment`, `job_description`, or `inference`. The first seven are facts and the last three are claims, so `confidence: high` rests on at least one fact.
+`provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `repository_comment`, `job_description`, or `inference`. The first six are facts and the last three are claims, so `confidence: high` rests on at least one fact.
 
 On the platform the result appears on the failed run's page, because the agent reports that run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows the full result envelope and an inspector result in it.
 
@@ -153,9 +153,10 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 
 ## Guardrails
 
-- **Reads, never writes.** The definition grants `local: [read]` and `context: [read]`: `Read`, `Glob`, and `Grep` over workspace files, and runs, logs, job definitions, and telemetry through the dltHub MCP server.
+- **Reads, never writes.** The definition grants `local: [read]` and `context: [read]`: `Read`, `Glob`, and `Grep` over workspace files, and runs, logs, job definitions, and telemetry through the dltHub MCP server. Its feature groups are `jobs`, `logs`, `telemetry`, `workspace`, `pipeline`, `secrets`, and `config`.
 - **No shell, by design.** The credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection.
 - **No destination access.** The definition declares no `data` axis, so the agent can't query your data. A diagnosis is built from run records, logs, job definitions, the dlt trace, and workspace source. When the cause turns on what a table holds, the agent puts that in `open_points` and names the query that would settle it.
+- **Credentials as `***`.** The `secrets` group serves `secrets_list` and `secrets_view_redacted`. Writing a secrets file needs `local: write`, which the definition doesn't grant, so that tool is never offered. The credential check reads the redacted view and the profile's variables, and the body forbids putting any value other than `***` in the output.
 - **No changes to your workspace.** The body rules it read-only on top of the grants: it doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
 - **Read-only credentials.** The job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 

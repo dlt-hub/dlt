@@ -1,6 +1,6 @@
 ---
 title: Agent definitions
-description: Write a dltHub agent definition as an AGENT.md file or as a decorated Python function
+description: Write a dltHub agent definition as an AGENT.md file, or as a decorated Python function for the advanced cases
 keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, access, tools, skills, rules, run.agent]
 ---
 # Agent definitions
@@ -11,9 +11,9 @@ This feature is in private preview
 
 Installed toolkits ship verified agent definitions ready to declare as jobs, such as the [job inspector agent](job-inspector.md) in the `dlthub-platform` toolkit. This page describes how to write your own, or how to adapt an installed one for your workspace.
 
-An agent definition consists of a system prompt and a declaration of the agent's inputs, output, tools, and access. It can be written as an `AGENT.md` file or as a decorated Python function. Both forms produce the same agent job.
+An agent definition consists of a system prompt and a declaration of the agent's inputs, output, tools, and access. Write it as an `AGENT.md` file. Toolkits ship their agents in that form, `dlthub ai toolkit install` copies them into your workspace, and you adapt one or write your own without touching Python.
 
-An `AGENT.md` suits an agent made of a prompt plus its declarations, an agent a toolkit ships, and an agent maintained by people who don't write Python. A Python function suits the cases where the schemas should come from Python types, or where code has to run around the loop to derive an input, inspect the trace, run the loop twice, or skip it. A function can also drive an installed `AGENT.md` through `agent=`, so a toolkit definition keeps the prompt while your code handles the rest.
+A decorated Python function produces the same agent job and covers the cases an `AGENT.md` can't reach. See [Agent definition as a Python function](#agent-definition-as-a-python-function-advanced).
 
 ## Agent definition in an `AGENT.md` file
 
@@ -189,28 +189,30 @@ Declare your own headings in the body when your agent reports something else.
 
 `access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis you leave out grants nothing. With no `access` at all the agent receives no file tools or shell, and its MCP server serves only the toolkit catalog.
 
-| Axis      | Verbs           | Grants                                                                                                                                                       |
-| --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                |
-|           | `write`         | `Write`, `Edit`                                                                                                                                              |
-|           | `execute`       | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process                                                                 |
-|           | `network`       | `WebFetch`, `WebSearch`                                                                                                                                      |
-| `data`    | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only. The SQL tool runs a single read-only statement whatever `data` grants |
-| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated               |
+| Axis      | Verbs           | Grants                                                                                                                                                |
+| --------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                         |
+|           | `write`         | `Write`, `Edit`                                                                                                                                       |
+|           | `execute`       | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process                                                          |
+|           | `network`       | `WebFetch`, `WebSearch`, served by the model provider. A provider offering neither leaves the agent without web access                                |
+| `data`    | `read`, `write` | Workspace data through the MCP server's data tools. `read` serves the read tools only, and the SQL tool runs a single `SELECT` whatever `data` grants |
+| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. `write`, `execute`, and `deploy` are refused when the manifest is generated        |
 
-`all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request through `RunPython` and `urllib`.
+`all` is shorthand for every verb on an axis. `local` maps to a toolset under the names Claude Code uses. No tool requires `data: write` yet, so granting it changes nothing today. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever `local` grants. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request through `RunPython` and `urllib`.
 
 `access` doesn't select the profile the job runs on. An agent job takes the read-only `access` profile unless it declares otherwise, so a `data` grant reads through read-only credentials. Keep it that way: an unattended agent must not hold the production profile. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
-The declaration is a request that the runtime grants as far as it can. If a loop has no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
+The declaration is a request that the runtime grants as far as it can. If the loop has no tool for a granted verb, the run proceeds with the tools it has. The trace of each run lists the tools that were wired.
 
 Write the policy into the body as well. "You are read-only" in the prompt helps the model understand its role, and the `access` block enforces it for the MCP tools. `local: execute` is the exception: the shell runs under the job's credentials and nothing restricts what it does with them, so an agent with `execute` and data access needs an explicit rule in the body never to write data.
 
 ### Tools, skills, and rules
 
-`tools` lists feature groups of the dltHub MCP server: `workspace`, `pipeline`, `toolkit`, `secrets`, `context`, on the platform `jobs`, `logs`, `telemetry`, plus groups other plugins contribute. The agent receives exactly the groups listed, and within a group only the tools its `access` covers. Without `tools` no server is started.
+`tools` lists feature groups of the dltHub MCP server: `workspace`, `pipeline`, `toolkit`, `secrets`, `context`, on the platform `jobs`, `logs`, `telemetry`, `config`, plus groups other plugins contribute. The platform groups also answer to their full names, `dlthub.jobs` and so on. The agent receives exactly the groups listed, and within a group only the tools its `access` covers. Without `tools` no server is started.
 
-`skills` and `rules` reference components of an installed toolkit as `<toolkit>:<name>`, or a workspace-relative path such as `.claude/skills/my-skill/SKILL.md`. Rules are inlined into the system prompt on both loops. On `claude-agent-sdk` skills are listed by name and loaded when the agent invokes one, as in Claude Code. On `pydantic-ai` their text is inlined. The agent receives only the listed components. Other skills and rules installed in the workspace, including the `.claude/rules` folder, aren't loaded. A reference that doesn't resolve is skipped with a warning.
+The group and the access axis are separate declarations, and a tool needs both. The `workspace` group holds tools that read local files, so `tools: [workspace]` without `local: read` serves almost nothing, and most of the `pipeline` group needs `data: read`.
+
+`skills` and `rules` reference components of an installed toolkit as `<toolkit>:<name>`, or a workspace-relative path such as `.claude/skills/my-skill/SKILL.md`. The text of both is inlined into the system prompt. The agent receives only the listed components. Other skills and rules installed in the workspace, including the `.claude/rules` folder, aren't loaded. A reference that doesn't resolve is skipped with a warning.
 
 ### Defaults for the agent job
 
@@ -242,7 +244,11 @@ The body is the system prompt. Write it as you would a skill, for a reader who h
 
 The model also receives the rules, the skills, the output schema, the workspace and temp folder paths, and the tools, so the body doesn't need to repeat them. The user turn of each run is the job's `instructions`, or "Go ahead" when none are set.
 
-## Agent definition as a Python function
+## Agent definition as a Python function (advanced)
+
+:::info
+Write the definition in Python when you need the schemas to come from Python types, or when code has to run around the loop: to derive an input, inspect the trace, run the loop twice, or skip it. A function can also drive an installed `AGENT.md` through `agent=`, so a toolkit definition keeps the prompt while your code handles the rest.
+:::
 
 A decorated function doesn't need an `AGENT.md` or a toolkit. Its docstring is the system prompt, its parameters are the inputs, and its return type is the output. The decorator arguments are the agent job's settings, and the body drives the loop it finds in `run_context["ai_loop"]`.
 
@@ -292,17 +298,17 @@ async def crash_inspector(
     return report
 ```
 
-| In Python                                                                   | In the agent definition                                                            |
-| --------------------------------------------------------------------------- | ---------------------------------------------------------------------------------- |
-| Function name                                                               | `name` of the agent job                                                            |
-| Docstring                                                                   | System prompt, placeholders included. Its first line is the `description`          |
-| Parameters                                                                  | `inputs`, and so the job's configuration: `-c failed_run_id=...` fills them, typed |
-| `Annotated[str, run.Entity("job-run")]`                                     | Entity-typed input                                                                 |
-| `dlt.config.value` default                                                  | Required input                                                                     |
-| `run_context` parameter                                                     | Passed by the launcher, not declared as an input                                   |
-| Return type deriving from `run.TAgentOutput`                                | `output`. `run.Doc(...)` on a field is its description                             |
-| `access=`, `tools=`, `skills=`, `rules=`                                    | Matching `AGENT.md` fields                                                         |
-| `model=`, `limits=`, `loop_run_args=`, `instructions=`, `trigger=`, `loop=` | Agent job settings, `defaults` in an `AGENT.md`                                    |
+| In Python                                                          | In the agent definition                                                            |
+| ------------------------------------------------------------------ | ---------------------------------------------------------------------------------- |
+| Function name                                                      | `name` of the agent job                                                            |
+| Docstring                                                          | System prompt, placeholders included. Its first line is the `description`          |
+| Parameters                                                         | `inputs`, and so the job's configuration: `-c failed_run_id=...` fills them, typed |
+| `Annotated[str, run.Entity("job-run")]`                            | Entity-typed input                                                                 |
+| `dlt.config.value` default                                         | Required input                                                                     |
+| `run_context` parameter                                            | Passed by the launcher, not declared as an input                                   |
+| Return type deriving from `run.TAgentOutput`                       | `output`. `run.Doc(...)` on a field is its description                             |
+| `access=`, `tools=`, `skills=`, `rules=`                           | Matching `AGENT.md` fields                                                         |
+| `model=`, `limits=`, `loop_run_args=`, `instructions=`, `trigger=` | Agent job settings, `defaults` in an `AGENT.md`                                    |
 
 The schemas come from pydantic, so `Optional`, `Literal`, `List`, nested models, and `NotRequired` behave as they do everywhere else. The function may be `def` or `async def`. Most functions return the loop's output as is. The example body shows the function can also inspect `loop.trace`, run the loop twice, or skip it.
 
@@ -311,7 +317,7 @@ A function can also drive an installed agent definition. Pass it as `agent=`. Th
 ```py notype
 @run.agent(
     agent="dlthub-platform:job-inspector",
-    loop="claude-agent-sdk",
+    limits={"max_turns": 20},
     require={"profile": "access"},
 )
 async def inspect(run_context: run.TJobRunContext = None) -> run.TAgentOutput:
