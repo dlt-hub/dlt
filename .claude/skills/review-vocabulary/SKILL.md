@@ -8,8 +8,8 @@ disable-model-invocation: true
 # Review Vocabulary
 
 Rewrite the prose a branch adds so dlt says one thing one way. Two inputs govern every
-decision: the **fixed vocabulary** in this file, and the **Simplified Technical English**
-rules in `references/simple-english.md`.
+decision: the **fixed vocabulary** in `references/vocabulary/`, indexed below, and the
+**Simplified Technical English** rules in `references/simple-english.md`.
 
 **Never invoke this on your own.** A maintainer runs it with `/review-vocabulary`. It rewrites
 text across dozens of files and changes CI test ids, so it is not a background cleanup.
@@ -25,7 +25,8 @@ Parse `$ARGUMENTS`:
    file.** The numbering is unintuitive and models invent it. Rule 3.1 is about verb forms, not
    sentence length.
 2. `references/simple-english-use-cases.md` — needed for the error-message shape.
-3. The fixed vocabulary below. It overrides the general rules where they disagree.
+3. The vocabulary groups the diff touches, picked from the index below. They override the general
+   rules where they disagree.
 
 ## Scope
 
@@ -117,362 +118,33 @@ One word, one meaning, one part of speech (Rules 1.11, 9.4). Apply the tables be
 rewriting.
 
 The vocabulary is organised in **groups**, one per area of dlt. A group is self-contained: its
-included terms, its excluded terms, and the rulings that are easy to get wrong in that area. Groups
-grow independently — a review only needs the groups its diff touches, and adding an area means
-adding a group, not editing the others.
+included terms, its excluded terms, and the rulings that are easy to get wrong in that area. Each
+group is one file in `references/vocabulary/`. Groups grow independently — a review only needs the
+groups its diff touches, and adding an area means adding a group, not editing the others.
 
 Groups defined so far:
 
-| Group | Covers |
-|---|---|
-| [G1 — Data access and locations](#g1--data-access-and-locations) | destinations, datasets, physical locations, join compatibility |
-| [G2 — Attach and foreign datasets](#g2--attach-and-foreign-datasets) | cross-destination joins, attach info, catalog aliases |
-| [G3 — Transformations and materialization](#g3--transformations-and-materialization) | relations, transformations, model jobs, eager and lazy paths |
-| [G4 — Identifiers and SQL generation](#g4--identifiers-and-sql-generation) | naming conventions, case-folding, query binding |
-| [G5 — Configuration and credentials](#g5--configuration-and-credentials) | configs, credentials, secrets |
-| [G6 — Merge strategies and merge conditions](#g6--merge-strategies-and-merge-conditions) | merge strategies, deletes, retirement, source filter, destination scope, placeholders |
-| [G7 — Jobs, triggers and the deployment manifest](#g7--jobs-triggers-and-the-deployment-manifest) | jobs, job runs, launchers, triggers, selectors |
-| [G8 — Agents, loops and prompts](#g8--agents-loops-and-prompts) | agent definitions, agent jobs, agent runs, loops, system prompts, user turns, traces |
-| [G9 — Workspace access and tools](#g9--workspace-access-and-tools) | the `access` declaration, axes, verbs, tools, feature groups |
+| Group | Covers | Read when the diff touches |
+|---|---|---|
+| [G1 — Data access and locations](references/vocabulary/g1-data-access-and-locations.md) | destinations, datasets, physical locations, join compatibility | `dlt/dataset/`, `dlt/common/destination/`, `dlt/destinations/`, the dataset-access docs |
+| [G2 — Attach and foreign datasets](references/vocabulary/g2-attach-and-foreign-datasets.md) | cross-destination joins, attach info, catalog aliases | `TAttachInfo`, `ATTACH`, foreign datasets, catalog aliases |
+| [G3 — Transformations and materialization](references/vocabulary/g3-transformations-and-materialization.md) | relations, transformations, model jobs, eager and lazy paths | relations, model jobs, `materialize` in `dlt/dataset/`, `dlt/extract/` or `dlt/load/`, the transformation docs |
+| [G4 — Identifiers and SQL generation](references/vocabulary/g4-identifiers-and-sql-generation.md) | naming conventions, case-folding, query binding | `dlt/common/normalizers/naming/`, `dlt/common/schema/`, sql clients, lineage and query generation |
+| [G5 — Configuration and credentials](references/vocabulary/g5-configuration-and-credentials.md) | configs, credentials, secrets | `dlt/common/configuration/`, credentials classes, `config.toml`, `secrets.toml` |
+| [G6 — Merge strategies and merge conditions](references/vocabulary/g6-merge-strategies-and-merge-conditions.md) | merge strategies, deletes, retirement, source filter, destination scope, placeholders | `dlt/destinations/sql_jobs.py`, a destination's merge job, `merge_key`, `scd2`, `cdc`, `merge-loading.md` |
+| [G7 — Jobs, triggers and the deployment manifest](references/vocabulary/g7-jobs-triggers-and-the-deployment-manifest.md) | jobs, job runs, launchers, triggers, selectors | `dlt/_workspace/deployment/` outside `agent/`, `dlt/hub/run.py`, `__deployment__.py` files, `dlthub local run` |
+| [G8 — Agents, loops and prompts](references/vocabulary/g8-agents-loops-and-prompts.md) | agent definitions, agent jobs, agent runs, loops, system prompts, user turns, traces | `dlt/_workspace/deployment/agent/`, `launchers/agent.py`, `AGENT.md` files, `run.agent` |
+| [G9 — Workspace access and tools](references/vocabulary/g9-workspace-access-and-tools.md) | the `access` declaration, axes, verbs, tools, feature groups | `access` blocks, `TWorkspaceAccess`, `dlt/_workspace/mcp/`, the tools a loop wires |
+
+Read every group the diff touches before you audit, and give each subagent only the groups its
+files map to. G1 to G5 are short: when the mapping is unclear, read them all.
 
 Two rules apply across every group:
 
 - **`dlt` is the sentence subject in messages.** That is how an error gets active voice with a
   named agent (Rule 3.6): "dlt cannot join…", "dlt cannot determine…". House style.
-- **A banned word is banned for one meaning, not always.** Every group below names its legal
+- **A banned word is banned for one meaning, not always.** Every group names its legal
   exceptions. Check them before "fixing" a hit.
-
----
-
-### G1 — Data access and locations
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| getting to data (verb) | **access** |
-| the adjective | **accessible**, **inaccessible** |
-| the negative, as a verb | **cannot access** |
-| where the data physically sits | **data location** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| reach, reaches, reachable, in reach of, out of reach, get to | one word for one concept — `access` |
-| physical location, physical destination, physical dataset (in prose) | say **data location**; the method `data_location()` keeps its name |
-
-**Rulings**
-
-- **`access` is a verb for the act, and a noun for what a job may touch.** Keep the verb for the
-  act of reading data: "the engine accesses the data", not "data access is one-way". The noun is
-  legal only in the sense G9 defines — the `access` declaration, and the grant that answers it.
-  dlt's docs already write "grant access", "read access" and "denied access" 40 times over; that
-  usage was always compliant and stays.
-- **`reach` is not always `access`.** "`SET SESSION` would not reach the cloned sessions" means
-  *propagate to*, not *read data from*. A literal swap changes the meaning — restructure
-  (Rule 9.1).
-
----
-
-### G2 — Attach and foreign datasets
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| the `TAttachInfo` object | **attach info** |
-| the `TAttachStatement` object | **attach statement** |
-| the SQL keyword | `` `ATTACH` `` in backticks |
-| the action in prose | **attach** (lowercase, a verb) |
-| the catalog a foreign dataset lands under | **attach alias** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| descriptor (for `TAttachInfo`) | `attach info` matches the type and the method `_attach_infos()` |
-| bare `ATTACH` as a prose noun, `ATTACHed`, "attaches" as a plural noun | backtick the keyword, or use the verb |
-| attach instructions | one name — **attach statements** |
-
-**Rulings**
-
-- **`descriptor` is legal for the Python descriptor protocol.** `dlt/common/utils.py` describes a
-  real Python descriptor. The ban covers naming the `TAttachInfo` object only.
-- **`attach info` and `attach statement` are different things.** One is the whole descriptor for a
-  foreign dataset; the other is a single SQL statement inside it. Do not collapse them.
-
----
-
-### G3 — Transformations and materialization
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| the deferred path | **lazy materialization** |
-| the load job that runs it | **model job** |
-| the immediate path | **eager materialization** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| model extraction | not a thing — it is a **model job** |
-| executed here | say **eager materialization** |
-
-**Rulings**
-
-- **`lazy` and `eager` are legal only for materialization.** dlt has both. Using `lazily` to mean
-  *on first use* (memoization) is a second meaning for one word — write "on the first read".
-- **A model job is the artifact; lazy materialization is the path.** Use the one you mean.
-
----
-
-### G4 — Identifiers and SQL generation
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| identifier case handling | **case-fold**, **case-folds**, **case-folding** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| casefold, post-fold (in prose) | one spelling — **case-fold**; the identifier `casefold_identifier` keeps its name |
-
-**Rulings**
-
-- **Hyphenated compounds on the `fold` root are legal** — "foreign-folded output column" reads
-  correctly and is in use. The ban is on the bare spelling `casefold` in prose.
-
----
-
-### G5 — Configuration and credentials
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| a resolved settings object | **config** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| configuration (for the object) | `config`; keep "configuration error" when it names `ConfigurationValueError` |
-
----
-
-### G6 — Merge strategies and merge conditions
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| removing destination records (`delete-insert`, `upsert`, `cdc`, hard deletes) | **delete** |
-| closing the validity of an `scd2` record | **retire** (never "delete" for `scd2`) |
-| loaded records that `source_filter` does not select | **discard**, **discarded** |
-| writing loaded records to the destination | **insert** (a new record), **update** (an existing one) |
-| a record in the destination that the loaded data does not contain | **absent** |
-| the part of a table a load replaces | **partition** (conceptual, as `merge_key` docs already use it) |
-| the loaded data under `cdc` | **snapshot** |
-| the upstream system whose records `cdc` mirrors | **source system** |
-| the loaded records that the source filter selects (all loaded records without a filter) | **merge source** (a noun) |
-| the `source_filter` option in prose | **source filter** |
-| the `destination_scope` option in prose | **destination scope** |
-| `source_filter`, `destination_scope` together | **merge conditions** |
-| `{table}`, `{staging_table}` | **placeholders**; "expand" for substitution |
-| data in docs and messages | **records**; **rows** only in code docstrings and comments, and in "nested rows" |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| region, window, bare "scope" (for the records a merge can delete or retire) | say **destination scope** for the option, **partition** for the concept |
-| input filter, output filter, merge filter(s), merge scope | old names — say **source filter**, **destination scope**, **merge conditions** |
-| filtered staging (data, rows, records), filtered load, filtered loaded data, bare "the source" (for the merge source) | say **merge source** |
-| bare "the source", upstream, origin (for the system `cdc` mirrors) | say **source system**; `@dlt.source` keeps its name |
-| owns, is authoritative for (a load and its records) | say "the records that this load replaces" |
-| clear, remove, wipe (for a merge delete) | one verb — **delete** |
-| drop, exclude, filter out, land (for loaded records) | **discard** for records the source filter does not select, **insert** for records that are written |
-| supersede, take precedence (between merge conditions and `merge_key`) | say "dlt ignores `merge_key`" |
-| strand, migrate (a record that changes partition) | say "the record moves to another partition" |
-| knob | say **setting** or name the hint |
-
-**Rulings**
-
-- **The bans are for the merge meaning only.** `region` stays legal for cloud regions and data columns,
-  `window` for browser windows and the attribution window in `lag.md`, `scope` for OAuth and config scopes,
-  `drop` for dropping tables and the `dlt pipeline drop` command, `remove` outside merge deletes.
-- **"source" in "source filter" is the merge source**, the loaded data, as in `MERGE ... USING source`. It is
-  not `@dlt.source`. Never shorten "source filter" to "the source", and never write "destination scope" as
-  "the scope".
-- **The merge source is what the merge works on.** Keys, `merge_key` partitions and absent records come from the
-  merge source, not from all loaded records. The destination scope does not depend on it.
-- **`loaded data` and `loaded records` stay legal** for everything loaded, before the source filter. Write
-  "merge source" only where a source filter can apply. Without one, the two are the same.
-- **"MERGE source" in SQL context is legal.** `MERGE ... USING` names its input the source; uppercase `MERGE`
-  marks that meaning (Databricks comments).
-- **Only strategies that delete or retire absent records have a destination scope**: `delete-insert`,
-  `scd2`, `cdc`. `upsert` also deletes (with `hard_delete`), so "strategies that delete" is not the rule.
-- **`delete` vs `retire`.** `scd2` never deletes on absence, so "`scd2` deletes absent records" is a content
-  error, not only a vocabulary one.
-- **`snapshot` is legal only for `cdc` loaded data.** Iceberg and Delta snapshots are a different technical noun.
-  Do not write "snapshot" for Iceberg `upsert` limits: write "absent from the loaded data".
-- **Placeholders differ per destination.** Do not write "`{table}` expands to the destination table" without
-  naming the destination type: on Delta it expands to `target`.
-
-Newly non-compliant: "region", "window", bare "scope", "owns", "clear", "supersede" in merge prose, and the
-old option names ("input filter", "output filter", "merge filters"), and "filtered staging" or bare "the source"
-for the merge source. Newly compliant: "destination scope" for the `destination_scope` option, "merge source".
-
----
-
-### G7 — Jobs, triggers and the deployment manifest
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| the unit a workspace deploys and runs | **job** |
-| one execution of it | **job run** |
-| its identity | **job ref** |
-| its entry in the manifest | **job definition** |
-| the dlt module that starts a job | **launcher** |
-| the machine the platform gives the job | **runner** |
-| the dltHub platform itself | **runtime** |
-| the string that starts a job | **trigger** |
-| the pattern that expands into triggers | **selector** |
-| the trigger a manual run stands in for | **default trigger** |
-| the file that describes every job | **deployment manifest** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| task, workload, script (for a dlt job) | one name — **job**; the runtime's `Script` model keeps its own name |
-| job execution, invocation (for one run) | **job run**, the noun the manifest and the beacon use |
-| primary trigger | **default trigger**, the name of the manifest field |
-| manifest (unqualified, for `AGENT.md`) | **deployment manifest** is the only manifest; see G8 |
-
-**Rulings**
-
-- **`run` is a verb; `job run` is the noun.** "dlt runs the job" and "the job run failed". The
-  command `dlthub local run` is a technical name (Rule 8.6) and stays.
-- **launcher, runner and runtime are three things.** The launcher is dlt code. The runner is a
-  machine. The runtime is the platform. Never swap them, and never write "the runtime launches".
-- **`task` is legal in two places only:** the work an agent must do (G8), and an Airflow task when
-  the sentence says "Airflow task". It is never a dlt job.
-
----
-
-### G8 — Agents, loops and prompts
-
-Three nouns carry the feature, and they nest: a definition is written once, a job adds how it
-operates, a run is one execution.
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| what an `AGENT.md` or a decorated function declares: system prompt, inputs, output, tools, skills, rules, access | **agent definition** (`TAgentSpec` in code, `TAgentDefinition` for the block the manifest carries; pydantic-ai's `AgentSpec`) |
-| the file it is read from | **`AGENT.md`**, and **agent file** for the path |
-| the name a definition is referred to by | **agent definition reference**: `<toolkit>:<agent>`, a workspace path, or `<module>:<function>` for a function with no `AGENT.md` behind it |
-| the definition plus the runtime settings that say how it operates: model, limits, trigger, instructions, loop, identity | **agent job** (`run.agent(...)`; what pydantic-ai and claude-agent-sdk call an Agent, and what the web UI lists as one) |
-| one execution of an agent job: inputs in, output and trace out, settings overridable for that run | **agent run** (`Agent.run()` in the frameworks) |
-| what the model returns: `status`, `summary` and the declared fields | **agent output** |
-| the envelope the launcher delivers | **job result** (G7 owns it; an agent job's is `TAgentJobResult`) |
-| the binding to one agent framework | **loop**, or **agent loop** |
-| the text the model gets as its role and task | **system prompt** |
-| the first message of the run | **user turn** |
-| what a person tells this run to do | **instructions** |
-| one model request | **turn** |
-| the record of what the loop ran and did | **agent trace** |
-| `{{ name }}` in a body | **placeholder** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| agent spec (in prose) | **agent definition**; `TAgentSpec` keeps its name as a type |
-| agent reference, agent ref (in prose) | **agent definition reference**; the field `agent_ref` keeps its name |
-| agent (bare) where the sentence needs one of the three | say which: **agent definition**, **agent job** or **agent run** |
-| harness (for the Claude Code CLI) | the **dltHub AI Harness** owns that word; write **the Claude Code CLI** |
-| adapter (for a loop) | dlt's adapters are `bigquery_adapter` and friends; write **loop** |
-| prompt (bare) | say which one: **system prompt** or **user turn** |
-| spec (bare, for an agent) | bare `spec` is the configspec; write **agent definition** |
-| trace (bare, for an agent) | bare `trace` is the pipeline trace; write **agent trace** |
-| manifest (for `AGENT.md`) | **agent file**; the manifest is the deployment manifest (G7) |
-| framework (as a loop's name) | name it: **pydantic-ai**, **claude-agent-sdk** |
-
-**Rulings**
-
-- **Bare `agent` is the actor.** "The agent reads the logs", "the agent returns `aborted`": the
-  model acting during a run. That stays. The moment a sentence is about the file, the `run.agent`
-  product or one execution, it names the definition, the job or the run.
-- **`Agent` (capitalised) is the agent job.** That is how the web UI labels it and how pydantic-ai
-  and claude-agent-sdk name the same thing. Legal in UI copy and when talking about a framework;
-  in dlt prose write **agent job**.
-- **An agent run is a job run.** Use **agent run** when the sentence is about what the agent
-  received and produced; **job run** when it is about scheduling, status or logs, as for any job.
-- **`instructions` means two opposite things across the boundary.** In dlt it is the user turn. In
-  pydantic-ai, `AgentSpec.instructions` is the system prompt. Qualify every mention of the
-  framework field: "pydantic-ai's `instructions` field (its system prompt)".
-- **`turn` is one model request.** The **user turn** is the first message. A turn counter counts
-  requests. Do not let one word carry both without the qualifier.
-- **`loop` is the agent loop.** In a file that also has Python loops, write **agent loop** once,
-  then `loop`.
-- **Model names and aliases are technical nouns** (Rule 1.8): `sonnet`, `opus`, `claude-sonnet-5`.
-
----
-
-### G9 — Workspace access and tools
-
-**Included**
-
-| Concept | Write |
-|---|---|
-| the declaration of what a job may touch | **access** (the `access` block, `TWorkspaceAccess`) |
-| one of its four keys | **access axis** |
-| a value on an axis | **verb** |
-| what the runtime or a loop does with the declaration | **grant**, **deny** (verbs) |
-| what it did grant | **granted access** |
-| what it did not grant | **denied access** |
-| what a loop supplies beyond the declaration | **over-granted** |
-| what a tool needs before it is served | **required access** |
-| what a model can call | **tool** |
-| the MCP grouping a manifest requests | **feature group** |
-
-**Excluded**
-
-| Never | Because |
-|---|---|
-| permission, entitlement, scope (for the declaration) | **access**, the word dlt's docs already use; `permission` is legal only when naming the SDK's `permission_mode` |
-| narrowed, narrowing | say the fact: **with less access** |
-| grant (as a noun) | **the declared access**; `granted` as an adjective is legal (Rule 3.3) |
-| capability (for a dlt tool) | **tool**; legal only for pydantic-ai `capabilities` |
-| ceiling, floor (as prose metaphor) | say what it does: "access is the most a loop can wire" |
-| honor, honour, honored, unhonoured (any spelling) | access is **granted** or **denied**, never honored |
-
-**Rulings**
-
-- **Grant and deny are the verbs.** A job declares access; the runtime and the loop grant what they
-  can; the rest is denied. dlt's docs already write "grant access" 13 times and "denied access"
-  twice, so this is the house pairing, not a new one. A loop that supplies more than the
-  declaration **over-grants**.
-- **The declaration is a request, not a claim.** A manifest `access` block says what the job wants.
-  Nothing in it is granted until the runtime says so. Say "the job declares", never "the job has".
-- **`access` is the noun, and no synonym joins it.** `permissions`, `scopes`, `capabilities` and
-  `entitlements` each name this concept somewhere in the industry; dlt named it `access` before this
-  feature existed — the built-in `access` profile is coarse-grained data access, and `profile_for()`
-  derives that profile from `access.data`. One concept, one word (Rule 1.11).
-- **`tools:` in an `AGENT.md` holds feature groups, not tools.** Write "feature groups" whenever the
-  sentence is about that field, or a reader counts 4 tools and gets 19.
-
----
 
 ### Legal technical nouns — never replace, any group (Rules 1.5, 1.8)
 
@@ -514,8 +186,9 @@ Propose. Do not edit.
 Split the diff across subagents by area. **File sets must not overlap** — two agents writing one
 file corrupt each other.
 
-Give each agent its base ref, its file list, this vocabulary, and the classification table. Tell it
-to read `references/simple-english.md` itself, so rule numbers come from the file.
+Give each agent its base ref, its file list, the group files its files map to, the two cross-group
+rules and the classification table. Tell it to read `references/simple-english.md` itself, so rule
+numbers come from the file.
 
 Collect five groups. Give every finding a **file:line, rule number, current text, rewrite**:
 
@@ -592,28 +265,7 @@ data location".
 
 ## Adding a new term or a new group
 
-Never just record a term. Take these eight steps.
-
-1. **Pick the group.** No group fits? Add one. Give it the next `G<n>`, an index entry, and the
-   three parts: included, excluded, rulings. A group without excluded terms is not finished.
-2. **Research the usage.** Grep `dlt/`, `tests/` and `docs/` for the word and every synonym. Count
-   the hits. Read enough to find the meanings in play. One word often covers two concepts.
-3. **Derive the banned set.** A term is useless without one. For each synonym and inflection,
-   decide: banned, or legal with another meaning? Both halves go in the group.
-4. **Check the upstream interface.** The vocabulary must not contradict a public dlt method or
-   type name. `access` won because `needs_attach` already said "accesses its data". `attach info`
-   won because the type is `TAttachInfo`.
-5. **Name the false positives.** `descriptor` is banned for `TAttachInfo` and correct for the
-   Python descriptor protocol. Put the exception in the rulings, or the next run "fixes" it.
-6. **Fix the part of speech.** Say noun or verb, and ban the other use. `access` is a verb, so
-   "data access" is a violation.
-7. **Test the ban before you write it.** Grep for the word you intend to exclude. Compliant prose
-   already uses it? Then the ban is too wide. Narrow it to the meaning you mean. `inaccessible`
-   and `foreign-folded` passed this check and stay legal. `casefold` and `attach instructions`
-   failed it and are banned.
-8. **Update this file.** Add rows to both tables. Add a ruling when the term has a legal exception.
-   State what becomes newly compliant and what becomes newly non-compliant. A term that flips
-   direction turns compliant prose into findings.
+Never just record a term. Take the eight steps in `references/vocabulary/adding-terms.md`.
 
 Amend the vocabulary mid-review when you must. Then tell every running agent what inverted. They
 audited under the old table.
