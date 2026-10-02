@@ -5,6 +5,7 @@ from typing import Any, ClassVar, Dict, List, Mapping, Optional, Tuple, Type, ca
 
 from dlt.common import json, logger
 from dlt.common.configuration import plugins
+from dlt.common.runtime.run_context import active
 from dlt.common.utils import clone_dict_nested, map_nested_values_in_place
 
 from dlt._workspace.deployment.agent.exceptions import (
@@ -32,6 +33,9 @@ from dlt._workspace.typing import TWorkspaceLocalVerb
 
 DEFAULT_VERBOSITY = 1
 """Thoughts in one line, tool arguments and results capped. 0 shows less, 2 everything."""
+
+RUNTIME_DEFAULT_VERBOSITY = 2
+"""On the dlthub runtime stdout is the run's only record, so nothing is cut by default."""
 
 DEFAULT_USER_TURN = "Go ahead"
 """What a run opens with when nobody gave instructions: the task is in the system prompt."""
@@ -315,6 +319,13 @@ def split_model_id(model: str) -> Tuple[str, str]:
     return (provider, name) if separator else ("", provider)
 
 
+def _default_verbosity() -> int:
+    """Full transcript on a dlthub runtime run, capped detail in a terminal session."""
+    if active().runtime_config.run_id:
+        return RUNTIME_DEFAULT_VERBOSITY
+    return DEFAULT_VERBOSITY
+
+
 def resolve_agent_settings(
     spec: TAgentSpec,
     config: AgentConfiguration,
@@ -364,7 +375,7 @@ def resolve_agent_settings(
         ),
         "loop_run_args": loop_run_args,
         "verbosity": pick(
-            DEFAULT_VERBOSITY, None, decorator_args.get("verbosity"), config.verbosity
+            _default_verbosity(), None, decorator_args.get("verbosity"), config.verbosity
         ),
         "emojis": pick(True, None, decorator_args.get("emojis"), config.emojis),
         "api_key": config.effective_api_key,
