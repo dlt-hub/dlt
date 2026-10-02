@@ -13,7 +13,10 @@ from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.providers.provider import ConfigProvider
 from dlt.common.configuration.specs import CredentialsConfiguration, BaseConfiguration
 from dlt.common.configuration import configspec, resolve_configuration
-from dlt.common.configuration.specs.gcp_credentials import GcpServiceAccountCredentials
+from dlt.common.configuration.specs.gcp_credentials import (
+    GcpServiceAccountCredentials,
+    GcpOAuthCredentials,
+)
 from dlt.common.typing import TSecretStrValue
 from dlt.common.configuration.specs.connection_string_credentials import ConnectionStringCredentials
 from dlt.common.configuration.resolve import initialize_credentials
@@ -206,10 +209,14 @@ def test_union_decorator() -> None:
 
     # pass explicit dict
     assert list(zen_source(credentials={"email": "emx", "password": "pass"}))[0].email == "emx"  # type: ignore[arg-type]
-    assert list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"  # type: ignore[arg-type]
+    assert (
+        list(zen_source(credentials={"api_key": "🔑", "api_secret": ":secret:"}))[0].api_key == "🔑"
+    )  # type: ignore[arg-type]
     # mixed credentials will not work
     with pytest.raises(ConfigFieldMissingException):
-        assert list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"  # type: ignore[arg-type]
+        assert (
+            list(zen_source(credentials={"api_key": "🔑", "password": "pass"}))[0].api_key == "🔑"
+        )  # type: ignore[arg-type]
 
 
 class GoogleAnalyticsCredentialsBase(CredentialsConfiguration):
@@ -237,7 +244,7 @@ class GoogleAnalyticsCredentialsOAuth(GoogleAnalyticsCredentialsBase):
 def google_analytics(
     credentials: Union[
         GoogleAnalyticsCredentialsOAuth, GcpServiceAccountCredentials
-    ] = dlt.secrets.value
+    ] = dlt.secrets.value,
 ):
     yield dlt.resource([credentials], name="creds")
 
@@ -259,6 +266,22 @@ def test_google_auth_union(environment: Any) -> None:
     credentials = list(google_analytics(credentials=info))[0]  # type: ignore[arg-type]
     print(dict(credentials))
     assert isinstance(credentials, GcpServiceAccountCredentials)
+
+
+@configspec
+class GcpCredentialsUnionConfig(BaseConfiguration):
+    credentials: Union[GcpServiceAccountCredentials, GcpOAuthCredentials] = None
+
+
+def test_gcp_credentials_union_reports_all_attempts_on_failure(environment: Any) -> None:
+    # neither GcpServiceAccountCredentials nor GcpOAuthCredentials can parse this value:
+    # the error should explain why each of them failed, not just the last one tried
+    environment["CREDENTIALS"] = "not valid json for either credential type"
+    with pytest.raises(InvalidNativeValue) as py_ex:
+        resolve_configuration(GcpCredentialsUnionConfig())
+    message = str(py_ex.value)
+    assert "GcpServiceAccountCredentials" in message
+    assert "GcpOAuthCredentials" in message
 
 
 class Engine:
