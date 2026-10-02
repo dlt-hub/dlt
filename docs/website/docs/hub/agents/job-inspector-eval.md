@@ -6,7 +6,7 @@ keywords: [dlthub platform, agents, evaluator, job-inspector-eval, checks, judge
 # Job inspector evaluator
 
 :::warning
-This feature is in private preview
+This feature is in public preview
 :::
 
 `job-inspector-eval` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It grades a [job inspector](job-inspector.md) run against the instructions in the inspector's own definition and reports `TRUE`, `FALSE` or `N/A` per instruction with a reasoning.

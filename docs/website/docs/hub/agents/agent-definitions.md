@@ -6,7 +6,7 @@ keywords: [dlthub platform, agents, AGENT.md, agent definition, inputs, output, 
 # Agent definitions
 
 :::warning
-This feature is in private preview
+This feature is in public preview
 :::
 
 Installed toolkits ship verified agent definitions ready to declare as jobs, such as the [job inspector agent](job-inspector.md) in the `dlthub-platform` toolkit. This page describes how to write your own, or how to adapt an installed one.

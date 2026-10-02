@@ -6,7 +6,7 @@ keywords: [dlthub, background agents, job inspector, ai harness, dlthub-platform
 # Getting started with agents
 
 :::warning
-Background agents are in private preview.
+Background agents are in public preview.
 :::
 
 Background agents are dltHub jobs that run an AI agent loop. They run unattended, for example after another job fails, and report a structured result next to the job run they acted on.
