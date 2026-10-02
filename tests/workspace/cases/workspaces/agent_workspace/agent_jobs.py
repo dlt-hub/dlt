@@ -24,6 +24,18 @@ def inspect_crash(run_context: TJobRunContext = None) -> Dict[str, Any]:
 
 
 @agent(agent="dlthub-platform:job-inspector", loop=MOCK_LOOP)
+def cached(run_context: TJobRunContext = None) -> Dict[str, Any]:
+    """Answers from a cache, never calling the model."""
+    return {"status": "succeeded", "summary": "cache hit"}
+
+
+@agent(agent="dlthub-platform:job-inspector", loop=MOCK_LOOP)
+def gives_up(run_context: TJobRunContext = None) -> Dict[str, Any]:
+    """Aborts before calling the model."""
+    return {"status": "aborted", "summary": "nothing to inspect"}
+
+
+@agent(agent="dlthub-platform:job-inspector", loop=MOCK_LOOP)
 def interval_aware(run_context: TJobRunContext = None) -> Dict[str, Any]:
     """Reports what the launcher set up around the call."""
     current = dlt.current.interval()

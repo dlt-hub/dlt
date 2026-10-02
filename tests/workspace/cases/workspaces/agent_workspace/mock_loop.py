@@ -54,7 +54,7 @@ class MockLoop(AgentLoop):
         # three pretend turns, counted through the base so the token limit applies here too
         for _ in range(3):
             self.count_tokens(40, 15)
-        self._trace = self._base_trace(inputs)
+        self._trace = self.base_trace(inputs)
         self._trace["turn_count"] = 3
         self._trace["total_tokens"] = self.tokens_used
         return {

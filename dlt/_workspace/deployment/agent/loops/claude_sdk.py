@@ -341,7 +341,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
             logger.debug(f"Could not report a tool result: {ex}")
 
     def _build_trace(self, inputs: Dict[str, Any], result: Any, turns: List[TAgentTurn]) -> Any:
-        trace = self._base_trace(inputs)
+        trace = self.base_trace(inputs)
         usage = result.usage or {}
         # num_turns counts sub-agent turns too, so it can exceed the assistant messages seen
         trace["turn_count"] = result.num_turns or len(turns)

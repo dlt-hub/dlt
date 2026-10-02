@@ -15,7 +15,7 @@ from dlt.common.libs.pydantic import BaseModel
 from dlt.common.typing import TypedDict
 
 from dlt._workspace.deployment.agent.loop import AgentLoop
-from dlt._workspace.deployment.agent.typing import TAgentLimits, TAgentSpec
+from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
 from dlt._workspace.deployment.decorators import AgentJobFactory, agent
 from dlt._workspace.deployment.exceptions import (
     InvalidJobName,
@@ -272,6 +272,33 @@ def test_aborted_agent_raises_after_delivering(beacon: List[Tuple[str, str]]) ->
     body = pyjson.loads(beacon[0][1])
     assert body["status"] == "aborted"
     assert "trace" in body
+
+
+@pytest.mark.parametrize(
+    "function,status", [("cached", "succeeded"), ("gives_up", "aborted")], ids=["cached", "aborts"]
+)
+def test_an_agent_may_return_without_calling_its_loop(function: str, status: str) -> None:
+    """The result stands, and the trace is that of a run with no turns."""
+    ep: TRuntimeEntryPoint = {
+        "module": "agent_jobs",
+        "function": function,
+        "job_type": "batch",
+        "launcher": LAUNCHER_AGENT,
+        "job_ref": TJobRef(f"jobs.agent_jobs.{function}"),
+    }
+    with agent_workspace():
+        if status == "aborted":
+            with pytest.raises(JobAbortedException, match="nothing to inspect") as exc:
+                agent_run(ep, run_id="r-4", trigger="manual:")
+            result = cast(TAgentJobResult, exc.value.result)
+        else:
+            result = agent_run(ep, run_id="r-4", trigger="manual:")
+
+    assert result["status"] == status
+    trace = result["trace"]
+    assert (trace["turn_count"], trace["total_tokens"]) == (0, 0)
+    assert trace["loop_type"] == MOCK_LOOP and trace["model"]
+    assert "ai_loop" not in trace["inputs"]["run_context"]
 
 
 def test_agent_launcher_shares_the_job_launcher_setup() -> None:

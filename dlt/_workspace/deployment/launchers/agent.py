@@ -2,7 +2,7 @@
 
 import asyncio
 import inspect
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Mapping, Optional, cast
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
@@ -21,7 +21,12 @@ from dlt._workspace.deployment.decorators import AgentJobFactory
 from dlt._workspace.deployment._run_views import print_job_result
 from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolutionError
-from dlt._workspace.deployment.job_result import JobRunContext, set_job_inputs, set_job_result
+from dlt._workspace.deployment.job_result import (
+    JobRunContext,
+    job_inputs,
+    set_job_inputs,
+    set_job_result,
+)
 from dlt._workspace.deployment.launchers._launcher import (
     apply_job_configuration,
     parse_launcher_args,
@@ -37,6 +42,7 @@ from dlt._workspace.deployment.launchers.job import (
 )
 from dlt._workspace.deployment.typing import (
     JOB_RESULT_ENGINE_VERSION,
+    RUN_CONTEXT_INPUT,
     TJobResult,
     TJobRunContext,
     TRuntimeEntryPoint,
@@ -91,6 +97,14 @@ def build_agent_loop(job: AgentJobFactory[Any, Any], workspace_root: str) -> Age
     return loop
 
 
+def _recorded(inputs: Mapping[str, Any]) -> Dict[str, Any]:
+    """`inputs` as the prompt, the trace and the result see them: without the loop handle."""
+    recorded = dict(inputs)
+    if isinstance(context := recorded.get(RUN_CONTEXT_INPUT), Mapping):
+        recorded[RUN_CONTEXT_INPUT] = {k: v for k, v in context.items() if k != "ai_loop"}
+    return recorded
+
+
 def _agent_inputs(
     job: AgentJobFactory[Any, Any],
     spec: TAgentSpec,
@@ -102,9 +116,7 @@ def _agent_inputs(
     A declared input is taken from configuration first, then from the trigger's run
     arguments, then from an explicit call argument.
     """
-    # inputs go into the system prompt and the agent trace, where the loop handle is meaningless
-    context = {k: v for k, v in run_context.items() if k != "ai_loop"}
-    inputs: Dict[str, Any] = {"run_context": context}
+    inputs = _recorded({RUN_CONTEXT_INPUT: run_context})
     inputs.update(configured_inputs(job, job.input_spec(spec)))
     inputs.update(run_context.get("run_args") or {})
     inputs.update(kwargs)
@@ -131,7 +143,8 @@ def _finish(
         "status": status,
         "summary": output.get("summary", ""),
         "result": output,
-        "trace": loop.trace,
+        # a function may answer without calling the model: then the trace has no turns
+        "trace": loop.trace if loop.completed else loop.base_trace(job_inputs() or {}),
     }
     set_job_result(job_result)
     if status == "aborted":
@@ -185,7 +198,7 @@ def _invoke_agent(job: AgentJobFactory[Any, Any], run_context: TJobRunContext) -
         return _finish(job, output, loop)
 
     kwargs = _function_kwargs(job, run_context)
-    set_job_inputs(kwargs)
+    set_job_inputs(_recorded(kwargs))
     result = job(**kwargs)
     if asyncio.iscoroutine(result):
         result = asyncio.run(result)

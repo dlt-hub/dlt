@@ -416,7 +416,7 @@ class PydanticAILoop(AgentLoop):
                 logger.debug(f"Could not report agent event {type(event).__name__}: {ex}")
 
     def _build_trace(self, inputs: Dict[str, Any], result: Any) -> Any:
-        trace = self._base_trace(inputs)
+        trace = self.base_trace(inputs)
         # `usage` was a method before pydantic-ai 2.36 and is a property from it on
         usage = result.usage
         if callable(usage):
