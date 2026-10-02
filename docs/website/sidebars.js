@@ -489,9 +489,9 @@ const sidebars = {
             keywords: ["release notes", "release highlights", "dlthub"],
           },
           items: [
-            { type: "doc", id: "hub/release-notes/0.29", label: "0.29" },
-            { type: "doc", id: "hub/release-notes/0.27", label: "0.27" },
-            { type: "doc", id: "hub/release-notes/0.26", label: "0.26" },
+            { type: "doc", id: "hub/release-notes/2026-09-24", label: "September 24, 2026" },
+            { type: "doc", id: "hub/release-notes/2026-08-31", label: "August 31, 2026" },
+            { type: "doc", id: "hub/release-notes/2026-08-24", label: "August 24, 2026" },
           ],
         },
       ],
