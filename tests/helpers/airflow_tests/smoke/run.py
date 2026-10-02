@@ -40,7 +40,44 @@ def verify(db_path: str) -> None:
     )
     # 3 dags were run: so original item counts * 3
     assert set(pipeline.dataset().row_counts().fetchall()) == EXPECTED_TABLES
-    print("\nSmoke test PASSED")
+
+
+def verify_log_levels(airflow_home: Path, run_id: str) -> None:
+    tasks = (
+        ("plain_python_operator", "PLAIN_PYTHON_OPERATOR_DLT"),
+        ("dlt_smoke_tasks.smoke_source_users-events", "TASK_GROUP_DLT"),
+    )
+    levels = (("INFO", "info"), ("WARNING", "warning"), ("ERROR", "error"))
+
+    for task_id, prefix in tasks:
+        log_path = (
+            airflow_home
+            / "logs"
+            / f"dag_id={DAG_ID}"
+            / f"run_id={run_id}"
+            / f"task_id={task_id}"
+            / "attempt=1.log"
+        )
+        assert log_path.is_file(), f"Task log not found: {log_path}"
+
+        records = []
+        for line in log_path.read_text(encoding="utf-8").splitlines():
+            try:
+                records.append(json.loads(line))
+            except json.JSONDecodeError:
+                continue
+
+        for name, expected_level in levels:
+            event = f"{prefix}_{name}"
+            matches = [
+                record
+                for record in records
+                if isinstance(record, dict) and record.get("event") == event
+            ]
+            assert len(matches) == 1, f"{event}: expected once, found {len(matches)}"
+            assert (
+                matches[0].get("level") == expected_level
+            ), f"{event}: expected {expected_level}, got {matches[0].get('level')}"
 
 
 def main():
@@ -70,6 +107,9 @@ def main():
         env["DLT_SMOKE_DB_PATH"] = db_path
         # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
         env["NORMALIZE__WORKERS"] = "2"
+        scheduler_env = env.copy()
+        scheduler_env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "INFO"
+        scheduler_env["RUNTIME__LOG_LEVEL"] = "INFO"
 
         print("=== Initializing Airflow DB ===")
         try:
@@ -89,7 +129,7 @@ def main():
         print("=== Starting scheduler ===")
         scheduler = subprocess.Popen(
             ["uv", "run", "airflow", "scheduler"],
-            env=env,
+            env=scheduler_env,
             stdout=open(work_dir / "scheduler.log", "w", encoding="utf8"),
             stderr=subprocess.STDOUT,
             text=True,
@@ -169,6 +209,9 @@ def main():
 
         print("=== Verifying results ===")
         verify(db_path)
+        if env.get("RUNTIME__LOG_OUTPUT", "").lower() == "propagate":
+            verify_log_levels(airflow_home, run_id)
+        print("\nSmoke test PASSED")
 
     finally:
         if api_server is not None:
