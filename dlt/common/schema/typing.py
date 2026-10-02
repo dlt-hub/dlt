@@ -265,6 +265,15 @@ MERGE_STRATEGY_OPTIONS: Dict[str, Sequence[TLoaderMergeStrategy]] = {
     "row_version_column_name": ("scd2", "upsert", "cdc"),
 }
 """Merge strategy options and the strategies that support them."""
+MERGE_DISPOSITION_HINTS: Dict[str, str] = {
+    "strategy": "x-merge-strategy",
+    "deduplicated": "x-stage-data-deduplicated",
+    "source_filter": "x-merge-source-filter",
+    "destination_scope": "x-merge-destination-scope",
+    "skip_unchanged_rows": "x-merge-skip-unchanged-rows",
+}
+"""Table hints that store the keys of the merge write disposition dict. The column names in the
+dict, like `row_version_column_name`, mark their columns with column hints instead."""
 REPLACE_STRATEGIES: Sequence[TLoaderReplaceStrategy] = sorted(get_args(TLoaderReplaceStrategy))
 
 DEFAULT_VALIDITY_COLUMN_NAMES = ["_dlt_valid_from", "_dlt_valid_to"]

@@ -26,6 +26,7 @@ from dlt.common.schema.typing import (
     DEFAULT_VALIDITY_COLUMN_NAMES,
     MERGE_STRATEGIES,
     MERGE_STRATEGY_OPTIONS,
+    MERGE_DISPOSITION_HINTS,
     TTableReferenceParam,
 )
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -716,21 +717,10 @@ class DltResourceHints:
 
         # the keys depend on the strategy, as `TWriteDispositionConfig` defines
         md_dict: Dict[str, Any] = dict_.pop("write_disposition")
-        if merge_strategy := md_dict.get("strategy"):
-            dict_["x-merge-strategy"] = merge_strategy
-
-        if deduplicated := md_dict.get("deduplicated"):
-            dict_["x-stage-data-deduplicated"] = deduplicated
-
-        if source_filter := md_dict.get("source_filter"):
-            dict_["x-merge-source-filter"] = source_filter
-
-        if destination_scope := md_dict.get("destination_scope"):
-            dict_["x-merge-destination-scope"] = destination_scope
-
-        # without a strategy the destination picks one and warns if it does not support the option
-        if md_dict.get("skip_unchanged_rows"):
-            dict_["x-merge-skip-unchanged-rows"] = True
+        for key, hint in MERGE_DISPOSITION_HINTS.items():
+            if value := md_dict.get(key):
+                dict_[hint] = value
+        merge_strategy = md_dict.get("strategy")
         # the merge compares the row version only if `skip_unchanged_rows` is `True`
         row_version = md_dict.get("row_version_column_name")
         if merge_strategy != "scd2" and row_version and md_dict.get("skip_unchanged_rows"):
