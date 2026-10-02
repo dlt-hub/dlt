@@ -409,7 +409,17 @@ class ArrowIncremental(IncrementalTransform):
 
             tbl = polars_to_arrow(tbl)
 
-        primary_key = self._primary_key(tbl) if callable(self._primary_key) else self._primary_key
+        if callable(self._primary_key):
+            # dynamic hints are always called with a single representative row, same as
+            # `resolve_column_value` does for the JSON path
+            representative_row = (
+                tbl.slice(0, 1).to_pylist()[0]
+                if tbl.num_rows > 0
+                else {name: None for name in tbl.schema.names}
+            )
+            primary_key = self._primary_key(representative_row)
+        else:
+            primary_key = self._primary_key
         if primary_key:
             # create a list of unique columns
             if isinstance(primary_key, str):
@@ -425,6 +435,9 @@ class ArrowIncremental(IncrementalTransform):
                 self._dlt_index = primary_key
         elif primary_key is None:
             unique_columns = tbl.schema.names
+        else:
+            # primary key resolved to an empty sequence: disable deduplication
+            unique_columns = []
 
         start_out_of_range = end_out_of_range = False
         if not tbl:  # row is None or empty arrow table
