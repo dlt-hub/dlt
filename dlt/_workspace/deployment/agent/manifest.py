@@ -95,7 +95,7 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
     if not declared.get("description"):
         # a bare `description:` reads as null in YAML, and no description is not an empty one
         spec.pop("description", None)
-    spec["output"] = with_standard_output(declared.get("output"))
+    spec["output"] = with_standard_output(declared.get("output"), source)
     spec["inputs"] = declared.get("inputs") or {}
     if "prompt" in spec["inputs"]:
         raise InvalidAgentSpec(source, "inputs must not declare 'prompt'. Put the task in the body")
@@ -255,7 +255,7 @@ def _workspace_path(ref: str, kind: "TComponentType", workspace_root: str) -> st
     return candidate
 
 
-def _is_path_ref(ref: str) -> bool:
+def is_path_ref(ref: str) -> bool:
     return os.sep in ref or "/" in ref or ref.endswith((".md", ".mdc"))
 
 
@@ -272,7 +272,7 @@ def resolve_agent_dir(agent_ref: str, workspace_root: str) -> str:
     Raises:
         AgentComponentNotFound: The reference does not name an installed agent.
     """
-    if _is_path_ref(agent_ref):
+    if is_path_ref(agent_ref):
         candidate = _workspace_path(agent_ref, "agent", workspace_root)
         # the ref may point at the agent folder or at the `AGENT.md` inside it
         if os.path.basename(candidate) == COMPONENT_MARKERS["agent"]:
@@ -296,7 +296,7 @@ def resolve_agent_dir(agent_ref: str, workspace_root: str) -> str:
 
 def resolve_component_ref(ref: str, kind: "TComponentType", workspace_root: str) -> str:
     """Resolves a skill or rule ref to the file installed in the project."""
-    if _is_path_ref(ref):
+    if is_path_ref(ref):
         candidate = _workspace_path(ref, kind, workspace_root)
         if os.path.isfile(candidate):
             return candidate

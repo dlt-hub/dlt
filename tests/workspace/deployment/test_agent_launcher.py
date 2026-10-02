@@ -67,7 +67,7 @@ def test_agent_launcher_runs_a_declared_agent(workspace: Any, loop_type: str) ->
     output = agent_run(_entry("inspector", loop_type), run_id="a-1", trigger="manual:")
 
     # the category says which envelope this is, the name which agent produced the payload
-    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
     assert "agent" not in output
     assert output["status"] == "succeeded"
     assert output["job_ref"] == "jobs.agent_launcher_jobs.mock_inspector"
@@ -198,7 +198,7 @@ def test_agent_launcher_via_cli(workspace: Any, loop_type: str) -> None:
         cwd=workspace.run_dir,
     )
     assert result.returncode == 0, result.stderr
-    assert "job.background_agent." in result.stdout
+    assert "background_agent." in result.stdout
     assert "succeeded" in result.stdout
     assert "mock run" in result.stdout
 
@@ -340,8 +340,8 @@ def test_cli_config_reaches_the_agent_configuration(workspace: Any, loop_type: s
 
     assert output["result"]["ran"]["model"] == "anthropic:claude-opus-5"
     assert output["trace"]["inputs"]["failed_run_id"] == "r-7"
-    # the input is declared `entity_type: job-run`, so the run says which run it acted on
-    assert output["object"] == [{"type": "job-run", "id": "job-run/r-7"}]
+    # the input is declared `entity_type: job-runs`, so the run says which run it acted on
+    assert output["object"] == [{"type": "job-runs", "id": "job-runs/r-7"}]
 
 
 def test_function_form_drives_the_loop_the_launcher_built(workspace: Any, loop_type: str) -> None:
@@ -349,7 +349,7 @@ def test_function_form_drives_the_loop_the_launcher_built(workspace: Any, loop_t
     output = agent_run(_entry("driver", loop_type), run_id="a-drv", trigger="manual:")
 
     # the function drives an installed agent definition, so that definition names the result
-    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
     assert output["result"]["ran"]["agent"] == "driver"
     assert output["trace"]["inputs"] == {"failed_run_id": "r-driven"}
 
@@ -358,10 +358,20 @@ def test_agent_declared_inline_runs_like_a_referenced_one(workspace: Any, loop_t
     ep = _entry("inline", loop_type, failed_run_id="r-inline", depth="3")
     output = agent_run(ep, run_id="a-inline", trigger="manual:")
 
-    assert output["type"] == "job.background_agent.inline-inspector"
+    assert output["type"] == "background_agent.inline-inspector"
     inputs = output["trace"]["inputs"]
     # the declared type is applied, so `depth` arrives as an int
     assert (inputs["failed_run_id"], inputs["depth"]) == ("r-inline", 3)
+
+
+def test_agent_referenced_by_path_is_named_by_its_manifest(workspace: Any, loop_type: str) -> None:
+    ep = _entry("by_path", loop_type, failed_run_id="r-path")
+    output = agent_run(ep, run_id="a-path", trigger="manual:")
+
+    # the result type carries the agent's own name, the trace keeps the reference it was loaded by
+    assert output["type"] == "background_agent.job-inspector"
+    assert output["trace"]["agent"] == ".claude/dlthub/agents/job-inspector"
+    assert output["status"] == "succeeded"
 
 
 def test_required_input_missing_from_config_fails_the_run(workspace: Any, loop_type: str) -> None:
@@ -379,7 +389,7 @@ def test_agent_declared_by_a_python_function(workspace: Any, loop_type: str) -> 
     output = agent_run(ep, run_id="a-py", trigger="manual:")
 
     # no AGENT.md behind it: the function itself is the agent definition, named module:function
-    assert output["type"] == "job.background_agent.agent_launcher_jobs:python_inspector"
+    assert output["type"] == "background_agent.agent_launcher_jobs:python_inspector"
     # config filled the parameter, the trigger's run args filled the other
     assert output["trace"]["inputs"] == {"failed_run_id": "r-77", "depth": 5}
     ran = output["result"]["ran"]

@@ -5,6 +5,16 @@ import REDIRECTS from "./redirects.compiled.js";
 
 const ROUTE_404 = "/docs/404";
 
+async function notFound(request, env): Promise<Response> {
+  const page = await env.ASSETS.fetch(new Request(new URL(ROUTE_404, request.url), request));
+  if (!page.ok) {
+    return new Response("Not Found", { status: 404, headers: { "content-type": "text/plain" } });
+  }
+  const headers = new Headers(page.headers);
+  headers.set("cache-control", "public, max-age=300");
+  return new Response(page.body, { status: 404, headers });
+}
+
 const handler = {
   async fetch(request, env, _ctx) {
     const url = new URL(request.url);
@@ -15,9 +25,11 @@ const handler = {
       return Response.redirect(url.toString(), 301);
     }
 
-    // handle redirects
+    // handle redirects (a trailing-slash variant of a redirected path resolves
+    // in one hop instead of two)
+    const bare = url.pathname.length > 1 ? url.pathname.replace(/\/+$/, "") : url.pathname;
     for (const redirect of REDIRECTS) {
-      if (url.pathname === redirect.from) {
+      if (url.pathname === redirect.from || bare === redirect.from) {
         // split off the fragment - URL.pathname would percent-encode a "#"
         const [pathname, hash] = redirect.to.split("#");
         url.pathname = pathname;
@@ -26,10 +38,25 @@ const handler = {
       }
     }
 
+    // Trailing-slash URLs get a permanent redirect to the canonical path.
+    // The assets layer (html_handling: drop-trailing-slash) answers them with
+    // a 307, and a temporary redirect does not reliably consolidate links:
+    // /docs/dlt-ecosystem/destinations/ alone has ~30 followed backlinks.
+    if (bare !== url.pathname) {
+      url.pathname = bare;
+      return Response.redirect(url.toString(), 301);
+    }
+
+    // The 404 page is served in place, with a 404 status. It used to be a
+    // 301 to /docs/404, which answers 200, so every dead docs URL looked
+    // like a live page to crawlers (a soft 404) and inherited nothing.
+    if (url.pathname === ROUTE_404 || url.pathname === `${ROUTE_404}/`) {
+      return notFound(request, env);
+    }
+
     const res = await env.ASSETS.fetch(request);
     if (res.status === 404) {
-      url.pathname = ROUTE_404;
-      return Response.redirect(url.toString(), 301);
+      return notFound(request, env);
     }
     return res; // unchanged response (transparent externally)
   },

@@ -3,7 +3,6 @@ title: Explore data with marimo
 description: Explore your data with marimo
 keywords: [data, dataset, sql, ibis, marimo]
 ---
-
 # Explore your data with marimo
 
 :::tip
@@ -35,9 +34,10 @@ marimo edit my_notebook.py
 
 Here's a screenshot of the interface you should see:
 
-![](./static/marimo_notebook.png)
+![empty marimo notebook](./static/marimo_notebook.png)
 
 To run an existing local marimo notebook:
+
 ```sh
 marimo run my_notebook.py
 ```
@@ -65,25 +65,23 @@ Available widgets: `pipeline_selector`, `load_package_viewer`, `schema_viewer`.
 
 ![Example marimo widget](https://storage.googleapis.com/dlt-blog-images/marimo-widget-screenshot.png)
 
-
 ### View dataset tables and columns
 
 After loading data with dlt, you can access it via the [dataset interface](./dataset.md), including a [native ibis connection](../../dlt-ecosystem/transformations/python.md#using-ibis).
 
 In marimo, the **Datasources** panel provides a GUI to explore data tables and columns. When a cell contains a variable that's an ibis connection, it is automatically registered.
 
-![](./static/marimo_dataset.png)
+![marimo dataset viewer with ibis](./static/marimo_dataset.png)
 
 ### Accessing data with SQL
 
-Clicking on the **Add table to notebook** button will create a new SQL cell that you can use to query data. The output cell provides a rich and interactive results dataframe. 
+Clicking on the **Add table to notebook** button will create a new SQL cell that you can use to query data. The output cell provides a rich and interactive results dataframe.
 
 :::note
 The **Datasources** displays a limited range of data types.
 :::
 
-![](./static/marimo_sql.png)
-
+![marimo SQL editor with ibis](./static/marimo_sql.png)
 
 ### Accessing data with Python
 
@@ -95,14 +93,13 @@ Use `.execute()`, `.to_pandas()`, `.to_polars()`, or `.to_pyarrow()` to execute 
 The **Datasources** displays a limited range of data types.
 :::
 
-![](./static/marimo_python.png)
+![marimo Python cell using the dlt dataset interface](./static/marimo_python.png)
 
 ### Create a dashboard and data apps
 
 Marimo notebooks can also be [deployed as web applications with interactive UI and charts](https://docs.marimo.io/guides/apps/) and the code hidden. Try adding [marimo UI input elements](https://docs.marimo.io/guides/interactivity/), rich markdown, and charts (matplotlib, plotly, altair, etc.). Combined, dlt + marimo + ibis make it easy to build a simple dashboard on top of fresh data.
 
 To run such a notebook on the dltHub platform, where it is served as an interactive job and can be shared with your workspace or via a public link, see [Build and deploy a marimo notebook](../../hub/data-apps/build-marimo-notebook.md).
-
 
 ## Further reading
 

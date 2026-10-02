@@ -3,7 +3,7 @@
 import inspect
 from copy import deepcopy
 from functools import lru_cache
-from typing import Any, Dict, Optional, cast
+from typing import Any, Dict, Mapping, Optional, Type, Union, cast
 
 from dlt.common.typing import AnyFun
 from dlt.common.utils import get_callable_name
@@ -11,7 +11,12 @@ from dlt.common.utils import get_callable_name
 from dlt._workspace.deployment.agent.exceptions import InvalidAgentSpec
 from dlt._workspace.deployment.agent.manifest import validate_agent_spec
 from dlt._workspace.deployment.agent.typing import TAgentDefaults, TAgentOutput, TAgentSpec
-from dlt._workspace.deployment.reflection import derives_from, inputs_from_function, output_schema
+from dlt._workspace.deployment.reflection import (
+    derives_from,
+    inputs_from_function,
+    output_schema,
+    return_hint,
+)
 
 SPEC_KEYS = ("access", "tools", "skills", "rules")
 DEFAULTS_KEYS = ("model", "limits", "loop_run_args", "trigger")
@@ -19,10 +24,14 @@ DEFAULTS_KEYS = ("model", "limits", "loop_run_args", "trigger")
 
 def output_from_return(f: AnyFun, source: str) -> Dict[str, Any]:
     """JSON Schema of the agent's own output, taken from the return type."""
-    hint = inspect.signature(f).return_annotation
+    hint = return_hint(f)
     if hint in (inspect.Signature.empty, None, Any):
         # nothing declared: the agent reports the base outcome, `status` and `summary`
         hint = TAgentOutput
+    if isinstance(hint, str):
+        raise InvalidAgentSpec(
+            source, f"return type {hint!r} could not be resolved. Define or import it in the module"
+        )
     if not derives_from(hint, TAgentOutput):
         raise InvalidAgentSpec(
             source,
@@ -37,18 +46,18 @@ def _standard_output() -> Dict[str, Any]:
     return output_schema(TAgentOutput, "TAgentOutput")
 
 
-def with_standard_output(declared: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+def with_standard_output(
+    declared: Union[Dict[str, Any], Type[Any], None], source: str = "output"
+) -> Dict[str, Any]:
     """Declared output plus `status` and `summary`, which `TAgentOutput` alone defines.
 
-    Args:
-        declared (Optional[Dict[str, Any]]): Output JSON Schema an `AGENT.md` carries, if any.
-
-    Returns:
-        Dict[str, Any]: The declaration with the standard fields written over it.
+    `declared` is a JSON Schema, or a TypedDict or pydantic model one is read from.
     """
     standard = deepcopy(_standard_output())
     if not declared:
         return standard
+    if not isinstance(declared, Mapping):
+        declared = output_schema(declared, source)
     schema = deepcopy(dict(declared))
     schema["type"] = "object"
     schema["properties"] = {**(schema.get("properties") or {}), **standard["properties"]}
@@ -101,8 +110,8 @@ def agent_spec_from_function(
     spec["inputs"] = inputs
 
     # a function driving a referenced agent may return anything; then that agent's output stands
-    return_hint = inspect.signature(f).return_annotation
-    if derives_from(return_hint, TAgentOutput) or not spec.get("output"):
+    hint = return_hint(f)
+    if derives_from(hint, TAgentOutput) or not spec.get("output"):
         spec["output"] = output_from_return(f, source)
 
     return validate_agent_spec(cast(TAgentSpec, spec), source)

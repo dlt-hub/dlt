@@ -1,5 +1,4 @@
 from __future__ import annotations as _annotations
-import collections.abc
 from copy import copy
 from typing import (
     Dict,
@@ -23,10 +22,10 @@ from dlt.common.typing import (
     Annotated,
     get_args,
     get_origin,
+    map_annotation,
     TypeVar,
     TDataItem,
     TDataItems,
-    extract_union_types,
     is_annotated,
     is_optional_type,
     extract_inner_type,
@@ -67,14 +66,6 @@ _TPydanticModel = TypeVar("_TPydanticModel", bound=BaseModel)
 
 
 snake_case_naming_convention = SnakeCaseNamingConvention()
-
-
-def _is_set_origin(origin: type) -> bool:
-    """Check if a type origin is set-like (set or frozenset)."""
-    try:
-        return issubclass(origin, collections.abc.Set)
-    except TypeError:
-        return False
 
 
 class ListModel(BaseModel, Generic[_TPydanticModel]):
@@ -379,48 +370,19 @@ def apply_schema_contract_to_model(
     if _child_models is None:
         _child_models = {}
 
-    def _process_annotation(t_: Type[Any]) -> Type[Any]:
-        """Recursively recreates models with applied schema contract"""
-        if is_annotated(t_):
-            a_t, *a_m = get_args(t_)
-            return Annotated[(_process_annotation(a_t), *a_m)]  # type: ignore[return-value]
-        origin = get_origin(t_)
-        # tuple must be checked before is_list_generic_type (tuple is a Sequence)
-        if origin is tuple:
-            args = get_args(t_)
-            if not args:
-                return t_
-            if len(args) == 2 and args[1] is Ellipsis:
-                # variable-length: Tuple[T, ...]
-                return origin[_process_annotation(args[0]), ...]  # type: ignore[no-any-return]
-            # heterogeneous: Tuple[T1, T2, ...]
-            processed = tuple(_process_annotation(a) for a in args)
-            return origin[processed]  # type: ignore[no-any-return]
-        elif is_list_generic_type(t_):
-            l_t: Type[Any] = get_args(t_)[0]
-            return origin[_process_annotation(l_t)]  # type: ignore[no-any-return]
-        elif is_dict_generic_type(t_):
-            k_t: Type[Any]
-            v_t: Type[Any]
-            k_t, v_t = get_args(t_)
-            return origin[k_t, _process_annotation(v_t)]  # type: ignore[no-any-return]
-        # set/frozenset are not Sequence or Mapping so need a separate check
-        elif origin is not None and _is_set_origin(origin):
-            s_t: Type[Any] = get_args(t_)[0]
-            return origin[_process_annotation(s_t)]  # type: ignore[no-any-return]
-        elif is_union_type(t_):
-            u_t_s = tuple(_process_annotation(u_t) for u_t in extract_union_types(t_))
-            return Union[u_t_s]  # type: ignore[return-value]
-        elif is_subclass(t_, BaseModel):
-            # types must be same before and after processing
-            if id(t_) in _child_models:
-                return _child_models[id(t_)]
-            else:
-                _child_models[id(t_)] = child_model = apply_schema_contract_to_model(
-                    t_, column_mode, data_mode, _child_models=_child_models
-                )
-                return child_model
-        return t_
+    def _contract_model(t_: Any) -> Any:
+        # a parametrized generic has an origin; only a plain model class is rebuilt
+        if get_origin(t_) is not None or not is_subclass(t_, BaseModel):
+            return t_
+        # types must be same before and after processing
+        if id(t_) not in _child_models:
+            _child_models[id(t_)] = apply_schema_contract_to_model(
+                t_, column_mode, data_mode, _child_models=_child_models
+            )
+        return _child_models[id(t_)]
+
+    def _process_annotation(t_: Any) -> Any:
+        return map_annotation(t_, _contract_model)
 
     def _rebuild_annotated(f: Any) -> Type[Any]:
         if hasattr(f, "rebuild_annotation"):

@@ -41,7 +41,7 @@ from dlt.extract.reference import SourceFactory as AnySourceFactory
 from dlt.extract.resource import DltResource
 from dlt.extract.source import DltSource
 
-from dlt._workspace.deployment._job_ref import job_category, make_job_ref
+from dlt._workspace.deployment._job_ref import make_job_ref
 from dlt._workspace.deployment.exceptions import (
     InvalidJobName,
     InvalidJobSchema,
@@ -61,8 +61,10 @@ from dlt._workspace.deployment.agent.configuration import (
 from dlt._workspace.deployment.agent.manifest import (
     load_agent_spec,
     agent_manifest_path,
+    is_path_ref,
     resolve_agent_dir,
     to_agent_definition,
+    validate_agent_spec,
     validate_execute_defaults,
 )
 from dlt._workspace.deployment.agent.reflection import agent_source, agent_spec_from_function
@@ -75,7 +77,9 @@ from dlt._workspace.deployment.launchers import (
     agent_loop_group,
 )
 from dlt._workspace.deployment.typing import (
+    BACKGROUND_AGENT_CATEGORY,
     DEFAULT_CONCURRENCY,
+    JOB_RESULT_CATEGORY,
     MANIFEST_ENGINE_VERSION,
     TWorkspaceAccess,
     TAgentDefinition,
@@ -92,6 +96,7 @@ from dlt._workspace.deployment.typing import (
     TJobExposeSpec,
     TJobObjectInput,
     TJobRef,
+    TJobResultCategory,
     TJobType,
     TRefreshPolicy,
     TRequireSpec,
@@ -276,10 +281,9 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         return injectable_fields(self._spec)
 
     @property
-    def category(self) -> str:
-        """Label the job is grouped under, and the middle segment of its result type."""
-        deliver = self.deliver if isinstance(self.deliver, dict) else None
-        return job_category(self.expose, deliver, self.job_type)
+    def result_category(self) -> TJobResultCategory:
+        """First segment of the job's result type."""
+        return JOB_RESULT_CATEGORY
 
     def _reflect_schemas(self) -> None:
         """Inputs and output of the job, read from the function. Set already, they stand."""
@@ -815,6 +819,8 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         """Agent declared inline, instead of referenced by name."""
         self.agent_file: Optional[str] = None
         """Folder the referenced agent was read from, relative to the workspace root."""
+        self.agent_name: Optional[str] = None
+        """Name of an agent referenced by path, read from its `AGENT.md`."""
         self.loop: str = DEFAULT_AGENT_LOOP
         self.model: str = None
         self.instructions: str = None
@@ -843,24 +849,29 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
 
     def resolve_agent_spec(self, workspace_root: str) -> TAgentSpec:
         """The agent in full: declared by the decorated function, given inline, or named."""
-        if self.agent_spec is None:
-            base: Optional[TAgentSpec] = None
-            if self.agent_ref:
-                agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
-                base = load_agent_spec(agent_dir)
-                self.agent_file = os.path.relpath(agent_manifest_path(agent_dir), workspace_root)
+        base = self.agent_spec
+        if base is not None:
+            # given inline: a copy, so the caller's dict is not rewritten below
+            base = cast(TAgentSpec, dict(base))
+        elif self.agent_ref:
+            agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
+            base = load_agent_spec(agent_dir)
+            self.agent_file = os.path.relpath(agent_manifest_path(agent_dir), workspace_root)
+            if is_path_ref(self.agent_ref):
+                # the result type names the agent, not the folder it was loaded from
+                self.agent_name = base["name"]
 
-            if self.is_declared:
-                self.agent_spec = base
-            else:
-                source = agent_source(self._f, self.name)
-                self.agent_spec = agent_spec_from_function(
-                    self._f, source, self.agent_declaration, base
-                )
-                # a function-declared agent has no AGENT.md: it is the module it lives in
-                self.agent_file = _workspace_relative(source, workspace_root)
-                if not self.agent_ref:
-                    self.agent_ref = f"{self._f.__module__}:{get_callable_name(self._f)}"
+        if self.is_declared:
+            self.agent_spec = validate_agent_spec(base, self.agent_ref)
+        else:
+            source = agent_source(self._f, self.name)
+            self.agent_spec = agent_spec_from_function(
+                self._f, source, self.agent_declaration, base
+            )
+            # a function-declared agent has no AGENT.md: it is the module it lives in
+            self.agent_file = _workspace_relative(source, workspace_root)
+            if not self.agent_ref:
+                self.agent_ref = f"{self._f.__module__}:{get_callable_name(self._f)}"
         # the agent declares the result. A declared job's inputs are the agent's too; a
         # decorated one takes them from its signature, which is what configuration can inject
         self.output = self.agent_spec["output"]
@@ -899,8 +910,13 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         return self.agent_spec.get("description", "") if self.agent_spec else ""
 
     @property
-    def category(self) -> str:
-        return "background_agent"
+    def result_category(self) -> TJobResultCategory:
+        return BACKGROUND_AGENT_CATEGORY
+
+    @property
+    def result_name(self) -> str:
+        """Second segment of the result type: agent name, else agent reference, else job name."""
+        return self.agent_name or self.agent_ref or self.name
 
     def input_spec(self, agent_spec: TAgentSpec) -> Type[BaseConfiguration]:
         """Job configuration of a declared agent: its inputs, synthesized once."""
@@ -941,7 +957,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
             self._resolve_agent()
         job_def = super().to_job_definition()
         expose: TExposeSpec = dict(job_def.get("expose") or {})  # type: ignore[assignment]
-        expose["category"] = self.category  # type: ignore[typeddict-item]
+        expose["category"] = BACKGROUND_AGENT_CATEGORY
         job_def["expose"] = expose
         if self.agent_definition is not None:
             job_def["agent"] = self.agent_definition

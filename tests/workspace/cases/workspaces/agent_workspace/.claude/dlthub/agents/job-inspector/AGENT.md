@@ -20,7 +20,7 @@ inputs:
     failed_run_id:
       type: string
       description: explicit run id of the job that failed
-      entity_type: job-run
+      entity_type: job-runs
     failed_job_ref:
       type: string
       description: explicit job ref of the failed job

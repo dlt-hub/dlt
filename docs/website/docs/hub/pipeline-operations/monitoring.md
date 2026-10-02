@@ -3,7 +3,6 @@ title: Monitoring and debugging
 description: Monitor pipeline health, view logs, and diagnose failures on the dltHub platform
 keywords: [monitoring, observability, logs, debug, run status, metrics, dlthub platform]
 ---
-
 # Monitoring and debugging
 
 Use the dltHub CLI and the Web UI at [app.dlthub.com](https://app.dlthub.com) to monitor pipeline health, inspect logs, and diagnose failures.
@@ -73,14 +72,14 @@ Select any run on the Jobs page to open its **run detail page**, which provides:
 
 ## Understand run states
 
-| Status         | Meaning                                              |
-|----------------|------------------------------------------------------|
-| **Pending**    | Run is queued, waiting to start                      |
-| **Starting**   | Run is being initialized                             |
-| **Running**    | Actively executing                                   |
-| **Completed**  | Finished without errors                              |
-| **Failed**     | Encountered an error — check logs for details        |
-| **Cancelled**  | Manually stopped via CLI or Web UI                   |
+| Status        | Meaning                                       |
+| ------------- | --------------------------------------------- |
+| **Pending**   | Run is queued, waiting to start               |
+| **Starting**  | Run is being initialized                      |
+| **Running**   | Actively executing                            |
+| **Completed** | Finished without errors                       |
+| **Failed**    | Encountered an error — check logs for details |
+| **Cancelled** | Manually stopped via CLI or Web UI            |
 
 ## Diagnose a failed run
 

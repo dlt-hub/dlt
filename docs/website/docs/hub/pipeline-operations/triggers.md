@@ -3,7 +3,6 @@ title: Triggers and scheduling
 description: Schedule jobs on the dltHub platform with cron, intervals, follow-up chains, freshness constraints, and refresh cascades
 keywords: [dlthub platform, triggers, scheduling, cron, interval, backfill, follow-up, freshness, refresh, tags]
 ---
-
 # Triggers and scheduling
 
 A **trigger** declares when a job runs. Triggers are attached to a decorated job via the `trigger=` argument and are the source of truth for scheduling on the dltHub platform — there is no separate CLI for adding or removing schedules. Change the decorator, redeploy.
@@ -21,21 +20,27 @@ This page covers all the trigger types and the related scheduling features.
 
 ## Basic triggers
 
-| Trigger | Meaning |
-|---------|---------|
-| `trigger.every("5m")` | Recurring interval (`"5m"`, `"6h"`, seconds as float) |
-| `trigger.schedule("0 * * * *")` | Cron expression |
-| `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp |
-| `"*/5 * * * *"` | Bare cron string — auto-detected |
-| `upstream_job.success` | Follow-up — fires when an upstream job completes successfully |
-| `upstream_job.fail` | Follow-up — fires when an upstream job fails |
-| `upstream_job.completed` | Follow-up — fires on success or failure |
+| Trigger                                | Meaning                                                                                                  |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| `trigger.every("5m")`                  | Recurring interval (`"5m"`, `"6h"`, seconds as float)                                                    |
+| `trigger.schedule("0 * * * *")`        | Cron expression                                                                                          |
+| `trigger.once("2026-12-31T23:59:59Z")` | One-shot at a timestamp                                                                                  |
+| `"*/5 * * * *"`                        | Bare cron string — auto-detected                                                                         |
+| `upstream_job.success`                 | Follow-up — fires when an upstream job completes successfully                                            |
+| `upstream_job.fail`                    | Follow-up — fires when an upstream job fails                                                             |
+| `upstream_job.completed`               | Follow-up — fires on success or failure                                                                  |
+| `"job.fail:tag:ingest"`                | Follow-up on every job matching a selector, used by [agent jobs](../agents/index.md#triggers-for-agents) |
+| no `trigger=` at all                   | The job runs only when started by hand, and its runs carry a `manual:` trigger                           |
+
+A selector after `job.fail:` or `job.success:` takes the same forms `dlthub job trigger` takes: `tag:<tag>`, `batch:`, `*`, or a job ref. A job ref names one job: `jobs.<section>.<job>`, where the section is the module the job is declared in or the `section=` argument on its decorator. So `job.success:jobs.github_pipeline.load_commits` fires when the `load_commits` job in `github_pipeline.py` succeeds, and `job.fail:jobs.github_pipeline.*` fires on a failure of any job in that module. `dlthub job list` prints the job refs of a deployment. See [Job configuration via TOML](job-configuration.md#job-configuration-via-toml).
+
+The runner adds the `manual:` trigger itself, so passing `trigger.manual()` raises `InvalidTrigger: manual: triggers are added automatically`. Set `expose={"manual": False}` to keep the runner from adding it.
 
 ## Multiple triggers
 
 A job can have any number of triggers. Pass a list and inspect `run_context["trigger"]` to discover which one fired:
 
-```py
+```py notype
 from dlt.hub.run import TJobRunContext
 
 @run.job(
@@ -57,7 +62,7 @@ def transform(run_context: TJobRunContext):
 
 Every decorated job exposes `.success`, `.fail`, and `.completed` trigger properties. Use them to chain jobs into a dependency graph.
 
-```py
+```py notype
 from dlt.hub.run import TJobRunContext
 
 @run.pipeline("transform_pipeline", trigger=ingest_job.success)
@@ -71,7 +76,7 @@ Follow-up triggers fire as soon as the upstream completes — no polling, no sch
 
 For incremental pipelines, declare the overall time range with `interval=` and let the dltHub platform hand each run a `[interval_start, interval_end]` window:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
     interval={"start": "2026-01-01T00:00:00Z"},
@@ -99,12 +104,11 @@ When such a job is started manually (e.g., `dlthub job trigger` or `dlthub run`)
 
 An `every` trigger generates relative intervals of a fixed period, starting from now rather than at absolute tick times. A newly deployed job runs for the first time once the period has elapsed: deploy `trigger.every("1h")` at 14:20 and the first run starts at 15:20 with the interval 14:20 to 15:20. When run manually, the interval spans from the previous run start to now — so unlike cron jobs, manual runs of `every` jobs always receive a non-empty interval.
 
-
 ## Freshness checks
 
 `freshness=[upstream.is_fresh]` blocks a job until the upstream's most recent interval has fully completed:
 
-```py
+```py notype
 @run.pipeline(
     "report_pipeline",
     trigger=trigger.schedule("0 * * * *"),
@@ -130,13 +134,15 @@ A backfill job with `refresh_propagation="always"` originates a refresh signal t
 
 Refresh policies:
 
-| Policy | Behaviour |
-|--------|-----------|
-| `"always"` | Originate a refresh signal on every run |
-| `"auto"` | Pass through any refresh signal received from upstream (default) |
-| `"block"` | Stop refresh propagation here |
+| Policy     | Behaviour                                                        |
+| ---------- | ---------------------------------------------------------------- |
+| `"always"` | Originate a refresh signal on every run                          |
+| `"auto"`   | Pass through any refresh signal received from upstream (default) |
+| `"block"`  | Stop refresh propagation here                                    |
 
 ```py
+from dlt.hub import run
+
 @run.job(expose={"tags": ["backfill"]}, refresh_propagation="always")
 def backfill():
     """Cascade a refresh; does not load data."""
@@ -150,7 +156,8 @@ dlthub run backfill --refresh    # explicit refresh on a single job
 ```
 
 Note that the refresh signal will not drop your data automatically, you should use one of the [refresh](../../general-usage/pipeline.md#refresh-pipeline-data-and-state) options available.
-```py
+
+```py notype
 @run.pipeline(
     "report_pipeline",
     trigger=trigger.schedule("0 * * * *"),
@@ -163,6 +170,7 @@ def build_report(run_context: TJobRunContext):
         refresh="drop_data" if run_context["refresh"] else None
     )
 ```
+
 Above we tell `dlt` to truncate all tables belonging to resources in `data_source()` if the refresh signal got passed in the `refresh` flag.
 
 ## Tags and bulk triggering
@@ -187,7 +195,7 @@ dlthub job trigger "tag:ingest" --dry-run
 
 Cron expressions default to UTC. To interpret them in a specific IANA timezone, declare it on the job:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
     trigger=trigger.schedule("0 9 * * *"),    # 9am

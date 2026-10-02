@@ -3,6 +3,7 @@
 #     "dlt[duckdb]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///
@@ -22,9 +23,9 @@ def _(mo):
     - What is dlt?
     - How to run a simple pipeline with toy data.
     - How to explore the loaded data using:
+      - dlt datasets
       - DuckDB connection
       - dlt's sql_client
-      - dlt datasets
     """)
     return
 
@@ -245,7 +246,25 @@ def _(mo):
 def _(mo):
     mo.md(r"""
     ---
-    ### **(1) DuckDB Connection**
+    ### **(1) dlt [datasets](https://dlthub.com/docs/general-usage/dataset-access/dataset)**
+
+    Here's an example of how to retrieve data from a pipeline and load it into a Pandas DataFrame or a PyArrow Table.
+    """)
+    return
+
+
+@app.cell
+def _(another_pipeline):
+    dataset = another_pipeline.dataset()
+    dataset.pokemon.df()
+    return
+
+
+@app.cell(hide_code=True)
+def _(mo):
+    mo.md(r"""
+    ---
+    ### **(2) DuckDB Connection**
     """)
     return
 
@@ -305,7 +324,7 @@ def _(conn):
 def _(mo):
     mo.md(r"""
     ---
-    ### **(2) `dlt`'s [sql_client](https://dlthub.com/docs/general-usage/dataset-access/sql-client)**
+    ### **(3) `dlt`'s [sql_client](https://dlthub.com/docs/general-usage/dataset-access/sql-client)**
     """)
     return
 
@@ -328,24 +347,6 @@ def _(another_pipeline):
             data_1 = cursor.df()
     # Display the data
     data_1
-    return
-
-
-@app.cell(hide_code=True)
-def _(mo):
-    mo.md(r"""
-    ---
-    ### **(3) dlt [datasets](https://dlthub.com/docs/general-usage/dataset-access/dataset)**
-
-    Here's an example of how to retrieve data from a pipeline and load it into a Pandas DataFrame or a PyArrow Table.
-    """)
-    return
-
-
-@app.cell
-def _(another_pipeline):
-    dataset = another_pipeline.dataset()
-    dataset.pokemon.df()
     return
 
 

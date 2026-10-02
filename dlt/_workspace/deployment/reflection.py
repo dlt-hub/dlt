@@ -13,15 +13,21 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration,
 from dlt.common.json import json
 from dlt.common.reflection.spec import spec_from_signature
 from dlt.common.typing import (
+    Annotated,
     AnyFun,
     ConfigValueSentinel,
     NotRequired,
+    TypedDict,
     extract_union_types,
     get_args,
     get_origin,
+    get_type_globals,
     get_type_hints,
+    is_annotated,
     is_optional_type,
     is_typeddict,
+    map_annotation,
+    resolve_single_annotation,
 )
 
 from dlt._workspace.deployment.exceptions import InvalidJobSchema
@@ -97,24 +103,68 @@ def inputs_from_function(
     return schema
 
 
+def return_hint(f: AnyFun) -> Any:
+    """Return annotation of `f`, resolved when the module stores annotations as strings."""
+    hint = inspect.signature(f).return_annotation
+    return resolve_single_annotation(hint, globalns=get_type_globals(f))
+
+
 def job_result_from_return(f: AnyFun, source: str) -> Optional[Dict[str, Any]]:
     """Output JSON Schema of `f`, or `None` unless it returns a TypedDict."""
-    hint = inspect.signature(f).return_annotation
+    hint = return_hint(f)
     if not is_typeddict(hint):
         return None
     return output_schema(hint, source)
 
 
+def schema_type(hint: Any) -> Any:
+    """`hint` with its `Doc` and `Entity` markers rewritten as pydantic field info, at every depth.
+
+    Pydantic ignores both markers, so every TypedDict is rebuilt with them where it can read them.
+    """
+    from dlt.common.libs.pydantic import Field
+
+    rebuilt: Dict[int, Any] = {}
+
+    def field_info(node: Any) -> Any:
+        if is_annotated(node):
+            description, entity = annotated_description(node), annotated_entity(node)
+            if description is None and entity is None:
+                return node
+            inner, *metadata = get_args(node)
+            extra: Optional[Dict[str, Any]] = {ENTITY_TYPE_KEY: entity.type} if entity else None
+            info = Field(description=description, json_schema_extra=extra)
+            return Annotated[(inner, *metadata, info)]
+        if is_typeddict(node):
+            return typed_dict(node)
+        return node
+
+    def typed_dict(td: Any) -> Any:
+        if id(td) not in rebuilt:
+            # a field referring back to `td` resolves to the original
+            rebuilt[id(td)] = td
+            fields: Dict[str, Any] = {}
+            for name, annotation in get_type_hints(td, include_extras=True).items():
+                mapped = map_annotation(annotation, field_info)
+                if name in td.__optional_keys__ and get_origin(mapped) is not NotRequired:
+                    mapped = NotRequired[mapped]
+                fields[name] = mapped
+            rebuilt[id(td)] = TypedDict(td.__name__, fields)  # type: ignore[operator]
+            rebuilt[id(td)].__module__ = td.__module__
+            rebuilt[id(td)].__qualname__ = td.__qualname__
+        return rebuilt[id(td)]
+
+    return map_annotation(hint, field_info)
+
+
 def output_schema(hint: Any, source: str) -> Dict[str, Any]:
-    """JSON Schema of a TypedDict, with what `Annotated` says about each field written in."""
+    """JSON Schema of a TypedDict or pydantic model, `Annotated` markers of every field included."""
     from dlt.common.libs.pydantic import TypeAdapter
 
     try:
-        schema: Dict[str, Any] = TypeAdapter(hint).json_schema()
+        schema: Dict[str, Any] = TypeAdapter(schema_type(hint)).json_schema()
     except Exception as ex:
         raise InvalidJobSchema(source, f"output cannot be read from {hint!r}: {ex}") from ex
-    properties: Dict[str, Any] = schema.get("properties") or {}
-    describe_properties(properties, get_type_hints(hint, include_extras=True))
     prune_unreferenced_defs(schema)
     return schema
 
@@ -191,7 +241,7 @@ def annotated_description(annotation: Any) -> Optional[str]:
 
 
 class Entity:
-    """`Annotated[str, Entity("job-run")]`: the value is the unique id of a workspace entity."""
+    """`Annotated[str, Entity("job-runs")]`: the value is the unique id of a workspace entity."""
 
     def __init__(self, type: THubEntityType) -> None:  # noqa: A002
         self.type = type
@@ -278,5 +328,7 @@ __all__ = [
     "job_result_from_return",
     "model_schema",
     "output_schema",
+    "return_hint",
+    "schema_type",
     "spec_from_inputs_schema",
 ]

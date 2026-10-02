@@ -3,9 +3,9 @@ title: Amazon Kinesis
 description: dlt verified source for Amazon Kinesis
 keywords: [amazon kinesis, verified source]
 ---
-import Header from './_source-info-header.md';
-
 # Amazon Kinesis
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -15,10 +15,9 @@ Our AWS Kinesis [verified source](https://github.com/dlt-hub/verified-sources/tr
 
 Resources that can be loaded using this verified source are:
 
-| Name             | Description                                                                              |
-|------------------|------------------------------------------------------------------------------------------|
-| kinesis_stream   | Load messages from the specified stream                                                  |
-
+| Name           | Description                             |
+| -------------- | --------------------------------------- |
+| kinesis_stream | Load messages from the specified stream |
 
 :::tip
 You can check out our pipeline example [here](https://github.com/dlt-hub/verified-sources/blob/master/sources/kinesis_pipeline.py).
@@ -87,18 +86,24 @@ For more information, read [Credentials](../../general-usage/credentials).
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python kinesis_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `kinesis_pipeline`. You may
    also use any custom name instead.
 
@@ -115,7 +120,7 @@ This resource reads a Kinesis stream and yields messages. It supports
 [incremental loading](../../general-usage/incremental-loading) and parses messages as JSON by
 default.
 
-```py
+```py notype
 @dlt.resource(
     name=lambda args: args["stream_name"],
     primary_key="_kinesis_msg_id",
@@ -181,8 +186,6 @@ if False, `data` is returned as bytes.
 
 ## Customization
 
-
-
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
@@ -199,7 +202,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load messages from a stream from the last one hour:
 
-   ```py
+   ```py notype
    # The resource below will take its name from the stream name,
    # it can be used multiple times. By default, it assumes that data is JSON and parses it,
    # here we disable that to just get bytes in data elements of the message.
@@ -214,7 +217,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. For incremental Kinesis streams, to fetch only new messages:
 
-   ```py
+   ```py notype
    # Running pipeline will get only new messages.
    info = pipeline.run(kinesis_stream_data)
    message_counts = pipeline.last_trace.last_normalize_info.row_counts
@@ -226,7 +229,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To parse JSON with a simple decoder:
 
-   ```py
+   ```py notype
    def _maybe_parse_json(item: TDataItem) -> TDataItem:
        try:
            item.update(json.loadb(item["data"]))
@@ -240,7 +243,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To read Kinesis messages and send them somewhere without using a pipeline:
 
-   ```py
+   ```py notype
    from dlt.common.configuration.container import Container
    from dlt.common.pipeline import StateInjectableContext
 

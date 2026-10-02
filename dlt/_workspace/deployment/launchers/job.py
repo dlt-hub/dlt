@@ -186,7 +186,7 @@ def deliver_job_result(
     The one place every job kind ends up, whatever launcher ran it. `object` comes from the
     inputs the invoker recorded, or from the job's own configuration when it recorded none.
     """
-    result = take_job_result(job.job_ref, job.category)
+    result = take_job_result(job.job_ref, job.result_category, job.name)
     if result is None:
         return None
     recorded = job_inputs()

@@ -11,10 +11,12 @@ import pytest
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.plugins import PluginContext
+from dlt.common.libs.pydantic import BaseModel
+from dlt.common.typing import TypedDict
 
 from dlt._workspace.deployment.agent.exceptions import InvalidAgentSpec
 from dlt._workspace.deployment.agent.loop import AgentLoop
-from dlt._workspace.deployment.agent.typing import TAgentLimits, TAgentSpec
+from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
 from dlt._workspace.deployment.decorators import AgentJobFactory, agent
 from dlt._workspace.deployment.exceptions import (
     InvalidJobName,
@@ -128,7 +130,7 @@ def test_declared_agent_job_definition() -> None:
     # the first entity-typed input tells the UI which entity's menu offers this job, and where
     # the chosen entity goes
     assert definition["expose"]["object_input"] == {
-        "entity_type": "job-run",
+        "entity_type": "job-runs",
         "input": "jobs.__deployment__.job_inspector.failed_run_id",
     }
     assert definition["execute"] == {"concurrency": None}
@@ -246,7 +248,7 @@ def test_launcher_runs_a_declared_agent(beacon: List[Tuple[str, str]]) -> None:
         output = agent_run(_entry("inspector"), run_id="r-1", trigger="job.fail:jobs.b.ingest")
         drain_beacon()
 
-    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
     assert output["status"] == "succeeded"
     assert output["trace"]["turn_count"] == 3
 
@@ -282,6 +284,33 @@ def test_aborted_agent_raises_after_delivering(beacon: List[Tuple[str, str]]) ->
     body = pyjson.loads(beacon[0][1])
     assert body["status"] == "aborted"
     assert "trace" in body
+
+
+@pytest.mark.parametrize(
+    "function,status", [("cached", "succeeded"), ("gives_up", "aborted")], ids=["cached", "aborts"]
+)
+def test_an_agent_may_return_without_calling_its_loop(function: str, status: str) -> None:
+    """The result stands, and the trace is that of a run with no turns."""
+    ep: TRuntimeEntryPoint = {
+        "module": "agent_jobs",
+        "function": function,
+        "job_type": "batch",
+        "launcher": LAUNCHER_AGENT,
+        "job_ref": TJobRef(f"jobs.agent_jobs.{function}"),
+    }
+    with agent_workspace():
+        if status == "aborted":
+            with pytest.raises(JobAbortedException, match="nothing to inspect") as exc:
+                agent_run(ep, run_id="r-4", trigger="manual:")
+            result = cast(TAgentJobResult, exc.value.result)
+        else:
+            result = agent_run(ep, run_id="r-4", trigger="manual:")
+
+    assert result["status"] == status
+    trace = result["trace"]
+    assert (trace["turn_count"], trace["total_tokens"]) == (0, 0)
+    assert trace["loop_type"] == MOCK_LOOP and trace["model"]
+    assert "ai_loop" not in trace["inputs"]["run_context"]
 
 
 def test_agent_launcher_shares_the_job_launcher_setup() -> None:
@@ -382,6 +411,45 @@ def test_an_agent_declaring_no_access_still_states_it() -> None:
     job.declare(__name__, "minimal")
     with agent_workspace():
         assert job.to_job_definition()["access"] == {}
+
+
+class _ExitCode(TypedDict):
+    exit_code: int
+
+
+class _ExitCodeModel(BaseModel):
+    exit_code: int
+
+
+@pytest.mark.parametrize(
+    "output",
+    [
+        {"type": "object", "properties": {"exit_code": {"type": "integer"}}},
+        _ExitCode,
+        _ExitCodeModel,
+    ],
+    ids=["schema", "typeddict", "pydantic"],
+)
+def test_the_agent_argument_can_carry_only_the_output(output: Any) -> None:
+    """The function stays the agent: its docstring the prompt, its parameters the inputs.
+
+    `agent=` then adds what the signature cannot say, here the output as a schema or a model.
+    """
+
+    @agent(agent=cast(TAgentSpec, {"name": "reporter", "output": output}), loop=MOCK_LOOP)
+    async def exit_code(run_context: Any = None, depth: int = 2) -> None:
+        """Report the exit code. Look {{ depth }} runs back."""
+
+    with agent_workspace():
+        job_def = exit_code.to_job_definition()
+
+    assert set(job_def["output"]["properties"]) == {"exit_code", "status", "summary"}
+    assert job_def["output"]["properties"]["exit_code"]["type"] == "integer"
+    assert set(job_def["inputs"]["properties"]) == {"depth"}
+    assert exit_code.agent_spec["system_prompt"].startswith("Report the exit code.")
+    if isinstance(output, dict):
+        # the dict handed to the decorator is left as it was
+        assert "status" not in output["properties"]
 
 
 def test_an_agent_without_a_description_leaves_the_job_without_one() -> None:

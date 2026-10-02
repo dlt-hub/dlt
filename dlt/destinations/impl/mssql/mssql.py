@@ -61,18 +61,27 @@ class MsSqlMergeJob(SqlMergeFollowupJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
         """Generate sql clauses that may be used to select or delete rows in root table of destination dataset"""
         if for_delete:
             # MS SQL doesn't support alias in DELETE FROM
             key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
+            key_cond = " OR ".join(
+                [c.format(d=root_table_name, s=staging_root_table_name) for c in key_clauses]
+            )
             return [
                 f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM"
                 f" {staging_root_table_name} WHERE"
-                f" {' OR '.join([c.format(d=root_table_name,s=staging_root_table_name) for c in key_clauses])})"
+                f" {cls._gen_staging_rows_cond(key_cond, source_filter)})"
             ]
         return SqlMergeFollowupJob.gen_key_table_clauses(
-            root_table_name, staging_root_table_name, primary_keys, merge_keys, for_delete
+            root_table_name,
+            staging_root_table_name,
+            primary_keys,
+            merge_keys,
+            for_delete,
+            source_filter,
         )
 
     @classmethod

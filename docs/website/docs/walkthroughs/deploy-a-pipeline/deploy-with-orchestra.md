@@ -3,7 +3,6 @@ title: Deploy with Orchestra
 description: How to deploy a dlt pipeline on Orchestra
 keywords: [Orchestra, dlt, elt, data pipeline]
 ---
-
 # Deploy with Orchestra
 
 ## What is Orchestra?
@@ -18,7 +17,7 @@ You can leverage [Orchestra's Free Tier here](https://app.getorchestra.io?utm_ca
 
 **`dlt`** is an open-source Python library that allows you to declaratively load data sources
 into well-structured tables or datasets. It does this through automatic schema inference and evolution.
-The library simplifies building data pipelines by providing functionality to support the entire extract 
+The library simplifies building data pipelines by providing functionality to support the entire extract
 and load process.
 
 ### How does `dlt` integrate with Orchestra?
@@ -48,7 +47,6 @@ After configuring you `.dlt` project, you should ensure the pipelines you want t
 Imported file;  `pipeline.py`
 
 ```py
-from typing import List
 import dlt
 
 from hubspot import hubspot, hubspot_events_for_objects, THubspotObjectType
@@ -144,7 +142,7 @@ def load_crm_objects_with_custom_properties() -> None:
 
 
 def load_web_analytics_events(
-    object_type: THubspotObjectType, object_ids: List[str]
+    object_type: THubspotObjectType, object_ids: list[str]
 ) -> None:
     """
     This function loads web analytics events for a list objects in `object_ids` of type `object_type`
@@ -214,12 +212,9 @@ pipeline:
 
 Next, run the Pipeline in Orchestra. After running the Pipeline in Orchestra, you will be able to view the status of the dlt job alongside other Tasks in the end-to-end Data Pipeline.
 
-
 ![Visualising dlt in Orchestra](images/dlt_orchestra_node.png)
 
 _Left to right: the dlt Task Node, the raw logs from the dlt task, the Task parameters panel_.
-
-
 
 ## Additional resources
 
@@ -229,4 +224,3 @@ _Left to right: the dlt Task Node, the raw logs from the dlt task, the Task para
   [here.](https://www.getorchestra.io/product/orchestra-dbt-core-tm)
 - Product Demos:
   [here.](https://www.youtube.com/@OrchestraDataPlatform)
-

@@ -124,6 +124,11 @@ class AgentLoop(ABC):
         """The underlying framework object."""
 
     @property
+    def completed(self) -> bool:
+        """True once `run` completed and `trace` can be read."""
+        return self._trace is not None
+
+    @property
     def trace(self) -> TAgentTrace:
         if self._trace is None:
             raise AgentTraceNotAvailable(self.LOOP_TYPE)
@@ -237,7 +242,7 @@ class AgentLoop(ABC):
         if limit is not None and self.tokens_used > limit:
             raise AgentTokenLimitExceeded(self.LOOP_TYPE, self.agent_ref, self.tokens_used, limit)
 
-    def _base_trace(self, inputs: Dict[str, Any]) -> TAgentTrace:
+    def base_trace(self, inputs: Dict[str, Any]) -> TAgentTrace:
         """Everything the loop ran with, before the counters are filled in."""
         trace: TAgentTrace = {
             "agent": self.agent_ref,

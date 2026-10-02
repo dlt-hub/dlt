@@ -346,7 +346,7 @@ def save_trace(trace_dir: str, trace: PipelineTrace) -> None:
         FileStorage.save_atomic(trace_dir, TRACE_FILE_NAME, trace_dump, file_type="b")
 
 
-def load_trace(trace_dir: str, ignore_errors: bool = True) -> PipelineTrace:
+def load_trace(trace_dir: str, ignore_errors: bool = True) -> Optional[PipelineTrace]:
     try:
         with open(os.path.join(trace_dir, TRACE_FILE_NAME), mode="rb") as f:
             return pickle.load(f)  # type: ignore

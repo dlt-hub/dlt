@@ -631,8 +631,8 @@ class _Report(TypedDict):
 
 @pytest.mark.parametrize(
     "hint,declares",
-    [(_Report, True), (Dict[str, Any], False), (str, False), (None, False)],
-    ids=["typeddict", "dict", "str", "none"],
+    [(_Report, True), ("_Report", True), (Dict[str, Any], False), (str, False), (None, False)],
+    ids=["typeddict", "pep563-typeddict", "dict", "str", "none"],
 )
 def test_a_job_declares_an_output_only_when_it_returns_one(hint: Any, declares: bool) -> None:
     """`output` is the result contract, and a TypedDict return type is how a job declares one."""
@@ -667,7 +667,7 @@ def test_entity_annotation_reaches_the_schema() -> None:
 
     @job
     def inspect(
-        run_id: Annotated[str, Entity("job-run")] = dlt.config.value,
+        run_id: Annotated[str, Entity("job-runs")] = dlt.config.value,
         dataset: Annotated[str, Entity("dataset")] = None,
         depth: int = 3,
     ):
@@ -676,11 +676,11 @@ def test_entity_annotation_reaches_the_schema() -> None:
     job_def = inspect.to_job_definition()
     properties = job_def["inputs"]["properties"]
 
-    assert properties["run_id"]["entity_type"] == "job-run"
+    assert properties["run_id"]["entity_type"] == "job-runs"
     assert properties["dataset"]["entity_type"] == "dataset"
     assert "entity_type" not in properties["depth"]
     assert job_def["expose"]["object_input"] == {
-        "entity_type": "job-run",
+        "entity_type": "job-runs",
         "input": f"{inspect.job_ref}.run_id",
     }
 

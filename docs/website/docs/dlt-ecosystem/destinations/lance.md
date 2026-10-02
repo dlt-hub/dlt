@@ -3,13 +3,11 @@ title: Lance
 description: Lance is an open-source columnar format for AI/ML that can be used as a destination in dlt.
 keywords: [lance, lakehouse, vector database, destination, dlt, embeddings, branching, catalog]
 ---
-
 # Lance
 
 [Lance](https://lance.org) is an open-source columnar data format designed for AI/ML workloads, with native support for versioning, zero-copy access, and fast vector search. The `lance` destination lets you load data into Lance datasets stored on local disk or cloud object storage (S3, Azure, GCS).
 
 Optionally, the destination can generate **vector embeddings** using the [LanceDB](https://lancedb.com/) embedding functions library.
-
 
 <!--@@@DLT_DESTINATION_CAPABILITIES lance-->
 
@@ -112,10 +110,10 @@ You can pass storage-specific options via the `options` dict. These are forwarde
 
 For cloud storage, the following defaults are set automatically to prevent connection hangs:
 
-| Option | Default | Description |
-|---|---|---|
-| `connect_timeout` | `30s` | TCP connection timeout |
-| `timeout` | `120s` | Overall request timeout |
+| Option            | Default | Description             |
+| ----------------- | ------- | ----------------------- |
+| `connect_timeout` | `30s`   | TCP connection timeout  |
+| `timeout`         | `120s`  | Overall request timeout |
 
 You can override these or add additional options:
 
@@ -131,9 +129,9 @@ timeout = "300s"
 ## Catalog and storage
 
 The `lance` destination uses a [Lance Namespace](https://lance.org/format/namespace/) as catalog. Two different namespace specs are currently supported:
+
 - [Directory Namespace](https://lance.org/format/namespace/dir/catalog-spec/) (V2 Catalog Spec) — used by default
 - [REST Namespace](https://lance.org/format/namespace/rest/catalog-spec/)  — experimental support only
-
 
 ### Directory Namespace
 
@@ -206,7 +204,6 @@ api_key = "..."      # sent as x-api-key
 auth_token = "..."   # sent as Authorization: Bearer <auth_token>
 ```
 
-
 ## Branching
 
 Lance datasets support [branches](https://lance.org/guide/tags_and_branches/) — lightweight version pointers for isolated reads and writes. Configure a branch name to direct all pipeline operations to that branch:
@@ -268,6 +265,7 @@ The default. Inserts all records without updating or deleting existing data.
 Replaces all data in the table with a single overwrite commit:
 
 ```py
+movies = [{"name": "E.T.", "summary": ...}, ...]
 info = pipeline.run(movies, table_name="movies", write_disposition="replace")
 ```
 
@@ -296,6 +294,8 @@ The `merge_key` identifies the parent document. If `merge_key` is not specified,
 By default, when parent documents are updated or deleted during a merge, orphaned child records (chunks that no longer have a matching parent) are automatically removed. To disable this:
 
 ```py
+from dlt.destinations.adapters import lance_adapter
+
 lance_adapter(data, merge_key="doc_id", remove_orphans=False)
 ```
 
@@ -326,6 +326,7 @@ Then use `lance_adapter` to specify which columns should be embedded. The destin
 ```py
 from dlt.destinations.adapters import lance_adapter
 
+movies = [{"name": "E.T.", "summary": ...}, ...]
 info = pipeline.run(
     lance_adapter(movies, embed=["title", "description"]),
     table_name="movies",
@@ -356,27 +357,27 @@ This adds a small overhead per read, so leave it disabled unless you read tables
 
 For operations specific to the Lance format — such as version management, tagging, or direct reads — use `open_lance_dataset` on the destination client. It returns a `lance.LanceDataset` from the [lance](https://github.com/lancedb/lance) library:
 
-```py
+```py notype
 with pipeline.destination_client() as client:
-    ds = client.open_lance_dataset("movies")  # type: ignore[attr-defined]
+    ds = client.open_lance_dataset("movies")
     ds.create_tag("v1.0")
     print(ds.tags())
 ```
 
 You can also check out a specific branch or version:
 
-```py
+```py notype
 with pipeline.destination_client() as client:
-    ds = client.open_lance_dataset("movies", branch_name="staging", version_number=5)  # type: ignore[attr-defined]
+    ds = client.open_lance_dataset("movies", branch_name="staging", version_number=5)
 ```
 
 ### LanceDB vector search
 
 For vector similarity search and other LanceDB-specific features, use `open_lancedb_table`. It returns a `lancedb.table.LanceTable` from the [lancedb](https://github.com/lancedb/lancedb) library:
 
-```py
+```py notype
 with pipeline.destination_client() as client:
-    tbl = client.open_lancedb_table("movies")  # type: ignore[attr-defined]
+    tbl = client.open_lancedb_table("movies")
     results = tbl.search("sci-fi classic").limit(5).to_list()
 ```
 

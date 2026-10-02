@@ -3,7 +3,6 @@ title: Environment variables
 description: Set workspace-scoped and profile-scoped environment variables for dltHub platform runs from the web app or the CLI
 keywords: [environment variables, workspace variables, secrets, profiles, CLI, hub, dltHub]
 ---
-
 # Environment variables
 
 Workspace **owners** define environment variables on a dltHub workspace. A shared workspace set applies to every run. Optional per-[profile](profiles.md) values apply when that profile is in use (for example `prod` or `access`). When a job starts, the dltHub platform merges those variables into the run’s process environment (`os.environ`).
@@ -12,10 +11,10 @@ Variables are managed on the platform — in the **web app** or with the **CLI**
 
 ## Scopes and precedence
 
-| Scope | Meaning |
-| ----- | ------- |
+| Scope         | Meaning                                                |
+| ------------- | ------------------------------------------------------ |
 | **Workspace** | Shared variables applied to every run in the workspace |
-| **Profile** | Variables applied when the run uses that profile |
+| **Profile**   | Variables applied when the run uses that profile       |
 
 When the same name exists in both scopes, the **profile value** is used.
 
@@ -23,9 +22,9 @@ On the dltHub platform, [batch jobs](overview.md#batch-vs-interactive) use the `
 
 ## Plain and secret variables
 
-| Kind | Behavior |
-| ---- | -------- |
-| **Plain** | Values are readable when you list variables. An empty value is allowed. |
+| Kind       | Behavior                                                                                                                                                       |
+| ---------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| **Plain**  | Values are readable when you list variables. An empty value is allowed.                                                                                        |
 | **Secret** | Values are write-only. After save, the UI keeps them hidden and the CLI lists them masked. Secrets require a non-empty value. Update a secret by replacing it. |
 
 ## Manage variables in the web app

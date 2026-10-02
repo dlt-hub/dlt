@@ -3,7 +3,6 @@ title: Settings
 description: Configure workspaces, organizations, and personal account settings, including members, usage, and API keys, on the dltHub platform.
 keywords: [settings, workspace settings, organization settings, api keys, members, usage, dltHub platform]
 ---
-
 # Settings
 
 The Settings page is where you configure your workspace, manage your organization, and manage personal account settings. Settings are organized into three levels: **workspace**, **organization**, and **user**.
