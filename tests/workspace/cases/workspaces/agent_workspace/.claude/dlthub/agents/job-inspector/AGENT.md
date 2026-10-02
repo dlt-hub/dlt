@@ -40,6 +40,8 @@ output:
   required: [status, summary]
 defaults:
   model: sonnet
+  execute:
+    concurrency: null
   limits:
     max_turns: 30
     max_tokens: 1000000

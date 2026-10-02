@@ -12,6 +12,7 @@ from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.plugins import PluginContext
 
+from dlt._workspace.deployment.agent.exceptions import InvalidAgentSpec
 from dlt._workspace.deployment.agent.loop import AgentLoop
 from dlt._workspace.deployment.agent.typing import TAgentLimits, TAgentSpec
 from dlt._workspace.deployment.decorators import AgentJobFactory, agent
@@ -26,8 +27,17 @@ from dlt._workspace.deployment.launchers import (
     agent_loop_group,
 )
 from dlt._workspace.deployment.launchers.agent import run as agent_run
-from dlt._workspace.deployment.manifest import manifest_from_module, validate_manifest
-from dlt._workspace.deployment.typing import TWorkspaceAccess, TJobRef, TRuntimeEntryPoint
+from dlt._workspace.deployment.manifest import (
+    manifest_from_module,
+    validate_job_definition,
+    validate_manifest,
+)
+from dlt._workspace.deployment.typing import (
+    TExecuteSpec,
+    TJobRef,
+    TRuntimeEntryPoint,
+    TWorkspaceAccess,
+)
 
 from tests.workspace.utils import beacon as beacon, drain_beacon, importable_workspace
 
@@ -121,6 +131,7 @@ def test_declared_agent_job_definition() -> None:
         "entity_type": "job-run",
         "input": "jobs.__deployment__.job_inspector.failed_run_id",
     }
+    assert definition["execute"] == {"concurrency": None}
 
 
 def test_an_agent_job_declares_what_can_be_injected() -> None:
@@ -141,6 +152,7 @@ def test_an_agent_job_declares_what_can_be_injected() -> None:
     assert "config_keys" not in driver
     assert "inputs" not in driver
     assert set(driver["output"]["properties"]) >= {"status", "summary"}
+    assert driver["execute"] == {"concurrency": None}
 
 
 def test_agent_block_and_config_keys_reach_the_manifest() -> None:
@@ -402,3 +414,127 @@ def test_agent_given_positionally_rejects_the_keyword() -> None:
     """The overloads already refuse this; the runtime says so too."""
     with pytest.raises(TypeError, match="positionally"):
         agent("dlthub-platform:job-inspector", agent=MINIMAL_AGENT)  # type: ignore[call-overload]
+
+
+def _agent_with_defaults(**defaults: Any) -> TAgentSpec:
+    """`MINIMAL_AGENT` with a `defaults` block."""
+    return cast(TAgentSpec, {**MINIMAL_AGENT, "name": "fan-out", "defaults": defaults})
+
+
+def test_agent_defaults_fill_trigger_and_execute() -> None:
+    job = agent(
+        _agent_with_defaults(trigger=["0 7 * * *"], execute={"concurrency": None, "timeout": 600}),
+        loop=MOCK_LOOP,
+    )
+    job.declare(__name__, "fan_out")
+    with agent_workspace():
+        job_def = job.to_job_definition()
+        # built again, the definition is the same
+        assert job.to_job_definition() == job_def
+
+    assert job_def["triggers"] == ["schedule:0 7 * * *"]
+    # `null` lifts the cap dlt gives every job
+    assert job_def["execute"] == {"concurrency": None, "timeout": {"timeout": 600.0}}
+    validate_job_definition(job_def, validate_dict=True, raise_on_error=True)
+
+
+def test_an_agent_without_defaults_leaves_the_job_defaults_in_place() -> None:
+    job = agent(MINIMAL_AGENT, loop=MOCK_LOOP, name="plain")
+    job.declare(__name__, "plain")
+    with agent_workspace():
+        job_def = job.to_job_definition()
+
+    assert job_def["triggers"] == []
+    assert job_def["execute"] == {"concurrency": 1}
+
+
+@pytest.mark.parametrize("execute", [{}, None], ids=["empty", "null"])
+def test_an_agent_saying_nothing_about_execute_leaves_the_job_defaults(execute: Any) -> None:
+    job = agent(_agent_with_defaults(execute=execute), loop=MOCK_LOOP)
+    job.declare(__name__, "empty_execute")
+    with agent_workspace():
+        assert job.to_job_definition()["execute"] == {"concurrency": 1}
+
+
+@pytest.mark.parametrize(
+    "execute,reason",
+    [
+        ({"concurrency": 0}, "positive integer"),
+        ({"concurrency": "five"}, "positive integer"),
+        ({"concurrency": True}, "positive integer"),
+        ({"timeout": "soon"}, "does not parse"),
+        ({"parallelism": 2}, "takes timeout, concurrency"),
+        ({"intercept_signals": False}, "takes timeout, concurrency"),
+        ("none", "must be a mapping"),
+    ],
+    ids=["zero", "string", "bool", "bad-timeout", "unknown-key", "signals", "not-a-mapping"],
+)
+def test_bad_execute_defaults_fail_at_manifest_time(execute: Any, reason: str) -> None:
+    job = agent(_agent_with_defaults(execute=execute), loop=MOCK_LOOP)
+    job.declare(__name__, "broken")
+    with agent_workspace():
+        with pytest.raises(InvalidAgentSpec, match=reason):
+            job.to_job_definition()
+
+
+AGENT_DEFAULTS: Dict[str, Any] = {"trigger": ["job.fail:*"], "execute": {"concurrency": 4}}
+
+
+def _agent_job(
+    form: str, trigger: Any = None, execute: Optional[TExecuteSpec] = None
+) -> "AgentJobFactory[Any, Any]":
+    spec = _agent_with_defaults(**AGENT_DEFAULTS)
+    factory: AgentJobFactory[Any, Any]
+    if form == "declared":
+        factory = agent(spec, loop=MOCK_LOOP, trigger=trigger, execute=execute)
+    else:
+
+        @agent(agent=spec, loop=MOCK_LOOP, trigger=trigger, execute=execute)
+        def driver(run_context: Any = None) -> Dict[str, Any]:
+            return {}
+
+        factory = driver
+    factory.declare(__name__, f"from_agent_{form}")
+    return factory
+
+
+@pytest.mark.parametrize("form", ["declared", "function"])
+@pytest.mark.parametrize(
+    "trigger,execute,expected_triggers,expected_execute",
+    [
+        (None, None, ["job.fail:*"], {"concurrency": 4}),
+        ([], None, [], {"concurrency": 4}),
+        ("0 9 * * *", None, ["schedule:0 9 * * *"], {"concurrency": 4}),
+        (None, {}, ["job.fail:*"], {"concurrency": 4}),
+        (
+            None,
+            {"timeout": {"timeout": 300.0}},
+            ["job.fail:*"],
+            {"concurrency": 4, "timeout": {"timeout": 300.0}},
+        ),
+        (None, {"concurrency": None}, ["job.fail:*"], {"concurrency": None}),
+        ("0 9 * * *", {"concurrency": 2}, ["schedule:0 9 * * *"], {"concurrency": 2}),
+    ],
+    ids=[
+        "nothing-said",
+        "no-triggers",
+        "other-trigger",
+        "empty-execute",
+        "timeout-added",
+        "cap-lifted",
+        "both-replaced",
+    ],
+)
+def test_decorator_overrides_agent_defaults_key_by_key(
+    form: str,
+    trigger: Any,
+    execute: Optional[TExecuteSpec],
+    expected_triggers: List[str],
+    expected_execute: Dict[str, Any],
+) -> None:
+    """What the decorator leaves out, the agent's `defaults` fill. `[]` and `None` are not left out."""
+    with agent_workspace():
+        job_def = _agent_job(form, trigger=trigger, execute=execute).to_job_definition()
+    assert job_def["triggers"] == expected_triggers
+    assert job_def["execute"] == expected_execute
+    validate_job_definition(job_def, validate_dict=True, raise_on_error=True)

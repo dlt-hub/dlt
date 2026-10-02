@@ -25,12 +25,19 @@ from dlt._workspace.access import (
     granted_verbs,
     missing_access,
 )
-from dlt._workspace.deployment.agent.typing import TAgentSpec
-from dlt._workspace.deployment.typing import AGENT_DEFINITION_ENGINE_VERSION, TAgentDefinition
+from dlt._workspace.deployment._trigger_helpers import normalize_timeout
+from dlt._workspace.deployment.agent.typing import TAgentDefaults, TAgentSpec
+from dlt._workspace.deployment.typing import (
+    AGENT_DEFINITION_ENGINE_VERSION,
+    TAgentDefinition,
+    TExecuteSpec,
+)
 from dlt._workspace.typing import TWorkspaceAccess
 
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
+
+EXECUTE_DEFAULTS_KEYS = ("timeout", "concurrency")
 
 
 def agent_manifest_path(agent_dir: str) -> str:
@@ -110,7 +117,62 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
             raise InvalidAgentSpec(source, f"{reason}. Got {', '.join(refused)}")
     if access:
         spec["access"] = cast(TWorkspaceAccess, access)
+    defaults = declared.get("defaults")
+    if defaults is not None:
+        if not isinstance(defaults, Mapping):
+            raise InvalidAgentSpec(
+                source, f"defaults must be a mapping. Got {type(defaults).__name__}"
+            )
+        if (execute := defaults.get("execute")) is not None:
+            spec["defaults"] = cast(
+                TAgentDefaults, {**defaults, "execute": validate_execute_defaults(execute, source)}
+            )
     return spec
+
+
+def validate_execute_defaults(execute: Any, source: str) -> TExecuteSpec:
+    """Holds `defaults.execute` to `TExecuteSpec`.
+
+    Args:
+        execute (Any): The `execute` mapping an agent declares under `defaults`.
+        source (str): What to name in the error: a file path, or `<file>:<function>`.
+
+    Returns:
+        TExecuteSpec: A copy, ready to be merged into the job's `execute`.
+
+    Raises:
+        InvalidAgentSpec
+    """
+    if not isinstance(execute, Mapping):
+        raise InvalidAgentSpec(
+            source, f"defaults.execute must be a mapping. Got {type(execute).__name__}"
+        )
+    if unknown := sorted(str(key) for key in set(execute) - set(EXECUTE_DEFAULTS_KEYS)):
+        raise InvalidAgentSpec(
+            source,
+            f"defaults.execute takes {', '.join(EXECUTE_DEFAULTS_KEYS)}. Got {', '.join(unknown)}",
+        )
+    normalized: Dict[str, Any] = dict(execute)
+    if "concurrency" in normalized:
+        concurrency = normalized["concurrency"]
+        if concurrency is not None and (
+            isinstance(concurrency, bool) or not isinstance(concurrency, int) or concurrency < 1
+        ):
+            raise InvalidAgentSpec(
+                source,
+                "defaults.execute.concurrency must be a positive integer, or null for no limit."
+                f" Got {concurrency!r}",
+            )
+    if normalized.get("timeout") is None:
+        normalized.pop("timeout", None)
+    else:
+        try:
+            normalized["timeout"] = normalize_timeout(normalized["timeout"])
+        except (TypeError, ValueError) as ex:
+            raise InvalidAgentSpec(
+                source, f"defaults.execute.timeout {normalized['timeout']!r} does not parse: {ex}"
+            ) from ex
+    return cast(TExecuteSpec, normalized)
 
 
 def declared_placeholders(system_prompt: str) -> Set[str]:

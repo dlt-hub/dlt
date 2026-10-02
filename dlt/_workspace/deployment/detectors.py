@@ -23,6 +23,7 @@ from dlt._workspace.deployment._trigger_helpers import normalize_triggers
 from dlt._workspace.deployment.launchers import LAUNCHER_MODULE, get_launcher_for_framework
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment.typing import (
+    DEFAULT_CONCURRENCY,
     MANIFEST_ENGINE_VERSION,
     TEntryPoint,
     TExecuteSpec,
@@ -36,7 +37,7 @@ from dlt._workspace.deployment.typing import (
 )
 
 _HTTP_TRIGGER = _triggers.http()
-_INTERACTIVE_EXECUTION = TExecuteSpec(concurrency=1)
+_INTERACTIVE_EXECUTION = TExecuteSpec(concurrency=DEFAULT_CONCURRENCY)
 
 
 def detect_module_job(module: ModuleType) -> Optional[TJobDefinition]:
