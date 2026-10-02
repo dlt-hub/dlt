@@ -886,19 +886,32 @@ def test_pydantic_loop_serves_network_from_the_provider(workspace: Any) -> None:
     }
 
 
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("openai:gpt-6-sol", [{"WebSearch": {}}]),
+        ("openai-chat:gpt-6-sol", []),
+    ],
+    ids=["responses", "chat-completions"],
+)
 def test_provider_capabilities_are_dropped_when_the_model_cannot_serve_them(
-    workspace: Any,
+    workspace: Any, model_name: str, expected: List[Dict[str, Any]]
 ) -> None:
-    """OpenAI responses search the web, but fetch no URL of their own."""
+    """OpenAI responses search the web but fetch no URL, chat completions have no native tools"""
 
     loop = _loop(
         workspace,
         PydanticAILoop,
-        config=_config(model="openai:gpt-5.5", api_key="sk-test"),
+        config=_config(model=model_name, api_key="sk-test"),
         access=TWorkspaceAccess(local=["network", "execute"]),
     )
 
-    assert loop._agent_spec_dict(loop._build_model())["capabilities"] == [{"WebSearch": {}}]
+    spec_dict = loop._agent_spec_dict(loop._build_model())
+    assert spec_dict.get("capabilities", []) == expected
+    # the trace names only the provider tools that were attached
+    assert {name for name, verb in loop.local_tools().items() if verb == "network"} == {
+        name for capability in expected for name in capability
+    }
 
 
 @pytest.mark.parametrize(
