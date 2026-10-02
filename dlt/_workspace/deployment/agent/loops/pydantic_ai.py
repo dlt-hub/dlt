@@ -237,7 +237,9 @@ class PydanticAILoop(AgentLoop):
             # rest of it (output validation, protocol errors), which 0 would end at first sight
             spec_dict.pop("retries", None)
         verbs = granted(self.spec, "local")
-        served = model.profile["supported_native_tools"]
+        # a profile may name native tools the model class does not implement
+        served = model.profile.get("supported_native_tools", frozenset())
+        served &= type(model).supported_native_tools()
         native_names = [
             name
             for verb, tools in NATIVE_CAPABILITIES.items()
