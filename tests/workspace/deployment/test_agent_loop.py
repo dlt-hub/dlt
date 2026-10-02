@@ -29,6 +29,7 @@ from dlt.common import json, logger
 from dlt.common.configuration import plugins, resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.plugins import PluginContext
+from dlt.common.runtime import run_context
 
 from dlt._workspace.deployment.agent.exceptions import (
     AgentRunFailed,
@@ -40,6 +41,8 @@ from dlt._workspace.deployment.agent.exceptions import (
 from dlt._workspace.deployment.agent.loop import (
     AgentLoop,
     DEFAULT_USER_TURN,
+    DEFAULT_VERBOSITY,
+    RUNTIME_DEFAULT_VERBOSITY,
     split_model_id,
     distinct_tools_used,
     resolve_agent_loop,
@@ -171,6 +174,34 @@ def test_settings_precedence_rises_to_config(workspace: Any, loop_cls: Type[Agen
         spec, _config(model="haiku"), {"model": "opus"}, loop_cls, workspace.run_dir
     )
     assert settings["model"] == "haiku"
+
+
+def test_runtime_runs_default_to_a_full_transcript(
+    workspace: Any, loop_cls: Type[AgentLoop]
+) -> None:
+    """`runtime.run_id` marks a dlthub runtime run where stdout is the run's only record."""
+    spec = _spec(workspace.run_dir)
+
+    # a terminal session keeps the capped default
+    settings = resolve_agent_settings(spec, _config(), {}, loop_cls, workspace.run_dir)
+    assert settings["verbosity"] == DEFAULT_VERBOSITY
+
+    # a run on the runtime shows everything
+    run_context.active().runtime_config.run_id = "run-123"
+    settings = resolve_agent_settings(spec, _config(), {}, loop_cls, workspace.run_dir)
+    assert settings["verbosity"] == RUNTIME_DEFAULT_VERBOSITY
+
+    # an explicit decorator argument still wins on the runtime
+    settings = resolve_agent_settings(
+        spec, _config(), {"verbosity": 0}, loop_cls, workspace.run_dir
+    )
+    assert settings["verbosity"] == 0
+
+    # and config beats the decorator
+    settings = resolve_agent_settings(
+        spec, _config(verbosity=1), {"verbosity": 0}, loop_cls, workspace.run_dir
+    )
+    assert settings["verbosity"] == 1
 
 
 def test_instructions_resolve_like_the_model(workspace: Any, loop_cls: Type[AgentLoop]) -> None:
