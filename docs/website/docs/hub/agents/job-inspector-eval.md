@@ -239,8 +239,18 @@ The registry is the one list of ids, and editing it is how a check goes on or of
 
 The definition names no model, so the model comes from the job or the workspace. Give it one at least as capable as Claude Sonnet 5: the judge reads prepared windows and answers a narrow question with three possible values, and two turns is the normal shape of the task.
 
+## Write an evaluator for your own agent
+
+`job-inspector-eval` grades `job-inspector`. To grade an agent you wrote yourself, ask your coding agent for a grader:
+
+> Write an evaluator that grades my `workspace_report` agent against its instructions.
+
+The `evaluate-background-agent` skill ships with the base `init` toolkit, so it needs no install. It reads the graded agent's `AGENT.md` and writes one check per instruction, splits each check into a Python check or a judge check, writes the rubric as the evaluator's body, and deploys it either per run or on a schedule.
+
+An evaluator is worth writing when the graded agent runs often enough that nobody reads every run, and its output is acted on. A single run someone reads end to end does not need one.
+
 ## Next steps
 
 - [Job inspector agent](job-inspector.md) is the agent this one grades
 - [Background agents](index.md) covers declaring, running, and deploying agent jobs
-- [Agent definitions](agent-definitions.md) covers writing a definition of your own
+- [Agent definitions](agent-definitions.md) covers writing a definition of your own, and the `create-background-agent` skill that writes one for you

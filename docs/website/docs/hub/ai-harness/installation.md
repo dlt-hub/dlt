@@ -45,11 +45,15 @@ Swap `cursor` for `codex` as needed.
 
 ## What you get
 
-Your workspace now contains the base `init` toolkit, which ships an MCP server (`dlt-workspace-mcp`), a workspace-setup rule, and three skills:
+Your workspace now contains the base `init` toolkit, which ships an MCP server (`dlt-workspace-mcp`), a workspace-setup rule, and five skills:
 
 - `dlthub-router`: routes user intent to the right toolkit and installs it if missing.
 - `setup-secrets`: safely manages `.dlt/secrets.toml` without exposing values to the agent.
 - `improve-skills`: captures new patterns learned in a session so skills stay lean.
+- `create-background-agent`: writes an `AGENT.md` for an agent that runs unattended on the platform, and declares it as a job.
+- `evaluate-background-agent`: writes an evaluator agent that grades another agent's runs against its own instructions.
+
+The last two write background agents that run on the dltHub platform rather than inside your coding agent. See [Background agents](../agents/index.md).
 
 Feature toolkits (REST API pipelines, SQL database, transformations, deployment, and so on) are **not** installed by default. `dlthub-router` installs them automatically when it matches your intent to one, or you can install them manually from the CLI.
 

@@ -134,6 +134,8 @@ Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked e
 
 The toolkit also ships the `job-inspector` agent definition. Declare it as a job with `run.agent("dlthub-platform:job-inspector", ...)` and it diagnoses failed job runs unattended. See [Background agents](../agents/index.md). The `job-inspector-eval` definition grades those diagnoses against the inspector's own instructions. See [Job inspector evaluator](../agents/job-inspector-eval.md).
 
+To write an agent of your own, the base `init` toolkit ships `/create-background-agent` and `/evaluate-background-agent`. Both are installed in every workspace. See [Agent definitions](../agents/agent-definitions.md).
+
 ## Observe
 
 ### `data-exploration`

@@ -102,7 +102,13 @@ job_inspector = run.agent(
 
 ## Build your own agent
 
-Write your own agent as an `AGENT.md` file. The YAML frontmatter declares the tools, access, and output, and the Markdown body is the system prompt.
+Your coding agent writes the definition for you. The `create-background-agent` skill ships with every dltHub workspace, so you describe the agent and it produces the `AGENT.md` and the `run.agent(...)` declaration:
+
+> Write a background agent that reports the latest status of every job in the workspace.
+
+To grade an agent that already runs, the `evaluate-background-agent` skill writes a second agent that checks each run against the first agent's own instructions. See [Job inspector evaluator](../agents/job-inspector-eval.md).
+
+An agent is an `AGENT.md` file. The YAML frontmatter declares the tools, access, and output, and the Markdown body is the system prompt.
 
 The examples below define `workspace_report`, an agent that reads the status of every job in the workspace and writes a report:
 

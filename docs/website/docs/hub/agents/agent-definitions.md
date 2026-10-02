@@ -15,6 +15,16 @@ An agent definition consists of a system prompt and a declaration of the agent's
 
 A decorated Python function produces the same agent job and covers the cases an `AGENT.md` can't reach. See [Agent definition as a Python function](#agent-definition-as-a-python-function-advanced).
 
+## Write it with your coding agent
+
+The `create-background-agent` skill ships with the base `init` toolkit, so every dltHub workspace has it without an install. Describe the agent you want:
+
+> Write a background agent that checks each morning which of my jobs failed overnight and reports what they have in common.
+
+The skill covers the frontmatter fields, the `access` decision, the output contract, and the system prompt body. It shows you the deployment plan before it writes the `run.agent(...)` call. It routes you elsewhere when the work is deterministic and belongs in a plain job, or when a single failure needs diagnosing right now.
+
+The rest of this page is the reference behind that skill. Read it to review what the skill wrote, or to write a definition by hand.
+
 ## Agent definition in an `AGENT.md` file
 
 `dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts). Coding agents don't scan this folder for their own subagents. An `AGENT.md` can also sit in any folder of the workspace and be referred to by its path.
@@ -333,3 +343,4 @@ The function leaves `access`, `tools`, `skills`, and `rules` out here, so the de
 
 - [Background agents](index.md) covers declaring the definition as a job, running it, and deploying it
 - [Job inspector agent](job-inspector.md) is the verified agent that diagnoses failed job runs
+- [Job inspector evaluator](job-inspector-eval.md) covers grading an agent against its own instructions, and the `evaluate-background-agent` skill that writes a grader for yours
