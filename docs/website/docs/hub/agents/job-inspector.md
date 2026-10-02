@@ -122,7 +122,7 @@ The definition ships these defaults. The agent job and the individual run overri
 | --------------- | ---------------------------------------------------------------------------------------- |
 | `trigger`       | `job.fail:*`, every failed job in the workspace                                          |
 | `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                   |
-| `loop_run_args` | `retries: 2`, the number of times pydantic-ai lets the model correct a failing tool call |
+| `loop_run_args` | `retries: 2`, the number of times the model may retry a failing tool call before it fails |
 
 The definition names no model, so the model comes from the job or the workspace. Give it one at least as capable as Claude Sonnet 5.
 

@@ -44,6 +44,7 @@ from dlt._workspace.typing import (
 try:
     from fastmcp.client.transports import StdioTransport
     from pydantic_ai import Agent, ModelRetry, Tool, ToolFailed
+    from pydantic_ai.capabilities import AbstractCapability
     from pydantic_ai.mcp import MCPToolset
     from pydantic_ai.models import infer_model
     from pydantic_ai.native_tools import WebFetchTool, WebSearchTool
@@ -57,7 +58,7 @@ try:
         ThinkingPart,
         ToolCallPart,
     )
-    from pydantic_ai.exceptions import UnexpectedModelBehavior
+    from pydantic_ai.exceptions import ToolRetryError, UnexpectedModelBehavior
     from pydantic_ai.usage import UsageLimits
 except ModuleNotFoundError as ex:
     raise MissingDependencyException(
@@ -68,6 +69,9 @@ except ModuleNotFoundError as ex:
 
 OUTPUT_TOOL_NAME = "final_result"
 """How pydantic-ai names the tool that carries the answer."""
+
+UNBOUNDED_RETRIES = 10_000
+"""Retry budget given to pydantic-ai when the run has no turn limit."""
 
 GATEWAY_PREFIX = "gateway/"
 
@@ -131,6 +135,52 @@ def _as_tool_function(fn: Callable[..., str], retries: int) -> Callable[..., str
     return wrapper
 
 
+def _validation_reason(error: Any) -> str:
+    """The failed fields of a rejected call, on one line."""
+    if isinstance(error, ModelRetry):
+        return str(error.message)
+    return "; ".join(
+        f"{'.'.join(str(p) for p in e['loc'])}: {e['msg']}" if e.get("loc") else str(e["msg"])
+        for e in error.errors()
+    )
+
+
+class ToolRetryBudget(AbstractCapability[Any]):
+    """Allows `loop_run_args.retries` retries per tool, then fails its calls.
+
+    pydantic-ai counts the retries per tool and resets the count when a call of that tool
+    succeeds.
+    """
+
+    def __init__(self, retries: int) -> None:
+        self.retries = retries
+
+    async def on_tool_validate_error(
+        self, ctx: Any, *, call: Any, tool_def: Any, args: Any, error: Any
+    ) -> Any:
+        if ctx.retry < self.retries:
+            raise error
+        # pydantic-ai would end the run here; a failed result lets the model go on
+        raise ToolFailed(self._failure_message(ctx, _validation_reason(error))) from error
+
+    async def wrap_tool_execute(
+        self, ctx: Any, *, call: Any, tool_def: Any, args: Any, handler: Any
+    ) -> Any:
+        try:
+            return await handler(args)
+        except (ModelRetry, ToolRetryError) as ex:
+            # a tool's `ModelRetry` arrives already wrapped as the retry prompt it would become
+            if ctx.retry < self.retries:
+                raise
+            raise ToolFailed(self._failure_message(ctx, str(ex))) from ex
+
+    def _failure_message(self, ctx: Any, reason: str) -> str:
+        retries = ""
+        if ctx.retry:
+            retries = f" after {ctx.retry} retr{'ies' if ctx.retry > 1 else 'y'}"
+        return f"{ctx.tool_name} failed{retries}: {reason}"
+
+
 def _answer_text(answer: Dict[str, Any]) -> str:
     """What the agent said when it answered: its summary, or the whole answer."""
     return str(answer.get("summary") or answer)
@@ -147,8 +197,7 @@ def _failure_reason(ex: Exception) -> str:
 def make_local_tools(tools: LocalTools, verbs: Set[str], retries: int = 0) -> List[Any]:
     """pydantic-ai `Tool`s for the local verbs the agent declared. No verb, no tool.
 
-    With `retries` at 0 a tool error is a failed call the model sees and moves on from; above
-    it, pydantic-ai asks the model to correct the call, that many times per tool.
+    With `retries` at 0 a tool error fails the call; above it, the error asks for a retry.
     """
     served = tools.by_name()
     return [
@@ -185,10 +234,10 @@ class PydanticAILoop(AgentLoop):
 
     @property
     def tool_retries(self) -> int:
-        """`loop_run_args.retries`: how often the model may correct a failing tool call.
+        """`loop_run_args.retries`: how often the model may retry a failing tool call.
 
-        0, the default, hands every tool error to the model as a failed call instead: the run
-        goes on, and `max_turns` is what bounds it.
+        Past the budget the call fails and the run goes on; 0, the default, fails it at once.
+        A failed call never ends the run, `max_turns` is what bounds it.
         """
         return int(self.settings["loop_run_args"].get("retries") or 0)
 
@@ -214,6 +263,7 @@ class PydanticAILoop(AgentLoop):
             model=model,
             tools=self._build_tools(),
             toolsets=self._build_toolsets(),
+            capabilities=[ToolRetryBudget(self.tool_retries)],
         )
         # `AgentSpec.instructions` is a handlebars template whenever `deps_schema` is set, and
         # dlt has already rendered the prompt: a `{{ }}` left in a rule, a skill or an example
@@ -232,10 +282,12 @@ class PydanticAILoop(AgentLoop):
             spec_dict["description"] = description
         # loop_run_args is already AgentSpec vocabulary, so it merges without translation
         spec_dict.update(self.settings["loop_run_args"])
-        if not self.tool_retries:
-            # tool errors bypass the budget then; pydantic-ai keeps its own default for the
-            # rest of it (output validation, protocol errors), which 0 would end at first sight
-            spec_dict.pop("retries", None)
+        # pydantic-ai ends the run when a tool runs out of retries, so tools get the turn limit
+        # and `ToolRetryBudget` enforces the declared budget by failing the call instead
+        spec_dict["retries"] = {
+            "tools": self.settings["max_turns"] or UNBOUNDED_RETRIES,
+            "output": self.tool_retries or 1,
+        }
         verbs = granted(self.spec, "local")
         # a profile may name native tools the model class does not implement
         served = model.profile.get("supported_native_tools", frozenset())

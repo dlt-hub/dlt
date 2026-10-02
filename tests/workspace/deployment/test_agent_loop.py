@@ -16,11 +16,13 @@ from pydantic_ai.messages import (
     FunctionToolResultEvent,
     ModelResponse,
     PartEndEvent,
+    RetryPromptPart,
     TextPart,
     ThinkingPart,
     ToolCallPart,
     ToolReturnPart,
 )
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
@@ -51,7 +53,12 @@ from dlt._workspace.deployment.agent.loops.claude_sdk import (
     ClaudeAgentSdkLoop,
     classify_tool,
 )
-from dlt._workspace.deployment.agent.loops.pydantic_ai import PydanticAILoop, make_local_tools
+from dlt._workspace.deployment.agent.loops.pydantic_ai import (
+    OUTPUT_TOOL_NAME,
+    UNBOUNDED_RETRIES,
+    PydanticAILoop,
+    make_local_tools,
+)
 from dlt._workspace.deployment.agent.loops.tools import (
     MCP_SERVER_ID,
     SHELL_TOOL,
@@ -741,8 +748,12 @@ def test_tool_errors_follow_the_retry_budget(workspace: Any, tmp_path: Path, ret
 
     assert loop.tool_retries == retries
     assert loop._build_toolsets()[0].tool_error_behavior == ("retry" if retries else "failed")
-    # the agent's own budget is forwarded only when there is one to enforce
-    assert loop._agent_spec_dict(loop._build_model()).get("retries") == (retries or None)
+    # tools get the turn limit, so running out of retries cannot end the run; the answer keeps
+    # the declared budget, or pydantic-ai's default of 1
+    assert loop._agent_spec_dict(loop._build_model()).get("retries") == {
+        "tools": loop.settings["max_turns"] or UNBOUNDED_RETRIES,
+        "output": retries or 1,
+    }
     # the same tool error reaches pydantic-ai as a retry or as a failed call
     tools = {t.name: t for t in make_local_tools(LocalTools(str(tmp_path)), {"read"}, retries)}
     with pytest.raises(ToolFailed if retries == 0 else ModelRetry, match="does not exist"):
@@ -777,6 +788,93 @@ def test_pydantic_loop_hands_a_failed_tool_call_to_the_model(workspace: Any) -> 
     failed = [e for e in events if e["kind"] == "tool_result" and e.get("error")]
     assert failed and "does not exist" in str(failed[0]["detail"])
     assert events[-1]["kind"] == "finish"
+
+
+def _scripted_loop(workspace: Any, retries: int, turns: List[Any]) -> PydanticAILoop:
+    """A loop on a model that streams the scripted tool calls, one per turn, then answers."""
+    loop = _loop(
+        workspace,
+        PydanticAILoop,
+        decorator_args={"loop_run_args": {"retries": retries}},
+        access={"local": ["read"]},
+    )
+    script = iter(turns)
+
+    async def model(messages: Any, info: Any) -> Any:
+        name, json_args = next(
+            script,
+            (OUTPUT_TOOL_NAME, json.dumps({"status": "succeeded", "summary": "found it"})),
+        )
+        yield {0: DeltaToolCall(name=name, json_args=json_args)}
+
+    native: Any = loop
+    native._build_model = lambda: FunctionModel(stream_function=model)
+    native._build_toolsets = lambda: []
+    return loop
+
+
+def _tool_parts(messages: Any) -> Tuple[List[Any], List[Any]]:
+    """The retry requests and the failed results the model got, in order."""
+    parts = [part for message in messages for part in message.parts]
+    retries = [p for p in parts if isinstance(p, RetryPromptPart)]
+    failed = [p for p in parts if isinstance(p, ToolReturnPart) and p.outcome == "failed"]
+    return retries, failed
+
+
+@pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
+def test_a_malformed_tool_call_never_ends_the_run(workspace: Any, retries: int) -> None:
+    """Truncated JSON is retried within the budget, then fails the call: the run goes on."""
+    # the model runs out of output tokens inside the arguments, three turns in a row
+    truncated = ("Glob", '{"pattern": "**/*.p')
+    loop = _scripted_loop(workspace, retries, [truncated] * 3 + [("Glob", '{"pattern": "*.md"}')])
+
+    with capture_run_messages() as messages:
+        output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    assert output["status"] == "succeeded"
+    assert loop.trace["turn_count"] == 5
+    retried, failed = _tool_parts(messages)
+    assert len(retried) == retries
+    assert len(failed) == 3 - retries
+    assert "Glob failed" in failed[0].content and "Invalid JSON" in failed[0].content
+    if retries:
+        assert "after 2 retries" in failed[0].content
+
+
+@pytest.mark.parametrize("answer", ['{"status": "succ'], ids=["truncated"])
+@pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
+def test_invalid_structured_output_keeps_its_own_budget(
+    workspace: Any, retries: int, answer: str
+) -> None:
+    """Structured output that fails to parse is retried once, or `retries` times, then ends
+    the run."""
+    invalid = (OUTPUT_TOOL_NAME, answer)
+    budget = retries or 1
+    loop = _scripted_loop(workspace, retries, [invalid] * (budget + 1))
+
+    with pytest.raises(AgentRunFailed, match=rf"output retries \({budget}\)"):
+        asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    # one fewer invalid structured output is retried, and the run finishes
+    loop = _scripted_loop(workspace, retries, [invalid] * budget)
+    with capture_run_messages() as messages:
+        output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+    assert output["status"] == "succeeded"
+
+
+def test_a_tool_error_past_the_budget_fails_the_call(workspace: Any) -> None:
+    """The model may retry a failing call once, then the failure is what it gets back."""
+    missing = ("Read", json.dumps({"path": "missing.txt"}))
+    loop = _scripted_loop(workspace, 1, [missing, missing])
+
+    with capture_run_messages() as messages:
+        output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    assert output["status"] == "succeeded"
+    retried, failed = _tool_parts(messages)
+    assert len(retried) == 1 and len(failed) == 1
+    assert "Read failed after 1 retry" in failed[0].content
+    assert "does not exist" in failed[0].content
 
 
 @pytest.mark.parametrize(
