@@ -20,6 +20,8 @@ MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
 """Default deployment module name for manifest generation."""
+DEFAULT_CONCURRENCY = 1
+"""Concurrent runs a job allows by default."""
 
 TJobRef = NewType("TJobRef", str)
 """Resolved job reference in `jobs.<section>.<name>` or `jobs.<name>` form."""
@@ -273,7 +275,7 @@ class TExecuteSpec(TypedDict):
 
     timeout: NotRequired[Optional[TTimeoutSpec]]
     concurrency: NotRequired[Optional[int]]
-    """Max concurrent runs. Default `1` for both batch and interactive jobs.
+    """Max concurrent runs. Defaults to `DEFAULT_CONCURRENCY` for both batch and interactive jobs.
     Pass any positive integer to allow that many concurrent instances, or
     explicitly `None` to remove the limit."""
     intercept_signals: NotRequired[bool]

@@ -50,6 +50,7 @@ from dlt._workspace.deployment.freshness import parse_freshness_constraint
 from dlt._workspace.deployment.launchers import LAUNCHER_DASHBOARD
 from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
+    DEFAULT_CONCURRENCY,
     DEFAULT_DEPLOYMENT_MODULE,
     MANIFEST_ENGINE_VERSION,
     TEntryPoint,
@@ -622,7 +623,7 @@ def default_dashboard_job() -> TJobDefinition:
             manual=True,
         ),
         "triggers": [TTrigger("http:")],
-        "execute": TExecuteSpec(concurrency=1),
+        "execute": TExecuteSpec(concurrency=DEFAULT_CONCURRENCY),
         "require": {"dependency_groups": [DASHBOARD_JOB_REF]},
         "description": "Workspace dashboard",
     }

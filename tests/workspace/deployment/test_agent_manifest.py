@@ -104,6 +104,58 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
     assert "You are a job inspector" in spec["system_prompt"]
     # `defaults` stay on the spec; only the manifest subset drops them
     assert spec["defaults"]["model"] == "sonnet"
+    # `null` is read as no cap, not as nothing said
+    assert spec["defaults"]["execute"] == {"concurrency": None}
+
+
+def test_load_agent_spec_normalizes_execute_timeout(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "slow"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        "---\ndefaults:\n  execute:\n    timeout: 10m\n    concurrency: 3\n---\nbody\n",
+        encoding="utf-8",
+    )
+    spec = load_agent_spec(str(agent_dir))
+    assert spec["defaults"]["execute"] == {"timeout": {"timeout": 600.0}, "concurrency": 3}
+
+
+@pytest.mark.parametrize("execute", ["{}", "null"], ids=["empty", "null"])
+def test_load_agent_spec_takes_an_empty_execute_as_nothing_said(
+    tmp_path: Path, execute: str
+) -> None:
+    agent_dir = tmp_path / "quiet"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        f"---\ndefaults:\n  model: sonnet\n  execute: {execute}\n---\nbody\n", encoding="utf-8"
+    )
+    spec = load_agent_spec(str(agent_dir))
+    assert spec["defaults"]["model"] == "sonnet"
+    assert not spec["defaults"].get("execute")
+
+
+@pytest.mark.parametrize("execute,expected", [("{}", {}), ("null", None)], ids=["empty", "null"])
+def test_load_agent_spec_keeps_an_empty_execute(
+    tmp_path: Path, execute: str, expected: Any
+) -> None:
+    agent_dir = tmp_path / "empty_execute"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        f"---\ndefaults:\n  execute: {execute}\n---\nbody\n", encoding="utf-8"
+    )
+    spec = load_agent_spec(str(agent_dir))
+    assert spec["defaults"]["execute"] == expected
+
+
+def test_load_agent_spec_drops_a_null_timeout(tmp_path: Path) -> None:
+    """`timeout: null` says nothing: there is no timeout of dlt's for it to lift."""
+    agent_dir = tmp_path / "null_timeout"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        "---\ndefaults:\n  execute:\n    timeout: null\n    concurrency: 2\n---\nbody\n",
+        encoding="utf-8",
+    )
+    spec = load_agent_spec(str(agent_dir))
+    assert spec["defaults"]["execute"] == {"concurrency": 2}
 
 
 @pytest.mark.parametrize(
@@ -111,8 +163,27 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
     [
         ("name: a\ndescription: b", "", "body is empty"),
         ("name: a\ndescription: b\ninputs:\n  prompt: p", "b", "must not declare 'prompt'"),
+        ("name: a\ndefaults: nope", "b", "defaults must be a mapping"),
+        (
+            "name: a\ndefaults:\n  execute:\n    concurrency: 0",
+            "b",
+            "concurrency must be a positive integer",
+        ),
+        ("name: a\ndefaults:\n  execute:\n    parallelism: 2", "b", "defaults.execute takes"),
+        (
+            "name: a\ndefaults:\n  execute:\n    intercept_signals: false",
+            "b",
+            "defaults.execute takes timeout, concurrency",
+        ),
     ],
-    ids=["empty-body", "prompt-input"],
+    ids=[
+        "empty-body",
+        "prompt-input",
+        "defaults-not-a-mapping",
+        "zero-concurrency",
+        "unknown-key",
+        "signals-are-not-the-agents",
+    ],
 )
 def test_load_agent_spec_rejects(tmp_path: Path, frontmatter: str, body: str, reason: str) -> None:
     agent_dir = tmp_path / "broken"

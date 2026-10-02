@@ -77,6 +77,7 @@ from dlt._workspace.deployment.launchers import (
 )
 from dlt._workspace.deployment.typing import (
     BACKGROUND_AGENT_CATEGORY,
+    DEFAULT_CONCURRENCY,
     JOB_RESULT_CATEGORY,
     MANIFEST_ENGINE_VERSION,
     TWorkspaceAccess,
@@ -413,12 +414,12 @@ def _make_job_factory(
     wrapper.section = section
     wrapper.job_type = job_type
     wrapper.trigger = normalize_triggers(trigger)
-    # normalize execute and default concurrency to 1 (user can override by passing
+    # normalize execute and default concurrency (user can override by passing
     # any value, including None for no-limit)
     exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
     if "timeout" in exec_spec:
         exec_spec["timeout"] = normalize_timeout(exec_spec["timeout"])
-    exec_spec.setdefault("concurrency", 1)
+    exec_spec.setdefault("concurrency", DEFAULT_CONCURRENCY)
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
     wrapper.require = require
@@ -521,7 +522,7 @@ def job(
 
         execute: Execution constraints. Accepts `TExecuteSpec` with:
             `timeout` (seconds, human string like `"4h"`, or `TTimeoutSpec` dict),
-            `concurrency` (max concurrent runs, defaults to `1`;
+            `concurrency` (max concurrent runs, defaults to `DEFAULT_CONCURRENCY`;
             pass `None` to remove the limit).
 
         expose: UI presentation. Accepts `TJobExposeSpec` with:
@@ -638,8 +639,8 @@ def interactive(
         interface: What the job exposes: `"gui"`, `"rest_api"`, or `"mcp"`.
         idle_timeout: Idle timeout as seconds or human string (e.g. `"24h"`).
         execute: Execution constraints. Accepts `TExecuteSpec` with:
-            `timeout` and `concurrency`. Concurrency defaults to `1` for
-            interactive jobs.
+            `timeout` and `concurrency`. Concurrency defaults to `DEFAULT_CONCURRENCY`
+            for interactive jobs.
         expose: UI presentation. Accepts `TJobExposeSpec` with:
             `tags`, `starred`, `manual`. The `interface` argument is merged
             into expose automatically.
@@ -655,9 +656,9 @@ def interactive(
     if expose:
         full_expose.update(expose)
 
-    # build execute: concurrency=1 default, idle_timeout overrides
+    # build execute: default concurrency, idle_timeout overrides
     exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
-    exec_spec.setdefault("concurrency", 1)
+    exec_spec.setdefault("concurrency", DEFAULT_CONCURRENCY)
     if idle_timeout is not None:
         exec_spec["timeout"] = normalize_timeout(idle_timeout)
 
@@ -930,11 +931,21 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
             spec, self.agent_file, self.instructions, self.model
         )
         self.access = spec.get("access") or {}
+        self._apply_agent_defaults(spec)
         warn_unreferenced_inputs(spec)
         if self.is_declared:
             self.input_spec(spec)
         else:
             warn_unbound_inputs(spec, self._f)
+
+    def _apply_agent_defaults(self, spec: TAgentSpec) -> None:
+        defaults = spec.get("defaults") or {}
+        if self.agent_declaration.get("trigger") is None and defaults.get("trigger"):
+            self.trigger = normalize_triggers(defaults["trigger"])
+        execute: Dict[str, Any] = dict(defaults.get("execute") or {})
+        execute.update(self.agent_declaration.get("execute") or {})
+        execute.setdefault("concurrency", DEFAULT_CONCURRENCY)
+        self.execute = cast(TExecuteSpec, execute)
 
     def to_job_definition(self) -> TJobDefinition:
         if self.has_agent:
@@ -1237,7 +1248,12 @@ def agent(
             "model": model,
             "limits": limits,
             "loop_run_args": loop_run_args,
-            "trigger": wrapper.trigger or None,
+            "trigger": wrapper.trigger if trigger is not None else None,
+            "execute": (
+                {key: cast(Dict[str, Any], wrapper.execute)[key] for key in execute}
+                if execute
+                else None
+            ),
         }
         _set_agent(wrapper, agent)
         return wrapper
