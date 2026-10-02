@@ -1334,7 +1334,10 @@ def test_hard_delete_hint(
     if hard_delete_type == "timestamp" and key_type != "primary_key":
         pytest.skip("The column type does not depend on the key")
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
-    if destination_config.table_format == "iceberg":
+    if (
+        destination_config.table_format == "iceberg"
+        and destination_config.destination_type == "filesystem"
+    ):
         pytest.skip("pyiceberg `upsert` does not support the `hard_delete` hint")
 
     def flag(deleted: Optional[bool]) -> Any:
@@ -2081,8 +2084,12 @@ def test_merge_strategy_snapshot(
     """Seeds three records and loads a snapshot that keeps one, changes one, drops one and adds
     one. Checks the surviving records per strategy and which records the merge rewrote."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
-    if skip_unchanged_rows and destination_config.table_format == "iceberg":
-        pytest.skip("Iceberg rejects `skip_unchanged_rows`")
+    if (
+        skip_unchanged_rows
+        and destination_config.table_format == "iceberg"
+        and destination_config.destination_type == "filesystem"
+    ):
+        pytest.skip("Iceberg on filesystem rejects `skip_unchanged_rows`")
     if destination_config.destination_type in ("qdrant", "weaviate"):
         pytest.skip("`load_tables_to_dicts` cannot read vector stores without a SQL client")
     if skip_unchanged_rows and destination_config.destination_type in ("lance", "lancedb"):
@@ -2170,8 +2177,11 @@ def test_skip_unchanged_rows(
     elif destination_config.table_format != "delta":
         # without a strategy the option must apply to the strategy that the destination picks
         pytest.skip("Only the delta table format defaults to `upsert`")
-    if destination_config.table_format == "iceberg":
-        pytest.skip("Iceberg rejects `skip_unchanged_rows`")
+    if (
+        destination_config.table_format == "iceberg"
+        and destination_config.destination_type == "filesystem"
+    ):
+        pytest.skip("Iceberg on filesystem rejects `skip_unchanged_rows`")
     if row_version and destination_config.destination_type not in LOCAL_DESTINATIONS:
         pytest.skip("The row version comparison does not depend on the SQL dialect")
     options: Any = {"skip_unchanged_rows": True}
@@ -2473,8 +2483,12 @@ def test_merge_conditions(
     scope or both. Checks which records survive: the filter selects the merge source, the scope
     selects the stored records that the merge may delete."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
-    if source_filter and destination_config.table_format == "iceberg":
-        pytest.skip("Iceberg rejects `source_filter`")
+    if (
+        source_filter
+        and destination_config.table_format == "iceberg"
+        and destination_config.destination_type == "filesystem"
+    ):
+        pytest.skip("Iceberg on filesystem rejects `source_filter`")
     if source_filter:
         source_filter = merge_condition(source_filter, destination_config, "staging_table")
     if destination_scope and "{" in destination_scope:
