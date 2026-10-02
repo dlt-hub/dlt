@@ -65,7 +65,6 @@ from dlt._workspace.deployment.agent.manifest import (
     resolve_agent_dir,
     to_agent_definition,
     validate_agent_spec,
-    validate_execute_defaults,
 )
 from dlt._workspace.deployment.agent.reflection import agent_source, agent_spec_from_function
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
@@ -943,11 +942,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         defaults = spec.get("defaults") or {}
         if self.agent_declaration.get("trigger") is None and defaults.get("trigger"):
             self.trigger = normalize_triggers(defaults["trigger"])
-        execute: Dict[str, Any] = dict(
-            validate_execute_defaults(
-                defaults.get("execute") or {}, self.agent_file or self.agent_ref
-            )
-        )
+        execute: Dict[str, Any] = dict(defaults.get("execute") or {})
         execute.update(self.agent_declaration.get("execute") or {})
         execute.setdefault("concurrency", DEFAULT_CONCURRENCY)
         self.execute = cast(TExecuteSpec, execute)

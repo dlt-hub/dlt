@@ -525,20 +525,31 @@ def test_an_agent_saying_nothing_about_execute_leaves_the_job_defaults(execute: 
 
 
 @pytest.mark.parametrize(
-    "execute,reason",
+    "defaults,reason",
     [
-        ({"concurrency": 0}, "positive integer"),
-        ({"concurrency": "five"}, "positive integer"),
-        ({"concurrency": True}, "positive integer"),
-        ({"timeout": "soon"}, "does not parse"),
-        ({"parallelism": 2}, "takes timeout, concurrency"),
-        ({"intercept_signals": False}, "takes timeout, concurrency"),
-        ("none", "must be a mapping"),
+        ({"execute": {"concurrency": 0}}, "positive integer"),
+        ({"execute": {"concurrency": "five"}}, "positive integer"),
+        ({"execute": {"concurrency": True}}, "positive integer"),
+        ({"execute": {"timeout": "soon"}}, "does not parse"),
+        ({"execute": {"parallelism": 2}}, "takes timeout, concurrency"),
+        ({"execute": {"intercept_signals": False}}, "takes timeout, concurrency"),
+        ({"execute": "none"}, "defaults.execute must be a mapping"),
+        ("nope", "defaults must be a mapping"),
     ],
-    ids=["zero", "string", "bool", "bad-timeout", "unknown-key", "signals", "not-a-mapping"],
+    ids=[
+        "zero",
+        "string",
+        "bool",
+        "bad-timeout",
+        "unknown-key",
+        "signals",
+        "execute-not-a-mapping",
+        "defaults-not-a-mapping",
+    ],
 )
-def test_bad_execute_defaults_fail_at_manifest_time(execute: Any, reason: str) -> None:
-    job = agent(_agent_with_defaults(execute=execute), loop=MOCK_LOOP)
+def test_bad_defaults_fail_at_manifest_time(defaults: Any, reason: str) -> None:
+    """An agent given in full goes through the same checks as an `AGENT.md`."""
+    job = agent(cast(TAgentSpec, {**MINIMAL_AGENT, "defaults": defaults}), loop=MOCK_LOOP)
     job.declare(__name__, "broken")
     with agent_workspace():
         with pytest.raises(InvalidAgentSpec, match=reason):
