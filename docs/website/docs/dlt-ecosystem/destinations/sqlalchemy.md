@@ -388,8 +388,8 @@ export DESTINATION__SQLALCHEMY__CREDENTIALS__PORT="1521"
 export DESTINATION__SQLALCHEMY__CREDENTIALS__QUERY='{"service_name": "svc.example.com"}'
 ```
 
-Both resolve to the same URL, `oracle+oracledb://loader:***@orahost:1521/?service_name=svc.example.com`, and any other parameter
-your listener needs (`sid`, `encoding`, `events`) is passed the same way.
+Both forms give the same connection, with `service_name` passed as a URL query parameter. Pass any other query parameter your
+driver accepts the same way.
 
 :::caution
 The `query` variable must hold valid JSON with double quotes. A Python-style value such as `{'service_name': 'svc.example.com'}`
@@ -399,22 +399,15 @@ in the password.
 
 ### Oracle merge and staging datasets
 
-`merge` (both the `delete-insert` and the `scd2` strategy) and `replace` with the `insert-from-staging` or `staging-optimized`
-strategy first load data into a [staging dataset](../staging.md#staging-dataset) and then modify the final tables from there. The
-staging dataset is a second schema, named `<dataset_name>_staging` by default, and `dlt` creates it and writes to it **over the
-same connection as the final dataset**. There is no second credential involved: the SQLAlchemy destination cannot be combined
-with a `staging=` destination at all, because that slot is for [file staging](../staging.md#staging-storage) and
-`dlt.pipeline(staging=dlt.destinations.sqlalchemy(...))` raises `DestinationNoStagingMode`.
+`merge`, and `replace` with the `insert-from-staging` or `staging-optimized` strategy, load data into a
+[staging dataset](../staging.md#staging-dataset) first. The staging dataset is a separate schema, named `<dataset_name>_staging`
+by default, and `dlt` writes to it over the same connection as the final dataset. You can't give it a second connection:
+`staging=` is for [file staging](../staging.md#staging-storage) and this destination refuses it.
 
-In Oracle, a schema is a user, and a user can create tables only in the schema it owns. Creating the staging tables in any other
-schema requires the `CREATE ANY TABLE` system privilege, plus the privileges for the statements `dlt` then runs against those
-tables (`INSERT`, `SELECT`, `DELETE`, `DROP`). A user that owns schema `LOADER` cannot create tables in `LOADER_STAGING` without
-them, so a merge load into Oracle needs one of the following:
+In Oracle, a schema is a user, and `CREATE SCHEMA` doesn't create one. If the staging schema doesn't exist, the load fails. You
+have two options:
 
-1. **A pre-created staging schema.** `dlt` issues `CREATE SCHEMA <staging_dataset>` only when the schema is missing, and that
-   statement does not create a user in Oracle. Ask a DBA to create the schema (user) up front and point `dlt` at it with a fixed
-   `staging_dataset_name_layout`. A layout without the `%s` placeholder is used as the full name, so every dataset shares one
-   staging schema:
+1. **Use a pre-created staging schema.** Ask a DBA to create it as a user, with quota on its tablespace, and point `dlt` at it:
 
    ```py
    import dlt
@@ -428,30 +421,24 @@ them, so a merge load into Oracle needs one of the following:
    )
    ```
 
-   The same setting works in `config.toml`:
+   Or in `config.toml`:
 
    ```toml
    [destination.sqlalchemy]
    staging_dataset_name_layout = "analytics_staging"
    ```
 
-2. **The privileges on that schema.** Pre-creating it removes the schema creation step, not the table creation, so the connecting
-   user still needs `CREATE ANY TABLE` and the object privileges above unless it owns the staging schema itself.
+   A layout without `%s` is used as the full name, so every dataset shares this schema. Because the connecting user doesn't own
+   it, the user also needs `CREATE ANY TABLE`, `ALTER ANY TABLE`, `INSERT ANY TABLE`, `SELECT ANY TABLE`, `DELETE ANY TABLE` and
+   `DROP ANY TABLE`. Check the exact set with your DBA.
 
-3. **No staging dataset at all.** `append`, and `replace` with the `truncate-and-insert` strategy (the default for this
-   destination), write straight into the final tables and never touch a second schema. Use them when `CREATE ANY TABLE` is out of
-   reach.
+2. **Skip the staging dataset.** `append`, and `replace` with `truncate-and-insert` (the default for this destination), write
+   straight into the final tables.
 
 :::note
-`dlt` normalizes dataset names with the schema's [naming convention](../../general-usage/naming-convention.md), so
-`ANALYTICS_STAGING` becomes `analytics_staging`. That is the name you want: SQLAlchemy renders an all-lowercase identifier
-unquoted and Oracle folds it to the upper-case schema `ANALYTICS_STAGING`, while a quoted mixed- or upper-case name has to match
-the stored name exactly. Set `enable_dataset_name_normalization = false` on the destination if you must keep the case you wrote.
+Write the staging name in lowercase, like `analytics_staging`. Oracle stores it as `ANALYTICS_STAGING`, and `dlt` lowercases
+dataset names by default, so they match. Set `enable_dataset_name_normalization = false` only if you need to keep a different case.
 :::
-
-### Oracle limitations
-
-* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
 
 ## Notes on other dialects
 
