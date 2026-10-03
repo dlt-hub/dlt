@@ -523,6 +523,10 @@ def destinations_configs(
         ]
         destination_configs += [
             DestinationTestConfiguration(destination_type="duckdb", file_format="parquet"),
+            # mssql prefers insert_values, so parquet (native Arrow bulk copy) needs its own config
+            DestinationTestConfiguration(
+                destination_type="mssql", file_format="parquet", supports_dbt=False
+            ),
             DestinationTestConfiguration(
                 destination_type="ducklake",
                 supports_dbt=False,
