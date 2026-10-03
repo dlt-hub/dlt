@@ -12,7 +12,7 @@ from mock_loop import MOCK_LOOP
 
 def extend_inputs(inputs: Dict[str, Any]) -> Dict[str, Any]:
     """Adds an input the trigger did not carry."""
-    return {"failed_job_ref": inputs.get("failed_job_ref") or "jobs.batch.ingest"}
+    return {**inputs, "failed_job_ref": inputs.get("failed_job_ref") or "jobs.batch.ingest"}
 
 
 @agent(

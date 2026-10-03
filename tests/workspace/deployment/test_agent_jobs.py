@@ -8,6 +8,8 @@ from typing import Any, ClassVar, Dict, Iterator, List, Optional, Tuple, cast
 
 import pytest
 
+import dlt
+
 from dlt.common.configuration import plugins
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.plugins import PluginContext
@@ -62,10 +64,10 @@ def test_agent_decorator_dual_use() -> None:
         assert factory.launcher == LAUNCHER_AGENT
 
     assert bare.loop == DEFAULT_AGENT_LOOP
-    assert (bare.is_declared, with_parens.is_declared, declared.is_declared) == (
-        False,
-        False,
+    assert (bare.has_function, with_parens.has_function, declared.has_function) == (
         True,
+        True,
+        False,
     )
     # the name comes off the function, or off the agent ref
     assert (bare.name, with_parens.name, declared.name) == ("bare", "with_parens", "job_inspector")
@@ -76,7 +78,7 @@ def test_identity_is_accepted_and_not_stored() -> None:
         import agent_jobs  # type: ignore[import-not-found] # noqa: F401
 
         inspector = agent("dlthub-platform:job-inspector", identity="crash_inspector")
-        inspector.declare("agent_jobs", "inspector")
+        inspector.bind_module_attr("agent_jobs", "inspector")
         assert "identity" not in inspector.to_job_definition()
     assert not hasattr(inspector, "identity")
 
@@ -115,7 +117,7 @@ def test_declared_agent_job_definition() -> None:
     assert agent_loop_group(MOCK_LOOP) in definition["require"]["dependency_groups"]
     # a requirement the user declared survives alongside it
     assert definition["require"]["timezone"] == "Europe/Berlin"
-    # a declared job has no function, so the agent describes it
+    # a job without a function takes its description from the agent definition
     assert definition["description"] == "Inspects a failed job run and reports a diagnosis."
     # the first entity-typed input tells the UI which entity's menu offers this job, and where
     # the chosen entity goes
@@ -131,7 +133,7 @@ def test_an_agent_job_declares_what_can_be_injected() -> None:
         manifest, _ = manifest_from_module("__deployment__")
         import agent_jobs
 
-        agent_jobs.inspect_crash.declare("agent_jobs", "inspect_crash")
+        agent_jobs.inspect_crash.bind_module_attr("agent_jobs", "inspect_crash")
         driver = agent_jobs.inspect_crash.to_job_definition()
 
     for job_def in manifest["jobs"]:
@@ -150,7 +152,7 @@ def test_agent_block_and_config_keys_reach_the_manifest() -> None:
     with agent_workspace():
         import agent_jobs
 
-        agent_jobs.inspector.declare("agent_jobs", "inspector")
+        agent_jobs.inspector.bind_module_attr("agent_jobs", "inspector")
         job_def = agent_jobs.inspector.to_job_definition()
 
     agent_definition = job_def["agent"]
@@ -301,6 +303,91 @@ def test_an_agent_may_return_without_calling_its_loop(function: str, status: str
     assert "ai_loop" not in trace["inputs"]["run_context"]
 
 
+def _code_entry(function: str, failed_run_id: Optional[str] = None) -> TRuntimeEntryPoint:
+    ep: TRuntimeEntryPoint = {
+        "module": "agent_code_jobs",
+        "function": function,
+        "job_type": "batch",
+        "launcher": LAUNCHER_AGENT,
+        "job_ref": TJobRef(f"jobs.agent_code_jobs.{function}"),
+    }
+    if failed_run_id:
+        ep["run_args"] = {"failed_run_id": failed_run_id}  # type: ignore[typeddict-unknown-key]
+    return ep
+
+
+def agent_code_workspace() -> Any:
+    return importable_workspace(
+        "agent_workspace", "agent_code_jobs", "mock_loop", "checked-inspector", "broken-code"
+    )
+
+
+def test_agent_code_runs_before_and_after_the_loop() -> None:
+    """`agent.py` next to `AGENT.md` extends the inputs and rewrites the output, unasked."""
+    with agent_code_workspace():
+        output = agent_run(_code_entry("checked"), run_id="r-1", trigger="manual:")
+        # a validator returning nothing keeps what it was given
+        kept = agent_run(_code_entry("checked", "keep"), run_id="r-2", trigger="manual:")
+
+    # `validate_input` filled the run id through its sibling `helpers.py`, and the model saw it
+    assert output["trace"]["inputs"]["failed_run_id"] == "r-prepared"
+    assert "You inspect run 'r-prepared'" in output["result"]["ran"]["system_prompt"]
+    # `validate_output` read what `validate_input` prepared, through the module's own state
+    assert output["result"]["checked"] == "checked by agent.py"
+    assert output["result"]["prepared_for"] == "r-prepared"
+
+    assert kept["trace"]["inputs"]["failed_run_id"] == "keep"
+    assert "checked" not in kept["result"]
+    assert kept["summary"] == "mock run"
+
+
+def test_agent_code_runs_before_the_job_validators() -> None:
+    """A job's own validators refine what the agent's code returned."""
+    with agent_code_workspace():
+        import agent_code_jobs  # type: ignore[import-not-found]
+
+        agent_code_jobs.SEEN.clear()
+        output = agent_run(_code_entry("checked_twice"), run_id="r-3", trigger="manual:")
+
+    seen_inputs, seen_output = agent_code_jobs.SEEN
+    assert seen_inputs["inputs"]["failed_run_id"] == "r-prepared"
+    assert seen_output["output"]["checked"] == "checked by agent.py"
+    assert output["trace"]["inputs"]["failed_run_id"] == "r-prepared+job"
+    assert output["summary"] == "refined by the job"
+
+
+def test_agent_code_that_raises_fails_the_job() -> None:
+    with agent_code_workspace():
+        with pytest.raises(ValueError, match="could not read the run"):
+            agent_run(_code_entry("checked", "boom"), run_id="r-4", trigger="manual:")
+
+
+def test_agent_code_may_end_the_run_before_the_loop() -> None:
+    """`JobAbortedException` from `validate_input` delivers an aborted result; no model call."""
+    with agent_code_workspace():
+        # the result's summary names the abort, the reason the code gave stays chained
+        with pytest.raises(JobAbortedException, match="no failed run found") as exc:
+            agent_run(_code_entry("checked", "nothing"), run_id="r-5", trigger="manual:")
+
+    assert "nothing to inspect" in str(exc.value.__context__)
+    result = cast(TAgentJobResult, exc.value.result)
+    assert (result["status"], result["summary"]) == ("aborted", "no failed run found")
+    assert result["trace"]["turn_count"] == 0
+    assert "checked" not in result["result"]
+
+
+def test_agent_code_is_not_imported_for_the_manifest() -> None:
+    """Deploying never runs agent code: the manifest only reads `AGENT.md`."""
+    with agent_code_workspace():
+        import agent_code_jobs
+
+        agent_code_jobs.broken.bind_module_attr("agent_code_jobs", "broken")
+        assert agent_code_jobs.broken.to_job_definition()["agent"]["name"] == "broken-code"
+        # the run is what imports it
+        with pytest.raises(RuntimeError, match="broken-code was imported"):
+            agent_run(_code_entry("broken"), run_id="r-6", trigger="manual:")
+
+
 def test_agent_launcher_shares_the_job_launcher_setup() -> None:
     """Interval injection and signal interception come from the job launcher, not a copy of it."""
     import signal
@@ -376,6 +463,26 @@ MINIMAL_AGENT: TAgentSpec = {
 }
 
 
+@pytest.mark.parametrize(
+    "given,match",
+    [
+        ("", "Empty agent definition reference"),
+        ("  ", "Empty agent definition reference"),
+        ({}, "has no 'name'"),
+        ({"description": "no name"}, "has no 'name'"),
+    ],
+    ids=["empty-ref", "blank-ref", "empty-spec", "nameless-spec"],
+)
+def test_agent_without_an_agent_is_refused(given: Any, match: str) -> None:
+    with pytest.raises(ValueError, match=match):
+        agent(given, loop=MOCK_LOOP)
+    with pytest.raises(ValueError, match=match):
+
+        @agent(agent=given, loop=MOCK_LOOP)
+        def driver(run_context: Any = None) -> Dict[str, Any]:
+            return {}
+
+
 def test_agent_is_named_by_reference_or_given_in_full() -> None:
     """Both forms take either a `<toolkit>:<agent>` reference or a `TAgentSpec`."""
     by_ref = agent("dlthub-platform:job-inspector", loop=MOCK_LOOP)
@@ -390,13 +497,34 @@ def test_agent_is_named_by_reference_or_given_in_full() -> None:
     # the job name comes off the agent name either way
     assert (by_ref.name, in_full.name) == ("job_inspector", "inline_agent")
     # a decorated function keeps its own body, and now has an agent to build a loop from
-    assert (driver.is_declared, driver.has_agent) == (False, True)
+    assert driver.has_function
+    assert driver.agent_ref == "dlthub-platform:job-inspector"
+
+
+def test_function_job_inputs_keep_the_entity_types_of_the_agent_definition() -> None:
+    """Parameters without annotations take type, description and entity type from `AGENT.md`."""
+
+    @agent(agent="dlthub-platform:job-inspector", loop=MOCK_LOOP)
+    def inspect_run(failed_run_id=dlt.config.value, run_context: Any = None) -> Dict[str, Any]:
+        return {}
+
+    with agent_workspace():
+        inputs = inspect_run.to_job_definition()["inputs"]
+
+    assert inputs["properties"]["failed_run_id"]["type"] == "string"
+    assert inputs["properties"]["failed_run_id"]["entity_type"] == "job-runs"
+    assert (
+        inputs["properties"]["failed_run_id"]["description"]
+        == "explicit run id of the job that failed"
+    )
+    # the function takes no `failed_job_ref`, so the job has no such input
+    assert "failed_job_ref" not in inputs["properties"]
 
 
 def test_an_agent_declaring_no_access_still_states_it() -> None:
     """`{}` is an answer: the job says it may touch nothing, rather than saying nothing."""
     job = agent(MINIMAL_AGENT, loop=MOCK_LOOP, name="minimal")
-    job.declare(__name__, "minimal")
+    job.bind_module_attr(__name__, "minimal")
     with agent_workspace():
         assert job.to_job_definition()["access"] == {}
 
@@ -441,10 +569,10 @@ def test_the_agent_argument_can_carry_only_the_output(output: Any) -> None:
 
 
 def test_an_agent_without_a_description_leaves_the_job_without_one() -> None:
-    """A declared job takes its description from the agent, and an agent needs none."""
+    """A job without a function takes its description from the agent definition, if it has one."""
     spec = {key: value for key, value in MINIMAL_AGENT.items() if key != "description"}
     job = agent(cast(TAgentSpec, spec), loop=MOCK_LOOP, name="quiet")
-    job.declare(__name__, "quiet")
+    job.bind_module_attr(__name__, "quiet")
     with agent_workspace():
         job_def = job.to_job_definition()
 
@@ -460,7 +588,7 @@ def test_unknown_entity_type_fails_at_manifest_time() -> None:
         "properties": {"why": {"type": "string", "entity_type": "pipline"}},
     }
     job = agent(cast(TAgentSpec, spec), loop=MOCK_LOOP, name="typo")
-    job.declare(__name__, "typo")
+    job.bind_module_attr(__name__, "typo")
     with agent_workspace():
         with pytest.raises(InvalidJobSchema, match="why: entity_type 'pipline'"):
             job.to_job_definition()

@@ -121,6 +121,50 @@ def test_decorator_and_function_override_the_referenced_agent() -> None:
     assert spec["defaults"] == {"model": "sonnet", "limits": {"max_turns": 30}}
 
 
+def test_function_inputs_keep_what_the_agent_definition_says_about_them() -> None:
+    """Descriptions, entity types and, for a parameter without an annotation, the type survive."""
+    base: Any = {
+        "name": "job-inspector",
+        "system_prompt": "toolkit body",
+        "inputs": {
+            "type": "object",
+            "properties": {
+                "failed_run_id": {
+                    "type": "string",
+                    "description": "The failed job run.",
+                    "entity_type": "job-runs",
+                },
+                "depth": {"type": "integer", "description": "Runs to look back.", "minimum": 1},
+                "dropped": {"type": "string"},
+            },
+            "required": ["failed_run_id"],
+        },
+    }
+
+    def driver(
+        failed_run_id=dlt.config.value,
+        depth: Annotated[str, Doc("How far back.")] = "2",
+        run_context: TJobRunContext = None,
+    ) -> Any:
+        pass
+
+    properties = agent_spec_from_function(driver, SOURCE, {}, base)["inputs"]["properties"]
+
+    # no annotation: the agent definition gives the type, the description and the entity type
+    assert properties["failed_run_id"] == {
+        "title": "Failed Run Id",
+        "type": "string",
+        "description": "The failed job run.",
+        "entity_type": "job-runs",
+    }
+    # an annotation decides the type and its own description wins; the rest is the definition's
+    assert properties["depth"]["type"] == "string"
+    assert properties["depth"]["description"] == "How far back."
+    assert "minimum" in properties["depth"]
+    # the function's parameters decide which inputs there are
+    assert "dropped" not in properties
+
+
 def test_agent_source_names_the_file_and_the_function() -> None:
     assert agent_source(inspector, "inspector").endswith("test_agent_reflection.py:inspector")
 

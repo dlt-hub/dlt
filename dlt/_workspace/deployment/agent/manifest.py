@@ -1,11 +1,14 @@
 """Loads an `AGENT.md` and resolves the components it references."""
 
+import hashlib
 import os
 import re
 from pathlib import Path
+from types import ModuleType
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple, cast
 
 from dlt.common import logger
+from dlt.common.reflection.ref import import_folder_module
 
 from dlt._workspace.cli.dlthub.ai.agents import (
     COMPONENT_MARKERS,
@@ -32,10 +35,35 @@ from dlt._workspace.typing import TWorkspaceAccess
 
 _PLACEHOLDER = re.compile(r"\{\{\s*([\w.]+)\s*\}\}")
 
+AGENT_MODULE = "agent.py"
+"""Code an agent ships next to its `AGENT.md`, run before and after the loop."""
+VALIDATE_INPUT = "validate_input"
+VALIDATE_OUTPUT = "validate_output"
+
 
 def agent_manifest_path(agent_dir: str) -> str:
     """`AGENT.md` inside an agent folder."""
     return os.path.join(agent_dir, COMPONENT_MARKERS["agent"])
+
+
+def load_agent_module(agent_dir: str) -> Optional[ModuleType]:
+    """The agent's `agent.py`, imported fresh with its folder as the package, or None.
+
+    Raises:
+        InvalidAgentSpec: `validate_input` or `validate_output` is defined but not callable.
+    """
+    module_path = os.path.join(agent_dir, AGENT_MODULE)
+    if not os.path.isfile(module_path):
+        return None
+    # a private package per agent folder: no clash with installed packages or another agent.
+    # reloaded on every load, so code edited in an open interpreter is picked up
+    folder = os.path.abspath(agent_dir)
+    package = f"_dlt_agent_{hashlib.sha256(folder.encode()).hexdigest()[:12]}"
+    module = import_folder_module(folder, os.path.splitext(AGENT_MODULE)[0], package, reload=True)
+    for name in (VALIDATE_INPUT, VALIDATE_OUTPUT):
+        if getattr(module, name, None) is not None and not callable(getattr(module, name)):
+            raise InvalidAgentSpec(module_path, f"`{name}` must be a function")
+    return module
 
 
 def load_agent_spec(agent_dir: str) -> TAgentSpec:

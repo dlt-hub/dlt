@@ -239,7 +239,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
         limits: Optional[TAgentLimits] = None,
         run_args: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        inputs = inputs or {}
+        inputs = self.run_inputs(inputs)
         self.resolve_run(model, limits, instructions)
         if run_args:
             self.settings["loop_run_args"] = {**self.settings["loop_run_args"], **run_args}

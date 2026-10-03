@@ -25,7 +25,7 @@ from dlt._workspace.deployment._run_typing import TAgentEvent, TAgentEventKind
 from dlt._workspace.deployment._run_views import emit_agent_event
 from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.launchers import BUILTIN_AGENT_LOOPS, DEFAULT_AGENT_LOOP
-from dlt._workspace.deployment.typing import TWorkspaceAccess
+from dlt._workspace.deployment.typing import RUN_CONTEXT_INPUT, TJobRunContext, TWorkspaceAccess
 from dlt._workspace.typing import TWorkspaceLocalVerb
 
 
@@ -76,6 +76,8 @@ class AgentLoop(ABC):
         self.spec: TAgentSpec = None
         self.agent_ref: str = ""
         self.agent_file: str = ""
+        self.run_context: Optional[TJobRunContext] = None
+        """Run context of the job running the loop, without the loop. Added to inputs that lack it."""
         self._trace: TAgentTrace = None
         self._ignored_run_args: List[str] = []
         self._native_skills: List[str] = []
@@ -85,6 +87,13 @@ class AgentLoop(ABC):
         self._output_tokens: int = 0
         self._system_prompt: str = ""
         """Body plus whatever the loop inlines, assembled in `init` and still a template."""
+
+    def run_inputs(self, inputs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
+        """`inputs` of a run, with the job's run context when they carry none."""
+        inputs = dict(inputs or {})
+        if self.run_context is not None:
+            inputs.setdefault(RUN_CONTEXT_INPUT, self.run_context)
+        return inputs
 
     @property
     def loop_type(self) -> str:

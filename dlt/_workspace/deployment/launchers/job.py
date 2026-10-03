@@ -4,7 +4,7 @@ from datetime import timezone
 import asyncio
 import inspect
 from contextlib import nullcontext
-from typing import Any, Callable, ContextManager, Dict, List, Optional, Tuple, Type, cast
+from typing import Any, Callable, ContextManager, Dict, List, Mapping, Optional, Tuple, Type, cast
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
@@ -163,9 +163,18 @@ def job_sections(job: JobFactory[Any, Any]) -> Tuple[str, ...]:
     return tuple(p for p in (ws_known_sections.JOBS, job.section, job.name) if p)
 
 
-def configured_inputs(job: JobFactory[Any, Any], spec: Type[BaseConfiguration]) -> Dict[str, Any]:
-    """The job's inputs resolved as job config, so `-c`, env vars and toml all fill them."""
-    config = resolve_configuration(spec(), sections=job_sections(job))
+def configured_inputs(
+    job: JobFactory[Any, Any],
+    spec: Type[BaseConfiguration],
+    explicit: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """The job's inputs resolved as job config, so `-c`, env vars and toml all fill them.
+
+    `explicit` values win over configuration, and a required input they hold is not looked up.
+    """
+    fields = spec.get_resolvable_fields()
+    given = {k: v for k, v in (explicit or {}).items() if k in fields}
+    config = resolve_configuration(spec(), sections=job_sections(job), explicit_value=given)
     # an input nobody supplied stays out of the inputs and the trace
     return {k: v for k, v in dict(config).items() if v is not None}
 

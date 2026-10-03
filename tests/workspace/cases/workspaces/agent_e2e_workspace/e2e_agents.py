@@ -1,11 +1,11 @@
 """Agent jobs the end-to-end tests run on real loops and real models."""
 
-import asyncio
 from typing import List
 
+import dlt
 from dlt.common.typing import Annotated, Doc
 
-from dlt.hub.run import TAgentOutput, TJobRunContext, agent
+from dlt.hub.run import Entity, TAgentOutput, TJobRunContext, agent
 
 self_report_md = agent("e2e:self-report", name="self_report_md")
 
@@ -20,7 +20,15 @@ class SelfReport(TAgentOutput):
     ]
     skills: Annotated[List[str], Doc("Name of every skill available to you.")]
     markers: Annotated[List[str], Doc("Every MARKER-<WORDS> token you were given, copied exactly.")]
-    workspace_name: Annotated[str, Doc("The `name` field `get_workspace_info` returned.")]
+    workspace_name: Annotated[
+        str, Doc("The `name` field `get_workspace_info` returned."), Entity("workspace")
+    ]
+    reported_run_id: Annotated[
+        str,
+        Doc("The job run you were asked to report on, copied exactly."),
+        Entity("job-runs"),
+    ]
+    trigger: Annotated[str, Doc("The trigger of this run, copied exactly.")]
 
 
 @agent(
@@ -31,7 +39,10 @@ class SelfReport(TAgentOutput):
     model="haiku",
     limits={"max_turns": 12},
 )
-def self_report_py(run_context: TJobRunContext = None) -> SelfReport:
+async def self_report_py(
+    failed_run_id: Annotated[str, Entity("job-runs")] = dlt.config.value,
+    run_context: TJobRunContext = None,
+) -> SelfReport:
     """Reports the tools, skills and rule markers it was given.
 
     You are a self-report agent. Describe your own setup in the structured output and do nothing
@@ -52,6 +63,10 @@ def self_report_py(run_context: TJobRunContext = None) -> SelfReport:
     4. `markers`: every token of the form `MARKER-<WORDS>` you can see in your instructions,
        rules, project notes and skills.
     5. `workspace_name`: call `get_workspace_info` and copy the `name` field of its result.
-    6. `status`: `succeeded`. `summary`: one sentence on what you found.
+    6. `reported_run_id`: copy `{{ failed_run_id }}` exactly.
+    7. `trigger`: copy `{{ run_context.trigger }}` exactly.
+    8. `status`: `succeeded`. `summary`: one sentence on what you found.
     """
-    return asyncio.run(run_context["ai_loop"].run())  # type: ignore[no-any-return]
+    # the run context is injected when the caller passes none
+    loop = run_context["ai_loop"]
+    return await loop.run(inputs={"failed_run_id": failed_run_id})  # type: ignore[no-any-return]

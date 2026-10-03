@@ -179,8 +179,9 @@ def derives_from(hint: Any, base: Any) -> bool:
 def spec_from_inputs_schema(name: str, inputs: Dict[str, Any]) -> Type[BaseConfiguration]:
     """Configuration spec with one field per declared input.
 
-    Inputs are to a declared job what parameters are to a function job, so they resolve the same
-    way. They come from the job's config section, through every provider, with the declared type.
+    Inputs are to an agent job without a function what parameters are to a function job, so
+    they resolve the same way. They come from the job's config section, through every provider,
+    with the declared type.
     """
     # `required` is a list, or the `{}` mapping form an `AGENT.md` may carry
     required = set(inputs.get("required") or ())
