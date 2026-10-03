@@ -503,7 +503,8 @@ class ArrowExtractor(Extractor):
                     arrow_table = copy(computed_table)
                 try:
                     # generate dlt schema from arrow schema and adjust to capabilities
-                    # drop timezones and honor only explicit settings like the regular normalizer
+                    # keep naive Arrow timestamps as timezone=False and let other timezone hints
+                    # fall back to default behavior like the regular normalizer
                     arrow_table["columns"] = adjust_schema_to_capabilities(
                         pyarrow.py_arrow_to_table_schema_columns(item.schema),
                         self._caps,

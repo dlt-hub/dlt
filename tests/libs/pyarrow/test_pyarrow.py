@@ -79,6 +79,18 @@ def test_py_arrow_to_table_schema_columns():
     assert result == dlt_schema
 
 
+def test_py_arrow_naive_timestamp_survives_capabilities_adjustment():
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    arrow_schema = pa.schema([pa.field("ts_col", pa.timestamp("us"))])
+
+    columns = py_arrow_to_table_schema_columns(arrow_schema)
+    adjust_schema_to_capabilities(columns, caps)
+    roundtrip_schema = columns_to_arrow(columns, caps)
+
+    assert columns["ts_col"]["timezone"] is False
+    assert roundtrip_schema.field("ts_col").type == pa.timestamp("us")
+
+
 @pytest.mark.parametrize("supports_nested_types", (True, False))
 def test_py_arrow_to_table_schema_columns_nested_types(supports_nested_types: bool):
     """Test py_arrow_to_table_schema_columns with various nested types, including dictionary and deeply nested structures."""

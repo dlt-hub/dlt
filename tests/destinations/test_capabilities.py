@@ -63,18 +63,25 @@ def test_timestamp_default_precision_removed(data_type: TDataType) -> None:
     assert "precision" not in column
 
 
-@pytest.mark.parametrize(
-    "timezone_value", [True, False, None], ids=["tz-true", "tz-false", "tz-missing"]
-)
-def test_timestamp_timezone_handling(timezone_value: bool) -> None:
-    """Test timezone is always removed from timestamp/time columns regardless of capabilities"""
+@pytest.mark.parametrize("timezone_value", [True, None], ids=["tz-true", "tz-missing"])
+def test_timestamp_timezone_true_or_missing_removed(timezone_value: bool) -> None:
+    """Test timezone=True or missing falls back to default timestamp behavior."""
     caps = _create_default_caps()
 
     column = _create_timestamp_column(timezone=timezone_value)
     adjust_column_schema_to_capabilities(column, caps)
 
-    # timezone should always be removed (or remain absent)
     assert "timezone" not in column
+
+
+def test_timestamp_timezone_false_preserved() -> None:
+    """Test timezone=False survives capabilities adjustment for naive Arrow timestamps."""
+    caps = _create_default_caps()
+
+    column = _create_timestamp_column(timezone=False)
+    adjust_column_schema_to_capabilities(column, caps)
+
+    assert column["timezone"] is False
 
 
 @pytest.mark.parametrize(
