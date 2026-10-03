@@ -25,7 +25,7 @@ import dlt
 from dlt.common import logger
 from dlt.common.json import json
 from dlt.common.pendulum import pendulum
-from dlt.common.exceptions import ValueErrorWithKnownValues
+from dlt.common.exceptions import SignalReceivedException, ValueErrorWithKnownValues
 from dlt.common.configuration import inject_section, known_sections
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.exceptions import (
@@ -523,7 +523,7 @@ class Pipeline(SupportsPipeline):
                 # commit load packages with state
                 extract_step.commit_packages()
                 return self._get_step_info(extract_step)
-        except (Exception, KeyboardInterrupt) as exc:
+        except (Exception, SignalReceivedException) as exc:
             # emit step info
             step_info = self._get_step_info(extract_step)
             current_load_id = step_info.loads_ids[-1] if len(step_info.loads_ids) > 0 else None
@@ -581,7 +581,7 @@ class Pipeline(SupportsPipeline):
                 ):
                     runner.run_pool(normalize_step.config, normalize_step)
                 return self._get_step_info(normalize_step)
-            except (Exception, KeyboardInterrupt) as n_ex:
+            except (Exception, SignalReceivedException) as n_ex:
                 if isinstance(n_ex, WithJobError):
                     err_load_id = n_ex.load_id
                 else:
@@ -684,7 +684,7 @@ class Pipeline(SupportsPipeline):
             info: LoadInfo = self._get_step_info(load_step)
             self._update_last_run_context()
             return info
-        except (Exception, KeyboardInterrupt) as l_ex:
+        except (Exception, SignalReceivedException) as l_ex:
             if isinstance(l_ex, WithJobError):
                 err_load_id = l_ex.load_id
             else:
@@ -945,7 +945,7 @@ class Pipeline(SupportsPipeline):
                         )
             # nothing was restored, commit the local (possibly wiped) state without replacing schemas
             self._install_state_and_schemas(state, restored_schemas or [], replace=False)
-        except (Exception, KeyboardInterrupt) as ex:
+        except (Exception, SignalReceivedException) as ex:
             raise PipelineStepFailed(self, "sync", None, ex, None) from ex
 
     def _install_state_and_schemas(
