@@ -1,5 +1,6 @@
 ---
-title: Overview
+title: Run pipelines on the platform
+sidebar_label: Overview
 description: Deploy and run dlt pipelines, transformations and notebooks in the cloud with the dltHub platform
 keywords: [dlthub platform, deployment, cloud, scheduling, notebooks, dashboard, jobs, triggers, manifest]
 ---

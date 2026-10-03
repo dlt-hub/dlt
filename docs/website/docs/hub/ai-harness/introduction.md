@@ -1,5 +1,6 @@
 ---
-title: Introduction
+title: AI harness for coding agents
+sidebar_label: Introduction
 description: What the dltHub AI Harness is and the components it's built from.
 keywords: [ai harness, workbench, toolkits, skills, mcp, coding agent, claude code, cursor, codex]
 ---

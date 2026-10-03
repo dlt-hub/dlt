@@ -1,5 +1,6 @@
 ---
-title: Installation
+title: Install dlt with pip, uv or Conda
+sidebar_label: Installation
 description: How to install dlt
 keywords: [installation, environment, pip install]
 ---
