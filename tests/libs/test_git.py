@@ -152,7 +152,9 @@ def test_sparse_checkout_reclones_a_full_clone(test_storage: FileStorage) -> Non
 
     # a full clone is replaced by a shallow, sparse one
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
-    assert sorted(repo_storage.list_folder_dirs(".")) == ["./.git", "./workbench"]
+    assert sorted(
+        os.path.basename(d) for d in repo_storage.list_folder_dirs(".")
+    ) == [".git", "workbench"]
     with get_repo(repo_storage.storage_path) as repo:
         assert repo.git.rev_parse("--is-shallow-repository") == "true"
 

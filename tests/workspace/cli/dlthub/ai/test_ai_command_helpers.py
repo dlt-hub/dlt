@@ -42,7 +42,6 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.formatters import parse_frontmatter
 
-from tests.utils import test_storage  # noqa: F401
 from tests.workspace.cli.dlthub.ai.utils import (
     assert_toolkit_install,
     make_mock_toolkit,
@@ -1040,10 +1039,12 @@ def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str])
         assert not idx["init"].get("workflow_entry_skill")
 
 
-def test_fetch_workbench_base_checks_out_only_the_workbench(test_storage: FileStorage) -> None:
-    test_storage.create_folder(AI_WORKBENCH_BASE_DIR)
-    with patch("dlt.common.libs.git.get_fresh_repo_files", return_value=test_storage) as fetch:
+def test_fetch_workbench_base_checks_out_only_the_workbench() -> None:
+    # use a folder in the auto isolated workspace, `test_storage` would wipe the cwd
+    repo_storage = FileStorage(os.path.abspath("repo"), makedirs=True)
+    repo_storage.create_folder(AI_WORKBENCH_BASE_DIR)
+    with patch("dlt.common.libs.git.get_fresh_repo_files", return_value=repo_storage) as fetch:
         base = fetch_workbench_base("https://github.com/dlt-hub/dlthub-ai-workbench.git", None)
 
     assert fetch.call_args.kwargs["path"] == AI_WORKBENCH_BASE_DIR
-    assert base == Path(test_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
+    assert base == Path(repo_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
