@@ -41,7 +41,7 @@ from dlt._workspace.deployment import (
     humanize_trigger,
     manifest_from_module,
 )
-from dlt._workspace.deployment._job_ref import format_job_label
+from dlt._workspace.deployment._job_ref import format_job_label, short_name
 from dlt._workspace.deployment._trigger_helpers import parse_trigger
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.manifest import expand_triggers
@@ -427,6 +427,49 @@ def fetch_deployment_info() -> TDeploymentManifestInfo:
         counts_by_category=counts,
         jobs=jobs_info,
     )
+
+
+def complete_selector_or_job_ref(
+    prefix: str, *, forbidden_job_type: Optional[str] = None, **_kwargs: Any
+) -> List[str]:
+    """argcomplete completer for a `selector_or_job_ref` positional.
+
+    Reuses the same manifest-discovery mechanism as `dlthub local info` and `dlthub deploy
+    --dry-run --show-manifest`: job refs and their `tag:`/`schedule:` triggers are read from
+    the workspace's deployment manifest, instead of a static list.
+
+    Shared across every command that exposes a `selector_or_job_ref` positional - both the
+    ones defined in this package (`dlthub local run`/`local serve`) and the ones contributed
+    by other plugins (`dlthub run`/`serve`, `dlthub job run`/`job serve`) - so they all offer
+    the exact same completions. Wired up generically in `_dlt.py::_create_parser`, not by
+    each command, since plugin-contributed parsers are out of this package's control.
+
+    `forbidden_job_type` mirrors `_execute_one`'s job-type filter, so `run`-flavored commands
+    don't suggest interactive jobs and `serve`-flavored commands don't suggest batch jobs.
+    """
+    try:
+        manifest, _warnings = manifest_from_module(DEFAULT_DEPLOYMENT_MODULE)
+    except Exception:
+        # not in a workspace, no deployment module, or it failed to import - degrade to no
+        # suggestions rather than failing the whole completion request
+        return []
+
+    candidates = set()
+    for job_def in manifest.get("jobs", []):
+        if forbidden_job_type and job_def["entry_point"]["job_type"] == forbidden_job_type:
+            continue
+        # bare job/function name only (e.g. "abc", not "jobs.__deployment__.abc") - accepted
+        # as-is by `resolve_job_ref` when unambiguous among the workspace's job refs
+        candidates.add(short_name(job_def["job_ref"]))
+        for trig in expand_triggers(job_def):
+            try:
+                trigger_type = parse_trigger(trig).type
+            except InvalidTrigger:
+                continue
+            if trigger_type in ("tag", "schedule"):
+                candidates.add(trig)
+
+    return sorted(value for value in candidates if value.startswith(prefix))
 
 
 def _make_init_entry(path: str, *, accept_existing: bool, force: bool) -> TInitFileEntry:

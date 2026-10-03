@@ -307,7 +307,78 @@ def _create_parser(
 
     add_formatter_class(parser)
 
+    if host == "dlthub":
+        _attach_job_selector_completions(parser)
+
     return parser, pre_parser, installed_commands
+
+
+# Positional argparse `dest`s, across `dlt`-owned and plugin-contributed (`dlthub-client`)
+# commands, that accept a job selector (bare job name, job_ref, tag:/schedule:/... trigger).
+# `selector_or_job_ref` is used by launch commands (`run`/`serve`), which forbid one job type
+# each; `selector_or_job_name` / `selectors` are used by read/manage commands (`job list`,
+# `job info`, `job logs`, `job pause`, `job trigger`, `job runs ...`, ...) that operate on any
+# job type, so no job-type restriction applies to them.
+_JOB_SELECTOR_DESTS = ("selector_or_job_ref", "selector_or_job_name", "selectors")
+
+
+def _attach_job_selector_completions(parser: argparse.ArgumentParser) -> None:
+    """Wires up tab-completion for every job-selector positional in the tree.
+
+    Applied generically, after the whole command tree is composed, so it covers plugin-
+    contributed commands (`dlthub run`/`serve`, `dlthub job ...` from the `dlthub-client`
+    package) the same way as commands defined in this repo (`dlthub local run`/`local
+    serve`) - none of them need to wire completion themselves, they just need to name their
+    selector positional one of `_JOB_SELECTOR_DESTS`.
+
+    For `selector_or_job_ref` positionals only: `run`-flavored commands (prog ending in
+    "run") exclude interactive jobs; `serve`-flavored commands (prog ending in "serve")
+    exclude batch jobs - mirroring each command's actual job-type restriction.
+    """
+    import functools
+
+    from dlt._workspace.cli.dlthub.utils import complete_selector_or_job_ref
+
+    forbidden_job_type_by_verb = {"run": "interactive", "serve": "batch"}
+
+    def walk(p: argparse.ArgumentParser) -> None:
+        forbidden_job_type = forbidden_job_type_by_verb.get(p.prog.rsplit(" ", 1)[-1])
+        for action in p._actions:
+            if isinstance(action, argparse._SubParsersAction):
+                for subparser in action.choices.values():
+                    walk(subparser)
+            elif not action.option_strings and action.dest in _JOB_SELECTOR_DESTS:
+                # only `run`/`serve` launch a job, so only their positional (dest
+                # `selector_or_job_ref`) is restricted by job type
+                type_filter = forbidden_job_type if action.dest == "selector_or_job_ref" else None
+                action.completer = functools.partial(  # type: ignore[attr-defined]
+                    complete_selector_or_job_ref, forbidden_job_type=type_filter
+                )
+
+    walk(parser)
+
+
+def _autocomplete(parser: argparse.ArgumentParser) -> None:
+    """Enables shell tab-completion.
+
+    No-op unless invoked via the shell completion hook (i.e. `_ARGCOMPLETE` is set). Lists
+    positional/dynamic completions (job refs, selectors, ...) before option flags, each group
+    sorted alphabetically - flags are always available and would otherwise crowd out the more
+    relevant, context-specific values (argcomplete's default puts them first).
+    """
+    import argcomplete
+
+    class _GroupedCompletionFinder(argcomplete.CompletionFinder):  # type: ignore[misc]
+        def collect_completions(
+            self, active_parsers: Any, parsed_args: Any, cword_prefix: str
+        ) -> List[str]:
+            completions = super().collect_completions(active_parsers, parsed_args, cword_prefix)
+            prefix_chars = active_parsers[-1].prefix_chars
+            flags = sorted(c for c in completions if c and c[0] in prefix_chars)
+            values = sorted(c for c in completions if not (c and c[0] in prefix_chars))
+            return values + flags
+
+    _GroupedCompletionFinder()(parser)
 
 
 def main(host: str = "dlt") -> int:
@@ -317,6 +388,9 @@ def main(host: str = "dlt") -> int:
     except ValueError as ex:
         fmt.secho(str(ex), err=True, fg="red")
         return -1
+
+    _autocomplete(parser)
+
     # pre-pass extracts global flags at any argv position; main parse uses namespace=ns to keep them
     ns, remaining = pre_parser.parse_known_args(sys.argv[1:])
     try:
