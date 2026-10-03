@@ -2930,7 +2930,7 @@ requires-dist = [
     { name = "tomlkit", specifier = ">=0.11.3" },
     { name = "typing-extensions", specifier = ">=4.8.0" },
     { name = "tzdata", specifier = ">=2022.1" },
-    { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.0.0,<5.0.0" },
+    { name = "weaviate-client", marker = "extra == 'weaviate'", specifier = ">=4.20.0,<5.0.0" },
     { name = "win-precise-time", marker = "python_full_version < '3.13' and os_name == 'nt'", specifier = ">=1.4.2" },
 ]
 provides-extras = ["hub", "gcp", "bigquery", "postgres", "redshift", "parquet", "polars", "duckdb", "ducklake", "filesystem", "s3", "gs", "az", "hf", "sftp", "http", "snowflake", "motherduck", "cli", "athena", "weaviate", "mssql", "synapse", "fabric", "oracle", "qdrant", "databricks", "clickhouse", "dremio", "lancedb", "lance", "deltalake", "sql-database", "sqlalchemy", "pyiceberg", "postgis", "dbml"]
@@ -10795,22 +10795,22 @@ wheels = [
 
 [[package]]
 name = "weaviate-client"
-version = "4.18.3"
+version = "4.23.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "authlib", version = "1.6.12", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "authlib", version = "1.7.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
-    { name = "deprecation" },
     { name = "grpcio" },
     { name = "httpx" },
+    { name = "packaging" },
     { name = "protobuf", version = "4.25.8", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.14'" },
     { name = "protobuf", version = "6.33.6", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.14'" },
     { name = "pydantic" },
     { name = "validators" },
 ]
-sdist = { url = "https://files.pythonhosted.org/packages/a8/76/14e07761c5fb7e8573e3cff562e2d9073c65f266db0e67511403d10435b1/weaviate_client-4.18.3.tar.gz", hash = "sha256:9d889246d62be36641a7f2b8cedf5fb665b804d46f7a53ae37e02d297a11f119", size = 783634, upload-time = "2025-12-03T09:38:28.261Z" }
+sdist = { url = "https://files.pythonhosted.org/packages/fc/19/71453c55e78bd971b7b0ce5c1bc35c85e0daa80dce09102f80cf21044e2e/weaviate_client-4.23.1.tar.gz", hash = "sha256:0c0f249b5a5b813d7e98d9eb33e17a0eb06a3bff047de23a3e41311aa82feb0d", size = 880709, upload-time = "2026-09-07T08:01:25.133Z" }
 wheels = [
-    { url = "https://files.pythonhosted.org/packages/3a/ab/f1c2bef56199505bcd07a6747e7705d84f2d40f20c757237323d13d219d0/weaviate_client-4.18.3-py3-none-any.whl", hash = "sha256:fc6ef510dd7b63ab0b673a35a7de9573abbd0626fc80de54633f0ccfd52772b7", size = 599877, upload-time = "2025-12-03T09:38:26.487Z" },
+    { url = "https://files.pythonhosted.org/packages/a1/4f/d427adf3bcb3c2859bd047e5b7a50b87065d48a0c9260f7dcc47745d1edd/weaviate_client-4.23.1-py3-none-any.whl", hash = "sha256:d1e0c86ff86dfb4c3a483a4f58deec438274acc94f5c77570534c5572e44a53a", size = 660496, upload-time = "2026-09-07T08:01:23.379Z" },
 ]
 
 [[package]]

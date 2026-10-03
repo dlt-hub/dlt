@@ -10,12 +10,13 @@ Stop and clean up:
 docker compose -f tests/load/weaviate/docker-compose.yml down -v --remove-orphans
 ```
 
-This starts Weaviate with the contextionary vectorizer (no external APIs required). Add to `config.toml`:
+This starts Weaviate with no vectorizer module. The tests bring their own vectors, so no
+external API and no inference container are needed. Server-side batching needs Weaviate 1.36
+or newer. Add to `config.toml`:
 ```toml
 [destination.weaviate]
 connection_type = "local"
-vectorizer = "text2vec-contextionary"
-module_config = {text2vec-contextionary = {vectorizeClassName = false, vectorizePropertyName = true}}
+vectorizer = "none"
 ```
 
 For more details, see [Weaviate Local Quickstart](https://weaviate.io/developers/weaviate/quickstart/local).
