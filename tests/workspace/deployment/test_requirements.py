@@ -11,6 +11,8 @@ import pytest
 from packaging.requirements import Requirement
 
 from dlt._workspace.deployment.launchers import (
+    AGENT_LOOP_GROUP_PREFIX,
+    LAUNCHER_AGENT,
     LAUNCHER_DASHBOARD,
     LAUNCHER_JOB,
     LAUNCHER_MARIMO,
@@ -27,6 +29,7 @@ from dlt._workspace.deployment.requirements import (
     REQUIREMENTS_ENGINE_VERSION,
     WorkspaceRequirementsError,
     _BASE_LAUNCHER_SPECS,
+    build_agent_loop_groups,
     build_dashboard_group,
     build_launcher_requirements,
     default_requirements_manifest,
@@ -103,7 +106,11 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
         result = export_workspace_requirements(Path(ctx.run_dir))
 
     groups = result["groups"]
-    user_groups = {k: v for k, v in groups.items() if k != DASHBOARD_JOB_REF}
+    user_groups = {
+        k: v
+        for k, v in groups.items()
+        if k != DASHBOARD_JOB_REF and not k.startswith(AGENT_LOOP_GROUP_PREFIX)
+    }
     assert set(user_groups.keys()) == {"main", "dev", "gpu"}
 
     # every user spec must be pinned, and free of hashes / local paths
@@ -145,7 +152,11 @@ def test_requirements_file_resolved_with_uv(fixture_name: str, required_names: S
     with isolated_workspace(fixture_name) as ctx:
         result = export_workspace_requirements(Path(ctx.run_dir))
 
-    user_group_names = [k for k in result["groups"] if k != DASHBOARD_JOB_REF]
+    user_group_names = [
+        k
+        for k in result["groups"]
+        if k != DASHBOARD_JOB_REF and not k.startswith(AGENT_LOOP_GROUP_PREFIX)
+    ]
     assert user_group_names == [MAIN_GROUP]
     specs = result["groups"][MAIN_GROUP]
     assert specs
@@ -306,6 +317,7 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_MCP,
         LAUNCHER_STREAMLIT,
         LAUNCHER_DASHBOARD,
+        LAUNCHER_AGENT,
     }
     # every launcher gets the base specs
     for specs in lreq.values():
@@ -316,6 +328,8 @@ def test_launcher_requirements_shape() -> None:
     # by export_workspace_requirements / default_requirements_manifest
     assert lreq[LAUNCHER_JOB] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_MODULE] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
+    # loop packages live in agent-loop-* groups, not here
+    assert lreq[LAUNCHER_AGENT] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_MARIMO] == sorted(set(["marimo", "uvicorn"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_MCP] == sorted(set(["fastmcp", "uvicorn"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_STREAMLIT] == sorted(set(["streamlit"] + _BASE_LAUNCHER_SPECS))
@@ -376,10 +390,11 @@ def test_default_requirements_manifest_shape() -> None:
     assert manifest["dlt_version"] == get_pkg_install_spec("dlt")
     assert manifest["dlt_version"]["version"]
     assert manifest["default_groups"] == [MAIN_GROUP]
-    # empty main + dashboard group
+    # empty main + dashboard group + one group per built-in agent loop
     assert manifest["groups"] == {
         MAIN_GROUP: [],
         DASHBOARD_JOB_REF: build_dashboard_group(),
+        **build_agent_loop_groups(),
     }
     # dlt injected into every launcher entry
     dlt_spec = get_dlt_requirement_spec()

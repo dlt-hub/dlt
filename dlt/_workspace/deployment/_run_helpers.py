@@ -5,8 +5,10 @@ import os
 import os.path
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 from uuid import uuid4
+
+from packaging.version import Version
 
 from dlt.common.time import UTC_NAME, ensure_datetime_in_tz, to_tzinfo
 
@@ -55,6 +57,10 @@ from dlt._workspace.deployment.typing import (
     resolve_refresh_propagation,
 )
 from dlt.version import DLT_PKG_NAME
+
+INCREMENTAL_MODE_DLT_VERSION = Version("1.30.1a0")
+"""First dlt whose launcher reads `incremental_mode` and `auto_refresh_pipeline_mode`. The ones
+before know `allow_external_schedulers` alone."""
 
 
 TCandidate = Tuple[TJobDefinition, TTrigger]
@@ -135,7 +141,9 @@ def select_candidates(
     for job_def in manifest["jobs"]:
         job_type = job_def["entry_point"]["job_type"]
         expanded = expand_triggers(job_def)
-        hits = match_triggers_with_selectors(job_type, expanded, selectors)
+        hits = match_triggers_with_selectors(
+            job_type, expanded, selectors, job_ref=job_def["job_ref"]
+        )
         trigger = pick_trigger(hits, job_def.get("default_trigger"))
         if trigger is None:
             continue
@@ -312,7 +320,7 @@ def resolve_interval(
 
 def build_runtime_entry_point(
     job_def: TJobDefinition,
-    cli_config: Dict[str, str],
+    cli_config: Dict[str, Any],
     profile: Optional[str],
     refresh: bool,
     interval_start: Optional[datetime],
@@ -330,14 +338,17 @@ def build_runtime_entry_point(
         interval_start: UTC-serialized start of the interval, or `None` for point-in-time runs.
         interval_end: UTC-serialized end of the interval, or `None`.
         dlt_version: Target dlt install (version + source) the deployment runs on. The entry
-            point is emitted in a shape that dlt version understands; callers pass the value
-            from the requirements manifest, where engine-1 deployments resolve to 1.28.0 via
-            `migrate_requirements`.
+            point is emitted in the shape that dlt version's launcher understands; callers
+            pass the value from the requirements manifest, where engine-1 deployments resolve
+            to 1.28.0 via `migrate_requirements`.
         tz: IANA timezone carried alongside the interval for the launcher to re-apply;
             defaults to the job's `require.timezone` (or UTC).
 
     Returns:
         TRuntimeEntryPoint: The entry point enriched with runtime launch context.
+
+    Raises:
+        InvalidVersion: `dlt_version` names no valid package version.
     """
     entry_point: TRuntimeEntryPoint = copy.copy(job_def["entry_point"])  # type: ignore[assignment]
     entry_point["job_ref"] = job_def["job_ref"]
@@ -362,12 +373,13 @@ def build_runtime_entry_point(
         entry_point["interval_timezone"] = tz
     # unset jobs get neither key so launcher-side `jobs` configuration may apply
     mode = job_def.get("incremental_mode")
-    # dual-written: launchers of older dlt versions only know `allow_external_schedulers`.
-    if mode is not None:
-        entry_point["incremental_mode"] = mode
+    if Version(dlt_version["version"]) >= INCREMENTAL_MODE_DLT_VERSION:
+        if mode is not None:
+            entry_point["incremental_mode"] = mode
+        if job_def.get("auto_refresh_pipeline_mode"):
+            entry_point["auto_refresh_pipeline_mode"] = job_def["auto_refresh_pipeline_mode"]
+    elif mode is not None:
         entry_point["allow_external_schedulers"] = mode == "interval"
-    if job_def.get("auto_refresh_pipeline_mode"):
-        entry_point["auto_refresh_pipeline_mode"] = job_def["auto_refresh_pipeline_mode"]
     if profile:
         entry_point["profile"] = profile
     entry_point["refresh"] = refresh
@@ -394,7 +406,7 @@ def fetch_run_info(
     user_start: Optional[str] = None,
     user_end: Optional[str] = None,
     user_refresh: bool = False,
-    cli_config: Optional[Dict[str, str]] = None,
+    cli_config: Optional[Dict[str, Any]] = None,
     job_ref: Optional[str] = None,
     forbidden_job_type: Optional[str] = None,
     available_selectors: Optional[List[str]] = None,

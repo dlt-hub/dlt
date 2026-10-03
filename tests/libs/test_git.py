@@ -146,6 +146,19 @@ def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> N
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
 
 
+def test_sparse_checkout_reclones_a_full_clone(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path)
+    assert len(repo_storage.list_folder_dirs(".")) > 2
+
+    # a full clone is replaced by a shallow, sparse one
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
+    assert sorted(
+        os.path.basename(d) for d in repo_storage.list_folder_dirs(".")
+    ) == [".git", "workbench"]
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.git.rev_parse("--is-shallow-repository") == "true"
+
+
 def test_fresh_repo_files_branch_change_to_default(test_storage: FileStorage) -> None:
     repo_storage = get_fresh_repo_files(AWESOME_REPO, test_storage.storage_path, branch="gh-pages")
     with get_repo(repo_storage.storage_path) as repo:

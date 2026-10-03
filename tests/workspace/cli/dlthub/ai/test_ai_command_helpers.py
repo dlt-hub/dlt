@@ -10,6 +10,8 @@ import pytest
 import tomlkit
 import yaml
 
+from dlt.common.storages import FileStorage
+
 from dlt._workspace.cli.dlthub.ai.commands import (
     _execute_install,
     _install_dependencies,
@@ -29,9 +31,12 @@ from dlt._workspace.cli.dlthub.ai.agents import (
     _CursorAgent,
 )
 from dlt._workspace.cli.dlthub.ai.utils import (
+    AI_WORKBENCH_BASE_DIR,
     build_toolkits_dependency_map,
+    fetch_workbench_base,
     load_toolkits_index,
     resolve_toolkit_dependencies,
+    fetch_workbench_toolkit_info,
     fetch_workbench_toolkits,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
@@ -51,21 +56,21 @@ from tests.workspace.cli.dlthub.ai.utils import (
     [
         (
             _ClaudeAgent,
-            {"skill", "command", "rule", "ignore"},
+            {"skill", "command", "rule", "agent", "ignore"},
             ".claude/rules/test-toolkit-coding.md",
             lambda c: "alwaysApply" not in c and "# Coding Style" in c,
             ".claudeignore",
         ),
         (
             _CursorAgent,
-            {"skill", "command", "rule", "ignore"},
+            {"skill", "command", "rule", "agent", "ignore"},
             ".cursor/rules/test-toolkit-coding.mdc",
             lambda c: "alwaysApply: true" in c,
             ".cursorignore",
         ),
         (
             _CodexAgent,
-            {"skill", "ignore", "rule"},
+            {"skill", "agent", "ignore", "rule"},
             ".agents/skills/test-toolkit-coding/SKILL.md",
             lambda c: "Coding Style" in c,
             ".codexignore",
@@ -82,6 +87,10 @@ def test_toolkit_install_all_variants(
 ) -> None:
     """Plans and executes a full install for each variant, verifying component types and output."""
     toolkit_dir = make_mock_toolkit()
+    # what a toolkit checkout compiled next to the agent's code
+    compiled = toolkit_dir / "agents" / "find-crash" / "__pycache__"
+    compiled.mkdir(exist_ok=True)
+    (compiled / "crash_helper.cpython-312.pyc").write_bytes(b"\0")
     project_root = Path("project")
     project_root.mkdir()
 
@@ -97,6 +106,16 @@ def test_toolkit_install_all_variants(
     skill_base = variant.component_dir("skill", project_root) / "find-source"
     assert (skill_base / "SKILL.md").exists()
     assert (skill_base / "helper.py").exists()
+
+    # agent dir is copied verbatim, supporting files included
+    agent_base = variant.component_dir("agent", project_root) / "find-crash"
+    assert (agent_base / "AGENT.md").exists()
+    assert (agent_base / "crash_helper.py").exists()
+    assert not (agent_base / "__pycache__").exists()
+    assert "You are a test agent." in (agent_base / "AGENT.md").read_text(encoding="utf-8")
+    # the host's own agents folder is left to its native subagents
+    assert agent_base.parent.parent.name == "dlthub"
+    assert not (agent_base.parents[2] / "agents").exists()
 
     # rule/converted-rule written with correct content
     rule_dest = project_root / rule_path
@@ -188,7 +207,8 @@ def test_toolkit_install_skip_existing() -> None:
     assert skill_action.conflict is True
 
     installed = _execute_install(actions)
-    assert installed == 3
+    # everything but the conflicting skill
+    assert installed == len(actions) - 1
     assert (existing_skill / "SKILL.md").read_text(encoding="utf-8") == "custom content"
 
 
@@ -445,7 +465,8 @@ def test_toolkit_install_overwrite() -> None:
     assert rule_action.conflict is False
 
     installed = _execute_install(actions, overwrite=True)
-    assert installed == 4
+    # overwrite clears the conflict, so every planned action runs
+    assert installed == len(actions)
     new_content = (rule_dest / "test-toolkit-coding.md").read_text(encoding="utf-8")
     assert new_content != "old content"
     assert "Coding Style" in new_content
@@ -867,6 +888,36 @@ def test_toolkit_info(capsys: pytest.CaptureFixture[str]) -> None:
     assert ".claudeignore" in output
 
 
+def test_toolkit_info_lists_agents(capsys: pytest.CaptureFixture[str]) -> None:
+    """ai_toolkit_info_command shows the agents a toolkit carries."""
+    toolkit_dir = make_mock_toolkit()
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=toolkit_dir.parent
+    ):
+        ai_toolkit_info_command(name="test-toolkit", location="mock://repo", branch=None)
+    output = capsys.readouterr().out
+    assert "Agents:" in output
+    assert "find-crash" in output
+    assert "Test agent used by the toolkit install tests." in output
+
+
+def test_toolkit_info_names_skills_and_agents_by_folder() -> None:
+    """A SKILL.md or AGENT.md without `name` takes its folder name, not the file stem."""
+    toolkit_dir = make_mock_toolkit()
+    for folder, md in (("skills/quiet-skill", "SKILL.md"), ("agents/quiet-agent", "AGENT.md")):
+        (toolkit_dir / folder).mkdir()
+        (toolkit_dir / folder / md).write_text(
+            "---\ndescription: No name.\n---\n", encoding="utf-8"
+        )
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.utils.fetch_workbench_base", return_value=toolkit_dir.parent
+    ):
+        info = fetch_workbench_toolkit_info("test-toolkit", "mock://repo", None)
+    assert info is not None
+    assert [s["name"] for s in info["skills"]] == ["find-source", "quiet-skill"]
+    assert [a["name"] for a in info["agents"]] == ["find-crash", "quiet-agent"]
+
+
 def test_toolkit_info_not_found(capsys: pytest.CaptureFixture[str]) -> None:
     """ai_toolkit_info_command warns on missing toolkit."""
     base = make_mock_workbench()
@@ -986,3 +1037,14 @@ def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str])
         assert "rest-api-pipeline" in idx
         assert idx["rest-api-pipeline"]["workflow_entry_skill"] == "find-source"
         assert not idx["init"].get("workflow_entry_skill")
+
+
+def test_fetch_workbench_base_checks_out_only_the_workbench() -> None:
+    # use a folder in the auto isolated workspace, `test_storage` would wipe the cwd
+    repo_storage = FileStorage(os.path.abspath("repo"), makedirs=True)
+    repo_storage.create_folder(AI_WORKBENCH_BASE_DIR)
+    with patch("dlt.common.libs.git.get_fresh_repo_files", return_value=repo_storage) as fetch:
+        base = fetch_workbench_base("https://github.com/dlt-hub/dlthub-ai-workbench.git", None)
+
+    assert fetch.call_args.kwargs["path"] == AI_WORKBENCH_BASE_DIR
+    assert base == Path(repo_storage.make_full_path(AI_WORKBENCH_BASE_DIR))

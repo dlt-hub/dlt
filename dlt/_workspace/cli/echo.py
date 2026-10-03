@@ -1,10 +1,13 @@
 """CLI prompting and output helpers."""
 
 import io
+import os
 import sys
 import contextlib
 from typing import Any, Dict, Iterable, Iterator, Optional, Tuple, ContextManager
 import click
+
+from dlt.common import known_env
 
 
 ALWAYS_CHOOSE_DEFAULT = False
@@ -164,6 +167,15 @@ def maybe_no_stdin() -> ContextManager[None]:
 echo = click.echo
 secho = click.secho
 style = click.style
+
+
+def color_output() -> Optional[bool]:
+    """Pass as `color=` to `echo`. `None` leaves the terminal check to click."""
+    if os.environ.get(known_env.DLT_ECHO_NO_COLOR):
+        return False
+    if os.environ.get(known_env.DLT_ECHO_FORCE_COLOR):
+        return True
+    return None
 
 
 def bold(msg: str) -> str:

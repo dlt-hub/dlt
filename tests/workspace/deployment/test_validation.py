@@ -12,9 +12,20 @@ import pytest
 
 from dlt._workspace.deployment import interval as interval_mod
 from dlt._workspace.deployment.decorators import job
+from dlt._workspace.deployment.agent.exceptions import AgentComponentNotFound, InvalidAgentSpec
 from dlt._workspace.deployment.exceptions import (
+    DeploymentValidationError,
+    InvalidFreshnessConstraint,
     InvalidJobDefinition,
+    InvalidJobName,
+    InvalidJobRef,
+    InvalidJobSchema,
+    InvalidJobSection,
+    InvalidManifest,
+    InvalidTrigger,
+    JobValidationResult,
     ManifestEngineNoUpgradePath,
+    ManifestValidationResult,
 )
 from dlt._workspace.deployment.manifest import (
     DASHBOARD_JOB_REF,
@@ -33,7 +44,11 @@ from dlt._workspace.deployment.manifest import (
 )
 from dlt._workspace.deployment.typing import (
     MANIFEST_ENGINE_VERSION,
+    TEntryPoint,
+    TExecuteSpec,
     TJobDefinition,
+    TJobRef,
+    TJobsDeploymentManifest,
     TJobType,
     TTrigger,
 )
@@ -628,6 +643,7 @@ def test_load_manifest_migrates_stored_v1() -> None:
         loaded = load_manifest(f)
     assert loaded["engine_version"] == MANIFEST_ENGINE_VERSION
     jobs: Dict[str, Any] = {j["job_ref"]: j for j in loaded["jobs"]}
+    assert {j["engine_version"] for j in jobs.values()} == {MANIFEST_ENGINE_VERSION}
     assert jobs["jobs.events.hourly_events"]["incremental_mode"] == "interval"
     assert jobs["jobs.events.daily_report"]["refresh_propagation"] == "block"
     assert "refresh" not in jobs["jobs.events.daily_report"]
@@ -977,6 +993,118 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
     assert result.errors == []
 
 
+def test_validate_job_definition_checks_the_structure_first() -> None:
+    """With `validate_dict` a malformed definition reports its shape and nothing else."""
+    job = _make_job("jobs.mod.ok", triggers=["schedule:0 8 * * *"])
+    assert validate_job_definition(job, validate_dict=True).errors == []
+
+    # a missing required key would break every later check
+    missing: Any = dict(job)
+    del missing["entry_point"]
+    result = validate_job_definition(missing, validate_dict=True)
+    assert len(result.errors) == 1
+    assert "entry_point" in result.errors[0]
+    with pytest.raises(InvalidJobDefinition) as exc_info:
+        validate_job_definition(missing, validate_dict=True, raise_on_error=True)
+    assert exc_info.value.job_ref == "jobs.mod.ok"
+    assert "entry_point" in str(exc_info.value)
+
+    # a wrong type is a structural error, not a trigger error
+    mistyped: Any = dict(job)
+    mistyped["triggers"] = "schedule:0 8 * * *"
+    result = validate_job_definition(mistyped, validate_dict=True)
+    assert len(result.errors) == 1
+    assert "triggers" in result.errors[0]
+
+
+def test_validate_manifest_raises_on_request() -> None:
+    """`raise_on_error` turns an invalid result into `InvalidManifest`, a valid one comes back."""
+    ok = make_job("jobs.mod.a", triggers=["schedule:0 8 * * *"])
+    result = validate_manifest(make_manifest([ok]), raise_on_error=True)
+    assert result.is_valid
+
+    duplicated = make_manifest([ok, make_job("jobs.mod.a")])
+    assert not validate_manifest(duplicated).is_valid
+    with pytest.raises(InvalidManifest) as exc_info:
+        validate_manifest(duplicated, raise_on_error=True)
+    assert any("duplicate" in e for e in exc_info.value.validation.errors)
+    assert exc_info.value.errors == exc_info.value.validation.errors
+
+    # a structural failure raises too, and the dict error is its cause
+    broken: Any = make_manifest([ok])
+    del broken["jobs"]
+    with pytest.raises(InvalidManifest, match="jobs") as exc_info:
+        validate_manifest(broken, raise_on_error=True)
+    assert exc_info.value.__cause__ is not None
+
+
+@pytest.mark.parametrize(
+    "exc,subject",
+    [
+        pytest.param(
+            InvalidManifest(
+                ManifestValidationResult(
+                    is_valid=False, errors=["duplicate a"], warnings=["w"], unresolved_triggers={}
+                )
+            ),
+            None,
+            id="InvalidManifest",
+        ),
+        pytest.param(
+            InvalidJobDefinition("jobs.mod.a", JobValidationResult(["bad trigger"], ["w"])),
+            "jobs.mod.a",
+            id="InvalidJobDefinition",
+        ),
+        pytest.param(InvalidJobSchema("mod.f", "no signature"), "mod.f", id="InvalidJobSchema"),
+        pytest.param(InvalidJobRef("x", "must start with 'jobs.'"), "x", id="InvalidJobRef"),
+        pytest.param(InvalidJobName("1bad"), "1bad", id="InvalidJobName"),
+        pytest.param(InvalidJobSection("1bad"), "1bad", id="InvalidJobSection"),
+        pytest.param(
+            InvalidTrigger("every:5x", "period must be like '5m'"), "every:5x", id="InvalidTrigger"
+        ),
+        pytest.param(
+            InvalidFreshnessConstraint("odd", "not a constraint"),
+            "odd",
+            id="InvalidFreshnessConstraint",
+        ),
+        pytest.param(
+            ManifestEngineNoUpgradePath("manifest", 99, 2),
+            "manifest",
+            id="ManifestEngineNoUpgradePath",
+        ),
+        pytest.param(
+            InvalidAgentSpec("AGENT.md", "body is empty"), "AGENT.md", id="InvalidAgentSpec"
+        ),
+        pytest.param(
+            AgentComponentNotFound(
+                "tk:skill", "skill", ["a/SKILL.md"], toolkit="tk", installed=True
+            ),
+            "tk:skill",
+            id="AgentComponentNotFound",
+        ),
+    ],
+)
+def test_validation_errors_share_one_contract(
+    exc: DeploymentValidationError, subject: Optional[str]
+) -> None:
+    """Every validation error reports through `errors`, `warnings` and `subject`."""
+    assert isinstance(exc, DeploymentValidationError)
+    assert isinstance(exc, ValueError)
+    assert exc.errors and all(isinstance(e, str) for e in exc.errors)
+    assert isinstance(exc.warnings, list)
+    assert exc.subject == subject
+    # the message carries every error, so `str()` alone still tells what was wrong
+    assert all(e in str(exc) for e in exc.errors)
+
+    # only the message crosses the worker boundary
+    rebuilt = type(exc).from_message(str(exc))
+    assert type(rebuilt) is type(exc)
+    assert str(rebuilt) == str(exc)
+    assert rebuilt.errors == [str(exc)] and rebuilt.warnings == [] and rebuilt.subject is None
+    if isinstance(rebuilt, InvalidManifest):
+        assert rebuilt.validation.errors == [str(exc)]
+
+
 @pytest.mark.parametrize(
     "triggers,expected",
     [
@@ -997,13 +1125,23 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
         ),
         # no schedule/every — first eligible trigger wins
         (
-            ["job.success:jobs.mod.up", "manual:jobs.mod.a"],
-            "job.success:jobs.mod.up",
+            ["http:8000", "manual:jobs.mod.a"],
+            "http:8000",
         ),
         # manual/deployment skipped, next eligible wins
         (
             ["manual:jobs.mod.a", "deployment:prod", "tag:daily"],
             "tag:daily",
+        ),
+        # a job event names the run that fired it, so it never stands in for a manual run
+        (
+            ["job.success:jobs.mod.up", "job.fail:jobs.mod.up", "manual:jobs.mod.a"],
+            None,
+        ),
+        # ... but a schedule alongside it still wins
+        (
+            ["job.fail:jobs.mod.up", "schedule:0 0 * * *"],
+            "schedule:0 0 * * *",
         ),
         # no triggers — None
         ([], None),
@@ -1020,6 +1158,8 @@ def test_validate_job_definition_no_raise_on_valid() -> None:
         "schedule-over-every",
         "first-eligible-fallback",
         "skip-manual-and-deployment",
+        "job-events-only",
+        "job-event-with-schedule",
         "empty-triggers",
         "manual-only",
         "deployment-only",
@@ -1117,6 +1257,19 @@ def test_migrate_job_definition_field_mapping(
         assert migrated[key] == value  # type: ignore[literal-required]
     assert "allow_external_schedulers" not in migrated
     assert "refresh" not in migrated
+    # the definition says which engine wrote it, for a copy kept away from the manifest
+    assert migrated["engine_version"] == MANIFEST_ENGINE_VERSION
+
+
+def test_validate_manifest_rejects_a_job_from_another_engine() -> None:
+    job = _make_job("jobs.mod.a")
+    job["engine_version"] = MANIFEST_ENGINE_VERSION - 1
+    result = validate_manifest(_make_manifest([job]))
+    assert not result.is_valid
+    assert "written for engine" in result.errors[0]
+    # migrating the job alone stamps the manifest's engine on it
+    migrated = migrate_job_definition(dict(job), MANIFEST_ENGINE_VERSION, MANIFEST_ENGINE_VERSION)
+    assert validate_manifest(_make_manifest([migrated])).is_valid
 
 
 def test_validate_manifest_rejects_unmigrated_engine_1() -> None:
@@ -1171,3 +1324,68 @@ def test_migrated_manifest_round_trips_and_bumps_version() -> None:
     assert stored_hash in reloaded["previous_hashes"]
     # a migrated manifest is stable from then on
     assert generate_manifest_hash(reloaded) == generate_manifest_hash(migrated)
+
+
+def _event_job(job_ref: str, triggers: List[str]) -> TJobDefinition:
+    return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
+        "job_ref": TJobRef(job_ref),
+        "entry_point": TEntryPoint(
+            module="m",
+            function=job_ref.rsplit(".", 1)[-1],
+            job_type="batch",
+            launcher="l",
+        ),
+        "triggers": [TTrigger(t) for t in triggers],
+        "execute": TExecuteSpec(),
+    }
+
+
+def _manifest(jobs: List[TJobDefinition]) -> TJobsDeploymentManifest:
+    return {
+        "engine_version": MANIFEST_ENGINE_VERSION,
+        "created_at": "2026-01-01T00:00:00+00:00",
+        "deployment_module": "m",
+        "jobs": jobs,
+    }
+
+
+@pytest.mark.parametrize("event", ["job.success", "job.fail"], ids=["success", "fail"])
+def test_job_cannot_trigger_itself(event: str) -> None:
+    result = validate_manifest(_manifest([_event_job("jobs.ops.a", [f"{event}:jobs.ops.a"])]))
+    assert not result.is_valid
+    assert len(result.errors) == 1
+    assert "trigger itself" in result.errors[0]
+
+
+@pytest.mark.parametrize(
+    "jobs",
+    [
+        [
+            ("jobs.o.ingest", ["schedule:0 8 * * *"]),
+            ("jobs.o.transform", ["job.success:jobs.o.ingest"]),
+            ("jobs.o.report", ["job.success:jobs.o.transform"]),
+        ],
+        [
+            ("jobs.o.a", []),
+            ("jobs.o.b", ["job.success:jobs.o.a"]),
+            ("jobs.o.c", ["job.success:jobs.o.a"]),
+            ("jobs.o.d", ["job.success:jobs.o.b", "job.success:jobs.o.c"]),
+        ],
+    ],
+    ids=["chain", "diamond"],
+)
+def test_job_event_chains_stay_valid(jobs: List[Any]) -> None:
+    """Chains and diamonds of job events are normal, and are never inspected for cycles."""
+    result = validate_manifest(_manifest([_event_job(ref, t) for ref, t in jobs]))
+    assert result.is_valid, result.errors
+
+
+def test_cycles_between_jobs_are_allowed() -> None:
+    """Only self-triggering is rejected; jobs may trigger each other in a cycle."""
+    jobs = [
+        _event_job("jobs.o.b", ["job.fail:jobs.o.c"]),
+        _event_job("jobs.o.c", ["job.fail:jobs.o.b"]),
+    ]
+    result = validate_manifest(_manifest(jobs))
+    assert result.is_valid, result.errors

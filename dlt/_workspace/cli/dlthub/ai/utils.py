@@ -388,7 +388,9 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
 
     branch = branch or DEFAULT_AI_WORKBENCH_BRANCH
     with _workbench_lock:
-        src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
+        src_storage = git.get_fresh_repo_files(
+            location, get_dlt_repos_dir(), branch=branch, path=AI_WORKBENCH_BASE_DIR
+        )
     if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
         raise FileNotFoundError(
             "Workbench directory '%s' not found in repo %s" % (AI_WORKBENCH_BASE_DIR, location)
@@ -476,7 +478,7 @@ def fetch_workbench_toolkit_info(
         branch: Git branch to fetch. Uses default workbench branch when None.
 
     Returns:
-        Toolkit info with skills, commands, and rules, or None if not found.
+        Toolkit info with skills, commands, rules, and agents, or None if not found.
     """
     base = fetch_workbench_base(location, branch)
     toolkit_dir = base / name
@@ -486,10 +488,15 @@ def fetch_workbench_toolkit_info(
 
     tk_meta = extract_toolkit_info(meta, name)
 
-    def _components(md_files: List[Path]) -> List[TWorkbenchComponentInfo]:
+    def _components(
+        md_files: List[Path], folder_named: bool = False
+    ) -> List[TWorkbenchComponentInfo]:
+        # a skill or an agent is its folder, so a missing `name` falls back to the folder name
         return [
             TWorkbenchComponentInfo(name=n, description=d)
-            for n, d in (read_md_name_desc(f) for f in md_files)
+            for n, d in (
+                read_md_name_desc(f, f.parent.name if folder_named else None) for f in md_files
+            )
         ]
 
     skills: List[TWorkbenchComponentInfo] = []
@@ -500,7 +507,8 @@ def fetch_workbench_toolkit_info(
                 p / "SKILL.md"
                 for p in sorted(skills_dir.iterdir())
                 if p.is_dir() and (p / "SKILL.md").exists()
-            ]
+            ],
+            folder_named=True,
         )
 
     commands: List[TWorkbenchComponentInfo] = []
@@ -513,6 +521,18 @@ def fetch_workbench_toolkit_info(
     if rules_dir.is_dir():
         rules = _components(sorted(rules_dir.glob("*.md")))
 
+    agents: List[TWorkbenchComponentInfo] = []
+    agents_dir = toolkit_dir / "agents"
+    if agents_dir.is_dir():
+        agents = _components(
+            [
+                p / "AGENT.md"
+                for p in sorted(agents_dir.iterdir())
+                if p.is_dir() and (p / "AGENT.md").exists()
+            ],
+            folder_named=True,
+        )
+
     servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
 
     info = TWorkbenchToolkitInfo(
@@ -520,6 +540,7 @@ def fetch_workbench_toolkit_info(
         skills=skills,
         commands=commands,
         rules=rules,
+        agents=agents,
         has_ignore=(toolkit_dir / ".claudeignore").is_file(),
     )
     if servers:

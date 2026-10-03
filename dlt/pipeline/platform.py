@@ -1,5 +1,5 @@
-"""Implements SupportsTracking"""
-from typing import Any, cast, List, TYPE_CHECKING
+"""dlthub beacon client. Also implements SupportsTracking for pipeline traces."""
+from typing import Any, cast, List, Optional, TYPE_CHECKING
 
 from dlt.common import logger
 from dlt.common.json import json
@@ -14,8 +14,10 @@ if TYPE_CHECKING:
     from requests import Session
 
 _THREAD_POOL: ManagedThreadPool = None
-TRACE_URL_SUFFIX = "/trace"
-STATE_URL_SUFFIX = "/state"
+TRACE_PAYLOAD_TYPE = "trace"
+STATE_PAYLOAD_TYPE = "state"
+TRACE_URL_SUFFIX = f"/{TRACE_PAYLOAD_TYPE}"
+STATE_URL_SUFFIX = f"/{STATE_PAYLOAD_TYPE}"
 requests: "Session" = None
 
 
@@ -50,35 +52,59 @@ def disable_platform_tracker() -> None:
     _THREAD_POOL = None
 
 
+def send_payload(
+    payload_type: str, payload: Any, dsn: Optional[str] = None, wait: bool = False
+) -> None:
+    """Sends a JSON payload to the dlthub beacon. Does nothing when the beacon is not configured.
+
+    The beacon derives the run identity from the token embedded in the DSN, so `payload` must
+    not carry one.
+
+    Args:
+        payload_type (str): Beacon payload type, appended to the DSN as a path segment.
+        payload (Any): JSON-serializable body.
+        dsn (str): Beacon DSN. Read from the active run context when not given.
+        wait (bool): Block until the request completes. Use when the process is about to exit.
+    """
+    if dsn is None:
+        from dlt.common.runtime.run_context import active
+
+        dsn = active().runtime_config.dlthub_dsn
+    if not dsn or _THREAD_POOL is None:
+        return
+
+    url = f"{dsn}/{payload_type}"
+
+    def _future_send() -> None:
+        try:
+            response = requests.put(url, data=json.dumps(payload))
+            if response.status_code != 200:
+                logger.debug(
+                    f"Failed to send {payload_type} to platform, response code:"
+                    f" {response.status_code}"
+                )
+        except Exception as e:
+            logger.debug(f"Exception while sending {payload_type} to platform: {e}")
+
+    future = _THREAD_POOL.thread_pool.submit(_future_send)
+    if wait:
+        future.result()
+
+
 def _send_trace_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
     """
     Send the full trace after a run operation to the platform
     TODO: Migrate this to open telemetry in the next iteration
     """
-    if not pipeline.run_context.runtime_config.dlthub_dsn:
+    dsn = pipeline.run_context.runtime_config.dlthub_dsn
+    if not dsn:
         return
-
-    def _future_send() -> None:
-        try:
-            trace_dump = json.dumps(trace.asdict())
-            url = pipeline.run_context.runtime_config.dlthub_dsn + TRACE_URL_SUFFIX
-            response = requests.put(url, data=trace_dump)
-            if response.status_code != 200:
-                logger.debug(
-                    f"Failed to send trace to platform, response code: {response.status_code}"
-                )
-        except Exception as e:
-            logger.debug(f"Exception while sending trace to platform: {e}")
-
-    _THREAD_POOL.thread_pool.submit(_future_send)
-
-    # trace_dump = json.dumps(trace.asdict(), pretty=True)
-    # with open(f"trace.json", "w") as f:
-    #     f.write(trace_dump)
+    send_payload(TRACE_PAYLOAD_TYPE, trace.asdict(), dsn=dsn)
 
 
 def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) -> None:
-    if not pipeline.run_context.runtime_config.dlthub_dsn:
+    dsn = pipeline.run_context.runtime_config.dlthub_dsn
+    if not dsn:
         return
 
     # sync only if load step was processed
@@ -104,18 +130,7 @@ def _sync_schemas_to_platform(trace: PipelineTrace, pipeline: SupportsPipeline) 
         schema = pipeline.schemas[schema_name]
         payload["schemas"].append(schema.to_dict())
 
-    def _future_send() -> None:
-        try:
-            url = pipeline.run_context.runtime_config.dlthub_dsn + STATE_URL_SUFFIX
-            response = requests.put(url, data=json.dumps(payload))
-            if response.status_code != 200:
-                logger.debug(
-                    f"Failed to send state to platform, response code: {response.status_code}"
-                )
-        except Exception as e:
-            logger.debug(f"Exception while sending state to platform: {e}")
-
-    _THREAD_POOL.thread_pool.submit(_future_send)
+    send_payload(STATE_PAYLOAD_TYPE, payload, dsn=dsn)
 
 
 def on_start_trace(trace: PipelineTrace, step: TPipelineStep, pipeline: SupportsPipeline) -> None:

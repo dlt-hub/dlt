@@ -59,6 +59,9 @@ PACKAGE_IDS = [
     for destination, version in PACKAGE_PARAMS
 ]
 
+SNOWFLAKE_PKEY_DER_B64 = "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQ=="
+"""Stands in for a base64 DER key: the profile only passes it through, never parses it."""
+
 
 @pytest.fixture(scope="module", params=PACKAGE_PARAMS, ids=PACKAGE_IDS)
 def dbt_package_f(request: Any) -> Iterator[Tuple[str, AnyFun]]:
@@ -95,6 +98,65 @@ def test_default_profile_name() -> None:
     # force them to be present
     bigquery_config.credentials._set_default_credentials({})
     assert _default_profile_name(bigquery_config) == "bigquery_default"
+
+
+def _render_profile(profile_name: str) -> Dict[str, Any]:
+    """One profile of the shipped `profiles.yml`, as dbt renders it against the environment."""
+    import yaml
+    from jinja2 import Environment
+
+    import dlt.helpers.dbt as dbt_helper
+
+    def env_var(name: str, *default: Any) -> Any:
+        # dbt refuses an `env_var` without a default when the variable is unset
+        if default:
+            return os.environ.get(name, default[0])
+        return os.environ[name]
+
+    path = os.path.join(os.path.dirname(dbt_helper.__file__), "profiles.yml")
+    with open(path, "r", encoding="utf-8") as f:
+        # the jinja lives inside quoted scalars, so the file parses as YAML before rendering
+        outputs = yaml.safe_load(f)[profile_name]["outputs"]["analytics"]
+    env = Environment()
+    return {
+        key: (
+            env.from_string(value).render(
+                env_var=env_var, var=lambda name, *default: default[0] if default else name
+            )
+            if isinstance(value, str)
+            else value
+        )
+        for key, value in outputs.items()
+    }
+
+
+@pytest.mark.parametrize("with_password", [True, False], ids=["with-password", "key-only"])
+def test_snowflake_pkey_profile_renders(preserve_environ: Any, with_password: bool) -> None:
+    """A key pair is a whole credential on its own, and dlt exports no password beside it."""
+    from dlt.common.configuration.utils import add_config_to_env
+    from dlt.destinations.impl.snowflake.configuration import (
+        SnowflakeClientConfiguration,
+        SnowflakeCredentials,
+    )
+
+    credentials = SnowflakeCredentials()
+    credentials.host = "acct"
+    credentials.database = "db"
+    credentials.username = "loader"
+    credentials.private_key = SNOWFLAKE_PKEY_DER_B64
+    if with_password:
+        credentials.password = "pwd"
+    credentials.resolve()
+    config = SnowflakeClientConfiguration(credentials=credentials)._bind_dataset_name("ds")
+    assert _default_profile_name(config) == "snowflake_pkey"
+
+    os.environ["DLT__CREDENTIALS__PASSWORD"] = "stale"
+    add_config_to_env(credentials, ("dlt",))
+    assert ("DLT__CREDENTIALS__PASSWORD" in os.environ) is with_password
+
+    output = _render_profile("snowflake_pkey")
+    assert output["private_key"] == SNOWFLAKE_PKEY_DER_B64
+    assert output["password"] == ("pwd" if with_password else "")
 
 
 def test_dbt_configuration() -> None:
