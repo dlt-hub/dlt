@@ -99,6 +99,10 @@ const config = {
           exclude: [
             // '**/_*.{js,jsx,ts,tsx,md,mdx}',
             // '**/_*/**',
+            // the defaults above would also drop the generated `__init__.md` API reference
+            // pages, so only the hand-written partials are excluded; they can still be imported
+            "_*.{md,mdx}",
+            "dlt-ecosystem/**/_*.{md,mdx}",
             "**/*.test.{js,jsx,ts,tsx}",
             "**/__tests__/**",
           ],
@@ -113,6 +117,10 @@ const config = {
         theme: {
           customCss: require.resolve("./src/css/custom.css"),
         },
+        sitemap: {
+          // the search page is not content
+          ignorePatterns: ["/docs/search"],
+        },
       },
     ],
   ],
@@ -125,7 +133,7 @@ const config = {
       {
         siteTitle: "dlt - data load tool",
         siteDescription:
-          "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 8000+ source connectors.",
+          "dlt is an open-source Python library that loads data from various sources into well-structured datasets. Built for LLMs with 11,000+ source connectors.",
         excludeFromMd: ["api_reference/"],
         excludeFromIndex: ["devel/"],
         groupDepth: 2,
@@ -247,8 +255,8 @@ const config = {
             title: "Workspace",
             items: [
               {
-                label: "Scaffoldings",
-                href: "https://dlthub.com/workspace",
+                label: "Context",
+                href: "https://dlthub.com/context",
                 className: "footer-link",
               },
             ],
