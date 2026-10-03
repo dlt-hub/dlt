@@ -21,7 +21,14 @@ def assert_class(
     class_name: str,
     expected_items_count: int = None,
     items: List[Any] = None,
+    vectorized_columns: List[str] = None,
 ) -> None:
+    """Asserts the destination collection matches the dlt schema.
+
+    `vectorized_columns` overrides which columns are expected to be vectorized. Pass it when
+    the collection's vector cannot match the hints, for example after schema evolution added
+    a hinted column to an existing collection.
+    """
     client: WeaviateClient
     with pipeline.destination_client() as client:  # type: ignore[assignment]
         vectorizer_name: str = client._vectorizer_config
@@ -40,8 +47,13 @@ def assert_class(
             prop = properties[column_name]
             if client._is_collection_vectorized(class_name):
                 if "moduleConfig" in prop and vectorizer_name in prop["moduleConfig"]:
+                    expected_vectorized = (
+                        column_name in vectorized_columns
+                        if vectorized_columns is not None
+                        else column.get(VECTORIZE_HINT, False)
+                    )
                     assert prop["moduleConfig"][vectorizer_name]["skip"] == (
-                        not column.get(VECTORIZE_HINT, False)
+                        not expected_vectorized
                     )
             # tokenization
             if TOKENIZATION_HINT in column:
