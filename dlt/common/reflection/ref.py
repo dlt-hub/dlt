@@ -1,5 +1,7 @@
 import builtins
 import importlib.util
+import os
+import sys
 from importlib import import_module
 from types import ModuleType, SimpleNamespace
 from typing import Any, Callable, Literal, NamedTuple, Tuple, Mapping, List, Sequence
@@ -20,6 +22,37 @@ class DummyModule(ModuleType):
             return SimpleNamespace()
 
     __all__: List[Any] = []  # support wildcard imports
+
+
+def import_folder_module(
+    folder: str, module: str, package: str, reload: bool = False
+) -> ModuleType:
+    """Imports `module` from `folder` as `<package>.<module>`, without touching `sys.path`.
+
+    `folder` becomes the package `package`, so relative imports in the module resolve within it.
+    With `reload`, modules already imported under `package` are dropped and the module runs
+    again, else an already imported module is returned.
+    """
+    name = f"{package}.{module}"
+    if reload:
+        for cached in [n for n in sys.modules if n == package or n.startswith(f"{package}.")]:
+            del sys.modules[cached]
+    elif name in sys.modules:
+        return sys.modules[name]
+    if package not in sys.modules:
+        package_module = ModuleType(package)
+        package_module.__path__ = [folder]
+        package_module.__package__ = package
+        sys.modules[package] = package_module
+    spec = importlib.util.spec_from_file_location(name, os.path.join(folder, f"{module}.py"))
+    loaded = importlib.util.module_from_spec(spec)
+    sys.modules[name] = loaded
+    try:
+        spec.loader.exec_module(loaded)
+    except BaseException:
+        del sys.modules[name]
+        raise
+    return loaded
 
 
 def import_module_with_missing(name: str, missing_modules: Tuple[str, ...] = ()) -> ModuleType:
