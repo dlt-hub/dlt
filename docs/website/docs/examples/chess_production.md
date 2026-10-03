@@ -1,6 +1,6 @@
 ---
 title: Run chess pipeline in production
-description: Learn how run chess pipeline in production
+description: Learn how to run chess pipeline in production
 keywords: [incremental loading, example]
 ---
 # Run chess pipeline in production
@@ -57,7 +57,7 @@ def chess(
         yield from _get_data_with_retry(f"titled/{title}")["players"][:max_players]
 
     # this resource takes data from players and returns profiles
-    # it uses `paralellized` flag to enable parallel run in thread pool.
+    # it uses `parallelized` flag to enable parallel run in thread pool.
     @dlt.transformer(data_from=players, write_disposition="replace", parallelized=True)
     def players_profiles(username: Any) -> TDataItems:
         print(
