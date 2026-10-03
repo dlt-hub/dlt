@@ -3054,6 +3054,42 @@ def test_incremental_merge_native_representation():
     assert incremental.lag == 5
 
 
+def test_incremental_merge_native_representation_copies_range_and_on_missing():
+    # regression test for https://github.com/dlt-hub/dlt/issues/4480
+    # `range_start`, `range_end` and `on_cursor_value_missing` were merged correctly
+    # but never copied back onto `self` by `parse_native_representation`
+    incremental = Incremental(cursor_path="updated", range_start="open")  # type: ignore
+
+    native_value = Incremental(  # type: ignore
+        range_start="closed",
+        range_end="closed",
+        on_cursor_value_missing="include",
+    )
+
+    incremental.parse_native_representation(native_value)
+
+    assert incremental.range_start == "closed"
+    assert incremental.range_end == "closed"
+    assert incremental.on_cursor_value_missing == "include"
+
+
+def test_incremental_explicit_override_keeps_boundary_row():
+    # regression test for https://github.com/dlt-hub/dlt/issues/4480
+    # a resource shipping `range_start="open"` overridden with `range_start="closed"`
+    # must keep the boundary row: it was silently dropped during extract
+    @dlt.resource(primary_key="id")
+    def items(
+        updated=dlt.sources.incremental("updated", initial_value=1, range_start="open"),
+    ):
+        yield [{"updated": 1, "id": "a"}, {"updated": 2, "id": "b"}]
+
+    r = items(updated=dlt.sources.incremental(initial_value=1, range_start="closed"))
+    rows = [row["id"] for row in list(r)]
+    assert rows == ["a", "b"]
+    # the override survived the merge on the bound incremental
+    assert r.incremental.incremental.range_start == "closed"
+
+
 def test_with_cursor_copies_with_new_cursor_path() -> None:
     outer = dlt.sources.incremental[int](
         "day",

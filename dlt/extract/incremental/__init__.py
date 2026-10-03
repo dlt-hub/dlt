@@ -513,6 +513,9 @@ class Incremental(
             self.allow_external_schedulers = merged.allow_external_schedulers
             self.row_order = merged.row_order
             self.lag = merged.lag
+            self.range_start = merged.range_start
+            self.range_end = merged.range_end
+            self.on_cursor_value_missing = merged.on_cursor_value_missing
             # also copy the orig class to preserve cursor type
             if constructor := getattr(self, "__orig_class__", None):
                 pass
