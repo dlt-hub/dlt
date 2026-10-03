@@ -130,6 +130,8 @@ class Extractor:
         """Tracks tables that received items"""
         self.tables_with_empty: Set[str] = set()
         """Tracks tables that received empty materialized list"""
+        self._static_resource_counters: Dict[str, str] = {}
+        """Maps resource name to the table name its progress counter was pre-registered on"""
         self.load_id = load_id
         self.item_storage = item_storage
         self._table_contracts: Dict[str, TSchemaContractDict] = {}
@@ -139,6 +141,38 @@ class Extractor:
         self._normalize_table_identifier = lru_cache(maxsize=None)(
             partial(normalize_helpers.normalize_table_identifier, self.schema, self.naming)
         )
+
+    def start_resource(self, resource: DltResource) -> None:
+        """Register the progress counter for a resource before its pipe runs.
+
+        This sets the counter `start_time` up front so the per-resource rate reflects
+        wall-clock time including the wait for the first (possibly only) data item. Without
+        it the counter is created only when the first rows arrive, so a slow or non
+        paginated request reports an astronomical rate over an elapsed time of ~0 (#3518).
+
+        Only resources with a static table name are pre-registered here. Resources with a
+        dynamic table name (`table_name` callable) dispatch rows to tables that depend on
+        individual data items and cannot be keyed up front. Resources that redirect
+        individual items with `dlt.mark.with_table_name` also resolve to their static
+        default name here; the stale pre-registered counter is dropped on first write when
+        rows go to a different table (see `_discard_unused_static_counter`).
+        """
+        if resource.has_dynamic_table_name:
+            return
+        table_name = self._get_static_table_name(resource, None)
+        self._static_resource_counters[resource.name] = table_name
+        self.collector.update(table_name, inc=0)
+
+    def _discard_unused_static_counter(self, resource_name: str, table_name: str) -> None:
+        """Drop a pre-registered static counter if the resource writes elsewhere.
+
+        Keeps the per-resource progress line keyed on the table that actually receives
+        rows and avoids a phantom `name: 0` line for resources that redirect items with
+        `dlt.mark.with_table_name`.
+        """
+        pre_registered = self._static_resource_counters.pop(resource_name, None)
+        if pre_registered is not None and pre_registered != table_name:
+            self.collector.discard(pre_registered)
 
     def write_items(self, resource: DltResource, items: TDataItems, meta: Any) -> None:
         """Write `items` to `resource` optionally computing table schemas and revalidating/filtering data"""
@@ -189,6 +223,7 @@ class Extractor:
         new_rows_count = self.item_storage.write_data_item(
             self.load_id, self.schema.name, table_name, items, columns
         )
+        self._discard_unused_static_counter(resource_name, table_name)
         self.collector.update(table_name, inc=new_rows_count)
         # if there were rows or item was empty arrow table
         if new_rows_count > 0 or self.__class__ is ArrowExtractor:
@@ -211,6 +246,7 @@ class Extractor:
             meta.metrics,
             meta.file_format,
         )
+        self._discard_unused_static_counter(resource_name, table_name)
         self.collector.update(table_name, inc=metrics.items_count)
         self.tables_with_items.add(table_name)
 

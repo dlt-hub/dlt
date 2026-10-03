@@ -174,6 +174,14 @@ class LogCollector(Collector):
             self.messages[counter_key] = message
         self.maybe_log()
 
+    def discard(self, name: str, label: str = None) -> None:
+        """Removes counter `name` (and its info and message) if it exists."""
+        counter_key = f"{name}_{label}" if label else name
+        if counter_key in self.counters:
+            del self.counters[counter_key]
+            del self.counter_info[counter_key]
+            del self.messages[counter_key]
+
     def maybe_log(self) -> None:
         """Check if should report and if so, call self.on_log"""
         current_time = self._clock()
