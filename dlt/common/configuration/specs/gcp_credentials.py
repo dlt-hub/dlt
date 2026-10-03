@@ -388,7 +388,23 @@ class GcpServiceAccountCredentials(
             GcpDefaultCredentials.parse_native_representation(self, native_value)
         except NativeValueError:
             pass
+        else:
+            from google.oauth2.service_account import Credentials as ServiceAccountCredentials
+
+            # other google credentials (ie. external account, compute engine) have no key fields
+            if not isinstance(native_value, ServiceAccountCredentials):
+                return
         GcpServiceAccountCredentialsWithoutDefaults.parse_native_representation(self, native_value)
+
+    def _set_default_credentials(self, credentials: Any) -> None:
+        super()._set_default_credentials(credentials)
+        # user credentials from gcloud keep the email in `account`
+        email = getattr(credentials, "service_account_email", None) or getattr(
+            credentials, "account", None
+        )
+        # compute engine credentials report "default" until refreshed, which is not an identity
+        if not self.client_email and email and email != "default":
+            self.client_email = email
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
         if self.has_default_credentials():
@@ -397,6 +413,11 @@ class GcpServiceAccountCredentials(
             return {"gcs.project-id": self.project_id}
         else:
             return GcpServiceAccountCredentialsWithoutDefaults.to_pyiceberg_fileio_config(self)
+
+    def __str__(self) -> str:
+        if self.has_default_credentials() and not self.client_email:
+            return f"default credentials@{self.project_id}"
+        return super().__str__()
 
 
 @configspec
