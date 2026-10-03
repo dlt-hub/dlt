@@ -4,11 +4,20 @@ from typing import Callable, Dict, List, Optional, Type, Union, Iterable, Any
 
 import dlt
 from dlt.common.configuration.specs import ConnectionStringCredentials
-from dlt.common.schema.typing import TWriteDispositionConfig
+from dlt.common.schema.typing import TSchemaContract, TWriteDispositionConfig
 from dlt.common.libs.sql_alchemy import MetaData, Table, Engine
-
 from dlt.common.typing import TColumnNames
-from dlt.extract import DltResource, Incremental, decorators
+from dlt.extract import DltResource, DltSource, Incremental, decorators
+from dlt.sources.sql_database.config_setup import (
+    merge_table_defaults,
+    split_table_config,
+    validate_config,
+)
+from dlt.sources.sql_database.typing import (
+    SqlDatabaseConfig,
+    SqlTableResource,
+    SqlTableResourceBase,
+)
 
 from .helpers import (
     _execute_table_adapter,
@@ -357,18 +366,210 @@ def sql_table(
     return resource
 
 
+@decorators.source(name="sql_database", section="sql_database")
+def _declarative_sql_database(
+    tables: list[str | SqlTableResource | DltResource] | None = None,
+    credentials: ConnectionStringCredentials | Engine | str = dlt.secrets.value,
+    table_defaults: SqlTableResourceBase | None = None,
+    include_views: bool | None = None,
+    engine_kwargs: dict[str, Any] | None = None,
+    engine_adapter_callback: Callable[[Engine], Engine] | None = None,
+) -> list[DltResource]:
+    """Declarative SQL database source.
+
+    Arguments not passed explicitly are resolved from dlt config providers.
+
+    NOTE. This source factory isn't meant to be used directly. It is used
+    by `sql_database_source()`
+    """
+    return sql_database_resources(
+        SqlDatabaseConfig(
+            tables=tables,
+            credentials=credentials,
+            table_defaults=table_defaults,
+            include_views=include_views,
+            engine_kwargs=engine_kwargs,
+            engine_adapter_callback=engine_adapter_callback,
+        )
+    )
+
+
+def sql_database_source(
+    config: SqlDatabaseConfig,
+    name: str = None,
+    section: str = None,
+    max_table_nesting: int = None,
+    root_key: bool = None,
+    schema: dlt.Schema = None,
+    schema_contract: TSchemaContract = None,
+    parallelized: bool = False,
+) -> DltSource:
+    """Creates a SQL database source from a declarative configuration.
+
+    Tables that are not declared in `config["tables"]` are discovered from the database, like
+    in the imperative `sql_database()` source.
+
+    Compared to `sql_database()`, `sql_database_source()` can be configured more extensively directly
+    from `config.toml` and other config providers.
+
+    Args:
+        config (SqlDatabaseConfig): Configuration of the connection and the loaded tables.
+        name (str, optional): Name of the source.
+        section (str, optional): Section of the configuration file.
+        max_table_nesting (int, optional): Maximum depth of nested table above which
+            the remaining nodes are loaded as structs or JSON.
+        root_key (bool, optional): Enables merging on all resources by propagating
+            root foreign key to child tables. Defaults to False.
+        schema (dlt.Schema, optional): An explicit dlt `Schema` instance to be associated with the
+            source. Not to be confused with the database schema which is set per table or in
+            `config["table_defaults"]`.
+        schema_contract (TSchemaContract, optional): Schema contract settings
+            that will be applied to this source.
+        parallelized (bool, optional): If `True`, resource generators will be extracted in
+            parallel. Defaults to `False` which preserves resource settings.
+
+    Returns:
+        DltSource: A configured dlt source.
+
+    Example:
+
+        ```python
+        db_source = sql_database_source({
+            "credentials": "postgresql://loader@localhost/dvdrental",
+            "table_defaults": {"schema": "public", "reflection_level": "full"},
+            "tables": [
+                "customer",
+                {
+                    "name": "items",
+                    "table": "inventory_items",
+                    "included_columns": ["id", "name", "updated_at"],
+                },
+                {
+                    "name": "orders",
+                    "write_disposition": "merge",
+                    "primary_key": "id",
+                    "incremental": {
+                        "cursor_path": "created_at",
+                        "initial_value": "2024-01-25T00:00:00Z",
+                    },
+                },
+            ],
+        })
+        ```
+
+    """
+
+    validate_config(config)
+    decorated = _declarative_sql_database.clone(
+        name=name,
+        section=section,
+        max_table_nesting=max_table_nesting,
+        root_key=root_key,
+        schema=schema,
+        schema_contract=schema_contract,
+        parallelized=parallelized,
+    )
+    return decorated(**config)
+
+
+def sql_database_resources(config: SqlDatabaseConfig) -> list[DltResource]:
+    """Creates a list of resources from a declarative SQL database configuration.
+
+    Resources may be used to create a custom source or passed to `pipeline.run` directly.
+    `config["credentials"]` is required here: use `sql_database_source` to resolve credentials
+    from dlt config providers.
+
+    Args:
+        config (SqlDatabaseConfig): Configuration of the connection and the loaded tables.
+
+    Returns:
+        list[DltResource]: A resource per table, in the order the tables are declared.
+    """
+    validate_config(config)
+    credentials = config.get("credentials")
+    if credentials is None:
+        raise ValueError(
+            "`credentials` are required in the config passed to `sql_database_resources`. Use"
+            " `sql_database_source` to resolve them from dlt config providers i.e., secrets.toml."
+        )
+
+    # all tables share a single engine
+    engine = engine_from_credentials(
+        credentials, may_dispose_after_use=False, **(config.get("engine_kwargs", {}) or {})
+    )
+    if engine_adapter_callback := config.get("engine_adapter_callback"):
+        engine = engine_adapter_callback(engine)
+
+    table_defaults = config.get("table_defaults") or {}
+    tables = config.get("tables")
+    metadata: MetaData | None = None
+    if tables is None:
+        # if `tables=None`, discover tables in source (matches `sql_database())
+        tables, metadata = _discover_tables(engine, table_defaults, config.get("include_views"))
+
+    resources: list[DltResource] = []
+    for table in tables:
+        if isinstance(table, DltResource):
+            resources.append(table)
+            continue
+
+        table_config = merge_table_defaults(table_defaults, table)
+        table_args, hints, resource_args = split_table_config(table_config)
+        resource = sql_table(credentials=engine, metadata=metadata, **table_args)
+
+        if table_config["name"] != table_config["table"]:
+            resource = resource.with_name(table_config["name"])
+
+        if hints:
+            resource.apply_hints(**hints)
+
+        if (max_table_nesting := resource_args.get("max_table_nesting")) is not None:
+            resource.max_table_nesting = max_table_nesting
+
+        if (selected := resource_args.get("selected")) is not None:
+            resource.selected = selected
+
+        if resource_args.get("parallelized"):
+            resource.parallelize()
+
+        resources.append(resource)
+
+    return resources
+
+
+def _discover_tables(
+    engine: Engine, table_defaults: SqlTableResourceBase, include_views: bool | None
+) -> tuple[list[str | SqlTableResource | DltResource], MetaData]:
+    """Reflects all tables in the database schema of `table_defaults` and returns their names
+    together with the `MetaData` that `sql_table` reuses as a reflection cache.
+    """
+    metadata = MetaData(schema=table_defaults.get("schema"))
+    default_engine_adapter_callback(engine, metadata)
+    metadata.reflect(
+        bind=engine,
+        views=bool(include_views),
+        resolve_fks=bool(table_defaults.get("resolve_foreign_keys")),
+    )
+    return [table.name for table in metadata.tables.values()], metadata
+
+
 __all__ = [
-    "sql_database",
-    "sql_table",
     "BaseTableLoader",
-    "TableLoader",
-    "register_table_loader_backend",
-    "get_table_loader_class",
     "ReflectionLevel",
-    "TTypeAdapter",
-    "engine_from_credentials",
-    "remove_nullability_adapter",
-    "TableBackend",
+    "SqlDatabaseConfig",
+    "SqlTableResource",
+    "SqlTableResourceBase",
     "TQueryAdapter",
     "TTableAdapter",
+    "TTypeAdapter",
+    "TableBackend",
+    "TableLoader",
+    "engine_from_credentials",
+    "get_table_loader_class",
+    "register_table_loader_backend",
+    "remove_nullability_adapter",
+    "sql_database",
+    "sql_database_resources",
+    "sql_database_source",
+    "sql_table",
 ]

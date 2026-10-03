@@ -928,18 +928,24 @@ def test_source_reference_import_core() -> None:
 
     SourceReference.SOURCES.clear()
 
+    count = 0
+    assert len(SourceReference.SOURCES) == count
+
     # auto import by shorthand
     ref = SourceReference.find("rest_api")
     assert isinstance(ref, DltSourceFactoryWrapper)
-    assert len(SourceReference.SOURCES) == 1
+    count += 1
+    assert len(SourceReference.SOURCES) == count
 
     # auto import by extended shorthand
     ref = SourceReference.find("sql_database.sql_table")
-    assert len(SourceReference.SOURCES) == 3
+    count += 3
+    assert len(SourceReference.SOURCES) == count
 
     # auto import by full reference
     ref = SourceReference.find("dlt.sources.filesystem.filesystem")
-    assert len(SourceReference.SOURCES) == 9
+    count += 6
+    assert len(SourceReference.SOURCES) == count
 
 
 def test_source_reference_auto_import() -> None:
