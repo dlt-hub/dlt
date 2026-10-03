@@ -388,7 +388,9 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
 
     branch = branch or DEFAULT_AI_WORKBENCH_BRANCH
     with _workbench_lock:
-        src_storage = git.get_fresh_repo_files(location, get_dlt_repos_dir(), branch=branch)
+        src_storage = git.get_fresh_repo_files(
+            location, get_dlt_repos_dir(), branch=branch, path=AI_WORKBENCH_BASE_DIR
+        )
     if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
         raise FileNotFoundError(
             "Workbench directory '%s' not found in repo %s" % (AI_WORKBENCH_BASE_DIR, location)

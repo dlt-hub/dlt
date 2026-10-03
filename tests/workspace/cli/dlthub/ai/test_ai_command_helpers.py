@@ -10,6 +10,8 @@ import pytest
 import tomlkit
 import yaml
 
+from dlt.common.storages import FileStorage
+
 from dlt._workspace.cli.dlthub.ai.commands import (
     _execute_install,
     _install_dependencies,
@@ -29,7 +31,9 @@ from dlt._workspace.cli.dlthub.ai.agents import (
     _CursorAgent,
 )
 from dlt._workspace.cli.dlthub.ai.utils import (
+    AI_WORKBENCH_BASE_DIR,
     build_toolkits_dependency_map,
+    fetch_workbench_base,
     load_toolkits_index,
     resolve_toolkit_dependencies,
     fetch_workbench_toolkit_info,
@@ -38,6 +42,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 from dlt._workspace.cli.exceptions import CliCommandException
 from dlt._workspace.cli.formatters import parse_frontmatter
 
+from tests.utils import test_storage  # noqa: F401
 from tests.workspace.cli.dlthub.ai.utils import (
     assert_toolkit_install,
     make_mock_toolkit,
@@ -1033,3 +1038,12 @@ def test_install_stores_workflow_entry_skill(capsys: pytest.CaptureFixture[str])
         assert "rest-api-pipeline" in idx
         assert idx["rest-api-pipeline"]["workflow_entry_skill"] == "find-source"
         assert not idx["init"].get("workflow_entry_skill")
+
+
+def test_fetch_workbench_base_checks_out_only_the_workbench(test_storage: FileStorage) -> None:
+    test_storage.create_folder(AI_WORKBENCH_BASE_DIR)
+    with patch("dlt.common.libs.git.get_fresh_repo_files", return_value=test_storage) as fetch:
+        base = fetch_workbench_base("https://github.com/dlt-hub/dlthub-ai-workbench.git", None)
+
+    assert fetch.call_args.kwargs["path"] == AI_WORKBENCH_BASE_DIR
+    assert base == Path(test_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
