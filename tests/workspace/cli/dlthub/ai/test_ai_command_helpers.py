@@ -83,6 +83,10 @@ def test_toolkit_install_all_variants(
 ) -> None:
     """Plans and executes a full install for each variant, verifying component types and output."""
     toolkit_dir = make_mock_toolkit()
+    # what a toolkit checkout compiled next to the agent's code
+    compiled = toolkit_dir / "agents" / "find-crash" / "__pycache__"
+    compiled.mkdir(exist_ok=True)
+    (compiled / "crash_helper.cpython-312.pyc").write_bytes(b"\0")
     project_root = Path("project")
     project_root.mkdir()
 
@@ -103,6 +107,7 @@ def test_toolkit_install_all_variants(
     agent_base = variant.component_dir("agent", project_root) / "find-crash"
     assert (agent_base / "AGENT.md").exists()
     assert (agent_base / "crash_helper.py").exists()
+    assert not (agent_base / "__pycache__").exists()
     assert "You are a test agent." in (agent_base / "AGENT.md").read_text(encoding="utf-8")
     # the host's own agents folder is left to its native subagents
     assert agent_base.parent.parent.name == "dlthub"

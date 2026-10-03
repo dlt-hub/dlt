@@ -300,6 +300,8 @@ def _execute_install(
                 action.content_or_path,
                 action.dest_path,
                 dirs_exist_ok=overwrite,
+                # an agent may ship Python code; what a toolkit checkout compiled is not part of it
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
         else:
             safe_write_text(action.dest_path, action.content_or_path)  # type: ignore[arg-type]
