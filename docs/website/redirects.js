@@ -331,23 +331,24 @@ const REDIRECTS = [
   // the DataTalksClub zoomcamp). Without these they answer 404.
   {
     from: "/docs/general-usage/http/rest-client",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#restclient",
   },
   {
     from: "/docs/general-usage/http/requests",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#requests-wrapper",
   },
   {
     from: "/docs/general-usage/http/overview",
-    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced#restclient",
   },
   {
     from: "/docs/general-usage/dashboard",
     to: "/docs/hub/ingestion/dashboard",
   },
   {
+    // the reference section landing page - the API reference has its own entry below
     from: "/docs/reference",
-    to: "/docs/api_reference/dlt/__init__",
+    to: "/docs/reference/command-line-interface",
   },
   {
     from: "/docs/api_reference",
@@ -395,7 +396,7 @@ const REDIRECTS = [
   },
   {
     from: "/docs/dlt-ecosystem/transformations/dbt/dbt_cloud",
-    to: "/docs/dlt-ecosystem/transformations/dbt",
+    to: "/docs/dlt-ecosystem/transformations/dbt#dbt-cloud",
   },
   {
     from: "/docs/general-usage/dataset-access/",
@@ -420,6 +421,72 @@ const REDIRECTS = [
   {
     from: "/docs/dlt-ecosystem/visualizations/understanding-the-tables",
     to: "/docs/general-usage/destination-tables",
+  },
+  // pages that moved in earlier docs restructures and currently end on the
+  // not-found page (backlink crawl, Sept 2026)
+  {
+    from: "/docs/general-usage",
+    to: "/docs/general-usage/source",
+  },
+  {
+    from: "/docs/general-usage/dataset-access/streamlit",
+    to: "/docs/hub/cookbook/build-streamlit-dashboard",
+  },
+  {
+    from: "/docs/dlt-ecosystem/verified-sources/filesystem/advanced",
+    to: "/docs/dlt-ecosystem/verified-sources/filesystem",
+  },
+  {
+    from: "/docs/running-in-production",
+    to: "/docs/running-in-production/running",
+  },
+  {
+    from: "/docs/hub/features/data-access",
+    to: "/docs/general-usage/dataset-access/dataset",
+  },
+  {
+    from: "/docs/hub/features/quality/tests",
+    to: "/docs/hub/data-quality",
+  },
+  {
+    from: "/docs/hub/features/transformations/setup",
+    to: "/docs/hub/transformations",
+  },
+  {
+    from: "/docs/hub/features/project/overview",
+    to: "/docs/hub/pipeline-operations/overview",
+  },
+  {
+    from: "/docs/hub/features/project/source-configuration",
+    to: "/docs/hub/pipeline-operations/overview",
+  },
+  {
+    from: "/docs/hub/features/project/python-api",
+    to: "/docs/hub/pipeline-operations/overview",
+  },
+  {
+    from: "/docs/hub/getting-started/tutorial",
+    to: "/docs/hub/getting-started/introduction",
+  },
+  {
+    from: "/docs/hub/getting-started/advanced_tutorial",
+    to: "/docs/hub/getting-started/introduction",
+  },
+  {
+    from: "/docs/hub/core-concepts/profiles",
+    to: "/docs/hub/pipeline-operations/profiles",
+  },
+  {
+    from: "/docs/hub/production/pipeline-runner",
+    to: "/docs/hub/pipeline-operations/deployments",
+  },
+  {
+    from: "/docs/hub/production/observability",
+    to: "/docs/hub/pipeline-operations/monitoring",
+  },
+  {
+    from: "/docs/hub/getting-started/playground-workspace",
+    to: "/docs/hub/pipeline-operations/playground-workspace",
   },
 ];
 
