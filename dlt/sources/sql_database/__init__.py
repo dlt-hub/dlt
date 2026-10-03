@@ -34,6 +34,9 @@ from .schema_types import (
     TTypeAdapter,
 )
 
+# imported for the side effect: the module registers `mssql_arrow` on the loader registry
+from .mssql_arrow import MssqlArrowTableLoader
+
 
 @decorators.source
 def sql_database(
