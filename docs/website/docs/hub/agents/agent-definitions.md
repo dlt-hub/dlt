@@ -98,17 +98,17 @@ order and stop at the first that works:
 4. Nothing: return `status: aborted` with a `summary` naming which inputs were empty.
 ```
 
-| Field             | Meaning                                                                                   |
-| ----------------- | ----------------------------------------------------------------------------------------- |
-| `name`            | Folder name. Optional                                                                     |
-| `description`     | What the agent does and when to run it. Shown in the Web UI                               |
-| `tools`           | Feature groups of the dltHub MCP server the agent receives                                |
-| `skills`, `rules` | `<toolkit>:<name>` references to components the agent uses                               |
+| Field             | Meaning                                                                                        |
+| ----------------- | ---------------------------------------------------------------------------------------------- |
+| `name`            | Folder name. Optional                                                                          |
+| `description`     | What the agent does and when to run it. Shown in the Web UI                                    |
+| `tools`           | Feature groups of the dltHub MCP server the agent receives                                     |
+| `skills`, `rules` | `<toolkit>:<name>` references to components the agent uses                                     |
 | `access`          | What the agent asks to read, write, run, or reach, per access axis: `local`, `data`, `context` |
-| `inputs`          | JSON Schema of the inputs. Each input is a job configuration key                          |
-| `output`          | JSON Schema of the output. `status` and `summary` are part of it in every agent definition |
-| `defaults`        | Settings that the agent job and the run can override: `model`, `limits`, `loop_run_args`  |
-| body              | System prompt, a template over `inputs`                                                   |
+| `inputs`          | JSON Schema of the inputs. Each input is a job configuration key                               |
+| `output`          | JSON Schema of the output. `status` and `summary` are part of it in every agent definition     |
+| `defaults`        | Settings that the agent job and the run can override: `model`, `limits`, `loop_run_args`       |
+| body              | System prompt, a template over `inputs`                                                        |
 
 ### Input schema
 
@@ -134,10 +134,10 @@ If the agent can act on a different entity than the one it received, declare the
 
 `output` is a JSON Schema of what the agent returns. Two properties are part of every agent's output and dltHub adds them when the definition leaves them out:
 
-| Property  | Meaning                                                                                                      |
-| --------- | ------------------------------------------------------------------------------------------------------------ |
+| Property  | Meaning                                                                                                           |
+| --------- | ----------------------------------------------------------------------------------------------------------------- |
 | `status`  | `succeeded` or `failed`, as your system prompt defines them, or `aborted` when the agent can't do the task at all |
-| `summary` | Markdown. What the agent accomplished. For `aborted` it becomes the text of the exception that fails the run |
+| `summary` | Markdown. What the agent accomplished. For `aborted` it becomes the text of the exception that fails the run      |
 
 dltHub replaces any declaration of `status` or `summary` that differs from the standard one. Adding a `status` value or typing `summary` as something other than a string has no effect: dltHub uses the standard `status` and `summary` instead. The model receives the whole output schema, every description and enum included. The schema describes the shape of the answer. The body says what each value means and when to pick it.
 
@@ -190,14 +190,14 @@ If your agent reports something else, declare your own headings in the body.
 
 `access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis that you leave out declares no access. With no `access` at all, the agent gets no file tools and no shell. If `tools` starts an MCP server, the server serves only the tools that need no access, such as the toolkit catalog.
 
-| Axis      | Verbs           | Grants                                                                                                                                                       |
-| --------- | --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                |
-|           | `write`         | `Write`, `Edit`                                                                                                                                              |
-|           | `execute`       | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process                                                                 |
-|           | `network`       | `WebFetch`, `WebSearch`                                                                                                                                      |
+| Axis      | Verbs           | Grants                                                                                                                                                                                        |
+| --------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                                                 |
+|           | `write`         | `Write`, `Edit`                                                                                                                                                                               |
+|           | `execute`       | `Bash` (`PowerShell` on Windows) and `RunPython`, in the workspace, in the job's own process                                                                                                  |
+|           | `network`       | `WebFetch`, `WebSearch`                                                                                                                                                                       |
 | `data`    | `read`, `write` | Workspace data through the data tools of the MCP server. The data tools need `read`, and no tool needs `write` yet. The SQL tool runs one read-only statement, whatever verbs `data` declares |
-| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. dlt refuses `write`, `execute`, and `deploy` when it reads the agent definition          |
+| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. dlt refuses `write`, `execute`, and `deploy` when it reads the agent definition                                            |
 
 `all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`) are never readable by a file tool, whatever verbs `local` declares. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request through `RunPython` and `urllib`.
 
@@ -248,10 +248,10 @@ The model also receives the rules, the skills, the output schema, the tools, and
 
 An agent folder can have an `agent.py` next to its `AGENT.md`. dlt imports it when a job that references the agent definition runs, and calls two functions from it when they are defined:
 
-| Function | Called with | Its return value |
-| --- | --- | --- |
-| `validate_input(inputs)` | the inputs of the run as a dict, before the loop starts: each declared input that has a value, the run arguments and the call arguments, and `run_context` with `run_id`, `trigger`, `refresh` and `run_args` | replaces the inputs. Return `None` to keep them unchanged |
-| `validate_output(output)` | the agent output as a dict, after the loop ends: `status`, `summary` and the declared output fields | replaces the output. Return `None` to keep it unchanged |
+| Function                  | Called with                                                                                                                                                                                                   | Its return value                                          |
+| ------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------- |
+| `validate_input(inputs)`  | the inputs of the run as a dict, before the loop starts: each declared input that has a value, the run arguments and the call arguments, and `run_context` with `run_id`, `trigger`, `refresh` and `run_args` | replaces the inputs. Return `None` to keep them unchanged |
+| `validate_output(output)` | the agent output as a dict, after the loop ends: `status`, `summary` and the declared output fields                                                                                                           | replaces the output. Return `None` to keep it unchanged   |
 
 Return the whole dict, not only the keys that you change. The dict that you return replaces the inputs, and `None` keeps them.
 
@@ -349,18 +349,18 @@ async def crash_inspector(
     return report
 ```
 
-| In Python                                                | In the agent definition                                                                                                       |
-| -------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| Function name                                            | `name` of the agent job                                                                                                       |
-| Docstring                                                | System prompt, placeholders included. Its first line is the `description`                                                     |
-| Parameters with a default or `dlt.config.value`          | `inputs`, and so the job's configuration: `-c failed_run_id=...` fills them, typed. A parameter without a default is not an input |
-| `Annotated[str, run.Entity("job-runs")]`                 | Entity-typed input                                                                                                            |
-| `dlt.config.value` default                               | Required input                                                                                                                |
-| `run_context` parameter                                  | Passed by the launcher, not declared as an input                                                                              |
-| Return type deriving from `run.TAgentOutput`             | `output`. `run.Doc(...)` on a field is its description                                                                        |
-| `access=`, `tools=`, `skills=`, `rules=`                 | Matching `AGENT.md` fields                                                                                                    |
-| `model=`, `limits=`, `loop_run_args=`                    | `defaults` in an `AGENT.md`                                                                                                   |
-| `instructions=`, `trigger=`, `loop=`                     | Agent job settings. An `AGENT.md` has no field for them                                                                       |
+| In Python                                       | In the agent definition                                                                                                           |
+| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Function name                                   | `name` of the agent job                                                                                                           |
+| Docstring                                       | System prompt, placeholders included. Its first line is the `description`                                                         |
+| Parameters with a default or `dlt.config.value` | `inputs`, and so the job's configuration: `-c failed_run_id=...` fills them, typed. A parameter without a default is not an input |
+| `Annotated[str, run.Entity("job-runs")]`        | Entity-typed input                                                                                                                |
+| `dlt.config.value` default                      | Required input                                                                                                                    |
+| `run_context` parameter                         | Passed by the launcher, not declared as an input                                                                                  |
+| Return type deriving from `run.TAgentOutput`    | `output`. `run.Doc(...)` on a field is its description                                                                            |
+| `access=`, `tools=`, `skills=`, `rules=`        | Matching `AGENT.md` fields                                                                                                        |
+| `model=`, `limits=`, `loop_run_args=`           | `defaults` in an `AGENT.md`                                                                                                       |
+| `instructions=`, `trigger=`, `loop=`            | Agent job settings. An `AGENT.md` has no field for them                                                                           |
 
 The schemas come from pydantic, so `Optional`, `Literal`, `List`, nested models, and `NotRequired` behave as they do everywhere else. The function can be `def` or `async def`. Most functions return the loop's output as is. The example reads `loop.trace` after the run. A function can also run the loop twice, or not run it.
 

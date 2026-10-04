@@ -55,9 +55,9 @@ The run log streams to your terminal as the agent works: its reasoning, each too
 
 ## Agent inputs
 
-| Input            | Meaning                                                                                   |
-| ---------------- | ----------------------------------------------------------------------------------------- |
-| `failed_run_id`  | Run id of the failed job run to inspect                                                   |
+| Input            | Meaning                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `failed_run_id`  | Run id of the failed job run to inspect                                                    |
 | `failed_job_ref` | Job ref of the failed job. If no run id is given, the agent inspects its latest failed run |
 
 Both inputs are optional. The agent resolves them in this order:
@@ -85,20 +85,20 @@ To find a load with too few rows, add a [data quality](../data-quality/index.md)
 
 ## What it reports
 
-| Field            | Meaning                                                                                                                       |
-| ---------------- | ----------------------------------------------------------------------------------------------------------------------------- |
-| `status`         | `succeeded`, `failed`, or `aborted`                                                                                           |
-| `summary`        | Markdown, in three sections: `Diagnosis`, `Recommendation`, `Confidence`. See [Summary format](#summary-format)               |
-| `failed_run_id`  | The run it inspected, reported as an entity                                                                                   |
-| `failed_job_ref` | The job whose run it inspected, reported as an entity                                                                         |
-| `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown`                                      |
-| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`                                               |
-| `evidence`       | A `source`, an `excerpt`, and a `provenance` per item. The source carries the line the excerpt sits on                        |
-| `proposed_fix`   | What a person should do next, naming the target and the change. The agent never applies it                                    |
-| `fix_target`     | The one thing the fix changes: a file path, a config key, a table or resource name, a secret name, or a job ref               |
+| Field            | Meaning                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status`         | `succeeded`, `failed`, or `aborted`                                                                                                        |
+| `summary`        | Markdown, in three sections: `Diagnosis`, `Recommendation`, `Confidence`. See [Summary format](#summary-format)                            |
+| `failed_run_id`  | The run it inspected, reported as an entity                                                                                                |
+| `failed_job_ref` | The job whose run it inspected, reported as an entity                                                                                      |
+| `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown`                                                   |
+| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`                                                            |
+| `evidence`       | A `source`, an `excerpt`, and a `provenance` per item. The source carries the line the excerpt sits on                                     |
+| `proposed_fix`   | What a person should do next, naming the target and the change. The agent never applies it                                                 |
+| `fix_target`     | The one thing the fix changes: a file path, a config key, a table or resource name, a secret name, or a job ref                            |
 | `fix_change`     | The exact value or code change to apply to `fix_target`, such as `cursor_path="ordered_at"`. Empty when the evidence does not establish it |
-| `open_points`    | What the agent couldn't verify, one entry each: a tool that failed, a file it didn't find, a value it inferred                |
-| `requires_human` | Whether the fix needs a person to act                                                                                         |
+| `open_points`    | What the agent couldn't verify, one entry each: a tool that failed, a file it didn't find, a value it inferred                             |
+| `requires_human` | Whether the fix needs a person to act                                                                                                      |
 
 `provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `repository_comment`, `job_description`, or `inference`. The first six values are facts. The last three values are claims. `confidence: high` needs at least one fact.
 
@@ -120,9 +120,9 @@ A person can paste the whole summary into a coding agent. For this reason, each 
 
 The agent definition declares these defaults. The agent job overrides them. Configuration overrides them for one agent run.
 
-| Setting         | Default                                                                                                                                                                                     |
-| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                                                                                                                      |
+| Setting         | Default                                                                                                                                                                                                         |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                                                                                                                                          |
 | `loop_run_args` | `retries: 2`. pydantic-ai lets the model call a failing tool again two times. After this, the tool call fails, the model sees the failed call, and the agent run continues. `claude-agent-sdk` ignores this key |
 
 The agent definition declares no trigger. An agent job without `trigger=` runs only when you start it. To inspect every failed job in the workspace, declare `trigger="job.fail:*"`, and read the warning below first.
