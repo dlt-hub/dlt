@@ -998,6 +998,7 @@ adbc = [
 ]
 agent = [
     { name = "aiohttp", specifier = ">=3.14.3" },
+    { name = "pathspec", specifier = ">=0.11.2" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google", "mcp", "spec"], specifier = ">=2.35.0" },
 ]
 agent-claude = [{ name = "claude-agent-sdk", specifier = ">=0.2.144" }]

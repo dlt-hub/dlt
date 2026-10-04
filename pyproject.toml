@@ -232,6 +232,7 @@ dlthub = "dlt._workspace.cli._dlt:_main_dlthub"
 agent = [
     "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0",
     "aiohttp>=3.14.3",
+    "pathspec>=0.11.2",
 ]
 agent-claude = [
     "claude-agent-sdk>=0.2.144",
