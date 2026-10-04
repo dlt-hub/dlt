@@ -126,15 +126,19 @@ The section is the filename. The pipeline name, `"github"` here, never appears i
 
 A selector matches a set of jobs at once. It takes the same forms `dlthub job trigger` takes:
 
-| Selector                            | Matches                                            |
-| ----------------------------------- | -------------------------------------------------- |
-| `jobs.github_pipeline.load_commits` | That one job                                       |
-| `jobs.github_pipeline.*`            | Every job declared in `github_pipeline.py`         |
-| `tag:ingest`                        | Every job tagged `ingest`, wherever it is declared |
-| `batch:`                            | Every batch job                                    |
-| `*`                                 | Every job in the workspace                         |
+| Selector                            | Matches                                               |
+| ----------------------------------- | ----------------------------------------------------- |
+| `jobs.github_pipeline.load_commits` | That one job                                          |
+| `jobs.github_pipeline.*`            | Every job declared in `github_pipeline.py`            |
+| `tag:ingest`                        | Every job tagged `ingest`, wherever it is declared    |
+| `pipeline_name:*`                   | Every job declared with `@run.pipeline`               |
+| `pipeline_name:github`              | Every `@run.pipeline` job that runs pipeline `github` |
+| `batch:`                            | Every batch job                                       |
+| `*`                                 | Every job in the workspace                            |
 
-So `trigger="job.fail:tag:ingest"` starts the agent job whenever a job tagged `ingest` fails, and `trigger="job.success:jobs.github_pipeline.load_commits"` starts it when `load_commits` succeeds.
+So `trigger="job.fail:tag:ingest"` starts the agent job whenever a job tagged `ingest` fails, `trigger="job.fail:pipeline_name:*"` starts it whenever any pipeline job fails, and `trigger="job.success:jobs.github_pipeline.load_commits"` starts it when `load_commits` succeeds.
+
+`pipeline_name:*` is a safe way to watch every pipeline in the workspace: unlike `*` it never matches an agent job, because only `@run.pipeline` declares a pipeline.
 
 A selector expands at deploy time to a follow-up trigger per matching job. The declaring job itself and interactive jobs are excluded. A manual run arrives with a `manual:` trigger and only the inputs that it was given. As a result, the system prompt must say what to do when an input is empty.
 
@@ -253,7 +257,7 @@ dlthub deploy
 A selector trigger expands at deploy time, so a `job.fail:` agent job starts watching the jobs it matches as soon as the deployment lands. See [Deployments](../pipeline-operations/deployments.md).
 
 :::warning
-Check what a wide selector matched before you deploy a second agent job. `job.fail:*` and `job.fail:batch:` match every batch job in the workspace, agent jobs included. Don't let two agent jobs watch `job.fail:*`. A failed run of one starts the other, and the two jobs start each other until you archive one. The declaring job is excluded, so an agent job doesn't start on its own failure. Scope each agent job with a tag or a section selector, such as `job.fail:tag:ingest`. `dlthub deploy --show-manifest` prints the concrete triggers a selector expanded to. Excluding agent jobs from wide selectors is planned.
+Check what a wide selector matched before you deploy a second agent job. `job.fail:*` and `job.fail:batch:` match every batch job in the workspace, agent jobs included. Don't let two agent jobs watch `job.fail:*`. A failed run of one starts the other, and the two jobs start each other until you archive one. The declaring job is excluded, so an agent job doesn't start on its own failure. Scope each agent job with a tag, a section or a pipeline selector, such as `job.fail:tag:ingest` or `job.fail:pipeline_name:*`. `dlthub deploy --show-manifest` prints the concrete triggers a selector expanded to. Excluding agent jobs from wide selectors is planned.
 :::
 
 ## Read the agent run result

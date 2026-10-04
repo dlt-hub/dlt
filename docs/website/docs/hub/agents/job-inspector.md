@@ -11,7 +11,7 @@ This feature is in private preview
 
 `job-inspector` is an agent definition that the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit ships. An agent job made from it diagnoses failed job runs. The agent reads the run record, the logs, and the job definition. It follows the traceback into the workspace source. It follows a missing input back to the job that produces it. It reports a classification of the failure, the evidence, and a fix that names the target and the change. The agent inspects any batch job, and it doesn't change code or data.
 
-Set the trigger of the agent job to the jobs that it must watch. A `job.fail:` trigger selects one job, the jobs in a section, the jobs that have a tag, or all jobs. One agent job inspects every failed job run that its trigger selects. Without `trigger=`, the agent job runs only when you start it. See [Triggers for agents](index.md#triggers-for-agents).
+Set the trigger of the agent job to the jobs that it must watch. A `job.fail:` trigger selects one job, the jobs in a section, the jobs that have a tag, the pipeline jobs, or all jobs. One agent job inspects every failed job run that its trigger selects. Without `trigger=`, the agent job runs only when you start it. See [Triggers for agents](index.md#triggers-for-agents).
 
 You declare an agent job for it, as for any other agent definition. [Background agents](index.md) covers the mechanics this page builds on.
 
@@ -130,7 +130,7 @@ The agent definition declares no trigger. An agent job without `trigger=` runs o
 The agent definition names no model. The model comes from the agent job or from configuration. If neither sets a model, the loop uses `sonnet`. On the platform, the runtime can supply its own model. See [Model and credentials](index.md#model-and-credentials). Give it one at least as capable as Claude Sonnet 5.
 
 :::warning
-Do not give two agent jobs the trigger `job.fail:*`. `job.fail:*` selects every batch job in the workspace, agent jobs included. It never selects the job that declares it, so the inspector never triggers on its own failures. But a failed run of agent job A starts agent job B, and a failed run of B starts A. The loop does not stop. An agent run that ends `aborted` also counts as a failed job run. To limit the inspector to the jobs that it must watch, use a tag or section selector such as `job.fail:tag:ingest`. Excluding agent jobs from wide selectors is planned.
+Do not give two agent jobs the trigger `job.fail:*`. `job.fail:*` selects every batch job in the workspace, agent jobs included. It never selects the job that declares it, so the inspector never triggers on its own failures. But a failed run of agent job A starts agent job B, and a failed run of B starts A. The loop does not stop. An agent run that ends `aborted` also counts as a failed job run. To limit the inspector to the jobs that it must watch, use a tag or section selector such as `job.fail:tag:ingest`, or `job.fail:pipeline_name:*` to watch every job declared with `@run.pipeline`. Excluding agent jobs from wide selectors is planned.
 :::
 
 Narrow the trigger and change the settings on the agent job:
