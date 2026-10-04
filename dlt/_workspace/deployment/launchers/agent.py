@@ -91,6 +91,7 @@ def build_agent_loop(job: AgentJobFactory[Any, Any], workspace_root: str) -> Age
         "limits": job.limits,
         "loop_run_args": job.loop_run_args,
         "verbosity": job.verbosity,
+        "emojis": job.emojis,
     }
     settings = resolve_agent_settings(spec, config, decorator_args, loop_cls, workspace_root)
     loop = loop_cls(settings)

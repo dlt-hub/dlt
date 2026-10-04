@@ -69,6 +69,7 @@ class TAgentSettings(TypedDict):
     max_tokens: Optional[int]
     loop_run_args: Dict[str, Any]
     verbosity: int
+    emojis: bool
     api_key: Optional[str]
     api_url: Optional[str]
     api_version: Optional[str]
@@ -147,6 +148,48 @@ class TAgentOutput(TypedDict):
             " exception text, so say what blocked you."
         ),
     ]
+
+
+TAgentEventKind = Literal[
+    "start",
+    "system_prompt",
+    "prompt",
+    "turn",
+    "thinks",
+    "says",
+    "tool_call",
+    "tool_result",
+    "mcp",
+    "finish",
+]
+
+
+class TAgentEvent(TypedDict):
+    """One step of an agent run, as it happens."""
+
+    kind: TAgentEventKind
+    agent: str
+    text: NotRequired[str]
+    """What the agent said, thought, or was asked."""
+    tool: NotRequired[str]
+    server: NotRequired[str]
+    """MCP server the tool belongs to."""
+    detail: NotRequired[Any]
+    """Tool arguments on a call, the returned value on a result."""
+    error: NotRequired[bool]
+    """The tool failed."""
+    turn: NotRequired[int]
+    input_tokens: NotRequired[int]
+    output_tokens: NotRequired[int]
+    model: NotRequired[str]
+    limits: NotRequired[str]
+    status: NotRequired[str]
+    total_tokens: NotRequired[int]
+    cost_usd: NotRequired[float]
+    tools: NotRequired[List[str]]
+    """Distinct builtin tools the run called, on `finish`."""
+    skills: NotRequired[List[str]]
+    mcp_tools: NotRequired[List[str]]
 
 
 class TAgentJobResult(TJobResult):

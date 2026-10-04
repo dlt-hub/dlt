@@ -7,7 +7,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, cast
 
-import click
 import pytest
 from claude_agent_sdk import ProcessError
 from pydantic_ai import ModelRetry, ToolFailed, capture_run_messages
@@ -201,18 +200,21 @@ def test_settings_precedence_rises_to_config(workspace: Any, loop_cls: Type[Agen
     assert settings["max_turns"] == 30
     assert settings["max_tokens"] == 1000000
     assert settings["verbosity"] == 1
+    assert settings["emojis"] is True
 
     # a decorator argument beats the spec
-    decorator_args = {"model": "opus", "verbosity": 0}
+    decorator_args = {"model": "opus", "verbosity": 0, "emojis": False}
     settings = resolve_agent_settings(spec, _config(), decorator_args, loop_cls, workspace.run_dir)
     assert settings["model"] == "opus"
     assert settings["verbosity"] == 0
+    assert settings["emojis"] is False
 
     # config beats the decorator
-    config = _config(model="haiku", verbosity=2)
+    config = _config(model="haiku", verbosity=2, emojis=True)
     settings = resolve_agent_settings(spec, config, decorator_args, loop_cls, workspace.run_dir)
     assert settings["model"] == "haiku"
     assert settings["verbosity"] == 2
+    assert settings["emojis"] is True
 
     # one limit overridden leaves the other where the spec put it
     settings = resolve_agent_settings(spec, _config(max_turns=3), {}, loop_cls, workspace.run_dir)
@@ -683,16 +685,16 @@ def test_pydantic_loop_reports_what_the_agent_does(
     asyncio.run(_drive())
 
     # the transcript goes to stdout, terminal or not; colors are stripped to match the text
-    out = click.unstyle(capsys.readouterr().out)
+    out = capsys.readouterr().out
     assert "job-inspector" in out and "anthropic:claude-sonnet-5" in out
-    assert "prompt\n  inspect the failed run" in out
-    assert "thinks  weighing the options" in out
-    assert "says\n  here is the answer" in out
-    assert 'list_runs (dlt-workspace-mcp)  {"n":3}' in out
+    assert "📝 prompt\n  inspect the failed run" in out
+    assert "💭 thinks  weighing the options" in out
+    assert "💬\n  here is the answer" in out
+    assert '🌐 list_runs (dlt-workspace-mcp)  {"n":3}' in out
     # the result lives on the part; reporting `event.content` showed nothing
-    assert "→ r-1 failed" in out
+    assert "✅ r-1 failed" in out
     # the answer is the agent speaking, not a tool call to an MCP server it never made
-    assert "says\n  r-1 ran out of memory" in out
+    assert "💬\n  r-1 ran out of memory" in out
     assert "final_result" not in out
 
 
@@ -730,11 +732,11 @@ def test_system_prompt_is_shown_in_full_at_the_top_verbosity(
 
     loop.settings["verbosity"] = 1
     loop.render_system_prompt({})
-    assert "system prompt" not in click.unstyle(capsys.readouterr().out)
+    assert "system prompt" not in capsys.readouterr().out
 
     loop.settings["verbosity"] = 2
     loop.render_system_prompt({})
-    out = click.unstyle(capsys.readouterr().out)
+    out = capsys.readouterr().out
     assert "system prompt\n  RULE RULE" in out
     assert out.count("RULE") == 400
 

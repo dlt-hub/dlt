@@ -83,6 +83,7 @@ Don't give the production profile to an agent job. An agent job takes the read-o
 | `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                                                                         |
 | `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. On `pydantic-ai`, `retries` sets how often the model retries a failing tool call, 0 by default. After that, the call fails and the run continues |
 | `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt                                                            |
+| `emojis`                                          | Marks tool calls, results and the outcome in the printed run with emojis. `true` by default, `false` prints plain words                                                                                                    |
 | `inputs_validator`                                | Called with the resolved inputs, `run_context` included, before the run. Its return value replaces the inputs and `None` keeps them. Use it to derive an input such as a run id from a job ref                             |
 | `outputs_validator`                               | Called with the agent output after the run. Its return value replaces the output and `None` keeps it                                                                                                                       |
 | `name`, `section`                                 | Job name and configuration section, as on every job                                                                                                                                                                        |
@@ -178,10 +179,10 @@ dlthub run job_inspector -f                                  # on the platform
 
 You can override settings for a single local run. Inputs and agent settings are job configuration in the section of the job. The same keys work on the command line, in `config.toml`, and in the environment:
 
-| What                                         | Key                            | Example                                                                                        |
-| -------------------------------------------- | ------------------------------ | ---------------------------------------------------------------------------------------------- |
-| Declared inputs                              | `jobs.<section>.<job>.<input>` | `-c failed_run_id=...`                                                                         |
-| Instructions, model, limits, loop, verbosity | `jobs.<section>.<job>.agent.*` | `-c agent.instructions="explain, do not fix"`, `-c agent.max_turns=10`, `-c agent.verbosity=2` |
+| What                                                 | Key                            | Example                                                                                                                 |
+| ---------------------------------------------------- | ------------------------------ | ----------------------------------------------------------------------------------------------------------------------- |
+| Declared inputs                                      | `jobs.<section>.<job>.<input>` | `-c failed_run_id=...`                                                                                                  |
+| Instructions, model, limits, loop, verbosity, emojis | `jobs.<section>.<job>.agent.*` | `-c agent.instructions="explain, do not fix"`, `-c agent.max_turns=10`, `-c agent.verbosity=2`, `-c agent.emojis=false` |
 
 ```toml
 # .dlt/config.toml
@@ -273,7 +274,7 @@ The log is what the run printed, so you read it to follow what the agent did and
 - `1` (default): adds the agent's thoughts and the tool arguments
 - `2`: adds the rendered system prompt
 
-The log is colored when a terminal is attached. Set `DLT_ECHO_FORCE_COLOR` to keep the colors without a terminal, or `DLT_ECHO_NO_COLOR` to drop them.
+The log is plain text. Emojis mark its parts: 🔧 a tool call, 🌐 an MCP tool call, ✅ and ❌ a tool result and the outcome, ❗ an abort, 💭 the agent's thoughts, 💬 the agent speaking. Set `agent.emojis` to `false` to print plain words instead.
 
 When the run ends, the launcher prints and delivers the job result:
 

@@ -13,16 +13,17 @@ from dlt._workspace.deployment.agent.exceptions import (
     UnknownAgentLoop,
 )
 from dlt._workspace.deployment.agent.manifest import render_placeholders
+from dlt._workspace.deployment.agent.transcript import emit_agent_event
 from dlt._workspace.deployment.agent.typing import (
     AGENT_MODEL_ALIASES,
+    TAgentEvent,
+    TAgentEventKind,
     TAgentLimits,
     TAgentSettings,
     TAgentSpec,
     TAgentTrace,
     TAgentTurn,
 )
-from dlt._workspace.deployment._run_typing import TAgentEvent, TAgentEventKind
-from dlt._workspace.deployment._run_views import emit_agent_event
 from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.launchers import BUILTIN_AGENT_LOOPS, DEFAULT_AGENT_LOOP
 from dlt._workspace.deployment.typing import RUN_CONTEXT_INPUT, TJobRunContext, TWorkspaceAccess
@@ -185,7 +186,7 @@ class AgentLoop(ABC):
     def emit(self, kind: TAgentEventKind, **fields: Any) -> None:
         """Reports one step of the run to stdio"""
         event = cast(TAgentEvent, {"kind": kind, "agent": self.log_name, **fields})
-        emit_agent_event(event, self.settings["verbosity"])
+        emit_agent_event(event, self.settings["verbosity"], self.settings["emojis"])
 
     def render_system_prompt(self, inputs: Mapping[str, Any]) -> str:
         """The assembled system prompt with this run's inputs substituted into its placeholders."""
@@ -365,6 +366,7 @@ def resolve_agent_settings(
         "verbosity": pick(
             DEFAULT_VERBOSITY, None, decorator_args.get("verbosity"), config.verbosity
         ),
+        "emojis": pick(True, None, decorator_args.get("emojis"), config.emojis),
         "api_key": config.effective_api_key,
         "api_url": config.effective_api_url,
         "api_version": config.effective_api_version,

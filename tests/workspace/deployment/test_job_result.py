@@ -188,3 +188,17 @@ def test_print_job_result(
         assert text in out, text
     for text in hidden:
         assert text not in out, text
+
+
+@pytest.mark.parametrize(
+    "emojis,header,status", [(True, "🎁 Result", "✅ succeeded"), (False, "Result", "succeeded")]
+)
+def test_print_job_result_marks_the_agent_outcome(
+    capsys: pytest.CaptureFixture[str], emojis: bool, header: str, status: str
+) -> None:
+    print_job_result(AGENT_RESULT, emojis=emojis)
+    lines = capsys.readouterr().out.splitlines()
+
+    assert lines[1].startswith(f"{header}  [")
+    assert lines[2] == f"  status:     {status}"
+    assert "\x1b[" not in "".join(lines)

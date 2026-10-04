@@ -841,6 +841,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         self.limits: Optional[TAgentLimits] = None
         self.loop_run_args: Optional[Dict[str, Any]] = None
         self.verbosity: Optional[int] = None
+        self.emojis: Optional[bool] = None
         self.inputs_validator: Optional[AnyFun] = None
         self.outputs_validator: Optional[AnyFun] = None
         self.agent_declaration: Dict[str, Any] = {}
@@ -988,6 +989,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
@@ -1015,6 +1017,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
@@ -1039,6 +1042,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     inputs_validator: Optional[AnyFun] = None,
     outputs_validator: Optional[AnyFun] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
@@ -1067,6 +1071,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     inputs_validator: Optional[AnyFun] = None,
     outputs_validator: Optional[AnyFun] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
@@ -1126,7 +1131,7 @@ def agent(
 
     Configuration in the job's section overrides the decorator: `[jobs.<module>.<job>.agent]`
     takes `loop`, `model`, `instructions`, `max_turns`, `max_tokens`, `loop_run_args`,
-    `verbosity`, `api_key`, `api_url` and `api_version`. Inputs are set one level up, in
+    `verbosity`, `emojis`, `api_key`, `api_url` and `api_version`. Inputs are set one level up, in
     `[jobs.<module>.<job>]`.
 
     Args:
@@ -1186,6 +1191,8 @@ def agent(
             `settings`. Keys a loop does not know are ignored and listed in the run's trace.
         verbosity (Optional[int]): How much of the run is printed to stdout: 0 the outcome
             only, 1 turns, thoughts and tool calls, 2 everything, the system prompt included.
+        emojis (Optional[bool]): Mark tool calls, results and the outcome in the printed run
+            with emojis. On by default; off prints plain words.
         inputs_validator (Optional[AnyFun]): Called with the resolved inputs before the run,
             `run_context` included. Its return value replaces the inputs; `None` keeps them.
             Use it to check or derive inputs, e.g. look up a run id from a job ref.
@@ -1240,6 +1247,7 @@ def agent(
         wrapper.limits = limits
         wrapper.loop_run_args = loop_run_args
         wrapper.verbosity = verbosity
+        wrapper.emojis = emojis
         wrapper.inputs_validator = inputs_validator
         wrapper.outputs_validator = outputs_validator
         wrapper.agent_declaration = {

@@ -109,6 +109,8 @@ class AgentConfiguration(BaseConfiguration):
     """Arguments passed to the native loop, merged over the agent's own defaults."""
     verbosity: Optional[int] = None
     """How much of the run to show: 0 quiet, 1 thoughts and tool detail, 2 everything."""
+    emojis: Optional[bool] = None
+    """Mark parts of the printed run with emojis. On unless set to false."""
     trace_url: Optional[str] = None
     """OTLP endpoint the loop exports its spans to."""
     trace_key: Optional[TSecretStrValue] = None
