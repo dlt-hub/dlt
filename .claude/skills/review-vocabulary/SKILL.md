@@ -245,7 +245,8 @@ sweep for the excluded vocabulary.
 
 **c. `make format`.** Black reports no change when the agents did their job.
 
-**d. `make lint`.**
+**d. `make lint`.** For pages under `docs/website/docs`, also `make md-fix && make md-check` in
+`docs/`. A rewrite that lengthens a table cell past 35 words fails CI.
 
 **e. Run the tests.** This step is not optional.
 
