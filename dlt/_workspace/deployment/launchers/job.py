@@ -4,6 +4,7 @@ from datetime import timezone
 import asyncio
 import inspect
 from contextlib import nullcontext
+from functools import partial
 from typing import Any, Callable, ContextManager, Dict, List, Mapping, Optional, Tuple, Type, cast
 
 from dlt.common.configuration import resolve_configuration
@@ -302,9 +303,11 @@ def run(
         try:
             with signal_ctx, tz_ctx, iv_ctx:
                 result = _call()
-        except JobAbortedException:
+        except JobAbortedException as ex:
             # an abort ends the process, so the result must be on the wire before it does
-            deliver_job_result(job, wait=True)
+            delivered = deliver_job_result(job, wait=True)
+            if delivered is not None:
+                ex.result = delivered
             raise
 
         _check_return_value(result, job, entry_point)
@@ -312,15 +315,27 @@ def run(
     return result if job_result is None else job_result
 
 
-if __name__ == "__main__":
-    args = parse_launcher_args()
-    # let the exception end the process
-    result = run(
-        entry_point=args.entry_point,
-        run_id=args.run_id,
-        trigger=args.trigger,
-    )
+def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
+    """Runs a launcher and prints what the job returned, the result of an aborted job included.
+
+    Raises:
+        JobAbortedException: The job aborted. It ends the process, after its result is printed.
+    """
+    try:
+        result = run_launcher()
+    except JobAbortedException as ex:
+        if ex.result:
+            print_job_result(ex.result)
+        raise
     if isinstance(result, dict) and "type" in result:
         print_job_result(cast(TJobResult, result))
     elif result is not None:
         print(result)  # noqa: T201
+
+
+if __name__ == "__main__":
+    args = parse_launcher_args()
+    # let the exception end the process
+    run_and_print_result(
+        partial(run, entry_point=args.entry_point, run_id=args.run_id, trigger=args.trigger)
+    )

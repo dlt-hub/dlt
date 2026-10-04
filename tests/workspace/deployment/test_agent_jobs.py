@@ -4,6 +4,7 @@ import json as pyjson
 import os
 import sys
 from contextlib import contextmanager
+from functools import partial
 from typing import Any, AsyncIterator, ClassVar, Dict, Iterator, List, Optional, Tuple, cast
 
 import pytest
@@ -33,6 +34,7 @@ from dlt._workspace.deployment.launchers import (
     agent_loop_group,
 )
 from dlt._workspace.deployment.launchers.agent import run as agent_run
+from dlt._workspace.deployment.launchers.job import run_and_print_result
 from dlt._workspace.deployment.manifest import manifest_from_module, validate_manifest
 from dlt._workspace.deployment.typing import TWorkspaceAccess, TJobRef, TRuntimeEntryPoint
 
@@ -259,7 +261,9 @@ def test_inputs_validator_extends_the_inputs() -> None:
     assert "ai_loop" not in output["trace"]["inputs"]["run_context"]
 
 
-def test_aborted_agent_raises_after_delivering(beacon: List[Tuple[str, str]]) -> None:
+def test_aborted_agent_raises_after_delivering(
+    beacon: List[Tuple[str, str]], capsys: pytest.CaptureFixture[str]
+) -> None:
     with agent_workspace() as ctx:
         import mock_loop  # type: ignore[import-not-found]
 
@@ -269,9 +273,17 @@ def test_aborted_agent_raises_after_delivering(beacon: List[Tuple[str, str]]) ->
         }
         ctx.runtime_config.dlthub_dsn = "https://beacon.example/token"
         with pytest.raises(JobAbortedException, match="no failed run id") as exc:
-            agent_run(_entry("inspector"), run_id="r-3", trigger="manual:")
+            run_and_print_result(
+                partial(agent_run, _entry("inspector"), run_id="r-3", trigger="manual:")
+            )
 
+    # the exception carries the result as delivered, and the launcher printed it before raising
     assert exc.value.result["status"] == "aborted"  # type: ignore[typeddict-item]
+    assert exc.value.result["job_ref"] == "jobs.__deployment__.job_inspector"
+    out = capsys.readouterr().out
+    assert "Result  [background_agent.dlthub-platform:job-inspector]" in out
+    assert "status:     ❗ aborted" in out
+    assert "summary:    no failed run id could be resolved" in out
     # an abort ends the process, so the trace must already be on the wire
     assert len(beacon) == 1
     body = pyjson.loads(beacon[0][1])

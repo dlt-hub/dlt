@@ -2,6 +2,7 @@
 
 import asyncio
 import inspect
+from functools import partial
 from types import ModuleType
 from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
 
@@ -25,7 +26,6 @@ from dlt._workspace.deployment.agent.manifest import (
 )
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentSpec
 from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
-from dlt._workspace.deployment._run_views import print_job_result
 from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolutionError
 from dlt._workspace.deployment.job_result import (
@@ -46,6 +46,7 @@ from dlt._workspace.deployment.launchers.job import (
     deliver_job_result,
     job_sections,
     run as run_job,
+    run_and_print_result,
 )
 from dlt._workspace.deployment.typing import (
     JOB_RESULT_ENGINE_VERSION,
@@ -318,8 +319,6 @@ def run(entry_point: TRuntimeEntryPoint, run_id: str, trigger: str) -> Any:
 
 if __name__ == "__main__":
     args = parse_launcher_args()
-    result = run(entry_point=args.entry_point, run_id=args.run_id, trigger=args.trigger)
-    if isinstance(result, dict) and "type" in result:
-        print_job_result(cast(TJobResult, result))
-    elif result is not None:
-        print(result)  # noqa: T201
+    run_and_print_result(
+        partial(run, entry_point=args.entry_point, run_id=args.run_id, trigger=args.trigger)
+    )
