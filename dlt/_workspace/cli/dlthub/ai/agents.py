@@ -6,6 +6,7 @@ from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tup
 from dlt.common.runtime.exec_info import is_claude_code, is_codex, is_cursor
 
 from dlt._workspace.cli.dlthub.ai.utils import (
+    DLTHUB_AGENTS_DIR,
     cap_skill_description,
     ensure_cursor_rule_frontmatter,
     home_dir,
@@ -28,9 +29,6 @@ COMPONENT_MARKERS: Dict[TComponentType, str] = {
     "agent": "AGENT.md",
 }
 """File that must exist inside a directory-based component for it to count as one."""
-
-DLTHUB_AGENTS_DIR = "dlthub/agents"
-"""Where dlt agents go inside a host's folder: `<host>/agents` holds the host's own subagents."""
 
 
 class AgentDetectLevel(IntEnum):

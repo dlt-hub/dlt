@@ -32,6 +32,7 @@ from dlt._workspace.cli.dlthub.ai.agents import (
 )
 from dlt._workspace.cli.dlthub.ai.utils import (
     AI_WORKBENCH_BASE_DIR,
+    DLTHUB_AGENTS_DIR,
     build_toolkits_dependency_map,
     fetch_workbench_base,
     load_toolkits_index,
@@ -88,9 +89,13 @@ def test_toolkit_install_all_variants(
     """Plans and executes a full install for each variant, verifying component types and output."""
     toolkit_dir = make_mock_toolkit()
     # what a toolkit checkout compiled next to the agent's code
-    compiled = toolkit_dir / "agents" / "find-crash" / "__pycache__"
+    compiled = toolkit_dir / DLTHUB_AGENTS_DIR / "find-crash" / "__pycache__"
     compiled.mkdir(exist_ok=True)
     (compiled / "crash_helper.cpython-312.pyc").write_bytes(b"\0")
+    # a host subagent the toolkit ships next to its dlt agents
+    host_subagent = toolkit_dir / "agents" / "reviewer"
+    host_subagent.mkdir(parents=True)
+    (host_subagent / "AGENT.md").write_text("---\nname: reviewer\n---\n\nReview code.\n")
     project_root = Path("project")
     project_root.mkdir()
 
@@ -116,6 +121,8 @@ def test_toolkit_install_all_variants(
     # the host's own agents folder is left to its native subagents
     assert agent_base.parent.parent.name == "dlthub"
     assert not (agent_base.parents[2] / "agents").exists()
+    # only `dlthub/agents` holds dlt agents, a toolkit's own `agents` folder is not one of them
+    assert not (agent_base.parent / "reviewer").exists()
 
     # rule/converted-rule written with correct content
     rule_dest = project_root / rule_path
@@ -904,7 +911,10 @@ def test_toolkit_info_lists_agents(capsys: pytest.CaptureFixture[str]) -> None:
 def test_toolkit_info_names_skills_and_agents_by_folder() -> None:
     """A SKILL.md or AGENT.md without `name` takes its folder name, not the file stem."""
     toolkit_dir = make_mock_toolkit()
-    for folder, md in (("skills/quiet-skill", "SKILL.md"), ("agents/quiet-agent", "AGENT.md")):
+    for folder, md in (
+        ("skills/quiet-skill", "SKILL.md"),
+        (f"{DLTHUB_AGENTS_DIR}/quiet-agent", "AGENT.md"),
+    ):
         (toolkit_dir / folder).mkdir()
         (toolkit_dir / folder / md).write_text(
             "---\ndescription: No name.\n---\n", encoding="utf-8"

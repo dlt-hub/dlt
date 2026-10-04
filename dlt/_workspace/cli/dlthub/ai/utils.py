@@ -36,6 +36,9 @@ from dlt._workspace.typing import TLocationInfo
 
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
+DLTHUB_AGENTS_DIR = "dlthub/agents"
+"""Where dlt agents live, in a toolkit and in a host's folder. `<toolkit>/agents` and
+`<host>/agents` hold the host's own subagents."""
 
 _workbench_lock = threading.Lock()  # lock git clone operation
 
@@ -522,7 +525,7 @@ def fetch_workbench_toolkit_info(
         rules = _components(sorted(rules_dir.glob("*.md")))
 
     agents: List[TWorkbenchComponentInfo] = []
-    agents_dir = toolkit_dir / "agents"
+    agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
     if agents_dir.is_dir():
         agents = _components(
             [
