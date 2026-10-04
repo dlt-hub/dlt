@@ -1,5 +1,6 @@
 """Plain-text transcript of an agent run, printed while it happens. Emojis mark its parts."""
 
+import sys
 from typing import Any, Callable, Dict, List
 
 from dlt.common import json
@@ -174,4 +175,9 @@ EVENT_LINES: Dict[TAgentEventKind, TEventLines] = {
 def emit_agent_event(event: TAgentEvent, verbosity: int = 1, emojis: bool = True) -> None:
     """Renders one step of an agent run as a plain-text transcript on stdout."""
     for line in EVENT_LINES[event["kind"]](event, verbosity, emojis):
-        fmt.echo(line)
+        try:
+            fmt.echo(line)
+        except UnicodeEncodeError:
+            # a stdout in a code page without emojis, e.g. a pipe on Windows: the run goes on
+            encoding = getattr(sys.stdout, "encoding", None) or "ascii"
+            fmt.echo(line.encode(encoding, "replace").decode(encoding))

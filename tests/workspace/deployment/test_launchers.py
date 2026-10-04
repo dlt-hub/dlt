@@ -434,7 +434,7 @@ def test_job_launcher_auto_refresh_import_time_pipeline(tmp_path: Any, source: s
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=60,
         env=env,
     )
@@ -738,7 +738,7 @@ def test_job_launcher_via_cli() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0
@@ -768,7 +768,7 @@ def test_module_launcher_via_cli() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0
@@ -790,7 +790,7 @@ def _run_module_launcher(entry_point: Dict[str, Any], run_id: str, trigger: str)
             json.dumps(entry_point),
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=60,
     )
     assert result.returncode == 0, result.stderr
@@ -876,7 +876,7 @@ def test_module_launcher_cli_error_exit_code() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode != 0
@@ -905,7 +905,7 @@ def test_job_launcher_cli_error_exit_code() -> None:
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode != 0
@@ -972,7 +972,7 @@ def test_isolated_job_launcher_via_cli(launcher_workspace: object, python_cmd: L
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -1007,7 +1007,7 @@ def test_isolated_job_launcher_config_toml_auto_refresh() -> None:
                 entry_point,
             ],
             capture_output=True,
-            text=True,
+            encoding="utf-8",
             timeout=60,
         )
         assert result.returncode == 0, f"stderr: {result.stderr}"
@@ -1042,7 +1042,7 @@ def test_isolated_module_launcher_via_cli(
             entry_point,
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=30,
     )
     assert result.returncode == 0, f"stderr: {result.stderr}"

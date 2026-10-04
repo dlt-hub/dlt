@@ -45,6 +45,7 @@ from dlt._workspace.deployment.launchers._launcher import (
     parse_launcher_args,
     prepare_run_env,
     set_config_env_vars,
+    use_utf8_output,
 )
 
 
@@ -318,9 +319,12 @@ def run(
 def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
     """Runs a launcher and prints what the job returned, the result of an aborted job included.
 
+    Output is UTF-8 from the start, so an agent transcript printed during the run is too.
+
     Raises:
         JobAbortedException: The job aborted. It ends the process, after its result is printed.
     """
+    use_utf8_output()
     try:
         result = run_launcher()
     except JobAbortedException as ex:

@@ -188,7 +188,7 @@ def test_agent_launcher_rejects_a_plain_job(workspace: Any, loop_type: str) -> N
 
 
 def test_agent_launcher_via_cli(workspace: Any, loop_type: str) -> None:
-    """`python -m` on the agent launcher prints the rendered job output."""
+    """`python -m` on the agent launcher prints the rendered job output, as UTF-8."""
     result = subprocess.run(
         [
             sys.executable,
@@ -202,12 +202,14 @@ def test_agent_launcher_via_cli(workspace: Any, loop_type: str) -> None:
             json.dumps(_entry("inspector", loop_type)),
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=60,
         cwd=workspace.run_dir,
+        # what a Windows pipe gets by default: a code page with no emojis
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
     )
     assert result.returncode == 0, result.stderr
-    assert "job.background_agent." in result.stdout
+    assert "🎁 Result  [job.background_agent." in result.stdout
     assert "succeeded" in result.stdout
     assert "mock run" in result.stdout
 
@@ -226,7 +228,7 @@ def test_agent_launcher_cli_error_exit_code(workspace: Any, loop_type: str) -> N
             json.dumps(_entry("nonexistent", loop_type)),
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=60,
         cwd=workspace.run_dir,
     )

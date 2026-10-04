@@ -1,5 +1,7 @@
 """Tests for the plain-text transcript printed while an agent runs."""
 
+import io
+import sys
 from typing import Any, List, Optional, cast
 
 import pytest
@@ -132,3 +134,17 @@ def test_finish_marks_the_status(
     assert rule.startswith(f"── {mark} {status} ")
     # an emoji takes two cells: the rule ends where one without it does
     assert len(rule) + 1 == AGENT_RULE_WIDTH
+
+
+def test_transcript_survives_a_stdout_without_emojis(monkeypatch: pytest.MonkeyPatch) -> None:
+    """A stdout in a code page, as a pipe gets on Windows: characters it lacks become `?`."""
+    buffer = io.BytesIO()
+    stdout = io.TextIOWrapper(buffer, encoding="cp1252", write_through=True)
+    monkeypatch.setattr(sys, "stdout", stdout)
+
+    emit_agent_event(_agent_event("tool_result", tool="read", detail="12 rows"))
+    emit_agent_event(_agent_event("finish", status="succeeded", turn=1, total_tokens=10))
+
+    out = buffer.getvalue().decode("cp1252")
+    assert "? 12 rows" in out
+    assert "? succeeded" in out
