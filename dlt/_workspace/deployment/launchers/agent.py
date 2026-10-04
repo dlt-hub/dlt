@@ -127,6 +127,8 @@ def _collect_agent_inputs(
     given = {**(run_context.get("run_args") or {}), **kwargs}
     inputs.update(configured_inputs(job, job.input_spec(spec), given))
     inputs.update(given)
+    # a validator may abort the run: its result still needs the inputs the run received
+    set_job_inputs(inputs)
     for validate in _collect_validators(agent_module, VALIDATE_INPUT, job.inputs_validator):
         validated = validate(inputs)
         if validated is not None:

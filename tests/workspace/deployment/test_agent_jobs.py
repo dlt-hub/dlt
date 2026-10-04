@@ -4,9 +4,11 @@ import json as pyjson
 import os
 import sys
 from contextlib import contextmanager
-from typing import Any, ClassVar, Dict, Iterator, List, Optional, Tuple, cast
+from typing import Any, AsyncIterator, ClassVar, Dict, Iterator, List, Optional, Tuple, cast
 
 import pytest
+from pydantic_ai.messages import ModelMessage
+from pydantic_ai.models.function import AgentInfo, DeltaToolCall, FunctionModel
 
 import dlt
 
@@ -17,6 +19,7 @@ from dlt.common.libs.pydantic import BaseModel
 from dlt.common.typing import TypedDict
 
 from dlt._workspace.deployment.agent.loop import AgentLoop
+from dlt._workspace.deployment.agent.loops.pydantic_ai import PydanticAILoop
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
 from dlt._workspace.deployment.decorators import AgentJobFactory, agent
 from dlt._workspace.deployment.exceptions import (
@@ -598,3 +601,51 @@ def test_agent_given_positionally_rejects_the_keyword() -> None:
     """The overloads already refuse this; the runtime says so too."""
     with pytest.raises(TypeError, match="positionally"):
         agent("dlthub-platform:job-inspector", agent=MINIMAL_AGENT)  # type: ignore[call-overload]
+
+
+async def _triage_model(messages: List[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:
+    """Answers from the error in the rendered system prompt, in place of a model."""
+    category = "config" if "credentials" in info.instructions else "infra"
+    answer = {"status": "succeeded", "summary": f"looks like {category}", "category": category}
+    yield {0: DeltaToolCall(name=info.output_tools[0].name, json_args=pyjson.dumps(answer))}
+
+
+def test_agent_job_runs_an_agent_definition_per_input_and_reports_once(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """A decorated agent job awaits a `run.agent` job once per error, then returns one output.
+
+    Each run goes through the pydantic-ai loop and the `agent.py` of the agent definition.
+    """
+    monkeypatch.setattr(
+        PydanticAILoop, "_build_model", lambda self: FunctionModel(stream_function=_triage_model)
+    )
+    errors = ["  missing credentials for postgres ", "warehouse timed out", "   "]
+    ep: TRuntimeEntryPoint = {
+        "module": "agent_triage_jobs",
+        "function": "triage_report",
+        "job_type": "batch",
+        "launcher": LAUNCHER_AGENT,
+        "job_ref": TJobRef("jobs.agent_triage_jobs.triage_report"),
+        "run_args": {"errors": errors},  # type: ignore[typeddict-unknown-key]
+    }
+    with importable_workspace("agent_workspace", "agent_triage_jobs"):
+        import agent_triage_jobs  # type: ignore[import-not-found]
+
+        output = agent_run(ep, run_id="r-1", trigger="manual:")
+        last_triage = agent_triage_jobs.triage.last_job_result
+
+    assert output["type"] == "background_agent.triage-report"
+    assert output["status"] == "succeeded"
+    report = output["result"]
+    assert report["by_category"] == {"config": 1, "infra": 1}
+    # `validate_output` of agent.py set the owner of each category
+    assert report["owners"] == ["data-eng", "platform"]
+    # `validate_input` of agent.py aborted the blank error before the loop started
+    assert report["skipped"] == 1
+    # the report never called its own loop
+    assert output["trace"]["turn_count"] == 0
+
+    # each call keeps its own job result: the last one is the abort
+    assert last_triage["status"] == "aborted"
+    assert last_triage["summary"] == "empty error message"
