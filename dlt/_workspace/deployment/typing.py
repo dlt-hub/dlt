@@ -98,6 +98,8 @@ BACKGROUND_AGENT_CATEGORY: Final = "background_agent"
 
 THubEntityType = Literal["job-runs", "job", "workspace", "pipeline", "dataset"]
 """Kinds of workspace entity a job can act on. Hyphenated: the values are URI path segments."""
+TLegacyHubEntityType = Literal["job-run"]
+"""Old spelling of `job-runs`, accepted and passed on unchanged for older backends. To be removed."""
 
 
 class TJobExposeSpec(TypedDict, total=False):
@@ -116,7 +118,7 @@ class TJobExposeSpec(TypedDict, total=False):
 class TJobObjectInput(TypedDict):
     """The input a UI fills with the entity a job is started from."""
 
-    entity_type: THubEntityType
+    entity_type: Union[THubEntityType, TLegacyHubEntityType]
     input: str  # noqa: A003
     """Full config key of the input: `jobs.<section>.<job>.<input>`."""
 
@@ -353,7 +355,7 @@ class TJobDefinition(TypedDict):
 class THubEntity(TypedDict):
     """A workspace entity, addressed relative to its workspace."""
 
-    type: THubEntityType  # noqa: A003
+    type: Union[THubEntityType, TLegacyHubEntityType]  # noqa: A003
     id: str  # noqa: A003
     """`{type}/{unique id}`: `job-runs/9ac2…`, `dataset/duckdb_prod/github_events`."""
 

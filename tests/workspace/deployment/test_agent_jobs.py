@@ -597,6 +597,25 @@ def test_unknown_entity_type_fails_at_manifest_time() -> None:
             job.to_job_definition()
 
 
+def test_legacy_job_run_entity_type_reaches_the_manifest_unchanged() -> None:
+    """Older backends read `job-run`, so the manifest keeps what the agent declared."""
+    inputs: Dict[str, Any] = {
+        "type": "object",
+        "properties": {"run_id": {"type": "string", "entity_type": "job-run"}},
+    }
+    job = agent(cast(TAgentSpec, {**MINIMAL_AGENT, "inputs": inputs}), loop=MOCK_LOOP, name="old")
+    job.bind_module_attr(__name__, "old")
+    with agent_workspace():
+        job_def = job.to_job_definition()
+        manifest, _ = manifest_from_module("__deployment__")
+
+    assert job_def["inputs"]["properties"]["run_id"]["entity_type"] == "job-run"
+    assert job_def["expose"]["object_input"]["entity_type"] == "job-run"
+    manifest["jobs"].append(job_def)
+    result = validate_manifest(manifest)
+    assert result.is_valid, result.errors
+
+
 def test_agent_given_positionally_rejects_the_keyword() -> None:
     """The overloads already refuse this; the runtime says so too."""
     with pytest.raises(TypeError, match="positionally"):

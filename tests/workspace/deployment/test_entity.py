@@ -6,7 +6,7 @@ import pytest
 
 from dlt._workspace.deployment.entity import hub_entity, hub_objects
 from dlt._workspace.deployment.exceptions import InvalidJobSchema
-from dlt._workspace.deployment.reflection import model_schema
+from dlt._workspace.deployment.reflection import entity_properties, model_schema
 from dlt._workspace.deployment.typing import THubEntityType
 
 
@@ -96,3 +96,14 @@ def test_model_schema_moves_entity_type_into_a_comment() -> None:
 def test_an_unknown_entity_type_is_refused() -> None:
     with pytest.raises(InvalidJobSchema, match="pipline"):
         hub_objects({"properties": {"x": {"entity_type": "pipline"}}}, {"x": "1"}, None, {}, "j")
+
+
+def test_legacy_job_run_entity_type_is_accepted_as_is() -> None:
+    """Older backends know `job-run`, so it is tolerated and passed on unchanged."""
+    inputs: Dict[str, Any] = {
+        "properties": {"run_id": {"type": "string", "entity_type": "job-run"}}
+    }
+    assert entity_properties(inputs, "j") == {"run_id": "job-run"}
+    assert hub_objects(inputs, {"run_id": "9ac2"}, None, {}, "j") == [
+        {"type": "job-run", "id": "job-run/9ac2"}
+    ]
