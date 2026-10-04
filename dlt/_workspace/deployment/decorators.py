@@ -57,7 +57,6 @@ from dlt._workspace.deployment.reflection import (
 from dlt._workspace.deployment.agent.configuration import (
     spec_from_agent_inputs,
     warn_unbound_inputs,
-    warn_unreferenced_inputs,
 )
 from dlt._workspace.deployment.agent.manifest import (
     load_agent_spec,
@@ -947,7 +946,6 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
             spec, self.agent_file, self.instructions, self.model
         )
         self.access = spec.get("access") or {}
-        warn_unreferenced_inputs(spec)
         if not self.has_function:
             self.input_spec(spec)
         else:

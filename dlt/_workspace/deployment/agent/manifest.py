@@ -141,11 +141,6 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
     return spec
 
 
-def declared_placeholders(system_prompt: str) -> Set[str]:
-    """Names the system prompt refers to, `run_context.trigger` included."""
-    return {match.group(1) for match in _PLACEHOLDER.finditer(system_prompt)}
-
-
 def to_agent_definition(
     spec: TAgentSpec,
     agent_file: Optional[str] = None,

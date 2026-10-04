@@ -8,7 +8,6 @@ from dlt.common.configuration.specs.base_configuration import BaseConfiguration
 from dlt.common.typing import AnyFun
 from dlt.common.utils import get_callable_name
 
-from dlt._workspace.deployment.agent.manifest import declared_placeholders
 from dlt._workspace.deployment.agent.typing import TAgentSpec
 from dlt._workspace.deployment.reflection import spec_from_inputs_schema
 
@@ -16,23 +15,6 @@ from dlt._workspace.deployment.reflection import spec_from_inputs_schema
 def spec_from_agent_inputs(agent_spec: TAgentSpec) -> Type[BaseConfiguration]:
     """Configuration spec with one field per input the agent declares."""
     return spec_from_inputs_schema(agent_spec["name"], agent_spec["inputs"])
-
-
-def warn_unreferenced_inputs(agent_spec: TAgentSpec) -> List[str]:
-    """Declared inputs no placeholder in the system prompt uses. Warns, never raises."""
-    referenced = {
-        name.partition(".")[0] for name in declared_placeholders(agent_spec["system_prompt"])
-    }
-    unreferenced = [
-        name for name in (agent_spec["inputs"].get("properties") or {}) if name not in referenced
-    ]
-    if unreferenced:
-        logger.warning(
-            f"Agent {agent_spec['name']!r} declares inputs"
-            f" {', '.join(map(repr, unreferenced))} that its system prompt never mentions."
-            " Add {{ name }} where each belongs, or drop it."
-        )
-    return unreferenced
 
 
 def warn_unbound_inputs(agent_spec: TAgentSpec, f: AnyFun) -> List[str]:
