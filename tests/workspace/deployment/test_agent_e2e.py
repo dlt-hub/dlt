@@ -112,7 +112,7 @@ async def test_agent_reports_what_dlt_wired(
 
     assert report["status"] == "succeeded", run_details
     assert job_result["status"] == "succeeded"
-    assert job_result["type"] == f"background_agent.{type_name}"
+    assert job_result["type"] == f"job.background_agent.{type_name}"
     assert job_result["result"] == report
     # the agent saw the input and the run context it was given
     assert report["reported_run_id"] == FAILED_RUN_ID, run_details

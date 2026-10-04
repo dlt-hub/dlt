@@ -243,7 +243,7 @@ def test_launcher_runs_a_declared_agent(beacon: List[Tuple[str, str]]) -> None:
         output = agent_run(_entry("inspector"), run_id="r-1", trigger="job.fail:jobs.b.ingest")
         drain_beacon()
 
-    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
     assert output["status"] == "succeeded"
     assert output["trace"]["turn_count"] == 3
 
@@ -281,7 +281,7 @@ def test_aborted_agent_raises_after_delivering(
     assert exc.value.result["status"] == "aborted"  # type: ignore[typeddict-item]
     assert exc.value.result["job_ref"] == "jobs.__deployment__.job_inspector"
     out = capsys.readouterr().out
-    assert "Result  [background_agent.dlthub-platform:job-inspector]" in out
+    assert "Result  [job.background_agent.dlthub-platform:job-inspector]" in out
     assert "status:     ❗ aborted" in out
     assert "summary:    no failed run id could be resolved" in out
     # an abort ends the process, so the trace must already be on the wire
@@ -666,7 +666,7 @@ def test_agent_job_runs_an_agent_definition_per_input_and_reports_once(
         output = agent_run(ep, run_id="r-1", trigger="manual:")
         last_triage = agent_triage_jobs.triage.last_job_result
 
-    assert output["type"] == "background_agent.triage-report"
+    assert output["type"] == "job.background_agent.triage-report"
     assert output["status"] == "succeeded"
     report = output["result"]
     assert report["by_category"] == {"config": 1, "infra": 1}

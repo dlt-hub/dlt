@@ -6,10 +6,9 @@ from typing import Any, Dict, List, Tuple, cast
 import pytest
 
 from dlt._workspace.deployment._run_views import print_job_result
-from dlt._workspace.deployment.exceptions import InvalidJobResultType
 from dlt._workspace.deployment.job_result import (
+    is_agent_result,
     job_result,
-    parse_result_type,
     result_type,
     running_job,
     set_job_result,
@@ -32,7 +31,7 @@ from tests.workspace.utils import beacon as beacon, drain_beacon, isolated_works
 WORKSPACE = "tests.workspace.cases.workspaces.agent_workspace"
 
 AGENT_RESULT: TAgentJobResult = {
-    "type": "background_agent.dlthub-platform:job-inspector",
+    "type": "job.background_agent.dlthub-platform:job-inspector",
     "engine_version": 1,
     "status": "succeeded",
     "summary": "found the cause",
@@ -99,30 +98,25 @@ def test_top_level_job_owns_the_run_result() -> None:
 
 
 @pytest.mark.parametrize(
-    "category,name",
+    "category,declared,normalized",
     [
-        ("background_agent", "dlthub-platform:job-inspector"),
-        ("background_agent", "jobs.agents:check_toolkits"),
-        ("background_agent", "job-inspector"),
-        ("job", "etl_summary"),
+        ("job", "etl_summary", "job.etl_summary"),
+        ("job", "job.etl_summary", "job.etl_summary"),
+        ("job", "pipeline.load_info", "job.pipeline.load_info"),
+        ("job", "job.pipeline.load_info", "job.pipeline.load_info"),
+        (
+            "background_agent",
+            "dlthub-platform:job-inspector",
+            "job.background_agent.dlthub-platform:job-inspector",
+        ),
     ],
-    ids=["toolkit-agent", "function-agent", "path-agent", "job"],
+    ids=["bare", "prefixed", "own-category", "own-category-prefixed", "agent"],
 )
-def test_parse_result_type_survives_dots_in_the_name(
-    category: TJobResultCategory, name: str
+def test_result_type_starts_with_job_exactly_once(
+    category: TJobResultCategory, declared: str, normalized: str
 ) -> None:
-    """The category is a closed vocabulary without dots, so the name may carry anything."""
-    assert parse_result_type(result_type(category, name)) == (category, name)
-
-
-# `job.batch.x` is a legal `job` result with a dotted name, so three-segment strings that start
-# with `job` cannot be refused
-@pytest.mark.parametrize(
-    "bad", ["etl_summary", "batch.etl_summary", "pipeline.load_info", "run.batch.x", "job.", ".x"]
-)
-def test_parse_result_type_refuses_anything_else(bad: str) -> None:
-    with pytest.raises(InvalidJobResultType):
-        parse_result_type(bad)
+    assert result_type(category, declared) == normalized
+    assert is_agent_result(normalized) is (category == "background_agent")
 
 
 def test_launcher_delivers_the_result_to_the_beacon(beacon: List[Tuple[str, str]]) -> None:
@@ -162,7 +156,7 @@ def test_launcher_delivers_the_result_to_the_beacon(beacon: List[Tuple[str, str]
         (
             AGENT_RESULT,
             [
-                "background_agent.dlthub-platform:job-inspector",
+                "job.background_agent.dlthub-platform:job-inspector",
                 "succeeded",
                 "found the cause",
                 "job-runs: job-runs/r-9",

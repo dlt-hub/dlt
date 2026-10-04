@@ -1,7 +1,7 @@
 """Structured job results and their delivery to the dlthub beacon."""
 
 from contextlib import contextmanager
-from typing import Any, ClassVar, Dict, Iterator, List, Mapping, Optional, Tuple, cast, get_args
+from typing import Any, ClassVar, Dict, Iterator, List, Mapping, Optional, cast
 
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.base_configuration import (
@@ -9,8 +9,9 @@ from dlt.common.configuration.specs.base_configuration import (
     configspec,
 )
 
-from dlt._workspace.deployment.exceptions import InvalidJobResultType
 from dlt._workspace.deployment.typing import (
+    BACKGROUND_AGENT_CATEGORY,
+    JOB_RESULT_CATEGORY,
     JOB_RESULT_ENGINE_VERSION,
     JOB_RESULT_PAYLOAD_TYPE,
     TJobRef,
@@ -45,20 +46,20 @@ def running_job(job_ref: TJobRef) -> Iterator[None]:
 
 
 def result_type(category: TJobResultCategory, name: str) -> str:
-    """`{category}.{name}`: the category names the envelope, the name the payload."""
-    return f"{category}.{name}"
+    """`job.{name}` for a job, `job.background_agent.{name}` for an agent job.
 
-
-def parse_result_type(type_: str) -> Tuple[str, str]:
-    """Splits `{category}.{name}` into category and name. The name may contain dots.
-
-    Raises:
-        InvalidJobResultType: The category is unknown or the name is missing.
+    A name that already starts with `job.` is taken as is, so the type always starts with `job.`
+    exactly once.
     """
-    category, _, name = type_.partition(".")
-    if category not in get_args(TJobResultCategory) or not name:
-        raise InvalidJobResultType(type_)
-    return category, name
+    prefix = f"{JOB_RESULT_CATEGORY}."
+    if category != JOB_RESULT_CATEGORY:
+        name = f"{category}.{name}"
+    return name if name.startswith(prefix) else prefix + name
+
+
+def is_agent_result(type_: str) -> bool:
+    """Whether a result type is that of an agent job."""
+    return type_.startswith(result_type(BACKGROUND_AGENT_CATEGORY, ""))
 
 
 def job_result(
@@ -76,8 +77,9 @@ def job_result(
 
     Args:
         result (Any): JSON-serializable payload.
-        type (Optional[str]): Name of the payload shape, e.g. `"etl_summary"`. Defaults to the
-            job name. The launcher prefixes it with the result category when the run finishes.
+        type (Optional[str]): Name of the payload shape, e.g. `"etl_summary"`, or with a category
+            of your own, e.g. `"pipeline.load_info"`. Defaults to the job name. The launcher
+            prefixes it with `job.` when the run finishes, unless it already starts with `job.`.
         engine_version (int): Version of that shape.
 
     Returns:

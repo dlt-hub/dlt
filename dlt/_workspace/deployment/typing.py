@@ -91,7 +91,7 @@ TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook", "backgr
 """UI category for grouping jobs in the runtime interface."""
 
 TJobResultCategory = Literal["job", "background_agent"]
-"""First segment of a result `type`: `background_agent` for agent jobs, `job` for all others."""
+"""Kind of result: `background_agent` for agent jobs, `job` for all others. See `TJobResult.type`."""
 
 JOB_RESULT_CATEGORY: Final = "job"
 BACKGROUND_AGENT_CATEGORY: Final = "background_agent"
@@ -364,7 +364,7 @@ class TJobResult(TypedDict):
     """Structured result of a job run, delivered to the dlthub beacon. The launcher builds it."""
 
     type: str  # noqa: A003
-    """`job.{name}` for a job, `background_agent.{name}` for an agent job. The name is what
+    """`job.{name}` for a job, `job.background_agent.{name}` for an agent job. The name is what
     `run.result(type=)` declared, else the job name; for an agent its reference or name."""
     engine_version: int
     result: NotRequired[Any]

@@ -10,8 +10,8 @@ from dlt._workspace.deployment._job_ref import format_job_label
 from dlt._workspace.deployment._run_typing import TRunBannerInfo, TRunJobInfo
 from dlt._workspace.deployment.agent.transcript import mark, status_mark
 from dlt._workspace.deployment.exceptions import AmbiguousJobSelector
-from dlt._workspace.deployment.job_result import parse_result_type
-from dlt._workspace.deployment.typing import BACKGROUND_AGENT_CATEGORY, TJobDefinition, TJobResult
+from dlt._workspace.deployment.job_result import is_agent_result
+from dlt._workspace.deployment.typing import TJobDefinition, TJobResult
 
 
 TCandidate = Tuple[TJobDefinition, str]
@@ -45,11 +45,10 @@ def print_run_plan(info: TRunJobInfo) -> None:
 def print_job_result(result: TJobResult, emojis: bool = True) -> None:
     """Render the structured result a job returned, after its run finished."""
     fields: Dict[str, Any] = dict(result)
-    category, _ = parse_result_type(result["type"])
     _echo("")
     _echo("%sResult  [%s]" % (mark("result", emojis), result["type"]))
-    # the category says an agent ran, and so that status, summary and trace are there
-    if category == BACKGROUND_AGENT_CATEGORY:
+    # the type says an agent ran, and so that status, summary and trace are there
+    if is_agent_result(result["type"]):
         status = fields.get("status", "")
         _echo("  status:     %s%s" % (status_mark(status, emojis), status))
         if summary := fields.get("summary"):

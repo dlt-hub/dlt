@@ -284,7 +284,7 @@ When the run ends, the launcher prints and delivers the job result:
 
 ```json
 {
-  "type": "background_agent.dlthub-platform:job-inspector",
+  "type": "job.background_agent.dlthub-platform:job-inspector",
   "engine_version": 1,
   "job_ref": "jobs.__deployment__.job_inspector",
   "status": "succeeded",
