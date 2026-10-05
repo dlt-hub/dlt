@@ -1179,6 +1179,28 @@ def test_source_add_limit_applies_to_transformer_parent() -> None:
 
     assert sorted(list(multi().add_limit(1))) == [2, 2]
 
+    # shared parent: both transformers see the same limited pipe
+    @dlt.source
+    def shared():
+        parent = pages()
+        return parent | double().with_name("d1"), parent | double().with_name("d2")
+
+    shared_source = shared().add_limit(1)
+    assert shared_source.d1._pipe.parent is shared_source.d2._pipe.parent
+    parent = next(
+        r for r in shared_source.resources.extracted if r._pipe is shared_source.d1._pipe.parent
+    )
+    assert parent.limit.max_items == 1
+    assert sorted(list(shared_source)) == [2, 2]
+
+    # selected parent is limited together with the transformer
+    @dlt.source
+    def with_parent():
+        parent = pages()
+        return parent, parent | double()
+
+    assert sorted(list(with_parent().add_limit(1))) == [1, 2]
+
     # limit stays on the parent when the transformer is moved into another source
     readers = multi()
     readers.add_limit(1)
