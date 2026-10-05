@@ -220,8 +220,8 @@ function SearchModal({onClose, bundleUrl, baseUrl}) {
       )}
       {error && (
         <p>
-          Search index not found. Restart the dev server with <code>make start</code> (in{' '}
-          <code>docs/</code>), it builds the index if missing.
+          Search index not found. Run <code>make search-index</code> (in <code>docs/</code>)
+          to build it, then restart the dev server.
         </p>
       )}
       {query.trim() && sections.length > 0 && enabled.length === 0 && (

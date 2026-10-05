@@ -7,7 +7,6 @@ import {useWindowSize} from '@docusaurus/theme-common';
 import {
   useDoc,
   useDocsVersion,
-  useSidebarBreadcrumbs,
 } from '@docusaurus/plugin-content-docs/client';
 import {getSearchSection} from '../../SearchBar/sections';
 import DocItemPaginator from '@theme/DocItem/Paginator';
@@ -44,16 +43,13 @@ function useDocTOC() {
 function SearchContent({children}) {
   const {metadata} = useDoc();
   const version = useDocsVersion();
-  const breadcrumbs = useSidebarBreadcrumbs();
   if (!version.isLast) {
     return children;
   }
   const {section, weight} = getSearchSection(metadata.id);
-  const category = section === 'dlt' ? breadcrumbs?.[0]?.label : undefined;
   return (
     <div data-pagefind-body="" data-pagefind-weight={String(weight)}>
       <meta data-pagefind-filter="section[content]" content={section} />
-      {category && <meta data-pagefind-filter="category[content]" content={category} />}
       {children}
     </div>
   );

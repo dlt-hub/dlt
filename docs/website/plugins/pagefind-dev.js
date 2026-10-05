@@ -4,10 +4,10 @@
  * ignores this plugin.
  *
  * Pagefind indexes rendered HTML, so the index only exists after a production build
- * followed by `npm run search-index`, which writes `build/docs/pagefind`. `make start`
- * does both if the index is missing, and `make build` always does. This plugin serves
+ * followed by `npm run search-index`, which writes `build/docs/pagefind`. Run
+ * `make search-index` (in `docs/`) to do both; `make build` does too. This plugin serves
  * that folder at `<baseUrl>pagefind/`. The index is a snapshot of the last build and
- * does not pick up live edits (delete `build/` and re-run `make start` to refresh).
+ * does not pick up live edits (re-run `make search-index` to refresh).
  *
  * Only pages of the Docusaurus "last version" are indexed (see
  * `src/theme/DocItem/Layout`), so the docs version you search depends on local state:
