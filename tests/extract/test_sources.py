@@ -1246,6 +1246,35 @@ def test_source_add_limit_chain_and_selected_child() -> None:
     assert list(selected) == [3, 5]
 
 
+def test_source_add_limit_does_not_mutate_empty_transformer_sentinel() -> None:
+    empty_pipe = DltResource.Empty._pipe
+    original_steps = list(empty_pipe.steps)
+    original_gen_idx = empty_pipe._gen_idx
+    try:
+        assert empty_pipe.is_empty
+        assert not empty_pipe.is_data_bound
+
+        @dlt.transformer
+        def unbound(item):
+            yield item
+
+        @dlt.source
+        def src():
+            return unbound()
+
+        source = src()
+        source.add_limit(1)
+        source.add_limit(1)
+        assert DltResource.Empty._pipe is empty_pipe
+        assert empty_pipe.is_empty
+        assert not empty_pipe.is_data_bound
+        assert list(empty_pipe.steps) == original_steps
+    finally:
+        empty_pipe._steps = original_steps
+        empty_pipe._gen_idx = original_gen_idx
+        DltResource.Empty._pipe = empty_pipe
+
+
 def test_limit_source() -> None:
     def mul_c(item):
         yield from "A" * (item + 2)

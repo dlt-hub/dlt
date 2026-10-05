@@ -41,7 +41,6 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.items import SupportsPipe, TDecompositionStrategy
-from dlt.extract.items_transform import LimitItem
 from dlt.extract.state import source_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
@@ -539,7 +538,7 @@ class DltSource(Iterable[TDataItem]):
         in batches.
 
         Notes:
-            1. A transformer is not limited directly. The limit is placed on the root resource that feeds it, so the transformer still processes every item it receives.
+            1. A transformer is not limited directly. The limit is placed on the root resource that feeds it, so the transformer still processes every item it receives. An unbound transformer is left unchanged.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
             3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
@@ -554,15 +553,15 @@ class DltSource(Iterable[TDataItem]):
         for resource in self.resources.selected.values():
             if resource.is_transformer and resource._pipe.parent is not None:
                 root = resource._pipe
-                while root.parent is not None:
+                # stop before the process-wide empty sentinel; it is not a source pipe
+                while root.parent is not None and not root.parent.is_empty:
                     root = root.parent
                 try:
                     parent = self.resources.with_pipe(root)
                 except ResourceNotFoundError:
-                    root.remove_by_type(LimitItem)
-                    root.append_step(
-                        LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows)
-                    )
+                    parent = None
+                if parent is None or parent.is_transformer:
+                    resource.add_limit(max_items, max_time=max_time, count_rows=count_rows)
                 else:
                     parent.add_limit(max_items, max_time=max_time, count_rows=count_rows)
             else:
