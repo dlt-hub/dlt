@@ -108,7 +108,8 @@ class AgentConfiguration(BaseConfiguration):
     loop_run_args: Dict[str, Any] = dataclasses.field(default_factory=dict)
     """Arguments passed to the native loop, merged over the agent's own defaults."""
     verbosity: Optional[int] = None
-    """How much of the run to show: 0 quiet, 1 thoughts and tool detail, 2 everything."""
+    """How much of the run to show: 0 quiet, 1 thoughts and tool detail, 2 everything.
+    Defaults to 2 on the runtime and to 1 otherwise."""
     emojis: Optional[bool] = None
     """Mark parts of the printed run with emojis. On unless set to false."""
     trace_url: Optional[str] = None

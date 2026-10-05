@@ -82,7 +82,7 @@ Don't give the production profile to an agent job. An agent job takes the read-o
 | `limits`                                          | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted                                                                                                                                       |
 | `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                                                                         |
 | `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. On `pydantic-ai`, `retries` sets how often the model retries a failing tool call, 0 by default. After that, the call fails and the run continues |
-| `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt                                                            |
+| `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default locally) adds the agent's thoughts and tool arguments, `2` (default on the runtime) prints everything                                         |
 | `emojis`                                          | Marks tool calls, results and the outcome in the printed run with emojis. `true` by default, `false` prints plain words                                                                                                    |
 | `inputs_validator`                                | Called with the resolved inputs, `run_context` included, before the run. Its return value replaces the inputs and `None` keeps them. Use it to derive an input such as a run id from a job ref                             |
 | `outputs_validator`                               | Called with the agent output after the run. Its return value replaces the output and `None` keeps it                                                                                                                       |
@@ -275,8 +275,10 @@ The log is what the run printed, so you read it to follow what the agent did and
 `agent.verbosity` controls how much reaches the log:
 
 - `0`: the outcome and the tool names
-- `1` (default): adds the agent's thoughts and the tool arguments
-- `2`: adds the rendered system prompt
+- `1` (default locally): adds the agent's thoughts and the tool arguments, cut to a short excerpt
+- `2` (default on the runtime): adds the rendered system prompt and prints thoughts, tool arguments and results in full
+
+On the runtime the log is the only record of the run, so nothing is cut unless you set `agent.verbosity`.
 
 The log is plain text. Emojis mark its parts: 🔧 a tool call, 🌐 an MCP tool call, ✅ and ❌ a tool result and the outcome, ❗ an abort, 💭 the agent's thoughts, 💬 the agent speaking. Set `agent.emojis` to `false` to print plain words instead.
 
