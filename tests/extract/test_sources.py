@@ -1148,6 +1148,49 @@ def test_limit_count_by_rows() -> None:
     assert list(r._clone().add_limit(2, count_rows=True)) == [1, [2, 3]]
 
 
+def test_source_add_limit_applies_to_transformer_parent() -> None:
+    @dlt.resource
+    def pages():
+        yield [1]
+        yield [2]
+        yield [3]
+
+    @dlt.transformer
+    def double(items):
+        yield from (i * 2 for i in items)
+
+    @dlt.source
+    def src():
+        return pages() | double()
+
+    assert list(src()) == [2, 4, 6]
+    assert list(src().add_limit(1)) == [2]
+
+    replaced = src()
+    replaced.add_limit(1).add_limit(2)
+    assert list(replaced) == [2, 4]
+
+    @dlt.source
+    def multi():
+        return (
+            pages().with_name("p1") | double().with_name("d1"),
+            pages().with_name("p2") | double().with_name("d2"),
+        )
+
+    assert sorted(list(multi().add_limit(1))) == [2, 2]
+
+    # limit stays on the parent when the transformer is moved into another source
+    readers = multi()
+    readers.add_limit(1)
+    pipe = readers.d1
+
+    @dlt.source
+    def only_one():
+        return pipe
+
+    assert list(only_one()) == [2]
+
+
 def test_limit_source() -> None:
     def mul_c(item):
         yield from "A" * (item + 2)

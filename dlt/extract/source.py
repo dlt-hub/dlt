@@ -41,6 +41,7 @@ from dlt.common.utils import (
 )
 
 from dlt.extract.items import SupportsPipe, TDecompositionStrategy
+from dlt.extract.items_transform import LimitItem
 from dlt.extract.state import source_state
 from dlt.extract.pipe_iterator import ManagedPipeIterator
 from dlt.extract.pipe import Pipe
@@ -529,7 +530,7 @@ class DltSource(Iterable[TDataItem]):
         max_time: Optional[float] = None,
         count_rows: Optional[bool] = False,
     ) -> "DltSource":  # noqa: A003
-        """Limits the items processed in all selected resources in the source that are not transformers: by count or time.
+        """Limits the items processed by all selected resources in the source: by count or time.
 
         This is useful for testing, debugging and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise
         you'd need to wait hours for the full loading to complete.
@@ -538,7 +539,7 @@ class DltSource(Iterable[TDataItem]):
         in batches.
 
         Notes:
-            1. Transformers resources won't be limited. They should process all the data they receive fully to avoid inconsistencies in generated datasets.
+            1. A transformer is not limited directly. The limit is placed on the root resource that feeds it, so the transformer still processes every item it receives.
             2. Each yielded item may contain several records. `add_limit` only limits the "number of yields", not the total number of records.
             3. Empty pages/yields are also counted. Use `count_rows` to skip empty pages.
 
@@ -551,7 +552,21 @@ class DltSource(Iterable[TDataItem]):
             "DltSource": returns self
         """
         for resource in self.resources.selected.values():
-            resource.add_limit(max_items, max_time=max_time, count_rows=count_rows)
+            if resource.is_transformer and resource._pipe.parent is not None:
+                root = resource._pipe
+                while root.parent is not None:
+                    root = root.parent
+                try:
+                    parent = self.resources.with_pipe(root)
+                except ResourceNotFoundError:
+                    root.remove_by_type(LimitItem)
+                    root.append_step(
+                        LimitItem(max_items=max_items, max_time=max_time, count_rows=count_rows)
+                    )
+                else:
+                    parent.add_limit(max_items, max_time=max_time, count_rows=count_rows)
+            else:
+                resource.add_limit(max_items, max_time=max_time, count_rows=count_rows)
         return self
 
     def parallelize(self) -> "DltSource":
