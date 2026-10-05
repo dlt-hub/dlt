@@ -351,18 +351,30 @@ class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
         condition_columns: Sequence[str] = None,
         skip_dedup: bool = False,
     ) -> str:
-        # gen_select_from_dedup_sql only ever reads staging tables, so always scope it.
+        # gen_select_from_dedup_sql only ever reads staging tables, so always scope it. The
+        # load id predicate goes *inside* the dedup subquery: the staging table is shared by
+        # concurrent loads, and ranking every load's rows before filtering would make the
+        # window grow with the number of loads in flight.
         predicate = cls._load_id_predicate()
-        condition = predicate if not condition else f"({condition}) AND {predicate}"
-        # ensure `_dlt_load_id` is visible to the outer WHERE of the dedup subquery
-        load_id_col = f"`{C_DLT_LOAD_ID}`"
-        if load_id_col not in columns:
-            condition_columns = list(condition_columns or [])
-            if load_id_col not in condition_columns:
-                condition_columns.append(load_id_col)
-        return super().gen_select_from_dedup_sql(
-            table_name, primary_keys, columns, dedup_sort, condition, condition_columns, skip_dedup
-        )
+        if condition is None:
+            condition = "1 = 1"
+        col_str = ", ".join(columns)
+        if skip_dedup:
+            return f"SELECT {col_str} FROM {table_name} WHERE ({condition}) AND {predicate}"
+        inner_col_str = col_str
+        if condition_columns is not None:
+            inner_col_str += ", " + ", ".join(condition_columns)
+        order_by = cls.default_order_by()
+        if dedup_sort is not None:
+            order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
+        return f"""
+            SELECT {col_str}
+                FROM (
+                    SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
+                    FROM {table_name}
+                    WHERE {predicate}
+                ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
+        """
 
     @classmethod
     def _scope_condition(cls, condition: Optional[str]) -> str:
@@ -418,7 +430,13 @@ class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
                 head, _, condition = stmt.rpartition(staging_read)
                 sql[i] = f"{head}{staging_read}{cls._scope_condition(condition)}"
         # drop only this load's rows from the shared staging table once merged
-        sql.append(f"DELETE FROM {staging_root_table_name} WHERE {predicate}")
+        if sql_client.config.staging_partition_by_load_id:
+            # staging is partitioned by load id: dropping the partition is a metadata
+            # operation, a DELETE would be a mutation over every staging part
+            load_id = escape_clickhouse_literal(load_package_state()["load_id"])
+            sql.append(f"ALTER TABLE {staging_root_table_name} DROP PARTITION {load_id}")
+        else:
+            sql.append(f"DELETE FROM {staging_root_table_name} WHERE {predicate}")
         return sql
 
 
@@ -667,22 +685,29 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
         sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
-        # PRIMARY KEY
+        sort_key = self._get_key(table, "sort")
+
+        # PRIMARY KEY: explicit when hinted, otherwise ClickHouse derives it from ORDER BY.
+        # An explicit `PRIMARY KEY tuple()` next to a sort key would leave the table without
+        # a primary index, so it is only emitted when there is no sort key either.
         if primary_key_list := [
             self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("primary_key")
         ]:
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
-        else:
+        elif not sort_key:
             sql[0] += "\nPRIMARY KEY tuple()"
 
         # ORDER BY
-        if sort_key := self._get_key(table, "sort"):
+        if sort_key:
             sql[0] += f"\nORDER BY {sort_key}"
 
         # PARTITION BY
-        if part_key := self._get_key(table, "partition"):
+        part_key = self._get_key(table, "partition")
+        if self._partition_staging_by_load_id(table):
+            part_key = self.sql_client.escape_column_name(C_DLT_LOAD_ID)
+        if part_key:
             sql[0] += f"\nPARTITION BY {part_key}"
 
         # SETTNGS
@@ -692,6 +717,16 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql[0] += f"\nSETTINGS {settings_clause}"
 
         return sql
+
+    def _partition_staging_by_load_id(self, table: PreparedTableSchema) -> bool:
+        """Merge staging tables get `PARTITION BY _dlt_load_id` so the merge job can drop a
+        load's rows as a partition (see `staging_partition_by_load_id`)."""
+        return (
+            self.config.staging_partition_by_load_id
+            and self.in_staging_dataset_mode
+            and table.get("write_disposition") == "merge"
+            and C_DLT_LOAD_ID in table["columns"]
+        )
 
     def _gen_not_null(self, v: bool) -> str:
         # ClickHouse fields are not nullable by default.

@@ -213,6 +213,8 @@ class ClickHouseSqlClient(
             user_name=self.credentials.username,
             password=self.credentials.password,
             secure=bool(self.credentials.secure),
+            connect_timeout=self.credentials.connect_timeout,
+            send_receive_timeout=self.credentials.send_receive_timeout,
         ) as clickhouse_connect_client:
             return clk_insert_file(
                 clickhouse_connect_client,
