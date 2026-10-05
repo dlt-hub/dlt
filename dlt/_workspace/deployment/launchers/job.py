@@ -4,7 +4,8 @@ from datetime import timezone
 import asyncio
 import inspect
 from contextlib import nullcontext
-from typing import Any, Callable, ContextManager, Dict, List, Optional, Tuple, Type, cast
+from functools import partial
+from typing import Any, Callable, ContextManager, Dict, List, Mapping, Optional, Tuple, Type, cast
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
@@ -44,6 +45,7 @@ from dlt._workspace.deployment.launchers._launcher import (
     parse_launcher_args,
     prepare_run_env,
     set_config_env_vars,
+    use_utf8_output,
 )
 
 
@@ -163,10 +165,19 @@ def job_sections(job: JobFactory[Any, Any]) -> Tuple[str, ...]:
     return tuple(p for p in (ws_known_sections.JOBS, job.section, job.name) if p)
 
 
-def configured_inputs(job: JobFactory[Any, Any], spec: Type[BaseConfiguration]) -> Dict[str, Any]:
-    """The job's inputs resolved as job config, so `-c`, env vars and toml all fill them."""
-    config = resolve_configuration(spec(), sections=job_sections(job))
-    # an input nobody supplied stays out, so a system prompt reports it as unresolved
+def configured_inputs(
+    job: JobFactory[Any, Any],
+    spec: Type[BaseConfiguration],
+    explicit: Optional[Mapping[str, Any]] = None,
+) -> Dict[str, Any]:
+    """The job's inputs resolved as job config, so `-c`, env vars and toml all fill them.
+
+    `explicit` values win over configuration, and a required input they hold is not looked up.
+    """
+    fields = spec.get_resolvable_fields()
+    given = {k: v for k, v in (explicit or {}).items() if k in fields}
+    config = resolve_configuration(spec(), sections=job_sections(job), explicit_value=given)
+    # an input nobody supplied stays out of the inputs and the trace
     return {k: v for k, v in dict(config).items() if v is not None}
 
 
@@ -293,9 +304,11 @@ def run(
         try:
             with signal_ctx, tz_ctx, iv_ctx:
                 result = _call()
-        except JobAbortedException:
+        except JobAbortedException as ex:
             # an abort ends the process, so the result must be on the wire before it does
-            deliver_job_result(job, wait=True)
+            delivered = deliver_job_result(job, wait=True)
+            if delivered is not None:
+                ex.result = delivered
             raise
 
         _check_return_value(result, job, entry_point)
@@ -303,15 +316,30 @@ def run(
     return result if job_result is None else job_result
 
 
-if __name__ == "__main__":
-    args = parse_launcher_args()
-    # let the exception end the process
-    result = run(
-        entry_point=args.entry_point,
-        run_id=args.run_id,
-        trigger=args.trigger,
-    )
+def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
+    """Runs a launcher and prints what the job returned, the result of an aborted job included.
+
+    Output is UTF-8 from the start, so an agent transcript printed during the run is too.
+
+    Raises:
+        JobAbortedException: The job aborted. It ends the process, after its result is printed.
+    """
+    use_utf8_output()
+    try:
+        result = run_launcher()
+    except JobAbortedException as ex:
+        if ex.result:
+            print_job_result(ex.result)
+        raise
     if isinstance(result, dict) and "type" in result:
         print_job_result(cast(TJobResult, result))
     elif result is not None:
         print(result)  # noqa: T201
+
+
+if __name__ == "__main__":
+    args = parse_launcher_args()
+    # let the exception end the process
+    run_and_print_result(
+        partial(run, entry_point=args.entry_point, run_id=args.run_id, trigger=args.trigger)
+    )

@@ -31,7 +31,11 @@ from dlt.common.typing import (
 )
 
 from dlt._workspace.deployment.exceptions import InvalidJobSchema
-from dlt._workspace.deployment.typing import RUN_CONTEXT_INPUT, THubEntityType
+from dlt._workspace.deployment.typing import (
+    RUN_CONTEXT_INPUT,
+    THubEntityType,
+    TLegacyHubEntityType,
+)
 
 ENTITY_TYPE_KEY = "entity_type"
 """Schema keyword on a property whose value is the unique id of a workspace entity of that type."""
@@ -179,8 +183,9 @@ def derives_from(hint: Any, base: Any) -> bool:
 def spec_from_inputs_schema(name: str, inputs: Dict[str, Any]) -> Type[BaseConfiguration]:
     """Configuration spec with one field per declared input.
 
-    Inputs are to a declared job what parameters are to a function job, so they resolve the same
-    way. They come from the job's config section, through every provider, with the declared type.
+    Inputs are to an agent job without a function what parameters are to a function job, so
+    they resolve the same way. They come from the job's config section, through every provider,
+    with the declared type.
     """
     # `required` is a list, or the `{}` mapping form an `AGENT.md` may carry
     required = set(inputs.get("required") or ())
@@ -305,7 +310,7 @@ def entity_properties(schema: Optional[Dict[str, Any]], source: str) -> Dict[str
         entity_type = prop.get(ENTITY_TYPE_KEY)
         if entity_type is None:
             continue
-        if entity_type not in known:
+        if entity_type not in known and entity_type not in get_args(TLegacyHubEntityType):
             raise InvalidJobSchema(
                 source,
                 f"{name}: entity_type {entity_type!r} is not one of {', '.join(known)}",

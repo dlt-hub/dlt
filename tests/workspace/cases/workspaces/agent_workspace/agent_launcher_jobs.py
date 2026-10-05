@@ -62,6 +62,12 @@ async def async_job(run_context: TJobRunContext = None) -> str:
     return "async_ok"
 
 
+@agent(agent=AGENT_REF, loop=MOCK_LOOP)
+async def async_driver(run_context: TJobRunContext) -> Dict[str, Any]:
+    """Awaits the loop the launcher built for it, with no default for the run context."""
+    return await run_context["ai_loop"].run(inputs={"failed_run_id": "r-awaited"})  # type: ignore[no-any-return]
+
+
 inline = agent(INLINE_AGENT, loop=MOCK_LOOP)
 
 by_path = agent(".claude/dlthub/agents/job-inspector", name="by_path", loop=MOCK_LOOP)

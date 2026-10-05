@@ -15,10 +15,8 @@ from dlt._workspace.deployment.agent.exceptions import (
 from dlt._workspace.deployment.agent.configuration import (
     spec_from_agent_inputs,
     warn_unbound_inputs,
-    warn_unreferenced_inputs,
 )
 from dlt._workspace.deployment.agent.manifest import (
-    declared_placeholders,
     granted,
     inline_components,
     inputs_schema,
@@ -489,11 +487,6 @@ def test_the_body_is_a_template_over_the_inputs() -> None:
     with isolated_workspace("agent_workspace") as ctx:
         spec = _spec(ctx.run_dir)
 
-    assert declared_placeholders(spec["system_prompt"]) == {
-        "failed_job_ref",
-        "failed_run_id",
-        "run_context.trigger",
-    }
     prompt, unresolved = render_placeholders(
         spec["system_prompt"],
         {"failed_job_ref": "jobs.ingest", "run_context": {"trigger": "job.fail:*"}},
@@ -502,17 +495,6 @@ def test_the_body_is_a_template_over_the_inputs() -> None:
     assert "You are a job inspector" in prompt
     # an input nobody supplied renders blank and is reported
     assert unresolved == ["failed_run_id"]
-
-
-def test_warn_unreferenced_inputs() -> None:
-    """An input no placeholder mentions reaches no model, so the manifest says so."""
-    spec = _inputs_spec(["failed_run_id"])
-    spec["system_prompt"] = "Inspect {{ failed_run_id }} for {{ run_context.trigger }}."
-
-    assert warn_unreferenced_inputs(spec) == ["depth", "verbose", "extras"]
-
-    spec["system_prompt"] += " Depth {{ depth }}, verbose {{ verbose }}, extras {{ extras }}."
-    assert warn_unreferenced_inputs(spec) == []
 
 
 def test_warn_unbound_inputs() -> None:

@@ -1,4 +1,4 @@
-"""What a loop needs to run tools: the local tools, their environment and the workspace MCP server."""
+"""Tools for agent loops: the local tools, the environment they run in and the workspace MCP server."""
 
 import os
 import re
@@ -7,21 +7,46 @@ import subprocess
 import sys
 import tempfile
 from fnmatch import fnmatchcase
+from itertools import islice
 from pathlib import Path
-from typing import Any, Callable, Dict, List, Optional, Tuple, cast
+from typing import (
+    Any,
+    Callable,
+    Dict,
+    Generator,
+    Iterable,
+    Iterator,
+    List,
+    Optional,
+    Tuple,
+    cast,
+)
 
 from dlt._workspace.cli.utils import cli_host_command, mcp_stdio_args
 from dlt._workspace.deployment.agent.exceptions import LocalToolError
+from dlt._workspace.deployment.file_selector import GitignoreFileSelector
 from dlt._workspace.typing import TWorkspaceAccess, TWorkspaceLocalVerb
 
 MAX_TOOL_OUTPUT = 20_000
+"""Maximum number of characters that the shell and Python tools return."""
 SUBPROCESS_TIMEOUT = 120
+"""Seconds after which the shell and Python tools stop a command."""
+TOOL_LINE_LIMIT = 2000
+"""Number of lines that `Read`, `Glob` and `Grep` return if the model gives no `limit`."""
+TOOL_MAX_CHARS = 100_000
+"""Maximum number of characters that `Read`, `Glob` and `Grep` return. They return full lines only.
+They cut a line only if the line alone is longer than this limit."""
+BINARY_SNIFF_BYTES = 8192
+"""Number of bytes at the start of a file that `Grep` reads. A NUL byte in them marks a binary file,
+which `Grep` skips."""
+LINE_ENDINGS = "\r\n"
 
 MCP_SERVER_ID = "dlt-workspace-mcp"
-"""Name the loops give the workspace MCP server, also used by `dlthub ai mcp install`."""
+"""Name of the workspace MCP server in the loops and in `dlthub ai mcp install`."""
 
 SECRET_FILE_PATTERNS = ("*secrets.toml", ".env", ".env.*")
-"""Credential files no file tool opens: dlt's `[<profile>.]secrets.toml` and dotenv files."""
+"""Names of credential files: dlt `[<profile>.]secrets.toml` files and dotenv files. The file tools
+do not open them."""
 
 FILE_TOOLS = (
     "Read",
@@ -33,11 +58,11 @@ FILE_TOOLS = (
     "MultiEdit",
     "NotebookEdit",
 )
-"""Tools that access the filesystem by path, and so take a deny rule each."""
+"""Claude Code CLI tools that use file paths. Each tool gets a rule that blocks credential files."""
 
 SHELL_TOOL = "PowerShell" if os.name == "nt" else "Bash"
-"""The shell of this platform, named as the Claude Code CLI names it. One shell per platform, so
-the model is never told `bash` and handed PowerShell."""
+"""Name of the shell tool on this platform, as the Claude Code CLI names it: `PowerShell` on Windows,
+`Bash` on other platforms. The model sees only the shell that really runs."""
 
 LOCAL_TOOLS: Dict[str, Tuple[str, ...]] = {
     "read": ("Read", "Glob", "Grep"),
@@ -45,68 +70,114 @@ LOCAL_TOOLS: Dict[str, Tuple[str, ...]] = {
     "execute": (SHELL_TOOL, "RunPython"),
     "network": ("WebFetch", "WebSearch"),
 }
-"""What each `access.local` verb buys, named as the Claude Code CLI names its tools."""
+"""Tools that each `access.local` verb gives, with the names that the Claude Code CLI uses."""
 
 LOCAL_TOOL_VERBS: Dict[str, TWorkspaceLocalVerb] = {
     name: cast(TWorkspaceLocalVerb, verb) for verb, names in LOCAL_TOOLS.items() for name in names
 }
-"""The verb each local tool belongs to."""
+"""The `access.local` verb of each local tool."""
 
 
 def is_secret_file(path: str) -> bool:
-    """True when a path names a credential file, wherever in the workspace it sits."""
+    """True if `path` is a credential file, in any folder."""
     name = os.path.basename(path)
     return any(fnmatchcase(name, pattern) for pattern in SECRET_FILE_PATTERNS)
 
 
+def take_page(
+    items: Iterable[str], offset: Optional[int], limit: Optional[int]
+) -> Tuple[List[str], int, bool]:
+    """Takes one page of `items`. Each item is one line that ends with a newline.
+
+    The page starts at the 1-based `offset`. It has at most `limit` items and at most
+    `TOOL_MAX_CHARS` characters. The function reads at most one item after the page.
+
+    Returns:
+        Tuple[List[str], int, bool]: The page, the number of its first item, and True if more
+            items follow.
+    """
+    first = max(offset or 1, 1)
+    page: List[str] = []
+    size = 0
+    for item in islice(items, first - 1, None):
+        if len(page) == (limit or TOOL_LINE_LIMIT) or (page and size + len(item) > TOOL_MAX_CHARS):
+            return page, first, True
+        if len(item) > TOOL_MAX_CHARS:
+            item = item[:TOOL_MAX_CHARS] + "…\n"
+        page.append(item)
+        size += len(item)
+    return page, first, False
+
+
+def page_note(unit: str, first: int, count: int, total: Optional[int] = None) -> str:
+    """The last line of a page that is not the end. It gives the `offset` of the next page."""
+    last = first + count - 1
+    of_total = f" of {total}" if total is not None else ""
+    return f"({unit} {first}-{last}{of_total} shown; more with offset={last + 1})"
+
+
+def _is_binary(path: Path) -> bool:
+    """True if the start of the file has a NUL byte, or if the file cannot be read."""
+    try:
+        with path.open("rb") as file:
+            return b"\0" in file.read(BINARY_SNIFF_BYTES)
+    except OSError:
+        return True
+
+
 def secret_deny_rules() -> List[str]:
-    """CLI rules that keep its file tools out of credential files."""
+    """Claude Code CLI rules that block its file tools from credential files."""
     return [f"{tool}(**/{pattern})" for tool in FILE_TOOLS for pattern in SECRET_FILE_PATTERNS]
 
 
 def tool_env() -> Dict[str, str]:
-    """Child environment with the job's virtualenv on PATH, so `dlthub`, `dlt` and `python` resolve."""
+    """Environment for the processes that the tools start.
+
+    The virtual environment of the job is first on `PATH`, so `python`, `dlt` and `dlthub` come
+    from it. Output is UTF-8 on all platforms.
+    """
     bin_dir = Path(sys.executable).parent
     env = dict(os.environ)
     if str(bin_dir) not in env.get("PATH", "").split(os.pathsep):
         env["PATH"] = os.pathsep.join(filter(None, [str(bin_dir), env.get("PATH", "")]))
     if (bin_dir.parent / "pyvenv.cfg").is_file():
         env["VIRTUAL_ENV"] = str(bin_dir.parent)
-    # the MCP server we spawn writes to our stderr, so it keeps quiet
+    # the MCP server writes to the stderr of this process, so keep it quiet
     env["FASTMCP_SHOW_SERVER_BANNER"] = "false"
     env["FASTMCP_LOG_LEVEL"] = "WARNING"
-    # tool output is decoded as UTF-8, and a Windows console would otherwise write its code page
+    # the tools read output as UTF-8. Without this, a Windows console writes in its own code page
     env["PYTHONIOENCODING"] = "utf-8"
     env["PYTHONUTF8"] = "1"
     return env
 
 
 def shell_executable() -> str:
-    """The shell behind `SHELL_TOOL`: `pwsh` or `powershell` on Windows, `bash` elsewhere."""
+    """The program behind `SHELL_TOOL`: `bash`, or `pwsh` or `powershell` on Windows."""
     if os.name != "nt":
         return "bash"
-    # `bash` on a Windows PATH is usually the WSL launcher, so it is never a fallback here
+    # on Windows, `bash` on the PATH is usually the WSL launcher, so it is never used here
     return shutil.which("pwsh") or shutil.which("powershell") or "powershell"
 
 
 def temp_dir() -> Path:
-    """The system temp folder, where an agent may keep scratch files outside the workspace."""
+    """The temp folder of the system. An agent keeps its scratch files there."""
     return Path(tempfile.gettempdir()).resolve()
 
 
 def workspace_note(root: Any, scratch: Any) -> str:
-    """One sentence for the system prompt naming the workspace and where scratch files go."""
-    # every path the model sees is posix, whatever the platform
+    """A sentence for the system prompt. It gives the workspace folder and the temp folder."""
+    # the model sees all paths with forward slashes, on all platforms
     root, scratch = Path(root).as_posix(), Path(scratch).as_posix()
     return f"The workspace is `{root}`. Scratch files belong in the temp folder `{scratch}`."
 
 
 class LocalTools:
-    """File, search and execution tools confined to the workspace root and a scratch folder.
+    """The file, search and run tools of an agent. They work only in the workspace and the temp
+    folder.
 
-    Each method is one tool as the model sees it, and its docstring is the tool description.
-    Nothing here is a sandbox: the shell and `python` run in the job's own process tree and
-    virtualenv, and the runner the job already runs in is what contains them.
+    Each public method is one tool. Its docstring is the tool description that the model reads.
+    The tools are not a sandbox. Shell commands and Python run in the process tree and the virtual
+    environment of the job. The runner of the job is what contains them.
     """
 
     def __init__(self, workspace_root: str, scratch_dir: Optional[str] = None) -> None:
@@ -114,7 +185,7 @@ class LocalTools:
         self.scratch = Path(scratch_dir).resolve() if scratch_dir else temp_dir()
 
     def by_name(self) -> Dict[str, Callable[..., str]]:
-        """The tools under the names in `LOCAL_TOOLS`."""
+        """The tools, with the names from `LOCAL_TOOLS`."""
         return {
             "Read": self.read,
             "Glob": self.glob,
@@ -126,8 +197,9 @@ class LocalTools:
         }
 
     def resolve(self, path: str) -> Path:
-        """Resolves `path` against the workspace, refusing what escapes it and the scratch folder."""
-        # an absolute path replaces `root` in the join, which is how a scratch file is named
+        """The absolute form of `path`. Refuses credential files and paths outside the workspace
+        and the temp folder."""
+        # an absolute path replaces `root` in the join. That is how a scratch file is named
         target = (self.root / path).resolve()
         if not (target.is_relative_to(self.root) or target.is_relative_to(self.scratch)):
             raise LocalToolError(
@@ -137,70 +209,135 @@ class LocalTools:
             raise LocalToolError(f"{path!r} holds credentials and cannot be opened")
         return target
 
-    def read(self, path: str, offset: int = None, limit: int = None) -> str:
-        """Read a UTF-8 text file, whole or a range of lines.
+    def read(
+        self, path: str, offset: int = None, limit: int = None, line_numbers: bool = True
+    ) -> str:
+        """Reads a text file.
+
+        - Reads up to 2000 lines by default.
+        - Each line starts with its line number and a tab. Line numbers start at 1.
+        - If the file has more lines, the last line gives the `offset` that reads on.
 
         Args:
-            path: Path relative to the workspace root, or an absolute path inside the temp folder.
-            offset: First line to return, 1-based. Reads from the start when omitted.
-            limit: How many lines to return. Reads to the end when omitted.
+            path: Relative to the workspace, or absolute in the temp folder.
+            offset: First line to read.
+            limit: Number of lines to read.
+            line_numbers: Prefix each line with its number.
         """
         target = self.resolve(path)
         if not target.is_file():
             raise LocalToolError(f"{path!r} does not exist")
-        text = target.read_text(encoding="utf-8", errors="replace")
-        if offset is None and limit is None:
-            return text[:MAX_TOOL_OUTPUT]
-        start = max((offset or 1) - 1, 0)
-        lines = text.splitlines(keepends=True)[start : None if limit is None else start + limit]
-        return "".join(lines)[:MAX_TOOL_OUTPUT]
+        lines = target.read_text(encoding="utf-8", errors="replace").splitlines(keepends=True)
+        if not lines:
+            return f"({path} is empty)"
+        if (offset or 1) > len(lines):
+            return f"({path} has {len(lines)} lines, offset {offset} is past its end)"
+        numbered = (f"{n}\t{line}" if line_numbers else line for n, line in enumerate(lines, 1))
+        page, first, more = take_page(numbered, offset, limit)
+        return "".join(page) + (page_note("lines", first, len(page), len(lines)) if more else "")
 
-    def glob(self, pattern: str = "*") -> str:
-        """List workspace files matching a glob, one relative path per line.
+    def glob(
+        self,
+        pattern: str = "**/*",
+        include_ignored: bool = False,
+        offset: int = None,
+        limit: int = None,
+    ) -> str:
+        """Finds files by name. Returns paths relative to the workspace, one per line.
+
+        - Patterns use `.gitignore` syntax: `*.py` matches in all folders, `jobs/*.py` only in
+          `jobs`.
+        - Skips the `.git` folder and the files that `.gitignore` excludes.
+        - Returns up to 2000 paths. If more match, the last line gives the `offset` that reads on.
 
         Args:
-            pattern: Glob relative to the workspace root, e.g. `"**/*.py"`.
+            pattern: Pattern of the files to find.
+            include_ignored: Also find the files that `.gitignore` excludes.
+            offset: First path to return.
+            limit: Number of paths to return.
         """
-        matches = sorted(
-            path.relative_to(self.root).as_posix()
-            for path in self.root.glob(pattern)
-            if path.is_file() and not is_secret_file(path.name)
+        paths = (
+            f"{relative.as_posix()}\n" for _, relative in self._select(pattern, include_ignored)
         )
-        return "\n".join(matches)[:MAX_TOOL_OUTPUT] or f"(nothing matches {pattern!r})"
+        page, first, more = take_page(paths, offset, limit)
+        if not page:
+            return f"(nothing matches {pattern!r})"
+        return "".join(page) + (page_note("paths", first, len(page)) if more else "")
 
-    def grep(self, pattern: str, glob: str = "**/*") -> str:
-        """Search workspace file contents, returning `path:line:text` for each hit.
+    def grep(
+        self,
+        pattern: str,
+        glob: str = "**/*",
+        include_ignored: bool = False,
+        offset: int = None,
+        limit: int = None,
+    ) -> str:
+        """Searches file contents. Returns `path:line_number:text` for each matching line.
+
+        - `pattern` is a Python regular expression, matched within single lines.
+        - `glob` uses the same syntax as the Glob tool.
+        - Skips credential files, binary files, the `.git` folder and the files that
+          `.gitignore` excludes.
+        - Returns up to 2000 matches. If there are more, the last line gives the `offset` that
+          reads on.
 
         Args:
-            pattern: Regular expression matched against each line.
-            glob: Which files to search, relative to the workspace root.
+            pattern: Regular expression to find.
+            glob: Pattern of the files to search.
+            include_ignored: Also search the files that `.gitignore` excludes.
+            offset: First match to return.
+            limit: Number of matches to return.
         """
         try:
             expression = re.compile(pattern)
         except re.error as ex:
             raise LocalToolError(f"{pattern!r} is not a valid regular expression: {ex}") from ex
-        hits: List[str] = []
-        for path in sorted(self.root.glob(glob)):
-            if not path.is_file() or is_secret_file(path.name):
+        hits = self._matching_lines(expression, glob, include_ignored)
+        try:
+            page, first, more = take_page(hits, offset, limit)
+        finally:
+            # stop the search at the end of the page and close the open file
+            hits.close()
+        if not page:
+            return f"(no line matches {pattern!r})"
+        return "".join(page) + (page_note("matches", first, len(page)) if more else "")
+
+    def _select(self, pattern: str, include_ignored: bool) -> GitignoreFileSelector:
+        """The workspace files that `pattern` finds, without the files that the workspace
+        ignores."""
+        try:
+            return GitignoreFileSelector(
+                str(self.root), include=[pattern], use_ignore_file=not include_ignored
+            )
+        except ImportError as ex:
+            raise LocalToolError(
+                "Glob and Grep need the `pathspec` package, which is not installed. Use Read, or"
+                " list and search files with the shell"
+            ) from ex
+
+    def _matching_lines(
+        self, expression: "re.Pattern[str]", glob: str, include_ignored: bool
+    ) -> Generator[str, None, None]:
+        """One `path:line_number:text` line for each match. Reads the files only as far as the
+        caller takes lines."""
+        for path, relative_path in self._select(glob, include_ignored):
+            if is_secret_file(path.name) or _is_binary(path):
                 continue
+            relative = relative_path.as_posix()
             try:
-                text = path.read_text(encoding="utf-8", errors="replace")
+                with path.open(encoding="utf-8", errors="replace") as file:
+                    for number, line in enumerate(file, start=1):
+                        if expression.search(line):
+                            yield f"{relative}:{number}:{line.rstrip(LINE_ENDINGS)}\n"
             except OSError:
                 continue
-            relative = path.relative_to(self.root).as_posix()
-            hits += [
-                f"{relative}:{number}:{line}"
-                for number, line in enumerate(text.splitlines(), start=1)
-                if expression.search(line)
-            ]
-        return "\n".join(hits)[:MAX_TOOL_OUTPUT] or f"(no line matches {pattern!r})"
 
     def write(self, path: str, content: str) -> str:
-        """Write a UTF-8 text file, creating parent folders.
+        """Writes a text file. Replaces the file if it exists and creates missing folders.
 
         Args:
-            path: Path relative to the workspace root, or an absolute path inside the temp folder.
-            content: Full new contents of the file. Replaces what is there.
+            path: Relative to the workspace, or absolute in the temp folder.
+            content: Full text of the file.
         """
         target = self.resolve(path)
         target.parent.mkdir(parents=True, exist_ok=True)
@@ -208,12 +345,14 @@ class LocalTools:
         return f"wrote {len(content)} characters to {path}"
 
     def edit(self, path: str, old_text: str, new_text: str) -> str:
-        """Replace one fragment of a file, leaving the rest untouched.
+        """Replaces text in a file.
+
+        - `old_text` must occur exactly once. If it occurs more often, add the text around it.
 
         Args:
-            path: Path relative to the workspace root, or an absolute path inside the temp folder.
-            old_text: Text to replace. Must appear exactly once in the file.
-            new_text: Text to put in its place.
+            path: Relative to the workspace, or absolute in the temp folder.
+            old_text: Text to replace.
+            new_text: Replacement text.
         """
         target = self.resolve(path)
         if not target.is_file():
@@ -229,30 +368,28 @@ class LocalTools:
         return f"replaced {len(old_text)} characters in {path}"
 
     def bash(self, command: str) -> str:
-        """Run a bash command and return its stdout and stderr.
+        """Runs a bash command in the workspace folder.
 
-        Every call starts a fresh shell in the workspace root. Nothing carries over between
-        calls, so `cd` in one call does not affect the next: use paths relative to the
-        workspace root, or change directory inside the same command (`cd subdir && ls`). The
-        job's virtualenv is first on PATH, so `dlthub`, `dlt` and `python` are the workspace's own.
+        - Each call starts a new shell. `cd` and `export` do not carry over to the next call.
+        - `python`, `dlt` and `dlthub` come from the Python environment of the workspace.
+        - Stops the command after 120 seconds. Returns the first 20000 characters of output.
 
         Args:
-            command: Command line, run through `bash -c`.
+            command: Command to run.
         """
         return self._capture([shell_executable(), "-c", command])
 
     def powershell(self, command: str) -> str:
-        """Run a PowerShell command and return its stdout and stderr.
+        """Runs a PowerShell command in the workspace folder.
 
-        Every call starts a fresh shell in the workspace root. Nothing carries over between
-        calls, so `cd` in one call does not affect the next: use paths relative to the
-        workspace root, or change directory inside the same command (`cd subdir; ls`). The
-        job's virtualenv is first on PATH, so `dlthub`, `dlt` and `python` are the workspace's own.
+        - Each call starts a new shell. `cd` and variables do not carry over to the next call.
+        - `python`, `dlt` and `dlthub` come from the Python environment of the workspace.
+        - Stops the command after 120 seconds. Returns the first 20000 characters of output.
 
         Args:
-            command: PowerShell command line, run non-interactively without a profile.
+            command: Command to run.
         """
-        # the console code page is not UTF-8 on Windows, and the output is decoded as UTF-8
+        # the Windows console does not use UTF-8, and the tools read output as UTF-8
         script = f"[Console]::OutputEncoding = [Text.UTF8Encoding]::new(); {command}"
         return self._capture(
             [
@@ -267,20 +404,21 @@ class LocalTools:
         )
 
     def python(self, code: str) -> str:
-        """Run Python in the workspace environment and return its stdout and stderr.
+        """Runs Python code in the workspace folder.
 
-        The interpreter is the workspace's own virtualenv, running in the workspace root: `dlt`,
-        the workspace pipelines and every configured destination import exactly as they do in
-        the job itself, under the same profile and credentials. Each call is a fresh process, so
-        nothing carries over between calls and only what you print comes back.
+        - Each call starts a new process. Variables and imports do not carry over to the next call.
+        - Uses the Python environment, configuration and credentials of the workspace, as the job
+          does.
+        - Stops the code after 120 seconds. Returns the first 20000 characters of output.
 
         Args:
-            code: Python source to execute.
+            code: Code to run.
         """
         return self._capture([sys.executable, "-"], stdin=code)
 
     def _capture(self, argv: List[str], stdin: str = None) -> str:
-        """Runs a child process in the workspace and returns its combined, capped output."""
+        """Runs a process in the workspace folder. Returns its output and error output, cut to
+        `MAX_TOOL_OUTPUT` characters."""
         try:
             done = subprocess.run(  # noqa: S603
                 argv,
@@ -301,7 +439,8 @@ class LocalTools:
 
 
 def mcp_server_command(tools: List[str], access: TWorkspaceAccess) -> Dict[str, Any]:
-    """Stdio server config serving the feature groups an agent declared, limited to its access."""
+    """Command that starts the workspace MCP server over stdio. The server serves the feature
+    groups that the agent declares, limited to its access."""
 
     return {
         "type": "stdio",

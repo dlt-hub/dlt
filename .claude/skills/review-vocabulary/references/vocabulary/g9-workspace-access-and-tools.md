@@ -5,7 +5,7 @@
 | Concept | Write |
 |---|---|
 | the declaration of what a job may touch | **access** (the `access` block, `TWorkspaceAccess`) |
-| one of its four keys | **access axis** |
+| one of its three keys, `local`, `data` and `context` | **access axis** |
 | a value on an axis | **verb** |
 | what the runtime or a loop does with the declaration | **grant**, **deny** (verbs) |
 | what it did grant | **granted access** |

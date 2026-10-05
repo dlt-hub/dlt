@@ -996,13 +996,13 @@ def customers():
 - **`destination_scope`** selects the destination records that the merge can delete or retire. `delete-insert`, `scd2`, and `cdc` support it.
 - **`source_filter`** selects the loaded records to merge. dlt **discards** the other loaded records. The remaining records are the merge source. Keys and `merge_key` partitions come only from the merge source.
 
-| strategy        | `destination_scope`         | `source_filter` |
-| --------------- | --------------------- | -------------- |
-| `delete-insert` | yes, the delete condition | yes            |
-| `scd2`          | yes                   | yes            |
-| `cdc`           | yes                   | yes            |
-| `upsert`        | no                    | yes            |
-| `insert-only`   | no                    | no             |
+| strategy        | `destination_scope`       | `source_filter` |
+| --------------- | ------------------------- | --------------- |
+| `delete-insert` | yes, the delete condition | yes             |
+| `scd2`          | yes                       | yes             |
+| `cdc`           | yes                       | yes             |
+| `upsert`        | no                        | yes             |
+| `insert-only`   | no                        | no              |
 
 With an unsupported option, dlt raises an error when you define the resource. If the destination picks the strategy, dlt ignores the option and logs a warning.
 

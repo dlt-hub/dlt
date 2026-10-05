@@ -22,6 +22,7 @@ from dlt._workspace.cli.dlthub.ai.agents import (
 )
 from dlt._workspace.cli.dlthub.ai.typing import TAiStatusInfo, TToolkitInfo
 from dlt._workspace.cli.dlthub.ai.utils import (
+    DLTHUB_AGENTS_DIR,
     build_toolkits_dependency_map,
     compute_file_hash,
     extract_toolkit_info,
@@ -201,7 +202,7 @@ def _plan_toolkit_install(
             )
 
     # agents (directory-based, each with AGENT.md + optional files), copied verbatim
-    agents_dir = toolkit_dir / "agents"
+    agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
     if agents_dir.is_dir():
         for agent_path in sorted(agents_dir.iterdir()):
             if not agent_path.is_dir() or not (agent_path / COMPONENT_MARKERS["agent"]).exists():
@@ -300,6 +301,8 @@ def _execute_install(
                 action.content_or_path,
                 action.dest_path,
                 dirs_exist_ok=overwrite,
+                # an agent may ship Python code; what a toolkit checkout compiled is not part of it
+                ignore=shutil.ignore_patterns("__pycache__", "*.pyc"),
             )
         else:
             safe_write_text(action.dest_path, action.content_or_path)  # type: ignore[arg-type]

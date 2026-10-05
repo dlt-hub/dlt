@@ -2,12 +2,15 @@
 
 import asyncio
 import inspect
-from typing import Any, Dict, Mapping, Optional, cast
+from functools import partial
+from types import ModuleType
+from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
 
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.container import Container
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime.run_context import active
+from dlt.common.typing import TAny
 
 from dlt._workspace.deployment.agent.loop import (
     AgentLoop,
@@ -15,10 +18,14 @@ from dlt._workspace.deployment.agent.loop import (
     resolve_agent_settings,
     resolve_loop_type,
 )
-from dlt._workspace.deployment.agent.manifest import to_agent_definition
+from dlt._workspace.deployment.agent.manifest import (
+    VALIDATE_INPUT,
+    VALIDATE_OUTPUT,
+    load_agent_module,
+    to_agent_definition,
+)
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentSpec
-from dlt._workspace.deployment.decorators import AgentJobFactory
-from dlt._workspace.deployment._run_views import print_job_result
+from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
 from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolutionError
 from dlt._workspace.deployment.job_result import (
@@ -39,6 +46,7 @@ from dlt._workspace.deployment.launchers.job import (
     deliver_job_result,
     job_sections,
     run as run_job,
+    run_and_print_result,
 )
 from dlt._workspace.deployment.typing import (
     JOB_RESULT_ENGINE_VERSION,
@@ -51,7 +59,7 @@ from dlt._workspace.deployment.typing import (
 
 
 def _resolve_agent_job(entry_point: TRuntimeEntryPoint) -> AgentJobFactory[Any, Any]:
-    """Import the module and resolve the AgentJobFactory named by the entry point."""
+    """Imports the module and returns the `AgentJobFactory` the entry point names."""
     function = entry_point.get("function")
     if not function:
         raise JobResolutionError(entry_point["module"], "entry_point.function must be set")
@@ -65,14 +73,14 @@ def _resolve_agent_job(entry_point: TRuntimeEntryPoint) -> AgentJobFactory[Any, 
     result, trace = object_from_ref(ref, _typechecker, raise_exec_errors=True)
     if result is None:
         raise JobResolutionError(ref, f"{trace.reason}" + (f" ({trace.exc})" if trace.exc else ""))
-    if result.is_declared:
-        # stamp the module the manifest found it in, so job_ref and config sections match
-        result.declare(entry_point["module"], function)
+    if not result.has_function:
+        # bind it to the module attribute the manifest found it in, so job_ref and sections match
+        result.bind_module_attr(entry_point["module"], function)
     return result  # type: ignore[no-any-return]
 
 
 def build_agent_loop(job: AgentJobFactory[Any, Any], workspace_root: str) -> AgentLoop:
-    """Resolves the agent spec and builds an initialized loop for it."""
+    """Resolves the agent definition and builds an initialized agent loop for it."""
     sections = job_sections(job)
     config = resolve_configuration(AgentConfiguration(), sections=sections)
     spec = job.resolve_agent_spec(workspace_root)
@@ -84,6 +92,7 @@ def build_agent_loop(job: AgentJobFactory[Any, Any], workspace_root: str) -> Age
         "limits": job.limits,
         "loop_run_args": job.loop_run_args,
         "verbosity": job.verbosity,
+        "emojis": job.emojis,
     }
     settings = resolve_agent_settings(spec, config, decorator_args, loop_cls, workspace_root)
     loop = loop_cls(settings)
@@ -97,118 +106,192 @@ def build_agent_loop(job: AgentJobFactory[Any, Any], workspace_root: str) -> Age
     return loop
 
 
-def _recorded(inputs: Mapping[str, Any]) -> Dict[str, Any]:
-    """`inputs` as the prompt, the trace and the result see them: without the loop handle."""
-    recorded = dict(inputs)
-    if isinstance(context := recorded.get(RUN_CONTEXT_INPUT), Mapping):
-        recorded[RUN_CONTEXT_INPUT] = {k: v for k, v in context.items() if k != "ai_loop"}
-    return recorded
+def _collect_validators(
+    agent_module: Optional[ModuleType], name: str, job_validator: Optional[Callable[..., Any]]
+) -> List[Callable[..., Any]]:
+    """Validators called `name`: the one from `agent.py` first, then the one the job passed."""
+    return [v for v in (getattr(agent_module, name, None), job_validator) if v is not None]
 
 
-def _agent_inputs(
+def _collect_agent_inputs(
     job: AgentJobFactory[Any, Any],
     spec: TAgentSpec,
     run_context: TJobRunContext,
+    agent_module: Optional[ModuleType] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Declared inputs plus the implicit run context, extended by the inputs validator.
+    """Builds the inputs of an agent run and passes them through the input validators.
 
-    A declared input is taken from configuration first, then from the trigger's run
-    arguments, then from an explicit call argument.
+    Call arguments override run arguments, which override configuration. A validator's return
+    value replaces the inputs; `None` keeps them.
     """
-    inputs = _recorded({RUN_CONTEXT_INPUT: run_context})
-    inputs.update(configured_inputs(job, job.input_spec(spec)))
-    inputs.update(run_context.get("run_args") or {})
-    inputs.update(kwargs)
-    if job.inputs_validator is not None:
-        extended = job.inputs_validator(inputs)
-        if extended:
-            inputs.update(extended)
+    inputs: Dict[str, Any] = {RUN_CONTEXT_INPUT: run_context}
+    given = {**(run_context.get("run_args") or {}), **kwargs}
+    inputs.update(configured_inputs(job, job.input_spec(spec), given))
+    inputs.update(given)
+    # a validator may abort the run: its result still needs the inputs the run received
+    set_job_inputs(inputs)
+    for validate in _collect_validators(agent_module, VALIDATE_INPUT, job.inputs_validator):
+        validated = validate(inputs)
+        if validated is not None:
+            inputs = validated
     set_job_inputs(inputs)
     return inputs
 
 
-def _finish(
-    job: AgentJobFactory[Any, Any], output: Dict[str, Any], loop: AgentLoop
-) -> TAgentJobResult:
-    """Wraps a loop result in a job result and declares it; the job launcher delivers it."""
-    if job.outputs_validator is not None:
-        validated = job.outputs_validator(output)
-        if validated:
+async def _run_agent_definition(
+    job: AgentJobFactory[Any, Any], loop: AgentLoop, run_context: TJobRunContext, **kwargs: Any
+) -> Dict[str, Any]:
+    """Default function of an agent job without one: runs the agent definition and `agent.py`.
+
+    Returns the agent output, passed through the output validators.
+    """
+    agent_module = load_agent_module(job.agent_dir) if job.agent_dir else None
+    try:
+        inputs = _collect_agent_inputs(job, loop.spec, loop.run_context, agent_module, **kwargs)
+    except JobAbortedException as ex:
+        # an input validator aborted the run: the loop does not start
+        given: Dict[str, Any] = dict(ex.result) if ex.result else {}
+        # raises inside the handler, so the reason the validator gave stays chained
+        return _set_result_from_agent_output(
+            job, {"summary": ex.summary, **given, "status": "aborted"}, loop
+        )
+    output = await loop.run(inputs=inputs)
+    for validate in _collect_validators(agent_module, VALIDATE_OUTPUT, job.outputs_validator):
+        validated = validate(output)
+        if validated is not None:
             output = validated
-    status = output.get("status", "succeeded")
+    return output
+
+
+def _function_args_from_run_args(
+    job: AgentJobFactory[Any, Any], run_context: TJobRunContext
+) -> Dict[str, Any]:
+    """Run arguments that match the function parameters."""
+    parameters = inspect.signature(job._f).parameters
+    return {
+        name: value
+        for name, value in (run_context.get("run_args") or {}).items()
+        if name in parameters
+    }
+
+
+def _set_result_from_agent_output(
+    job: AgentJobFactory[Any, Any], output: TAny, loop: AgentLoop
+) -> TAny:
+    """Sets `output` as the job result when it is an agent output, and returns it.
+
+    Raises `JobAbortedException` when the output status is `aborted`.
+    """
+    if not (isinstance(output, dict) and "status" in output):
+        return output
     job_result: TAgentJobResult = {
         "type": job.result_name,
         "engine_version": JOB_RESULT_ENGINE_VERSION,
-        "status": status,
+        "status": output["status"],
         "summary": output.get("summary", ""),
         "result": output,
         # a function may answer without calling the model: then the trace has no turns
         "trace": loop.trace if loop.completed else loop.base_trace(job_inputs() or {}),
     }
     set_job_result(job_result)
-    if status == "aborted":
+    if output["status"] == "aborted":
         raise JobAbortedException(job_result["summary"] or "agent aborted", job_result)
-    return job_result
+    return output
 
 
-def run_declared_agent(job: AgentJobFactory[Any, Any], **kwargs: Any) -> TAgentJobResult:
-    """Runs an agent declared by reference, outside a launcher."""
-    context = active()
-    run_context: TJobRunContext = {
-        "run_id": getattr(context.runtime_config, "run_id", None) or "local",
-        "trigger": TTrigger("manual:"),
-        "refresh": False,
-    }
-    loop = build_agent_loop(job, context.run_dir)
+async def _await_and_set_result(
+    job: AgentJobFactory[Any, Any], output: Awaitable[Any], loop: AgentLoop
+) -> Any:
+    return _set_result_from_agent_output(job, await output, loop)
+
+
+def _build_loop_and_run_agent(
+    job: AgentJobFactory[Any, Any], run_context: TJobRunContext, **kwargs: Any
+) -> Any:
+    """Builds the agent loop into `run_context` and runs the agent job.
+
+    `kwargs` are agent run inputs, or function arguments when the job decorates a function.
+    Returns a coroutine when the job has no function or the function is `async def`.
+    """
+    loop = build_agent_loop(job, active().run_dir)
+    # the loop, the inputs and the trace get the run context before the loop goes into it
+    loop.run_context = cast(TJobRunContext, dict(run_context))
     run_context["ai_loop"] = loop
-    with Container().injectable_context(JobRunContext()):
-        inputs = _agent_inputs(job, loop.spec, run_context, **kwargs)
-        output = asyncio.run(loop.run(inputs=inputs))
+    if job.has_function:
+        # run arguments fill what the caller left out
+        kwargs = {**_function_args_from_run_args(job, run_context), **kwargs}
+        set_job_inputs({RUN_CONTEXT_INPUT: loop.run_context, **kwargs})
+        if _wants_run_context(job._f):
+            kwargs[RUN_CONTEXT_INPUT] = run_context
+        # calls the function itself: `job(...)` would call this function again
+        output = JobFactory.__call__(job, **kwargs)
+    else:
+        output = _run_agent_definition(job, loop, run_context, **kwargs)
+    if asyncio.iscoroutine(output):
+        return _await_and_set_result(job, output, loop)
+    return _set_result_from_agent_output(job, output, loop)
+
+
+def _get_local_run_context(given: Optional[TJobRunContext] = None) -> TJobRunContext:
+    """Fills in `run_id`, `trigger` and `refresh` missing from a run context, in place."""
+    run_context: TJobRunContext = given if given is not None else cast(TJobRunContext, {})
+    run_context.setdefault("run_id", getattr(active().runtime_config, "run_id", None) or "local")
+    run_context.setdefault("trigger", TTrigger("manual:"))
+    run_context.setdefault("refresh", False)
+    return run_context
+
+
+def _keep_job_result(job: AgentJobFactory[Any, Any]) -> None:
+    """Finishes the job result of a direct call as the launcher does, and keeps it unsent."""
+    job.last_job_result = cast(Optional[TAgentJobResult], deliver_job_result(job, send=False))
+
+
+def _run_with_own_job_result(
+    job: AgentJobFactory[Any, Any], run_context: TJobRunContext, **kwargs: Any
+) -> Any:
+    """Runs the agent job in a new job run context, so a calling job keeps its job result.
+
+    The job result of the call is kept in `job.last_job_result`.
+    """
+    job.last_job_result = None
+    with Container().injectable_context(JobRunContext()) as context:
         try:
-            _finish(job, output, loop)
-        finally:
-            # outside a launcher nothing is delivered, but the result is finished all the same
-            finished = deliver_job_result(job, send=False)
-    return cast(TAgentJobResult, finished)
+            result = _build_loop_and_run_agent(job, run_context, **kwargs)
+        except BaseException:
+            _keep_job_result(job)
+            raise
+        if not asyncio.iscoroutine(result):
+            _keep_job_result(job)
+            return result
+
+    async def await_with_own_job_result() -> Any:
+        with Container().injectable_context(context):
+            try:
+                return await result
+            finally:
+                _keep_job_result(job)
+
+    return await_with_own_job_result()
 
 
-def _function_kwargs(job: AgentJobFactory[Any, Any], run_context: TJobRunContext) -> Dict[str, Any]:
-    """Run arguments for the inputs the function declares, plus the run context when it asks."""
-    parameters = inspect.signature(job._f).parameters
-    kwargs: Dict[str, Any] = {
-        name: value
-        for name, value in (run_context.get("run_args") or {}).items()
-        if name in parameters
-    }
-    if _wants_run_context(job._f):
-        kwargs["run_context"] = run_context
-    return kwargs
+def call_agent_job(job: AgentJobFactory[Any, Any], *args: Any, **kwargs: Any) -> Any:
+    """Runs an agent job called directly, returns the agent output or the function's return value.
 
-
-def _invoke_agent(job: AgentJobFactory[Any, Any], run_context: TJobRunContext) -> Any:
-    """Builds the loop and drives it. A decorated function drives it itself."""
-    loop: Optional[AgentLoop] = None
-    if job.has_agent:
-        loop = build_agent_loop(job, active().run_dir)
-        run_context["ai_loop"] = loop
-    if job.is_declared:
-        inputs = _agent_inputs(job, loop.spec, run_context)
-        output = asyncio.run(loop.run(inputs=inputs))
-        return _finish(job, output, loop)
-
-    kwargs = _function_kwargs(job, run_context)
-    set_job_inputs(_recorded(kwargs))
-    result = job(**kwargs)
-    if asyncio.iscoroutine(result):
-        result = asyncio.run(result)
-    if isinstance(result, dict) and loop is not None and "status" in result:
-        return _finish(job, result, loop)
-    return result
+    Returns a coroutine when the job has no function or the function is `async def`. An agent job
+    without a function takes keyword arguments only. A `run_context` argument is used as is.
+    """
+    if not job.has_function:
+        if args:
+            raise TypeError(f"Agent job {job.name!r} takes its inputs as keyword arguments.")
+    else:
+        kwargs = dict(inspect.signature(job._f).bind_partial(*args, **kwargs).arguments)
+    run_context = _get_local_run_context(kwargs.pop(RUN_CONTEXT_INPUT, None))
+    return _run_with_own_job_result(job, run_context, **kwargs)
 
 
 def run(entry_point: TRuntimeEntryPoint, run_id: str, trigger: str) -> Any:
-    """Runs an agent job: builds its loop, drives it, and delivers the structured output.
+    """Runs an agent job and delivers its job result.
 
     Args:
         entry_point (TRuntimeEntryPoint): What to run (module + factory attribute).
@@ -216,10 +299,10 @@ def run(entry_point: TRuntimeEntryPoint, run_id: str, trigger: str) -> Any:
         trigger (str): Trigger string that fired this run.
 
     Returns:
-        Any: The agent job output, or the decorated function's return value.
+        Any: The job result, or the function's return value when it is not an agent output.
 
     Raises:
-        JobAbortedException: The agent reported `status: aborted`.
+        JobAbortedException: The agent output has `status: aborted`.
     """
     # the agent module is imported here, before run_job, so its config env must be set first
     apply_job_configuration(entry_point)
@@ -230,14 +313,12 @@ def run(entry_point: TRuntimeEntryPoint, run_id: str, trigger: str) -> Any:
         run_id,
         trigger,
         job=_resolve_agent_job(entry_point),
-        invoke=cast(TJobInvoke, _invoke_agent),
+        invoke=cast(TJobInvoke, _build_loop_and_run_agent),
     )
 
 
 if __name__ == "__main__":
     args = parse_launcher_args()
-    result = run(entry_point=args.entry_point, run_id=args.run_id, trigger=args.trigger)
-    if isinstance(result, dict) and "type" in result:
-        print_job_result(cast(TJobResult, result))
-    elif result is not None:
-        print(result)  # noqa: T201
+    run_and_print_result(
+        partial(run, entry_point=args.entry_point, run_id=args.run_id, trigger=args.trigger)
+    )

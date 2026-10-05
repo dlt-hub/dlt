@@ -7,7 +7,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, cast
 
-import click
 import pytest
 from claude_agent_sdk import ProcessError
 from pydantic_ai import ModelRetry, ToolFailed, capture_run_messages
@@ -201,18 +200,21 @@ def test_settings_precedence_rises_to_config(workspace: Any, loop_cls: Type[Agen
     assert settings["max_turns"] == 30
     assert settings["max_tokens"] == 1000000
     assert settings["verbosity"] == 1
+    assert settings["emojis"] is True
 
     # a decorator argument beats the spec
-    decorator_args = {"model": "opus", "verbosity": 0}
+    decorator_args = {"model": "opus", "verbosity": 0, "emojis": False}
     settings = resolve_agent_settings(spec, _config(), decorator_args, loop_cls, workspace.run_dir)
     assert settings["model"] == "opus"
     assert settings["verbosity"] == 0
+    assert settings["emojis"] is False
 
     # config beats the decorator
-    config = _config(model="haiku", verbosity=2)
+    config = _config(model="haiku", verbosity=2, emojis=True)
     settings = resolve_agent_settings(spec, config, decorator_args, loop_cls, workspace.run_dir)
     assert settings["model"] == "haiku"
     assert settings["verbosity"] == 2
+    assert settings["emojis"] is True
 
     # one limit overridden leaves the other where the spec put it
     settings = resolve_agent_settings(spec, _config(max_turns=3), {}, loop_cls, workspace.run_dir)
@@ -504,6 +506,36 @@ def test_loops_hand_entity_types_to_the_model_as_comments(workspace: Any) -> Non
         assert loop.spec["inputs"]["properties"]["failed_run_id"]["entity_type"] == "job-runs"
 
 
+@pytest.mark.parametrize(
+    "required,placeholder,warned",
+    [
+        ({}, "failed_job_ref", []),
+        (["failed_job_ref"], "failed_job_ref", ["failed_job_ref"]),
+        ({}, "failed_jobref", ["failed_jobref"]),
+    ],
+    ids=["optional-unset", "required-missing", "undeclared"],
+)
+def test_only_a_blank_that_may_not_be_blank_warns(
+    workspace: Any,
+    caplog: pytest.LogCaptureFixture,
+    dlt_logger_name: str,
+    required: Any,
+    placeholder: str,
+    warned: List[str],
+) -> None:
+    """An optional input left unset renders blank in silence; a typo or a missing required one warns."""
+    loop = _loop(workspace, PydanticAILoop)
+    loop.spec["inputs"]["required"] = required
+    loop._system_prompt = f"Inspect '{{{{ {placeholder} }}}}' from `{{{{ run_context.trigger }}}}`."
+
+    with caplog.at_level(logging.WARNING, logger=dlt_logger_name):
+        rendered = loop.render_system_prompt({"run_context": {"trigger": "job.fail:*"}})
+
+    assert rendered == "Inspect '' from `job.fail:*`."
+    assert loop._unresolved_placeholders == warned
+    assert ("unresolved placeholders" in caplog.text) == bool(warned)
+
+
 def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) -> None:
     """The system prompt is the rendered body plus what the loop inlines; the turn stays a turn."""
 
@@ -517,7 +549,7 @@ def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) 
         assert "Resource changes are proposals" in rendered, loop_cls.LOOP_TYPE
         assert "focus on the loader step" not in rendered, loop_cls.LOOP_TYPE
         assert loop.user_turn == "focus on the loader step", loop_cls.LOOP_TYPE
-        assert loop._unresolved_placeholders == ["failed_job_ref"], loop_cls.LOOP_TYPE
+        assert loop._unresolved_placeholders == [], loop_cls.LOOP_TYPE
     # the claude loop hands the framework what it rendered; the pydantic one has its own test
     assert cast(Any, loop)._build_options(rendered).system_prompt == rendered
 
@@ -653,16 +685,16 @@ def test_pydantic_loop_reports_what_the_agent_does(
     asyncio.run(_drive())
 
     # the transcript goes to stdout, terminal or not; colors are stripped to match the text
-    out = click.unstyle(capsys.readouterr().out)
+    out = capsys.readouterr().out
     assert "job-inspector" in out and "anthropic:claude-sonnet-5" in out
-    assert "prompt\n  inspect the failed run" in out
-    assert "thinks  weighing the options" in out
-    assert "says\n  here is the answer" in out
-    assert 'list_runs (dlt-workspace-mcp)  {"n":3}' in out
+    assert "📝 prompt\n  inspect the failed run" in out
+    assert "💭 thinks  weighing the options" in out
+    assert "💬\n  here is the answer" in out
+    assert '🌐 list_runs (dlt-workspace-mcp)  {"n":3}' in out
     # the result lives on the part; reporting `event.content` showed nothing
-    assert "→ r-1 failed" in out
+    assert "✅ r-1 failed" in out
     # the answer is the agent speaking, not a tool call to an MCP server it never made
-    assert "says\n  r-1 ran out of memory" in out
+    assert "💬\n  r-1 ran out of memory" in out
     assert "final_result" not in out
 
 
@@ -700,11 +732,11 @@ def test_system_prompt_is_shown_in_full_at_the_top_verbosity(
 
     loop.settings["verbosity"] = 1
     loop.render_system_prompt({})
-    assert "system prompt" not in click.unstyle(capsys.readouterr().out)
+    assert "system prompt" not in capsys.readouterr().out
 
     loop.settings["verbosity"] = 2
     loop.render_system_prompt({})
-    out = click.unstyle(capsys.readouterr().out)
+    out = capsys.readouterr().out
     assert "system prompt\n  RULE RULE" in out
     assert out.count("RULE") == 400
 

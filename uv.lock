@@ -2384,7 +2384,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.30.1a0"
+version = "1.30.1a1"
 source = { editable = "." }
 dependencies = [
     { name = "click" },
@@ -2581,6 +2581,7 @@ adbc = [
 ]
 agent = [
     { name = "aiohttp" },
+    { name = "pathspec" },
     { name = "pydantic-ai-slim", extra = ["anthropic", "google", "mcp", "openai", "spec"] },
 ]
 agent-claude = [
@@ -2828,6 +2829,7 @@ adbc = [
 ]
 agent = [
     { name = "aiohttp", specifier = ">=3.14.3" },
+    { name = "pathspec", specifier = ">=0.11.2" },
     { name = "pydantic-ai-slim", extras = ["anthropic", "openai", "google", "mcp", "spec"], specifier = ">=2.35.0" },
 ]
 agent-claude = [{ name = "claude-agent-sdk", specifier = ">=0.2.144" }]

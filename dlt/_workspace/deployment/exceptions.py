@@ -164,16 +164,6 @@ class JobResolutionError(DeploymentException):
         super().__init__(f"Cannot resolve job {ref!r}: {reason}")
 
 
-class InvalidJobResultType(DeploymentException, ValueError):
-    def __init__(self, result_type: str) -> None:
-        self.result_type = result_type
-        super().__init__(
-            f"Job result type {result_type!r} is not `<category>.<name>` with `job` or"
-            " `background_agent` as the category. The launcher builds it; a job passes only"
-            " the name to `run.result(..., type=)`."
-        )
-
-
 class JobAbortedException(DeploymentException):
     """A job ended its run deliberately without completing its task."""
 

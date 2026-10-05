@@ -412,7 +412,7 @@ class PydanticAILoop(AgentLoop):
         limits: Optional[TAgentLimits] = None,
         run_args: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
-        inputs = inputs or {}
+        inputs = self.run_inputs(inputs)
         self.resolve_run(model, limits, instructions)
         # the usage offsets belong to one run, like the counters `resolve_run` starts over
         self._input_seen = self._output_seen = 0

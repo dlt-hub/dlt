@@ -6,6 +6,7 @@ from functools import update_wrapper, wraps
 from typing import (
     Any,
     Callable,
+    Coroutine,
     Dict,
     List,
     Mapping,
@@ -56,7 +57,6 @@ from dlt._workspace.deployment.reflection import (
 from dlt._workspace.deployment.agent.configuration import (
     spec_from_agent_inputs,
     warn_unbound_inputs,
-    warn_unreferenced_inputs,
 )
 from dlt._workspace.deployment.agent.manifest import (
     load_agent_spec,
@@ -66,8 +66,17 @@ from dlt._workspace.deployment.agent.manifest import (
     to_agent_definition,
     validate_agent_spec,
 )
-from dlt._workspace.deployment.agent.reflection import agent_source, agent_spec_from_function
-from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
+from dlt._workspace.deployment.agent.reflection import (
+    agent_source,
+    agent_spec_from_function,
+    merge_inputs,
+)
+from dlt._workspace.deployment.agent.typing import (
+    TAgentJobResult,
+    TAgentLimits,
+    TAgentOutput,
+    TAgentSpec,
+)
 from dlt._workspace.deployment.job_result import running_job
 from dlt._workspace.deployment.launchers import (
     DEFAULT_AGENT_LOOP,
@@ -796,8 +805,12 @@ def _set_agent(wrapper: "AgentJobFactory[Any, Any]", agent: Union[None, str, TAg
     if agent is None:
         return
     if isinstance(agent, str):
+        if not agent.strip():
+            raise ValueError("Empty agent definition reference.")
         wrapper.agent_ref = agent
     else:
+        if not agent.get("name"):
+            raise ValueError("Agent definition has no 'name'.")
         wrapper.agent_spec = agent
         wrapper.agent_ref = agent["name"]
 
@@ -815,11 +828,13 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         self.launcher = LAUNCHER_AGENT
         self.agent_ref: str = None
         self.agent_spec: Optional[TAgentSpec] = None
-        """Agent declared inline, instead of referenced by name."""
+        """Agent definition given inline, instead of referenced by name."""
         self.agent_file: Optional[str] = None
         """Folder the referenced agent was read from, relative to the workspace root."""
         self.agent_name: Optional[str] = None
         """Name of an agent referenced by path, read from its `AGENT.md`."""
+        self.agent_dir: Optional[str] = None
+        """Folder of a referenced agent, where its `AGENT.md` and `agent.py` live."""
         self.loop: str = DEFAULT_AGENT_LOOP
         self.model: str = None
         self.instructions: str = None
@@ -827,85 +842,87 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         self.limits: Optional[TAgentLimits] = None
         self.loop_run_args: Optional[Dict[str, Any]] = None
         self.verbosity: Optional[int] = None
+        self.emojis: Optional[bool] = None
         self.inputs_validator: Optional[AnyFun] = None
         self.outputs_validator: Optional[AnyFun] = None
         self.agent_declaration: Dict[str, Any] = {}
         """`AGENT.md` fields the decorator carried, overriding the agent it referenced."""
         self.agent_definition: Optional[TAgentDefinition] = None
         """Manifest subset of the agent, resolved when the job definition is generated."""
-        self._declared_module: str = None
-        self._declared_attr: str = None
+        self.last_job_result: Optional[TAgentJobResult] = None
+        """Job result of the latest call: status, summary, agent trace and entities. Not sent."""
+        self._module_name: str = None
+        self._attr_name: str = None
 
     @property
-    def is_declared(self) -> bool:
-        """True when the agent was named instead of decorating a function."""
-        return self._f is None
-
-    @property
-    def has_agent(self) -> bool:
-        """True when the job has an agent: named, given, or declared by the function itself."""
-        return bool(self.agent_ref or self.agent_spec or not self.is_declared)
+    def has_function(self) -> bool:
+        """True when the agent job decorates a function."""
+        return self._f is not None
 
     def resolve_agent_spec(self, workspace_root: str) -> TAgentSpec:
-        """The agent in full: declared by the decorated function, given inline, or named."""
+        """Resolves the agent definition from the function, the inline dict or the reference."""
         base = self.agent_spec
         if base is not None:
             # given inline: a copy, so the caller's dict is not rewritten below
             base = cast(TAgentSpec, dict(base))
         elif self.agent_ref:
-            agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
-            base = load_agent_spec(agent_dir)
-            self.agent_file = os.path.relpath(agent_manifest_path(agent_dir), workspace_root)
+            self.agent_dir = resolve_agent_dir(self.agent_ref, workspace_root)
+            base = load_agent_spec(self.agent_dir)
+            self.agent_file = os.path.relpath(agent_manifest_path(self.agent_dir), workspace_root)
             if is_path_ref(self.agent_ref):
                 # the result type names the agent, not the folder it was loaded from
                 self.agent_name = base["name"]
 
-        if self.is_declared:
+        if not self.has_function:
             self.agent_spec = validate_agent_spec(base, self.agent_ref)
         else:
             source = agent_source(self._f, self.name)
             self.agent_spec = agent_spec_from_function(
                 self._f, source, self.agent_declaration, base
             )
-            # a function-declared agent has no AGENT.md: it is the module it lives in
+            # an agent definition from a function has no AGENT.md: its agent file is the module
             self.agent_file = _workspace_relative(source, workspace_root)
             if not self.agent_ref:
                 self.agent_ref = f"{self._f.__module__}:{get_callable_name(self._f)}"
-        # the agent declares the result. A declared job's inputs are the agent's too; a
-        # decorated one takes them from its signature, which is what configuration can inject
+        # the output comes from the agent definition. Without a function the inputs do too; a
+        # decorated function takes them from its signature, which is what configuration can inject,
+        # described as the referenced agent definition describes them
         self.output = self.agent_spec["output"]
-        if self.is_declared:
+        if not self.has_function:
             self.inputs = self.agent_spec["inputs"]
+        elif base and base.get("inputs"):
+            self.inputs = merge_inputs(
+                base["inputs"], inputs_from_function(self._f, self.job_ref, self.config_fields())
+            )
         return self.agent_spec
 
-    def declare(self, module_name: str, attr_name: str) -> None:
-        """Names the module attribute holding a declared agent, so the launcher can resolve it."""
-        self._declared_module = self._declared_module or module_name
-        self._declared_attr = self._declared_attr or attr_name
+    def bind_module_attr(self, module_name: str, attr_name: str) -> None:
+        """Sets the module attribute holding an agent job without a function, as its entry point."""
+        self._module_name = self._module_name or module_name
+        self._attr_name = self._attr_name or attr_name
         self.section = self.section or get_module_name(sys.modules[module_name])
 
-    def __call__(self, *args: Any, **kwargs: Any) -> Any:
-        if not self.is_declared:
-            return super().__call__(*args, **kwargs)
+    def __call__(self, *args: TJobFunParams.args, **kwargs: TJobFunParams.kwargs) -> TJobResult:
+        """Runs the agent job in process, returns the agent output or the function's return."""
         # the launcher imports this module, so it can only be reached from inside the call
-        from dlt._workspace.deployment.launchers.agent import run_declared_agent
+        from dlt._workspace.deployment.launchers.agent import call_agent_job
 
-        return run_declared_agent(self, *args, **kwargs)
+        return cast(TJobResult, call_agent_job(self, *args, **kwargs))
 
     def _entry_point(self) -> TEntryPoint:
-        if not self.is_declared:
+        if self.has_function:
             return super()._entry_point()
         return {
-            "module": self._declared_module,
-            "function": self._declared_attr,
+            "module": self._module_name,
+            "function": self._attr_name,
             "job_type": self.job_type,
             "launcher": self.launcher,
         }
 
     def _description(self) -> str:
-        if not self.is_declared:
+        if self.has_function:
             return super()._description()
-        # a declared job has no function to describe it, so the agent speaks for it
+        # without a function the description comes from the agent definition
         return self.agent_spec.get("description", "") if self.agent_spec else ""
 
     @property
@@ -918,9 +935,9 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         return self.agent_name or self.agent_ref or self.name
 
     def input_spec(self, agent_spec: TAgentSpec) -> Type[BaseConfiguration]:
-        """Job configuration of a declared agent: its inputs, synthesized once."""
+        """Job configuration of an agent job without a function: the definition's inputs."""
         if self._spec is None:
-            # no function to inject config into, so the declared inputs are the job config
+            # no function to inject config into, so the inputs are the job config
             self._spec = spec_from_agent_inputs(agent_spec)
         return self._spec
 
@@ -932,8 +949,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         )
         self.access = spec.get("access") or {}
         self._apply_agent_defaults(spec)
-        warn_unreferenced_inputs(spec)
-        if self.is_declared:
+        if not self.has_function:
             self.input_spec(spec)
         else:
             warn_unbound_inputs(spec, self._f)
@@ -948,8 +964,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         self.execute = cast(TExecuteSpec, execute)
 
     def to_job_definition(self) -> TJobDefinition:
-        if self.has_agent:
-            self._resolve_agent()
+        self._resolve_agent()
         job_def = super().to_job_definition()
         expose: TExposeSpec = dict(job_def.get("expose") or {})  # type: ignore[assignment]
         expose["category"] = BACKGROUND_AGENT_CATEGORY
@@ -985,6 +1000,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
@@ -1012,6 +1028,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
     execute: Optional[TExecuteSpec] = None,
     expose: Optional[TJobExposeSpec] = None,
@@ -1036,6 +1053,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     inputs_validator: Optional[AnyFun] = None,
     outputs_validator: Optional[AnyFun] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
@@ -1043,7 +1061,7 @@ def agent(
     expose: Optional[TJobExposeSpec] = None,
     require: Optional[TRequireSpec] = None,
     spec: Type[BaseConfiguration] = None,
-) -> AgentJobFactory[..., TAgentJobResult]: ...
+) -> AgentJobFactory[..., Coroutine[Any, Any, TAgentOutput]]: ...
 
 
 def agent(
@@ -1064,6 +1082,7 @@ def agent(
     limits: Optional[TAgentLimits] = None,
     loop_run_args: Optional[Dict[str, Any]] = None,
     verbosity: Optional[int] = None,
+    emojis: Optional[bool] = None,
     inputs_validator: Optional[AnyFun] = None,
     outputs_validator: Optional[AnyFun] = None,
     trigger: Union[str, TTrigger, Sequence[Union[str, TTrigger]]] = None,
@@ -1123,7 +1142,7 @@ def agent(
 
     Configuration in the job's section overrides the decorator: `[jobs.<module>.<job>.agent]`
     takes `loop`, `model`, `instructions`, `max_turns`, `max_tokens`, `loop_run_args`,
-    `verbosity`, `api_key`, `api_url` and `api_version`. Inputs are set one level up, in
+    `verbosity`, `emojis`, `api_key`, `api_url` and `api_version`. Inputs are set one level up, in
     `[jobs.<module>.<job>]`.
 
     Args:
@@ -1183,11 +1202,13 @@ def agent(
             `settings`. Keys a loop does not know are ignored and listed in the run's trace.
         verbosity (Optional[int]): How much of the run is printed to stdout: 0 the outcome
             only, 1 turns, thoughts and tool calls, 2 everything, the system prompt included.
-        inputs_validator (Optional[AnyFun]): Called with the resolved inputs before the run;
-            whatever it returns is merged into them. Use it to check or derive inputs, e.g. look
-            up a run id from a job ref.
-        outputs_validator (Optional[AnyFun]): Called with the agent's output after the run;
-            whatever it returns replaces it.
+        emojis (Optional[bool]): Mark tool calls, results and the outcome in the printed run
+            with emojis. On by default; off prints plain words.
+        inputs_validator (Optional[AnyFun]): Called with the resolved inputs before the run,
+            `run_context` included. Its return value replaces the inputs; `None` keeps them.
+            Use it to check or derive inputs, e.g. look up a run id from a job ref.
+        outputs_validator (Optional[AnyFun]): Called with the agent output after the run. Its
+            return value replaces the output; `None` keeps it.
         trigger (Union[str, TTrigger, Sequence[Union[str, TTrigger]]]): One or more trigger
             strings or `TTrigger` values.
         execute (Optional[TExecuteSpec]): Execution constraints: `timeout`, `concurrency`.
@@ -1237,6 +1258,7 @@ def agent(
         wrapper.limits = limits
         wrapper.loop_run_args = loop_run_args
         wrapper.verbosity = verbosity
+        wrapper.emojis = emojis
         wrapper.inputs_validator = inputs_validator
         wrapper.outputs_validator = outputs_validator
         wrapper.agent_declaration = {

@@ -684,9 +684,9 @@ def generate_manifest(
                 continue
 
             if isinstance(obj, JobFactory):
-                # a declared agent has no function to take its module and section from
-                if isinstance(obj, AgentJobFactory) and obj.is_declared:
-                    obj.declare(deployment_module.__name__, name)
+                # an agent job without a function has no module for its entry point and section
+                if isinstance(obj, AgentJobFactory) and not obj.has_function:
+                    obj.bind_module_attr(deployment_module.__name__, name)
                 jobs.append(obj.to_job_definition())
             elif isinstance(obj, ModuleType):
                 # __all__: trust the user; __dir__ scan: filter to local modules

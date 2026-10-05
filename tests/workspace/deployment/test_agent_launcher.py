@@ -5,6 +5,7 @@ another loop; parametrizing `loop_type` is what adds a real loop to the same cov
 """
 
 import json
+import asyncio
 import os
 import subprocess
 import sys
@@ -19,6 +20,14 @@ from dlt._workspace.deployment.agent.loop import DEFAULT_USER_TURN
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers import LAUNCHER_AGENT
 from dlt._workspace.deployment.launchers.agent import run as agent_run
+from dlt.common.configuration.container import Container
+
+from dlt._workspace.deployment.job_result import (
+    JobRunContext,
+    job_result,
+    running_job,
+    take_job_result,
+)
 from dlt._workspace.deployment.typing import TInstallSpec, TJobRef, TRuntimeEntryPoint
 from dlt.version import __version__
 
@@ -67,7 +76,7 @@ def test_agent_launcher_runs_a_declared_agent(workspace: Any, loop_type: str) ->
     output = agent_run(_entry("inspector", loop_type), run_id="a-1", trigger="manual:")
 
     # the category says which envelope this is, the name which agent produced the payload
-    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
     assert "agent" not in output
     assert output["status"] == "succeeded"
     assert output["job_ref"] == "jobs.agent_launcher_jobs.mock_inspector"
@@ -179,7 +188,7 @@ def test_agent_launcher_rejects_a_plain_job(workspace: Any, loop_type: str) -> N
 
 
 def test_agent_launcher_via_cli(workspace: Any, loop_type: str) -> None:
-    """`python -m` on the agent launcher prints the rendered job output."""
+    """`python -m` on the agent launcher prints the rendered job output, as UTF-8."""
     result = subprocess.run(
         [
             sys.executable,
@@ -193,12 +202,14 @@ def test_agent_launcher_via_cli(workspace: Any, loop_type: str) -> None:
             json.dumps(_entry("inspector", loop_type)),
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=60,
         cwd=workspace.run_dir,
+        # what a Windows pipe gets by default: a code page with no emojis
+        env={**os.environ, "PYTHONIOENCODING": "cp1252"},
     )
     assert result.returncode == 0, result.stderr
-    assert "background_agent." in result.stdout
+    assert "🎁 Result  [job.background_agent." in result.stdout
     assert "succeeded" in result.stdout
     assert "mock run" in result.stdout
 
@@ -217,7 +228,7 @@ def test_agent_launcher_cli_error_exit_code(workspace: Any, loop_type: str) -> N
             json.dumps(_entry("nonexistent", loop_type)),
         ],
         capture_output=True,
-        text=True,
+        encoding="utf-8",
         timeout=60,
         cwd=workspace.run_dir,
     )
@@ -228,8 +239,8 @@ def test_decorator_to_launcher_e2e(workspace: Any, loop_type: str) -> None:
     """The manifest's own entry point runs: what `dlthub local run` hands the launcher."""
     import agent_launcher_jobs  # type: ignore[import-not-found]
 
-    # the manifest generator stamps the module a declared agent was found in
-    agent_launcher_jobs.inspector.declare(JOBS_MODULE, "inspector")
+    # the manifest generator binds a job without a function to its module attribute
+    agent_launcher_jobs.inspector.bind_module_attr(JOBS_MODULE, "inspector")
     job_def = agent_launcher_jobs.inspector.to_job_definition()
     assert job_def["expose"]["category"] == "background_agent"
 
@@ -251,18 +262,80 @@ def test_decorator_to_launcher_e2e(workspace: Any, loop_type: str) -> None:
 
 
 def test_declared_agent_runs_as_a_plain_call(workspace: Any, loop_type: str) -> None:
-    """Calling the factory outside a launcher runs the same agent."""
+    """Calling the factory outside a launcher runs the same agent; the caller awaits it."""
     env_key = "JOBS__AGENT_LAUNCHER_JOBS__MOCK_INSPECTOR__AGENT__LOOP"
     os.environ[env_key] = loop_type
     try:
         import agent_launcher_jobs
 
-        output: Dict[str, Any] = agent_launcher_jobs.inspector(failed_job_ref="jobs.b.ingest")
+        output: Dict[str, Any] = asyncio.run(
+            agent_launcher_jobs.inspector(failed_job_ref="jobs.b.ingest")
+        )
     finally:
         os.environ.pop(env_key, None)
 
-    assert output["status"] == "succeeded"
-    assert output["result"]["ran"]["run_context"]["run_id"] == "local"
+    # the caller gets the agent output; the job result envelope is the launcher's to deliver
+    assert output["status"] == "succeeded" and "type" not in output
+    assert output["ran"]["run_context"]["run_id"] == "local"
+    # the job result the launcher would deliver stays on the job, unsent
+    job_result = agent_launcher_jobs.inspector.last_job_result
+    assert job_result["type"] == "job.background_agent.dlthub-platform:job-inspector"
+    assert job_result["result"] == output
+    assert job_result["trace"]["loop_type"] == loop_type
+
+
+def test_decorated_agent_runs_as_a_plain_call(workspace: Any) -> None:
+    """A decorated function called directly gets a loop and a run context, as from the launcher."""
+    import agent_launcher_jobs
+
+    # the function drives the loop it finds in the run context and the caller gets its answer
+    output: Dict[str, Any] = agent_launcher_jobs.driver()
+    assert output["status"] == "succeeded" and "type" not in output
+    assert output["ran"]["agent"] == "driver"
+
+    # without a run context a local one stands in; one the caller passes is used as given
+    assert agent_launcher_jobs.context_aware()["run_id"] == "local"
+    mine = {"run_id": "r-mine", "trigger": "manual:", "refresh": False}
+    assert agent_launcher_jobs.context_aware(mine)["run_id"] == "r-mine"
+    assert agent_launcher_jobs.context_aware(run_context=mine)["run_id"] == "r-mine"
+
+    with pytest.raises(TypeError, match="keyword arguments"):
+        agent_launcher_jobs.inspector("jobs.b.ingest")
+
+
+def test_agent_called_inside_a_job_keeps_that_jobs_result(workspace: Any) -> None:
+    """A job that calls agent jobs as functions still delivers its own result."""
+    import agent_launcher_jobs
+
+    with Container().injectable_context(JobRunContext()):
+        with running_job(TJobRef("jobs.outer.orchestrate")):
+            job_result({"from": "outer"}, type="outer")
+            agent_launcher_jobs.driver()
+            asyncio.run(agent_launcher_jobs.async_driver({}))
+            asyncio.run(agent_launcher_jobs.inspector())
+        declared = take_job_result(TJobRef("jobs.outer.orchestrate"), "job", "orchestrate")
+
+    assert declared is not None
+    assert (declared["type"], declared["result"]) == ("job.outer", {"from": "outer"})
+
+
+def test_async_agent_called_directly_is_awaitable(workspace: Any) -> None:
+    """An `async def` agent returns a coroutine, and the run context it is given gets the loop."""
+    import agent_launcher_jobs
+
+    given: Dict[str, Any] = {}
+    output: Dict[str, Any] = asyncio.run(agent_launcher_jobs.async_driver(given))
+
+    assert output["status"] == "succeeded" and "type" not in output
+    assert output["ran"]["agent"] == "async_driver"
+    assert agent_launcher_jobs.async_driver.last_job_result["result"] == output
+    # the caller's own dict is the run context: completed in place, with the loop in it
+    assert given["run_id"] == "local" and "ai_loop" in given
+
+    async def from_a_running_loop() -> Any:
+        return await agent_launcher_jobs.async_driver(run_context={})
+
+    assert asyncio.run(from_a_running_loop())["status"] == "succeeded"
 
 
 def test_declared_inputs_come_from_config(workspace: Any, loop_type: str) -> None:
@@ -297,9 +370,9 @@ def test_the_body_carries_the_inputs_to_the_model(workspace: Any, loop_type: str
     system_prompt = output["result"]["ran"]["system_prompt"]
     assert "with failed run id 'r-42'" in system_prompt
     assert "from trigger `job.fail:jobs.b.ingest`" in system_prompt
-    # an input nobody supplied renders blank, and the trace says which
+    # an optional input nobody supplied renders blank, which is no reason to warn
     assert "job_ref ''" in system_prompt
-    assert output["trace"]["unresolved_placeholders"] == ["failed_job_ref"]
+    assert output["trace"]["unresolved_placeholders"] == []
 
 
 def test_run_args_fill_declared_inputs(workspace: Any, loop_type: str) -> None:
@@ -349,7 +422,7 @@ def test_function_form_drives_the_loop_the_launcher_built(workspace: Any, loop_t
     output = agent_run(_entry("driver", loop_type), run_id="a-drv", trigger="manual:")
 
     # the function drives an installed agent definition, so that definition names the result
-    assert output["type"] == "background_agent.dlthub-platform:job-inspector"
+    assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
     assert output["result"]["ran"]["agent"] == "driver"
     assert output["trace"]["inputs"] == {"failed_run_id": "r-driven"}
 
@@ -358,7 +431,7 @@ def test_agent_declared_inline_runs_like_a_referenced_one(workspace: Any, loop_t
     ep = _entry("inline", loop_type, failed_run_id="r-inline", depth="3")
     output = agent_run(ep, run_id="a-inline", trigger="manual:")
 
-    assert output["type"] == "background_agent.inline-inspector"
+    assert output["type"] == "job.background_agent.inline-inspector"
     inputs = output["trace"]["inputs"]
     # the declared type is applied, so `depth` arrives as an int
     assert (inputs["failed_run_id"], inputs["depth"]) == ("r-inline", 3)
@@ -369,7 +442,7 @@ def test_agent_referenced_by_path_is_named_by_its_manifest(workspace: Any, loop_
     output = agent_run(ep, run_id="a-path", trigger="manual:")
 
     # the result type carries the agent's own name, the trace keeps the reference it was loaded by
-    assert output["type"] == "background_agent.job-inspector"
+    assert output["type"] == "job.background_agent.job-inspector"
     assert output["trace"]["agent"] == ".claude/dlthub/agents/job-inspector"
     assert output["status"] == "succeeded"
 
@@ -389,7 +462,7 @@ def test_agent_declared_by_a_python_function(workspace: Any, loop_type: str) -> 
     output = agent_run(ep, run_id="a-py", trigger="manual:")
 
     # no AGENT.md behind it: the function itself is the agent definition, named module:function
-    assert output["type"] == "background_agent.agent_launcher_jobs:python_inspector"
+    assert output["type"] == "job.background_agent.agent_launcher_jobs:python_inspector"
     # config filled the parameter, the trigger's run args filled the other
     assert output["trace"]["inputs"] == {"failed_run_id": "r-77", "depth": 5}
     ran = output["result"]["ran"]
@@ -400,7 +473,7 @@ def test_agent_declared_by_a_python_function(workspace: Any, loop_type: str) -> 
 def test_python_agent_reaches_the_manifest(workspace: Any) -> None:
     import agent_launcher_jobs
 
-    agent_launcher_jobs.python_inspector.declare(JOBS_MODULE, "python_inspector")
+    agent_launcher_jobs.python_inspector.bind_module_attr(JOBS_MODULE, "python_inspector")
     job_def = agent_launcher_jobs.python_inspector.to_job_definition()
     declaration = job_def["agent"]
 
@@ -446,3 +519,14 @@ def test_agent_with_no_inputs(workspace: Any, loop_type: str) -> None:
     # nobody gave instructions, so the run opens with the go-signal
     assert output["trace"]["inputs"] == {}
     assert output["result"]["ran"]["user_turn"] == DEFAULT_USER_TURN
+
+
+def test_required_input_given_as_call_argument(workspace: Any) -> None:
+    """A required input passed to the call needs no configuration."""
+    import agent_launcher_jobs
+
+    output: Dict[str, Any] = asyncio.run(agent_launcher_jobs.inline(failed_run_id="r-given"))
+
+    assert output["status"] == "succeeded"
+    trace = agent_launcher_jobs.inline.last_job_result["trace"]
+    assert trace["inputs"]["failed_run_id"] == "r-given"

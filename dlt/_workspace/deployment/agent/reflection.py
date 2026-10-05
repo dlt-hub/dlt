@@ -20,6 +20,23 @@ from dlt._workspace.deployment.reflection import (
 
 SPEC_KEYS = ("access", "tools", "skills", "rules")
 DEFAULTS_KEYS = ("model", "limits", "loop_run_args", "trigger")
+SCHEMA_TYPE_KEYS = frozenset(
+    (
+        "type",
+        "anyOf",
+        "oneOf",
+        "allOf",
+        "$ref",
+        "enum",
+        "const",
+        "items",
+        "prefixItems",
+        "properties",
+        "additionalProperties",
+        "format",
+    )
+)
+"""JSON Schema keys that shape a value's type: a parameter's annotation decides all of them."""
 
 
 def output_from_return(f: AnyFun, source: str) -> Dict[str, Any]:
@@ -68,6 +85,28 @@ def with_standard_output(
     return schema
 
 
+def merge_inputs(base: Dict[str, Any], signature: Dict[str, Any]) -> Dict[str, Any]:
+    """The function's inputs, with what its signature leaves out taken from the agent definition.
+
+    A parameter's description, `entity_type` and other attributes come from the definition when
+    the signature has none, and so does its type when the parameter has no annotation. Inputs the
+    signature lacks are not taken over.
+    """
+    base_properties: Dict[str, Any] = base.get("properties") or {}
+    properties: Dict[str, Any] = {}
+    for name, prop in (signature.get("properties") or {}).items():
+        declared = base_properties.get(name) or {}
+        typed = any(key in prop for key in SCHEMA_TYPE_KEYS)
+        properties[name] = {
+            **{k: v for k, v in declared.items() if not (typed and k in SCHEMA_TYPE_KEYS)},
+            **prop,
+        }
+    merged = {**signature, "properties": properties}
+    if base_defs := base.get("$defs"):
+        merged["$defs"] = {**base_defs, **(signature.get("$defs") or {})}
+    return merged
+
+
 def agent_spec_from_function(
     f: AnyFun,
     source: str,
@@ -106,7 +145,7 @@ def agent_spec_from_function(
     inputs: Dict[str, Any] = dict(spec.get("inputs") or {})
     signature_inputs = inputs_from_function(f, source)
     if signature_inputs.get("properties") or not inputs:
-        inputs.update(signature_inputs)
+        inputs = merge_inputs(inputs, signature_inputs)
     spec["inputs"] = inputs
 
     # a function driving a referenced agent may return anything; then that agent's output stands
@@ -125,6 +164,7 @@ def agent_source(f: AnyFun, name: str) -> str:
 __all__ = [
     "agent_source",
     "agent_spec_from_function",
+    "merge_inputs",
     "output_from_return",
     "with_standard_output",
 ]

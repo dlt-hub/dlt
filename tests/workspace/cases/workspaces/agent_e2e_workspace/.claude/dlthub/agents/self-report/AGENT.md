@@ -10,6 +10,14 @@ rules:
 access:
   local:
     - read
+inputs:
+  type: object
+  properties:
+    failed_run_id:
+      type: string
+      description: The job run to report on.
+      entity_type: job-runs
+  required: [failed_run_id]
 output:
   type: object
   properties:
@@ -36,7 +44,15 @@ output:
     workspace_name:
       type: string
       description: The `name` field `get_workspace_info` returned.
-  required: [local_tools, mcp_tools, skills, markers, workspace_name]
+      entity_type: workspace
+    reported_run_id:
+      type: string
+      description: The job run you were asked to report on, copied exactly.
+      entity_type: job-runs
+    trigger:
+      type: string
+      description: The trigger of this run, copied exactly.
+  required: [local_tools, mcp_tools, skills, markers, workspace_name, reported_run_id, trigger]
 defaults:
   model: haiku
   limits:
@@ -60,4 +76,6 @@ Fill the output like this:
 4. `markers`: every token of the form `MARKER-<WORDS>` you can see in your instructions, rules,
    project notes and skills.
 5. `workspace_name`: call `get_workspace_info` and copy the `name` field of its result.
-6. `status`: `succeeded`. `summary`: one sentence on what you found.
+6. `reported_run_id`: copy `{{ failed_run_id }}` exactly.
+7. `trigger`: copy `{{ run_context.trigger }}` exactly.
+8. `status`: `succeeded`. `summary`: one sentence on what you found.
