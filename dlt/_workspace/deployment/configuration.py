@@ -73,8 +73,7 @@ class McpConfiguration(BaseConfiguration):
 
 
 USER_ENDPOINT_FIELDS = ("model", "api_key", "api_url", "api_version")
-"""The model and the credentials that reach it. A run takes all four from the user or all four
-from the runtime, and never one from each: a runtime model id means nothing to another endpoint."""
+"""Model endpoint fields, taken together either from the user or from the runtime, never mixed."""
 
 
 @configspec
@@ -86,7 +85,7 @@ class AgentConfiguration(BaseConfiguration):
     loop: Optional[str] = None
     """Loop implementation, e.g. "pydantic-ai" or "claude-agent-sdk"."""
     instructions: Optional[str] = None
-    """What to tell the agent to do: the user turn, sent as the run's first message."""
+    """User prompt, sent as the run's first message."""
     model: Optional[str] = None
     """`provider:model` id, or an alias (sonnet, opus, haiku, fable, gpt, gemini)."""
     api_key: Optional[TSecretStrValue] = None
@@ -94,15 +93,13 @@ class AgentConfiguration(BaseConfiguration):
     api_url: Optional[str] = None
     """Base URL of the model API, for a proxy or a private deployment."""
     api_version: Optional[str] = None
-    """API version the provider requires. Azure needs one; no other provider takes it."""
+    """API version, required by Azure only."""
     runtime_model: Optional[str] = None
-    """Model supplied by the runtime. Both live side by side; see `USER_ENDPOINT_FIELDS`."""
+    """Model supplied by the runtime, used with the other `runtime_*` fields when the user sets none
+    of `USER_ENDPOINT_FIELDS`."""
     runtime_api_key: Optional[TSecretStrValue] = None
-    """Key supplied by the runtime. Both live side by side; see `USER_ENDPOINT_FIELDS`."""
     runtime_api_url: Optional[str] = None
-    """Base URL supplied by the runtime. Both live side by side; see `USER_ENDPOINT_FIELDS`."""
     runtime_api_version: Optional[str] = None
-    """Version supplied by the runtime. Both live side by side; see `USER_ENDPOINT_FIELDS`."""
     max_turns: Optional[int] = None
     max_tokens: Optional[int] = None
     loop_run_args: Dict[str, Any] = dataclasses.field(default_factory=dict)

@@ -47,7 +47,7 @@ def print_job_result(result: TJobResult, emojis: bool = True) -> None:
     fields: Dict[str, Any] = dict(result)
     _echo("")
     _echo("%sResult  [%s]" % (mark("result", emojis), result["type"]))
-    # the type says an agent ran, and so that status, summary and trace are there
+    # agent results carry a status and a summary
     if is_agent_result(result["type"]):
         status = fields.get("status", "")
         _echo("  status:     %s%s" % (status_mark(status, emojis), status))

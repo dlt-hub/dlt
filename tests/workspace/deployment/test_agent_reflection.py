@@ -175,14 +175,12 @@ class BareOutput(TAgentOutput):
 
 @pytest.mark.parametrize(
     "annotation",
+    # string annotations are what `from __future__ import annotations` stores
     [None, Any, TAgentOutput, BareOutput, "TAgentOutput", "BareOutput"],
     ids=["none", "any", "base", "empty-sub", "pep563-base", "pep563-sub"],
 )
 def test_output_defaults_to_the_job_result(annotation: Any) -> None:
-    """Saying nothing about the result means the agent reports `status` and `summary`.
-
-    A string annotation is what `from __future__ import annotations` stores.
-    """
+    """An agent without a declared output reports `status` and `summary`."""
 
     def bare(run_context: TJobRunContext = None) -> Any:
         pass

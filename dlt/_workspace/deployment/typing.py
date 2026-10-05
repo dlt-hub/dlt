@@ -15,7 +15,7 @@ REQUIREMENTS_ENGINE_VERSION = 2
 AGENT_DEFINITION_ENGINE_VERSION = 1
 JOB_RESULT_ENGINE_VERSION = 1
 JOB_RESULT_PAYLOAD_TYPE = "job_result"
-"""Beacon payload type for job results. The endpoint stores it in a 16 character column."""
+"""Beacon payload type for job results, at most 16 characters."""
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
@@ -99,7 +99,7 @@ BACKGROUND_AGENT_CATEGORY: Final = "background_agent"
 THubEntityType = Literal["job-runs", "job", "workspace", "pipeline", "dataset"]
 """Kinds of workspace entity a job can act on. Hyphenated: the values are URI path segments."""
 TLegacyHubEntityType = Literal["job-run"]
-"""Old spelling of `job-runs`, accepted and passed on unchanged for older backends. To be removed."""
+"""Deprecated spelling of `job-runs`, kept for older backends."""
 
 
 class TJobExposeSpec(TypedDict, total=False):
@@ -131,7 +131,7 @@ class TExposeSpec(TJobExposeSpec):
     category: NotRequired[TJobExposeCategory]
     """UI grouping category (e.g. `"pipeline"`, `"notebook"`)."""
     object_input: NotRequired[TJobObjectInput]
-    """The job's first entity-typed input. Use to pass object id as specified input to run that job for that object"""
+    """First entity-typed input of the job; a UI fills it with the entity id to run the job for."""
 
 
 class TRequireSpec(TypedDict, total=False):
@@ -210,7 +210,7 @@ class TIntervalSpec(TypedDict):
 
 
 RUN_CONTEXT_INPUT = "run_context"
-"""Argument a job declares to get the run context. The launcher fills it, config never does."""
+"""Job argument the launcher fills with `TJobRunContext`; never resolved from config."""
 
 
 class TJobRunContext(TypedDict):
@@ -228,9 +228,8 @@ class TJobRunContext(TypedDict):
     """End of the interval being processed."""
     refresh: bool
     """Refresh signal with request to refresh (reload) the data"""
-    ai_loop: NotRequired[Any]
-    """Agent loop created by the agent launcher. `SupportsAgentLoop`, untyped here to keep
-    this module free of imports."""
+    ai_loop: NotRequired[Any]  # `SupportsAgentLoop`, untyped to keep this module import free
+    """Agent loop created by the agent launcher."""
 
 
 class TRuntimeEntryPoint(TEntryPoint):
@@ -247,7 +246,7 @@ class TRuntimeEntryPoint(TEntryPoint):
     incremental_mode: NotRequired[TIncrementalSource]
     """Incremental mode of the job, read by launchers from dlt 1.30.1 on."""
     allow_external_schedulers: NotRequired[bool]
-    """The join decision as launchers before dlt 1.30.1 read it. Written for those alone."""
+    """Legacy form of `incremental_mode`, written only for launchers before dlt 1.30.1."""
     profile: NotRequired[str]
     """Active workspace profile, resolved from require.profile."""
     config: NotRequired[Dict[str, Any]]
@@ -298,8 +297,7 @@ class TAgentDefinition(TypedDict):
 
     engine_version: int
     agent_file: NotRequired[str]
-    """`AGENT.md` the definition was read from, or `<module>.py:<name>` for an agent a function
-    declares. Absent when the agent was given inline."""
+    """Source of the definition: an `AGENT.md` path or `<module>.py:<name>`; absent when inline."""
     name: str
     description: NotRequired[str]
     tools: NotRequired[List[str]]
@@ -307,9 +305,8 @@ class TAgentDefinition(TypedDict):
     skills: NotRequired[List[str]]
     rules: NotRequired[List[str]]
     instructions: NotRequired[str]
-    """User prompt supplied on the decorator. Configuration may replace it at run time."""
+    """User prompt from the decorator; configuration may replace it at run time."""
     model: NotRequired[str]
-    """Model supplied on the decorator."""
 
 
 class TJobDefinition(TypedDict):
@@ -328,7 +325,7 @@ class TJobDefinition(TypedDict):
     config_keys: NotRequired[List[str]]
     """Config keys discovered from function signature (`dlt.config.value` defaults)."""
     inputs: NotRequired[Dict[str, Any]]
-    """JSON Schema of `config_keys`: the same arguments, typed. Absent when the job takes none."""
+    """JSON Schema of the job's `config_keys`."""
     output: NotRequired[Dict[str, Any]]
     """JSON Schema of the job's result. Present when the job returns a `TJobResult`."""
     deliver: NotRequired[TDeliverSpec]
@@ -341,7 +338,7 @@ class TJobDefinition(TypedDict):
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
     access: NotRequired[TWorkspaceAccess]
-    """What the job may touch. Only background agents declare it today."""
+    """Workspace access the job requires. Declared by agent jobs."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]
@@ -349,7 +346,6 @@ class TJobDefinition(TypedDict):
     auto_refresh_pipeline_mode: NotRequired[TRefreshMode]
     """Refresh mode applied to every pipeline in the job when a refresh run is requested."""
     agent: NotRequired[TAgentDefinition]
-    """Agent declaration for jobs run by the agent launcher."""
 
 
 class THubEntity(TypedDict):
@@ -364,8 +360,7 @@ class TJobResult(TypedDict):
     """Structured result of a job run, delivered to the dlthub beacon. The launcher builds it."""
 
     type: str  # noqa: A003
-    """`job.{name}` for a job, `job.background_agent.{name}` for an agent job. The name is what
-    `run.result(type=)` declared, else the job name; for an agent its reference or name."""
+    """`job.{name}` or `job.background_agent.{name}`; name from `run.result(type=)` or the job."""
     engine_version: int
     result: NotRequired[Any]
     """JSON-serializable payload produced by the job."""

@@ -11,11 +11,7 @@ class DeploymentException(WorkspaceException):
 
 
 class DeploymentValidationError(DeploymentException, ValueError):
-    """Deployment input dlt refuses: a manifest, job definition, trigger, ref or agent definition.
-
-    Every subclass reports through `errors`, `warnings` and `subject`, so one handler answers
-    for all of them.
-    """
+    """Invalid deployment input: manifest, job definition, trigger, job ref or agent definition."""
 
     def __init__(
         self,

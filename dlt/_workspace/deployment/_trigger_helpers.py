@@ -272,10 +272,8 @@ def match_triggers_with_selectors(
 ) -> List[TTrigger]:
     """Return triggers that match any selector.
 
-    A selector matches a job by any of the three things a job is: its type
-    (`batch`, `interactive`, `stream`, `job`, with or without a trailing colon), one of its
-    triggers, or its `job_ref` when the caller supplies one. Job-type and ref selectors are
-    about the job rather than one trigger, so they match all of them.
+    A job-type selector (`batch`, `interactive`, `stream`, `job`, optionally with a trailing colon)
+    or one matching `job_ref` matches all triggers.
     """
     matched: List[TTrigger] = []
 

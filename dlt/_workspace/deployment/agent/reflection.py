@@ -36,7 +36,7 @@ SCHEMA_TYPE_KEYS = frozenset(
         "format",
     )
 )
-"""JSON Schema keys that shape a value's type: a parameter's annotation decides all of them."""
+"""JSON Schema keys that define a value's type."""
 
 
 def output_from_return(f: AnyFun, source: str) -> Dict[str, Any]:
@@ -66,10 +66,7 @@ def _standard_output() -> Dict[str, Any]:
 def with_standard_output(
     declared: Union[Dict[str, Any], Type[Any], None], source: str = "output"
 ) -> Dict[str, Any]:
-    """Declared output plus `status` and `summary`, which `TAgentOutput` alone defines.
-
-    `declared` is a JSON Schema, or a TypedDict or pydantic model one is read from.
-    """
+    """Declared output schema with `status` and `summary` of `TAgentOutput` added."""
     standard = deepcopy(_standard_output())
     if not declared:
         return standard
@@ -86,16 +83,13 @@ def with_standard_output(
 
 
 def merge_inputs(base: Dict[str, Any], signature: Dict[str, Any]) -> Dict[str, Any]:
-    """The function's inputs, with what its signature leaves out taken from the agent definition.
-
-    A parameter's description, `entity_type` and other attributes come from the definition when
-    the signature has none, and so does its type when the parameter has no annotation. Inputs the
-    signature lacks are not taken over.
-    """
+    """Inputs of the function signature, completed from the agent definition's inputs."""
     base_properties: Dict[str, Any] = base.get("properties") or {}
     properties: Dict[str, Any] = {}
+    # only inputs in the signature are kept
     for name, prop in (signature.get("properties") or {}).items():
         declared = base_properties.get(name) or {}
+        # an annotated parameter keeps its own type, the definition fills in the rest
         typed = any(key in prop for key in SCHEMA_TYPE_KEYS)
         properties[name] = {
             **{k: v for k, v in declared.items() if not (typed and k in SCHEMA_TYPE_KEYS)},
@@ -113,17 +107,8 @@ def agent_spec_from_function(
     declared: Dict[str, Any],
     base: Optional[TAgentSpec] = None,
 ) -> TAgentSpec:
-    """Assembles the agent a function declares.
-
-    The `agent` reference, when given, is the base; decorator arguments override it, and the
-    function's own signature, return type and docstring override those in turn.
-
-    Args:
-        f (AnyFun): The decorated function.
-        source (str): `<file>:<name>`, named in errors and carried as the agent folder.
-        declared (Dict[str, Any]): Decorator arguments, `AGENT.md` field names.
-        base (Optional[TAgentSpec]): Spec of the agent the decorator referenced.
-    """
+    """Builds the agent spec a decorated function declares."""
+    # override order: referenced agent, then decorator arguments, then the function itself
     spec: Dict[str, Any] = dict(base) if base else {}
     docstring = inspect.cleandoc(f.__doc__ or "")
 

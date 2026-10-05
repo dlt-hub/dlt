@@ -132,7 +132,7 @@ def _render_profile(profile_name: str) -> Dict[str, Any]:
 
 @pytest.mark.parametrize("with_password", [True, False], ids=["with-password", "key-only"])
 def test_snowflake_pkey_profile_renders(preserve_environ: Any, with_password: bool) -> None:
-    """A key pair is a whole credential on its own, and dlt exports no password beside it."""
+    """The `snowflake_pkey` profile renders the private key, and a password only when one is set."""
     from dlt.common.configuration.utils import add_config_to_env
     from dlt.destinations.impl.snowflake.configuration import (
         SnowflakeClientConfiguration,

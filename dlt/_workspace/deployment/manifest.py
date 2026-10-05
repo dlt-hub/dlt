@@ -235,14 +235,13 @@ def selects_job(job_def: TJobDefinition, selector: str) -> bool:
 def expand_trigger_selectors(jobs: List[TJobDefinition]) -> List[str]:
     """Replaces selector `job.success:` / `job.fail:` triggers with one trigger per matching job.
 
-    The runtime looks a completion trigger up by exact string, so a selector has to become
-    concrete refs here. A selector never expands onto the job that declares it, and an
-    interactive job is never a target: it has no completion to report.
+    The runtime matches job event triggers by exact string, so selectors must be expanded.
 
     Returns:
         List[str]: Warnings for selectors that matched no job.
     """
     warnings: List[str] = []
+    # interactive jobs never complete, so they emit no job events
     candidates = [
         job_def for job_def in jobs if job_def["entry_point"].get("job_type") != "interactive"
     ]
@@ -258,6 +257,7 @@ def expand_trigger_selectors(jobs: List[TJobDefinition]) -> List[str]:
                     expanded.append(trigger)
                 continue
             changed = True
+            # a selector never expands onto the job that declares it
             matched = [
                 candidate["job_ref"]
                 for candidate in candidates
@@ -299,11 +299,7 @@ def expand_triggers(job_def: TJobDefinition) -> List[TTrigger]:
 
 
 NO_DEFAULT_TRIGGER_TYPES = ("manual", "deployment", "job.success", "job.fail")
-"""Trigger types that never become a job's default.
-
-A job event names the upstream run that fired it, so standing in for a manual run would tell
-the job a job failed when none did.
-"""
+"""Trigger types never picked as a job's default; job events need a real upstream run."""
 
 
 def compute_default_trigger(job_def: TJobDefinition) -> Optional[TTrigger]:
@@ -331,8 +327,7 @@ def validate_job_definition(
     Args:
         job_def: The job definition to validate.
         raise_on_error: If True, raise InvalidJobDefinition when errors found.
-        validate_dict: If True, check that `job_def` conforms to `TJobDefinition` before
-            anything else. A structural error is then the only error reported.
+        validate_dict: If True, first check `job_def` against `TJobDefinition`, stop on error.
 
     Raises:
         InvalidJobDefinition: When raise_on_error is True and validation fails.
@@ -717,8 +712,7 @@ def generate_manifest(
     if is_workspace_deployment and not any(j["job_ref"] == DASHBOARD_JOB_REF for j in jobs):
         jobs.append(default_dashboard_job())
 
-    # selectors are a source-level concept: a stored manifest is always fully expanded,
-    # so this must run before default_trigger and before validation
+    # a stored manifest holds only concrete triggers: expand before default_trigger and validation
     warnings.extend(expand_trigger_selectors(jobs))
 
     # set expose.manual default and compute default_trigger

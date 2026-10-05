@@ -1,9 +1,4 @@
-"""Manifest values dlt emits must be accepted by the runtime that receives them.
-
-The runtime validates an uploaded manifest against its generated API models, which dlt
-cannot see: `dlthub-client` ships only with the `hub` extra, so `make test-workspace` never
-loads it and a value dlt invents looks valid until `dlthub deploy` rejects it.
-"""
+"""Checks that manifest values dlt emits are accepted by the runtime API models."""
 
 from typing import Set, get_args
 
@@ -13,6 +8,7 @@ from dlt._workspace.deployment.typing import TInterfaceType
 
 
 def _runtime_enum_values(name: str) -> Set[str]:
+    # runtime models ship only with the `hub` extra, so workspace tests cannot catch a mismatch
     models = pytest.importorskip("dlt_runtime.runtime_clients.api.models")
     return {member.value for member in getattr(models, name)}
 

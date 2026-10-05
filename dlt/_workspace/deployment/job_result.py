@@ -46,14 +46,11 @@ def running_job(job_ref: TJobRef) -> Iterator[None]:
 
 
 def result_type(category: TJobResultCategory, name: str) -> str:
-    """`job.{name}` for a job, `job.background_agent.{name}` for an agent job.
-
-    A name that already starts with `job.` is taken as is, so the type always starts with `job.`
-    exactly once.
-    """
+    """`job.{name}` for a job, `job.background_agent.{name}` for an agent job."""
     prefix = f"{JOB_RESULT_CATEGORY}."
     if category != JOB_RESULT_CATEGORY:
         name = f"{category}.{name}"
+    # a name that already starts with `job.` is not prefixed again
     return name if name.startswith(prefix) else prefix + name
 
 
@@ -71,21 +68,18 @@ def job_result(
 ) -> Any:
     """Declares the structured result of the current job run and returns `result` unchanged.
 
-    Ignored unless the calling job is the one the launcher invoked. A job that calls another
-    job as a plain function does not overwrite the run's result. A second call replaces the
-    first declaration.
+    Only the job the launcher invoked declares the result; a second call replaces the first.
 
     Args:
         result (Any): JSON-serializable payload.
-        type (Optional[str]): Name of the payload shape, e.g. `"etl_summary"`, or with a category
-            of your own, e.g. `"pipeline.load_info"`. Defaults to the job name. The launcher
-            prefixes it with `job.` when the run finishes, unless it already starts with `job.`.
+        type (Optional[str]): Name of the payload shape, e.g. `"etl_summary"`. Defaults to job name.
         engine_version (int): Version of that shape.
 
     Returns:
         Any: `result`, unchanged.
     """
     ctx = Container()[JobRunContext]
+    # a job called by another job as a plain function does not overwrite the run's result
     if len(ctx.job_stack) == 1:
         # `take_job_result` fills in the type when none was declared
         declared = cast(TJobResult, {"engine_version": engine_version, "result": result})
@@ -103,7 +97,7 @@ def set_job_result(result: TJobResult) -> None:
 
 
 def set_job_inputs(inputs: Mapping[str, Any]) -> None:
-    """Records the inputs the run received, so `object` can be derived from them at the end."""
+    """Records the run's inputs; `TJobResult.object` is derived from them."""
     Container()[JobRunContext].inputs = dict(inputs)
 
 
@@ -115,16 +109,13 @@ def job_inputs() -> Optional[Dict[str, Any]]:
 def take_job_result(
     job_ref: TJobRef, category: TJobResultCategory, name: str
 ) -> Optional[TJobResult]:
-    """Returns and clears the declared result, with `type` and `job_ref` filled in.
-
-    This is the one place the result type is built: the launcher's category, then the declared
-    name or `name`, the job's own.
-    """
+    """Returns and clears the declared result, with `type` and `job_ref` filled in."""
     ctx = Container()[JobRunContext]
     result = ctx.result
     ctx.result = None
     if result is None:
         return None
+    # declared name wins over the job's own `name`
     result["type"] = result_type(category, result.get("type") or name)
     result["job_ref"] = job_ref
     return result

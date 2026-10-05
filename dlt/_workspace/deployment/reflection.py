@@ -1,8 +1,4 @@
-"""What a job takes and what it returns, as JSON Schema.
-
-A job's inputs are the arguments configuration can inject, so the schema holds the fields of the
-configspec `with_config` synthesizes and nothing else.
-"""
+"""JSON Schema of job inputs and outputs."""
 
 import inspect
 import re
@@ -52,8 +48,9 @@ JSON_SCHEMA_TYPES: Dict[str, Any] = {
 
 
 def injectable_fields(spec: Optional[Type[BaseConfiguration]]) -> Dict[str, Any]:
-    """Fields of a job configspec that configuration fills. The launcher passes the run context."""
+    """Fields of a job configspec that configuration fills."""
     fields = spec.get_resolvable_fields() if spec is not None else {}
+    # the launcher passes the run context itself
     return {name: hint for name, hint in fields.items() if name != RUN_CONTEXT_INPUT}
 
 
@@ -65,20 +62,11 @@ def config_field_names(f: AnyFun) -> Collection[str]:
 def inputs_from_function(
     f: AnyFun, source: str, fields: Optional[Collection[str]] = None
 ) -> Dict[str, Any]:
-    """Arguments JSON Schema of `f`, holding exactly what configuration can inject.
-
-    Args:
-        f (AnyFun): Function the job runs.
-        source (str): What to name in the error, usually the job ref.
-        fields (Optional[Collection[str]]): Resolvable fields of the job's configspec. Read from
-            the signature when absent.
-
-    Returns:
-        Dict[str, Any]: JSON Schema of the arguments, `required` following `dlt.config.value`.
-    """
+    """JSON Schema of the arguments of `f` that configuration can inject."""
     # pydantic is optional and this module is imported with every workspace, so it stays here
     from dlt.common.libs.pydantic import PydanticJsonSchemaWarning, TypeAdapter
 
+    # resolvable fields of the job configspec, read from the signature when not passed
     if fields is None:
         fields = config_field_names(f)
     try:
@@ -122,10 +110,7 @@ def job_result_from_return(f: AnyFun, source: str) -> Optional[Dict[str, Any]]:
 
 
 def schema_type(hint: Any) -> Any:
-    """`hint` with its `Doc` and `Entity` markers rewritten as pydantic field info, at every depth.
-
-    Pydantic ignores both markers, so every TypedDict is rebuilt with them where it can read them.
-    """
+    """`hint` with its `Doc` and `Entity` markers rewritten as pydantic field info, at any depth."""
     from dlt.common.libs.pydantic import Field
 
     rebuilt: Dict[int, Any] = {}
@@ -144,6 +129,7 @@ def schema_type(hint: Any) -> Any:
         return node
 
     def typed_dict(td: Any) -> Any:
+        # pydantic ignores `Doc` and `Entity`, so rebuild the TypedDict with `Field` info
         if id(td) not in rebuilt:
             # a field referring back to `td` resolves to the original
             rebuilt[id(td)] = td
@@ -181,12 +167,7 @@ def derives_from(hint: Any, base: Any) -> bool:
 
 
 def spec_from_inputs_schema(name: str, inputs: Dict[str, Any]) -> Type[BaseConfiguration]:
-    """Configuration spec with one field per declared input.
-
-    Inputs are to an agent job without a function what parameters are to a function job, so
-    they resolve the same way. They come from the job's config section, through every provider,
-    with the declared type.
-    """
+    """Configuration spec with one field per property of an inputs JSON Schema."""
     # `required` is a list, or the `{}` mapping form an `AGENT.md` may carry
     required = set(inputs.get("required") or ())
     annotations: Dict[str, Any] = {}
@@ -261,7 +242,7 @@ def annotated_entity(annotation: Any) -> Optional[Entity]:
 
 
 def describe_properties(properties: Dict[str, Any], hints: Mapping[str, Any]) -> None:
-    """Writes what `Annotated` says about each field into the schema its reader gets."""
+    """Adds descriptions and entity types from `Annotated` hints to the schema properties."""
     for name, annotation in hints.items():
         if name not in properties:
             continue
@@ -272,11 +253,7 @@ def describe_properties(properties: Dict[str, Any], hints: Mapping[str, Any]) ->
 
 
 def model_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
-    """The schema as a model gets it: `entity_type` moved into `$comment`, nothing else changed.
-
-    Strict validators such as the Claude CLI's refuse keywords they do not know, and `$comment`
-    is the one standard slot for a note that validation ignores and a model still reads.
-    """
+    """The schema as a model gets it: `entity_type` keywords moved into `$comment`."""
 
     def convert(node: Any) -> Any:
         if isinstance(node, list):
@@ -289,6 +266,7 @@ def model_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
         converted = {
             k: convert(v) for k, v in node.items() if not (is_keyword and k == ENTITY_TYPE_KEY)
         }
+        # strict validators refuse unknown keywords, `$comment` is skipped but read by models
         if is_keyword:
             note = f"{ENTITY_TYPE_KEY}: {entity_type}"
             comment = converted.get("$comment")

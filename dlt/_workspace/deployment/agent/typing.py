@@ -24,7 +24,7 @@ TAgentJobStatus = Literal["succeeded", "failed", "aborted"]
 
 
 class TAgentLimits(TypedDict, total=False):
-    """Loop budget. The manifest declares it, and the runtime supplies the limit that applies."""
+    """Turn and token limits of the agent loop."""
 
     max_turns: int
     max_tokens: int
@@ -45,8 +45,7 @@ class TAgentSpec(TypedDict):
     name: str
     description: NotRequired[str]
     access: NotRequired[TWorkspaceAccess]
-    """What the agent asks to touch. The job definition carries it to the runtime, which grants
-    it or does not."""
+    """Workspace access the agent requests. The runtime decides what to grant."""
     inputs: Dict[str, Any]
     """JSON Schema of the inputs, substituted into the system prompt placeholders."""
     output: Dict[str, Any]
@@ -64,7 +63,7 @@ class TAgentSettings(TypedDict):
     loop_type: str
     model: str
     instructions: Optional[str]
-    """The user turn. Absent, the loop sends a bare go-signal and the system prompt speaks alone."""
+    """The user turn. `None` sends `DEFAULT_USER_TURN`."""
     max_turns: Optional[int]
     max_tokens: Optional[int]
     loop_run_args: Dict[str, Any]
@@ -100,8 +99,7 @@ class TAgentTrace(TypedDict):
     """Everything the loop ran with, and what it did, read after the loop completes."""
 
     agent: str
-    """Agent definition reference: `<toolkit>:<agent>`, a workspace path, or `<module>:<function>`
-    for a function with no `AGENT.md` behind it."""
+    """Agent ref: `<toolkit>:<agent>`, a workspace path, or `<module>:<function>`."""
     agent_file: str
     loop_type: str
     model: str
@@ -112,7 +110,7 @@ class TAgentTrace(TypedDict):
     inputs: Dict[str, Any]
     access: TWorkspaceAccess
     local_tools: Dict[str, TWorkspaceLocalVerb]
-    """Local tools the loop wired, by the verb that bought each: `Grep` under `read`."""
+    """Local tools of the run mapped to the access verb that enables each, ie. `Grep` -> `read`."""
     mcp_features: List[str]
     native_skills: List[str]
     inlined_skills: List[str]

@@ -77,8 +77,7 @@ MCP_TOOL_PREFIX = "mcp__"
 MCP_TOOL_PATTERN = f"{MCP_TOOL_PREFIX}{MCP_SERVER_ID}__*"
 SKILL_TOOL_NAME = "Skill"
 RULES_EXCLUDES = ["**/.claude/rules/**"]
-"""Project rules the CLI loads with the project settings. An agent gets the rules it declares;
-`CLAUDE.md` and `CLAUDE.local.md` still load."""
+"""Project rules kept out of the CLI, so an agent gets only the rules it declares."""
 
 
 def cli_settings(given: Optional[str] = None) -> str:
@@ -141,8 +140,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
             for tool in AI_LOOP_TOOLS[name]
         ]
 
-        # rules have no equivalent in any framework; the CLI lists an installed skill by name
-        # and loads it when the agent invokes it
+        # rules are inlined into the prompt; skills stay installed and the CLI loads them on use
         parts = [
             agent_spec["system_prompt"],
             *inline_components(agent_spec.get("rules") or [], "rule", workspace_root),
@@ -159,7 +157,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
         self._system_prompt = "\n\n".join(parts)
 
     def local_tools(self) -> Dict[str, TWorkspaceLocalVerb]:
-        """The CLI tools on the allowlist, each under the verb of the name it extends."""
+        """CLI tools on the allowlist, mapped to their local verb."""
         by_cli_tool = {
             cli_tool: LOCAL_TOOL_VERBS[name]
             for name, cli_tools in AI_LOOP_TOOLS.items()
@@ -283,7 +281,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
         return "; ".join([message, *self._cli_stderr])
 
     def _log_cli_stderr(self, line: str) -> None:
-        """The CLI writes its own notices to our stderr. They belong in the log instead."""
+        """Logs a CLI stderr line and keeps it to explain a failed run."""
         self._cli_stderr.append(line)
         logger.debug(f"[{self.log_name}] {line}")
 

@@ -1,8 +1,4 @@
-"""Agent loop that records what the launcher gave it instead of calling a model.
-
-Registered on import so a launcher started with `python -m` resolves it too: the launcher
-imports the entry point module, and the job modules import this one.
-"""
+"""Agent loop that records what the launcher gave it instead of calling a model."""
 
 import os
 from typing import Any, ClassVar, Dict, Optional
@@ -81,16 +77,14 @@ class MockLoopPlugin:
 
 
 def register() -> None:
-    """Adds the loop to the active plugin manager.
-
-    Replaces an earlier registration: each workspace copy imports this module afresh, and a
-    plugin left over from the previous copy would answer with that copy's class.
-    """
+    """Adds the loop to the active plugin manager."""
     manager = Container()[PluginContext].manager
+    # each workspace copy imports this module again, so drop the plugin of the previous copy
     existing = manager.get_plugin(PLUGIN_NAME)
     if existing is not None:
         manager.unregister(existing, name=PLUGIN_NAME)
     manager.register(MockLoopPlugin(), name=PLUGIN_NAME)
 
 
+# job modules import this one, so a launcher started with `python -m` finds the loop too
 register()

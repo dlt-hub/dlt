@@ -62,10 +62,7 @@ def annotation_metadata(annotation: Any) -> Tuple[Any, ...]:
 
 
 def required_access(f: AnyFun) -> TWorkspaceAccess:
-    """Access the function's return annotation asks for.
-
-    A function that declares nothing needs everything; `RequiresAccess()` asks for nothing.
-    """
+    """Access that the function's return annotation asks for."""
     try:
         hints = typing.get_type_hints(f, include_extras=True)
     except Exception:
@@ -73,6 +70,7 @@ def required_access(f: AnyFun) -> TWorkspaceAccess:
     for metadata in annotation_metadata(hints.get("return")):
         if isinstance(metadata, RequiresAccess):
             return metadata.as_access()
+    # a function that declares nothing needs everything; `RequiresAccess()` asks for nothing
     return FULL_ACCESS
 
 
@@ -84,21 +82,18 @@ def granted_verbs(access: Optional[TWorkspaceAccess], axis: str) -> Set[str]:
 
 
 def format_access(access: TWorkspaceAccess) -> str:
-    """`{"data": ["read"], "local": ["read", "write"]}` as `data:read,local:read,local:write`.
-
-    An access granting nothing renders as every axis without a verb, `local:,data:,context:`.
-    """
+    """Formats `{"data": ["read"], "local": ["write"]}` as `data:read,local:write`."""
     declared: Dict[str, Any] = dict(access or {})
     tokens = [f"{axis}:{verb}" for axis in ACCESS_AXES for verb in declared.get(axis) or []]
+    # an access granting nothing renders as `local:,data:,context:`
     return ",".join(tokens or (f"{axis}:" for axis in ACCESS_AXES))
 
 
 def parse_access(text: str) -> TWorkspaceAccess:
-    """`data:read,local:write` back into an access declaration. `data:` grants nothing on `data`.
+    """Parses `data:read,local:write` into an access declaration.
 
     Raises:
-        ValueError: The text is empty or a token is not `axis:verb`. Empty text stands for
-            nothing at all; a caller granting everything passes `FULL_ACCESS` itself.
+        ValueError: The text is empty or a token is not `axis:verb`.
     """
     access: Dict[str, Any] = {}
     declared = False
@@ -113,8 +108,10 @@ def parse_access(text: str) -> TWorkspaceAccess:
                 f" {', '.join(ACCESS_AXES)}"
             )
         declared = True
+        # `axis:` alone declares the axis and grants nothing on it
         if verb:
             access.setdefault(axis, []).append(verb)
+    # empty text is refused: `axis:` grants nothing, and a caller granting all passes `FULL_ACCESS`
     if not declared:
         raise ValueError(f"{text!r} declares no access. Write axis:verb pairs, or axis: for none")
     return typing.cast(TWorkspaceAccess, access)

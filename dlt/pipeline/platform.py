@@ -57,14 +57,13 @@ def send_payload(
 ) -> None:
     """Sends a JSON payload to the dlthub beacon. Does nothing when the beacon is not configured.
 
-    The beacon derives the run identity from the token embedded in the DSN, so `payload` must
-    not carry one.
+    Note: run identity comes from the DSN token, `payload` must not carry it.
 
     Args:
         payload_type (str): Beacon payload type, appended to the DSN as a path segment.
         payload (Any): JSON-serializable body.
-        dsn (str): Beacon DSN. Read from the active run context when not given.
-        wait (bool): Block until the request completes. Use when the process is about to exit.
+        dsn (str): Beacon DSN, read from the active run context when not given.
+        wait (bool): Block until the request completes, e.g. before the process exits.
     """
     if dsn is None:
         from dlt.common.runtime.run_context import active

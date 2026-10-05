@@ -34,19 +34,16 @@ SUBPROCESS_TIMEOUT = 120
 TOOL_LINE_LIMIT = 2000
 """Number of lines that `Read`, `Glob` and `Grep` return if the model gives no `limit`."""
 TOOL_MAX_CHARS = 100_000
-"""Maximum number of characters that `Read`, `Glob` and `Grep` return. They return full lines only.
-They cut a line only if the line alone is longer than this limit."""
+"""Maximum number of characters that `Read`, `Glob` and `Grep` return."""
 BINARY_SNIFF_BYTES = 8192
-"""Number of bytes at the start of a file that `Grep` reads. A NUL byte in them marks a binary file,
-which `Grep` skips."""
+"""Number of bytes at the start of a file that `Grep` checks for a NUL byte."""
 LINE_ENDINGS = "\r\n"
 
 MCP_SERVER_ID = "dlt-workspace-mcp"
 """Name of the workspace MCP server in the loops and in `dlthub ai mcp install`."""
 
 SECRET_FILE_PATTERNS = ("*secrets.toml", ".env", ".env.*")
-"""Names of credential files: dlt `[<profile>.]secrets.toml` files and dotenv files. The file tools
-do not open them."""
+"""Credential files that the file tools do not open: `[<profile>.]secrets.toml` and dotenv files."""
 
 FILE_TOOLS = (
     "Read",
@@ -61,8 +58,7 @@ FILE_TOOLS = (
 """Claude Code CLI tools that use file paths. Each tool gets a rule that blocks credential files."""
 
 SHELL_TOOL = "PowerShell" if os.name == "nt" else "Bash"
-"""Name of the shell tool on this platform, as the Claude Code CLI names it: `PowerShell` on Windows,
-`Bash` on other platforms. The model sees only the shell that really runs."""
+"""Name of the shell tool on this platform, as the Claude Code CLI names it."""
 
 LOCAL_TOOLS: Dict[str, Tuple[str, ...]] = {
     "read": ("Read", "Glob", "Grep"),
@@ -87,21 +83,18 @@ def is_secret_file(path: str) -> bool:
 def take_page(
     items: Iterable[str], offset: Optional[int], limit: Optional[int]
 ) -> Tuple[List[str], int, bool]:
-    """Takes one page of `items`. Each item is one line that ends with a newline.
+    """Takes one page of newline-terminated `items`, starting at the 1-based `offset`.
 
-    The page starts at the 1-based `offset`. It has at most `limit` items and at most
-    `TOOL_MAX_CHARS` characters. The function reads at most one item after the page.
-
-    Returns:
-        Tuple[List[str], int, bool]: The page, the number of its first item, and True if more
-            items follow.
+    Returns the page, the number of its first item, and True if more items follow.
     """
     first = max(offset or 1, 1)
     page: List[str] = []
     size = 0
     for item in islice(items, first - 1, None):
+        # reads at most one item past the page, to know that more follow
         if len(page) == (limit or TOOL_LINE_LIMIT) or (page and size + len(item) > TOOL_MAX_CHARS):
             return page, first, True
+        # full lines only; a single line longer than the limit is cut
         if len(item) > TOOL_MAX_CHARS:
             item = item[:TOOL_MAX_CHARS] + "…\n"
         page.append(item)
@@ -131,13 +124,10 @@ def secret_deny_rules() -> List[str]:
 
 
 def tool_env() -> Dict[str, str]:
-    """Environment for the processes that the tools start.
-
-    The virtual environment of the job is first on `PATH`, so `python`, `dlt` and `dlthub` come
-    from it. Output is UTF-8 on all platforms.
-    """
+    """Environment for the processes that the tools start."""
     bin_dir = Path(sys.executable).parent
     env = dict(os.environ)
+    # the job venv goes first on `PATH`, so `python`, `dlt` and `dlthub` come from it
     if str(bin_dir) not in env.get("PATH", "").split(os.pathsep):
         env["PATH"] = os.pathsep.join(filter(None, [str(bin_dir), env.get("PATH", "")]))
     if (bin_dir.parent / "pyvenv.cfg").is_file():
@@ -172,12 +162,10 @@ def workspace_note(root: Any, scratch: Any) -> str:
 
 
 class LocalTools:
-    """The file, search and run tools of an agent. They work only in the workspace and the temp
-    folder.
+    """File, search and run tools of an agent, limited to the workspace and the temp folder.
 
-    Each public method is one tool. Its docstring is the tool description that the model reads.
-    The tools are not a sandbox. Shell commands and Python run in the process tree and the virtual
-    environment of the job. The runner of the job is what contains them.
+    Note: the docstring of each tool method is the tool description that the model reads.
+    Warning: not a sandbox. Commands run in the process tree and virtual environment of the job.
     """
 
     def __init__(self, workspace_root: str, scratch_dir: Optional[str] = None) -> None:
@@ -303,8 +291,7 @@ class LocalTools:
         return "".join(page) + (page_note("matches", first, len(page)) if more else "")
 
     def _select(self, pattern: str, include_ignored: bool) -> GitignoreFileSelector:
-        """The workspace files that `pattern` finds, without the files that the workspace
-        ignores."""
+        """Workspace files that `pattern` matches."""
         try:
             return GitignoreFileSelector(
                 str(self.root), include=[pattern], use_ignore_file=not include_ignored

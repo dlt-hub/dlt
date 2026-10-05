@@ -175,17 +175,7 @@ class _AIAgent(ABC):
         toolkit_name: str,
         project_root: Path,
     ) -> Optional[Path]:
-        """Path this agent installs a component to. Inverse of `install_actions`.
-
-        Args:
-            component_type: "skill", "command", "rule", or "agent".
-            source_name: Name in the toolkit, without any prefix or extension.
-            toolkit_name: Toolkit the component came from; rules are prefixed with it.
-            project_root: Target project root.
-
-        Returns:
-            Optional[Path]: Installed path, or `None` when this agent has no place for the type.
-        """
+        """Path this agent installs a component to, or `None` when it has no place for the type."""
         if component_type not in self._DIRS:
             return None
         base = self.component_dir(component_type, project_root)
@@ -194,6 +184,7 @@ class _AIAgent(ABC):
             return base / source_name / marker
         if component_type == "command":
             return base / (source_name + ".md")
+        # rules are prefixed with the toolkit name
         return base / (toolkit_name + "-" + source_name + self._RULE_EXT)
 
     def _transform_rule(self, content: str) -> str:
@@ -541,16 +532,14 @@ AI_AGENTS: Dict[str, Type[_AIAgent]] = {
 def resolve_installed_component(
     toolkit: str, name: str, kind: TComponentType, project_root: Path
 ) -> Optional[Path]:
-    """Path of a component `dlthub ai toolkit install` wrote, or `None` when nothing matches.
-
-    An empty `toolkit` searches every installed toolkit; the index says which host installed
-    each, and that host's layout is where the component is looked for.
-    """
+    """Path of a component `dlthub ai toolkit install` wrote, or `None` when nothing matches."""
     index = load_toolkits_index()
     entry = index.get(toolkit) if toolkit else None
+    # the index knows the host that installed a toolkit; otherwise try every host layout
     host = entry.get("agent") if entry else None
     variants = [AI_AGENTS[host]] if host in AI_AGENTS else list(AI_AGENTS.values())
 
+    # an empty `toolkit` searches every installed toolkit
     toolkits = [toolkit] if toolkit else list(index)
     for variant_cls in variants:
         for toolkit_name in toolkits:

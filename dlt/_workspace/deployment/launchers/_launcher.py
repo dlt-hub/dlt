@@ -21,11 +21,8 @@ from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_increme
 
 
 def use_utf8_output() -> None:
-    """Writes stdout and stderr as UTF-8.
-
-    On Windows a pipe otherwise gets the system code page, which has no emojis and no box drawing
-    characters, so printing a job result or an agent transcript would fail.
-    """
+    """Writes stdout and stderr as UTF-8."""
+    # on Windows a pipe gets the system code page, which cannot encode emojis or box drawing
     for stream in (sys.stdout, sys.stderr):
         encoding = getattr(stream, "encoding", None)
         if encoding and codecs.lookup(encoding).name != "utf-8" and hasattr(stream, "reconfigure"):

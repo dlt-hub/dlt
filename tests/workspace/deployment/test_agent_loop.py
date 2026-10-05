@@ -82,11 +82,9 @@ TLoop = TypeVar("TLoop", bound=AgentLoop)
 
 @pytest.fixture
 def dlt_logger_name() -> Iterator[str]:
-    """Name of the initialized dlt logger, made to propagate so `caplog` sees it.
-
-    Inside a workspace the logger is named after the workspace, not `dlt`.
-    """
+    """Name of the initialized dlt logger, made to propagate so `caplog` sees it."""
     init_test_logging()
+    # inside a workspace the logger is named after the workspace, not `dlt`
     dlt_logger = logging.getLogger(logger.LOGGER.name)
     previous = dlt_logger.propagate
     dlt_logger.propagate = True
@@ -432,8 +430,7 @@ def test_a_loop_run_from_settings_to_trace(
 
 
 def test_loops_wire_only_what_the_agent_declares(workspace: Any) -> None:
-    """No `access`: no file tool, no shell, and a server told in so many words to grant nothing.
-    No `tools`: no server at all."""
+    """Without `access` no local tool and nothing granted; without `tools` no server."""
 
     for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
         loop = _loop(workspace, loop_cls, access={})
@@ -607,8 +604,7 @@ def test_pydantic_loop_reads_usage_either_way(workspace: Any, usage_is_callable:
 
 
 def test_pydantic_trace_tells_mcp_tools_from_local_ones(workspace: Any) -> None:
-    """A tool the loop did not build itself came from the workspace MCP server. The run's tool
-    lists name each tool once, in the order it was first used."""
+    """Tools the loop did not build are traced as MCP tools, each listed once in first-use order."""
 
     class _Result:
         usage = _Usage()
@@ -742,11 +738,7 @@ def test_system_prompt_is_shown_in_full_at_the_top_verbosity(
 
 
 def test_pydantic_loop_hands_the_prompt_over_verbatim(workspace: Any) -> None:
-    """pydantic-ai renders `AgentSpec.instructions` as a template when `deps_schema` is set.
-
-    dlt has already rendered the prompt, so a `{{ }}` left in a rule, a skill or an example
-    would be silently dropped on the way to the model.
-    """
+    """The rendered system prompt reaches the model verbatim, `{{ }}` included."""
 
     # dlt blanks its own `{{ name }}`; a call is not its grammar, and must survive untouched
     body = _spec(workspace.run_dir)["system_prompt"]
@@ -758,6 +750,7 @@ def test_pydantic_loop_hands_the_prompt_over_verbatim(workspace: Any) -> None:
     native: Any = loop
     native._build_model = lambda: TestModel()
     native._build_toolsets = lambda: []
+    # pydantic-ai renders `AgentSpec.instructions` as a template when `deps_schema` is set
     agent = native._build_agent(rendered)
     with capture_run_messages() as messages:
         asyncio.run(agent.run("go", deps={"failed_run_id": "r-77"}))
@@ -1110,8 +1103,7 @@ def test_claude_loop_tools_follow_access(
 
 
 def test_claude_loop_lists_only_the_declared_skills(workspace: Any) -> None:
-    """The installed skill is the CLI's to list and load; an agent declaring none must not see
-    the skills of whoever installed the harness."""
+    """The CLI lists only the declared skills, never every skill installed for the harness."""
 
     loop = _loop(workspace, ClaudeAgentSdkLoop)
     options = loop._build_options("system")
@@ -1131,10 +1123,10 @@ def test_claude_loop_lists_only_the_declared_skills(workspace: Any) -> None:
 
 
 def test_claude_loop_keeps_the_project_rules_out(workspace: Any, tmp_path: Path) -> None:
-    """The project settings bring every rule file, which name all skills of the workspace.
-    The agent declares its rules, so the CLI must not load any on its own. CLAUDE.md stays."""
+    """The CLI loads no project rule files on its own, but keeps CLAUDE.md."""
 
     loop = _loop(workspace, ClaudeAgentSdkLoop)
+    # project rule files name every skill of the workspace; the agent declares its own rules
     assert json.loads(loop._build_options("system").settings) == {
         "claudeMdExcludes": RULES_EXCLUDES
     }
@@ -1184,8 +1176,7 @@ def test_claude_loop_keeps_the_cli_stderr_for_the_failure(
     dlt_logger_name: str,
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """The CLI writes notices to stderr, which the transcript must not show. When the CLI dies
-    the SDK says only "check stderr", so the run failure carries what the CLI wrote there."""
+    """CLI stderr is logged, not shown in the transcript, and carried by the run failure."""
 
     loop = _loop(workspace, ClaudeAgentSdkLoop)
     options = loop._build_options("system")
@@ -1202,6 +1193,7 @@ def test_claude_loop_keeps_the_cli_stderr_for_the_failure(
             options.stderr("Error: Invalid API key. Please run /login")
 
         async def __aenter__(self) -> Any:
+            # when the CLI dies the SDK says only "check stderr"
             raise ProcessError(
                 "Command failed with exit code 1",
                 exit_code=1,

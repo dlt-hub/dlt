@@ -27,18 +27,15 @@ class DummyModule(ModuleType):
 def import_folder_module(
     folder: str, module: str, package: str, reload: bool = False
 ) -> ModuleType:
-    """Imports `module` from `folder` as `<package>.<module>`, without touching `sys.path`.
-
-    `folder` becomes the package `package`, so relative imports in the module resolve within it.
-    With `reload`, modules already imported under `package` are dropped and the module runs
-    again, else an already imported module is returned.
-    """
+    """Imports `module` from `folder` as `<package>.<module>`, without touching `sys.path`."""
     name = f"{package}.{module}"
     if reload:
+        # drop the whole package so the module runs again
         for cached in [n for n in sys.modules if n == package or n.startswith(f"{package}.")]:
             del sys.modules[cached]
     elif name in sys.modules:
         return sys.modules[name]
+    # `folder` becomes the package, so relative imports in the module resolve within it
     if package not in sys.modules:
         package_module = ModuleType(package)
         package_module.__path__ = [folder]

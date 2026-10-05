@@ -76,13 +76,11 @@ def _start_lines(event: TAgentEvent, verbosity: int, emojis: bool) -> List[str]:
 
 
 def _spoken_lines(key: str, label: str, keep_label: bool = True) -> TEventLines:
-    """A label over the indented text: the prompt going in, the agent speaking.
-
-    With emojis on, the emoji stands before the label, or replaces it when `keep_label` is False.
-    """
+    """A label over the indented text: the prompt going in, the agent speaking."""
 
     def lines(event: TAgentEvent, verbosity: int, emojis: bool) -> List[str]:
         if emojis:
+            # the emoji replaces the label unless `keep_label` is set
             header = f"{AGENT_EMOJIS[key]} {label}" if keep_label else AGENT_EMOJIS[key]
         else:
             header = label

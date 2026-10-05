@@ -577,7 +577,7 @@ def test_config_key_discovery() -> None:
 
 
 def test_a_job_declares_its_arguments() -> None:
-    """`inputs` is `config_keys` with the types: one list, two resolutions."""
+    """A job's `inputs` schema covers the same arguments as `config_keys`, with their types."""
 
     @job
     def typed_job(

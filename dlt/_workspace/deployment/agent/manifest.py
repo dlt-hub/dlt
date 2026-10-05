@@ -67,16 +67,7 @@ def load_agent_module(agent_dir: str) -> Optional[ModuleType]:
 
 
 def load_agent_spec(agent_dir: str) -> TAgentSpec:
-    """Reads `AGENT.md` from an agent folder into a spec, body included.
-
-    The body is the only thing an agent cannot do without. Frontmatter is optional, and so is
-    every field in it: the name falls back to the folder.
-
-    Args:
-        agent_dir (str): Folder holding `AGENT.md`.
-
-    Returns:
-        TAgentSpec: Frontmatter plus the markdown body as `system_prompt`.
+    """Reads `AGENT.md` from an agent folder: frontmatter plus the body as `system_prompt`.
 
     Raises:
         InvalidAgentSpec: The body is empty, or a declared field breaks the contract.
@@ -90,22 +81,19 @@ def load_agent_spec(agent_dir: str) -> TAgentSpec:
 
     raw_spec: Dict[str, Any] = dict(frontmatter)
     raw_spec["system_prompt"] = body.strip()
+    # frontmatter and all its fields are optional, the name falls back to the folder
     if not raw_spec.get("name"):
         raw_spec["name"] = os.path.basename(os.path.normpath(agent_dir))
     return validate_agent_spec(cast(TAgentSpec, raw_spec), path)
 
 
 def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
-    """Holds a spec to the contract, wherever it was declared. Returns it unchanged.
-
-    Args:
-        spec (TAgentSpec): Spec read from `AGENT.md` or synthesized from a function.
-        source (str): What to name in the error: a file path, or `<file>:<function>`.
+    """Validates an agent spec from `AGENT.md` or a function and normalizes it in place.
 
     Raises:
         InvalidAgentSpec: The name or the system prompt is missing, or a field breaks the contract.
     """
-    # reflection imports this module, so the output generator can only be reached from here
+    # imported here because agent reflection imports this module
     from dlt._workspace.deployment.agent.reflection import with_standard_output
 
     declared: Dict[str, Any] = dict(spec)
@@ -147,11 +135,8 @@ def to_agent_definition(
     instructions: Optional[str] = None,
     model: Optional[str] = None,
 ) -> TAgentDefinition:
-    """Manifest subset of a spec: no `defaults`, no system prompt, plus decorator overrides.
-
-    `inputs` and `output` are not here either: the job definition carries them, as it does for
-    every other job.
-    """
+    """Agent definition for the manifest, from a spec plus the decorator overrides."""
+    # `defaults` and the system prompt stay out. `inputs` and `output` go to the job definition
     definition: TAgentDefinition = {
         "engine_version": AGENT_DEFINITION_ENGINE_VERSION,
         "name": spec["name"],
@@ -279,7 +264,7 @@ def resolve_component_ref(ref: str, kind: "TComponentType", workspace_root: str)
 def _component_destination(
     kind: "TComponentType", toolkit: str, name: str, workspace_root: str
 ) -> List[str]:
-    """Where installing the toolkit would put the component, for the agent that installed it."""
+    """Paths where installing the toolkit would put the component, per AI tool it targets."""
     from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS
 
     entry = load_toolkits_index().get(toolkit)
@@ -298,7 +283,7 @@ def inline_components(refs: List[str], kind: TComponentType, workspace_root: str
         try:
             path = resolve_component_ref(ref, kind, workspace_root)
         except AgentComponentNotFound as e:
-            # an agent with less access is weaker, not broken
+            # a missing skill or rule weakens the agent but does not break it
             logger.warning(f"Skipping {kind} {ref!r} for the agent prompt: {e}")
             continue
         text = open(path, "r", encoding="utf-8").read().strip()

@@ -296,14 +296,12 @@ def mcp_stdio_args(
     with_defaults: bool = True,
     access: Optional[TWorkspaceAccess] = None,
 ) -> List[str]:
-    """`ai mcp run --stdio` arguments serving `features`, limited to what `access` covers.
-
-    Without `with_defaults` the server serves `features` alone, not the interactive defaults.
-    Without `access` the server grants everything.
-    """
+    """`ai mcp run --stdio` arguments serving `features`, limited to what `access` covers."""
     args = ["ai", "mcp", "run", "--stdio"]
+    # without `--access` the server grants everything
     if access is not None:
         args += ["--access", format_access(access)]
+    # serve `features` alone, not the interactive defaults
     if not with_defaults:
         args.append("--no-default-features")
         resolved = resolve_features(features, set())
@@ -315,10 +313,8 @@ def mcp_stdio_args(
 
 
 def cli_host_command() -> str:
-    """The `dlthub` script next to the running interpreter, or the bare name when there is none.
-
-    Always `dlthub`, not the active host: the `dlt` host has no `ai` command.
-    """
+    """The `dlthub` script next to the running interpreter, or the bare name if there is none."""
+    # always `dlthub`, not the active host: the `dlt` host has no `ai` command
     script = Path(sys.executable).parent / ("dlthub.exe" if os.name == "nt" else "dlthub")
     return str(script) if script.is_file() else "dlthub"
 

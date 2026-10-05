@@ -133,7 +133,7 @@ def test_declared_agent_job_definition() -> None:
 
 
 def test_an_agent_job_declares_what_can_be_injected() -> None:
-    """Every agent job holds to the rule: `inputs` is `config_keys`, typed."""
+    """The `inputs` properties of every agent job match its `config_keys`."""
     with agent_workspace():
         manifest, _ = manifest_from_module("__deployment__")
         import agent_jobs
@@ -442,7 +442,7 @@ def test_agent_launcher_shares_the_job_launcher_setup() -> None:
     ids=["inputs_validator", "outputs_validator"],
 )
 def test_function_form_rejects_declared_agent_arguments(argument: str, value: Any) -> None:
-    """Only the launcher-driven form accepts these. On a function, dlt ignores them."""
+    """A decorated function refuses agent validators; a named agent accepts them."""
     with pytest.raises(TypeError, match=argument):
 
         @agent(**{argument: value})
@@ -537,7 +537,7 @@ def test_function_job_inputs_keep_the_entity_types_of_the_agent_definition() -> 
 
 
 def test_an_agent_declaring_no_access_still_states_it() -> None:
-    """`{}` is an answer: the job says it may touch nothing, rather than saying nothing."""
+    """An agent with no access gets `access: {}` in its job definition, not a missing key."""
     job = agent(MINIMAL_AGENT, loop=MOCK_LOOP, name="minimal")
     job.bind_module_attr(__name__, "minimal")
     with agent_workspace():
@@ -562,10 +562,7 @@ class _ExitCodeModel(BaseModel):
     ids=["schema", "typeddict", "pydantic"],
 )
 def test_the_agent_argument_can_carry_only_the_output(output: Any) -> None:
-    """The function stays the agent: its docstring the prompt, its parameters the inputs.
-
-    `agent=` then adds what the signature cannot say, here the output as a schema or a model.
-    """
+    """An `agent=` spec with only `output` sets the output; the function gives prompt and inputs."""
 
     @agent(agent=cast(TAgentSpec, {"name": "reporter", "output": output}), loop=MOCK_LOOP)
     async def exit_code(run_context: Any = None, depth: int = 2) -> None:
@@ -629,7 +626,7 @@ def test_legacy_job_run_entity_type_reaches_the_manifest_unchanged() -> None:
 
 
 def test_agent_given_positionally_rejects_the_keyword() -> None:
-    """The overloads already refuse this; the runtime says so too."""
+    """An agent passed positionally and as `agent=` at once raises `TypeError` at runtime."""
     with pytest.raises(TypeError, match="positionally"):
         agent("dlthub-platform:job-inspector", agent=MINIMAL_AGENT)  # type: ignore[call-overload]
 
@@ -644,10 +641,7 @@ async def _triage_model(messages: List[ModelMessage], info: AgentInfo) -> AsyncI
 def test_agent_job_runs_an_agent_definition_per_input_and_reports_once(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    """A decorated agent job awaits a `run.agent` job once per error, then returns one output.
-
-    Each run goes through the pydantic-ai loop and the `agent.py` of the agent definition.
-    """
+    """An agent job awaits another agent job once per error, then returns one output."""
     monkeypatch.setattr(
         PydanticAILoop, "_build_model", lambda self: FunctionModel(stream_function=_triage_model)
     )

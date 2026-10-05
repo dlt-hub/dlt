@@ -120,12 +120,9 @@ def _collect_agent_inputs(
     agent_module: Optional[ModuleType] = None,
     **kwargs: Any,
 ) -> Dict[str, Any]:
-    """Builds the inputs of an agent run and passes them through the input validators.
-
-    Call arguments override run arguments, which override configuration. A validator's return
-    value replaces the inputs; `None` keeps them.
-    """
+    """Builds the inputs of an agent run and passes them through the input validators."""
     inputs: Dict[str, Any] = {RUN_CONTEXT_INPUT: run_context}
+    # call arguments override run arguments, which override configuration
     given = {**(run_context.get("run_args") or {}), **kwargs}
     inputs.update(configured_inputs(job, job.input_spec(spec), given))
     inputs.update(given)
@@ -142,10 +139,7 @@ def _collect_agent_inputs(
 async def _run_agent_definition(
     job: AgentJobFactory[Any, Any], loop: AgentLoop, run_context: TJobRunContext, **kwargs: Any
 ) -> Dict[str, Any]:
-    """Default function of an agent job without one: runs the agent definition and `agent.py`.
-
-    Returns the agent output, passed through the output validators.
-    """
+    """Runs the agent definition of an agent job without a function, with `agent.py` validators."""
     agent_module = load_agent_module(job.agent_dir) if job.agent_dir else None
     try:
         inputs = _collect_agent_inputs(job, loop.spec, loop.run_context, agent_module, **kwargs)
@@ -179,10 +173,7 @@ def _function_args_from_run_args(
 def _set_result_from_agent_output(
     job: AgentJobFactory[Any, Any], output: TAny, loop: AgentLoop
 ) -> TAny:
-    """Sets `output` as the job result when it is an agent output, and returns it.
-
-    Raises `JobAbortedException` when the output status is `aborted`.
-    """
+    """Sets `output` as the job result when it is an agent output, and returns it."""
     if not (isinstance(output, dict) and "status" in output):
         return output
     job_result: TAgentJobResult = {
@@ -211,13 +202,13 @@ def _build_loop_and_run_agent(
 ) -> Any:
     """Builds the agent loop into `run_context` and runs the agent job.
 
-    `kwargs` are agent run inputs, or function arguments when the job decorates a function.
     Returns a coroutine when the job has no function or the function is `async def`.
     """
     loop = build_agent_loop(job, active().run_dir)
     # the loop, the inputs and the trace get the run context before the loop goes into it
     loop.run_context = cast(TJobRunContext, dict(run_context))
     run_context["ai_loop"] = loop
+    # `kwargs` are function arguments here and agent run inputs otherwise
     if job.has_function:
         # run arguments fill what the caller left out
         kwargs = {**_function_args_from_run_args(job, run_context), **kwargs}
@@ -278,14 +269,14 @@ def _run_with_own_job_result(
 def call_agent_job(job: AgentJobFactory[Any, Any], *args: Any, **kwargs: Any) -> Any:
     """Runs an agent job called directly, returns the agent output or the function's return value.
 
-    Returns a coroutine when the job has no function or the function is `async def`. An agent job
-    without a function takes keyword arguments only. A `run_context` argument is used as is.
+    Returns a coroutine when the job has no function or the function is `async def`.
     """
     if not job.has_function:
         if args:
             raise TypeError(f"Agent job {job.name!r} takes its inputs as keyword arguments.")
     else:
         kwargs = dict(inspect.signature(job._f).bind_partial(*args, **kwargs).arguments)
+    # a `run_context` the caller passed is used as is, missing keys filled in
     run_context = _get_local_run_context(kwargs.pop(RUN_CONTEXT_INPUT, None))
     return _run_with_own_job_result(job, run_context, **kwargs)
 

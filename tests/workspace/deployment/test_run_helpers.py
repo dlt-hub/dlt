@@ -564,8 +564,7 @@ def test_build_runtime_entry_point_config_merges() -> None:
 
 
 def test_build_runtime_entry_point_shapes_modes_for_the_target_dlt() -> None:
-    """A launcher from dlt 1.30.1 on reads `incremental_mode` and `auto_refresh_pipeline_mode`;
-    one from before knows `allow_external_schedulers` alone. Each target gets its own keys."""
+    """Each target dlt version gets the mode keys its launcher reads (new ones from 1.30.1)."""
     jd = _job("jobs.a", incremental_mode="interval")
     jd["auto_refresh_pipeline_mode"] = "drop_sources"
     ep = build_runtime_entry_point(jd, {}, "dev", False, NOW, NOW, _DLT_SPEC, "UTC")

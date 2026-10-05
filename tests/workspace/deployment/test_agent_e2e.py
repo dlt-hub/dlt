@@ -1,9 +1,7 @@
-"""Agent runs on real loops and real models: four model calls, run by `make test-workspace-agents`.
+"""Agent runs on real loops and real models, run by `make test-workspace-agents`.
 
-The agent reports its own setup, and the test holds the report against what dlt wired: the
-local tools the access bought, the MCP tools the server kept, the declared skill, the declared
-rule's marker, and the result of one MCP tool call. Skipped when `jobs.agent.api_key` is not
-configured.
+The agent reports its own setup and the test checks it against what dlt wired.
+Skipped when `jobs.agent.api_key` is not configured.
 """
 
 import re

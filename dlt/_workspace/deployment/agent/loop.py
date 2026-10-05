@@ -78,7 +78,7 @@ class AgentLoop(ABC):
         self.agent_ref: str = ""
         self.agent_file: str = ""
         self.run_context: Optional[TJobRunContext] = None
-        """Run context of the job running the loop, without the loop. Added to inputs that lack it."""
+        """Run context of the job running this loop. `run_inputs` adds it to inputs that lack it."""
         self._trace: TAgentTrace = None
         self._ignored_run_args: List[str] = []
         self._native_skills: List[str] = []
@@ -87,7 +87,7 @@ class AgentLoop(ABC):
         self._input_tokens: int = 0
         self._output_tokens: int = 0
         self._system_prompt: str = ""
-        """Body plus whatever the loop inlines, assembled in `init` and still a template."""
+        """System prompt template assembled in `init`, rendered by `render_system_prompt`."""
 
     def run_inputs(self, inputs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """`inputs` of a run, with the job's run context when they carry none."""
@@ -102,7 +102,8 @@ class AgentLoop(ABC):
 
     @property
     def user_turn(self) -> str:
-        """What the run says to the agent. Every framework needs a first message."""
+        """First user message of the run."""
+        # every framework needs a first message, even when nobody gave instructions
         return self.settings["instructions"] or DEFAULT_USER_TURN
 
     @abstractmethod
@@ -176,7 +177,7 @@ class AgentLoop(ABC):
         return f"{self.DEFAULT_PROVIDER}:{model}"
 
     def local_tools(self) -> Dict[str, TWorkspaceLocalVerb]:
-        """Local tools this loop wired, by the access mode that bought each."""
+        """Local tools wired by this loop, mapped to the access verb that enabled each."""
         return {}
 
     @property
@@ -250,13 +251,12 @@ class AgentLoop(ABC):
     def count_tokens(self, input_tokens: int, output_tokens: int) -> None:
         """Adds one turn's tokens to the run and stops it once `max_tokens` is passed.
 
-        Every loop reports its turns here, so the limit means the same thing on all of them.
-
         Raises:
             AgentTokenLimitExceeded: The run has used more tokens than it was given.
         """
         self._input_tokens += input_tokens
         self._output_tokens += output_tokens
+        # every loop reports its turns here, so the limit means the same on all of them
         limit = self.settings["max_tokens"]
         if limit is not None and self.tokens_used > limit:
             raise AgentTokenLimitExceeded(self.LOOP_TYPE, self.agent_ref, self.tokens_used, limit)

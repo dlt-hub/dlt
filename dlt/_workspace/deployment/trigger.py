@@ -99,9 +99,8 @@ def job_success(job_ref: str) -> TTrigger:
     """Create a job success event trigger.
 
     Args:
-        job_ref: Job reference — accepts `"name"` (2-part), `"section.name"` or
-            `"jobs.section.name"` — or a selector such as `"tag:ingest"`, `"batch:"` or
-            `"jobs.section.*"`, which the manifest expands to one trigger per matching job.
+        job_ref: Job reference (`"name"`, `"section.name"`, `"jobs.section.name"`) or a selector
+            such as `"tag:ingest"`, `"batch:"` or `"jobs.section.*"` matching many jobs.
     """
     return _parse_job_success(_job_event_expr(job_ref)).raw
 
@@ -110,9 +109,8 @@ def job_fail(job_ref: str) -> TTrigger:
     """Create a job failure event trigger.
 
     Args:
-        job_ref: Job reference — accepts `"name"` (2-part), `"section.name"` or
-            `"jobs.section.name"` — or a selector such as `"tag:ingest"`, `"batch:"` or
-            `"jobs.section.*"`, which the manifest expands to one trigger per matching job.
+        job_ref: Job reference (`"name"`, `"section.name"`, `"jobs.section.name"`) or a selector
+            such as `"tag:ingest"`, `"batch:"` or `"jobs.section.*"` matching many jobs.
     """
     return _parse_job_fail(_job_event_expr(job_ref)).raw
 

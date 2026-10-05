@@ -64,20 +64,14 @@ def isolated_workspace(
 def importable_workspace(
     name: str, *modules: str, global_dir: str = None
 ) -> Iterator[WorkspaceRunContext]:
-    """`isolated_workspace` with its root on `sys.path`, as `python -m` gives a launcher.
-
-    Args:
-        name (str): Workspace under `WORKSPACE_CASES_DIR`.
-        modules (str): Workspace modules to drop from `sys.modules` on exit, so the next
-            copy of the workspace is imported afresh.
-        global_dir (str): Passed to `isolated_workspace`.
-    """
+    """`isolated_workspace` with its root on `sys.path`, as `python -m` gives a launcher."""
     with isolated_workspace(name, global_dir=global_dir) as ctx:
         sys.path.insert(0, ctx.run_dir)
         try:
             yield ctx
         finally:
             sys.path.remove(ctx.run_dir)
+            # so the next copy of the workspace is imported afresh
             for module in modules:
                 sys.modules.pop(module, None)
 

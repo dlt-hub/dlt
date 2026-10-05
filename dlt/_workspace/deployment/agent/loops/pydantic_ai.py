@@ -112,8 +112,7 @@ PROVIDER_VERSION_ARG: Dict[str, str] = {"azure": "api_version", "azure-responses
 NATIVE_CAPABILITIES: Dict[str, Dict[str, Any]] = {
     "network": {"WebSearch": WebSearchTool, "WebFetch": WebFetchTool},
 }
-"""Verbs the provider serves itself: web access. `execute` stays in the workspace, on the
-platform's shell tool and `RunPython`."""
+"""Local verbs the model provider serves with its own tools; `execute` always runs locally."""
 
 NATIVE_CAPABILITY_SPECS: Dict[str, Dict[str, Any]] = {
     "WebSearch": {"WebSearch": {}},
@@ -123,7 +122,8 @@ NATIVE_CAPABILITY_SPECS: Dict[str, Dict[str, Any]] = {
 
 
 def _as_tool_function(fn: Callable[..., str], retries: int) -> Callable[..., str]:
-    """A local tool whose errors pydantic-ai either retries within a budget or hands over as failed."""
+    """Wraps a local tool so its errors reach pydantic-ai as a retry or a failed call."""
+    # with no retry budget a tool error fails the call at once
     error_cls = ModelRetry if retries else ToolFailed
 
     @functools.wraps(fn)
@@ -147,11 +147,7 @@ def _validation_reason(error: Any) -> str:
 
 
 class ToolRetryBudget(AbstractCapability[Any]):
-    """Allows `loop_run_args.retries` retries per tool, then fails its calls.
-
-    pydantic-ai counts the retries per tool and resets the count when a call of that tool
-    succeeds.
-    """
+    """Allows `loop_run_args.retries` retries per tool, then fails its calls."""
 
     def __init__(self, retries: int) -> None:
         self.retries = retries
@@ -159,6 +155,7 @@ class ToolRetryBudget(AbstractCapability[Any]):
     async def on_tool_validate_error(
         self, ctx: Any, *, call: Any, tool_def: Any, args: Any, error: Any
     ) -> Any:
+        # pydantic-ai counts retries per tool and resets the count when a call succeeds
         if ctx.retry < self.retries:
             raise error
         # pydantic-ai would end the run here; a failed result lets the model go on
@@ -212,10 +209,7 @@ def _failure_reason(ex: Exception) -> str:
 
 
 def make_local_tools(tools: LocalTools, verbs: Set[str], retries: int = 0) -> List[Any]:
-    """pydantic-ai `Tool`s for the local verbs the agent declared. No verb, no tool.
-
-    With `retries` at 0 a tool error fails the call; above it, the error asks for a retry.
-    """
+    """Builds pydantic-ai `Tool`s for the local verbs the agent declared."""
     served = tools.by_name()
     return [
         Tool(_as_tool_function(served[name], retries), name=name)
@@ -251,11 +245,7 @@ class PydanticAILoop(AgentLoop):
 
     @property
     def tool_retries(self) -> int:
-        """`loop_run_args.retries`: how often the model may retry a failing tool call.
-
-        Past the budget the call fails and the run goes on; 0, the default, fails it at once.
-        A failed call never ends the run, `max_turns` is what bounds it.
-        """
+        """`loop_run_args.retries`: retries allowed per failing tool call, 0 by default."""
         return int(self.settings["loop_run_args"].get("retries") or 0)
 
     def init(self, agent_spec: TAgentSpec) -> None:
@@ -283,9 +273,7 @@ class PydanticAILoop(AgentLoop):
             capabilities=[ToolRetryBudget(self.tool_retries)],
         )
         agent.output_validator(output_validator(self.spec["output"]))
-        # `AgentSpec.instructions` is a handlebars template whenever `deps_schema` is set, and
-        # dlt has already rendered the prompt: a `{{ }}` left in a rule, a skill or an example
-        # would be silently dropped. A function is taken verbatim.
+        # the prompt is already rendered; spec `instructions` would template it and drop `{{ }}`
         agent.instructions(lambda ctx: system_prompt)
         return agent
 
@@ -352,7 +340,7 @@ class PydanticAILoop(AgentLoop):
         ]
 
     def local_tools(self) -> Dict[str, TWorkspaceLocalVerb]:
-        """The function tools built for the declaration, and the provider's own the model serves."""
+        """Local and native tools wired for this run, mapped to their local verb."""
         wired = self._local_tools | self._native_tools
         verbs = {
             **LOCAL_TOOL_VERBS,
@@ -441,7 +429,7 @@ class PydanticAILoop(AgentLoop):
         return result.output  # type: ignore[no-any-return]
 
     async def _emit_events(self, ctx: Any, events: Any) -> None:
-        """Reports what the model says, thinks and calls while it runs. One call, one turn."""
+        """Emits what the model says, thinks and calls during one turn."""
         self._turn += 1
         # the run context's usage is cumulative through the previous turn, so this is where
         # that turn's tokens are known; over the limit, the raise ends the run before this one

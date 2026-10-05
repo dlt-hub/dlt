@@ -49,11 +49,7 @@ class BaseFileSelector(Iterable[Tuple[Path, Path]]):
 
 
 class GitignoreFileSelector(BaseFileSelector):
-    """Iterates files under a root folder that gitignore-style patterns select, in a stable order.
-
-    Ignore patterns come from the ignore file in the root (default `.gitignore`), else from
-    `DEFAULT_IGNORES`, plus `additional_excludes`. A folder the patterns exclude is never entered,
-    unless a negated pattern may bring back something inside it.
+    """Iterates files under a root folder selected by gitignore-style patterns, in stable order.
 
     Raises:
         ImportError: `pathspec` is not installed.
@@ -115,10 +111,10 @@ class GitignoreFileSelector(BaseFileSelector):
         return PathSpec.from_lines("gitignore", patterns)
 
     def _enters(self, relative_dir: str) -> bool:
-        """Whether the walk descends into a folder: it is not excluded, or a negated pattern may
-        bring back something inside it."""
+        """Whether the walk descends into `relative_dir`."""
         if not self.ignore_spec.match_file(f"{relative_dir}/"):
             return True
+        # an excluded folder is still entered when a negated pattern may bring back a file in it
         return any(_may_match_inside(pattern, relative_dir) for pattern in self._negations)
 
     def _selects(self, relative: Path) -> bool:
@@ -128,16 +124,13 @@ class GitignoreFileSelector(BaseFileSelector):
         return self.include_spec is None or self.include_spec.match_file(posix)
 
     def __iter__(self) -> Iterator[Tuple[Path, Path]]:
-        """Yield the absolute and the relative path of each selected file.
-
-        A symlinked folder is yielded as an entry of its own, never entered, so a link to one of
-        its own parents cannot loop. A broken symlink is left out.
-        """
+        """Yield the absolute and the relative path of each selected file."""
         for dir_path, dir_names, file_names in os.walk(self.root_path):
             relative_dir = Path(dir_path).relative_to(self.root_path)
             entered: List[str] = []
             entries: List[str] = []
             for name in dir_names:
+                # a symlinked folder is yielded, never entered, so a link to a parent cannot loop
                 if os.path.islink(os.path.join(dir_path, name)):
                     entries.append(name)
                 elif self._enters((relative_dir / name).as_posix()):
@@ -146,17 +139,15 @@ class GitignoreFileSelector(BaseFileSelector):
             for name in sorted(entries + file_names):
                 relative = relative_dir / name
                 path = self.root_path / relative
+                # `exists` is False for a broken symlink
                 if path.exists() and self._selects(relative):
                     yield path, relative
 
 
 def _may_match_inside(pattern: str, relative_dir: str) -> bool:
-    """Whether a gitignore pattern may match a path inside `relative_dir`.
-
-    A pattern without a slash matches at any depth, as does one with `**`. Otherwise its leading
-    segments must match the folder's.
-    """
+    """Whether a gitignore pattern may match a path inside `relative_dir`."""
     segments = pattern.strip("/").split("/")
+    # a pattern without a slash matches at any depth
     if not pattern.startswith("/") and len(segments) == 1:
         return True
     for depth, name in enumerate(relative_dir.split("/")):

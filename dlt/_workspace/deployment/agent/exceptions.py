@@ -35,23 +35,16 @@ class AgentComponentNotFound(AgentException, DeploymentValidationError):
         toolkit: Optional[str] = None,
         installed: bool = False,
     ) -> None:
-        """A skill, rule or agent the manifest names is not in the workspace.
-
-        Args:
-            ref (str): The reference as written.
-            kind (str): `agent`, `skill` or `rule`.
-            searched (List[str]): Files that would have answered the reference.
-            toolkit (Optional[str]): Toolkit the ref names. `None` when the ref is a path,
-                empty when it names no toolkit at all.
-            installed (bool): Whether that toolkit is installed in this workspace.
-        """
+        """A skill, rule or agent referenced by an agent is not in the workspace."""
         self.ref = ref
         self.kind = kind
         self.searched = searched
         self.toolkit = toolkit
         lines = [f"Cannot resolve {kind} {ref!r}."]
+        # `None` toolkit: the ref is a path
         if toolkit is None:
             lines.append(f"Make sure {searched[0]} is present." if searched else "")
+        # empty toolkit: the ref names no toolkit at all
         elif not toolkit:
             lines.append(
                 f"The reference names no toolkit. Write it as `<toolkit>:{ref}` and install that"

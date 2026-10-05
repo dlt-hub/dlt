@@ -37,8 +37,7 @@ from dlt._workspace.typing import TLocationInfo
 AI_WORKBENCH_BASE_DIR = "workbench"
 TOOLKITS_INDEX_FILE = ".toolkits"
 DLTHUB_AGENTS_DIR = "dlthub/agents"
-"""Where dlt agents live, in a toolkit and in a host's folder. `<toolkit>/agents` and
-`<host>/agents` hold the host's own subagents."""
+"""Folder of dlt agents in a toolkit and in a host folder, apart from the host's own `agents`."""
 
 _workbench_lock = threading.Lock()  # lock git clone operation
 

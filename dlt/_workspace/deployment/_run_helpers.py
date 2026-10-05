@@ -59,8 +59,7 @@ from dlt._workspace.deployment.typing import (
 from dlt.version import DLT_PKG_NAME
 
 INCREMENTAL_MODE_DLT_VERSION = Version("1.30.1a0")
-"""First dlt whose launcher reads `incremental_mode` and `auto_refresh_pipeline_mode`. The ones
-before know `allow_external_schedulers` alone."""
+"""First dlt whose launcher reads `incremental_mode` and `auto_refresh_pipeline_mode`."""
 
 
 TCandidate = Tuple[TJobDefinition, TTrigger]

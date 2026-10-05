@@ -1,8 +1,4 @@
-"""Tests for the agent launcher, mirroring `test_launchers.py` for the job launcher.
-
-Every test selects the loop through configuration, which is how a user switches a job to
-another loop; parametrizing `loop_type` is what adds a real loop to the same coverage.
-"""
+"""Tests for the agent launcher, mirroring `test_launchers.py` for the job launcher."""
 
 import json
 import asyncio
@@ -44,6 +40,7 @@ JOBS_MODULE = "agent_launcher_jobs"
 _DLT_SPEC: TInstallSpec = {"name": "dlt", "extras": [], "version": __version__, "mode": "pypi"}
 
 
+# tests select the loop through configuration; add a real loop here to run it through the same tests
 @pytest.fixture(params=["mock-loop"], ids=["mock"])
 def loop_type(request: pytest.FixtureRequest) -> str:
     """Loop the launcher runs the job on."""

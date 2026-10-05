@@ -456,7 +456,7 @@ def test_dlthub_local_run_passes_verbosity_to_the_agent(
     argv: List[str],
     expected: Any,
 ) -> None:
-    """An agent watched from a terminal shows more of its run; `-c` still has the last word."""
+    """`dlthub local -v run` sets agent verbosity to 2, and `-c agent.verbosity` overrides it."""
     from dlt._workspace.cli.dlthub import _local_workspace_command as local_command
     from dlt._workspace.deployment import _run_helpers
 

@@ -149,7 +149,7 @@ def _get_param_names(func: Any) -> Optional[List[str]]:
 
 
 TJobInvoke = Callable[[JobFactory[Any, Any], TJobRunContext], Any]
-"""Replaces the plain job call: everything around it stays the launcher's."""
+"""Called by `run` in place of the job function, with the job and its run context."""
 
 
 def _wants_run_context(f: Any) -> bool:
@@ -170,10 +170,7 @@ def configured_inputs(
     spec: Type[BaseConfiguration],
     explicit: Optional[Mapping[str, Any]] = None,
 ) -> Dict[str, Any]:
-    """The job's inputs resolved as job config, so `-c`, env vars and toml all fill them.
-
-    `explicit` values win over configuration, and a required input they hold is not looked up.
-    """
+    """Resolves the job's inputs from job config, with `explicit` values taking precedence."""
     fields = spec.get_resolvable_fields()
     given = {k: v for k, v in (explicit or {}).items() if k in fields}
     config = resolve_configuration(spec(), sections=job_sections(job), explicit_value=given)
@@ -192,15 +189,12 @@ def _objects(job: JobFactory[Any, Any], payload: Any, values: Dict[str, Any]) ->
 def deliver_job_result(
     job: JobFactory[Any, Any], send: bool = True, wait: bool = False
 ) -> Optional[TJobResult]:
-    """Finishes the run's result: type, `job_ref` and `object` filled in, then delivered.
-
-    The one place every job kind ends up, whatever launcher ran it. `object` comes from the
-    inputs the invoker recorded, or from the job's own configuration when it recorded none.
-    """
+    """Completes the run's result with `type`, `job_ref` and `object`, then sends it if `send`."""
     result = take_job_result(job.job_ref, job.result_category, job.name)
     if result is None:
         return None
     recorded = job_inputs()
+    # no inputs recorded by the invoker: resolve them from job config
     if recorded is None:
         recorded = configured_inputs(job, job._spec) if job._spec is not None else {}
     if objects := _objects(job, result.get("result"), recorded):
@@ -224,8 +218,7 @@ def run(
         run_id (str): Unique run identifier.
         trigger (str): Trigger string that fired this run.
         job (Optional[JobFactory]): Already resolved factory, else resolved from `entry_point`.
-        invoke (Optional[TJobInvoke]): Called with the job and the run context instead of
-            calling the job directly.
+        invoke (Optional[TJobInvoke]): Called in place of the job function.
 
     Returns:
         Any: The job's `TJobResult` when it declared one with `run.result`, otherwise the
@@ -317,19 +310,15 @@ def run(
 
 
 def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
-    """Runs a launcher and prints what the job returned, the result of an aborted job included.
-
-    Output is UTF-8 from the start, so an agent transcript printed during the run is too.
-
-    Raises:
-        JobAbortedException: The job aborted. It ends the process, after its result is printed.
-    """
+    """Runs a launcher and prints the job result, also for an aborted job."""
+    # set before the run so output printed during it is UTF-8 too
     use_utf8_output()
     try:
         result = run_launcher()
     except JobAbortedException as ex:
         if ex.result:
             print_job_result(ex.result)
+        # an abort ends the process
         raise
     if isinstance(result, dict) and "type" in result:
         print_job_result(cast(TJobResult, result))

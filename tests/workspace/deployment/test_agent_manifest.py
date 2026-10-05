@@ -259,7 +259,7 @@ def test_a_declared_output_keeps_its_own_shape(tmp_path: Path) -> None:
     ],
 )
 def test_access_verbs_are_held_to_the_axis(access: Dict[str, Any], accepted: bool) -> None:
-    """`context` types the whole ladder but serves `read`; the rest is refused at the manifest."""
+    """Access verbs not implemented on an axis fail manifest validation."""
     spec = cast(
         TAgentSpec,
         {
