@@ -1213,6 +1213,39 @@ def test_source_add_limit_applies_to_transformer_parent() -> None:
     assert list(only_one()) == [2]
 
 
+def test_source_add_limit_chain_and_selected_child() -> None:
+    @dlt.resource
+    def pages():
+        yield [1, 2]
+        yield [3, 4]
+
+    @dlt.transformer
+    def double(items):
+        for i in items:
+            yield i * 2
+
+    @dlt.transformer
+    def plus(item):
+        yield item + 1
+
+    @dlt.source
+    def chain():
+        return pages() | double() | plus()
+
+    # one root yield [1, 2] passes through both transformers in full
+    assert list(chain().add_limit(1)) == [3, 5]
+    assert list(chain()) == [3, 5, 7, 9]
+
+    @dlt.source
+    def with_parent():
+        parent = pages()
+        return parent, parent | double() | plus()
+
+    selected = with_parent().with_resources("plus").add_limit(1)
+    assert "pages" not in selected.resources.selected
+    assert list(selected) == [3, 5]
+
+
 def test_limit_source() -> None:
     def mul_c(item):
         yield from "A" * (item + 2)

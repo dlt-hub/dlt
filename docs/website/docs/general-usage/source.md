@@ -97,7 +97,7 @@ Find more on transforms [here](resource.md#filter-transform-and-pivot-data).
 
 ### Load data partially with `add_limit`
 
-You can limit the number of items produced by each resource by calling the `add_limit` method on a source. This is useful for testing, debugging, and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for the full loading to complete. Below, we limit the `pipedrive` source to just get **10 pages** of data from each endpoint. A transformer is not limited directly: the limit is placed on the root resource that feeds it, and the transformer still processes every item it receives:
+You can limit how many items each root resource yields by calling `add_limit` on a source. This is useful for testing, debugging, and generating sample datasets for experimentation. You can easily get your test dataset in a few minutes, when otherwise you'd need to wait hours for the full loading to complete. Below, `add_limit(10)` stops each root resource in the `pipedrive` source after 10 yields. Child transformers are not capped on their own: they process every item those yields produce:
 
 ```py
 from pipedrive import pipedrive_source
