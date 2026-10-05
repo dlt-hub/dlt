@@ -49,8 +49,10 @@ def _unloaded_profile_config_files(run_dir: str) -> List[str]:
 def _warn_unloaded_profile_files(run_dir: str) -> None:
     if is_workspace_dir(run_dir):
         return
-    if not logger.is_logging():
-        return  # recording now would hide the warning emitted after runtime init
+    # called from plug(), after this context's logger exists. skipping a filtered
+    # level must not record the directory, or a later info reload never warns.
+    if not logger.is_logging() or logger.log_level() in ("ERROR", "CRITICAL"):
+        return
     key = os.path.abspath(run_dir)
     if key in _warned_unloaded_profile_dirs:
         return
@@ -59,23 +61,21 @@ def _warn_unloaded_profile_files(run_dir: str) -> None:
         return
     _warned_unloaded_profile_dirs.add(key)
     logger.warning(
-        "Found profile config files (%s) in `%s` but the workspace is not initialized. These"
-        " files will not be loaded. Create `%s` to enable profile support.",
+        "Found profile config files (%s) in `%s` for project `%s` but the workspace is not"
+        " initialized. These files will not be loaded. Create `%s` to enable profile support.",
         ", ".join(names),
-        DOT_DLT,
+        os.path.join(DOT_DLT),
+        key,
         os.path.join(DOT_DLT, ".workspace"),
     )
 
 
-_original_run_context_plug = RunContext.plug
+class _PlainRunContext(RunContext):
+    """Plain run context that warns about ignored profile files after its logger exists."""
 
-
-def _plug_run_context(self: RunContext) -> None:
-    _original_run_context_plug(self)
-    _warn_unloaded_profile_files(self.run_dir)
-
-
-RunContext.plug = _plug_run_context  # type: ignore[method-assign]
+    def plug(self) -> None:
+        super().plug()
+        _warn_unloaded_profile_files(self.run_dir)
 
 
 @_plugins.hookimpl(specname="plug_run_context", trylast=False)
@@ -103,7 +103,6 @@ def plug_workspace_context_impl(
         )
         return WorkspaceRunContext(default_name(run_dir), run_dir, profile)
 
-    _warn_unloaded_profile_files(run_dir)
     if runtime_kwargs and runtime_kwargs.get("_required") == "WorkspaceRunContext":
         from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 
