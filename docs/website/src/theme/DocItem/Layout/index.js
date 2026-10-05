@@ -4,7 +4,12 @@
 import React from 'react';
 import clsx from 'clsx';
 import {useWindowSize} from '@docusaurus/theme-common';
-import {useDoc} from '@docusaurus/plugin-content-docs/client';
+import {
+  useDoc,
+  useDocsVersion,
+  useSidebarBreadcrumbs,
+} from '@docusaurus/plugin-content-docs/client';
+import {getSearchSection} from '../../SearchBar/sections';
 import DocItemPaginator from '@theme/DocItem/Paginator';
 import DocVersionBanner from '@theme/DocVersionBanner';
 import DocVersionBadge from '@theme/DocVersionBadge';
@@ -34,6 +39,26 @@ function useDocTOC() {
   return {hidden, mobile, desktop};
 }
 
+// Pagefind attributes: only the latest version is indexed (no devel/old
+// duplicates) and only the doc content (no navbar, sidebar, footer).
+function SearchContent({children}) {
+  const {metadata} = useDoc();
+  const version = useDocsVersion();
+  const breadcrumbs = useSidebarBreadcrumbs();
+  if (!version.isLast) {
+    return children;
+  }
+  const {section, weight} = getSearchSection(metadata.id);
+  const category = section === 'dlt' ? breadcrumbs?.[0]?.label : undefined;
+  return (
+    <div data-pagefind-body="" data-pagefind-weight={String(weight)}>
+      <meta data-pagefind-filter="section[content]" content={section} />
+      {category && <meta data-pagefind-filter="category[content]" content={category} />}
+      {children}
+    </div>
+  );
+}
+
 export default function DocItemLayout({children}) {
   const docTOC = useDocTOC();
   const {metadata} = useDoc();
@@ -48,7 +73,9 @@ export default function DocItemLayout({children}) {
             <DocVersionBadge />
             <DocMarkdownLink />
             {docTOC.mobile}
-            <DocItemContent>{children}</DocItemContent>
+            <SearchContent>
+              <DocItemContent>{children}</DocItemContent>
+            </SearchContent>
             <DocItemFooter />
           </article>
           <DocItemPaginator />

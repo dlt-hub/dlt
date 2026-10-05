@@ -120,6 +120,8 @@ const config = {
   plugins: [
     // re-runs the python docs preprocessor when `website/docs` sources change
     require.resolve("./plugins/preprocess-docs"),
+    // serves the last built search index during `docusaurus start`
+    require.resolve("./plugins/pagefind-dev"),
     [
       require.resolve("./plugins/llms-txt"),
       {
@@ -268,18 +270,7 @@ const config = {
             "data loading, elt, etl, extract, load, transform, python, data engineering, data warehouse, data lake",
         },
       ],
-      algolia: {
-        // The application ID provided by Algolia
-        appId: "FUTSIDO7MI",
-
-        // Public API key: it is safe to commit it
-        apiKey: "94b8ae9b02673db8232fc6fe712bc5a0",
-
-        indexName: "dlthub",
-
-        // Optional: see doc section below
-        contextualSearch: false,
-      },
+      // search: Pagefind, see src/theme/SearchBar and pagefind.yml
       colorMode: {
         defaultMode: "dark",
         disableSwitch: false,
