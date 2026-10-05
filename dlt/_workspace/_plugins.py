@@ -1,6 +1,7 @@
 import os
-from typing import Any, Dict, NamedTuple, Optional, Sequence, Set
+from typing import Any, Dict, List, NamedTuple, Optional, Sequence, Set
 
+from dlt.common import logger
 from dlt.common.configuration import plugins as _plugins
 from dlt.common.configuration.specs.pluggable_run_context import RunContextBase
 from dlt.common.runtime.run_context import DOT_DLT, RunContext
@@ -16,6 +17,65 @@ class McpFeatures(NamedTuple):
 def is_workspace_dir(run_dir: str) -> bool:
     """Checks if `run_dir` contains dlt workspace, this is true if a config file is found"""
     return os.path.isfile(os.path.join(run_dir, DOT_DLT, ".workspace"))
+
+
+# profile files are `{name}.config.toml` / `{name}.secrets.toml`, not `config.toml` / `secrets.toml`
+_PROFILE_FILE_SUFFIXES = (".config.toml", ".secrets.toml")
+_warned_unloaded_profile_dirs: Set[str] = set()
+
+
+def _is_profile_config_file(name: str) -> bool:
+    return any(
+        name.endswith(suffix) and len(name) > len(suffix) for suffix in _PROFILE_FILE_SUFFIXES
+    )
+
+
+def _unloaded_profile_config_files(run_dir: str) -> List[str]:
+    settings_dir = os.path.join(run_dir, DOT_DLT)
+    if not os.path.isdir(settings_dir):
+        return []
+    try:
+        entries = os.listdir(settings_dir)
+    except OSError:
+        return []
+    names = [
+        name
+        for name in entries
+        if _is_profile_config_file(name) and os.path.isfile(os.path.join(settings_dir, name))
+    ]
+    return sorted(names)
+
+
+def _warn_unloaded_profile_files(run_dir: str) -> None:
+    if is_workspace_dir(run_dir):
+        return
+    # called from plug(), after this context's logger exists. skipping a filtered
+    # level must not record the directory, or a later info reload never warns.
+    if not logger.is_logging() or logger.log_level() in ("ERROR", "CRITICAL"):
+        return
+    key = os.path.abspath(run_dir)
+    if key in _warned_unloaded_profile_dirs:
+        return
+    names = _unloaded_profile_config_files(run_dir)
+    if not names:
+        return
+    _warned_unloaded_profile_dirs.add(key)
+    logger.warning(
+        "Found profile config files (%s) in `%s` for project `%s` but the workspace is not"
+        " initialized. These files will not be loaded. Create `%s` to enable profile support.",
+        ", ".join(names),
+        os.path.join(DOT_DLT),
+        key,
+        os.path.join(DOT_DLT, ".workspace"),
+    )
+
+
+class _PlainRunContext(RunContext):
+    """Plain run context that warns about ignored profile files after its logger exists."""
+
+    def plug(self) -> None:
+        super().plug()
+        _warn_unloaded_profile_files(self.run_dir)
 
 
 @_plugins.hookimpl(specname="plug_run_context", trylast=False)
@@ -42,7 +102,8 @@ def plug_workspace_context_impl(
             or DEFAULT_PROFILE
         )
         return WorkspaceRunContext(default_name(run_dir), run_dir, profile)
-    elif runtime_kwargs and runtime_kwargs.get("_required") == "WorkspaceRunContext":
+
+    if runtime_kwargs and runtime_kwargs.get("_required") == "WorkspaceRunContext":
         from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 
         raise WorkspaceRunContextNotAvailable(run_dir)
