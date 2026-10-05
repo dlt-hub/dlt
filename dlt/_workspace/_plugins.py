@@ -24,6 +24,12 @@ _PROFILE_FILE_SUFFIXES = (".config.toml", ".secrets.toml")
 _warned_unloaded_profile_dirs: Set[str] = set()
 
 
+def _is_profile_config_file(name: str) -> bool:
+    return any(
+        name.endswith(suffix) and len(name) > len(suffix) for suffix in _PROFILE_FILE_SUFFIXES
+    )
+
+
 def _unloaded_profile_config_files(run_dir: str) -> List[str]:
     settings_dir = os.path.join(run_dir, DOT_DLT)
     if not os.path.isdir(settings_dir):
@@ -32,10 +38,19 @@ def _unloaded_profile_config_files(run_dir: str) -> List[str]:
         entries = os.listdir(settings_dir)
     except OSError:
         return []
-    return sorted(name for name in entries if name.endswith(_PROFILE_FILE_SUFFIXES))
+    names = [
+        name
+        for name in entries
+        if _is_profile_config_file(name) and os.path.isfile(os.path.join(settings_dir, name))
+    ]
+    return sorted(names)
 
 
 def _warn_unloaded_profile_files(run_dir: str) -> None:
+    if is_workspace_dir(run_dir):
+        return
+    if not logger.is_logging():
+        return  # recording now would hide the warning emitted after runtime init
     key = os.path.abspath(run_dir)
     if key in _warned_unloaded_profile_dirs:
         return
@@ -50,6 +65,17 @@ def _warn_unloaded_profile_files(run_dir: str) -> None:
         DOT_DLT,
         os.path.join(DOT_DLT, ".workspace"),
     )
+
+
+_original_run_context_plug = RunContext.plug
+
+
+def _plug_run_context(self: RunContext) -> None:
+    _original_run_context_plug(self)
+    _warn_unloaded_profile_files(self.run_dir)
+
+
+RunContext.plug = _plug_run_context  # type: ignore[method-assign]
 
 
 @_plugins.hookimpl(specname="plug_run_context", trylast=False)
