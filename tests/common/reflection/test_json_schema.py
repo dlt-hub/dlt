@@ -80,11 +80,18 @@ def test_spec_fields_take_defaults_and_the_resolvers_required_rule() -> None:
 
 
 class _Evidence(TypedDict):
+    """A fact that supports the diagnosis.
+
+    Quote it as found.
+    """
+
     source: Annotated[str, Doc("where it was found")]
     run_id: NotRequired[str]
 
 
 class _Nested(TypedDict):
+    """The diagnosis."""
+
     main: _Evidence
     items: List[_Evidence]
     maybe: Optional[_Evidence]
@@ -101,6 +108,10 @@ def test_typed_dicts_nest_however_they_are_embedded() -> None:
     evidence = schema["$defs"]["_Evidence"]
     assert evidence["properties"]["source"]["description"] == "where it was found"
     assert evidence["required"] == ["source"]
+    # the class docstring describes the type, at the root and in a definition
+    assert schema["description"] == "The diagnosis."
+    assert evidence["description"] == "A fact that supports the diagnosis.\n\nQuote it as found."
+    assert "description" not in JsonSchemaBuilder().root_schema(_Node)["$defs"]["_Node"]
     # direct, in a list, optional and as dict values: every embedding is one definition
     ref = {"$ref": "#/$defs/_Evidence"}
     properties = schema["properties"]

@@ -1,6 +1,7 @@
 """JSON Schema of Python type hints, configspecs and TypedDicts."""
 
 import enum
+import inspect
 from typing import Any, Callable, Collection, Dict, List, Optional, Set, Type
 
 from dlt.common.configuration.specs.base_configuration import (
@@ -136,7 +137,11 @@ class JsonSchemaBuilder:
             for name, hint in get_type_hints(td, include_extras=True).items()
         }
         required = [name for name in properties if name in td.__required_keys__]
-        return _object_schema(td.__name__, properties, required)
+        schema = _object_schema(td.__name__, properties, required)
+        # a class docstring is not inherited, so only the TypedDict's own one describes it
+        if td.__doc__:
+            schema["description"] = inspect.cleandoc(td.__doc__)
+        return schema
 
     def spec_schema(
         self, spec: Type[BaseConfiguration], exclude: Collection[str] = ()
