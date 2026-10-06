@@ -2,27 +2,17 @@
 
 import inspect
 import re
-import warnings
-from typing import Any, Collection, Dict, List, Mapping, Optional, Tuple, Type, cast
+from typing import Any, Dict, List, Optional, Type, cast
 
 from dlt.common.configuration.specs.base_configuration import BaseConfiguration, configspec
-from dlt.common.json import json
+from dlt.common.reflection.json_schema import JsonSchemaBuilder
 from dlt.common.reflection.spec import spec_from_signature
 from dlt.common.typing import (
-    Annotated,
     AnyFun,
-    ConfigValueSentinel,
-    NotRequired,
-    TypedDict,
-    extract_union_types,
+    annotation_metadata,
     get_args,
-    get_origin,
     get_type_globals,
-    get_type_hints,
-    is_annotated,
-    is_optional_type,
     is_typeddict,
-    map_annotation,
     resolve_single_annotation,
 )
 
@@ -35,6 +25,28 @@ from dlt._workspace.deployment.typing import (
 
 ENTITY_TYPE_KEY = "entity_type"
 """Schema keyword on a property whose value is the unique id of a workspace entity of that type."""
+
+
+class Entity:
+    """`Annotated[str, Entity("job-runs")]`: the value is the unique id of a workspace entity."""
+
+    def __init__(self, type: THubEntityType) -> None:  # noqa: A002
+        self.type = type
+
+
+def annotated_entity(hint: Any) -> Optional[Entity]:
+    """The `Entity` marker an `Annotated` hint carries, if any."""
+    for metadata in annotation_metadata(hint):
+        if isinstance(metadata, Entity):
+            return metadata
+    return None
+
+
+def schema_builder() -> JsonSchemaBuilder:
+    """Schema builder that writes `Entity` markers as `entity_type`."""
+    return JsonSchemaBuilder(
+        annotate=lambda m: {ENTITY_TYPE_KEY: m.type} if isinstance(m, Entity) else None
+    )
 
 
 JSON_SCHEMA_TYPES: Dict[str, Any] = {
@@ -54,45 +66,22 @@ def injectable_fields(spec: Optional[Type[BaseConfiguration]]) -> Dict[str, Any]
     return {name: hint for name, hint in fields.items() if name != RUN_CONTEXT_INPUT}
 
 
-def config_field_names(f: AnyFun) -> Collection[str]:
-    """Fields of the configspec `f` gets, as `with_config` synthesizes it."""
-    return injectable_fields(spec_from_signature(f, inspect.signature(f))[0])
-
-
-def inputs_from_function(
-    f: AnyFun, source: str, fields: Optional[Collection[str]] = None
-) -> Dict[str, Any]:
-    """JSON Schema of the arguments of `f` that configuration can inject."""
-    # pydantic is optional and this module is imported with every workspace, so it stays here
-    from dlt.common.libs.pydantic import PydanticJsonSchemaWarning, TypeAdapter
-
-    # resolvable fields of the job configspec, read from the signature when not passed
-    if fields is None:
-        fields = config_field_names(f)
+def inputs_from_spec(spec: Optional[Type[BaseConfiguration]], source: str) -> Dict[str, Any]:
+    """JSON Schema of the fields of a job configspec that configuration fills."""
+    builder = schema_builder()
     try:
-        with warnings.catch_warnings():
-            # `dlt.config.value` is not serializable, and is dropped from the schema below
-            warnings.simplefilter("ignore", PydanticJsonSchemaWarning)
-            schema: Dict[str, Any] = TypeAdapter(f).json_schema()
+        schema = builder.spec_schema(spec, exclude=(RUN_CONTEXT_INPUT,)) if spec else {}
     except Exception as ex:
-        raise InvalidJobSchema(source, f"inputs cannot be read from the signature: {ex}") from ex
-    properties: Dict[str, Any] = {
-        name: prop for name, prop in (schema.get("properties") or {}).items() if name in fields
-    }
-    schema["properties"] = properties
-    required = [name for name in schema.get("required") or [] if name in properties]
-    # `dlt.config.value` is dlt's "required, resolved from config". pydantic sees only a default
-    for name, parameter in inspect.signature(f).parameters.items():
-        if isinstance(parameter.default, ConfigValueSentinel) and name in properties:
-            properties[name].pop("default", None)
-            required.append(name)
-    if required:
-        schema["required"] = required
-    else:
-        schema.pop("required", None)
-    describe_properties(properties, get_type_hints(f, include_extras=True))
-    prune_unreferenced_defs(schema)
-    return schema
+        raise InvalidJobSchema(source, f"inputs cannot be read from {spec!r}: {ex}") from ex
+    schema.pop("title", None)
+    schema.update({"type": "object", "additionalProperties": False})
+    schema.setdefault("properties", {})
+    return builder.with_defs(schema)
+
+
+def inputs_from_function(f: AnyFun, source: str) -> Dict[str, Any]:
+    """JSON Schema of the arguments of `f` that configuration can inject."""
+    return inputs_from_spec(spec_from_signature(f, inspect.signature(f))[0], source)
 
 
 def return_hint(f: AnyFun) -> Any:
@@ -109,54 +98,12 @@ def job_result_from_return(f: AnyFun, source: str) -> Optional[Dict[str, Any]]:
     return output_schema(hint, source)
 
 
-def schema_type(hint: Any) -> Any:
-    """`hint` with its `Doc` and `Entity` markers rewritten as pydantic field info, at any depth."""
-    from dlt.common.libs.pydantic import Field
-
-    rebuilt: Dict[int, Any] = {}
-
-    def field_info(node: Any) -> Any:
-        if is_annotated(node):
-            description, entity = annotated_description(node), annotated_entity(node)
-            if description is None and entity is None:
-                return node
-            inner, *metadata = get_args(node)
-            extra: Optional[Dict[str, Any]] = {ENTITY_TYPE_KEY: entity.type} if entity else None
-            info = Field(description=description, json_schema_extra=extra)
-            return Annotated[(inner, *metadata, info)]
-        if is_typeddict(node):
-            return typed_dict(node)
-        return node
-
-    def typed_dict(td: Any) -> Any:
-        # pydantic ignores `Doc` and `Entity`, so rebuild the TypedDict with `Field` info
-        if id(td) not in rebuilt:
-            # a field referring back to `td` resolves to the original
-            rebuilt[id(td)] = td
-            fields: Dict[str, Any] = {}
-            for name, annotation in get_type_hints(td, include_extras=True).items():
-                mapped = map_annotation(annotation, field_info)
-                if name in td.__optional_keys__ and get_origin(mapped) is not NotRequired:
-                    mapped = NotRequired[mapped]
-                fields[name] = mapped
-            rebuilt[id(td)] = TypedDict(td.__name__, fields)  # type: ignore[operator]
-            rebuilt[id(td)].__module__ = td.__module__
-            rebuilt[id(td)].__qualname__ = td.__qualname__
-        return rebuilt[id(td)]
-
-    return map_annotation(hint, field_info)
-
-
 def output_schema(hint: Any, source: str) -> Dict[str, Any]:
     """JSON Schema of a TypedDict or pydantic model, `Annotated` markers of every field included."""
-    from dlt.common.libs.pydantic import TypeAdapter
-
     try:
-        schema: Dict[str, Any] = TypeAdapter(schema_type(hint)).json_schema()
+        return schema_builder().root_schema(hint)
     except Exception as ex:
         raise InvalidJobSchema(source, f"output cannot be read from {hint!r}: {ex}") from ex
-    prune_unreferenced_defs(schema)
-    return schema
 
 
 def derives_from(hint: Any, base: Any) -> bool:
@@ -173,7 +120,9 @@ def spec_from_inputs_schema(name: str, inputs: Dict[str, Any]) -> Type[BaseConfi
     annotations: Dict[str, Any] = {}
     fields: Dict[str, Any] = {"__module__": __name__}
     for field, schema in (inputs.get("properties") or {}).items():
-        hint = JSON_SCHEMA_TYPES.get(schema.get("type"), Any)
+        # `Optional[T]` is written as `anyOf` T and null
+        variants = [v for v in schema.get("anyOf") or [schema] if v.get("type") != "null"]
+        hint = JSON_SCHEMA_TYPES.get(variants[0].get("type"), Any) if len(variants) == 1 else Any
         # a non-optional hint left unresolved raises, exactly as a required job argument does
         annotations[field] = hint if field in required else Optional[hint]
         fields[field] = None
@@ -181,75 +130,6 @@ def spec_from_inputs_schema(name: str, inputs: Dict[str, Any]) -> Type[BaseConfi
 
     spec_name = "".join(part.capitalize() for part in re.split(r"[\W_]+", name))
     return configspec()(type(f"{spec_name}InputsConfiguration", (BaseConfiguration,), fields))
-
-
-def prune_unreferenced_defs(schema: Dict[str, Any]) -> None:
-    """Drops the `$defs` nothing points at, following the references between those kept."""
-    defs = schema.get("$defs")
-    if not defs:
-        return
-    kept: Dict[str, Any] = {}
-    referenced = json.dumps({k: v for k, v in schema.items() if k != "$defs"})
-    while found := {
-        k: v for k, v in defs.items() if k not in kept and f'#/$defs/{k}"' in referenced
-    }:
-        kept.update(found)
-        referenced = json.dumps(found)
-    if kept:
-        schema["$defs"] = kept
-    else:
-        schema.pop("$defs")
-
-
-def annotation_metadata(annotation: Any) -> Tuple[Any, ...]:
-    """What an `Annotated` hint carries, read through `NotRequired` and `Optional`."""
-    if get_origin(annotation) is NotRequired:
-        return annotation_metadata(get_args(annotation)[0])
-    # Python below 3.11 wraps the hint of a `None`-defaulted argument in `Optional`
-    if is_optional_type(annotation):
-        inner = extract_union_types(annotation, no_none=True)
-        if len(inner) == 1:
-            return annotation_metadata(inner[0])
-    # only `Annotated` carries metadata; `Literal` args are values, not annotations
-    return cast(Tuple[Any, ...], getattr(annotation, "__metadata__", ()))
-
-
-def annotated_description(annotation: Any) -> Optional[str]:
-    """Description an `Annotated` hint carries: a `Doc` marker, or a plain string."""
-    for metadata in annotation_metadata(annotation):
-        if isinstance(metadata, str):
-            return metadata
-        # typing_extensions.Doc, as PEP 727 defines it. pydantic ignores it, we do not
-        documentation = getattr(metadata, "documentation", None)
-        if isinstance(documentation, str):
-            return documentation
-    return None
-
-
-class Entity:
-    """`Annotated[str, Entity("job-runs")]`: the value is the unique id of a workspace entity."""
-
-    def __init__(self, type: THubEntityType) -> None:  # noqa: A002
-        self.type = type
-
-
-def annotated_entity(annotation: Any) -> Optional[Entity]:
-    """The `Entity` marker an `Annotated` hint carries, if any."""
-    for metadata in annotation_metadata(annotation):
-        if isinstance(metadata, Entity):
-            return metadata
-    return None
-
-
-def describe_properties(properties: Dict[str, Any], hints: Mapping[str, Any]) -> None:
-    """Adds descriptions and entity types from `Annotated` hints to the schema properties."""
-    for name, annotation in hints.items():
-        if name not in properties:
-            continue
-        if described := annotated_description(annotation):
-            properties[name].setdefault("description", described)
-        if entity := annotated_entity(annotation):
-            properties[name].setdefault(ENTITY_TYPE_KEY, entity.type)
 
 
 def model_schema(schema: Dict[str, Any]) -> Dict[str, Any]:
@@ -301,17 +181,16 @@ __all__ = [
     "ENTITY_TYPE_KEY",
     "RUN_CONTEXT_INPUT",
     "Entity",
-    "annotated_description",
     "annotated_entity",
-    "config_field_names",
     "derives_from",
     "entity_properties",
     "injectable_fields",
     "inputs_from_function",
+    "inputs_from_spec",
     "job_result_from_return",
     "model_schema",
     "output_schema",
     "return_hint",
-    "schema_type",
+    "schema_builder",
     "spec_from_inputs_schema",
 ]

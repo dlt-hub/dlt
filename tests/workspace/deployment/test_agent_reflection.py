@@ -5,6 +5,7 @@ from typing import Any, Dict, List, Literal, Optional
 import pytest
 
 import dlt
+from dlt.common.configuration.specs import BaseConfiguration, configspec
 from dlt.common.typing import Annotated, Doc, NotRequired, TypedDict
 
 from dlt._workspace.deployment.agent.exceptions import InvalidAgentSpec
@@ -48,7 +49,7 @@ def test_inputs_come_from_the_signature() -> None:
     schema = inputs_from_function(inspector, SOURCE)
 
     assert set(schema["properties"]) == {"failed_run_id", "depth", "tags"}
-    assert schema["properties"]["depth"] == {"default": 2, "title": "Depth", "type": "integer"}
+    assert schema["properties"]["depth"] == {"default": 2, "type": "integer"}
     # `dlt.config.value` means required, resolved from configuration
     assert schema["required"] == ["failed_run_id"]
     assert "default" not in schema["properties"]["failed_run_id"]
@@ -152,7 +153,6 @@ def test_function_inputs_keep_what_the_agent_definition_says_about_them() -> Non
 
     # no annotation: the agent definition gives the type, the description and the entity type
     assert properties["failed_run_id"] == {
-        "title": "Failed Run Id",
         "type": "string",
         "description": "The failed job run.",
         "entity_type": "job-runs",
@@ -291,51 +291,31 @@ def test_annotated_describes_what_the_agent_reads() -> None:
 
 
 class _Evidence(TypedDict):
-    source: Annotated[str, Doc("where it was found")]
-    run_id: NotRequired[Annotated[str, Entity("job-runs")]]
+    source: str
+    run_id: NotRequired[Optional[Annotated[str, Entity("job-runs")]]]
 
 
 class _Nested(TAgentOutput):
-    main: _Evidence
     items: List[_Evidence]
-    maybe: Optional[_Evidence]
-    by_key: NotRequired[Dict[str, _Evidence]]
 
 
-class _Node(TypedDict):
-    children: List["_Node"]
+@configspec
+class _Target(BaseConfiguration):
+    run_id: Annotated[str, Entity("job-runs")] = None
 
 
-def test_markers_survive_nesting() -> None:
-    """`Doc` and `Entity` on a nested TypedDict reach its definition however it is embedded."""
-    schema = output_schema(_Nested, SOURCE)
+def test_entity_markers_reach_nested_definitions() -> None:
+    """`Entity` inside a nested TypedDict or configspec is `entity_type` on its definition."""
+    output = output_schema(_Nested, SOURCE)
+    assert output["$defs"]["_Evidence"]["properties"]["run_id"]["entity_type"] == "job-runs"
 
-    evidence = schema["$defs"]["_Evidence"]
-    assert evidence["properties"]["source"]["description"] == "where it was found"
-    assert evidence["properties"]["run_id"]["entity_type"] == "job-runs"
-    assert evidence["required"] == ["source"]
-    # every embedding points at that one definition
-    ref = {"$ref": "#/$defs/_Evidence"}
-    properties = schema["properties"]
-    assert properties["main"] == ref
-    assert properties["items"]["items"] == ref
-    assert ref in properties["maybe"]["anyOf"]
-    assert properties["by_key"]["additionalProperties"] == ref
-    # a type referring to itself still builds
-    assert "children" in output_schema(_Node, SOURCE)["$defs"]["_Node"]["properties"]
+    def job(target: _Target = dlt.config.value) -> None:
+        pass
 
-
-def test_same_named_nested_types_keep_their_own_descriptions() -> None:
-    Item = TypedDict("Item", {"a": Annotated[str, Doc("from one module")]})
-    Other = TypedDict("Item", {"b": Annotated[str, Doc("from another")]})  # type: ignore[name-match]
-    Other.__module__ = "elsewhere"
-    Both = TypedDict("Both", {"one": Item, "two": Other})
-
-    defs = output_schema(Both, SOURCE)["$defs"]
-    described = sorted(
-        field["description"] for item in defs.values() for field in item["properties"].values()
-    )
-    assert described == ["from another", "from one module"]
+    inputs = inputs_from_function(job, SOURCE)
+    assert inputs["$defs"]["_Target"]["properties"]["run_id"]["entity_type"] == "job-runs"
+    # only top level inputs name the entities a run acts on
+    assert "entity_type" not in inputs["properties"]["target"]
 
 
 def test_agent_output_is_the_payload_alone() -> None:

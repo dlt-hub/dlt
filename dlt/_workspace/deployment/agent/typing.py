@@ -191,7 +191,7 @@ class TAgentEvent(TypedDict):
 
 
 class TAgentJobResult(TJobResult):
-    """Job result of an agent run: the outcome lifted out of `result`, plus the loop's trace."""
+    """Job result of an agent run: the outcome copied out of `result`, plus the loop's trace."""
 
     status: TAgentJobStatus
     summary: str

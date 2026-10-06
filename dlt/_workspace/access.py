@@ -2,7 +2,7 @@ import dataclasses
 import typing
 from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
-from dlt.common.typing import AnyFun, NotRequired, get_args
+from dlt.common.typing import AnyFun, annotation_metadata, get_args
 
 from dlt._workspace.typing import (
     TWorkspaceAccess,
@@ -51,14 +51,6 @@ class RequiresAccess:
         return typing.cast(
             TWorkspaceAccess, {axis: verbs for axis, verbs in declared.items() if verbs}
         )
-
-
-def annotation_metadata(annotation: Any) -> Tuple[Any, ...]:
-    """What an `Annotated` hint carries, read through `NotRequired`."""
-    if typing.get_origin(annotation) is NotRequired:
-        return annotation_metadata(typing.get_args(annotation)[0])
-    # only `Annotated` carries metadata; `Literal` args are values, not annotations
-    return typing.cast(Tuple[Any, ...], getattr(annotation, "__metadata__", ()))
 
 
 def required_access(f: AnyFun) -> TWorkspaceAccess:
@@ -133,7 +125,6 @@ __all__ = [
     "ACCESS_AXIS_VERBS",
     "ACCESS_AXIS_VOCABULARY",
     "RequiresAccess",
-    "annotation_metadata",
     "granted_verbs",
     "missing_access",
     "required_access",

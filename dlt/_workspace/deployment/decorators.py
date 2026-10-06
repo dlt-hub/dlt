@@ -51,7 +51,7 @@ from dlt._workspace.deployment.exceptions import (
 from dlt._workspace.deployment.reflection import (
     entity_properties,
     injectable_fields,
-    inputs_from_function,
+    inputs_from_spec,
     job_result_from_return,
 )
 from dlt._workspace.deployment.agent.configuration import (
@@ -298,7 +298,7 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
             return
         if self.inputs is None:
             try:
-                self.inputs = inputs_from_function(self._f, self.job_ref, self.config_fields())
+                self.inputs = inputs_from_spec(self._spec, self.job_ref)
             except InvalidJobSchema as ex:
                 # a job dlt cannot describe still deploys and still runs
                 logger.warning(f"Job {self.job_ref} declares no inputs in the manifest: {ex}")
@@ -889,9 +889,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
             self.inputs = self.agent_spec["inputs"]
         elif base and base.get("inputs"):
             # the signature decides which inputs exist, the referenced agent describes them
-            self.inputs = merge_inputs(
-                base["inputs"], inputs_from_function(self._f, self.job_ref, self.config_fields())
-            )
+            self.inputs = merge_inputs(base["inputs"], inputs_from_spec(self._spec, self.job_ref))
         return self.agent_spec
 
     def bind_module_attr(self, module_name: str, attr_name: str) -> None:

@@ -2,14 +2,18 @@
 
 import asyncio
 import inspect
+import sys
 from typing import Any, Dict, List, Literal, cast
-from unittest import mock
 
 import pytest
 
 import dlt
-from dlt.common import logger
-from dlt.common.typing import Annotated, TypedDict
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    ConnectionStringCredentials,
+    configspec,
+)
+from dlt.common.typing import Annotated, TSecretStrValue, TypedDict
 from dlt.common.warnings import DltDeprecationWarning
 from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
@@ -594,7 +598,7 @@ def test_a_job_declares_its_arguments() -> None:
     assert set(inputs["properties"]) == set(job_def["config_keys"]) == {"since", "depth", "verbose"}
     # `dlt.config.value` is required with no default; a real default is optional and carries it
     assert inputs["required"] == ["since"]
-    assert inputs["properties"]["depth"] == {"default": 3, "title": "Depth", "type": "integer"}
+    assert inputs["properties"]["depth"] == {"default": 3, "type": "integer"}
     assert inputs["properties"]["verbose"]["type"] == "boolean"
 
 
@@ -648,18 +652,57 @@ def test_a_job_declares_an_output_only_when_it_returns_one(hint: Any, declares: 
         assert job_def["output"]["properties"]["rows"]["type"] == "integer"
 
 
-def test_an_unreadable_signature_warns_and_still_deploys() -> None:
-    """A job dlt cannot describe is still a job."""
+def test_an_unreadable_signature_still_deploys() -> None:
+    """An argument configuration cannot resolve is neither a config key nor an input."""
 
     @job
     def opaque(thing: "NoSuchType" = None):  # type: ignore[name-defined] # noqa: F821
         pass
 
-    with mock.patch.object(logger, "warning") as warned:
-        job_def = opaque.to_job_definition()
+    job_def = opaque.to_job_definition()
 
+    assert "config_keys" not in job_def
     assert "inputs" not in job_def
-    assert "declares no inputs" in warned.call_args[0][0]
+
+
+def test_a_job_describes_what_configuration_injects_without_pydantic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Credentials and configspec arguments are described, and no pydantic is needed for it."""
+
+    @configspec
+    class Table(BaseConfiguration):
+        name: str = None
+        credentials: ConnectionStringCredentials = None
+
+    @job
+    def sync(
+        credentials: ConnectionStringCredentials = dlt.secrets.value,
+        table: Table = None,
+        api_key: TSecretStrValue = dlt.secrets.value,
+        mode: Literal["full", "delta"] = "full",
+    ):
+        pass
+
+    # any import of pydantic fails, also through dlt's wrapper loaded by earlier tests
+    for module in ("pydantic", "dlt.common.libs.pydantic"):
+        monkeypatch.setitem(sys.modules, module, None)
+    inputs = sync.to_job_definition()["inputs"]
+    properties, defs = inputs["properties"], inputs["$defs"]
+
+    assert inputs["required"] == ["credentials", "api_key"]
+    # credentials take their fields or a connection string, and keep their password write-only
+    credentials_ref = {"$ref": "#/$defs/ConnectionStringCredentials"}
+    assert properties["credentials"] == {"anyOf": [credentials_ref, {"type": "string"}]}
+    password = defs["ConnectionStringCredentials"]["properties"]["password"]
+    assert password["writeOnly"] is True
+    # a configspec nests, and its own nested credentials point at the same definition
+    assert properties["table"]["anyOf"] == [{"$ref": "#/$defs/Table"}, {"type": "null"}]
+    assert defs["Table"]["properties"]["credentials"]["anyOf"][0] == credentials_ref
+    # a configspec field without a value and not optional is required, as the resolver sees it
+    assert defs["Table"]["required"] == ["name", "credentials"]
+    assert properties["api_key"] == {"type": "string", "writeOnly": True}
+    assert properties["mode"] == {"enum": ["full", "delta"], "type": "string", "default": "full"}
 
 
 def test_entity_annotation_reaches_the_schema() -> None:

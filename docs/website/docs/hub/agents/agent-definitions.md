@@ -362,7 +362,7 @@ async def crash_inspector(
 | `model=`, `limits=`, `loop_run_args=`           | `defaults` in an `AGENT.md`                                                                                                       |
 | `instructions=`, `trigger=`, `loop=`            | Agent job settings. An `AGENT.md` has no field for them                                                                           |
 
-The schemas come from pydantic, so `Optional`, `Literal`, `List`, nested models, and `NotRequired` behave as they do everywhere else. The function can be `def` or `async def`. Most functions return the loop's output as is. The example reads `loop.trace` after the run. A function can also run the loop twice, or not run it.
+dlt builds the schemas from the same configuration spec that injects the arguments, so an input is required exactly when configuration requires it. The schemas cover `Optional`, `Literal`, enums, lists, dicts, dates, nested TypedDicts with `NotRequired` keys, and configuration specs, including credentials and specs nested in other specs. A credentials argument accepts its fields or a connection string, and secret values are marked `writeOnly`. An output may also be a pydantic model. The function can be `def` or `async def`. Most functions return the loop's output as is. The example reads `loop.trace` after the run. A function can also run the loop twice, or not run it.
 
 A function can also drive an installed agent definition. Pass it as `agent=`. The decorator arguments override the fields of the definition. The function overrides them in turn:
 
