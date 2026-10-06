@@ -165,12 +165,12 @@ def _plan_toolkit_install(
 ) -> Tuple[List["InstallAction"], List[str]]:
     """Scan toolkit directory and build install actions. Reads source files but does not
     write to project_root. Returns (actions, validation_warnings)."""
-    actions, warnings = plan_toolkit_components(
+    components, warnings = plan_toolkit_components(
         toolkit_dir, agent, project_root, toolkit_name, overwrite
     )
-    actions.extend(plan_mcp_actions(toolkit_dir, agent, project_root, overwrite))
-    actions = agent.finalize_actions(actions, project_root, workbench_base=toolkit_dir.parent)
-    return actions, warnings
+    mcp_actions = plan_mcp_actions(toolkit_dir, agent, project_root, overwrite)
+    shared = agent.shared_actions(components, project_root, workbench_base=toolkit_dir.parent)
+    return components + mcp_actions + shared, warnings
 
 
 def _execute_install(

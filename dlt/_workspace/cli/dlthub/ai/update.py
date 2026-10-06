@@ -47,6 +47,8 @@ class FileCandidate(NamedTuple):
     dest_path: Path
     content: Union[str, Path]
     """Rendered text to save, or a source file to copy verbatim."""
+    source: InstallAction
+    """The component action that produces the file."""
 
 
 class FileObservation(NamedTuple):
@@ -97,18 +99,18 @@ def expand_file_candidates(
     """
     candidates: Dict[str, FileCandidate] = {}
 
-    def _add(dest_path: Path, content: Union[str, Path]) -> None:
+    def _add(dest_path: Path, content: Union[str, Path], source: InstallAction) -> None:
         rel_path = to_rel_path(dest_path, project_root)
-        candidates[rel_path] = FileCandidate(rel_path, dest_path, content)
+        candidates[rel_path] = FileCandidate(rel_path, dest_path, content, source)
 
     for action in actions:
         if action.op == "copytree":
             src_dir = Path(action.content_or_path)
             for src in sorted(src_dir.rglob("*")):
                 if src.is_file():
-                    _add(action.dest_path / src.relative_to(src_dir), src)
+                    _add(action.dest_path / src.relative_to(src_dir), src, action)
         else:
-            _add(action.dest_path, action.content_or_path)
+            _add(action.dest_path, action.content_or_path, action)
     return candidates
 
 
@@ -222,31 +224,19 @@ def failed_dependencies(
     return [dep for dep in resolvable_dependencies(name, dep_map) if dep in failed]
 
 
-def plan_shared_updates(
-    components: List[InstallAction],
-    updates: List[FileUpdate],
-    mcp_actions: List[InstallAction],
-    agent: _AIAgent,
-    project_root: Path,
-    workbench_base: Path,
-) -> List[InstallAction]:
-    """Merges into files shared by all toolkits: the given MCP actions, and agent
-    registrations (e.g. Codex `AGENTS.md`) of components present after the update.
+def present_components(updates: Iterable[FileUpdate]) -> List[InstallAction]:
+    """Component actions with at least one file on disk after the update, in plan order.
+
+    Skipped files do not count: a component the user deleted is not registered again
+    in shared targets such as Codex `AGENTS.md`.
     """
-    present = {
-        update.candidate.rel_path
+    present = (
+        update.candidate.source
         for update in updates
         if update.decision.write or update.decision.state == "unchanged"
-    }
-    present_components = [
-        action for action in components if to_rel_path(action.dest_path, project_root) in present
-    ]
-    # finalize_actions returns its input plus merges into shared targets; keep the merges
-    known = set(present_components)
-    finalized = agent.finalize_actions(
-        list(present_components), project_root, workbench_base=workbench_base
     )
-    return mcp_actions + [action for action in finalized if action not in known]
+    # dict keeps the first occurrence of each action, unlike a set
+    return list(dict.fromkeys(present))
 
 
 def plan_toolkit_update(
@@ -280,8 +270,8 @@ def plan_toolkit_update(
     candidates = expand_file_candidates(components, project_root)
     updates = plan_file_updates(candidates.values(), recorded_files, force)
     orphans = sorted(set(recorded_files) - set(candidates))
-    shared = plan_shared_updates(
-        components, updates, mcp_actions, agent, project_root, toolkit_dir.parent
+    shared = mcp_actions + agent.shared_actions(
+        present_components(updates), project_root, workbench_base=toolkit_dir.parent
     )
     return ToolkitUpdatePlan(updates, orphans, shared, warnings)
 

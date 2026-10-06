@@ -14,11 +14,15 @@ from dlt._workspace.cli.dlthub.ai.commands import (
     ai_toolkit_install_command,
     ai_toolkit_update_command,
 )
+from dlt._workspace.cli.dlthub.ai.agents import InstallAction
 from dlt._workspace.cli.dlthub.ai.update import (
+    FileCandidate,
     FileDecision,
     FileObservation,
+    FileUpdate,
     classify_file,
     failed_dependencies,
+    present_components,
     toolkit_update_order,
 )
 from dlt._workspace.cli.dlthub.ai.utils import compute_file_hash, load_toolkits_index
@@ -99,6 +103,25 @@ def test_classify_file(
     expected: FileDecision,
 ) -> None:
     assert classify_file(observed, recorded, force) == expected
+
+
+def test_present_components() -> None:
+    """A component is present when any of its files is written or unchanged, skipped
+    files do not count, and each component is listed once."""
+    skill = InstallAction("skill", "s", Path("p/skills/s"), "copytree", Path("src/s"), False)
+    rule = InstallAction("rule", "r", Path("p/rules/r.md"), "save", "# r", False)
+    deleted = InstallAction("rule", "d", Path("p/rules/d.md"), "save", "# d", False)
+
+    def _update(source: InstallAction, rel_path: str, decision: FileDecision) -> FileUpdate:
+        return FileUpdate(FileCandidate(rel_path, Path(rel_path), "", source), decision)
+
+    updates = [
+        _update(skill, "skills/s/SKILL.md", FileDecision("unchanged", False, "disk")),
+        _update(skill, "skills/s/helper.py", FileDecision("modified", False, "recorded")),
+        _update(rule, "rules/r.md", FileDecision("updated", True, "disk")),
+        _update(deleted, "rules/d.md", FileDecision("deleted", False, "recorded")),
+    ]
+    assert present_components(updates) == [skill, rule]
 
 
 def test_toolkit_update_flow(project_root: Path, capsys: pytest.CaptureFixture[str]) -> None:
