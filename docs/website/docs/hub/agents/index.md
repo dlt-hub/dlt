@@ -292,7 +292,7 @@ api_version = "2024-12-01-preview"           # the api-version your deployment s
 On the platform the runner reads no local file, so set the four as workspace variables. They arrive on the runner as environment and override `secrets.toml`:
 
 ```sh
-dlthub variable set AGENT__MODEL --value 'anthropic:claude-sonnet-5' --workspace
+printf '%s' 'anthropic:claude-sonnet-5' | dlthub variable set AGENT__MODEL --plain --workspace
 printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
 ```
 

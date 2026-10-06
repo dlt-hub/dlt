@@ -21,7 +21,7 @@ The `create-background-agent` skill ships with the base `init` toolkit, so every
 
 > Write a background agent that checks each morning which of my jobs failed overnight and reports what they have in common.
 
-The skill covers the frontmatter fields, the `access` decision, the output contract, and the system prompt body. It shows you the deployment plan before it writes the `run.agent(...)` call. It routes you elsewhere when the work is deterministic and belongs in a plain job, or when a single failure needs diagnosing right now.
+The skill covers the frontmatter fields, the `access` decision, the output contract, and the system prompt body. It shows you the deployment plan before it writes the `run.agent(...)` call. It routes you elsewhere in three cases: the work is deterministic and belongs in a plain job, a single failure needs diagnosing right now, or what you want is a subagent of your coding agent in `.claude/agents/`, which runs inside a conversation.
 
 The rest of this page is the reference behind that skill. Read it to review what the skill wrote, or to write a definition by hand.
 
