@@ -927,7 +927,7 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
         ):
             ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
         out = capsys.readouterr().out
-        assert "Use --overwrite to update" in out
+        assert "Use `dlthub ai toolkit update my-toolkit` to update" in out
         idx = load_toolkits_index()
         assert idx["my-toolkit"]["version"] == "1.0.0"
         assert idx["my-toolkit"]["installed_at"] == first_date

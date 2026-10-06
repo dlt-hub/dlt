@@ -214,7 +214,7 @@ def test_codex_install_actions_rule() -> None:
     # derives name from toolkit+source_name, description from heading
     content = "# Coding Style\nFollow these rules."
     actions = variant.install_actions("rule", content, "coding", "my-toolkit", project)
-    # install_actions returns just the skill; AGENTS.md is handled by finalize_actions
+    # install_actions returns just the skill; AGENTS.md is handled by shared_actions
     assert len(actions) == 1
     skill_action = actions[0]
     assert skill_action.kind == "skill"
@@ -232,8 +232,8 @@ def test_codex_install_actions_rule() -> None:
     assert fm2["description"] == "ALWAYS read and follow this skill before acting. Custom desc"
 
 
-def test_codex_finalize_actions_agents_md() -> None:
-    """finalize_actions produces a single AGENTS.md action from all always-apply skills."""
+def test_codex_shared_actions_agents_md() -> None:
+    """shared_actions returns only a single AGENTS.md action for all always-apply skills."""
     project = Path("project")
     project.mkdir(exist_ok=True)
     wb = Path("workbench")
@@ -271,9 +271,11 @@ def test_codex_finalize_actions_agents_md() -> None:
             source_kind="rule",
         ),
     ]
-    result = variant.finalize_actions(actions, project, workbench_base=wb)
-    assert len(result) == 3
-    agents_action = result[-1]
+    components = list(actions)
+    result = variant.shared_actions(actions, project, workbench_base=wb)
+    assert actions == components, "components must not be modified"
+    assert len(result) == 1
+    agents_action = result[0]
     assert agents_action.kind == "rule"
     assert agents_action.dest_path == project / "AGENTS.md"
     content = str(agents_action.content_or_path)
@@ -282,8 +284,8 @@ def test_codex_finalize_actions_agents_md() -> None:
     assert "## ALWAYS ACTIVATE those skills" in content
 
 
-def test_codex_finalize_actions_dedup() -> None:
-    """finalize_actions skips AGENTS.md when all skills are already listed."""
+def test_codex_shared_actions_dedup() -> None:
+    """shared_actions skips AGENTS.md when all skills are already listed."""
     project = Path("project")
     project.mkdir(exist_ok=True)
     agents_md = project / "AGENTS.md"
@@ -310,10 +312,8 @@ def test_codex_finalize_actions_dedup() -> None:
             source_kind="rule",
         ),
     ]
-    result = variant.finalize_actions(actions, project, workbench_base=wb)
-    # no AGENTS.md action added since skill is already listed
-    assert len(result) == 1
-    assert all(a.kind == "skill" for a in result)
+    # no AGENTS.md action since skill is already listed
+    assert variant.shared_actions(actions, project, workbench_base=wb) == []
 
 
 @pytest.mark.parametrize(

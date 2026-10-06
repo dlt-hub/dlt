@@ -1,19 +1,29 @@
 import shutil
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, Iterator, List, Optional, Tuple
 import tomlkit
 import tomlkit.exceptions
-import yaml
 
 from dlt.common.runtime import run_context
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES
-from dlt._workspace.cli.formatters import parse_frontmatter
 from dlt._workspace.cli.exceptions import (
     CliCommandException,
 )
-from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
-from dlt._workspace.cli.dlthub.ai.typing import TAiStatusInfo, TToolkitInfo
+from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, _AIAgent, InstallAction
+from dlt._workspace.cli.dlthub.ai.typing import TAiStatusInfo, TToolkitIndexEntry, TToolkitInfo
+from dlt._workspace.cli.dlthub.ai.planning import plan_mcp_actions, plan_toolkit_components
+from dlt._workspace.cli.dlthub.ai.update import (
+    TFileState,
+    ToolkitUpdatePlan,
+    apply_toolkit_update,
+    failed_dependencies,
+    plan_toolkit_update,
+    to_rel_path,
+    toolkit_update_order,
+    update_toolkit_entry,
+)
 from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     compute_file_hash,
@@ -26,10 +36,10 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     fetch_workbench_base,
     is_toolkit_installed,
     load_toolkits_index,
-    read_workbench_toolkit_mcp_servers,
     read_workbench_toolkit_combined_info,
     resolve_toolkit_dependencies,
     safe_write_text,
+    make_toolkit_entry,
     save_toolkit_entry,
     fetch_workbench_toolkits,
     _INIT_TOOLKIT,
@@ -146,25 +156,6 @@ def _fetch_workbench_base_cli(location: str, branch: Optional[str]) -> Optional[
         return None
 
 
-def _validate_md_frontmatter(md_file: Path) -> Optional[str]:
-    """Validate YAML frontmatter in a markdown file. Returns error message or None."""
-    try:
-        parse_frontmatter(md_file.read_text(encoding="utf-8"))
-    except yaml.YAMLError as ex:
-        return "%s: invalid YAML frontmatter: %s" % (md_file.name, ex)
-    return None
-
-
-def _validate_skill_dir(skill_path: Path) -> List[str]:
-    """Validate all markdown files in a skill directory. Returns list of errors."""
-    errors: List[str] = []
-    for md_file in sorted(skill_path.rglob("*.md")):
-        err = _validate_md_frontmatter(md_file)
-        if err:
-            errors.append(err)
-    return errors
-
-
 def _plan_toolkit_install(
     toolkit_dir: Path,
     agent: "_AIAgent",
@@ -174,87 +165,12 @@ def _plan_toolkit_install(
 ) -> Tuple[List["InstallAction"], List[str]]:
     """Scan toolkit directory and build install actions. Reads source files but does not
     write to project_root. Returns (actions, validation_warnings)."""
-    actions: List[InstallAction] = []
-    warnings: List[str] = []
-
-    # skills (directory-based, each with SKILL.md + optional files)
-    skills_dir = toolkit_dir / "skills"
-    if skills_dir.is_dir():
-        for skill_path in sorted(skills_dir.iterdir()):
-            if not skill_path.is_dir() or not (skill_path / "SKILL.md").exists():
-                continue
-            errors = _validate_skill_dir(skill_path)
-            if errors:
-                for err in errors:
-                    warnings.append("Skipping skill %s: %s" % (skill_path.name, err))
-                continue
-            actions.extend(
-                agent.install_actions(
-                    "skill", skill_path, skill_path.name, toolkit_name, project_root, overwrite
-                )
-            )
-
-    # ignore file (.claudeignore → agent-specific name)
-    ignore_file = toolkit_dir / ".claudeignore"
-    if ignore_file.is_file():
-        raw_content = ignore_file.read_text(encoding="utf-8")
-        actions.extend(
-            agent.install_actions(
-                "ignore", raw_content, ".claudeignore", toolkit_name, project_root, overwrite
-            )
-        )
-
-    # commands and rules (markdown files with frontmatter)
-    component_types: List[Tuple[TComponentType, str]] = [("command", "commands"), ("rule", "rules")]
-    for component_type, dir_name in component_types:
-        src_dir = toolkit_dir / dir_name
-        if not src_dir.is_dir():
-            continue
-        for md_file in sorted(src_dir.glob("*.md")):
-            err = _validate_md_frontmatter(md_file)
-            if err:
-                warnings.append("Skipping %s %s: %s" % (component_type, md_file.stem, err))
-                continue
-            source_name = md_file.stem
-            raw_content = md_file.read_text(encoding="utf-8")
-            actions.extend(
-                agent.install_actions(
-                    component_type, raw_content, source_name, toolkit_name, project_root, overwrite
-                )
-            )
-
-    # mcp server definitions (merge into agent config)
-    mcp_servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
-    if mcp_servers:
-        config_path = agent.mcp_config_path(project_root)
-        existing_content = ""
-        existing_servers: Dict[str, Any] = {}
-        if config_path.is_file():
-            existing_content = config_path.read_text(encoding="utf-8")
-            existing_servers = agent.parse_mcp_servers(existing_content)
-
-        new_servers = (
-            dict(mcp_servers)
-            if overwrite
-            else {
-                name: config for name, config in mcp_servers.items() if name not in existing_servers
-            }
-        )
-        if new_servers:
-            merged = agent.merge_mcp_servers(existing_content, new_servers)
-            actions.append(
-                InstallAction(
-                    kind="mcp",
-                    source_name=", ".join(sorted(new_servers)),
-                    dest_path=config_path,
-                    op="save",
-                    content_or_path=merged,
-                    conflict=False,
-                )
-            )
-
-    actions = agent.finalize_actions(actions, project_root, workbench_base=toolkit_dir.parent)
-    return actions, warnings
+    components, warnings = plan_toolkit_components(
+        toolkit_dir, agent, project_root, toolkit_name, overwrite
+    )
+    mcp_actions = plan_mcp_actions(toolkit_dir, agent, project_root, overwrite)
+    shared = agent.shared_actions(components, project_root, workbench_base=toolkit_dir.parent)
+    return components + mcp_actions + shared, warnings
 
 
 def _execute_install(
@@ -298,16 +214,18 @@ def _execute_install(
                 if op == "copytree":
                     for f in sorted(dest_path.rglob("*")):
                         if f.is_file():
-                            rel = str(f.relative_to(project_root))
+                            rel = to_rel_path(f, project_root)
                             tracked_files[rel] = {"sha3_256": compute_file_hash(f)}
                 else:
-                    rel = str(dest_path.relative_to(project_root))
+                    rel = to_rel_path(dest_path, project_root)
                     tracked_files[rel] = {"sha3_256": compute_file_hash(dest_path)}
         save_toolkit_entry(
-            toolkit_meta,
-            agent=agent_name,
-            files=tracked_files,
-            mcp_servers=sorted(mcp_server_names) if mcp_server_names else None,
+            make_toolkit_entry(
+                toolkit_meta,
+                agent=agent_name,
+                files=tracked_files,
+                mcp_servers=sorted(mcp_server_names) if mcp_server_names else None,
+            )
         )
     return installed
 
@@ -417,8 +335,13 @@ def _install_toolkit(
             fmt.echo("Toolkit %s %s is already installed." % (toolkit_name, local_version))
         else:
             fmt.echo(
-                "Toolkit %s %s is installed, version %s available. Use --overwrite to update."
-                % (toolkit_name, local_version, toolkit_version)
+                "Toolkit %s %s is installed, version %s available. Use `%s` to update."
+                % (
+                    toolkit_name,
+                    local_version,
+                    toolkit_version,
+                    fmt.cli_cmd("ai toolkit update " + toolkit_name),
+                )
             )
         if workflow_entry_skill := toolkit_meta.get("workflow_entry_skill"):
             fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
@@ -460,6 +383,165 @@ def _install_dependencies(
         if is_toolkit_installed(dep):
             continue
         _install_toolkit(dep, base, agent, project_root)
+
+
+@contextmanager
+def _value_error_as_cli_error() -> Iterator[None]:
+    """Reports a `ValueError` (invalid metadata, circular dependencies) as a CLI error."""
+    try:
+        yield
+    except ValueError as ex:
+        fmt.error(str(ex))
+        raise CliCommandException()
+
+
+def _resolve_installed_agent(name: str, entry: TToolkitIndexEntry) -> _AIAgent:
+    """The agent the toolkit was installed for."""
+    recorded = entry.get("agent")
+    if recorded is None or recorded not in AI_AGENTS:
+        fmt.error(
+            "Toolkit %s was installed for unknown agent %s. Reinstall it with `%s`."
+            % (
+                fmt.bold(name),
+                fmt.bold(str(recorded)),
+                fmt.cli_cmd("ai toolkit install %s --agent <agent> --overwrite" % name),
+            )
+        )
+        raise CliCommandException()
+    return AI_AGENTS[recorded]()
+
+
+def _ensure_dependencies(
+    name: str,
+    toolkits: Dict[str, TToolkitInfo],
+    base: Path,
+    agent: _AIAgent,
+    project_root: Path,
+) -> None:
+    """Install missing dependencies of `name`, fail when any is still missing."""
+    with _value_error_as_cli_error():
+        closure = resolve_toolkit_dependencies(name, build_toolkits_dependency_map(toolkits))
+    _install_dependencies(name, toolkits, base, agent, project_root)
+    missing = [dep for dep in closure if not is_toolkit_installed(dep)]
+    if missing:
+        fmt.error(
+            "Toolkit %s depends on %s which could not be installed."
+            % (fmt.bold(name), ", ".join(fmt.bold(dep) for dep in missing))
+        )
+        raise CliCommandException()
+
+
+def _read_workbench_toolkit_meta(name: str, toolkit_dir: Path) -> TToolkitInfo:
+    """Metadata of the installed toolkit `name` as currently published in the workbench.
+    Raises when the toolkit is gone or its metadata is invalid."""
+    meta = read_workbench_toolkit_combined_info(toolkit_dir)
+    if meta is None:
+        # a renamed toolkit looks the same: its directory is gone
+        fmt.error(
+            "Toolkit %s is no longer in the workbench, it may have been removed or renamed."
+            " Use `%s` to see available toolkits."
+            % (fmt.bold(name), fmt.cli_cmd("ai toolkit list"))
+        )
+        raise CliCommandException()
+    with _value_error_as_cli_error():
+        toolkit_meta = extract_toolkit_info(meta, name)
+    # the toolkit was found by its installed name, but the index entry is saved under the
+    # name declared in plugin.json: a different name would add a second index entry
+    if toolkit_meta["name"] != name:
+        fmt.error(
+            "Workbench directory %s declares toolkit name %s, expected %s."
+            % (fmt.bold(name), fmt.bold(toolkit_meta["name"]), fmt.bold(name))
+        )
+        raise CliCommandException()
+    return toolkit_meta
+
+
+_SKIP_REASONS: Dict[TFileState, str] = {
+    "modified": "modified locally",
+    "deleted": "deleted locally",
+    "untracked": "not installed by this toolkit",
+}
+
+
+def _report_update_plan(plan: ToolkitUpdatePlan, project_root: Path) -> None:
+    """Print what an update will write and skip."""
+    for w in plan.warnings:
+        fmt.warning(w)
+    for candidate, decision in plan.updates:
+        if decision.write:
+            marker = "+" if decision.state == "new" else "~"
+            note = "" if decision.state in ("new", "updated") else " (forced)"
+            fmt.echo("  %s %s%s" % (marker, candidate.rel_path, note))
+        elif decision.state != "unchanged":
+            fmt.warning("Skipping %s: %s" % (candidate.rel_path, _SKIP_REASONS[decision.state]))
+    for action in plan.shared:
+        rel_path = to_rel_path(action.dest_path, project_root)
+        if action.kind == "mcp":
+            fmt.echo("  + mcp %s -> %s" % (fmt.bold(action.source_name), rel_path))
+        else:
+            fmt.echo("  ~ %s" % rel_path)
+    for path in plan.orphans:
+        fmt.warning("%s is no longer part of the toolkit and was left in place" % path)
+
+
+def _print_update_summary(name: str, plan: ToolkitUpdatePlan, agent: _AIAgent) -> None:
+    written = sum(1 for _, d in plan.updates if d.write) + len(plan.shared)
+    skipped = sum(1 for _, d in plan.updates if not d.write and d.state != "unchanged")
+    if not written and not skipped:
+        fmt.echo("Toolkit %s is up to date." % fmt.bold(name))
+        return
+    unchanged = sum(1 for _, d in plan.updates if d.state == "unchanged")
+    fmt.echo(
+        "%s updated, %s unchanged, %s skipped."
+        % (fmt.bold(str(written)), unchanged, fmt.bold(str(skipped)))
+    )
+    if skipped:
+        fmt.echo("Use --force to overwrite skipped files.")
+    if written:
+        fmt.echo("Please restart your %s session for changes to take effect" % fmt.bold(agent.name))
+
+
+def _update_installed_toolkit(
+    name: str,
+    toolkits: Dict[str, TToolkitInfo],
+    base: Path,
+    project_root: Path,
+    force: bool,
+) -> None:
+    """Update the installed toolkit `name` for the agent it was installed for, installing
+    missing dependencies first. Raises `CliCommandException` after reporting a failure."""
+    # re-read: dependency installs and earlier updates change the index
+    entry = load_toolkits_index()[name]
+    agent = _resolve_installed_agent(name, entry)
+    _ensure_dependencies(name, toolkits, base, agent, project_root)
+    _update_toolkit(name, entry, base / name, agent, project_root, force)
+
+
+def _update_toolkit(
+    name: str,
+    entry: TToolkitIndexEntry,
+    toolkit_dir: Path,
+    agent: _AIAgent,
+    project_root: Path,
+    force: bool,
+) -> None:
+    """Bring one installed toolkit to the workbench content, report and record the result."""
+    toolkit_meta = _read_workbench_toolkit_meta(name, toolkit_dir)
+    installed_version = entry.get("version", "?")
+    available_version = toolkit_meta["version"]
+    if installed_version == available_version:
+        version_label = installed_version
+    else:
+        version_label = "%s -> %s" % (installed_version, available_version)
+    fmt.echo(
+        "Updating toolkit %s %s for %s..." % (fmt.bold(name), version_label, fmt.bold(agent.name))
+    )
+
+    plan = plan_toolkit_update(name, entry, toolkit_dir, agent, project_root, force)
+    _report_update_plan(plan, project_root)
+    apply_toolkit_update(plan)
+    update_toolkit_entry(plan, entry, toolkit_meta, agent.name)
+    _print_update_summary(name, plan, agent)
 
 
 def _warning_message(code: str) -> str:
@@ -567,6 +649,66 @@ def ai_toolkit_install_command(
         fmt.warning(w)
     _install_dependencies(name, toolkits, base, var, project_root)
     _install_toolkit(name, base, var, project_root, overwrite=overwrite, strict=strict)
+
+
+@utils.track_command("ai", False, "name", operation="toolkit.update")
+def ai_toolkit_update_command(
+    name: Optional[str],
+    location: str,
+    branch: Optional[str] = None,
+    force: bool = False,
+) -> None:
+    """Update installed toolkits to the workbench content.
+
+    Updates `name` or, when `None`, every installed toolkit. Files edited or deleted
+    locally, or not installed by the toolkit, are skipped unless `force`.
+    """
+    project_root = Path(run_context.active().run_dir)
+    installed = load_toolkits_index()
+    if name is not None and name not in installed:
+        fmt.error(
+            "Toolkit %s is not installed. Use `%s` to install it."
+            % (fmt.bold(name), fmt.cli_cmd("ai toolkit install " + name))
+        )
+        raise CliCommandException()
+    if not installed:
+        fmt.echo(
+            "No toolkits installed. Use `%s` to see available toolkits."
+            % fmt.cli_cmd("ai toolkit list")
+        )
+        return
+
+    base = _fetch_workbench_base_cli(location, branch)
+    if base is None:
+        raise CliCommandException()
+    toolkits, warnings = fetch_workbench_toolkits(base)
+    for w in warnings:
+        fmt.warning(w)
+
+    dep_map = build_toolkits_dependency_map(toolkits)
+    targets = [name] if name is not None else toolkit_update_order(installed, dep_map)
+    # one broken toolkit must not block the others: updates already applied are safe to keep
+    failed: List[str] = []
+    for tk_name in targets:
+        if blocked := failed_dependencies(tk_name, dep_map, failed):
+            # its new version may rely on content the failed dependency did not receive
+            fmt.warning(
+                "Skipping toolkit %s: its dependency %s failed to update."
+                % (fmt.bold(tk_name), ", ".join(fmt.bold(dep) for dep in blocked))
+            )
+            failed.append(tk_name)
+            continue
+        try:
+            _update_installed_toolkit(tk_name, toolkits, base, project_root, force)
+        except CliCommandException:
+            # the reason was reported where the exception was raised
+            failed.append(tk_name)
+    if failed:
+        fmt.error(
+            "Could not update %s. See the messages above."
+            % ", ".join(fmt.bold(tk_name) for tk_name in failed)
+        )
+        raise CliCommandException()
 
 
 @utils.track_command("ai", False, operation="toolkit.list")

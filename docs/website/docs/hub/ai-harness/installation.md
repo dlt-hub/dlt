@@ -83,6 +83,34 @@ uv run dlthub ai toolkit install rest-api-pipeline
 
 By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or `--overwrite` to replace files the agent already has.
 
+## Updating toolkits
+
+Update every installed toolkit, or name a single one:
+
+```sh
+uv run dlthub ai toolkit update
+uv run dlthub ai toolkit update rest-api-pipeline
+```
+
+Each toolkit is updated for the agent it was installed for. Toolkits are updated one after another, each after the toolkits it depends on. A new dependency is installed before the toolkit that needs it. If a toolkit can't be updated, for example because it was removed from the toolkit repository, the remaining toolkits are still updated, except those that depend on it, and the command exits with an error that lists every toolkit it could not update.
+
+The update compares file contents, not version numbers, so it also picks up changes made without a version bump. It changes only files the toolkit installed and you have not touched since. It skips, and reports:
+
+- files you changed or deleted
+- files that exist but were not installed by this toolkit
+
+Pass `--force` to overwrite these as well. A file you changed or deleted stays recorded as installed, so the next update still recognizes your change.
+
+A few things are never changed:
+
+- **Removed files:** files a toolkit no longer ships stay in your project and keep working as skills or rules. Delete them yourself if you don't want them.
+- **MCP servers:** new servers are added to the agent's MCP config, but servers you already have are never replaced, even with `--force`.
+- **`AGENTS.md` (Codex):** new skills get registered, but existing text is not rewritten.
+
+`dlthub ai toolkit install --overwrite` records every file inside a skill's folder as installed, including files you added there yourself. If a later toolkit version ships a file at the same path, the update overwrites yours without `--force`.
+
+Updates come from the default toolkit repository. If you installed from somewhere else, pass the same `--location` and `--branch` again.
+
 ## Verify
 
 Check that the workspace is fully wired:

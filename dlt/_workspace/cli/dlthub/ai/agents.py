@@ -1,7 +1,19 @@
 from abc import ABC, abstractmethod
 from enum import IntEnum
 from pathlib import Path
-from typing import Any, ClassVar, Dict, List, Literal, NamedTuple, Optional, Tuple, Type, Union
+from typing import (
+    Any,
+    ClassVar,
+    Dict,
+    List,
+    Literal,
+    NamedTuple,
+    Optional,
+    Sequence,
+    Tuple,
+    Type,
+    Union,
+)
 
 from dlt.common.runtime.exec_info import is_claude_code, is_codex, is_cursor
 
@@ -182,18 +194,19 @@ class _AIAgent(ABC):
             )
         ]
 
-    def finalize_actions(
+    def shared_actions(
         self,
-        actions: List["InstallAction"],
+        components: Sequence["InstallAction"],
         project_root: Path,
         workbench_base: Optional[Path] = None,
     ) -> List["InstallAction"]:
-        """Post-process the full action list. Default is identity.
+        """Build merges into files all toolkits share, for the given component actions.
 
-        Subclasses override to coalesce shared targets (e.g. AGENTS.md).
+        Returns only the merges, never `components` itself, and does not modify it.
+        Default is none; subclasses register components in shared targets (e.g. AGENTS.md).
         *workbench_base* is the root of the fetched workbench repo.
         """
-        return actions
+        return []
 
     @abstractmethod
     def mcp_config_path(self, project_root: Path) -> Path:
@@ -391,7 +404,7 @@ class _CodexAgent(_AIAgent):
                     source_kind="command",
                 )
             ]
-        # rule → always-apply skill (AGENTS.md is handled by finalize_actions)
+        # rule → always-apply skill (AGENTS.md is handled by shared_actions)
         skill_name = toolkit_name + "-" + source_name
         wrapped = wrap_as_skill(content, skill_name, always_apply=True)
         wrapped = cap_skill_description(wrapped, self._MAX_SKILL_DESCRIPTION) or wrapped
@@ -408,38 +421,38 @@ class _CodexAgent(_AIAgent):
             )
         ]
 
-    def finalize_actions(
+    def shared_actions(
         self,
-        actions: List["InstallAction"],
+        components: Sequence["InstallAction"],
         project_root: Path,
         workbench_base: Optional[Path] = None,
     ) -> List["InstallAction"]:
-        """Coalesce rule-converted-to-skill actions into a single AGENTS.md merge action."""
-        skill_names: List[str] = []
-        for a in actions:
-            if a.source_kind == "rule" and not a.conflict:
-                skill_names.append(a.dest_path.parent.name)
-
+        """Register rule-converted-to-skill actions in AGENTS.md with a single merge action."""
+        skill_names = [
+            a.dest_path.parent.name
+            for a in components
+            if a.source_kind == "rule" and not a.conflict
+        ]
         if not skill_names:
-            return actions
+            return []
 
         agents_md = self.agents_md_path(project_root)
         existing = agents_md.read_text(encoding="utf-8") if agents_md.is_file() else ""
         template = read_agents_md_template(workbench_base)
         merged = merge_agents_md_skills(existing, skill_names, template=template)
-        if merged != existing:
-            actions.append(
-                InstallAction(
-                    kind="rule",
-                    source_name="AGENTS.md",
-                    dest_path=agents_md,
-                    op="save",
-                    content_or_path=merged,
-                    conflict=False,
-                    skip_index=True,
-                )
+        if merged == existing:
+            return []
+        return [
+            InstallAction(
+                kind="rule",
+                source_name="AGENTS.md",
+                dest_path=agents_md,
+                op="save",
+                content_or_path=merged,
+                conflict=False,
+                skip_index=True,
             )
-        return actions
+        ]
 
     def mcp_config_path(self, project_root: Path) -> Path:
         return project_root / ".codex" / "config.toml"

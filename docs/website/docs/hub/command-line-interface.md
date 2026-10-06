@@ -2666,7 +2666,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 * [`status`](#dlthub-ai-status) - Show ai setup status: dlt version, agent, toolkits, readiness checks
 * [`init`](#dlthub-ai-init) - Install initial ai rules and skills for your ai coding agent
 * [`secrets`](#dlthub-ai-secrets) - Manage secrets files used by dlt
-* [`toolkit`](#dlthub-ai-toolkit) - Manage ai toolkit plugins (list, info, install)
+* [`toolkit`](#dlthub-ai-toolkit) - Manage ai toolkit plugins (list, info, install, update)
 * [`mcp`](#dlthub-ai-mcp) - Run or install the dlt mcp server
 
 </details>
@@ -2846,17 +2846,17 @@ Inherits arguments from [`dlthub ai secrets`](#dlthub-ai-secrets).
 
 ### `dlthub ai toolkit`
 
-Manage AI toolkit plugins (list, info, install).
+Manage AI toolkit plugins (list, info, install, update).
 
 **Usage**
 
 ```sh
-dlthub ai toolkit [-h] {list,info,install} ...
+dlthub ai toolkit [-h] {list,info,install,update} ...
 ```
 
 **Description**
 
-Manage AI toolkit plugins (list, info, install).
+Manage AI toolkit plugins (list, info, install, update).
 
 <details>
 
@@ -2869,6 +2869,7 @@ Inherits arguments from [`dlthub ai`](#dlthub-ai).
 * `list` - List available toolkits
 * `info` - Show toolkit contents and components
 * `install` - Install toolkit components into project
+* `update` - Update installed toolkits, keeping files you changed
 
 **Options**
 
@@ -2969,6 +2970,40 @@ Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
 * `--overwrite` - Overwrite existing files instead of skipping them.
 * `--strict` - Fail on validation warnings (invalid frontmatter, etc.).
+
+</details>
+
+### `dlthub ai toolkit update`
+
+Update installed toolkits, keeping files you changed.
+
+**Usage**
+
+```sh
+dlthub ai toolkit update [-h] [--location LOCATION] [--branch BRANCH] [--force]
+    [name]
+```
+
+**Description**
+
+Updates installed toolkits to the content of the toolkit repository. Files changed or deleted locally, or not installed by the toolkit, are skipped unless --force is given. Files removed from a toolkit are left in place.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
+
+**Positional arguments**
+
+* `name` - Toolkit name. updates all installed toolkits if omitted.
+
+**Options**
+
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+* `--force` - Overwrite files changed or deleted locally or not installed by the toolkit.
 
 </details>
 
