@@ -94,6 +94,7 @@ Deploy, schedule, and monitor pipelines, transformations, and notebooks without 
 * [dltHub platform](../pipeline-operations/overview.md)—one-command deploy of an entire workspace, with cron and event-driven [triggers](../pipeline-operations/triggers.md), follow-up chains, freshness checks, and refresh cascades. Sign in at [app.dlthub.com](https://app.dlthub.com)
 * [Profiles](../pipeline-operations/profiles.md) and [regions](../platform-capabilities/regions.md)—isolate `dev`, `prod`, and `access` configurations and credentials, and choose where your data plane runs
 * [Workspace dashboard & monitoring](../ingestion/dashboard.md)—observe runs, schemas, and lineage from a single UI; stream logs and [diagnose failures](../pipeline-operations/monitoring.md) from the CLI or Web UI
+* [Background agents](../agents/index.md) (in public preview)—AI agent jobs that run unattended, for example the [job inspector](../agents/job-inspector.md), which diagnoses a failed job run and reports a fix
 
 ### [Data quality & governance](../data-quality/index.md)
 

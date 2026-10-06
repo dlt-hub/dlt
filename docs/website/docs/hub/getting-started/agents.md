@@ -6,7 +6,7 @@ keywords: [dlthub, background agents, job inspector, ai harness, dlthub-platform
 # Getting started with agents
 
 :::warning
-Background agents are in private preview.
+Background agents are in public preview.
 :::
 
 Background agents are dltHub jobs that run an AI agent loop. They run unattended, for example after another job fails, and report a structured result next to the job run they acted on.
@@ -19,6 +19,27 @@ The agents ship with the [AI Harness](../ai-harness/introduction.md). The [`dlth
 - A coding agent: Claude Code, Cursor, or Codex.
 - The model name, endpoint URL, and API key for your agents.
 
+## Move production secrets out of the workspace scope
+
+Do this before you set up an agent, in an existing workspace. An agent job runs on the read-only `access` profile unless it declares another one, which is what keeps the production credentials out of its environment. A variable set with `--workspace` carries no profile, so it defeats that: it reaches the job on every profile, `access` included. The job process then holds your production credential while a model decides what to do with the tools it was given.
+
+List the scopes:
+
+```sh
+uv run dlthub variable list
+```
+
+Move anything an agent must not read into the `prod` scope:
+
+```sh
+printf '%s' '<value>' | uv run dlthub variable set DB_PASSWORD --secret --profile prod
+uv run dlthub variable delete DB_PASSWORD --workspace
+```
+
+A value stored with `--secret` is never shown again, so you need the original to move it. Credential files follow the same rule: `secrets.toml` reaches every profile, `prod.secrets.toml` reaches only `prod`. See [Profiles](../pipeline-operations/profiles.md).
+
+Keep the model key in the workspace scope. The runner reads it to reach your provider, and every agent job needs it.
+
 ## Set up with your coding agent
 
 Open your coding agent in your dltHub workspace, or in an empty directory to start from scratch, and paste this prompt:
@@ -29,13 +50,15 @@ Set up this directory for dltHub background agents. Use `uv run` and pass
 
 1. If there is no `.dlt/.workspace` file, run `uvx dlthub-init@latest`.
 2. Add these dependencies to pyproject.toml and run `uv sync`:
-   "dlt[hub]==1.30.1a0", "dlthub[mcp]", "dlthub-client>=0.28.5",
+   "dlt[hub]==1.30.1a1", "dlthub[mcp]", "dlthub-client>=0.28.5",
    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0", "aiohttp>=3.14.3"
 3. Run `uv run dlthub ai toolkit install dlthub-platform --overwrite`, then
    `uv run dlthub ai status`, and fix any warnings.
-4. Declare the `job-inspector` agent in `__deployment__.py` with an explicit
-   trigger on the jobs I choose, never the default `job.fail:*`. Ask me which
-   jobs to watch, or which pipeline to build first if there are none.
+4. Declare the `job-inspector` agent in `__deployment__.py` with
+   `require={"profile": "access"}` and an explicit trigger on the jobs I
+   choose. The agent definition declares no trigger, so a job without one
+   runs only when I start it, and never scope it to `job.fail:*`. Ask me
+   which jobs to watch, or which pipeline to build first if there are none.
 
 I'll configure the model key and endpoint myself. Never ask for them, put them
 in a command, or write them to a file.
@@ -43,14 +66,18 @@ in a command, or write them to a file.
 
 ## Set the model credentials
 
+The key is yours. dltHub operates no model endpoint and supplies no key, so every agent run bills your provider account. Agents are tested on Anthropic and Azure OpenAI.
+
 Add the model and the endpoint URL to `.dlt/config.toml`. Every agent job in the workspace uses them:
 
 ```toml
 [agent]
-model = "azure:gpt-5.6-sol"
+model = "azure:my-gpt-deployment"   # the deployment name on your endpoint, not a model id
 api_url = "<endpoint URL>"
 api_version = "2024-12-01-preview"  # Azure endpoints only
 ```
+
+A model set here overrides `model=` on an individual agent job. To give one job a different model, set it under that job's section instead. See [Which model a run uses](../agents/index.md#which-model-a-run-uses).
 
 Set the API key yourself, in your own terminal, so your coding agent never sees it. Export it for local runs, and store it as a workspace secret for deployed runs, because the platform runner can't read your shell:
 
@@ -92,19 +119,24 @@ Override the inspector's defaults in `__deployment__.py`, for example its model,
 ```py notype
 job_inspector = run.agent(
     "dlthub-platform:job-inspector",
-    trigger=[my_job.fail],
+    trigger="job.fail:tag:ingest",
+    require={"profile": "access"},
     limits={"max_turns": 20},
     instructions="focus on the loader step",
 )
 ```
 
+`trigger="job.fail:tag:ingest"` watches every job tagged `ingest`. [Triggers for agents](../agents/index.md#triggers-for-agents) lists the other selectors.
+
 ## Build your own agent
 
-Write your own agent as an `AGENT.md` file or as a Python function with the `@run.agent` decorator.
+Your coding agent writes the definition for you. The `create-background-agent` skill ships with every dltHub workspace, so you describe the agent and it produces the `AGENT.md` and the `run.agent(...)` declaration:
 
-The examples below define `workspace_report`, an agent that reads the status of every job in the workspace and writes a report.
+> Write a background agent that reports the latest status of every job in the workspace.
 
-In an `AGENT.md`, the YAML frontmatter declares the tools, access, and output, and the Markdown body is the system prompt:
+The usual form is an `AGENT.md` file. The YAML frontmatter declares the tools, access, and output, and the Markdown body is the system prompt.
+
+The examples below define `workspace_report`, an agent that reads the status of every job in the workspace and writes a report:
 
 ```md
 ---
@@ -127,23 +159,25 @@ Save it as `agents/workspace_report/AGENT.md` and declare it in `__deployment__.
 
 ```py notype
 from dlt.hub import run
-from dlt.hub.run import trigger
 
 __all__ = [
     # ...,
     "workspace_report",
 ]
 
-workspace_report = run.agent("agents/workspace_report", name="workspace_report")
+workspace_report = run.agent(
+    "agents/workspace_report",
+    name="workspace_report",
+    require={"profile": "access"},
+)
 ```
 
-In a Python function, the docstring is the system prompt, the parameters are the inputs, and the return type is the output schema:
+Reach for the Python form when the schemas should come from Python types, or when code has to run around the loop. The docstring is the system prompt, the parameters are the inputs, and the return type is the output schema. See [Agent definition as a Python function](../agents/agent-definitions.md#agent-definition-as-a-python-function). The same agent, written this way:
 
 ```py notype
 from typing import List
 
 from dlt.hub import run
-from dlt.hub.run import trigger
 
 
 class WorkspaceReport(run.TAgentOutput):
@@ -154,6 +188,7 @@ class WorkspaceReport(run.TAgentOutput):
 @run.agent(
     tools=["jobs"],
     access={"context": ["read"]},
+    require={"profile": "access"},
 )
 async def workspace_report(run_context: run.TJobRunContext = None) -> WorkspaceReport:
     """List every job in the workspace and read the status of its latest run.
