@@ -49,6 +49,15 @@ A coding agent can do this setup for you. Paste the prompt in [Set up with your 
    `claude-agent-sdk` runs on the platform even when your machine has only `pydantic-ai`. See
    [Agent loops](#agent-loops).
 3. Credentials for a model provider. Locally, the provider's default environment variables work (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on). See [Model and credentials](#model-and-credentials) for the configuration keys.
+4. No production secret in the workspace scope. An agent job runs on the read-only `access` profile unless it declares otherwise, which is what keeps the production credentials out of its environment. A variable set with `--workspace` carries no profile and defeats that, because it reaches the job on every profile, `access` included. Check the scopes before the first agent run, and move anything an agent must not hold into the `prod` scope:
+
+   ```sh
+   dlthub variable list                                   # the scope of each variable
+   printf '%s' '<value>' | dlthub variable set DB_PASSWORD --secret --profile prod
+   dlthub variable delete DB_PASSWORD --workspace
+   ```
+
+   A value stored with `--secret` is never shown again, so you need the original to move it. The same holds for files: a credential in `secrets.toml` reaches every profile, and one in `prod.secrets.toml` reaches only `prod`. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Declare the agent job
 

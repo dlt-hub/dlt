@@ -19,6 +19,27 @@ The agents ship with the [AI Harness](../ai-harness/introduction.md). The [`dlth
 - A coding agent: Claude Code, Cursor, or Codex.
 - The model name, endpoint URL, and API key for your agents.
 
+## Move production secrets out of the workspace scope
+
+Do this before you set up an agent, in an existing workspace. An agent job runs on the read-only `access` profile unless it declares another one, which is what keeps the production credentials out of its environment. A variable set with `--workspace` carries no profile, so it defeats that: it reaches the job on every profile, `access` included. The job process then holds your production credential while a model decides what to do with the tools it was given.
+
+List the scopes:
+
+```sh
+uv run dlthub variable list
+```
+
+Move anything an agent must not read into the `prod` scope:
+
+```sh
+printf '%s' '<value>' | uv run dlthub variable set DB_PASSWORD --secret --profile prod
+uv run dlthub variable delete DB_PASSWORD --workspace
+```
+
+A value stored with `--secret` is never shown again, so you need the original to move it. Credential files follow the same rule: `secrets.toml` reaches every profile, `prod.secrets.toml` reaches only `prod`. See [Profiles](../pipeline-operations/profiles.md).
+
+Keep the model key in the workspace scope. The runner reads it to reach your provider, and every agent job needs it.
+
 ## Set up with your coding agent
 
 Open your coding agent in your dltHub workspace, or in an empty directory to start from scratch, and paste this prompt:
