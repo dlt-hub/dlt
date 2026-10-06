@@ -33,7 +33,6 @@ class TAgentLimits(TypedDict, total=False):
 class TAgentDefaults(TypedDict, total=False):
     """Settings the manifest suggests and the runtime may override."""
 
-    trigger: List[str]
     model: str
     limits: TAgentLimits
     loop_run_args: Dict[str, Any]

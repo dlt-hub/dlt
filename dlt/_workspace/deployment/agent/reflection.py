@@ -10,7 +10,7 @@ from dlt.common.utils import get_callable_name
 
 from dlt._workspace.deployment.agent.exceptions import InvalidAgentSpec
 from dlt._workspace.deployment.agent.manifest import validate_agent_spec
-from dlt._workspace.deployment.agent.typing import TAgentDefaults, TAgentOutput, TAgentSpec
+from dlt._workspace.deployment.agent.typing import TAgentOutput, TAgentSpec
 from dlt._workspace.deployment.reflection import (
     derives_from,
     inputs_from_function,
@@ -19,7 +19,6 @@ from dlt._workspace.deployment.reflection import (
 )
 
 SPEC_KEYS = ("access", "tools", "skills", "rules")
-DEFAULTS_KEYS = ("model", "limits", "loop_run_args", "trigger")
 SCHEMA_TYPE_KEYS = frozenset(
     (
         "type",
@@ -119,13 +118,7 @@ def agent_spec_from_function(
     for key in SPEC_KEYS:
         if declared.get(key) is not None:
             spec[key] = declared[key]
-
-    defaults: TAgentDefaults = dict(spec.get("defaults") or {})  # type: ignore[assignment]
-    for key in DEFAULTS_KEYS:
-        if declared.get(key) is not None:
-            defaults[key] = declared[key]  # type: ignore[literal-required]
-    if defaults:
-        spec["defaults"] = defaults
+    # `defaults` stay the referenced agent's: decorator settings are layered over them at run time
 
     inputs: Dict[str, Any] = dict(spec.get("inputs") or {})
     signature_inputs = inputs_from_function(f, source)

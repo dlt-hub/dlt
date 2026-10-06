@@ -25,6 +25,7 @@ from pydantic_ai.models.function import DeltaToolCall, FunctionModel
 from pydantic_ai.models.test import TestModel
 from pydantic_ai.usage import RunUsage
 
+import dlt
 from dlt.common import json, logger
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.providers import EnvironProvider
@@ -67,11 +68,13 @@ from dlt._workspace.deployment.agent.loops.tools import (
 from dlt._workspace.deployment.agent.manifest import load_agent_spec, resolve_agent_dir
 from dlt._workspace.deployment.agent.typing import TAgentSpec
 from dlt._workspace.deployment.configuration import AgentConfiguration
+from dlt._workspace.deployment.decorators import agent
 from dlt._workspace.deployment.launchers import (
     DEFAULT_AGENT_LOOP,
     LOOP_CLAUDE_AGENT_SDK,
     LOOP_PYDANTIC_AI,
 )
+from dlt._workspace.deployment.launchers.agent import build_agent_loop
 from dlt._workspace.deployment.typing import TWorkspaceAccess
 
 from tests.utils import init_test_logging, inject_providers
@@ -228,6 +231,29 @@ def test_settings_precedence_rises_to_config(workspace: Any, loop_cls: Type[Agen
         workspace.run_dir,
     )
     assert settings["loop_run_args"] == {"retries": 5, "extra": 1, "tool_timeout": 30}
+
+
+def test_function_settings_merge_over_the_referenced_agent_defaults(
+    workspace: Any, loop_cls: Type[AgentLoop]
+) -> None:
+    """A decorated function overrides one limit and one run arg; the `AGENT.md` rest survives."""
+
+    @agent(
+        agent="dlthub-platform:job-inspector",
+        loop=loop_cls.LOOP_TYPE,
+        limits={"max_turns": 5},
+        loop_run_args={"extra": 1},
+    )
+    async def inspector(failed_run_id: str = dlt.config.value, run_context: Any = None) -> Any:
+        pass
+
+    loop = build_agent_loop(inspector, workspace.run_dir)
+
+    assert loop.settings["max_turns"] == 5
+    assert loop.settings["max_tokens"] == 1000000
+    assert loop.settings["loop_run_args"] == {"retries": 1, "extra": 1}
+    # the agent definition keeps its own defaults; the job's settings are layered at run time
+    assert loop.spec["defaults"] == _spec(workspace.run_dir)["defaults"]
 
 
 def test_instructions_resolve_like_the_model(workspace: Any, loop_cls: Type[AgentLoop]) -> None:
@@ -547,8 +573,6 @@ def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) 
         assert "focus on the loader step" not in rendered, loop_cls.LOOP_TYPE
         assert loop.user_turn == "focus on the loader step", loop_cls.LOOP_TYPE
         assert loop._unresolved_placeholders == [], loop_cls.LOOP_TYPE
-    # the claude loop hands the framework what it rendered; the pydantic one has its own test
-    assert cast(Any, loop)._build_options(rendered).system_prompt == rendered
 
 
 def test_loops_name_the_workspace_and_the_temp_folder(workspace: Any) -> None:

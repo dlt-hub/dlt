@@ -1201,10 +1201,6 @@ def agent(
             "tools": tools,
             "skills": skills,
             "rules": rules,
-            "model": model,
-            "limits": limits,
-            "loop_run_args": loop_run_args,
-            "trigger": wrapper.trigger or None,
         }
         _set_agent(wrapper, agent)
         return wrapper
