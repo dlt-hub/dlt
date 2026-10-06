@@ -96,6 +96,24 @@ def run_dq_checks():
 
 For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers and scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
 
+### Job results
+
+A job can report a structured result of its run. Pass a JSON-serializable value to `run.result()`. It returns the value unchanged, so you can return it as well:
+
+```py notype
+@run.job(trigger=trigger.schedule("0 6 * * *"))
+def daily_report():
+    rows = count_rows()
+    return run.result({"rows": rows, "tables": 12}, type="etl_summary")
+```
+
+- Only the job that the runner started records a result. A job called from another job as a plain function doesn't overwrite it, and a second call replaces the first.
+- `type` names the shape of the payload, `job.etl_summary` here. It defaults to the job name.
+- After the run, `dlthub local run` prints the job result and the runner sends it to the dltHub platform. It also lists the entities the run acted on, taken from its [entity-typed inputs and outputs](job-configuration.md#inputs-and-outputs).
+- Outside a job run, `run.result()` returns the value and records nothing.
+
+An [agent job](../agents/index.md) delivers its job result itself, with the agent output and the agent trace in it.
+
 ### The deployment module
 
 `__deployment__.py` is a Python module that declares everything deployable in the workspace. The dltHub platform discovers jobs by inspecting it.

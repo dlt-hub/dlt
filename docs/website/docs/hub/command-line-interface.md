@@ -2980,7 +2980,7 @@ Run or install the dlt MCP server.
 
 ```sh
 dlthub ai mcp [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES ...]]
-    {run,install} ...
+    [--no-default-features] [--access ACCESS] {run,install} ...
 ```
 
 **Description**
@@ -3005,6 +3005,8 @@ Inherits arguments from [`dlthub ai`](#dlthub-ai).
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 8000)
 * `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
+* `--no-default-features` - Serve only the features named by --features, without the defaults above
+* `--access ACCESS` - Access the caller was granted, as `axis:verb,verb` pairs (e.g. data:read,local:read). tools requiring more are not served. `axis:` alone grants nothing on that axis. everything is served when omitted.
 
 </details>
 
@@ -3016,7 +3018,7 @@ Start the MCP server (default).
 
 ```sh
 dlthub ai mcp run [-h] [--stdio] [--sse] [--port PORT] [--features [FEATURES
-    ...]]
+    ...]] [--no-default-features] [--access ACCESS]
 ```
 
 **Description**
@@ -3036,6 +3038,8 @@ Inherits arguments from [`dlthub ai mcp`](#dlthub-ai-mcp).
 * `--sse` - Use legacy sse transport instead of streamable-http
 * `--port PORT` - Port for the mcp server (default: 8000)
 * `--features [FEATURES ...]` - Mcp features to enable/disable. default: context, pipeline, secrets, toolkit, workspace. use +name to add, -name to remove (e.g. --features=-secrets,+context)
+* `--no-default-features` - Serve only the features named by --features, without the defaults above
+* `--access ACCESS` - Access the caller was granted, as `axis:verb,verb` pairs (e.g. data:read,local:read). tools requiring more are not served. `axis:` alone grants nothing on that axis. everything is served when omitted.
 
 </details>
 

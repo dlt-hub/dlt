@@ -51,7 +51,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id>
 dlthub deploy
 ```
 
-The run log streams to your terminal as the agent works: its reasoning, each tool call, and what each tool returned. When the agent run ends, the launcher delivers a job result. `status` and a Markdown `summary` are at the top level. The full agent output is in `result`, with the fields of the inspector: `classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, and `requires_human`.
+The run log streams to your terminal as the agent works: a one-line excerpt of its reasoning, each tool call, and the start of what each tool returned. Pass `-c agent.verbosity=2` to print them in full. When the agent run ends, the launcher delivers a job result. `status` and a Markdown `summary` are at the top level. The full agent output is in `result`, with the fields of the inspector: `classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, and `requires_human`.
 
 ## Agent inputs
 
@@ -102,7 +102,7 @@ To find a load with too few rows, add a [data quality](../data-quality/index.md)
 
 `provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `repository_comment`, `job_description`, or `inference`. The first six values are facts. The last three values are claims. `confidence: high` needs at least one fact.
 
-On the platform, the result appears on the page of the failed job run, because the agent reports that job run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows a full job result with an inspector output in it.
+On the platform, the result appears on the page of the failed job run, because the agent reports that job run as the entity it acted on. The `agent.py` that ships with the definition turns the run ids and job refs in `summary` into links to their Web UI pages. [Read the agent run result](index.md#read-the-agent-run-result) shows a full job result with an inspector output in it.
 
 ### Summary format
 
@@ -122,8 +122,10 @@ The agent definition declares these defaults. The agent job overrides them. Conf
 
 | Setting         | Default                                                                                                                                                                                                         |
 | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                                                                                                                                          |
+| `limits`        | `max_turns: 30`, `max_tokens: 1000000`. `max_tokens` counts input tokens, cache reads and writes included, and output tokens. The run stops after the turn that passes it                                       |
 | `loop_run_args` | `retries: 2`. pydantic-ai lets the model call a failing tool again two times. After this, the tool call fails, the model sees the failed call, and the agent run continues. `claude-agent-sdk` ignores this key |
+
+The agent definition declares no `execute`, so the agent job runs up to 5 runs at once unless it sets `execute={"concurrency": ...}`.
 
 The agent definition declares no trigger. An agent job without `trigger=` runs only when you start it. To inspect every failed job in the workspace, declare `trigger="job.fail:*"`, and read the warning below first.
 
@@ -160,7 +162,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 - **No shell.** The agent definition declares no `execute` verb. The deny rules for credential files apply only to the file tools. A shell can read those files, and it can run the inspected job again.
 - **No destination access.** The agent definition declares no `data` axis, so the agent can't query your data. A diagnosis uses run records, logs, job definitions, the dlt trace, workspace source, and the redacted view of secrets and variables. When the cause depends on the data in a table, the agent adds this to `open_points`. It names the table or the record that a person must read.
 - **No changes to your workspace.** The system prompt also forbids changes, in addition to the declared access: the agent doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
-- **Read-only credentials.** The job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
+- **Read-only credentials.** On the platform, the job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Locally it runs on the active profile. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 ## Next steps
 
