@@ -25,7 +25,13 @@ from dlt.common.typing import copy_sig_ret
 from dlt._workspace.configuration import WorkspaceConfiguration, WorkspaceRuntimeConfiguration
 from dlt._workspace.exceptions import WorkspaceRunContextNotAvailable
 from dlt._workspace.profile import BUILT_IN_PROFILES, DEFAULT_PROFILE, read_profile_pin
-from dlt._workspace.providers import ProfileConfigTomlProvider, ProfileSecretsTomlProvider
+from dlt._workspace.providers import (
+    ProfileConfigTomlProvider,
+    ProfileSecretsTomlProvider,
+    ProfileConfigYamlProvider,
+    ProfileSecretsYamlProvider,
+)
+from dlt.common.configuration.providers.utils import warn_on_toml_yaml_collision
 from dlt._workspace.run_context import (
     DEFAULT_LOCAL_FOLDER,
     DEFAULT_WORKSPACE_WORKING_FOLDER,
@@ -225,10 +231,18 @@ class WorkspaceRunContext(ProfilesRunContext):
         return list(configured)
 
     def _initial_providers(self, profile_name: str) -> List[ConfigProvider]:
+        secrets_toml = ProfileSecretsTomlProvider(self.settings_dir, profile_name, self.global_dir)
+        config_toml = ProfileConfigTomlProvider(self.settings_dir, profile_name, self.global_dir)
+        secrets_yaml = ProfileSecretsYamlProvider(self.settings_dir, profile_name, self.global_dir)
+        config_yaml = ProfileConfigYamlProvider(self.settings_dir, profile_name, self.global_dir)
+        warn_on_toml_yaml_collision(secrets_toml, secrets_yaml)
+        warn_on_toml_yaml_collision(config_toml, config_yaml)
         providers = [
             EnvironProvider(),
-            ProfileSecretsTomlProvider(self.settings_dir, profile_name, self.global_dir),
-            ProfileConfigTomlProvider(self.settings_dir, profile_name, self.global_dir),
+            secrets_toml,
+            secrets_yaml,
+            config_toml,
+            config_yaml,
         ]
         return providers
 
