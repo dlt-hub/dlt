@@ -7,7 +7,10 @@ from pathlib import Path
 from types import ModuleType
 from typing import Any, Dict, List, Mapping, Optional, Set, Tuple, cast
 
-from dlt.common import logger
+import yaml
+
+from dlt.common import logger, validation
+from dlt.common.exceptions import DictValidationException
 from dlt.common.reflection.ref import import_folder_module
 
 from dlt._workspace.cli.dlthub.ai.agents import (
@@ -75,7 +78,10 @@ def load_agent_spec(agent_dir: str) -> TAgentSpec:
     path = agent_manifest_path(agent_dir)
     if not os.path.isfile(path):
         raise InvalidAgentSpec(path, "file does not exist")
-    frontmatter, body = parse_frontmatter(open(path, "r", encoding="utf-8").read())
+    try:
+        frontmatter, body = parse_frontmatter(open(path, "r", encoding="utf-8").read())
+    except yaml.YAMLError as ex:
+        raise InvalidAgentSpec(path, f"frontmatter is not valid YAML: {ex}") from ex
     if not body.strip():
         raise InvalidAgentSpec(path, "body is empty. The body is the system prompt")
 
@@ -126,6 +132,15 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
             raise InvalidAgentSpec(source, f"{reason}. Got {', '.join(refused)}")
     if access:
         spec["access"] = cast(TWorkspaceAccess, access)
+    # a single component may be written without the list, as an access verb may
+    fields = cast(Dict[str, Any], spec)
+    for list_key in ("tools", "skills", "rules"):
+        if isinstance(fields.get(list_key), str):
+            fields[list_key] = [fields[list_key]]
+    try:
+        validation.validate_dict(TAgentSpec, spec, source)
+    except DictValidationException as ex:
+        raise InvalidAgentSpec(source, str(ex)) from ex
     return spec
 
 

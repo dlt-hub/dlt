@@ -109,8 +109,21 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
     [
         ("name: a\ndescription: b", "", "body is empty"),
         ("name: a\ndescription: b\ninputs:\n  prompt: p", "b", "must not declare 'prompt'"),
+        ("name: [unclosed", "b", "frontmatter is not valid YAML"),
+        ("name: a\nskill: debug", "b", "unexpected fields"),
+        ("name: a\ntools:\n  telemetry: true", "b", "field `tools`"),
+        ("name: a\ndefaults:\n  limits: 30", "b", "field `limits"),
+        ("name: 42", "b", "field `name=42`"),
     ],
-    ids=["empty-body", "prompt-input"],
+    ids=[
+        "empty-body",
+        "prompt-input",
+        "invalid-yaml",
+        "unknown-field",
+        "tools-not-a-list",
+        "limits-not-a-mapping",
+        "name-not-a-string",
+    ],
 )
 def test_load_agent_spec_rejects(tmp_path: Path, frontmatter: str, body: str, reason: str) -> None:
     agent_dir = tmp_path / "broken"
@@ -119,6 +132,22 @@ def test_load_agent_spec_rejects(tmp_path: Path, frontmatter: str, body: str, re
     (agent_dir / "AGENT.md").write_text(text, encoding="utf-8")
     with pytest.raises(InvalidAgentSpec, match=reason):
         load_agent_spec(str(agent_dir))
+
+
+def test_a_single_component_may_be_written_without_the_list(tmp_path: Path) -> None:
+    agent_dir = tmp_path / "single"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        "---\nname: single\ntools: telemetry\nskills: tk:debug\nrules: tk:style\n---\nbody\n",
+        encoding="utf-8",
+    )
+    spec = load_agent_spec(str(agent_dir))
+
+    assert (spec["tools"], spec["skills"], spec["rules"]) == (
+        ["telemetry"],
+        ["tk:debug"],
+        ["tk:style"],
+    )
 
 
 def test_load_agent_spec_needs_only_a_body(tmp_path: Path) -> None:
