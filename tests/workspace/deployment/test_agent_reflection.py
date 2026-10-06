@@ -319,7 +319,7 @@ def test_entity_markers_reach_nested_definitions() -> None:
 
 
 def test_agent_output_is_the_payload_alone() -> None:
-    """The agent returns a payload type, not the envelope, so no launcher field reaches the model."""
+    """The agent returns a payload type, not the job result, so no launcher field reaches the model."""
 
     def inspector() -> TAgentOutput:
         """Inspects a run."""
@@ -328,6 +328,6 @@ def test_agent_output_is_the_payload_alone() -> None:
     schema = output_from_return(inspector, SOURCE)
 
     assert set(schema["properties"]) == {"status", "summary"}
-    for envelope_field in ("type", "engine_version", "result", "object", "job_ref", "trace"):
-        assert envelope_field not in schema["properties"]
+    for job_result_field in ("type", "engine_version", "result", "object", "job_ref", "trace"):
+        assert job_result_field not in schema["properties"]
     assert "$defs" not in schema

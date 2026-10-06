@@ -153,7 +153,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
                 logger.warning(f"Skipping skill {ref!r}: {ex}")
                 continue
             self._native_skills.append(ref)
-        # the harness names its own file tools, so the prompt is where the model learns this
+        # the CLI names its own file tools, so the prompt is where the model learns this
         parts.append(workspace_note(workspace_root, temp_dir()))
         self._system_prompt = "\n\n".join(parts)
 

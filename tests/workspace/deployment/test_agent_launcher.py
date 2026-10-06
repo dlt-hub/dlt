@@ -72,7 +72,7 @@ def test_agent_launcher_runs_a_declared_agent(workspace: Any, loop_type: str) ->
     """The launcher drives the loop and returns the agent job output."""
     output = agent_run(_entry("inspector", loop_type), run_id="a-1", trigger="manual:")
 
-    # the category says which envelope this is, the name which agent produced the payload
+    # the category says which kind of job result this is, the name which agent produced it
     assert output["type"] == "job.background_agent.dlthub-platform:job-inspector"
     assert "agent" not in output
     assert output["status"] == "succeeded"
@@ -271,7 +271,7 @@ def test_declared_agent_runs_as_a_plain_call(workspace: Any, loop_type: str) -> 
     finally:
         os.environ.pop(env_key, None)
 
-    # the caller gets the agent output; the job result envelope is the launcher's to deliver
+    # the caller gets the agent output; the job result is the launcher's to deliver
     assert output["status"] == "succeeded" and "type" not in output
     assert output["ran"]["run_context"]["run_id"] == "local"
     # the job result the launcher would deliver stays on the job, unsent

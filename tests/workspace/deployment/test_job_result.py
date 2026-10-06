@@ -121,7 +121,7 @@ def test_result_type_starts_with_job_exactly_once(
 
 
 def test_launcher_delivers_the_result_to_the_beacon(beacon: List[Tuple[str, str]]) -> None:
-    """The job names the payload, the launcher names the envelope and sends it once configured."""
+    """The job names the payload, the launcher completes the job result and sends it."""
     with isolated_workspace("agent_workspace") as ctx:
         # without `dlthub_dsn` the result comes back and nothing is sent
         result = job_run(_entry("daily_ingest"), run_id="r-1", trigger="manual:")

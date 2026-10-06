@@ -102,7 +102,7 @@ To find a load with too few rows, add a [data quality](../data-quality/index.md)
 
 `provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `repository_comment`, `job_description`, or `inference`. The first six values are facts. The last three values are claims. `confidence: high` needs at least one fact.
 
-On the platform, the result appears on the page of the failed job run, because the agent reports that job run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows the full result envelope and an inspector result in it.
+On the platform, the result appears on the page of the failed job run, because the agent reports that job run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows a full job result with an inspector output in it.
 
 ### Summary format
 

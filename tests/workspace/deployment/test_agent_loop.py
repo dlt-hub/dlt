@@ -1059,7 +1059,7 @@ def test_provider_capabilities_are_dropped_when_the_model_cannot_serve_them(
         # a server name is not guaranteed to be there
         ("mcp__bare", None, {"name": "bare", "kind": "mcp"}),
         ("Skill", {"skill": "debug-deployment"}, {"name": "debug-deployment", "kind": "skill"}),
-        # the harness may name the skill under another key, or not at all
+        # the CLI may name the skill under another key, or not at all
         ("Skill", {"name": "profiling"}, {"name": "profiling", "kind": "skill"}),
         ("Skill", {}, {"name": "Skill", "kind": "skill"}),
     ],
@@ -1103,7 +1103,7 @@ def test_claude_loop_tools_follow_access(
 
 
 def test_claude_loop_lists_only_the_declared_skills(workspace: Any) -> None:
-    """The CLI lists only the declared skills, never every skill installed for the harness."""
+    """The CLI lists only the declared skills, never every skill installed in the workspace."""
 
     loop = _loop(workspace, ClaudeAgentSdkLoop)
     options = loop._build_options("system")
@@ -1116,7 +1116,7 @@ def test_claude_loop_lists_only_the_declared_skills(workspace: Any) -> None:
 
     loop = _loop(workspace, ClaudeAgentSdkLoop, skills=[])
     options = loop._build_options("system")
-    # `None` would leave the harness defaults in place, which list every skill it can find
+    # `None` would leave the CLI defaults in place, which list every skill it can find
     assert options.skills == []
     assert "Skill" not in options.tools
     assert "Skill" not in options.allowed_tools
@@ -1144,7 +1144,7 @@ def test_claude_loop_keeps_the_project_rules_out(workspace: Any, tmp_path: Path)
 
 
 def test_claude_loop_denies_its_file_tools_the_credentials(workspace: Any) -> None:
-    """The harness owns its file tools, so the only lever is a deny rule per tool."""
+    """The CLI owns its file tools, so the only lever is a deny rule per tool."""
 
     loop = _loop(workspace, ClaudeAgentSdkLoop, access={"local": ["read", "write"]})
     denied = loop._build_options("system").disallowed_tools
@@ -1155,7 +1155,7 @@ def test_claude_loop_denies_its_file_tools_the_credentials(workspace: Any) -> No
 
 
 def test_claude_loop_takes_the_bare_anthropic_name(workspace: Any) -> None:
-    """The harness names Anthropic models without the provider prefix, and runs nothing else."""
+    """The CLI names Anthropic models without the provider prefix, and runs nothing else."""
 
     loop = _loop(workspace, ClaudeAgentSdkLoop, config=_config(model="opus"))
     assert loop._ai_loop_model() == "claude-opus-5"
@@ -1184,7 +1184,7 @@ def test_claude_loop_keeps_the_cli_stderr_for_the_failure(
         options.stderr("claude.ai connectors are disabled because ANTHROPIC_API_KEY is set")
 
     assert any("connectors are disabled" in r.getMessage() for r in caplog.records)
-    # kept for a run that ends without a result, where the harness never says why
+    # kept for a run that ends without a result, where the CLI never says why
     assert loop._cli_stderr[-1].endswith("ANTHROPIC_API_KEY is set")
 
     class _DyingClient:
