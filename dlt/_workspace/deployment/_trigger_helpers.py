@@ -8,7 +8,11 @@ from croniter import croniter
 from dlt.common.interval import is_cron_expression
 from dlt.common.time import ensure_datetime_in_tz, parse_period_seconds
 from dlt.common.typing import TAnyDateTime
-from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as _job_short_name
+from dlt._workspace.deployment._job_ref import (
+    JOB_REF_PREFIX,
+    resolve_job_ref,
+    short_name as _job_short_name,
+)
 from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
@@ -159,14 +163,27 @@ _JOB_EVENT_TYPES = ("job.success", "job.fail")
 _GLOB_CHARS = "*?["
 
 
+def job_event_expr(expr: str) -> str:
+    """Expression of a job event trigger: a selector as written, a ref or a glob of refs in
+    `jobs.` form.
+
+    Raises:
+        InvalidJobRef: `expr` is neither a selector nor a valid job ref.
+    """
+    if not is_selector(expr):
+        return resolve_job_ref(expr)
+    # a glob of refs is matched against job refs, which all start with `jobs.`
+    is_ref_glob = ":" not in expr and any(c in expr for c in _GLOB_CHARS)
+    if is_ref_glob and expr != "*" and not expr.startswith(JOB_REF_PREFIX):
+        return JOB_REF_PREFIX + expr
+    return expr
+
+
 def _normalize_job_event_ref(trigger: str, expr: str) -> str:
-    """Resolve a job event expression: a selector stands, a bare ref becomes `jobs.` form."""
     if not expr:
         raise InvalidTrigger(trigger, "requires a job_ref or selector")
-    if is_selector(expr):
-        return expr
     try:
-        return resolve_job_ref(expr)
+        return job_event_expr(expr)
     except InvalidJobRef as e:
         raise InvalidTrigger(trigger, str(e)) from e
 

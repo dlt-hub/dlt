@@ -3,9 +3,8 @@ from typing import Optional, Union
 
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TAnyDateTime
-from dlt._workspace.deployment._job_ref import resolve_job_ref
 from dlt._workspace.deployment._trigger_helpers import (
-    is_selector,
+    job_event_expr,
     _parse_deployment,
     _parse_every,
     _parse_http,
@@ -102,7 +101,7 @@ def job_success(job_ref: str) -> TTrigger:
         job_ref: Job reference (`"name"`, `"section.name"`, `"jobs.section.name"`) or a selector
             such as `"tag:ingest"`, `"batch:"` or `"jobs.section.*"` matching many jobs.
     """
-    return _parse_job_success(_job_event_expr(job_ref)).raw
+    return _parse_job_success(job_event_expr(job_ref)).raw
 
 
 def job_fail(job_ref: str) -> TTrigger:
@@ -112,9 +111,4 @@ def job_fail(job_ref: str) -> TTrigger:
         job_ref: Job reference (`"name"`, `"section.name"`, `"jobs.section.name"`) or a selector
             such as `"tag:ingest"`, `"batch:"` or `"jobs.section.*"` matching many jobs.
     """
-    return _parse_job_fail(_job_event_expr(job_ref)).raw
-
-
-def _job_event_expr(job_ref: str) -> str:
-    """A selector stands as written; a bare ref is resolved to `jobs.` form."""
-    return job_ref if is_selector(job_ref) else resolve_job_ref(job_ref)
+    return _parse_job_fail(job_event_expr(job_ref)).raw

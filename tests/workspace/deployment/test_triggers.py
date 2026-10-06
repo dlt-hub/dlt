@@ -25,7 +25,7 @@ from dlt._workspace.deployment.typing import (
     TParsedTrigger,
     TTrigger,
 )
-from dlt._workspace.deployment.trigger import pipeline_name
+from dlt._workspace.deployment.trigger import job_fail, job_success, pipeline_name
 
 
 @pytest.mark.parametrize(
@@ -563,17 +563,32 @@ def test_humanize_trigger(trigger: str, expected: str) -> None:
     [
         ("job.fail:jobs.batch.daily", "job.fail:jobs.batch.daily"),
         ("job.fail:batch.daily", "job.fail:jobs.batch.daily"),
-        # a selector stands as written; only a bare ref is resolved
-        ("job.success:batch.*", "job.success:batch.*"),
+        # a glob of refs is matched against job refs, so it gets the `jobs.` prefix too
+        ("job.success:batch.*", "job.success:jobs.batch.*"),
+        ("job.fail:batch.dai?y", "job.fail:jobs.batch.dai?y"),
         ("job.success:jobs.*", "job.success:jobs.*"),
+        # every other selector stands as written
         ("job.fail:*", "job.fail:*"),
         ("job.success:tag:ingest", "job.success:tag:ingest"),
         ("job.success:batch:", "job.success:batch:"),
     ],
-    ids=["qualified", "section-name", "section-glob", "qualified-glob", "bare-star", "tag", "type"],
+    ids=[
+        "qualified",
+        "section-name",
+        "section-glob",
+        "section-question",
+        "qualified-glob",
+        "bare-star",
+        "tag",
+        "type",
+    ],
 )
 def test_normalize_job_event_trigger_refs(trigger: str, expected: str) -> None:
     assert normalize_trigger(trigger) == expected
+    # the trigger helpers write the same expression
+    event, expr = trigger.split(":", 1)
+    helper = job_success if event == "job.success" else job_fail
+    assert helper(expr) == expected
 
 
 @pytest.mark.parametrize(
