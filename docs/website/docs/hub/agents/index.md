@@ -30,7 +30,7 @@ This page covers how to declare an agent job and how to run it locally and on th
 
 The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
-For an agent of your own, the base `init` toolkit ships the `/create-background-agent` skill, which writes the `AGENT.md` and the declaration. See [Write it with your coding agent](agent-definitions.md#write-it-with-your-coding-agent).
+For an agent of your own, the base `init` toolkit ships the `create-background-agent` skill, which writes the `AGENT.md` and the declaration. See [Write it with your coding agent](agent-definitions.md#write-it-with-your-coding-agent).
 
 ## Prerequisites
 

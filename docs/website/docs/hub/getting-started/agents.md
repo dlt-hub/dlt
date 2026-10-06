@@ -130,7 +130,7 @@ job_inspector = run.agent(
 
 ## Build your own agent
 
-Your coding agent writes the definition for you. The `/create-background-agent` skill ships with every dltHub workspace, so you describe the agent and it produces the `AGENT.md` and the `run.agent(...)` declaration:
+Your coding agent writes the definition for you. The `create-background-agent` skill ships with every dltHub workspace, so you describe the agent and it produces the `AGENT.md` and the `run.agent(...)` declaration:
 
 > Write a background agent that reports the latest status of every job in the workspace.
 

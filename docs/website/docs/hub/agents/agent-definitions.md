@@ -17,7 +17,7 @@ An `AGENT.md` is better for three cases: an agent definition that is only a syst
 
 ## Write it with your coding agent
 
-The `/create-background-agent` skill ships with the base `init` toolkit, so every dltHub workspace has it without an install. Describe the agent you want:
+The `create-background-agent` skill ships with the base `init` toolkit, so every dltHub workspace has it without an install. Describe the agent you want:
 
 > Write a background agent that checks each morning which of my jobs failed overnight and reports what they have in common.
 

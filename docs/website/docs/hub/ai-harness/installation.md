@@ -50,7 +50,7 @@ Your workspace now contains the base `init` toolkit, which ships an MCP server (
 - `dlthub-router`: routes user intent to the right toolkit and installs it if missing.
 - `setup-secrets`: safely manages `.dlt/secrets.toml` without exposing values to the agent.
 - `improve-skills`: captures new patterns learned in a session so skills stay lean.
-- `/create-background-agent`: writes an `AGENT.md` for a [background agent](../agents/index.md) that runs unattended on the dltHub platform, and declares it as a job. You invoke this one by name.
+- `create-background-agent`: writes an `AGENT.md` for a [background agent](../agents/index.md) that runs unattended on the dltHub platform, and declares it as a job.
 
 Feature toolkits (REST API pipelines, SQL database, transformations, deployment, and so on) are **not** installed by default. `dlthub-router` installs them automatically when it matches your intent to one, or you can install them manually from the CLI.
 
