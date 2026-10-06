@@ -8,6 +8,7 @@ import pytest
 from dlt._workspace.deployment._run_views import print_job_result
 from dlt._workspace.deployment.job_result import (
     is_agent_result,
+    is_job_result,
     job_result,
     result_type,
     running_job,
@@ -15,7 +16,7 @@ from dlt._workspace.deployment.job_result import (
     take_job_result,
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB
-from dlt._workspace.deployment.launchers.job import run as job_run
+from dlt._workspace.deployment.launchers.job import run as job_run, run_and_print_result
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentTrace
 from dlt._workspace.deployment.typing import (
     JOB_RESULT_ENGINE_VERSION,
@@ -182,6 +183,27 @@ def test_print_job_result(
         assert text in out, text
     for text in hidden:
         assert text not in out, text
+
+
+@pytest.mark.parametrize(
+    "returned,is_result,printed",
+    [
+        (PLAIN_RESULT, True, "Result  [job.etl_summary]"),
+        # a plain job's own dict is printed as it is, whatever keys it has
+        ({"type": "csv", "object": "x"}, False, "{'type': 'csv', 'object': 'x'}"),
+        ({"type": 3}, False, "{'type': 3}"),
+        ("transformed", False, "transformed"),
+    ],
+    ids=["job-result", "dict-with-own-type", "dict-with-non-string-type", "string"],
+)
+def test_only_a_job_typed_value_prints_as_a_job_result(
+    returned: Any, is_result: bool, printed: str, capsys: pytest.CaptureFixture[str]
+) -> None:
+    assert is_job_result(returned) is is_result
+
+    run_and_print_result(lambda: returned)
+
+    assert printed in capsys.readouterr().out
 
 
 @pytest.mark.parametrize(

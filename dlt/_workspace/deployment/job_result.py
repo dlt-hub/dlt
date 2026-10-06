@@ -54,6 +54,14 @@ def result_type(category: TJobResultCategory, name: str) -> str:
     return name if name.startswith(prefix) else prefix + name
 
 
+def is_job_result(value: Any) -> bool:
+    """Whether `value` is a job result: a dict whose `type` starts with `job.`."""
+    if not isinstance(value, dict):
+        return False
+    type_ = value.get("type")
+    return isinstance(type_, str) and type_.startswith(f"{JOB_RESULT_CATEGORY}.")
+
+
 def is_agent_result(type_: str) -> bool:
     """Whether a result type is that of an agent job."""
     return type_.startswith(result_type(BACKGROUND_AGENT_CATEGORY, ""))

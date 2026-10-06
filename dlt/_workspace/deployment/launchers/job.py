@@ -25,6 +25,7 @@ from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolut
 from dlt._workspace.deployment._run_views import print_job_result
 from dlt._workspace.deployment.job_result import (
     JobRunContext,
+    is_job_result,
     job_inputs,
     send_job_result,
     take_job_result,
@@ -320,7 +321,7 @@ def run_and_print_result(run_launcher: Callable[[], Any]) -> None:
             print_job_result(ex.result)
         # an abort ends the process
         raise
-    if isinstance(result, dict) and "type" in result:
+    if is_job_result(result):
         print_job_result(cast(TJobResult, result))
     elif result is not None:
         print(result)  # noqa: T201
