@@ -193,18 +193,33 @@ def plan_file_updates(
     return updates
 
 
-def toolkit_update_order(installed: Collection[str], dep_map: Dict[str, List[str]]) -> List[str]:
-    """Installed toolkits, each after the installed toolkits it depends on.
+def resolvable_dependencies(name: str, dep_map: Dict[str, List[str]]) -> List[str]:
+    """Dependencies of `name` in install order, none when they are circular.
 
-    Raises:
-        ValueError: On circular dependencies.
+    Lets an update of all toolkits plan around a cycle: every toolkit that reaches
+    the cycle reports it when it is updated itself, so it does not block the others.
     """
+    try:
+        return resolve_toolkit_dependencies(name, dep_map)
+    except ValueError:
+        return []
+
+
+def toolkit_update_order(installed: Collection[str], dep_map: Dict[str, List[str]]) -> List[str]:
+    """Installed toolkits, each after the installed toolkits it depends on."""
     order: List[str] = []
     for name in sorted(installed):
-        for dep in [*resolve_toolkit_dependencies(name, dep_map), name]:
+        for dep in [*resolvable_dependencies(name, dep_map), name]:
             if dep in installed and dep not in order:
                 order.append(dep)
     return order
+
+
+def failed_dependencies(
+    name: str, dep_map: Dict[str, List[str]], failed: Collection[str]
+) -> List[str]:
+    """Dependencies of `name` among the `failed` toolkits, in install order."""
+    return [dep for dep in resolvable_dependencies(name, dep_map) if dep in failed]
 
 
 def plan_shared_updates(

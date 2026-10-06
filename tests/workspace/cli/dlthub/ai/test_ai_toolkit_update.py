@@ -1,6 +1,7 @@
 import functools
 import json
 import os
+import shutil
 from pathlib import Path
 from typing import Any, Iterator, Optional
 from unittest.mock import patch
@@ -13,7 +14,13 @@ from dlt._workspace.cli.dlthub.ai.commands import (
     ai_toolkit_install_command,
     ai_toolkit_update_command,
 )
-from dlt._workspace.cli.dlthub.ai.update import FileDecision, FileObservation, classify_file
+from dlt._workspace.cli.dlthub.ai.update import (
+    FileDecision,
+    FileObservation,
+    classify_file,
+    failed_dependencies,
+    toolkit_update_order,
+)
 from dlt._workspace.cli.dlthub.ai.utils import compute_file_hash, load_toolkits_index
 
 from tests.workspace.cli.dlthub.ai.utils import make_mock_toolkit, make_versioned_workbench
@@ -45,6 +52,11 @@ def _set_plugin_field(toolkit_dir: Path, key: str, value: Any) -> None:
     else:
         meta[key] = value
     plugin_json.write_text(json.dumps(meta), encoding="utf-8")
+
+
+def _bump_rule(rule_md: Path) -> None:
+    """Changes a workbench rule so the next update has something to write."""
+    rule_md.write_text("---\ndescription: Rule\n---\n# v2\n", encoding="utf-8")
 
 
 ABSENT = FileObservation(exists=False, matches=False, disk_hash=None)
@@ -242,7 +254,7 @@ def test_toolkit_update_all_in_dependency_order(
 def test_toolkit_update_fails_before_writing(
     project_root: Path, capsys: pytest.CaptureFixture[str], breakage: str, message: str
 ) -> None:
-    """Safety gates stop the whole run before any toolkit file is written."""
+    """A toolkit failing a safety gate is left unchanged and the command fails."""
     base = make_versioned_workbench(version="1.0.0")
     with _patch_workbench(base):
         ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
@@ -268,4 +280,74 @@ def test_toolkit_update_fails_before_writing(
         ai_toolkit_update_command(name="my-toolkit", location="mock://repo")
 
     assert message in capsys.readouterr().out
+    assert rule_path.read_text(encoding="utf-8") == installed_rule
+
+
+def test_toolkit_update_order_and_failed_dependencies() -> None:
+    """Dependencies come first; a cycle neither raises nor blocks the toolkits in it."""
+    dep_map = {"a": ["b"], "b": ["c"], "c": [], "loop": ["loop"]}
+    assert toolkit_update_order({"a", "b", "c", "loop"}, dep_map) == ["c", "b", "a", "loop"]
+    # not installed dependencies are not updated
+    assert toolkit_update_order({"a"}, dep_map) == ["a"]
+    assert failed_dependencies("a", dep_map, ["c"]) == ["c"]
+    assert failed_dependencies("a", dep_map, ["loop"]) == []
+    assert failed_dependencies("loop", dep_map, ["loop"]) == []
+
+
+@pytest.mark.parametrize(
+    ("breakage", "message"),
+    [
+        ("removed", "no longer in the workbench"),
+        ("dependency-cycle", "Circular dependency"),
+    ],
+    ids=["removed", "dependency-cycle"],
+)
+def test_toolkit_update_all_continues_past_failed_toolkit(
+    project_root: Path, capsys: pytest.CaptureFixture[str], breakage: str, message: str
+) -> None:
+    """A broken toolkit fails on its own: the others are updated, the command still fails."""
+    base = make_versioned_workbench(version="1.0.0")
+    # sorts before the healthy toolkits, so it fails first
+    broken_dir = base / "aaa-broken"
+    shutil.copytree(base / "init", broken_dir)
+    _set_plugin_field(broken_dir, "name", "aaa-broken")
+    with _patch_workbench(base):
+        ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
+        ai_toolkit_install_command(name="aaa-broken", agent="claude", location="mock://repo")
+    _bump_rule(base / "my-toolkit" / "rules" / "coding.md")
+    if breakage == "removed":
+        shutil.rmtree(broken_dir)
+    else:
+        _set_plugin_field(broken_dir, "dependencies", ["aaa-broken"])
+    capsys.readouterr()
+
+    with _patch_workbench(base), pytest.raises(CliCommandException):
+        ai_toolkit_update_command(name=None, location="mock://repo")
+
+    out = capsys.readouterr().out
+    assert message in out
+    assert "Could not update aaa-broken." in out
+    rule_path = project_root / ".claude" / "rules" / "my-toolkit-coding.md"
+    assert "# v2" in rule_path.read_text(encoding="utf-8")
+
+
+def test_toolkit_update_all_skips_dependents_of_failed_toolkit(
+    project_root: Path, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """A toolkit is not updated on top of a dependency that failed to update."""
+    base = make_versioned_workbench(version="1.0.0")
+    with _patch_workbench(base):
+        ai_toolkit_install_command(name="my-toolkit", agent="claude", location="mock://repo")
+    rule_path = project_root / ".claude" / "rules" / "my-toolkit-coding.md"
+    installed_rule = rule_path.read_text(encoding="utf-8")
+    _bump_rule(base / "my-toolkit" / "rules" / "coding.md")
+    shutil.rmtree(base / "init")
+    capsys.readouterr()
+
+    with _patch_workbench(base), pytest.raises(CliCommandException):
+        ai_toolkit_update_command(name=None, location="mock://repo")
+
+    out = capsys.readouterr().out
+    assert "Skipping toolkit my-toolkit: its dependency init failed to update." in out
+    assert "Could not update init, my-toolkit." in out
     assert rule_path.read_text(encoding="utf-8") == installed_rule

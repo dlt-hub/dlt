@@ -18,6 +18,7 @@ from dlt._workspace.cli.dlthub.ai.update import (
     TFileState,
     ToolkitUpdatePlan,
     apply_toolkit_update,
+    failed_dependencies,
     plan_toolkit_update,
     to_rel_path,
     toolkit_update_order,
@@ -500,6 +501,22 @@ def _print_update_summary(name: str, plan: ToolkitUpdatePlan, agent: _AIAgent) -
         fmt.echo("Please restart your %s session for changes to take effect" % fmt.bold(agent.name))
 
 
+def _update_installed_toolkit(
+    name: str,
+    toolkits: Dict[str, TToolkitInfo],
+    base: Path,
+    project_root: Path,
+    force: bool,
+) -> None:
+    """Update the installed toolkit `name` for the agent it was installed for, installing
+    missing dependencies first. Raises `CliCommandException` after reporting a failure."""
+    # re-read: dependency installs and earlier updates change the index
+    entry = load_toolkits_index()[name]
+    agent = _resolve_installed_agent(name, entry)
+    _ensure_dependencies(name, toolkits, base, agent, project_root)
+    _update_toolkit(name, entry, base / name, agent, project_root, force)
+
+
 def _update_toolkit(
     name: str,
     entry: TToolkitIndexEntry,
@@ -668,17 +685,30 @@ def ai_toolkit_update_command(
     for w in warnings:
         fmt.warning(w)
 
-    if name is not None:
-        targets = [name]
-    else:
-        with _value_error_as_cli_error():
-            targets = toolkit_update_order(installed, build_toolkits_dependency_map(toolkits))
+    dep_map = build_toolkits_dependency_map(toolkits)
+    targets = [name] if name is not None else toolkit_update_order(installed, dep_map)
+    # one broken toolkit must not block the others: updates already applied are safe to keep
+    failed: List[str] = []
     for tk_name in targets:
-        # re-read: dependency installs and earlier updates change the index
-        entry = load_toolkits_index()[tk_name]
-        agent = _resolve_installed_agent(tk_name, entry)
-        _ensure_dependencies(tk_name, toolkits, base, agent, project_root)
-        _update_toolkit(tk_name, entry, base / tk_name, agent, project_root, force)
+        if blocked := failed_dependencies(tk_name, dep_map, failed):
+            # its new version may rely on content the failed dependency did not receive
+            fmt.warning(
+                "Skipping toolkit %s: its dependency %s failed to update."
+                % (fmt.bold(tk_name), ", ".join(fmt.bold(dep) for dep in blocked))
+            )
+            failed.append(tk_name)
+            continue
+        try:
+            _update_installed_toolkit(tk_name, toolkits, base, project_root, force)
+        except CliCommandException:
+            # the reason was reported where the exception was raised
+            failed.append(tk_name)
+    if failed:
+        fmt.error(
+            "Could not update %s. See the messages above."
+            % ", ".join(fmt.bold(tk_name) for tk_name in failed)
+        )
+        raise CliCommandException()
 
 
 @utils.track_command("ai", False, operation="toolkit.list")

@@ -92,7 +92,7 @@ uv run dlthub ai toolkit update
 uv run dlthub ai toolkit update rest-api-pipeline
 ```
 
-Each toolkit is updated for the agent it was installed for. Toolkits are updated one after another, each after the toolkits it depends on. A new dependency is installed before the toolkit that needs it.
+Each toolkit is updated for the agent it was installed for. Toolkits are updated one after another, each after the toolkits it depends on. A new dependency is installed before the toolkit that needs it. If a toolkit can't be updated, for example because it was removed from the toolkit repository, the remaining toolkits are still updated, except those that depend on it, and the command exits with an error that lists every toolkit it could not update.
 
 The update compares file contents, not version numbers, so it also picks up changes made without a version bump. It changes only files the toolkit installed and you have not touched since. It skips, and reports:
 
