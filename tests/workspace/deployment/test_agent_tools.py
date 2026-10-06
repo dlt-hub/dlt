@@ -114,6 +114,51 @@ def test_file_tools_refuse_credential_files(tmp_path: Path) -> None:
     assert tools.read(".dlt/config.toml") == "1\t[runtime]\n"
 
 
+def test_file_tools_follow_symlinks_before_they_check_the_path(tmp_path: Path) -> None:
+    """A link inside the workspace reaches only what its target may reach."""
+    root, outside = tmp_path / "ws", tmp_path / "outside"
+    (root / ".dlt").mkdir(parents=True)
+    outside.mkdir()
+    (outside / "data.txt").write_text("token = outside\n")
+    (root / ".dlt" / "secrets.toml").write_text("token = secret\n")
+    (root / "real.txt").write_text("token = inside\n")
+    links = {
+        "to_outside.txt": outside / "data.txt",
+        "to_outside_dir": outside,
+        "to_secrets.txt": root / ".dlt" / "secrets.toml",
+        "secrets.toml": root / "real.txt",
+        "to_real.txt": root / "real.txt",
+    }
+    try:
+        for name, target in links.items():
+            (root / name).symlink_to(target)
+    except OSError:
+        pytest.skip("symlinks cannot be created on this platform")
+    tools = LocalTools(str(root), str(tmp_path / "scratch"))
+
+    for name in ("to_outside.txt", "to_outside_dir/data.txt"):
+        with pytest.raises(LocalToolError, match="outside the workspace"):
+            tools.read(name)
+        with pytest.raises(LocalToolError, match="outside the workspace"):
+            tools.write(name, "overwritten")
+        with pytest.raises(LocalToolError, match="outside the workspace"):
+            tools.edit(name, "outside", "overwritten")
+    # a link to a credential file, and a link named like one, are both refused
+    for name in ("to_secrets.txt", "secrets.toml"):
+        with pytest.raises(LocalToolError, match="credentials"):
+            tools.read(name)
+    assert (outside / "data.txt").read_text() == "token = outside\n"
+
+    # search reads only the files it may open, through any link
+    assert tools.grep("token") == "real.txt:1:token = inside\nto_real.txt:1:token = inside\n"
+    # a listing never names what lies outside
+    listed = tools.glob("**/*").splitlines()
+    assert "to_outside.txt" not in listed and "to_outside_dir" not in listed
+    assert "to_real.txt" in listed
+    # a link inside the workspace works like its target
+    assert tools.read("to_real.txt", line_numbers=False) == "token = inside\n"
+
+
 def test_read_pages_long_files_and_says_where_the_rest_starts(tmp_path: Path) -> None:
     (tmp_path / "long.txt").write_text("".join(f"line {n}\n" for n in range(1, 2501)))
     (tmp_path / "empty.txt").write_text("")

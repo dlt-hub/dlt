@@ -188,14 +188,28 @@ class LocalTools:
         """The absolute form of `path`. Refuses credential files and paths outside the workspace
         and the temp folder."""
         # an absolute path replaces `root` in the join. That is how a scratch file is named
-        target = (self.root / path).resolve()
-        if not (target.is_relative_to(self.root) or target.is_relative_to(self.scratch)):
-            raise LocalToolError(
-                f"{path!r} is outside the workspace and the temp folder {str(self.scratch)!r}"
-            )
-        if is_secret_file(target.name):
+        target = self._confine(self.root / path, path)
+        # a link named like a credential file is refused too, wherever it points
+        if is_secret_file(path) or is_secret_file(target.name):
             raise LocalToolError(f"{path!r} holds credentials and cannot be opened")
         return target
+
+    def _confine(self, path: Path, shown: Any) -> Path:
+        """`path` with symlinks followed, refused outside the workspace and the temp folder."""
+        # resolved before the check, so a link cannot point past either folder
+        target = path.resolve()
+        if not (target.is_relative_to(self.root) or target.is_relative_to(self.scratch)):
+            raise LocalToolError(
+                f"{shown!r} is outside the workspace and the temp folder {str(self.scratch)!r}"
+            )
+        return target
+
+    def _reachable(self, path: Path) -> Optional[Path]:
+        """`path` with symlinks followed, or `None` outside the workspace and the temp folder."""
+        try:
+            return self._confine(path, path)
+        except LocalToolError:
+            return None
 
     def read(
         self, path: str, offset: int = None, limit: int = None, line_numbers: bool = True
@@ -245,7 +259,9 @@ class LocalTools:
             limit: Number of paths to return.
         """
         paths = (
-            f"{relative.as_posix()}\n" for _, relative in self._select(pattern, include_ignored)
+            f"{relative.as_posix()}\n"
+            for path, relative in self._select(pattern, include_ignored)
+            if self._reachable(path)
         )
         page, first, more = take_page(paths, offset, limit)
         if not page:
@@ -308,11 +324,14 @@ class LocalTools:
         """One `path:line_number:text` line for each match. Reads the files only as far as the
         caller takes lines."""
         for path, relative_path in self._select(glob, include_ignored):
-            if is_secret_file(path.name) or _is_binary(path):
+            target = self._reachable(path)
+            if target is None or is_secret_file(path.name) or is_secret_file(target.name):
+                continue
+            if _is_binary(target):
                 continue
             relative = relative_path.as_posix()
             try:
-                with path.open(encoding="utf-8", errors="replace") as file:
+                with target.open(encoding="utf-8", errors="replace") as file:
                     for number, line in enumerate(file, start=1):
                         if expression.search(line):
                             yield f"{relative}:{number}:{line.rstrip(LINE_ENDINGS)}\n"
