@@ -340,7 +340,7 @@ A loop is the framework that runs the agent. dltHub ships two agent loops and ad
 | Skills          | Inlined into the system prompt                                                                                 | Listed by name and loaded on demand, as in Claude Code |
 | Install locally | `uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"`                                                  | `uv add claude-agent-sdk`                              |
 
-Both loops read the same declarations. `access` selects the local tools and `tools` selects the MCP feature groups. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn, so the limit means the same on both loops.
+Both loops read the same declarations. `access` selects the local tools and `tools` selects the MCP feature groups. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn, so the limit means the same on both loops. A turn is one model response, and its input tokens include the tokens read from and written to the prompt cache. The run stops after the turn that passes the limit.
 
 Select the loop on the job with `loop="claude-agent-sdk"`, or for a single run with `-c agent.loop=claude-agent-sdk`. On `claude-agent-sdk` the workspace's `CLAUDE.md` loads as in any Claude Code session. The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives the rules and the MCP server it declares.
 

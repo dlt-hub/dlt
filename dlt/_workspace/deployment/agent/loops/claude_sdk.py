@@ -246,6 +246,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
 
         self.emit_run_start(self.user_turn)
         turns: List[TAgentTurn] = []
+        turns_by_id: Dict[str, TAgentTurn] = {}
         result: Any = None
         try:
             async with self._client:
@@ -254,10 +255,8 @@ class ClaudeAgentSdkLoop(AgentLoop):
                     if isinstance(message, SystemMessage):
                         self._emit_servers(message)
                     elif isinstance(message, AssistantMessage):
-                        self._emit_message(message, len(turns) + 1)
-                        turns.append(_turn_from_message(message))
                         # over the limit this raises, and leaving the client block ends the CLI
-                        self.count_tokens(turns[-1]["input_tokens"], turns[-1]["output_tokens"])
+                        self._count_assistant_message(message, turns, turns_by_id)
                     elif isinstance(message, UserMessage):
                         self._emit_tool_results(message)
                     elif isinstance(message, ResultMessage):
@@ -291,16 +290,37 @@ class ClaudeAgentSdkLoop(AgentLoop):
         for server in message.data.get("mcp_servers") or []:
             self.emit("mcp", text=f"{server.get('name')} {server.get('status')}")
 
-    def _emit_message(self, message: Any, turn: int) -> None:
-        """Reports what the model said, thought and called in one assistant message."""
+    def _count_assistant_message(
+        self, message: Any, turns: List[TAgentTurn], turns_by_id: Dict[str, TAgentTurn]
+    ) -> None:
+        """Adds an assistant message to its turn, and counts the turn's tokens once."""
+        # the CLI sends each content block of one response as its own message, with the same id
+        # and the same usage: one response is one turn
+        turn = turns_by_id.get(message.message_id) if message.message_id else None
+        input_tokens, output_tokens = _usage_tokens(message.usage)
+        if turn is None:
+            turn = _turn_from_message(message)
+            turns.append(turn)
+            if message.message_id:
+                turns_by_id[message.message_id] = turn
+            self._emit_message(message, len(turns))
+            self.count_tokens(input_tokens, output_tokens)
+            return
+        turn["tools"].extend(_turn_from_message(message)["tools"])
+        self._emit_message(message)
+        # a later block may report the response's final usage
+        added_input = max(0, input_tokens - turn["input_tokens"])
+        added_output = max(0, output_tokens - turn["output_tokens"])
+        turn["input_tokens"] += added_input
+        turn["output_tokens"] += added_output
+        self.count_tokens(added_input, added_output)
+
+    def _emit_message(self, message: Any, turn: Optional[int] = None) -> None:
+        """Reports what the model said, thought and called; `turn` starts a new turn."""
         try:
-            usage = message.usage or {}
-            self.emit(
-                "turn",
-                turn=turn,
-                input_tokens=usage.get("input_tokens", 0),
-                output_tokens=usage.get("output_tokens", 0),
-            )
+            if turn is not None:
+                input_tokens, output_tokens = _usage_tokens(message.usage)
+                self.emit("turn", turn=turn, input_tokens=input_tokens, output_tokens=output_tokens)
             for block in message.content:
                 if isinstance(block, ThinkingBlock):
                     self.emit("thinks", text=block.thinking)
@@ -339,11 +359,9 @@ class ClaudeAgentSdkLoop(AgentLoop):
 
     def _build_trace(self, inputs: Dict[str, Any], result: Any, turns: List[TAgentTurn]) -> Any:
         trace = self.base_trace(inputs)
-        usage = result.usage or {}
         # num_turns counts sub-agent turns too, so it can exceed the assistant messages seen
         trace["turn_count"] = result.num_turns or len(turns)
-        trace["input_tokens"] = usage.get("input_tokens", 0)
-        trace["output_tokens"] = usage.get("output_tokens", 0)
+        trace["input_tokens"], trace["output_tokens"] = _usage_tokens(result.usage)
         trace["total_tokens"] = trace["input_tokens"] + trace["output_tokens"]
         trace["turns"] = turns
         trace["tools_used"], trace["skills_used"], trace["mcp_tools_used"] = distinct_tools_used(
@@ -358,12 +376,24 @@ class ClaudeAgentSdkLoop(AgentLoop):
         return trace
 
 
+def _usage_tokens(usage: Optional[Dict[str, Any]]) -> Tuple[int, int]:
+    """Input and output tokens of an Anthropic usage, input with the cache reads and writes."""
+    usage = usage or {}
+    # Anthropic leaves cached tokens out of `input_tokens`; pydantic-ai counts them in, and so
+    # does `max_tokens`
+    input_tokens = sum(
+        usage.get(key) or 0
+        for key in ("input_tokens", "cache_read_input_tokens", "cache_creation_input_tokens")
+    )
+    return input_tokens, usage.get("output_tokens") or 0
+
+
 def _turn_from_message(message: Any) -> TAgentTurn:
-    usage = message.usage or {}
+    input_tokens, output_tokens = _usage_tokens(message.usage)
     return {
         "tools": [
             classify_tool(b.name, b.input) for b in message.content if isinstance(b, ToolUseBlock)
         ],
-        "input_tokens": usage.get("input_tokens", 0),
-        "output_tokens": usage.get("output_tokens", 0),
+        "input_tokens": input_tokens,
+        "output_tokens": output_tokens,
     }

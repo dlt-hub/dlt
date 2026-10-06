@@ -1287,3 +1287,73 @@ def test_claude_loop_keeps_the_cli_stderr_for_the_failure(
     said = str(failed.value)
     assert "exit code: 1" in said
     assert "Invalid API key" in said
+
+
+def test_claude_loop_counts_one_response_once_with_cached_input(
+    workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from claude_agent_sdk import AssistantMessage, ResultMessage, UserMessage
+    from claude_agent_sdk.types import TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock
+
+    usage = {
+        "input_tokens": 10,
+        "cache_read_input_tokens": 1000,
+        "cache_creation_input_tokens": 200,
+        "output_tokens": 30,
+    }
+    tool_call = ToolUseBlock(id="t1", name="mcp__dlt-workspace-mcp__list_runs", input={})
+    # one API response streamed as one message per content block, all with its id and usage
+    first_response = [
+        AssistantMessage(content=[block], model="m", usage=usage, message_id="msg_1")
+        for block in (ThinkingBlock(thinking="hm", signature="s"), TextBlock(text="let me look"))
+    ] + [AssistantMessage(content=[tool_call], model="m", usage=usage, message_id="msg_1")]
+    messages = [
+        *first_response,
+        UserMessage(content=[ToolResultBlock(tool_use_id="t1", content="r-1 failed")]),
+        AssistantMessage(
+            content=[TextBlock(text="done")], model="m", usage=usage, message_id="msg_2"
+        ),
+        ResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=2,
+            session_id="s",
+            usage={key: value * 2 for key, value in usage.items()},
+            structured_output={"status": "succeeded", "summary": "r-1 failed"},
+        ),
+    ]
+
+    class _ScriptedClient:
+        def __init__(self, options: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> Any:
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def query(self, prompt: str) -> None:
+            return None
+
+        async def receive_response(self) -> Any:
+            for message in messages:
+                yield message
+
+    monkeypatch.setattr(claude_sdk, "ClaudeSDKClient", _ScriptedClient)
+    loop = _loop(workspace, ClaudeAgentSdkLoop)
+    turns: List[int] = []
+    native: Any = loop
+    native.emit = lambda kind, **fields: turns.append(fields["turn"]) if kind == "turn" else None
+
+    asyncio.run(loop.run(inputs={}))
+
+    # two responses: two turns, each counted once, input with the cache reads and writes
+    assert turns == [1, 2]
+    assert [t["input_tokens"] for t in loop.trace["turns"]] == [1210, 1210]
+    assert loop.tokens_used == 2 * (1210 + 30)
+    assert loop.trace["turns"][0]["tools"][0]["name"] == "list_runs"
+    assert (loop.trace["input_tokens"], loop.trace["output_tokens"]) == (2420, 60)
+    assert loop.trace["total_tokens"] == loop.tokens_used

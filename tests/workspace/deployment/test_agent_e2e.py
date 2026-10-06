@@ -123,6 +123,18 @@ async def test_agent_reports_what_dlt_wired(
         {"type": "workspace", "id": f"workspace/{workspace.name}"},
     ]
 
+    # turns and tokens mean the same on both loops, so `max_tokens` does too
+    turn_tokens = sum(t["input_tokens"] + t["output_tokens"] for t in trace["turns"])
+    assert trace["total_tokens"] == trace["input_tokens"] + trace["output_tokens"]
+    assert 1 <= len(trace["turns"]) <= trace["turn_count"], run_details
+    # each response is counted once; the CLI's total also holds sub-agent turns
+    if on_claude:
+        assert turn_tokens <= trace["total_tokens"], run_details
+    else:
+        assert turn_tokens == trace["total_tokens"], run_details
+    # cached input is counted: the system prompt and the tool definitions alone pass this
+    assert trace["input_tokens"] > 1000, run_details
+
     # dlt's side: what `local: read` bought, and what the server was told to serve
     assert trace["loop_type"] == loop_type
     read_tools = {"Read", "Glob", "Grep"} | ({"NotebookRead"} if on_claude else set())
