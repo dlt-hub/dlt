@@ -13,12 +13,13 @@ import useBaseUrl from '@docusaurus/useBaseUrl';
 import {SECTION_ORDER} from './sections';
 import styles from './styles.module.css';
 
-// Pagefind ranking knobs (defaults shown), see https://pagefind.app/docs/ranking/
+// Pagefind ranking knobs (defaults: 1.0 / 0.75 / 1.4 / 1.0), see https://pagefind.app/docs/ranking/
+// Currently tuned to rank API reference lower on BM25 index
 const RANKING = {
-  termFrequency: 1.0,
-  pageLength: 0.75,
+  termFrequency: 0.6,
+  pageLength: 0.3,
   termSaturation: 1.4,
-  termSimilarity: 1.0,
+  termSimilarity: 1.5,
 };
 const PAGE_SIZE = 10;
 const MAX_SUB_RESULTS = 3;

@@ -7,7 +7,7 @@
  * Rules are matched in order against the doc id (path under docs_processed).
  */
 const SECTION_RULES = [
-  {prefix: 'api_reference/', section: 'API reference', weight: 0.5},
+  {prefix: 'api_reference/', section: 'API reference', weight: 0.3},
   {prefix: 'release-notes/', section: 'Release notes', weight: 0.3},
   {prefix: 'hub/', section: 'dltHub', weight: 1},
   {prefix: 'examples/', section: 'Cookbook', weight: 0.8},
