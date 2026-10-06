@@ -456,6 +456,36 @@ def test_function_form_rejects_declared_agent_arguments(argument: str, value: An
 @pytest.mark.parametrize(
     "argument,value",
     [
+        ("access", {"local": ["read"]}),
+        ("tools", ["jobs"]),
+        ("skills", []),
+        ("rules", []),
+    ],
+    ids=["access", "tools", "skills", "rules"],
+)
+@pytest.mark.parametrize(
+    "declared",
+    ["toolkit:inspector", {"name": "inline", "system_prompt": "Inspect."}],
+    ids=["named", "inline"],
+)
+def test_named_and_inline_agents_reject_declaration_arguments(
+    argument: str, value: Any, declared: Any
+) -> None:
+    """An agent definition declares what the agent may use; a job without a function cannot."""
+    with pytest.raises(TypeError, match=argument):
+        agent(declared, **{argument: value})
+
+    # a decorated function declares its agent, so it accepts them
+    @agent(**{argument: value})
+    def driver(run_context: Any = None) -> Dict[str, Any]:
+        return {}
+
+    assert driver.agent_declaration[argument] == value
+
+
+@pytest.mark.parametrize(
+    "argument,value",
+    [
         ("interval", {"start": "2024-01-01"}),
         ("freshness", "is_fresh"),
         ("allow_external_schedulers", True),

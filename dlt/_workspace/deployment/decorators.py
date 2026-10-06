@@ -1123,12 +1123,16 @@ def agent(
         instructions (str): First user message of every run.
         access (Optional[TWorkspaceAccess]): What the agent may touch: `local` (`read`, `write`,
             `execute`, `network`, `all`), `data` (`read`, `write`) and `context` (`read`).
+            Decorated function only.
         tools (Optional[List[str]]): Feature groups of the dlthub MCP server started for the run,
             e.g. `workspace`, `pipeline`, `jobs`, `logs`. Without `tools` no server is started.
+            Decorated function only.
         skills (Optional[List[str]]): Skills the agent may invoke, as `"<toolkit>:<skill>"` or a
             workspace-relative path to `SKILL.md`. Unresolved references are skipped with a warning.
+            Decorated function only.
         rules (Optional[List[str]]): Rules inlined into the system prompt, as `"<toolkit>:<rule>"`
             or a workspace-relative path. Unresolved references are skipped with a warning.
+            Decorated function only.
         name (str): Job name. Defaults to the function name, or to the agent's name.
         section (str): Configuration section. Defaults to the name of the declaring module.
         loop (str): Agent framework: `"pydantic-ai"` (default) or `"claude-agent-sdk"`.
@@ -1172,6 +1176,19 @@ def agent(
 
     if is_agent_ref and agent is not None:
         raise TypeError("run.agent takes the agent positionally here. Drop the 'agent' argument.")
+    if is_agent_ref:
+        # a named or inline agent definition is the whole declaration of what the agent may use
+        for arg_name, declared_value in (
+            ("access", access),
+            ("tools", tools),
+            ("skills", skills),
+            ("rules", rules),
+        ):
+            if declared_value is not None:
+                raise TypeError(
+                    f"run.agent with a named or inline agent does not accept {arg_name!r}."
+                    " Declare it in the agent definition, or decorate a function with `agent=`."
+                )
 
     def _new_factory() -> AgentJobFactory[Any, Any]:
         wrapper: AgentJobFactory[Any, Any] = _make_job_factory(  # type: ignore[assignment]
