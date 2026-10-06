@@ -374,6 +374,19 @@ def is_annotated(ann_type: Any) -> bool:
         return False
 
 
+def annotation_metadata(hint: Any) -> Tuple[Any, ...]:
+    """Metadata of an `Annotated` hint, read through `NotRequired`, `Required` and `Optional`."""
+    if get_origin(hint) in (NotRequired, Required):
+        return annotation_metadata(get_args(hint)[0])
+    # Python below 3.11 wraps the hint of a `None`-defaulted argument in `Optional`
+    if is_optional_type(hint):
+        inner = extract_union_types(hint, no_none=True)
+        if len(inner) == 1:
+            return annotation_metadata(inner[0])
+    # only `Annotated` carries metadata; `Literal` args are values, not annotations
+    return getattr(hint, "__metadata__", ())
+
+
 def is_list_generic_type(t: Type[Any]) -> bool:
     try:
         return issubclass(get_origin(t), C_Sequence)
