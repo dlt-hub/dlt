@@ -22,7 +22,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
 from dlt._workspace.cli.formatters import merge_agents_md_skills
 
 TComponentType = Literal["skill", "command", "rule", "agent", "ignore", "mcp"]
-TInstallOp = Literal["copytree", "save"]
+TInstallOp = Literal["copy", "save", "remove"]
 
 COMPONENT_MARKERS: Dict[TComponentType, str] = {
     "skill": "SKILL.md",
@@ -46,6 +46,30 @@ class InstallAction(NamedTuple):
     conflict: bool
     source_kind: Optional[TComponentType] = None
     skip_index: bool = False
+    component_dir: Optional[Path] = None
+    """For `remove`: directory of the component; empty folders are pruned only below it."""
+
+
+def _copy_folder_actions(
+    kind: TComponentType, source_name: str, src_dir: Path, dest_dir: Path, conflict: bool
+) -> List[InstallAction]:
+    """One `copy` action per file of `src_dir`, all sharing the folder-level conflict."""
+    actions: List[InstallAction] = []
+    for src_file in sorted(src_dir.rglob("*")):
+        # an agent may ship Python code; what a toolkit checkout compiled is not part of it
+        if not src_file.is_file() or "__pycache__" in src_file.parts or src_file.suffix == ".pyc":
+            continue
+        actions.append(
+            InstallAction(
+                kind=kind,
+                source_name=source_name,
+                dest_path=dest_dir / src_file.relative_to(src_dir),
+                op="copy",
+                content_or_path=src_file,
+                conflict=conflict,
+            )
+        )
+    return actions
 
 
 class _AIAgent(ABC):
@@ -90,7 +114,7 @@ class _AIAgent(ABC):
     ) -> List["InstallAction"]:
         """Build install actions for a single component.
 
-        Handles all component types: skill (copytree), ignore (save), and
+        Handles all component types: skill and agent (copy per file), ignore (save), and
         delegates command/rule to _install_command_or_rule().
 
         Args:
@@ -139,16 +163,9 @@ class _AIAgent(ABC):
     ) -> List["InstallAction"]:
         """Install actions for a skill directory, copied verbatim."""
         dest = self.component_dir("skill", project_root) / source_name
-        return [
-            InstallAction(
-                kind="skill",
-                source_name=source_name,
-                dest_path=dest,
-                op="copytree",
-                content_or_path=content_or_path,
-                conflict=not overwrite and dest.exists(),
-            )
-        ]
+        return _copy_folder_actions(
+            "skill", source_name, content_or_path, dest, not overwrite and dest.exists()
+        )
 
     def _install_agent(
         self,
@@ -160,16 +177,9 @@ class _AIAgent(ABC):
     ) -> List["InstallAction"]:
         """Install actions for an agent directory, copied verbatim under its toolkit's folder."""
         dest = self.component_dir("agent", project_root) / toolkit_name / source_name
-        return [
-            InstallAction(
-                kind="agent",
-                source_name=source_name,
-                dest_path=dest,
-                op="copytree",
-                content_or_path=content_or_path,
-                conflict=not overwrite and dest.exists(),
-            )
-        ]
+        return _copy_folder_actions(
+            "agent", source_name, content_or_path, dest, not overwrite and dest.exists()
+        )
 
     def component_path(
         self,
@@ -417,27 +427,16 @@ class _CodexAgent(_AIAgent):
         overwrite: bool,
     ) -> List["InstallAction"]:
         actions = super()._install_skill(content_or_path, source_name, project_root, overwrite)
-        # Codex drops skills whose description exceeds the limit; copytree installs the
-        # SKILL.md verbatim, so cap it with a follow-up save
-        skill_action = actions[0]
         skill_md = content_or_path / COMPONENT_MARKERS["skill"]
-        if not skill_action.conflict and skill_md.is_file():
+        for i, action in enumerate(actions):
+            if action.content_or_path != skill_md:
+                continue
+            # Codex drops skills whose description exceeds the limit
             capped = cap_skill_description(
                 skill_md.read_text(encoding="utf-8"), self._MAX_SKILL_DESCRIPTION
             )
             if capped is not None:
-                # overwrites the verbatim-copied SKILL.md after copytree runs
-                actions.append(
-                    InstallAction(
-                        kind="skill",
-                        source_name=source_name,
-                        dest_path=skill_action.dest_path / COMPONENT_MARKERS["skill"],
-                        op="save",
-                        content_or_path=capped,
-                        conflict=False,
-                        skip_index=True,
-                    )
-                )
+                actions[i] = action._replace(op="save", content_or_path=capped)
         return actions
 
     def _install_command_or_rule(

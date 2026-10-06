@@ -67,19 +67,28 @@ def test_variant_component_dir(
     ids=["claude", "cursor", "codex"],
 )
 def test_install_actions_skill(variant_cls: Type[_AIAgent]) -> None:
-    """Skill install_actions returns a single copytree action for all agents."""
+    """Skill install_actions copies each file of the skill folder, compiled files excluded."""
     project = Path("project")
     project.mkdir(exist_ok=True)
     skill_src = Path("src_skill")
-    skill_src.mkdir(exist_ok=True)
+    (skill_src / "refs").mkdir(parents=True, exist_ok=True)
+    (skill_src / "__pycache__").mkdir(exist_ok=True)
+    (skill_src / "SKILL.md").write_text("---\nname: my-skill\n---\nbody", encoding="utf-8")
+    (skill_src / "refs" / "guide.md").write_text("guide", encoding="utf-8")
+    (skill_src / "__pycache__" / "helper.cpython-312.pyc").write_bytes(b"")
 
     variant = variant_cls()
     actions = variant.install_actions("skill", skill_src, "my-skill", "p", project)
-    assert len(actions) == 1
-    assert actions[0].kind == "skill"
-    assert actions[0].op == "copytree"
-    assert actions[0].source_name == "my-skill"
-    assert actions[0].content_or_path == skill_src
+    skill_dest = variant.component_dir("skill", project) / "my-skill"
+    assert {a.dest_path for a in actions} == {
+        skill_dest / "SKILL.md",
+        skill_dest / "refs" / "guide.md",
+    }
+    for action in actions:
+        assert action.kind == "skill"
+        assert action.op == "copy"
+        assert action.source_name == "my-skill"
+        assert action.content_or_path == skill_src / action.dest_path.relative_to(skill_dest)
 
 
 @pytest.mark.parametrize(

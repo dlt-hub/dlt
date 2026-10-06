@@ -47,9 +47,9 @@ def compute_file_hash(file_path: Path) -> str:
     return hashlib.sha3_256(file_path.read_bytes()).hexdigest()
 
 
-def compute_content_hash(content: str) -> str:
-    """Return the SHA3-256 hex digest of a string encoded as UTF-8."""
-    return hashlib.sha3_256(content.encode("utf-8")).hexdigest()
+def compute_content_hash(content: bytes) -> str:
+    """Return the SHA3-256 hex digest of `content`."""
+    return hashlib.sha3_256(content).hexdigest()
 
 
 def home_dir() -> Optional[Path]:
@@ -160,15 +160,15 @@ def cap_skill_description(content: str, max_len: int) -> Optional[str]:
     return render_frontmatter(fm, body)
 
 
-def safe_write_text(dest: Path, content: str) -> None:
-    """Write content to dest atomically via write-then-move.
+def safe_write_bytes(dest: Path, data: bytes) -> None:
+    """Write data to dest atomically via write-then-move.
 
     Writes to a uniquely-named temp sibling first, then uses os.replace()
     for an atomic rename on the same filesystem.
     """
     tmp = dest.parent / (dest.name + "." + uniq_id(8) + ".tmp")
     try:
-        tmp.write_text(content, encoding="utf-8")
+        tmp.write_bytes(data)
         os.replace(tmp, dest)
     except BaseException:
         try:
