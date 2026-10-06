@@ -59,7 +59,7 @@ try:
         ThinkingPart,
         ToolCallPart,
     )
-    from pydantic_ai.exceptions import ToolRetryError, UnexpectedModelBehavior
+    from pydantic_ai.exceptions import AgentRunError, ToolRetryError, UsageLimitExceeded
     from pydantic_ai.usage import UsageLimits
 except ModuleNotFoundError as ex:
     raise MissingDependencyException(
@@ -203,7 +203,9 @@ def _answer_text(answer: Dict[str, Any]) -> str:
 def _failure_reason(ex: Exception) -> str:
     """The framework's reason, plus where the limit lives when it names one."""
     reason = str(ex)
-    if "retries" in reason:
+    if isinstance(ex, UsageLimitExceeded) and "request_limit" in reason:
+        reason += " In dlt that limit is `max_turns`."
+    elif "retries" in reason:
         reason += " In dlt that limit is `loop_run_args.retries` in the agent defaults."
     return reason
 
@@ -420,7 +422,8 @@ class PydanticAILoop(AgentLoop):
                     usage_limits=usage_limits,
                     event_stream_handler=self._emit_events,
                 )
-            except UnexpectedModelBehavior as ex:
+            # `max_turns` ends here too, as `UsageLimitExceeded`
+            except AgentRunError as ex:
                 raise AgentRunFailed(self.LOOP_TYPE, self.agent_ref, _failure_reason(ex)) from ex
         self._trace = self._build_trace(inputs, result)
         self.emit_run_finished(result.output.get("status"))
@@ -428,7 +431,6 @@ class PydanticAILoop(AgentLoop):
 
     async def _emit_events(self, ctx: Any, events: Any) -> None:
         """Emits what the model says, thinks and calls during one turn."""
-        self._turn += 1
         # the run context's usage is cumulative through the previous turn, so this is where
         # that turn's tokens are known; over the limit, the raise ends the run before this one
         usage = ctx.usage
@@ -436,7 +438,10 @@ class PydanticAILoop(AgentLoop):
             usage.input_tokens - self._input_seen, usage.output_tokens - self._output_seen
         )
         self._input_seen, self._output_seen = usage.input_tokens, usage.output_tokens
-        self.emit("turn", turn=self._turn)
+        # the handler also runs for the tool calls of a turn: only a new request starts a turn
+        if usage.requests > self._turn:
+            self._turn = usage.requests
+            self.emit("turn", turn=self._turn)
         async for event in events:
             try:
                 if isinstance(event, PartEndEvent):

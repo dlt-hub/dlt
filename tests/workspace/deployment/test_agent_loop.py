@@ -638,6 +638,25 @@ def test_pydantic_loop_stops_at_the_token_limit(workspace: Any) -> None:
     assert loop.tokens_used > 1
 
 
+def test_pydantic_loop_reports_each_turn_once_and_stops_at_max_turns(workspace: Any) -> None:
+    loop = _loop(workspace, PydanticAILoop, access={"local": ["read"]})
+    native: Any = loop
+    native._build_model = lambda: TestModel()
+    native._build_toolsets = lambda: []
+    turns: List[int] = []
+    native.emit = lambda kind, **fields: turns.append(fields["turn"]) if kind == "turn" else None
+    inputs = {"failed_run_id": "r-1", "run_context": {}}
+
+    # the handler runs for a turn's model response and again for its tool calls
+    asyncio.run(loop.run(inputs=inputs))
+    assert loop.trace["turn_count"] > 1
+    assert turns == list(range(1, loop.trace["turn_count"] + 1))
+
+    # the framework's request limit is `max_turns`, and ends the run like the other loop's
+    with pytest.raises(AgentRunFailed, match="In dlt that limit is `max_turns`"):
+        asyncio.run(loop.run(inputs=inputs, limits={"max_turns": 1}))
+
+
 class _Usage:
     requests = 2
     input_tokens = 10
