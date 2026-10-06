@@ -120,6 +120,7 @@ class ClaudeAgentSdkLoop(AgentLoop):
         super().__init__(settings)
         self._client: Any = None
         self._options: Any = None
+        self._ignored_run_args: List[str] = []
         self._tool_names: Dict[str, str] = {}
         self._ai_loop_tools: List[str] = []
         self._cli_stderr: Deque[str] = deque(maxlen=CLI_STDERR_KEPT)

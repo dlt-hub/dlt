@@ -11,6 +11,7 @@ from dlt._workspace.deployment.agent.exceptions import (
     AgentTokenLimitExceeded,
     AgentTraceNotAvailable,
     UnknownAgentLoop,
+    UnsupportedAgentModel,
 )
 from dlt._workspace.deployment.agent.manifest import render_placeholders
 from dlt._workspace.deployment.agent.transcript import emit_agent_event
@@ -66,7 +67,8 @@ class AgentLoop(ABC):
     """Runs one agent spec on one agent framework."""
 
     LOOP_TYPE: ClassVar[str]
-    DEFAULT_MODEL: ClassVar[str] = "sonnet"
+    DEFAULT_MODEL: ClassVar[Optional[str]] = None
+    """Model a run uses when neither the agent nor configuration names one."""
     DEFAULT_PROVIDER: ClassVar[str] = ""
     """Provider a bare model name belongs to. Empty when a loop names its models its own way."""
     DEFAULT_MAX_TURNS: ClassVar[Optional[int]] = None
@@ -80,7 +82,6 @@ class AgentLoop(ABC):
         self.run_context: Optional[TJobRunContext] = None
         """Run context of the job running this loop. `run_inputs` adds it to inputs that lack it."""
         self._trace: TAgentTrace = None
-        self._ignored_run_args: List[str] = []
         self._native_skills: List[str] = []
         self._inlined_skills: List[str] = []
         self._unresolved_placeholders: List[str] = []
@@ -171,6 +172,10 @@ class AgentLoop(ABC):
     def model_id(self) -> str:
         """Settings model as `provider:model`: aliases expanded, a bare name qualified."""
         model = self.settings["model"]
+        if not model:
+            raise UnsupportedAgentModel(
+                self.LOOP_TYPE, "", "no model is set, pass `model=` or configure `agent.model`"
+            )
         model = AGENT_MODEL_ALIASES.get(model, model)
         if ":" in model or not self.DEFAULT_PROVIDER:
             return model
