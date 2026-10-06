@@ -800,7 +800,7 @@ wheels = [
 
 [[package]]
 name = "dlt"
-version = "1.30.1a1"
+version = "1.31.0a0"
 source = { editable = "../" }
 dependencies = [
     { name = "click" },
@@ -851,7 +851,6 @@ duckdb = [
 hub = [
     { name = "dlthub" },
     { name = "dlthub-client" },
-    { name = "pydantic" },
 ]
 lancedb = [
     { name = "duckdb" },
@@ -953,7 +952,6 @@ requires-dist = [
     { name = "pyarrow", marker = "extra == 'pyiceberg'", specifier = ">=16.0.0" },
     { name = "pyarrow", marker = "extra == 'synapse'", specifier = ">=16.0.0" },
     { name = "pyathena", marker = "extra == 'athena'", specifier = ">=2.9.6" },
-    { name = "pydantic", marker = "extra == 'hub'", specifier = ">=2.10" },
     { name = "pydbml", marker = "extra == 'dbml'" },
     { name = "pyiceberg", marker = "extra == 'pyiceberg'", specifier = ">=0.9.1" },
     { name = "pyiceberg-core", marker = "extra == 'pyiceberg'", specifier = ">=0.6.0" },
