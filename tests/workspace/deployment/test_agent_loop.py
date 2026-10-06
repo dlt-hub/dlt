@@ -3,6 +3,7 @@
 import asyncio
 import logging
 import os
+import signal
 from pathlib import Path
 from types import SimpleNamespace
 from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, cast
@@ -27,6 +28,8 @@ from pydantic_ai.usage import RunUsage
 
 import dlt
 from dlt.common import json, logger
+from dlt.common.exceptions import SignalReceivedException
+from dlt.common.runtime import signals
 from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.providers import EnvironProvider
 
@@ -453,6 +456,15 @@ def test_a_loop_run_from_settings_to_trace(
             loop.run(inputs={"failed_job_ref": "jobs.b.ingest"}, limits={"max_tokens": 100})
         )
     assert loop.tokens_used == 110
+
+    # a signal the launcher intercepted stops the run at the next turn, before it is counted
+    signals.set_received_signal(signal.SIGTERM)
+    try:
+        with pytest.raises(SignalReceivedException):
+            asyncio.run(loop.run(inputs={"failed_job_ref": "jobs.b.ingest"}))
+    finally:
+        signals._clear_signals()
+    assert loop.tokens_used == 0
 
 
 def test_loops_wire_only_what_the_agent_declares(workspace: Any) -> None:

@@ -5,6 +5,7 @@ from typing import Any, ClassVar, Dict, List, Mapping, Optional, Tuple, Type, ca
 
 from dlt.common import json, logger
 from dlt.common.configuration import plugins
+from dlt.common.runtime import signals
 from dlt.common.utils import clone_dict_nested, map_nested_values_in_place
 
 from dlt._workspace.deployment.agent.exceptions import (
@@ -262,7 +263,10 @@ class AgentLoop(ABC):
 
         Raises:
             AgentTokenLimitExceeded: The run has used more tokens than it was given.
+            SignalReceivedException: The process was asked to stop since the previous turn.
         """
+        # the launcher intercepts SIGINT/SIGTERM and defers them: this is where the run stops
+        signals.raise_if_signalled()
         self._input_tokens += input_tokens
         self._output_tokens += output_tokens
         # every loop reports its turns here, so the limit means the same on all of them
