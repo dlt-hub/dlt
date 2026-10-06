@@ -112,15 +112,19 @@ def test_toolkit_install_all_variants(
     assert (skill_base / "SKILL.md").exists()
     assert (skill_base / "helper.py").exists()
 
-    # agent dir is copied verbatim, supporting files included
-    agent_base = variant.component_dir("agent", project_root) / "find-crash"
+    # agent dir is copied verbatim under its toolkit's folder, supporting files included
+    agents_dir = variant.component_dir("agent", project_root)
+    agent_base = agents_dir / "test-toolkit" / "find-crash"
     assert (agent_base / "AGENT.md").exists()
     assert (agent_base / "crash_helper.py").exists()
     assert not (agent_base / "__pycache__").exists()
     assert "You are a test agent." in (agent_base / "AGENT.md").read_text(encoding="utf-8")
+    # a `<toolkit>:<agent>` ref resolves to the folder the install wrote
+    resolved = variant.component_path("agent", "find-crash", "test-toolkit", project_root)
+    assert resolved == agent_base / "AGENT.md"
     # the host's own agents folder is left to its native subagents
-    assert agent_base.parent.parent.name == "dlthub"
-    assert not (agent_base.parents[2] / "agents").exists()
+    assert agents_dir.parent.name == "dlthub"
+    assert not (agents_dir.parent.parent / "agents").exists()
     # only `dlthub/agents` holds dlt agents, a toolkit's own `agents` folder is not one of them
     assert not (agent_base.parent / "reviewer").exists()
 

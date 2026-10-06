@@ -391,7 +391,7 @@ def test_a_loop_run_from_settings_to_trace(
     )
     loop = loop_cls(settings)
     loop.agent_ref = "dlthub-platform:job-inspector"
-    loop.agent_file = ".claude/dlthub/agents/job-inspector/AGENT.md"
+    loop.agent_file = ".claude/dlthub/agents/dlthub-platform/job-inspector/AGENT.md"
     # nothing is recorded and nothing is built until a run supplies its arguments
     with pytest.raises(AgentTraceNotAvailable):
         loop.trace
@@ -406,7 +406,7 @@ def test_a_loop_run_from_settings_to_trace(
     assert loop.native == "mock-native:anthropic:claude-sonnet-5"
     trace = loop.trace
     assert trace["agent"] == "dlthub-platform:job-inspector"
-    assert trace["agent_file"] == ".claude/dlthub/agents/job-inspector/AGENT.md"
+    assert trace["agent_file"] == ".claude/dlthub/agents/dlthub-platform/job-inspector/AGENT.md"
     assert trace["loop_type"] == loop_cls.LOOP_TYPE
     assert trace["model"] == "anthropic:claude-sonnet-5"
     assert trace["limits"] == {"max_turns": 30, "max_tokens": 1000000}

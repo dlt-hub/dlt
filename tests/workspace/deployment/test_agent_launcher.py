@@ -440,7 +440,7 @@ def test_agent_referenced_by_path_is_named_by_its_manifest(workspace: Any, loop_
 
     # the result type carries the agent's own name, the trace keeps the reference it was loaded by
     assert output["type"] == "job.background_agent.job-inspector"
-    assert output["trace"]["agent"] == ".claude/dlthub/agents/job-inspector"
+    assert output["trace"]["agent"] == ".claude/dlthub/agents/dlthub-platform/job-inspector"
     assert output["status"] == "succeeded"
 
 

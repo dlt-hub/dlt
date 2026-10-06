@@ -43,17 +43,23 @@ def _spec(run_dir: str) -> Any:
 def test_resolve_agent_dir_from_toolkit_ref() -> None:
     with isolated_workspace("agent_workspace") as ctx:
         agent_dir = resolve_agent_dir(AGENT_REF, ctx.run_dir)
-    assert agent_dir.endswith(os.path.join(".claude", "dlthub", "agents", "job-inspector"))
+    # an agent sits under the toolkit that installed it
+    expected = os.path.join(".claude", "dlthub", "agents", "dlthub-platform", "job-inspector")
+    assert agent_dir.endswith(expected)
 
 
 def test_resolve_agent_dir_from_path() -> None:
     with isolated_workspace("agent_workspace") as ctx:
-        agent_dir = resolve_agent_dir(".claude/dlthub/agents/job-inspector", ctx.run_dir)
+        agent_dir = resolve_agent_dir(
+            ".claude/dlthub/agents/dlthub-platform/job-inspector", ctx.run_dir
+        )
     assert Path(agent_dir, "AGENT.md").is_file()
 
 
 @pytest.mark.parametrize(
-    "ref", ["../outside", "dlthub-platform:missing"], ids=["escapes-workspace", "unknown-agent"]
+    "ref",
+    ["../outside", "dlthub-platform:missing", "typo-toolkit:job-inspector"],
+    ids=["escapes-workspace", "unknown-agent", "agent-of-another-toolkit"],
 )
 def test_resolve_agent_dir_rejects(ref: str) -> None:
     with isolated_workspace("agent_workspace") as ctx:
@@ -330,10 +336,15 @@ def test_to_agent_definition_is_the_manifest_subset() -> None:
     with isolated_workspace("agent_workspace") as ctx:
         spec = _spec(ctx.run_dir)
     definition = to_agent_definition(
-        spec, ".claude/dlthub/agents/job-inspector/AGENT.md", "extra prompt", "haiku"
+        spec,
+        ".claude/dlthub/agents/dlthub-platform/job-inspector/AGENT.md",
+        "extra prompt",
+        "haiku",
     )
     assert definition["engine_version"] == AGENT_DEFINITION_ENGINE_VERSION
-    assert definition["agent_file"] == ".claude/dlthub/agents/job-inspector/AGENT.md"
+    assert (
+        definition["agent_file"] == ".claude/dlthub/agents/dlthub-platform/job-inspector/AGENT.md"
+    )
     assert definition["instructions"] == "extra prompt"
     assert definition["model"] == "haiku"
     # the runtime gets the declaration, never the defaults or the prompt, and never what the job

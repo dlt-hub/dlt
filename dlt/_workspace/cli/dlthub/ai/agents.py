@@ -109,7 +109,9 @@ class _AIAgent(ABC):
             return self._install_skill(content_or_path, source_name, project_root, overwrite)
         if component_type == "agent":
             assert isinstance(content_or_path, Path)
-            return self._install_agent(content_or_path, source_name, project_root, overwrite)
+            return self._install_agent(
+                content_or_path, source_name, toolkit_name, project_root, overwrite
+            )
         if component_type == "ignore":
             assert isinstance(content_or_path, str)
             dest = self.component_dir("ignore", project_root) / self.ignore_file_name
@@ -152,11 +154,12 @@ class _AIAgent(ABC):
         self,
         content_or_path: Path,
         source_name: str,
+        toolkit_name: str,
         project_root: Path,
         overwrite: bool,
     ) -> List["InstallAction"]:
-        """Install actions for an agent directory, copied verbatim."""
-        dest = self.component_dir("agent", project_root) / source_name
+        """Install actions for an agent directory, copied verbatim under its toolkit's folder."""
+        dest = self.component_dir("agent", project_root) / toolkit_name / source_name
         return [
             InstallAction(
                 kind="agent",
@@ -180,6 +183,9 @@ class _AIAgent(ABC):
             return None
         base = self.component_dir(component_type, project_root)
         marker = COMPONENT_MARKERS.get(component_type)
+        # agents sit under their toolkit, so two toolkits may ship the same agent name
+        if component_type == "agent":
+            return base / toolkit_name / source_name / COMPONENT_MARKERS["agent"]
         if marker:
             return base / source_name / marker
         if component_type == "command":

@@ -17,7 +17,7 @@ An `AGENT.md` is better for three cases: an agent definition that is only a syst
 
 ## Agent definition in an `AGENT.md` file
 
-`dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts). Coding agents don't scan this folder for their own subagents. You can also keep an `AGENT.md` in any folder of the workspace and refer to it by its path.
+`dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<toolkit>/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts), so two toolkits can ship an agent with the same name. Coding agents don't scan this folder for their own subagents. You can also keep an `AGENT.md` in any folder of the workspace and refer to it by its path.
 
 The YAML frontmatter holds the declarations and the Markdown body is the system prompt. Only the body is required. A file with no frontmatter is a working agent definition, named after its folder. The example below is a shortened version of the `job-inspector` definition:
 
@@ -256,7 +256,7 @@ An agent folder can have an `agent.py` next to its `AGENT.md`. dlt imports it wh
 Return the whole dict, not only the keys that you change. The dict that you return replaces the inputs, and `None` keeps them.
 
 ```py notype nolint
-# .claude/dlthub/agents/job-inspector/agent.py
+# .claude/dlthub/agents/dlthub-platform/job-inspector/agent.py
 from dlt.hub.run import JobAbortedException
 
 
