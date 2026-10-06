@@ -1,8 +1,9 @@
 import hashlib
 import os
+import shutil
 import threading
 from pathlib import Path
-from typing import Any, Dict, List, Optional, Set, Tuple
+from typing import Any, Callable, Dict, List, Optional, Set, Tuple
 
 import tomlkit
 import yaml
@@ -159,14 +160,24 @@ def cap_skill_description(content: str, max_len: int) -> Optional[str]:
 
 
 def safe_write_text(dest: Path, content: str) -> None:
-    """Write content to dest atomically via write-then-move.
+    """Write content to dest atomically via write-then-move."""
+    _replace_atomically(dest, lambda tmp: tmp.write_text(content, encoding="utf-8"))
 
-    Writes to a uniquely-named temp sibling first, then uses os.replace()
-    for an atomic rename on the same filesystem.
+
+def safe_copy_file(src: Path, dest: Path) -> None:
+    """Copy src with its permission bits to dest atomically via copy-then-move."""
+    _replace_atomically(dest, lambda tmp: shutil.copy2(src, tmp))
+
+
+def _replace_atomically(dest: Path, write_tmp: Callable[[Path], object]) -> None:
+    """Writes a uniquely-named temp sibling via `write_tmp`, then renames it over `dest`.
+
+    The rename replaces `dest` itself: a symlink is replaced rather than followed and
+    an existing directory raises instead of receiving the file.
     """
     tmp = dest.parent / (dest.name + "." + uniq_id(8) + ".tmp")
     try:
-        tmp.write_text(content, encoding="utf-8")
+        write_tmp(tmp)
         os.replace(tmp, dest)
     except BaseException:
         try:
@@ -541,9 +552,12 @@ def load_toolkits_index() -> Dict[str, TToolkitIndexEntry]:
             data: Dict[str, TToolkitIndexEntry] = yaml.safe_load(f)
         if not data:
             return {}
-        # restore name from the YAML key (stripped on write)
         for key, entry in data.items():
+            # restore name from the YAML key (stripped on write)
             entry["name"] = key
+            # older installs on Windows recorded native separators
+            if files := entry.get("files"):
+                entry["files"] = {path.replace("\\", "/"): info for path, info in files.items()}
         return data
     except (yaml.YAMLError, OSError):
         return {}
@@ -554,36 +568,48 @@ def is_toolkit_installed(name: str) -> bool:
     return name in load_toolkits_index()
 
 
-def save_toolkit_entry(
+def make_toolkit_entry(
     toolkit_meta: TToolkitInfo,
     agent: Optional[str] = None,
     files: Optional[Dict[str, Any]] = None,
     mcp_servers: Optional[List[str]] = None,
-) -> None:
-    """Record that a toolkit was installed or updated in the toolkits index.
+) -> TToolkitIndexEntry:
+    """Build a toolkits index entry, without the `installed_at` time set on save.
 
     Args:
         toolkit_meta: Core toolkit metadata to persist.
         agent: Name of the AI agent that triggered the install.
         files: Mapping of installed file paths to their content hashes.
         mcp_servers: Names of MCP servers provided by the toolkit.
-    """
 
-    index = load_toolkits_index()
+    Returns:
+        The entry, shaped like the entries returned by `load_toolkits_index`.
+    """
     entry: Dict[str, Any] = dict(toolkit_meta)
-    name = entry.pop("name")
-    entry["installed_at"] = pendulum.now("UTC").isoformat()
     if agent:
         entry["agent"] = agent
     if files:
         entry["files"] = files
     if mcp_servers:
         entry["mcp_servers"] = mcp_servers
-    index[name] = entry  # type: ignore[assignment]
+    return entry  # type: ignore[return-value]
+
+
+def save_toolkit_entry(entry: TToolkitIndexEntry) -> None:
+    """Record that a toolkit was installed or updated in the toolkits index, stamped
+    with the current time as `installed_at`."""
+    index = load_toolkits_index()
+    stored: Dict[str, Any] = dict(entry)
+    name = stored.pop("name")
+    stored["installed_at"] = pendulum.now("UTC").isoformat()
+    index[name] = stored  # type: ignore[assignment]
     path = _toolkits_index_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+    # atomic: the index holds the file tracking of every installed toolkit
+    safe_write_text(
+        Path(path),
+        yaml.dump(index, allow_unicode=True, default_flow_style=False, sort_keys=False),
+    )
 
 
 _INIT_TOOLKIT = "init"

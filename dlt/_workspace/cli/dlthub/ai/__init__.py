@@ -13,6 +13,7 @@ from dlt._workspace.cli.dlthub.ai.commands import (
     ai_toolkit_info_command,
     ai_toolkit_install_command,
     ai_toolkit_list_command,
+    ai_toolkit_update_command,
 )
 
 __all__ = [
@@ -28,4 +29,5 @@ __all__ = [
     "ai_toolkit_info_command",
     "ai_toolkit_install_command",
     "ai_toolkit_list_command",
+    "ai_toolkit_update_command",
 ]
