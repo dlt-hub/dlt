@@ -1,4 +1,9 @@
-from typing import Any, Dict, Optional
+import base64
+import json
+import sys
+import time
+from typing import Any, Dict, Iterator, Optional
+from unittest.mock import MagicMock
 from urllib.parse import parse_qs
 from uuid import uuid4
 
@@ -16,6 +21,7 @@ from dlt.common.configuration.specs import (
     AzureCredentialsWithoutDefaults,
 )
 from dlt.common.configuration.specs.exceptions import UnsupportedAuthenticationMethodException
+from dlt.common.runtime.fab_notebookutils import FabNotebookUtilsCredential
 from dlt.common.storages.configuration import FilesystemConfiguration
 from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 
@@ -186,6 +192,97 @@ def test_azure_external_session_always_frozen(creds_cls: Any) -> None:
     # pyiceberg ADLS cannot express a bearer token / live credential
     with pytest.raises(UnsupportedAuthenticationMethodException):
         creds.to_pyiceberg_fileio_config()
+
+
+def _make_jwt(exp: int) -> str:
+    header = base64.urlsafe_b64encode(b'{"alg":"none"}').rstrip(b"=").decode()
+    payload = base64.urlsafe_b64encode(json.dumps({"exp": exp}).encode()).rstrip(b"=").decode()
+    return f"{header}.{payload}.sig"
+
+
+@pytest.fixture()
+def mock_notebookutils() -> Iterator[MagicMock]:
+    mod = MagicMock()
+    mod.credentials.getToken = MagicMock(return_value=_make_jwt(int(time.time()) + 3600))
+    sys.modules["notebookutils"] = mod
+    yield mod
+    sys.modules.pop("notebookutils", None)
+
+
+@pytest.fixture()
+def no_notebookutils() -> Iterator[None]:
+    saved = sys.modules.pop("notebookutils", None)
+    yield
+    if saved is not None:
+        sys.modules["notebookutils"] = saved
+
+
+def test_azure_notebookutils_credential_in_fabric(
+    environment: Dict[str, str], mock_notebookutils: MagicMock
+) -> None:
+    """Inside Fabric, storage falls back to NotebookUtils instead of DefaultAzureCredential."""
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "onelake"
+
+    config = resolve_configuration(AzureCredentials())
+
+    assert isinstance(config.default_credentials(), FabNotebookUtilsCredential)
+    assert config.is_external_session()
+
+    # adlfs gets the live credential, not `anon`, since it cannot resolve a Fabric identity itself
+    adlfs_creds = config.to_adlfs_credentials()
+    assert adlfs_creds["credential"] is config.default_credentials()
+    assert "anon" not in adlfs_creds
+
+    assert (
+        config.default_credentials().get_token().token
+        == mock_notebookutils.credentials.getToken("storage")
+    )
+    mock_notebookutils.credentials.getToken.assert_called_with("storage")
+
+
+def test_azure_default_credential_outside_fabric(
+    environment: Dict[str, str], no_notebookutils: None
+) -> None:
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+
+    config = resolve_configuration(AzureCredentials())
+
+    assert type(config.default_credentials()).__name__ == "DefaultAzureCredential"
+    assert not config.is_external_session()
+
+
+def test_azure_notebookutils_object_store_freezes_token(
+    environment: Dict[str, str], mock_notebookutils: MagicMock
+) -> None:
+    """object_store cannot call a Python credential, so the NotebookUtils token is frozen."""
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "onelake"
+
+    os_creds = resolve_configuration(AzureCredentials()).to_object_store_rs_credentials()
+
+    assert os_creds["account_name"] == "onelake"
+    assert os_creds["azure_storage_token"].count(".") == 2
+    assert "credential" not in os_creds
+
+
+def test_azure_static_secret_wins_over_notebookutils(
+    environment: Dict[str, str], mock_notebookutils: MagicMock
+) -> None:
+    environment["CREDENTIALS__AZURE_STORAGE_ACCOUNT_NAME"] = "fake_account_name"
+    environment["CREDENTIALS__AZURE_STORAGE_SAS_TOKEN"] = "sp=rwdl&sig=1234567890"
+
+    config = resolve_configuration(AzureCredentials())
+
+    assert not config.has_default_credentials()
+    mock_notebookutils.credentials.getToken.assert_not_called()
+
+
+def test_azure_explicit_credential_wins_over_notebookutils(mock_notebookutils: MagicMock) -> None:
+    explicit = _fake_token_credential()
+    creds = AzureCredentials.from_credential(explicit)
+    creds.azure_storage_account_name = "fake_account_name"
+
+    assert creds.default_credentials() is explicit
+    mock_notebookutils.credentials.getToken.assert_not_called()
 
 
 def test_azure_service_principal_credentials(environment: Dict[str, str]) -> None:
