@@ -1,6 +1,6 @@
 from datetime import timezone
 from fnmatch import fnmatchcase
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 from urllib.parse import urlparse
 
 from croniter import croniter
@@ -16,6 +16,7 @@ from dlt._workspace.deployment._job_ref import (
 from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
+    TExecuteSpec,
     TJobDefinition,
     TTimeoutSpec,
     TParsedTrigger,
@@ -31,6 +32,14 @@ def normalize_timeout(value: Union[int, float, str, TTimeoutSpec]) -> TTimeoutSp
     if isinstance(value, str):
         return {"timeout": parse_period_seconds(value)}
     return {"timeout": float(value)}
+
+
+def normalize_execute(execute: Optional[Mapping[str, Any]]) -> TExecuteSpec:
+    """A copy of `execute` with its timeout as the manifest stores it."""
+    normalized = cast(TExecuteSpec, dict(execute or {}))
+    if normalized.get("timeout") is not None:
+        normalized["timeout"] = normalize_timeout(normalized["timeout"])
+    return normalized
 
 
 def _parse_schedule(expr: str) -> TParsedTrigger:

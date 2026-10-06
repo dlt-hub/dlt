@@ -120,6 +120,12 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
         ("name: a\ntools:\n  telemetry: true", "b", "field `tools`"),
         ("name: a\ndefaults:\n  limits: 30", "b", "field `limits"),
         ("name: 42", "b", "field `name=42`"),
+        ("name: a\ndefaults:\n  execute:\n    concurrency: 0", "b", "positive integer"),
+        ("name: a\ndefaults:\n  execute:\n    concurrency: true", "b", "positive integer"),
+        ("name: a\ndefaults:\n  execute:\n    concurrency: five", "b", "field `concurrency"),
+        ("name: a\ndefaults:\n  execute:\n    timeout: soon", "b", "does not parse"),
+        ("name: a\ndefaults:\n  execute:\n    intercept_signals: false", "b", "unexpected fields"),
+        ("name: a\ndefaults:\n  execute: none", "b", "field `execute"),
     ],
     ids=[
         "empty-body",
@@ -129,6 +135,12 @@ def test_load_agent_spec_keeps_body_as_system_prompt() -> None:
         "tools-not-a-list",
         "limits-not-a-mapping",
         "name-not-a-string",
+        "concurrency-zero",
+        "concurrency-bool",
+        "concurrency-string",
+        "timeout-unparsable",
+        "execute-unknown-key",
+        "execute-not-a-mapping",
     ],
 )
 def test_load_agent_spec_rejects(tmp_path: Path, frontmatter: str, body: str, reason: str) -> None:
@@ -138,6 +150,28 @@ def test_load_agent_spec_rejects(tmp_path: Path, frontmatter: str, body: str, re
     (agent_dir / "AGENT.md").write_text(text, encoding="utf-8")
     with pytest.raises(InvalidAgentSpec, match=reason):
         load_agent_spec(str(agent_dir))
+
+
+@pytest.mark.parametrize(
+    "execute,expected",
+    [
+        ("timeout: 10m\n    concurrency: 3", {"timeout": {"timeout": 600.0}, "concurrency": 3}),
+        ("timeout: 600", {"timeout": {"timeout": 600.0}}),
+        # `null` is no limit, not nothing said
+        ("concurrency: null", {"concurrency": None}),
+        ("timeout: null", {"timeout": None}),
+    ],
+    ids=["period", "seconds", "no-concurrency-limit", "no-timeout"],
+)
+def test_load_agent_spec_normalizes_execute_defaults(
+    tmp_path: Path, execute: str, expected: Dict[str, Any]
+) -> None:
+    agent_dir = tmp_path / "slow"
+    agent_dir.mkdir()
+    (agent_dir / "AGENT.md").write_text(
+        f"---\ndefaults:\n  execute:\n    {execute}\n---\nbody\n", encoding="utf-8"
+    )
+    assert load_agent_spec(str(agent_dir))["defaults"]["execute"] == expected
 
 
 def test_a_single_component_may_be_written_without_the_list(tmp_path: Path) -> None:

@@ -34,6 +34,7 @@ from dlt._workspace import known_sections as ws_known_sections
 from dlt._workspace.deployment import freshness as _freshness
 from dlt._workspace.deployment import trigger as _triggers
 from dlt._workspace.deployment._trigger_helpers import (
+    normalize_execute,
     normalize_timeout,
     normalize_triggers,
 )
@@ -389,6 +390,7 @@ def _make_job_factory(
     auto_refresh_pipeline_mode: Optional[TRefreshMode] = None,
     spec: Type[BaseConfiguration] = None,
     deco_name: str = "@job",
+    default_concurrency: bool = True,
     **kwargs: Any,
 ) -> JobFactory[Any, Any]:
     """Builds an unbound job factory with all metadata normalized."""
@@ -424,10 +426,9 @@ def _make_job_factory(
     wrapper.trigger = normalize_triggers(trigger)
     # normalize execute and default concurrency to 1 (user can override by passing
     # any value, including None for no-limit)
-    exec_spec: TExecuteSpec = dict(execute) if execute else {}  # type: ignore[assignment]
-    if "timeout" in exec_spec:
-        exec_spec["timeout"] = normalize_timeout(exec_spec["timeout"])
-    exec_spec.setdefault("concurrency", 1)
+    exec_spec = normalize_execute(execute)
+    if default_concurrency:
+        exec_spec.setdefault("concurrency", 1)
     wrapper.execute = exec_spec
     wrapper.expose = _normalize_expose(expose)
     wrapper.require = require
@@ -816,6 +817,10 @@ def _set_agent(wrapper: "AgentJobFactory[Any, Any]", agent: Union[None, str, TAg
         wrapper.agent_ref = agent["name"]
 
 
+DEFAULT_AGENT_CONCURRENCY = 5
+"""Concurrent runs of an agent job when neither its decorator nor its agent sets them."""
+
+
 class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
     """Job whose body is an agent loop.
 
@@ -951,6 +956,12 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
     def to_job_definition(self) -> TJobDefinition:
         self._resolve_agent()
         job_def = super().to_job_definition()
+        # what the decorator leaves out, the agent's `defaults.execute` fills, key by key
+        agent_execute = (self.agent_spec.get("defaults") or {}).get("execute") or {}
+        job_def["execute"] = cast(
+            TExecuteSpec,
+            {"concurrency": DEFAULT_AGENT_CONCURRENCY, **agent_execute, **(self.execute or {})},
+        )
         expose: TExposeSpec = dict(job_def.get("expose") or {})  # type: ignore[assignment]
         expose["category"] = BACKGROUND_AGENT_CATEGORY
         job_def["expose"] = expose
@@ -1149,7 +1160,8 @@ def agent(
             return value replaces it.
         trigger (Union[str, TTrigger, Sequence[Union[str, TTrigger]]]): One or more trigger
             strings or `TTrigger` values.
-        execute (Optional[TExecuteSpec]): Execution constraints: `timeout`, `concurrency`.
+        execute (Optional[TExecuteSpec]): Execution constraints: `timeout`, `concurrency`. Keys left
+            out come from `defaults.execute` of the agent; `concurrency` defaults to 5.
         expose (Optional[TJobExposeSpec]): UI presentation: `tags`, `starred`, `manual`.
         require (Optional[TRequireSpec]): Runtime resource requirements.
         spec (Type[BaseConfiguration]): Optional configuration spec class.
@@ -1202,6 +1214,8 @@ def agent(
             require=require,
             spec=spec,
             deco_name="@agent",
+            # the agent definition may set it, `to_job_definition` applies the agent default
+            default_concurrency=False,
         )
         wrapper.loop = loop
         wrapper.model = model

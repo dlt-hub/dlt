@@ -98,17 +98,17 @@ order and stop at the first that works:
 4. Nothing: return `status: aborted` with a `summary` naming which inputs were empty.
 ```
 
-| Field             | Meaning                                                                                        |
-| ----------------- | ---------------------------------------------------------------------------------------------- |
-| `name`            | Folder name. Optional                                                                          |
-| `description`     | What the agent does and when to run it. Shown in the Web UI                                    |
-| `tools`           | Feature groups of the dltHub MCP server the agent receives                                     |
-| `skills`, `rules` | `<toolkit>:<name>` references to components the agent uses                                     |
-| `access`          | What the agent asks to read, write, run, or reach, per access axis: `local`, `data`, `context` |
-| `inputs`          | JSON Schema of the inputs. Each input is a job configuration key                               |
-| `output`          | JSON Schema of the output. `status` and `summary` are part of it in every agent definition     |
-| `defaults`        | Settings that the agent job and the run can override: `model`, `limits`, `loop_run_args`       |
-| body              | System prompt, a template over `inputs`                                                        |
+| Field             | Meaning                                                                                             |
+| ----------------- | --------------------------------------------------------------------------------------------------- |
+| `name`            | Folder name. Optional                                                                               |
+| `description`     | What the agent does and when to run it. Shown in the Web UI                                         |
+| `tools`           | Feature groups of the dltHub MCP server the agent receives                                          |
+| `skills`, `rules` | `<toolkit>:<name>` references to components the agent uses                                          |
+| `access`          | What the agent asks to read, write, run, or reach, per access axis: `local`, `data`, `context`      |
+| `inputs`          | JSON Schema of the inputs. Each input is a job configuration key                                    |
+| `output`          | JSON Schema of the output. `status` and `summary` are part of it in every agent definition          |
+| `defaults`        | Settings that the agent job and the run can override: `model`, `limits`, `loop_run_args`, `execute` |
+| body              | System prompt, a template over `inputs`                                                             |
 
 ### Input schema
 
@@ -224,7 +224,10 @@ defaults:
   model: sonnet                         # alias, or provider:model
   limits: {max_turns: 30, max_tokens: 1000000}
   loop_run_args: {retries: 2}           # passed to the framework
+  execute: {timeout: 10m, concurrency: 3}
 ```
+
+`execute` sets the `timeout` and `concurrency` of the agent job. The `execute=` argument of the job overrides each key it sets. An agent job runs up to 5 runs at once unless the job or `defaults.execute` sets `concurrency`. Set `concurrency: null` for no limit.
 
 `access`, `tools`, `skills`, and `rules` are declarations, not defaults. A job that references the definition keeps them as declared. A decorated function that drives the definition replaces each list it passes an argument for, every axis included.
 
@@ -349,18 +352,18 @@ async def crash_inspector(
     return report
 ```
 
-| In Python                                       | In the agent definition                                                                                                           |
-| ----------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
-| Function name                                   | `name` of the agent job                                                                                                           |
-| Docstring                                       | System prompt, placeholders included. Its first line is the `description`                                                         |
-| Parameters with a default or `dlt.config.value` | `inputs`, and so the job's configuration: `-c failed_run_id=...` fills them, typed. A parameter without a default is not an input |
-| `Annotated[str, run.Entity("job-runs")]`        | Entity-typed input                                                                                                                |
-| `dlt.config.value` default                      | Required input                                                                                                                    |
-| `run_context` parameter                         | Passed by the launcher, not declared as an input                                                                                  |
-| Return type deriving from `run.TAgentOutput`    | `output`. `run.Doc(...)` on a field is its description                                                                            |
-| `access=`, `tools=`, `skills=`, `rules=`        | Matching `AGENT.md` fields                                                                                                        |
-| `model=`, `limits=`, `loop_run_args=`           | `defaults` in an `AGENT.md`                                                                                                       |
-| `instructions=`, `trigger=`, `loop=`            | Agent job settings. An `AGENT.md` has no field for them                                                                           |
+| In Python                                         | In the agent definition                                                                                                           |
+| ------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
+| Function name                                     | `name` of the agent job                                                                                                           |
+| Docstring                                         | System prompt, placeholders included. Its first line is the `description`                                                         |
+| Parameters with a default or `dlt.config.value`   | `inputs`, and so the job's configuration: `-c failed_run_id=...` fills them, typed. A parameter without a default is not an input |
+| `Annotated[str, run.Entity("job-runs")]`          | Entity-typed input                                                                                                                |
+| `dlt.config.value` default                        | Required input                                                                                                                    |
+| `run_context` parameter                           | Passed by the launcher, not declared as an input                                                                                  |
+| Return type deriving from `run.TAgentOutput`      | `output`. `run.Doc(...)` on a field is its description                                                                            |
+| `access=`, `tools=`, `skills=`, `rules=`          | Matching `AGENT.md` fields                                                                                                        |
+| `model=`, `limits=`, `loop_run_args=`, `execute=` | `defaults` in an `AGENT.md`                                                                                                       |
+| `instructions=`, `trigger=`, `loop=`              | Agent job settings. An `AGENT.md` has no field for them                                                                           |
 
 dlt builds the schemas from the same configuration spec that injects the arguments, so an input is required exactly when configuration requires it. The schemas cover `Optional`, `Literal`, enums, lists, dicts, dates, nested TypedDicts with `NotRequired` keys, and configuration specs, including credentials and specs nested in other specs. A credentials argument accepts its fields or a connection string, and secret values are marked `writeOnly`. An output may also be a pydantic model. The function can be `def` or `async def`. Most functions return the loop's output as is. The example reads `loop.trace` after the run. A function can also run the loop twice, or not run it.
 

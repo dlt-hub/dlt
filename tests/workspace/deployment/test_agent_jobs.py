@@ -22,6 +22,7 @@ from dlt.common.typing import TypedDict
 from dlt._workspace.deployment.agent.loop import AgentLoop
 from dlt._workspace.deployment.agent.loops.pydantic_ai import PydanticAILoop
 from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentLimits, TAgentSpec
+from dlt._workspace.deployment import decorators
 from dlt._workspace.deployment.decorators import AgentJobFactory, agent
 from dlt._workspace.deployment.exceptions import (
     InvalidJobName,
@@ -35,8 +36,17 @@ from dlt._workspace.deployment.launchers import (
 )
 from dlt._workspace.deployment.launchers.agent import run as agent_run
 from dlt._workspace.deployment.launchers.job import run_and_print_result
-from dlt._workspace.deployment.manifest import manifest_from_module, validate_manifest
-from dlt._workspace.deployment.typing import TWorkspaceAccess, TJobRef, TRuntimeEntryPoint
+from dlt._workspace.deployment.manifest import (
+    manifest_from_module,
+    validate_job_definition,
+    validate_manifest,
+)
+from dlt._workspace.deployment.typing import (
+    TExecuteSpec,
+    TJobRef,
+    TRuntimeEntryPoint,
+    TWorkspaceAccess,
+)
 
 from tests.workspace.utils import beacon as beacon, drain_beacon, importable_workspace
 
@@ -659,6 +669,68 @@ def test_agent_given_positionally_rejects_the_keyword() -> None:
     """An agent passed positionally and as `agent=` at once raises `TypeError` at runtime."""
     with pytest.raises(TypeError, match="positionally"):
         agent("dlthub-platform:job-inspector", agent=MINIMAL_AGENT)  # type: ignore[call-overload]
+
+
+@pytest.mark.parametrize("form", ["declared", "function"])
+@pytest.mark.parametrize(
+    "defaults,execute,expected",
+    [
+        (None, None, {"concurrency": 5}),
+        ({"concurrency": None}, None, {"concurrency": None}),
+        (
+            {"timeout": "10m", "concurrency": 3},
+            None,
+            {"timeout": {"timeout": 600.0}, "concurrency": 3},
+        ),
+        (
+            {"timeout": "10m", "concurrency": 3},
+            {"concurrency": 2},
+            {"timeout": {"timeout": 600.0}, "concurrency": 2},
+        ),
+        ({"concurrency": 3}, {"concurrency": None}, {"concurrency": None}),
+        (None, {"timeout": 300}, {"timeout": {"timeout": 300.0}, "concurrency": 5}),
+    ],
+    ids=[
+        "nothing-said",
+        "agent-lifts-cap",
+        "agent-defaults",
+        "decorator-overrides-key",
+        "decorator-lifts-cap",
+        "decorator-timeout",
+    ],
+)
+def test_agent_job_execute_from_decorator_agent_defaults_and_agent_default(
+    form: str, defaults: Any, execute: Optional[TExecuteSpec], expected: Dict[str, Any]
+) -> None:
+    """The decorator wins key by key over the agent's `defaults.execute`, over a concurrency of 5."""
+    spec = cast(TAgentSpec, {**MINIMAL_AGENT, "name": "fan-out"})
+    if defaults is not None:
+        spec["defaults"] = {"execute": defaults}
+    job: AgentJobFactory[Any, Any]
+    if form == "declared":
+        job = agent(spec, loop=MOCK_LOOP, execute=execute)
+    else:
+
+        @agent(agent=spec, loop=MOCK_LOOP, execute=execute)
+        def driver(run_context: Any = None) -> Dict[str, Any]:
+            return {}
+
+        job = driver
+    job.bind_module_attr(__name__, f"fan_out_{form}")
+    with agent_workspace():
+        job_def = job.to_job_definition()
+        # built again, the definition is the same
+        assert job.to_job_definition() == job_def
+    assert job_def["execute"] == expected
+    validate_job_definition(job_def, validate_dict=True, raise_on_error=True)
+
+
+def test_agent_default_concurrency_leaves_other_jobs_alone() -> None:
+    @decorators.job
+    def plain() -> None:
+        pass
+
+    assert plain.to_job_definition()["execute"] == {"concurrency": 1}
 
 
 async def _triage_model(messages: List[ModelMessage], info: AgentInfo) -> AsyncIterator[Any]:

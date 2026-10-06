@@ -2,7 +2,7 @@ from typing import Any, Dict, List, Literal, Optional
 
 from dlt.common.typing import Annotated, Doc, NotRequired, TypedDict
 
-from dlt._workspace.deployment.typing import TJobResult
+from dlt._workspace.deployment.typing import TExecuteLimits, TJobResult
 from dlt._workspace.typing import TWorkspaceAccess, TWorkspaceLocalVerb
 
 
@@ -36,6 +36,8 @@ class TAgentDefaults(TypedDict, total=False):
     model: str
     limits: TAgentLimits
     loop_run_args: Dict[str, Any]
+    execute: TExecuteLimits
+    """Timeout and concurrency of the agent job, unless its decorator sets them."""
 
 
 class TAgentSpec(TypedDict):

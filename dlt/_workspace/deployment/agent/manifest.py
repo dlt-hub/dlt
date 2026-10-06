@@ -31,6 +31,7 @@ from dlt._workspace.access import (
     granted_verbs,
     missing_access,
 )
+from dlt._workspace.deployment._trigger_helpers import normalize_execute
 from dlt._workspace.deployment.agent.typing import TAgentSpec
 from dlt._workspace.deployment.typing import AGENT_DEFINITION_ENGINE_VERSION, TAgentDefinition
 from dlt._workspace.typing import TWorkspaceAccess
@@ -137,10 +138,23 @@ def validate_agent_spec(spec: TAgentSpec, source: str) -> TAgentSpec:
     for list_key in ("tools", "skills", "rules"):
         if isinstance(fields.get(list_key), str):
             fields[list_key] = [fields[list_key]]
+    defaults = fields.get("defaults")
+    if isinstance(defaults, Mapping) and isinstance(defaults.get("execute"), Mapping):
+        try:
+            fields["defaults"] = {**defaults, "execute": normalize_execute(defaults["execute"])}
+        except (TypeError, ValueError) as ex:
+            raise InvalidAgentSpec(source, f"defaults.execute.timeout does not parse: {ex}") from ex
     try:
         validation.validate_dict(TAgentSpec, spec, source)
     except DictValidationException as ex:
         raise InvalidAgentSpec(source, str(ex)) from ex
+    concurrency = spec.get("defaults", {}).get("execute", {}).get("concurrency")
+    if concurrency is not None and (isinstance(concurrency, bool) or concurrency < 1):
+        raise InvalidAgentSpec(
+            source,
+            "defaults.execute.concurrency must be a positive integer, or null for no limit."
+            f" Got {concurrency!r}",
+        )
     return spec
 
 

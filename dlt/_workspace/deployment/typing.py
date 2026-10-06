@@ -269,14 +269,19 @@ class TTimeoutSpec(TypedDict):
     """Seconds for graceful shutdown after sending termination signal."""
 
 
-class TExecuteSpec(TypedDict):
-    """Runtime execution constraints for a job."""
+class TExecuteLimits(TypedDict):
+    """How long a job's run may take and how many of them run at once."""
 
     timeout: NotRequired[Optional[TTimeoutSpec]]
     concurrency: NotRequired[Optional[int]]
     """Max concurrent runs. Default `1` for both batch and interactive jobs.
     Pass any positive integer to allow that many concurrent instances, or
     explicitly `None` to remove the limit."""
+
+
+class TExecuteSpec(TExecuteLimits):
+    """Runtime execution constraints for a job."""
+
     intercept_signals: NotRequired[bool]
     """Intercept SIGINT/SIGTERM around the whole job. Default `True`."""
 
