@@ -550,6 +550,7 @@ def test_only_a_blank_that_may_not_be_blank_warns(
     loop = _loop(workspace, PydanticAILoop)
     loop.spec["inputs"]["required"] = required
     loop._system_prompt = f"Inspect '{{{{ {placeholder} }}}}' from `{{{{ run_context.trigger }}}}`."
+    loop._prompt_appendix = []
 
     with caplog.at_level(logging.WARNING, logger=dlt_logger_name):
         rendered = loop.render_system_prompt({"run_context": {"trigger": "job.fail:*"}})
@@ -573,6 +574,27 @@ def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) 
         assert "focus on the loader step" not in rendered, loop_cls.LOOP_TYPE
         assert loop.user_turn == "focus on the loader step", loop_cls.LOOP_TYPE
         assert loop._unresolved_placeholders == [], loop_cls.LOOP_TYPE
+
+
+@pytest.mark.parametrize(
+    "loop_cls", [PydanticAILoop, ClaudeAgentSdkLoop], ids=["pydantic", "claude"]
+)
+def test_inlined_rules_are_not_rendered(workspace: Any, loop_cls: Type[AgentLoop]) -> None:
+    """Placeholders belong to the body: a rule's own `{{ }}` (ie. Jinja) reaches the model as is."""
+    rule = os.path.join(workspace.run_dir, ".claude", "rules", "dbt-models.md")
+    with open(rule, "w", encoding="utf-8") as f:
+        f.write("Reference a model as {{ ref('orders') }} and a variable as {{ var }}.\n")
+    loop = _loop(workspace, loop_cls, rules=[".claude/rules/dbt-models.md"])
+
+    inputs = {"failed_run_id": "r-77", "run_context": {"trigger": "manual:"}}
+    rendered = loop.render_system_prompt(inputs)
+
+    assert "with failed run id 'r-77'" in rendered
+    assert "{{ ref('orders') }} and a variable as {{ var }}." in rendered
+    assert loop._unresolved_placeholders == []
+    # the claude loop hands the framework what it rendered; the pydantic one has its own test
+    if loop_cls is ClaudeAgentSdkLoop:
+        assert cast(Any, loop)._build_options(rendered).system_prompt == rendered
 
 
 def test_loops_name_the_workspace_and_the_temp_folder(workspace: Any) -> None:

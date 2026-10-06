@@ -254,14 +254,12 @@ class PydanticAILoop(AgentLoop):
         # neither rules nor skills exist here, so both are inlined into the system prompt
         self._inlined_skills = list(agent_spec.get("skills") or [])
         self._tools = LocalTools(workspace_root)
-        self._system_prompt = "\n\n".join(
-            [
-                agent_spec["system_prompt"],
-                *inline_components(agent_spec.get("rules") or [], "rule", workspace_root),
-                *inline_components(self._inlined_skills, "skill", workspace_root),
-                workspace_note(self._tools.root, self._tools.scratch),
-            ]
-        )
+        self._system_prompt = agent_spec["system_prompt"]
+        self._prompt_appendix = [
+            *inline_components(agent_spec.get("rules") or [], "rule", workspace_root),
+            *inline_components(self._inlined_skills, "skill", workspace_root),
+            workspace_note(self._tools.root, self._tools.scratch),
+        ]
 
     def _build_agent(self, system_prompt: str) -> Any:
         model = self._build_model()

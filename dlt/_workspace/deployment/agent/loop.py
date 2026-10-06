@@ -88,7 +88,9 @@ class AgentLoop(ABC):
         self._input_tokens: int = 0
         self._output_tokens: int = 0
         self._system_prompt: str = ""
-        """System prompt template assembled in `init`, rendered by `render_system_prompt`."""
+        """Body of the agent definition, the only part of the system prompt with placeholders."""
+        self._prompt_appendix: List[str] = []
+        """Inlined rules, skills and notes, appended to the rendered body as they are."""
 
     def run_inputs(self, inputs: Optional[Dict[str, Any]]) -> Dict[str, Any]:
         """`inputs` of a run, with the job's run context when they carry none."""
@@ -195,8 +197,10 @@ class AgentLoop(ABC):
         emit_agent_event(event, self.settings["verbosity"], self.settings["emojis"])
 
     def render_system_prompt(self, inputs: Mapping[str, Any]) -> str:
-        """The assembled system prompt with this run's inputs substituted into its placeholders."""
-        prompt, unresolved = render_placeholders(self._system_prompt, inputs)
+        """The system prompt with this run's inputs substituted into the body's placeholders."""
+        body, unresolved = render_placeholders(self._system_prompt, inputs)
+        # rules and skills are not dlt's templates: a `{{ }}` in them is theirs, ie. Jinja
+        prompt = "\n\n".join([body, *self._prompt_appendix])
         # an optional input left unset renders blank by design; only a name the definition
         # does not declare, or a required input that is missing, is worth a warning
         declared = self.spec["inputs"].get("properties") or {}

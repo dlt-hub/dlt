@@ -142,10 +142,8 @@ class ClaudeAgentSdkLoop(AgentLoop):
         ]
 
         # rules are inlined into the prompt; skills stay installed and the CLI loads them on use
-        parts = [
-            agent_spec["system_prompt"],
-            *inline_components(agent_spec.get("rules") or [], "rule", workspace_root),
-        ]
+        self._system_prompt = agent_spec["system_prompt"]
+        appendix = inline_components(agent_spec.get("rules") or [], "rule", workspace_root)
         for ref in agent_spec.get("skills") or []:
             try:
                 resolve_component_ref(ref, "skill", workspace_root)
@@ -154,8 +152,8 @@ class ClaudeAgentSdkLoop(AgentLoop):
                 continue
             self._native_skills.append(ref)
         # the CLI names its own file tools, so the prompt is where the model learns this
-        parts.append(workspace_note(workspace_root, temp_dir()))
-        self._system_prompt = "\n\n".join(parts)
+        appendix.append(workspace_note(workspace_root, temp_dir()))
+        self._prompt_appendix = appendix
 
     def local_tools(self) -> Dict[str, TWorkspaceLocalVerb]:
         """CLI tools on the allowlist, mapped to their local verb."""
