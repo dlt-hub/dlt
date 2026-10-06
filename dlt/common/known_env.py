@@ -44,9 +44,3 @@ DLT_INTERVAL_TIMEZONE = "DLT_INTERVAL_TIMEZONE"
 
 DLT_ALLOW_EXTERNAL_SCHEDULERS = "DLT_ALLOW_EXTERNAL_SCHEDULERS"
 """`True` lets incrementals that left the flag unset take the interval above, process-wide"""
-
-DLT_ECHO_NO_COLOR = "DLT_ECHO_NO_COLOR"
-"""Set to drop ANSI colors from CLI output, terminal or not"""
-
-DLT_ECHO_FORCE_COLOR = "DLT_ECHO_FORCE_COLOR"
-"""Set to keep ANSI colors in CLI output with no terminal attached, ie. in a runner's log"""
