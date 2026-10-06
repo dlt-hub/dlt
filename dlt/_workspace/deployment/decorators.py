@@ -77,7 +77,7 @@ from dlt._workspace.deployment.agent.typing import (
     TAgentOutput,
     TAgentSpec,
 )
-from dlt._workspace.deployment.job_result import running_job
+from dlt._workspace.deployment.job_result import JobRun
 from dlt._workspace.deployment.launchers import (
     DEFAULT_AGENT_LOOP,
     LAUNCHER_AGENT,
@@ -255,12 +255,12 @@ class JobFactory(Generic[TJobFunParams, TJobResult]):
         # coroutine and the launcher awaits it later, so an outer scope would pop too early
         @wraps(conf_f)
         def _call(*args: Any, **kwargs: Any) -> Any:
-            with running_job(self.job_ref):
+            with JobRun.running(self.job_ref):
                 return conf_f(*args, **kwargs)
 
         @wraps(conf_f)
         async def _call_coro(*args: Any, **kwargs: Any) -> Any:
-            with running_job(self.job_ref):
+            with JobRun.running(self.job_ref):
                 return await conf_f(*args, **kwargs)
 
         self._deco_f = _call_coro if iscoroutinefunction(f) else _call
@@ -850,7 +850,7 @@ class AgentJobFactory(JobFactory[TJobFunParams, TJobResult]):
         self.agent_definition: Optional[TAgentDefinition] = None
         """Manifest subset of the agent, resolved when the job definition is generated."""
         self.last_job_result: Optional[TAgentJobResult] = None
-        """Job result of the latest in-process call, kept locally and not delivered."""
+        """Job result of the in-process call that finished last, kept locally and not delivered."""
         self._module_name: str = None
         self._attr_name: str = None
 

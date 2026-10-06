@@ -7,7 +7,6 @@ from types import ModuleType
 from typing import Any, Awaitable, Callable, Dict, List, Optional, cast
 
 from dlt.common.configuration import resolve_configuration
-from dlt.common.configuration.container import Container
 from dlt.common.reflection.ref import object_from_ref
 from dlt.common.runtime.run_context import active
 from dlt.common.typing import TAny
@@ -28,12 +27,7 @@ from dlt._workspace.deployment.agent.typing import TAgentJobResult, TAgentSpec
 from dlt._workspace.deployment.decorators import AgentJobFactory, JobFactory
 from dlt._workspace.deployment.configuration import AgentConfiguration
 from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolutionError
-from dlt._workspace.deployment.job_result import (
-    JobRunContext,
-    job_inputs,
-    set_job_inputs,
-    set_job_result,
-)
+from dlt._workspace.deployment.job_result import JobRun
 from dlt._workspace.deployment.launchers._launcher import (
     apply_job_configuration,
     parse_launcher_args,
@@ -126,13 +120,14 @@ def _collect_agent_inputs(
     given = {**(run_context.get("run_args") or {}), **kwargs}
     inputs.update(configured_inputs(job, job.input_spec(spec), given))
     inputs.update(given)
+    run = JobRun.active()
     # a validator may abort the run: its result still needs the inputs the run received
-    set_job_inputs(inputs)
+    run.inputs = dict(inputs)
     for validate in _collect_validators(agent_module, VALIDATE_INPUT, job.inputs_validator):
         validated = validate(inputs)
         if validated is not None:
             inputs = validated
-    set_job_inputs(inputs)
+    run.inputs = dict(inputs)
     return inputs
 
 
@@ -176,6 +171,7 @@ def _set_result_from_agent_output(
     """Sets `output` as the job result when it is an agent output, and returns it."""
     if not (isinstance(output, dict) and "status" in output):
         return output
+    run = JobRun.active()
     job_result: TAgentJobResult = {
         "type": job.result_name,
         "engine_version": JOB_RESULT_ENGINE_VERSION,
@@ -183,9 +179,9 @@ def _set_result_from_agent_output(
         "summary": output.get("summary", ""),
         "result": output,
         # a function may answer without calling the model: then the trace has no turns
-        "trace": loop.trace if loop.completed else loop.base_trace(job_inputs() or {}),
+        "trace": loop.trace if loop.completed else loop.base_trace(run.inputs or {}),
     }
-    set_job_result(job_result)
+    run.set_result(job_result)
     if output["status"] == "aborted":
         raise JobAbortedException(job_result["summary"] or "agent aborted", job_result)
     return output
@@ -212,7 +208,7 @@ def _build_loop_and_run_agent(
     if job.has_function:
         # run arguments fill what the caller left out
         kwargs = {**_function_args_from_run_args(job, run_context), **kwargs}
-        set_job_inputs({RUN_CONTEXT_INPUT: loop.run_context, **kwargs})
+        JobRun.active().inputs = {RUN_CONTEXT_INPUT: loop.run_context, **kwargs}
         if _wants_run_context(job._f):
             kwargs[RUN_CONTEXT_INPUT] = run_context
         # calls the function itself: `job(...)` would call this function again
@@ -233,9 +229,9 @@ def _get_local_run_context(given: Optional[TJobRunContext] = None) -> TJobRunCon
     return run_context
 
 
-def _keep_job_result(job: AgentJobFactory[Any, Any]) -> None:
+def _keep_job_result(job: AgentJobFactory[Any, Any], run: JobRun) -> None:
     """Finishes the job result of a direct call as the launcher does, and keeps it unsent."""
-    job.last_job_result = cast(Optional[TAgentJobResult], deliver_job_result(job, send=False))
+    job.last_job_result = cast(Optional[TAgentJobResult], deliver_job_result(job, run, send=False))
 
 
 def _run_with_own_job_result(
@@ -246,22 +242,24 @@ def _run_with_own_job_result(
     The job result of the call is kept in `job.last_job_result`.
     """
     job.last_job_result = None
-    with Container().injectable_context(JobRunContext()) as context:
+    run = JobRun()
+    with run.activate():
         try:
             result = _build_loop_and_run_agent(job, run_context, **kwargs)
         except BaseException:
-            _keep_job_result(job)
+            _keep_job_result(job, run)
             raise
         if not asyncio.iscoroutine(result):
-            _keep_job_result(job)
+            _keep_job_result(job, run)
             return result
 
     async def await_with_own_job_result() -> Any:
-        with Container().injectable_context(context):
+        # entered again in the task that awaits, so concurrent calls do not share a run
+        with run.activate():
             try:
                 return await result
             finally:
-                _keep_job_result(job)
+                _keep_job_result(job, run)
 
     return await_with_own_job_result()
 

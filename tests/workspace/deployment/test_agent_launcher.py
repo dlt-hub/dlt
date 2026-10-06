@@ -16,14 +16,8 @@ from dlt._workspace.deployment.agent.loop import DEFAULT_USER_TURN
 from dlt._workspace.deployment.exceptions import JobResolutionError
 from dlt._workspace.deployment.launchers import LAUNCHER_AGENT
 from dlt._workspace.deployment.launchers.agent import run as agent_run
-from dlt.common.configuration.container import Container
 
-from dlt._workspace.deployment.job_result import (
-    JobRunContext,
-    job_result,
-    running_job,
-    take_job_result,
-)
+from dlt._workspace.deployment.job_result import JobRun, job_result
 from dlt._workspace.deployment.typing import TInstallSpec, TJobRef, TRuntimeEntryPoint
 from dlt.version import __version__
 
@@ -304,16 +298,51 @@ def test_agent_called_inside_a_job_keeps_that_jobs_result(workspace: Any) -> Non
     """A job that calls agent jobs as functions still delivers its own result."""
     import agent_launcher_jobs
 
-    with Container().injectable_context(JobRunContext()):
-        with running_job(TJobRef("jobs.outer.orchestrate")):
+    with JobRun().activate() as run:
+        with JobRun.running(TJobRef("jobs.outer.orchestrate")):
             job_result({"from": "outer"}, type="outer")
             agent_launcher_jobs.driver()
             asyncio.run(agent_launcher_jobs.async_driver({}))
             asyncio.run(agent_launcher_jobs.inspector())
-        declared = take_job_result(TJobRef("jobs.outer.orchestrate"), "job", "orchestrate")
+        declared = run.take_result(TJobRef("jobs.outer.orchestrate"), "job", "orchestrate")
 
     assert declared is not None
     assert (declared["type"], declared["result"]) == ("job.outer", {"from": "outer"})
+
+
+def test_concurrent_direct_calls_keep_their_own_job_result(
+    workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import agent_launcher_jobs
+    import mock_loop  # type: ignore[import-not-found]
+
+    run_loop = mock_loop.MockLoop.run
+
+    async def interleaved_run(self: Any, *args: Any, **kwargs: Any) -> Dict[str, Any]:
+        # suspend before and after the run, so the other call's task runs in between
+        await asyncio.sleep(0)
+        output = await run_loop(self, *args, **kwargs)
+        await asyncio.sleep(0)
+        return output
+
+    monkeypatch.setattr(mock_loop.MockLoop, "run", interleaved_run)
+
+    async def run_both() -> List[Dict[str, Any]]:
+        return list(
+            await asyncio.gather(
+                agent_launcher_jobs.inspector(failed_job_ref="jobs.a.ingest"),
+                agent_launcher_jobs.inspector(failed_job_ref="jobs.b.ingest"),
+            )
+        )
+
+    outputs = asyncio.run(run_both())
+
+    assert [o["status"] for o in outputs] == ["succeeded", "succeeded"]
+    # the attribute holds the result of the call that finished last, whole and not mixed
+    job_result = agent_launcher_jobs.inspector.last_job_result
+    failed_job_ref = job_result["trace"]["inputs"]["failed_job_ref"]
+    assert failed_job_ref in ("jobs.a.ingest", "jobs.b.ingest")
+    assert job_result["object"] == [{"type": "job", "id": f"job/{failed_job_ref}"}]
 
 
 def test_async_agent_called_directly_is_awaitable(workspace: Any) -> None:

@@ -387,7 +387,7 @@ In the test above:
 
 1. Pass the inputs as keyword arguments, and a run context with the `run_id` and the `trigger` that you want to test. If you leave out `run_context`, a local run context with the trigger `manual:` is used.
 2. The call returns the agent output, and you test it as any return value.
-3. `last_job_result` on the agent job holds the job result of the call: `type`, `job_ref`, `status`, `summary`, `result`, the agent trace with the tools and tokens used, and `object`. dlt sends nothing to the platform.
+3. `last_job_result` on the agent job holds the job result of the call: `type`, `job_ref`, `status`, `summary`, `result`, the agent trace with the tools and tokens used, and `object`. dlt sends nothing to the platform. When you run several calls of the same agent job at once, for example with `asyncio.gather`, each call keeps its own job result while it runs, and `last_job_result` holds the one of the call that finished last.
 4. When your agent code calls a REST API, in `agent.py` or in the decorated function, mock it as in any other Python test.
 5. Unstructured fields such as `summary` can still be scored, with `jev` or a similar cheap scoring model.
 

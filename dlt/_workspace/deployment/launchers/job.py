@@ -24,11 +24,9 @@ from dlt._workspace.deployment.entity import hub_objects
 from dlt._workspace.deployment.exceptions import JobAbortedException, JobResolutionError
 from dlt._workspace.deployment._run_views import print_job_result
 from dlt._workspace.deployment.job_result import (
-    JobRunContext,
+    JobRun,
     is_job_result,
-    job_inputs,
     send_job_result,
-    take_job_result,
 )
 from dlt._workspace.deployment.typing import (
     RUN_CONTEXT_INPUT,
@@ -188,13 +186,13 @@ def _objects(job: JobFactory[Any, Any], payload: Any, values: Dict[str, Any]) ->
 
 
 def deliver_job_result(
-    job: JobFactory[Any, Any], send: bool = True, wait: bool = False
+    job: JobFactory[Any, Any], run: JobRun, send: bool = True, wait: bool = False
 ) -> Optional[TJobResult]:
     """Completes the run's result with `type`, `job_ref` and `object`, then sends it if `send`."""
-    result = take_job_result(job.job_ref, job.result_category, job.name)
+    result = run.take_result(job.job_ref, job.result_category, job.name)
     if result is None:
         return None
-    recorded = job_inputs()
+    recorded = run.inputs
     # no inputs recorded by the invoker: resolve them from job config
     if recorded is None:
         recorded = configured_inputs(job, job._spec) if job._spec is not None else {}
@@ -294,19 +292,19 @@ def run(
     # TODO: job (JobFactory) should have a method that returns pipeline name on the factory
     #       then if refresh flag is set, we refresh ONLY this pipeline
     # the result context lives exactly as long as the run
-    with Container().injectable_context(JobRunContext()):
+    with JobRun().activate() as run:
         try:
             with signal_ctx, tz_ctx, iv_ctx:
                 result = _call()
         except JobAbortedException as ex:
             # an abort ends the process, so the result must be on the wire before it does
-            delivered = deliver_job_result(job, wait=True)
+            delivered = deliver_job_result(job, run, wait=True)
             if delivered is not None:
                 ex.result = delivered
             raise
 
         _check_return_value(result, job, entry_point)
-        job_result = deliver_job_result(job)
+        job_result = deliver_job_result(job, run)
     return result if job_result is None else job_result
 
 

@@ -7,13 +7,11 @@ import pytest
 
 from dlt._workspace.deployment._run_views import print_job_result
 from dlt._workspace.deployment.job_result import (
+    JobRun,
     is_agent_result,
     is_job_result,
     job_result,
     result_type,
-    running_job,
-    set_job_result,
-    take_job_result,
 )
 from dlt._workspace.deployment.launchers import LAUNCHER_JOB
 from dlt._workspace.deployment.launchers.job import run as job_run, run_and_print_result
@@ -72,13 +70,17 @@ def _entry(function: str) -> TRuntimeEntryPoint:
 def test_top_level_job_owns_the_run_result() -> None:
     """`run.result` is a pass-through, recorded once for the job the launcher invoked."""
     payload = {"from": "outer"}
-    with running_job(TJobRef("jobs.x.outer")):
+    # a job called outside of any run opens its own for the length of the call
+    with JobRun.running(TJobRef("jobs.x.outer")) as run:
         assert job_result(payload, type="outer") is payload
         # a job called as a plain function by another job does not overwrite the run result
-        with running_job(TJobRef("jobs.x.inner")):
+        with JobRun.running(TJobRef("jobs.x.inner")) as inner_run:
+            assert inner_run is run
             assert job_result({"from": "inner"}, type="inner") == {"from": "inner"}
-            set_job_result({"type": "inner", "engine_version": 1})
-        declared = take_job_result(TJobRef("jobs.x.outer"), "job", "outer_job")
+            run.set_result({"type": "inner", "engine_version": 1})
+        declared = run.take_result(TJobRef("jobs.x.outer"), "job", "outer_job")
+        # a second take finds nothing, so one run delivers at most one result
+        assert run.take_result(TJobRef("jobs.x.outer"), "job", "outer_job") is None
     # the job named the payload, taking it stamps the launcher's category and the job ref
     assert declared == {
         "type": "job.outer",
@@ -86,16 +88,21 @@ def test_top_level_job_owns_the_run_result() -> None:
         "result": payload,
         "job_ref": "jobs.x.outer",
     }
-    # a second take finds nothing, so one run delivers at most one result
-    assert take_job_result(TJobRef("jobs.x.outer"), "job", "outer_job") is None
     # a result declared without a type is named after the job
-    with running_job(TJobRef("jobs.x.outer")):
+    with JobRun.running(TJobRef("jobs.x.outer")) as run:
         assert job_result(payload) is payload
-        declared = take_job_result(TJobRef("jobs.x.outer"), "job", "outer_job")
+        declared = run.take_result(TJobRef("jobs.x.outer"), "job", "outer_job")
     assert declared and declared["type"] == "job.outer_job"
     # outside a job the payload still comes back, it is simply not recorded
+    assert JobRun.current() is None
     assert job_result(payload, type="outer") is payload
-    assert take_job_result(TJobRef("jobs.x.outer"), "job", "outer_job") is None
+    # a job started in a run pushes onto it instead of opening its own
+    with JobRun().activate() as run:
+        with JobRun.running(TJobRef("jobs.x.outer")) as job_run_:
+            assert job_run_ is run
+            job_result(payload)
+    assert run.job_stack == [] and run.result is not None
+    assert JobRun.current() is None
 
 
 @pytest.mark.parametrize(
