@@ -4,7 +4,11 @@ from typing import Callable, Dict, List, Mapping, NamedTuple, Sequence, Set, Uni
 
 from dlt._workspace.deployment._job_ref import resolve_job_ref
 from dlt._workspace.deployment.exceptions import InvalidFreshnessConstraint
-from dlt._workspace.deployment.typing import TFreshnessConstraint, TJobDefinition
+from dlt._workspace.deployment.typing import (
+    TFreshnessConstraint,
+    TJobDefinition,
+    resolve_refresh_propagation,
+)
 
 __all__ = [
     "TFreshnessConstraintSpec",
@@ -181,7 +185,7 @@ def get_refresh_cascade_targets(
 
     Returns:
         List[str]: Breadth-first search ordered downstream refs, excluding
-        the root, `refresh="block"` nodes, and interval-store-eligible jobs.
+        the root and `refresh_propagation="block"` nodes.
     """
     seen: Set[str] = {root_ref}
     result: List[str] = []
@@ -194,13 +198,9 @@ def get_refresh_cascade_targets(
             ds_def = all_jobs.get(ds_ref)
             if ds_def is None:
                 continue
-            # `refresh="block"` severs the freshness chain: the block node is
-            # not refreshed and its downstream is not recursed into
-            if ds_def.get("refresh") == "block":
-                continue
-            # interval-store-eligible jobs manage their own watermark and
-            # are not part of the refresh cascade
-            if "interval" in ds_def and ds_def.get("allow_external_schedulers", False):
+            # `refresh_propagation="block"` severs the freshness chain: the block node
+            # is not refreshed and its downstream is not recursed into
+            if resolve_refresh_propagation(ds_def) == "block":
                 continue
             seen.add(ds_ref)
             result.append(ds_ref)

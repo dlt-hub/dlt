@@ -40,6 +40,7 @@ from dlt.destinations.impl.clickhouse.configuration import (
 from dlt.destinations.impl.clickhouse.sql_client import ClickHouseSqlClient
 from dlt.destinations.impl.clickhouse.typing import (
     CODEC_HINT,
+    EXCHANGE_CAPABLE_DATABASE_ENGINES,
     HINT_TO_CLICKHOUSE_ATTR,
     PARTITION_HINT,
     SETTINGS_HINT,
@@ -270,7 +271,11 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
+        staging_rows = staging_root_table_name
+        if source_filter:
+            staging_rows = f"(SELECT * FROM {staging_root_table_name} WHERE {source_filter})"
         if for_delete:
             # ClickHouse lightweight DELETE doesn't support table aliases or
             # correlated subqueries with qualified column references.
@@ -280,14 +285,12 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
                     col_tuple = ", ".join(cols)
                     sql.append(
                         f"FROM {root_table_name} WHERE ({col_tuple}) IN"
-                        f" (SELECT {col_tuple} FROM {staging_root_table_name})"
+                        f" (SELECT {col_tuple} FROM {staging_rows})"
                     )
             return sql
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
         join_conditions = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
-        return [
-            f"FROM {root_table_name} AS d JOIN {staging_root_table_name} AS s ON {join_conditions}"
-        ]
+        return [f"FROM {root_table_name} AS d JOIN {staging_rows} AS s ON {join_conditions}"]
 
     @classmethod
     def gen_update_table_prefix(cls, table_name: str) -> str:
@@ -301,7 +304,7 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
 class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
     """Atomic staging-optimized replace via `EXCHANGE TABLES`.
 
-    Requires the destination database to use the `Atomic` or `Shared` engine.
+    Requires the destination database to use the `Atomic`, `Replicated` or `Shared` engine.
     The previous destination data lands in the staging slot after the swap; dlt
     truncates staging tables at the start of the next load.
     """
@@ -394,14 +397,16 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         return loaded_tables
 
     def _verify_database_supports_exchange(self) -> None:
-        # `EXCHANGE TABLES` is only supported on Atomic and Shared database engines
+        # `Replicated` derives from `Atomic` and supports EXCHANGE, but reports its own engine
+        # name in system.databases, so every exchange-capable engine must be listed explicitly
         result = self.sql_client.execute_sql(
             "SELECT engine FROM system.databases WHERE name = currentDatabase()"
         )
         engine = result[0][0] if result else "unknown"
-        if engine not in ("Atomic", "Shared"):
+        if engine not in EXCHANGE_CAPABLE_DATABASE_ENGINES:
+            supported = " or ".join(EXCHANGE_CAPABLE_DATABASE_ENGINES)
             raise DestinationTerminalException(
-                "ClickHouse replace_strategy='staging-optimized' requires the Atomic or Shared"
+                f"ClickHouse replace_strategy='staging-optimized' requires the {supported}"
                 f" database engine to use EXCHANGE TABLES (current: {engine}). Either choose"
                 " 'insert-from-staging' or 'truncate-and-insert', or recreate the database with"
                 " ENGINE = Atomic."

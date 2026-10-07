@@ -3,18 +3,21 @@ title: REST API helpers
 description: Use the dlt RESTClient to interact with RESTful APIs and paginate the results
 keywords: [api, http, rest, restful, requests, restclient, paginate, pagination, json, retry, timeout, headers, response actions, advanced configuration]
 ---
+# REST API helpers
 
 dlt has built-in support for fetching data from APIs:
+
 - RESTClient for interacting with RESTful APIs and paginating the results
 - Requests wrapper for making simple HTTP requests with automatic retries and timeouts
 
 Additionally, dlt provides tools to simplify working with APIs:
+
 - [REST API generic source](./basic) integrates APIs using a declarative configuration to minimize custom code.
 - [OpenAPI source generator](../openapi-generator) automatically creates declarative API configurations from [OpenAPI specifications](https://swagger.io/specification/).
 
 ## Quick example
 
-Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is https://api.github.com/repos/dlt-hub/dlt/issues. The result is "paginated," meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.
+Here's a simple pipeline that reads issues from the [dlt GitHub repository](https://github.com/dlt-hub/dlt/issues). The API endpoint is [https://api.github.com/repos/dlt-hub/dlt/issues](https://api.github.com/repos/dlt-hub/dlt/issues). The result is "paginated," meaning that the API returns a limited number of issues per page. The `paginate()` method iterates over all pages and yields the results which are then processed by the pipeline.
 
 ```py
 import dlt
@@ -45,7 +48,8 @@ print(load_info)
 ```
 
 Here's what the code does:
-1. We create a `RESTClient` instance with the base URL of the API: in this case, the GitHub API (https://api.github.com).
+
+1. We create a `RESTClient` instance with the base URL of the API: in this case, the GitHub API ([https://api.github.com](https://api.github.com)).
 2. The issues endpoint returns a list of issues. Since there could be hundreds of issues, the API "paginates" the results: it returns a limited number of issues in each response along with a link to the next batch of issues (or "page"). The `paginate()` method iterates over all pages and yields the batches of issues.
 3. Here we specify the address of the endpoint we want to read from: `/repos/dlt-hub/dlt/issues`.
 4. We pass the parameters to the actual API call to control the data we get back. In this case, we ask for 100 issues per page (`"per_page": 100`), sorted by the last update date (`"sort": "updated"`) in descending order (`"direction": "desc"`).
@@ -86,6 +90,7 @@ print(load_info)
 ```
 
 In the example above:
+
 1. We create a `RESTClient` instance with the base URL of the API: in this case, the [PokéAPI](https://pokeapi.co/). We also specify the paginator to use explicitly: `JSONLinkPaginator` with the `next_url_path` set to `"next"`. This tells the paginator to look for the next page URL in the `next` key of the JSON response.
 2. In `data_selector`, we specify the JSON path to extract the data from the response. This is used to extract the data from the response JSON.
 3. By default, the number of items per page is limited to 20. We override this by specifying the `limit` parameter in the API call.
@@ -93,6 +98,7 @@ In the example above:
 ## RESTClient
 
 The `RESTClient` class offers an interface for interacting with RESTful APIs, including features like:
+
 - automatic pagination,
 - various authentication mechanisms,
 - customizable request/response handling.
@@ -101,7 +107,7 @@ This guide shows how to use the `RESTClient` class to read data from APIs, focus
 
 ## Creating a RESTClient instance
 
-```py
+```py notype
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
 from dlt.sources.helpers.rest_client.paginators import JSONLinkPaginator
@@ -130,6 +136,8 @@ The `RESTClient` class is initialized with the following parameters:
 To perform basic GET and POST requests, use the `get()` and `post()` methods respectively. This is similar to how the `requests` library works:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+
 client = RESTClient(base_url="https://api.example.com")
 response = client.get("/posts/1")
 ```
@@ -139,6 +147,10 @@ response = client.get("/posts/1")
 The `post()` method supports both JSON payloads and form-encoded/raw data through separate parameters:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+
+client = RESTClient(base_url="https://api.example.com")
+
 # JSON payload (sets Content-Type: application/json)
 response = client.post("/posts", json={"title": "New post", "content": "Post content"})
 
@@ -158,6 +170,10 @@ The `json` and `data` parameters are mutually exclusive. You cannot use both in 
 The `RESTClient.paginate()` method is specifically designed to handle paginated responses, yielding `PageData` instances for each page:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+
+client = RESTClient(base_url="https://api.example.com")
+
 for page in client.paginate("/posts"):
     print(page)
 ```
@@ -165,6 +181,10 @@ for page in client.paginate("/posts"):
 The `paginate()` method supports the same request parameters as regular requests:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+
+client = RESTClient(base_url="https://api.example.com")
+
 # Paginating with JSON payload
 for page in client.paginate("/search", method="POST", json={"query": "python"}):
     print(page)
@@ -321,6 +341,9 @@ E.g., `https://api.example.com/items?offset=0&limit=100`, `https://api.example.c
 You can paginate through responses from this API using the `OffsetPaginator`:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=OffsetPaginator(
@@ -334,6 +357,9 @@ Pagination stops by default when a page contains no records. This is especially 
 Here, the `total_path` parameter is set to `None` because the API does not provide the total count.
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=OffsetPaginator(
@@ -346,6 +372,9 @@ client = RESTClient(
 Additionally, you can limit pagination with `maximum_offset`, for example during development. If `maximum_offset` is reached before the first empty page, then pagination stops:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=OffsetPaginator(
@@ -359,6 +388,9 @@ client = RESTClient(
 If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import OffsetPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=OffsetPaginator(
@@ -400,6 +432,9 @@ Assuming an API endpoint `https://api.example.com/items` paginates by page numbe
 You can paginate through responses from this API using the `PageNumberPaginator`:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=PageNumberPaginator(
@@ -412,6 +447,9 @@ Pagination stops by default when a page contains no records. This is especially 
 Here, the `total_path` parameter is set to `None` because the API does not provide the total count.
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=PageNumberPaginator(
@@ -423,6 +461,9 @@ client = RESTClient(
 Additionally, you can limit pagination with `maximum_page`, for example during development. If `maximum_page` is reached before the first empty page, then pagination stops:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=PageNumberPaginator(
@@ -435,6 +476,9 @@ client = RESTClient(
 If the API provides a boolean flag when all pages have been returned, you can use `has_more_path` to recognize this indicator and end pagination:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import PageNumberPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=PageNumberPaginator(
@@ -474,6 +518,9 @@ Consider an API endpoint `https://api.example.com/data` returning a structure wh
 To paginate through responses from this API using GET requests with query parameters, use `JSONResponseCursorPaginator` with `cursor_path` and `cursor_param`:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONResponseCursorPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=JSONResponseCursorPaginator(
@@ -486,6 +533,9 @@ client = RESTClient(
 For requests with a JSON body, you can specify where to place the cursor in the request body using the `cursor_body_path` parameter:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+from dlt.sources.helpers.rest_client.paginators import JSONResponseCursorPaginator
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=JSONResponseCursorPaginator(
@@ -535,7 +585,9 @@ NextPageToken: n3xtp4g3
 
 To paginate through responses from this API, use `HeaderCursorPaginator` with `cursor_key` set to `"NextPageToken"`:
 
-```py
+```py notype
+from dlt.sources.helpers.rest_client import RESTClient
+
 client = RESTClient(
     base_url="https://api.example.com",
     paginator=HeaderCursorPaginator(cursor_key="NextPageToken")
@@ -557,7 +609,7 @@ When working with APIs that use non-standard pagination schemes, or when you nee
 Suppose an API uses query parameters for pagination, incrementing a page parameter for each subsequent page, without providing direct links to the next pages in its responses. E.g., `https://api.example.com/posts?page=1`, `https://api.example.com/posts?page=2`, etc. Here's how you could implement a paginator for this scheme:
 
 ```py
-from typing import Any, List, Optional
+from typing import Any, Optional
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.requests import Response, Request
 
@@ -571,7 +623,7 @@ class QueryParamPaginator(BasePaginator):
         # This will set the initial page number (e.g., page=1)
         self.update_request(request)
 
-    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
+    def update_state(self, response: Response, data: Optional[list[Any]] = None) -> None:
         # Assuming the API returns an empty list when no more data is available
         if not response.json():
             self._has_next_page = False
@@ -586,7 +638,7 @@ class QueryParamPaginator(BasePaginator):
 
 After defining your custom paginator, you can use it with the `RESTClient` by passing an instance of your paginator to the paginator parameter during the client's initialization. Here's how to use the `QueryParamPaginator`:
 
-```py
+```py notype
 from dlt.sources.helpers.rest_client import RESTClient
 
 client = RESTClient(
@@ -609,7 +661,7 @@ def get_data():
 Some APIs use POST requests for pagination, where the next page is fetched by sending a POST request with a cursor or other parameters in the request body. This is frequently used in "search" API endpoints or other endpoints with large payloads. Here's how you could implement a paginator for a case like this:
 
 ```py
-from typing import Any, List, Optional
+from typing import Any, Optional
 from dlt.sources.helpers.rest_client.paginators import BasePaginator
 from dlt.sources.helpers.rest_client import RESTClient
 from dlt.sources.helpers.requests import Response, Request
@@ -619,7 +671,7 @@ class PostBodyPaginator(BasePaginator):
         super().__init__()
         self.cursor = None
 
-    def update_state(self, response: Response, data: Optional[List[Any]] = None) -> None:
+    def update_state(self, response: Response, data: Optional[list[Any]] = None) -> None:
         # Assuming the API returns an empty list when no more data is available
         if not response.json():
             self._has_next_page = False
@@ -734,6 +786,7 @@ The REST client acts as the OAuth client, which obtains a temporary access token
 Unfortunately, most OAuth 2.0 implementations vary, and thus you might need to subclass `OAuth2ClientCredentials` and implement `build_access_token_request()` to suit the requirements of the specific authorization server you want to interact with.
 
 **Parameters:**
+
 - `access_token_url`: The URL to obtain the temporary access token.
 - `client_id`: Client identifier to obtain authorization. Usually issued via a developer portal.
 - `client_secret`: Client credential to obtain authorization. Usually issued via a developer portal.
@@ -752,7 +805,7 @@ from dlt.sources.helpers.rest_client.auth import OAuth2ClientCredentials
 @configspec
 class OAuth2ClientCredentialsHTTPBasic(OAuth2ClientCredentials):
     """Used e.g. by Zoom Video Communications, Inc."""
-    def build_access_token_request(self) -> Dict[str, Any]:
+    def build_access_token_request(self) -> dict[str, Any]:
         authentication: str = b64encode(
             f"{self.client_id}:{self.client_secret}".encode()
         ).decode()
@@ -778,13 +831,11 @@ client = RESTClient(base_url="https://api.zoom.us/v2", auth=oauth)
 response = client.get("/users")
 ```
 
-
-
 ### Implementing custom authentication
 
 You can implement custom authentication by subclassing the `AuthConfigBase` class and implementing the `__call__` method:
 
-```py
+```py notype
 from dlt.common.configuration import configspec
 from dlt.sources.helpers.rest_client.auth import AuthConfigBase
 
@@ -801,7 +852,7 @@ class CustomAuth(AuthConfigBase):
 
 Then, you can use your custom authentication class with the `RESTClient`:
 
-```py
+```py notype
 client = RESTClient(
     base_url="https://api.example.com",
     auth=CustomAuth(token="your_custom_token_here")
@@ -813,11 +864,14 @@ client = RESTClient(
 `RESTClient.paginate()` allows you to specify a [custom hook function](https://requests.readthedocs.io/en/latest/user/advanced/#event-hooks) that can be used to modify the response objects. For example, to handle specific HTTP status codes gracefully:
 
 ```py
+from dlt.sources.helpers.rest_client import RESTClient
+
 def custom_response_handler(response, *args):
     if response.status_code == 404:
         # Handle not found
         pass
 
+client = RESTClient(base_url="https://api.example.com")
 client.paginate("/posts", hooks={"response": [custom_response_handler]})
 ```
 
@@ -859,18 +913,24 @@ request_max_attempts = 5
 request_backoff_factor = 1
 request_max_retry_delay = 300
 ```
+
 :::
 
 ### Use custom session
+
 You can pass custom `requests` `Session` to `RESTClient`. `dlt` provides its own implementation where you can easily configure
 retry strategies, timeouts and other factors. For example:
+
 ```py
 from dlt.sources.helpers import requests
+from dlt.sources.helpers.rest_client import RESTClient
+
 client = RESTClient(
     base_url="https://api.example.com",
     session=requests.Client(request_timeout=(1.0, 1.0), request_max_attempts=0).session
 )
 ```
+
 will set-up the client for a short connect and read timeouts with no retries.
 
 ### URL sanitization and secret protection
@@ -881,7 +941,6 @@ The RESTClient automatically sanitizes URLs in logs and error messages to preven
 - `secret`, `password`, `pwd`, `client_secret`
 
 For example, a URL like `https://api.example.com/data?api_key=secret123&page=1` will appear in logs as `https://api.example.com/data?api_key=***&page=1`.
-
 
 ## Troubleshooting
 
@@ -898,6 +957,7 @@ http_max_error_body_length = 8192  # Maximum characters (default: 8192)
 ```
 
 Example error with response body enabled:
+
 ```text
 HTTPError: 400 Client Error: Bad Request for url: https://api.example.com/data?api_key=***
 Response body: {"error": "Invalid date format", "code": "INVALID_DATE", "field": "start_date"}
@@ -951,6 +1011,7 @@ for page in client.paginate("/posts"):
 
 ```py
 from dlt.sources.helpers.rest_client.auth import BearerTokenAuth
+from dlt.sources.helpers.rest_client import RESTClient
 
 def response_hook(response, *args):
     print(response.status_code)
@@ -958,6 +1019,7 @@ def response_hook(response, *args):
     print(f"Request: {response.request.body}")
     # Or import pdb; pdb.set_trace() to debug
 
+client = RESTClient(base_url="https://api.example.com")
 for page in client.paginate(
     "/posts",
     auth=BearerTokenAuth(token="your_access_token"),  # type: ignore
@@ -991,7 +1053,7 @@ And use it just like you would use `requests`:
 ```py
 response = requests.get(
     'https://example.com/api/contacts',
-    headers={'Authorization': API_KEY}
+    headers={'Authorization': "..."}
 )
 data = response.json()
 ...
@@ -1037,6 +1099,7 @@ request_max_attempts = 5
 request_backoff_factor = 1
 request_max_retry_delay = 300
 ```
+
 :::
 
 For more control, you can create your own instance of `dlt.sources.requests.Client` and use that instead of the global client.
@@ -1057,7 +1120,7 @@ This is sometimes needed when loading from non-standard APIs which don't use HTT
 
 For example:
 
-```py
+```py notype
 from dlt.sources.helpers import requests
 
 def retry_if_error_key(response: Optional[requests.Response], exception: Optional[BaseException]) -> bool:
@@ -1079,7 +1142,6 @@ http_client = Client(
 `requests.Client` is thread safe. We recommend to share sessions across threads for better performance.
 :::
 
-
 ### Handling API Rate Limits
 
 HTTP 429 errors indicate you've hit API rate limits. The dlt requests client retries these automatically and respects `Retry-After` headers. If rate limits persist, consider additional mitigation strategies.
@@ -1090,7 +1152,9 @@ HTTP 429 errors indicate you've hit API rate limits. The dlt requests client ret
 - **Implement backoff**: Increase wait times after failures (exponential backoff)
 - **Reduce calls**: Batch requests or cache results when possible
 
-> 💡 The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.
+:::info
+The dlt requests client already handles basic `429` retries with exponential backoff and respects `Retry-After` headers.
+:::
 
 ## Advanced configuration
 
@@ -1110,6 +1174,8 @@ HTTP 429 errors indicate you've hit API rate limits. The dlt requests client ret
 You can also set `parallelized` on individual dependent resources (transformers) to fetch child data for multiple parent items concurrently. When enabled, each parent item's child fetch runs as a deferred callable in dlt's thread pool rather than sequentially in a loop.
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {"base_url": "https://api.example.com"},
     "resources": [
@@ -1140,11 +1206,13 @@ Headers can be configured in two places:
 
 When both client-level and endpoint-level headers are specified, endpoint-level headers override client-level headers for the same header names.
 
-##### Client-level headers
+#### Client-level headers
 
 Client-level headers are static and applied to all requests:
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         "base_url": "https://api.example.com",
@@ -1161,6 +1229,8 @@ config: RESTAPIConfig = {
 ##### Endpoint-level headers
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         "base_url": "https://api.example.com",
@@ -1196,6 +1266,8 @@ Client-level headers do not support placeholder interpolation. If you need dynam
 You can reference fields from parent resources in header values:
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         "base_url": "https://api.example.com"
@@ -1223,6 +1295,8 @@ In this example, for each post, the `comments` resource will include headers wit
 You can also use incremental values in headers:
 
 ```py
+from dlt.sources.rest_api import RESTAPIConfig
+
 config: RESTAPIConfig = {
     "client": {
         "base_url": "https://api.example.com"
@@ -1264,7 +1338,6 @@ This is an experimental feature and may change in future releases.
   - `"ignore"`: Ignore the response.
   - a callable accepting and returning the response object.
   - a list of callables, each accepting and returning the response object.
-
 
 #### Example A
 
@@ -1356,10 +1429,11 @@ source_config = {
 
 In this example, the resource will set the correct encoding for all responses. More callables can be added to the list of response_actions.
 
-
 ### Setup timeouts and retry strategies
+
 `rest_api` uses `dlt` custom sessions and `RESTClient` to access http(s) endpoints. You can use them to configure timeout, retries and other aspects. For example:
-```py
+
+```py notype
 from dlt.sources.helpers import requests
 
 source_config: RESTAPIConfig = {
@@ -1368,6 +1442,7 @@ source_config: RESTAPIConfig = {
     },
 }
 ```
+
 will set-up all endpoints to use a short connect and read timeouts with no retries.
 Most settings can be configured using `toml` files or environment variables.
 

@@ -17,10 +17,16 @@ SESSION_TIMEZONE = "America/New_York"
 SESSION_OFFSET = timedelta(hours=-5)
 
 # destinations that render a stored instant in the session timezone, so the read carries its offset.
-# the others tie the offset to the value instead: clickhouse writes the zone into the column type as
-# `DateTime64(p,'UTC')`, and snowflake `TIMESTAMP_TZ` keeps the offset that was written, which makes
-# the offset depend on the loader file format rather than on the session
-SESSION_OFFSET_ON_READ = ("duckdb", "motherduck", "ducklake", "postgres", "redshift")
+# clickhouse ties the offset to the value instead. it writes the zone into the column type
+# as `DateTime64(p,'UTC')`
+SESSION_OFFSET_ON_READ = (
+    "duckdb",
+    "motherduck",
+    "ducklake",
+    "postgres",
+    "redshift",
+    "snowflake",
+)
 
 
 def _items(item_type: TestDataItemFormat) -> Any:

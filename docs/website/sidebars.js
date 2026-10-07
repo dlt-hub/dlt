@@ -11,18 +11,6 @@
 
 // @ts-check
 const fs = require("node:fs");
-const path = require("node:path");
-
-function* walkSync(dir) {
-  const files = fs.readdirSync(dir, { withFileTypes: true });
-  for (const file of files) {
-    if (file.isDirectory()) {
-      yield* walkSync(path.join(dir, file.name));
-    } else {
-      yield path.join(dir, file.name);
-    }
-  }
-}
 
 /** @type {import('@docusaurus/plugin-content-docs').SidebarsConfig} */
 const sidebars = {
@@ -74,6 +62,15 @@ const sidebars = {
             keywords: ["release notes", "release highlights"],
           },
           items: [
+            { type: "doc", id: "release-notes/1.30", label: "1.30" },
+            { type: "doc", id: "release-notes/1.29", label: "1.29" },
+            { type: "doc", id: "release-notes/1.28", label: "1.28" },
+            { type: "doc", id: "release-notes/1.27", label: "1.27" },
+            { type: "doc", id: "release-notes/1.26", label: "1.26" },
+            { type: "doc", id: "release-notes/1.25", label: "1.25" },
+            { type: "doc", id: "release-notes/1.24", label: "1.24" },
+            { type: "doc", id: "release-notes/1.23", label: "1.23" },
+            { type: "doc", id: "release-notes/1.22", label: "1.22" },
             { type: "doc", id: "release-notes/1.21.2", label: "1.21.2" },
             { type: "doc", id: "release-notes/1.19", label: "1.19" },
             { type: "doc", id: "release-notes/1.18", label: "1.18" },
@@ -480,7 +477,23 @@ const sidebars = {
         "hub/getting-started/introduction",
         "hub/getting-started/oss-and-dlthub",
         "hub/getting-started/installation",
-        "hub/getting-started/playground-workspace",
+        "hub/getting-started/onboarding",
+        "hub/getting-started/agents",
+        {
+          type: "category",
+          label: "Release highlights",
+          link: {
+            type: "generated-index",
+            title: "Release highlights",
+            slug: "/hub/release-highlights",
+            keywords: ["release notes", "release highlights", "dlthub"],
+          },
+          items: [
+            { type: "doc", id: "hub/release-notes/2026-09-24", label: "September 24, 2026" },
+            { type: "doc", id: "hub/release-notes/2026-08-31", label: "August 31, 2026" },
+            { type: "doc", id: "hub/release-notes/2026-08-24", label: "August 24, 2026" },
+          ],
+        },
       ],
     },
     {
@@ -516,7 +529,15 @@ const sidebars = {
       label: "Pipeline operations",
       items: [
         "hub/pipeline-operations/overview",
-        "hub/pipeline-operations/workspace-setup",
+        {
+          type: "category",
+          label: "Workspaces",
+          items: [
+            "hub/pipeline-operations/what-is-a-workspace",
+            "hub/pipeline-operations/workspace-setup",
+            "hub/pipeline-operations/playground-workspace",
+          ],
+        },
         "hub/pipeline-operations/profiles",
         "hub/pipeline-operations/secrets-management",
         "hub/pipeline-operations/environment-variables",
@@ -533,8 +554,22 @@ const sidebars = {
     },
     {
       type: "category",
-      label: "Data discovery & serving",
-      items: ["hub/data-discovery/datasets", { type: "doc", id: "general-usage/dataset-access/marimo" }],
+      label: "Agents",
+      items: [
+        { type: "doc", id: "hub/agents/index", label: "Background agents" },
+        { type: "doc", id: "hub/agents/agent-definitions", label: "Agent definitions" },
+        { type: "doc", id: "hub/agents/job-inspector", label: "Job inspector agent" },
+      ],
+    },
+    {
+      type: "category",
+      label: "Data Apps",
+      items: [
+        "hub/data-discovery/datasets",
+        { type: "doc", id: "general-usage/dataset-access/marimo" },
+        "hub/cookbook/build-streamlit-dashboard",
+        "hub/data-apps/build-marimo-notebook",
+      ],
     },
     {
       type: "category",
@@ -562,25 +597,31 @@ const sidebars = {
         id: "examples/index",
       },
       items: [
-        {
-          type: "category",
-          label: "dlt",
-          collapsible: true,
-          collapsed: true,
-          items: [
-            "walkthroughs/dispatch-to-multiple-tables",
-            "walkthroughs/share-a-dataset",
-            "walkthroughs/create-new-destination",
-            "walkthroughs/zendesk-weaviate",
-          ],
-        },
-        {
-          type: "category",
-          label: "dltHub",
-          collapsible: true,
-          collapsed: true,
-          items: ["hub/cookbook/build-streamlit-dashboard"],
-        },
+        "examples/arize_phoenix_export",
+        "examples/backfill_in_chunks",
+        "examples/chess_production",
+        "examples/dlthub_cicd",
+        "examples/connector_x_arrow",
+        "examples/custom_config_provider",
+        "examples/custom_destination_bigquery",
+        "examples/custom_destination_lancedb",
+        "examples/custom_naming",
+        "examples/data_masking",
+        "examples/google_sheets",
+        "examples/incremental_loading",
+        "examples/langfuse_export",
+        "examples/logfire_telemetry_export",
+        "examples/nested_data",
+        "examples/partial_loading",
+        "examples/pdf_to_weaviate",
+        "examples/postgres_to_postgres",
+        "examples/propagate_hints",
+        "examples/qdrant_zendesk",
+        "examples/transformers",
+        "walkthroughs/dispatch-to-multiple-tables",
+        "walkthroughs/share-a-dataset",
+        "walkthroughs/create-new-destination",
+        "walkthroughs/zendesk-weaviate",
       ],
     },
   ],
@@ -596,22 +637,6 @@ const sidebars = {
     },
   ],
 };
-
-// insert examples under the `dlt` subcategory of the Cookbook
-// `examples/index` is the link target of the parent Cookbook category, so skip it here —
-// otherwise navigating to the Cookbook landing page auto-expands `dlt` to highlight it.
-for (const item of sidebars.cookbookSidebar) {
-  const dltSubcategory = item.items.find((entry) => typeof entry === "object" && entry.label === "dlt");
-  if (!dltSubcategory) continue;
-  for (let examplePath of walkSync("./docs_processed/examples")) {
-    examplePath = examplePath.replace(/\\/g, "/");
-    examplePath = examplePath.replace("docs_processed/", "");
-    examplePath = examplePath.replace(".mdx", "");
-    examplePath = examplePath.replace(".md", "");
-    if (examplePath === "examples/index") continue;
-    dltSubcategory.items.push(examplePath);
-  }
-}
 
 // inject api reference if it exists
 if (fs.existsSync("./docs_processed/api_reference/sidebar.json")) {

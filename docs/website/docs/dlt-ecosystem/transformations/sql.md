@@ -3,7 +3,6 @@ title: Access and transform data with SQL
 description: Access and transform the data loaded by a dlt pipeline with the dlt SQL client
 keywords: [transform, sql, sql client, dml]
 ---
-
 # The `dlt` SQL client
 
 Most `dlt` destinations use an implementation of the `SqlClientBase` class to connect to the physical destination to which your data is loaded. DDL statements, data insert or update commands, as well as SQL merge and replace queries, are executed via a connection on this client. It also is used for reading data for the [dashboard app](../../hub/ingestion/dashboard.md) and [data access via `dlt` datasets](../../general-usage/dataset-access/dataset.md).
@@ -20,7 +19,7 @@ You can access the SQL client of your destination via the `sql_client` method on
 
 ```py
 pipeline = dlt.pipeline(destination="bigquery", dataset_name="crm")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     with client.execute_query(
         "SELECT id, name, email FROM customers WHERE id = %s",
         10
@@ -37,13 +36,14 @@ The code below shows how to retrieve the data as a Pandas DataFrame and then man
 
 ```py
 pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     with client.execute_query(
         'SELECT "reactions__+1", "reactions__-1", reactions__laugh, reactions__hooray, reactions__rocket FROM issues'
     ) as cursor:
         # calling `df` on a cursor, returns the data as a pandas DataFrame
         reactions = cursor.df()
-counts = reactions.sum(0).sort_values(0, ascending=False)
+
+counts = reactions.sum(0).sort_values(0, ascending=False)  # ty: ignore
 ```
 
 ## Supported methods on the cursor
@@ -69,7 +69,7 @@ The code below shows how to use the filesystem SQL client to query the data:
 
 ```py
 pipeline = dlt.pipeline(destination="filesystem", dataset_name="my_dataset")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:   # ty: ignore
     with client.execute_query("SELECT * FROM my_table") as cursor:
         print(cursor.fetchall())
 ```
@@ -84,7 +84,9 @@ A few things to know or keep in mind when using the filesystem SQL client:
 - Multi-schema support (dlt 1.25.0+): When a dataset includes multiple schemas, the filesystem SQL client creates views that span all schemas. If the same table name exists in multiple schemas at different physical locations (e.g. when the layout includes `{schema_name}/`), views are combined. If they share the same location, columns are merged into a single view. This means queries may return rows from multiple schemas — use `pipeline.dataset(schema="name")` to restrict to one schema.
 
 ### Control data freshness
+
 `sqlclient` creates views in which the data is immutable (each next query will access the same data). Such "snapshots" are created by:
+
 * globbing the table files once - when view is created
 * using the newest iceberg metadata to create view
 
@@ -95,7 +97,7 @@ when you need fresh data. Alternatively you can enable autorefresh mode which wi
 from dlt.destination import filesystem
 
 pipeline = dlt.pipeline(destination=filesystem(always_refresh_views=True), dataset_name="my_dataset")
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:   # ty: ignore
     with client.execute_query("SELECT * FROM my_table") as cursor:
         print(cursor.fetchall())
         # pipeline.run() here and get updated data
@@ -125,7 +127,7 @@ The example below creates a new table `aggregated_sales` that contains the total
 pipeline = dlt.pipeline(destination="duckdb", dataset_name="crm")
 
 # NOTE: this is the duckdb sql dialect, other destinations may use different expressions
-with pipeline.sql_client() as client:
+with pipeline.sql_client() as client:  # ty: ignore
     client.execute_sql(
         """ CREATE OR REPLACE TABLE aggregated_sales AS
             SELECT
@@ -146,13 +148,13 @@ corresponding to selected columns. A more convenient way to extract data is to u
 
 ```py
 try:
-    with pipeline.sql_client() as client:
+    with pipeline.sql_client() as client:    # ty: ignore
         res = client.execute_sql(
             "SELECT id, name, email FROM customers WHERE id = %s",
             10
         )
         # Prints column values of the first row
-        print(res[0])
+        print(res[0])  # ty: ignore
 except Exception:
     ...
 ```

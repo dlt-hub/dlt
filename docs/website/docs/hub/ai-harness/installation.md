@@ -3,7 +3,6 @@ title: Installation
 description: Install the dltHub AI Harness in a new or existing workspace, and add feature toolkits by intent or by command.
 keywords: [ai harness, install, dlthub-init, dlthub-start, dlthub ai init, toolkit install]
 ---
-
 # Installation
 
 You need Python 3.10 or later, [uv](https://docs.astral.sh/uv/) on your PATH, and one of the supported coding agents (Claude Code, Cursor, or Codex) already installed.
@@ -82,7 +81,9 @@ Install it:
 uv run dlthub ai toolkit install rest-api-pipeline
 ```
 
-By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or `--overwrite` to replace files the agent already has.
+By default `dlthub ai toolkit install` installs for the agent already wired up in the workspace. Pass `--agent claude|cursor|codex` to install for a different one, or `--overwrite` to update an installed toolkit. `--overwrite` replaces the files the toolkit ships and removes the ones the new version no longer ships, including any you edited. Files you added yourself are kept.
+
+A toolkit that ships agent definitions installs each one to `.claude/dlthub/agents/<toolkit>/<agent>/` (`.cursor/dlthub/agents/` for Cursor, `.agents/dlthub/agents/` for Codex), where `run.agent("<toolkit>:<agent>")` finds it. See [Background agents](../agents/index.md).
 
 ## Verify
 

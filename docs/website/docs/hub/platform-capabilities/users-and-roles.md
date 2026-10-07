@@ -3,7 +3,6 @@ title: Users and roles
 description: How users, organizations, and workspaces relate on the dltHub platform, how to invite people, and what each role can do.
 keywords: [users, roles, permissions, organization, workspace, access control, RBAC, invite, members, dltHub platform]
 ---
-
 # Users and roles
 
 The dltHub platform uses a two-level access model. Every user belongs to an **organization**, and within that organization users are granted access to one or more **workspaces**. A user's effective permissions are determined by the combination of their organization role and their per-workspace role.
@@ -15,7 +14,7 @@ Users authenticate against the dltHub platform in the following ways:
 - **GitHub OAuth.** Interactive sign-in for both the Web UI ([app.dlthub.com](https://app.dlthub.com)) and the CLI (`dlthub login`). The same identity is used everywhere. Your CLI session inherits the workspaces and roles granted to your GitHub account.
 - **Google OAuth.** Interactive sign-in to the Web UI ([app.dlthub.com](https://app.dlthub.com)) with a Google Account. As with GitHub OAuth, the same identity is used across the Web UI and CLI.
 - **Email signup.** Register for the Web UI ([app.dlthub.com](https://app.dlthub.com)) with an email address and password when you don't want to use a third-party identity provider.
-- **API keys.** Personal, long-lived tokens (prefixed `dlt_`) for non-interactive clients such as CI jobs or scripts. A key inherits the organization and workspace permissions of the user who created it. See [API keys](settings.md#api-keys) for creating, scoping, and revoking keys.
+- **API keys.** Long-lived tokens for non-interactive clients. [User API keys](settings.md#api-keys), prefixed `dlt_u_`, act on your behalf and inherit your organization and workspace permissions. [Workspace API keys](settings.md#workspace-api-keys), prefixed `dlt_sa_`, are scoped to a single workspace, hold a fixed workspace role (Developer or Viewer), and work independently of any user account.
 
 ## Inviting people to your organization and workspaces
 
@@ -50,20 +49,20 @@ Roles decide what a member can see and do. Organizations and workspaces have sep
 
 Organization membership is a prerequisite for any workspace access: a user must be added to the organization before they can be granted a role in any workspace.
 
-| Role     | Can do |
-| -------- | ------ |
-| `owner`  | Full control: manage members and invites, change roles, and manage workspaces. |
-| `member` | Standard access: work within the organization and the workspaces they belong to. |
-| `collaborator`  | Limited access: typically someone invited to a single workspace rather than the whole org. |
+| Role           | Can do                                                                                     |
+| -------------- | ------------------------------------------------------------------------------------------ |
+| `owner`        | Full control: manage members and invites, change roles, and manage workspaces.             |
+| `member`       | Standard access: work within the organization and the workspaces they belong to.           |
+| `collaborator` | Limited access: typically someone invited to a single workspace rather than the whole org. |
 
 ### Workspace roles
 
 A workspace role is assigned per workspace and controls what a user can do inside that workspace. A user can hold different workspace roles in different workspaces.
 
-| Role        | Can do |
-| ----------- | ------ |
-| `owner`     | Full control: manage members, invites, settings, and content in the workspace. |
-| `developer` | Write access: create and edit scripts, deployments, and configurations, deploy the workspace, and launch or cancel jobs on any profile. Can't manage members or change workspace settings. |
+| Role        | Can do                                                                                                                                                                                              |
+| ----------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `owner`     | Full control: manage members, invites, settings, and content in the workspace.                                                                                                                      |
+| `developer` | Write access: create and edit scripts, deployments, and configurations, deploy the workspace, and launch or cancel jobs on any profile. Can't manage members or change workspace settings.          |
 | `viewer`    | Read-only access: jobs, runs, logs, pipelines, deployments, and notebooks. Viewers can also launch jobs on the [access profile](../pipeline-operations/profiles.md), such as interactive notebooks. |
 
 ### How invites and roles combine
@@ -75,19 +74,19 @@ A workspace role is assigned per workspace and controls what a user can do insid
 
 Role-based restrictions apply to both the dashboard and the API, so a viewer can't bypass restrictions by using the CLI. The table below summarizes what each workspace role can do.
 
-| Action | Owner | Developer | Viewer |
-| --- | :---: | :---: | :---: |
-| View jobs, runs, logs, pipelines, deployments, and notebooks | Yes | Yes | Yes |
-| Launch jobs on the `access` profile (notebooks and read-only interactive workloads) | Yes | Yes | Yes |
-| Launch jobs on the `prod` profile | Yes | Yes | No |
-| Create or edit scripts, configurations, and deployments | Yes | Yes | No |
-| Deploy the workspace (`dlthub deploy`) | Yes | Yes | No |
-| Cancel runs | Yes | Yes | No |
-| Publish or revoke public links for interactive applications | Yes | Yes | No |
-| Change workspace settings | Yes | No | No |
-| Manage environment variables | Yes | No | No |
-| Manage members and invites | Yes | No | No |
-| Manage workspace API keys | Yes | No | No |
+| Action                                                                              | Owner | Developer | Viewer |
+| ----------------------------------------------------------------------------------- | :---: | :-------: | :----: |
+| View jobs, runs, logs, pipelines, deployments, and notebooks                        | Yes   | Yes       | Yes    |
+| Launch jobs on the `access` profile (notebooks and read-only interactive workloads) | Yes   | Yes       | Yes    |
+| Launch jobs on the `prod` profile                                                   | Yes   | Yes       | No     |
+| Create or edit scripts, configurations, and deployments                             | Yes   | Yes       | No     |
+| Deploy the workspace (`dlthub deploy`)                                              | Yes   | Yes       | No     |
+| Cancel runs                                                                         | Yes   | Yes       | No     |
+| Publish or revoke public links for interactive applications                         | Yes   | Yes       | No     |
+| Change workspace settings                                                           | Yes   | No        | No     |
+| Manage environment variables                                                        | Yes   | No        | No     |
+| Manage members and invites                                                          | Yes   | No        | No     |
+| Manage workspace API keys                                                           | Yes   | No        | No     |
 
 For details on which profiles are used for which workloads, see [Profiles in dltHub](../pipeline-operations/profiles.md).
 

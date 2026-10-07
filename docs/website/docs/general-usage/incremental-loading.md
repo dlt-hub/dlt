@@ -3,7 +3,6 @@ title: Incremental loading
 description: Introduction to incremental loading with dlt
 keywords: [incremental loading, loading methods]
 ---
-
 # Incremental loading
 
 Incremental loading is the act of loading only new or changed data and not old records that we have already loaded. It enables low-latency and low-cost data transfer.
@@ -12,7 +11,7 @@ The challenge of incremental pipelines is that if we do not keep track of the st
 
 ## Choosing a write disposition
 
-### The 3 write dispositions:
+### The 3 write dispositions
 
 - **Full load**: replaces the destination dataset with whatever the source produced on this run. To achieve this, use `write_disposition='replace'` in your resources. Learn more in the [full loading docs](./full-loading.md).
 
@@ -40,7 +39,7 @@ If not, then we need to replace the entire dataset. However, if we can request t
 
 dlt provides several approaches to incremental loading:
 
-1. [Merge strategies](./merge-loading.md#merge-strategies) - Choose between delete-insert, SCD2, upsert, and insert-only approaches to incrementally update your data
+1. [Merge strategies](./merge-loading.md#merge-strategies) - Choose from the `delete-insert`, `scd2`, `upsert`, `insert-only`, and `cdc` strategies to incrementally update your data
 2. [Cursor-based incremental loading](./incremental/cursor.md) - Track changes using a cursor field (like timestamp or ID)
 3. [Lag / Attribution window](./incremental/lag.md) - Refresh data within a specific time window
 4. [Advanced state management](./incremental/advanced-state.md) - Custom state tracking
@@ -48,6 +47,7 @@ dlt provides several approaches to incremental loading:
 ## Doing a full or partial refresh
 
 You may force a refresh of `merge` and `append` resources by setting the `refresh` option on the `dlt.pipeline` constructor or in the `run` method:
+
 * `drop_data` truncates all tables belonging to the selected resources and resets their state (including incremental). The schema is not changed.
 * `drop_resources` drops all tables belonging to the selected resources, from both the schema and the destination, and wipes their state. The tables are recreated with new data, and the stored schema history is erased (only the latest version is kept).
 * `drop_sources` drops all tables belonging to the sources being loaded and fully resets their schema and state.
@@ -55,19 +55,24 @@ You may force a refresh of `merge` and `append` resources by setting the `refres
 Table truncation/drop happens when the load step starts, so a failed extract or normalization does not affect destination data.
 
 Example:
+
 ```py
 import dlt
+from dlt.sources.sql_database import sql_database
 
 pipeline = dlt.pipeline("airtable_demo", destination="duckdb")
 pipeline.run(sql_database().with_resources("users"), refresh="drop_data")
 ```
+
 Above, we refresh the `users` table (a partial refresh) by truncating it, loading data from scratch, and leaving the other tables intact.
 
 :::tip
 The `refresh` option is part of the pipeline configuration and may be set without changing the code. For example:
+
 ```sh
 PIPELINES__GITHUB_PIPELINE__REFRESH=drop_data python github_pipeline.py
 ```
+
 sets the refresh option for a single pipeline script execution.
 :::
 
@@ -87,7 +92,6 @@ persists until the next, unmodified run. There may be a small performance improv
 
 1. In the case of a `merge`, the data in the destination is truncated and loaded fresh. Currently, we do not deduplicate data during the full refresh.
 2. In the case of `dlt.sources.incremental`, the data is truncated and loaded from scratch. The state of the incremental is reset to the initial value.
-
 
 Example:
 

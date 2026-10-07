@@ -4,6 +4,7 @@
 #     "duckdb",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "pymysql",
 #     "sqlalchemy",
 # ]

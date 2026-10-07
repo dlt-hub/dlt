@@ -3,7 +3,7 @@
 from datetime import datetime  # noqa: I251
 from typing import Optional, Protocol
 
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime_in_tz
 
 
 class TJobFreshnessStore(Protocol):
@@ -54,7 +54,7 @@ class DuckDBJobFreshnessStore:
         ).fetchall()
         if not rows or rows[0][0] is None:
             return None
-        return ensure_pendulum_datetime_utc(rows[0][0])
+        return ensure_datetime_in_tz(rows[0][0])
 
     def set_prev_completed_run(self, job_ref: str, value: Optional[datetime]) -> None:
         """Upsert the timestamp for `job_ref`.

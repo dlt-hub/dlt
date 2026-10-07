@@ -21,7 +21,10 @@ from lancedb.query import LanceQueryBuilder
 from packaging.version import Version
 from pyarrow import Array, ChunkedArray
 
-from dlt.common import json, pendulum, logger
+from datetime import datetime, timezone
+
+from dlt.common import json, logger
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.libs.numpy import numpy
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.utils import resolve_merge_strategy
@@ -50,6 +53,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
+from dlt.destinations.utils import verify_unsupported_merge_options
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
@@ -120,7 +124,11 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             name=self.config.embedding_model,
             max_retries=self.config.options.max_retries,
             # actually the model func doesnt need the api-key!
-            **({"host": embedding_model_host} if embedding_model_host else {}),
+            **(
+                {"host": embedding_model_host, "base_url": embedding_model_host}
+                if embedding_model_host
+                else {}
+            ),
         )
 
     @property
@@ -288,6 +296,17 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
     ) -> List[PreparedTableSchema]:
         loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
         # Verify LanceDB-specific requirements for root tables
         for load_table in loaded_tables:
@@ -464,7 +483,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             {
                 self.schema.naming.normalize_identifier("version"): schema.version,
                 self.schema.naming.normalize_identifier("engine_version"): schema.ENGINE_VERSION,
-                self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
+                self.schema.naming.normalize_identifier("inserted_at"): datetime.now(timezone.utc),
                 self.schema.naming.normalize_identifier("schema_name"): schema.name,
                 self.schema.naming.normalize_identifier("version_hash"): schema.stored_version_hash,
                 self.schema.naming.normalize_identifier("schema"): json.dumps(schema.to_dict()),
@@ -531,7 +550,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
             engine_version=state[p_engine_version],
             pipeline_name=state[p_pipeline_name],
             state=state[p_state],
-            created_at=pendulum.instance(state[p_created_at]),
+            created_at=ensure_datetime_in_tz(state[p_created_at], timezone.utc),
             version_hash=state[p_version_hash],
             _dlt_load_id=state[p_dlt_load_id],
         )
@@ -623,7 +642,7 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
                 self.schema.naming.normalize_identifier(C_DLT_LOADS_TABLE_LOAD_ID): load_id,
                 self.schema.naming.normalize_identifier("schema_name"): self.schema.name,
                 self.schema.naming.normalize_identifier("status"): 0,
-                self.schema.naming.normalize_identifier("inserted_at"): pendulum.now(),
+                self.schema.naming.normalize_identifier("inserted_at"): datetime.now(timezone.utc),
                 self.schema.naming.normalize_identifier(
                     "schema_version_hash"
                 ): self.schema.version_hash,

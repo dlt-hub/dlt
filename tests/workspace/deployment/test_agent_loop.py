@@ -1,0 +1,1359 @@
+"""Tests for the agent loop abstraction, its plugin hook, and settings resolution."""
+
+import asyncio
+import logging
+import os
+import signal
+from pathlib import Path
+from types import SimpleNamespace
+from typing import Any, Dict, Iterator, List, Optional, Tuple, Type, TypeVar, cast
+
+import pytest
+from claude_agent_sdk import ProcessError
+from pydantic_ai import ModelRetry, ToolFailed, capture_run_messages
+from pydantic_ai.exceptions import UnexpectedModelBehavior
+from pydantic_ai.messages import (
+    FunctionToolResultEvent,
+    ModelResponse,
+    PartEndEvent,
+    RetryPromptPart,
+    TextPart,
+    ThinkingPart,
+    ToolCallPart,
+    ToolReturnPart,
+)
+from pydantic_ai.models.function import DeltaToolCall, FunctionModel
+from pydantic_ai.models.test import TestModel
+from pydantic_ai.usage import RunUsage
+
+import dlt
+from dlt.common import json, logger
+from dlt.common.exceptions import SignalReceivedException
+from dlt.common.runtime import signals
+from dlt.common.configuration import resolve_configuration
+from dlt.common.configuration.providers import EnvironProvider
+
+from dlt._workspace.deployment.agent.exceptions import (
+    AgentRunFailed,
+    AgentTokenLimitExceeded,
+    AgentTraceNotAvailable,
+    UnknownAgentLoop,
+    UnsupportedAgentModel,
+)
+from dlt._workspace.deployment.agent.loop import (
+    AgentLoop,
+    DEFAULT_USER_TURN,
+    split_model_id,
+    resolve_agent_loop,
+    resolve_agent_settings,
+    resolve_loop_type,
+)
+from dlt._workspace.deployment.agent.loops import claude_sdk
+from dlt._workspace.deployment.agent.loops.claude_sdk import (
+    AI_LOOP_TOOLS,
+    MCP_TOOL_PATTERN,
+    RULES_EXCLUDES,
+    ClaudeAgentSdkLoop,
+    classify_tool,
+)
+from dlt._workspace.deployment.agent.loops.pydantic_ai import (
+    OUTPUT_TOOL_NAME,
+    UNBOUNDED_RETRIES,
+    PydanticAILoop,
+    make_local_tools,
+)
+from dlt._workspace.deployment.agent.loops.tools import (
+    MCP_SERVER_ID,
+    SHELL_TOOL,
+    LocalTools,
+    temp_dir,
+)
+from dlt._workspace.deployment.agent.manifest import load_agent_spec, resolve_agent_dir
+from dlt._workspace.deployment.agent.typing import TAgentSpec
+from dlt._workspace.deployment.configuration import AgentConfiguration
+from dlt._workspace.deployment.decorators import agent
+from dlt._workspace.deployment.launchers import (
+    DEFAULT_AGENT_LOOP,
+    LOOP_CLAUDE_AGENT_SDK,
+    LOOP_PYDANTIC_AI,
+)
+from dlt._workspace.deployment.launchers.agent import build_agent_loop
+from dlt._workspace.deployment.typing import TWorkspaceAccess
+
+from tests.utils import init_test_logging, inject_providers
+from tests.workspace.utils import importable_workspace
+
+TLoop = TypeVar("TLoop", bound=AgentLoop)
+
+
+@pytest.fixture
+def dlt_logger_name() -> Iterator[str]:
+    """Name of the initialized dlt logger, made to propagate so `caplog` sees it."""
+    init_test_logging()
+    # inside a workspace the logger is named after the workspace, not `dlt`
+    dlt_logger = logging.getLogger(logger.LOGGER.name)
+    previous = dlt_logger.propagate
+    dlt_logger.propagate = True
+    try:
+        yield dlt_logger.name
+    finally:
+        dlt_logger.propagate = previous
+
+
+@pytest.fixture
+def workspace() -> Iterator[Any]:
+    with importable_workspace("agent_workspace", "mock_loop") as ctx:
+        yield ctx
+
+
+@pytest.fixture
+def loop_cls(workspace: Any) -> Type[AgentLoop]:
+    """The loop the workspace registers on import, as a plugin would."""
+    import mock_loop  # type: ignore[import-not-found]
+
+    return mock_loop.MockLoop
+
+
+def _spec(run_dir: str) -> TAgentSpec:
+    return load_agent_spec(resolve_agent_dir("dlthub-platform:job-inspector", run_dir))
+
+
+def _bare_spec(**extra: Any) -> TAgentSpec:
+    """An agent definition declaring nothing beyond what the contract requires."""
+    spec: TAgentSpec = {
+        "name": "bare",
+        "description": "d",
+        "access": {},
+        "inputs": {"type": "object", "properties": {}, "prompt": ""},
+        "output": {},
+        "system_prompt": "b",
+    }
+    spec.update(cast(Any, extra))
+    return spec
+
+
+def _config(**overrides: Any) -> AgentConfiguration:
+    config = AgentConfiguration()
+    for key, value in overrides.items():
+        setattr(config, key, value)
+    return config
+
+
+def _loop(
+    workspace: Any,
+    loop_cls: Type[TLoop],
+    config: Optional[AgentConfiguration] = None,
+    decorator_args: Optional[Dict[str, Any]] = None,
+    **spec_overrides: Any,
+) -> TLoop:
+    """A loop initialized with the job-inspector definition, as the launcher builds one."""
+    spec = _spec(workspace.run_dir)
+    spec.update(cast(Any, spec_overrides))
+    settings = resolve_agent_settings(
+        spec, config or _config(), decorator_args or {}, loop_cls, workspace.run_dir
+    )
+    loop = loop_cls(settings)
+    loop.init(spec)
+    return loop
+
+
+def _resolve_agent_config() -> AgentConfiguration:
+    """The job's agent config from the environment alone, so a developer's own secrets stay out."""
+    with inject_providers([EnvironProvider()]):
+        return resolve_configuration(AgentConfiguration(), sections=("jobs", "ops", "inspector"))
+
+
+def test_resolve_agent_loop_knows_builtins_and_plugins(loop_cls: Type[AgentLoop]) -> None:
+    assert resolve_agent_loop(LOOP_PYDANTIC_AI).LOOP_TYPE == LOOP_PYDANTIC_AI
+    assert resolve_agent_loop(LOOP_CLAUDE_AGENT_SDK).LOOP_TYPE == LOOP_CLAUDE_AGENT_SDK
+    # a plugin answers only for the names it implements, so the builtins still resolve
+    assert resolve_agent_loop(loop_cls.LOOP_TYPE) is loop_cls
+
+
+def test_unknown_loop_names_the_builtins() -> None:
+    with pytest.raises(UnknownAgentLoop, match=LOOP_PYDANTIC_AI):
+        resolve_agent_loop("no-such-loop")
+
+
+@pytest.mark.parametrize(
+    "decorator_loop,config_loop,expected",
+    [
+        (None, None, DEFAULT_AGENT_LOOP),
+        ("mock-loop", None, "mock-loop"),
+        ("mock-loop", LOOP_CLAUDE_AGENT_SDK, LOOP_CLAUDE_AGENT_SDK),
+    ],
+    ids=["default", "decorator", "config-wins"],
+)
+def test_resolve_loop_type(
+    decorator_loop: Optional[str], config_loop: Optional[str], expected: str
+) -> None:
+    assert resolve_loop_type(decorator_loop, _config(loop=config_loop)) == expected
+
+
+def test_settings_precedence_rises_to_config(workspace: Any, loop_cls: Type[AgentLoop]) -> None:
+    """loop default < AGENT.md defaults < decorator argument < resolved config."""
+    # a definition declaring no defaults gets the loop's
+    settings = resolve_agent_settings(_bare_spec(), _config(), {}, loop_cls, "/ws")
+    assert settings["model"] == "mock-model"
+    assert (settings["max_turns"], settings["max_tokens"]) == (5, 1000)
+
+    # nothing supplied: the spec's own defaults beat the loop class defaults
+    spec = _spec(workspace.run_dir)
+    settings = resolve_agent_settings(spec, _config(), {}, loop_cls, workspace.run_dir)
+    assert settings["model"] == "sonnet"
+    assert settings["max_turns"] == 30
+    assert settings["max_tokens"] == 1000000
+    assert settings["verbosity"] == 1
+    assert settings["emojis"] is True
+
+    # a decorator argument beats the spec
+    decorator_args = {"model": "opus", "verbosity": 0, "emojis": False}
+    settings = resolve_agent_settings(spec, _config(), decorator_args, loop_cls, workspace.run_dir)
+    assert settings["model"] == "opus"
+    assert settings["verbosity"] == 0
+    assert settings["emojis"] is False
+
+    # config beats the decorator
+    config = _config(model="haiku", verbosity=2, emojis=True)
+    settings = resolve_agent_settings(spec, config, decorator_args, loop_cls, workspace.run_dir)
+    assert settings["model"] == "haiku"
+    assert settings["verbosity"] == 2
+    assert settings["emojis"] is True
+
+    # one limit overridden leaves the other where the spec put it
+    settings = resolve_agent_settings(spec, _config(max_turns=3), {}, loop_cls, workspace.run_dir)
+    assert settings["max_turns"] == 3
+    assert settings["max_tokens"] == 1000000
+
+    # loop run args merge shallowly: the spec default `retries: 1` goes, everything else survives
+    settings = resolve_agent_settings(
+        spec,
+        _config(loop_run_args={"tool_timeout": 30}),
+        {"loop_run_args": {"retries": 5, "extra": 1}},
+        loop_cls,
+        workspace.run_dir,
+    )
+    assert settings["loop_run_args"] == {"retries": 5, "extra": 1, "tool_timeout": 30}
+
+
+def test_function_settings_merge_over_the_referenced_agent_defaults(
+    workspace: Any, loop_cls: Type[AgentLoop]
+) -> None:
+    """A decorated function overrides one limit and one run arg; the `AGENT.md` rest survives."""
+
+    @agent(
+        agent="dlthub-platform:job-inspector",
+        loop=loop_cls.LOOP_TYPE,
+        limits={"max_turns": 5},
+        loop_run_args={"extra": 1},
+    )
+    async def inspector(failed_run_id: str = dlt.config.value, run_context: Any = None) -> Any:
+        pass
+
+    loop = build_agent_loop(inspector, workspace.run_dir)
+
+    assert loop.settings["max_turns"] == 5
+    assert loop.settings["max_tokens"] == 1000000
+    assert loop.settings["loop_run_args"] == {"retries": 1, "extra": 1}
+    # the agent definition keeps its own defaults; the job's settings are layered at run time
+    assert loop.spec["defaults"] == _spec(workspace.run_dir)["defaults"]
+
+
+def test_instructions_resolve_like_the_model(workspace: Any, loop_cls: Type[AgentLoop]) -> None:
+    """The user turn comes from the decorator, then configuration, then the run itself."""
+    spec = _spec(workspace.run_dir)
+
+    # nobody said anything: the system prompt speaks alone and the run still opens
+    settings = resolve_agent_settings(spec, _config(), {}, loop_cls, workspace.run_dir)
+    assert settings["instructions"] is None
+    assert loop_cls(settings).user_turn == DEFAULT_USER_TURN
+
+    settings = resolve_agent_settings(
+        spec,
+        _config(instructions="focus on the loader step"),
+        {"instructions": "explain the failure"},
+        loop_cls,
+        workspace.run_dir,
+    )
+    assert loop_cls(settings).user_turn == "focus on the loader step"
+
+    # and a direct call overrides both
+    loop = loop_cls(settings)
+    loop.resolve_run(instructions="just list the failed jobs")
+    assert loop.user_turn == "just list the failed jobs"
+
+
+@pytest.mark.parametrize(
+    "model,provider,expected",
+    [
+        ("sonnet", "anthropic", "anthropic:claude-sonnet-5"),
+        ("gpt", "anthropic", "openai:gpt-5.5"),
+        ("claude-opus-5", "anthropic", "anthropic:claude-opus-5"),
+        ("openai:gpt-5.4-mini", "anthropic", "openai:gpt-5.4-mini"),
+        ("gateway/openai:gpt-5.5", "anthropic", "gateway/openai:gpt-5.5"),
+        ("mock-model", "", "mock-model"),
+    ],
+    ids=["alias", "other-provider-alias", "bare", "qualified", "gateway", "no-provider"],
+)
+def test_model_id_is_provider_qualified(
+    workspace: Any, loop_cls: Type[AgentLoop], model: str, provider: str, expected: str
+) -> None:
+    """dlt names models as pydantic-ai does; a loop qualifies a bare name with its own provider."""
+    spec = _spec(workspace.run_dir)
+    settings = resolve_agent_settings(spec, _config(model=model), {}, loop_cls, workspace.run_dir)
+    loop = type("Loop", (loop_cls,), {"DEFAULT_PROVIDER": provider})(settings)
+
+    assert loop.model_id() == expected
+
+
+@pytest.mark.parametrize(
+    "model,expected",
+    [
+        ("anthropic:claude-sonnet-5", ("anthropic", "claude-sonnet-5")),
+        ("gateway/openai:gpt-5.5", ("gateway/openai", "gpt-5.5")),
+        ("mock-model", ("", "mock-model")),
+    ],
+    ids=["qualified", "gateway", "bare"],
+)
+def test_split_model_id(model: str, expected: Tuple[str, str]) -> None:
+    assert split_model_id(model) == expected
+
+
+@pytest.mark.parametrize("user_field", ["MODEL", "API_KEY", "API_URL", "API_VERSION"])
+def test_the_endpoint_is_one_set_and_any_user_field_replaces_all_of_it(user_field: str) -> None:
+    """A model id belongs to the endpoint that serves it, so a run never mixes the two sets."""
+    # the runtime set sits on the workspace-wide section, which every job falls back to
+    os.environ["AGENT__RUNTIME_MODEL"] = "runtime-model"
+    os.environ["AGENT__RUNTIME_API_KEY"] = "runtime-key"
+    os.environ["AGENT__RUNTIME_API_URL"] = "https://runtime.example"
+    os.environ["AGENT__RUNTIME_API_VERSION"] = "2024-02-01"
+    config = _resolve_agent_config()
+
+    assert config.endpoint_source == "runtime"
+    assert (
+        config.effective_model,
+        config.effective_api_key,
+        config.effective_api_url,
+        config.effective_api_version,
+    ) == ("runtime-model", "runtime-key", "https://runtime.example", "2024-02-01")
+
+    # one user field on the job's own section takes the whole set with it, the runtime model included
+    os.environ[f"JOBS__OPS__INSPECTOR__AGENT__{user_field}"] = "user-value"
+    config = _resolve_agent_config()
+
+    assert config.endpoint_source == "user"
+    effective = {
+        "MODEL": config.effective_model,
+        "API_KEY": config.effective_api_key,
+        "API_URL": config.effective_api_url,
+        "API_VERSION": config.effective_api_version,
+    }
+    assert effective.pop(user_field) == "user-value"
+    assert set(effective.values()) == {None}
+    # the runtime values stay readable rather than being overwritten
+    assert config.runtime_model == "runtime-model"
+    assert config.runtime_api_key == "runtime-key"
+
+
+def test_a_user_key_leaves_the_runtime_model_out_of_the_run(loop_cls: Type[AgentLoop]) -> None:
+    """The user's endpoint does not serve the runtime's model id, so the agent's own model runs."""
+    spec = _bare_spec(defaults={"model": "declared-model"})
+    runtime = _config(
+        runtime_model="runtime-model",
+        runtime_api_key="runtime-key",
+        runtime_api_version="2024-02-01",
+    )
+    settings = resolve_agent_settings(spec, runtime, {}, loop_cls, "/ws")
+    assert (settings["model"], settings["api_key"]) == ("runtime-model", "runtime-key")
+    assert settings["api_version"] == "2024-02-01"
+
+    with_user_key = _config(
+        runtime_model="runtime-model",
+        runtime_api_key="runtime-key",
+        runtime_api_version="2024-02-01",
+        api_key="user-key",
+        api_version="2024-10-21",
+    )
+    settings = resolve_agent_settings(spec, with_user_key, {}, loop_cls, "/ws")
+    assert (settings["model"], settings["api_key"]) == ("declared-model", "user-key")
+    # the version follows the key, and both values stay readable side by side
+    assert settings["api_version"] == "2024-10-21"
+    assert with_user_key.runtime_api_version == "2024-02-01"
+
+
+def test_a_loop_run_from_settings_to_trace(
+    workspace: Any,
+    loop_cls: Type[AgentLoop],
+    caplog: pytest.LogCaptureFixture,
+    dlt_logger_name: str,
+) -> None:
+    """One loop through its life: built from settings, given the definition, run, and run again."""
+    spec = _spec(workspace.run_dir)
+    settings = resolve_agent_settings(
+        spec, _config(api_key="user-key"), {}, loop_cls, workspace.run_dir
+    )
+    loop = loop_cls(settings)
+    loop.agent_ref = "dlthub-platform:job-inspector"
+    loop.agent_file = ".claude/dlthub/agents/dlthub-platform/job-inspector/AGENT.md"
+    # nothing is recorded and nothing is built until a run supplies its arguments
+    with pytest.raises(AgentTraceNotAvailable):
+        loop.trace
+    loop.init(spec)
+    assert loop.native is None
+
+    with caplog.at_level(logging.INFO, logger=dlt_logger_name):
+        loop.resolve_run()
+    assert any("on the user endpoint" in r.getMessage() for r in caplog.records)
+
+    asyncio.run(loop.run(inputs={"failed_job_ref": "jobs.batch.ingest"}))
+    assert loop.native == "mock-native:anthropic:claude-sonnet-5"
+    trace = loop.trace
+    assert trace["agent"] == "dlthub-platform:job-inspector"
+    assert trace["agent_file"] == ".claude/dlthub/agents/dlthub-platform/job-inspector/AGENT.md"
+    assert trace["loop_type"] == loop_cls.LOOP_TYPE
+    assert trace["model"] == "anthropic:claude-sonnet-5"
+    assert trace["limits"] == {"max_turns": 30, "max_tokens": 1000000}
+    assert trace["loop_run_args"] == {"retries": 1}
+    assert trace["inputs"] == {"failed_job_ref": "jobs.batch.ingest"}
+    assert trace["mcp_features"] == ["telemetry"]
+    # the mock wires no local tool, whatever the declaration asks for
+    assert trace["local_tools"] == {}
+
+    # `run` takes the runtime and rebuilds the native object; one limit overridden leaves the
+    # other where the declaration put it
+    asyncio.run(
+        loop.run(inputs={}, model="haiku", limits={"max_turns": 3}, instructions="be brief")
+    )
+    assert loop.native == "mock-native:anthropic:claude-haiku-4-5"
+    assert loop.user_turn == "be brief"
+    assert loop.trace["instructions"] == "be brief"
+    assert loop.trace["limits"] == {"max_turns": 3, "max_tokens": 1000000}
+
+    # the beacon swallows serialization errors, so one exotic input must not drop the run
+    asyncio.run(loop.run(inputs={"handle": object(), "nested": {"fn": lambda: None}}))
+    json.dumps(loop.trace)
+    assert loop.trace["inputs"]["handle"].startswith("<object object")
+
+    # finishing names the tools the run used, in the log and in the console event
+    events: List[Dict[str, Any]] = []
+    native: Any = loop
+    native.emit = lambda kind, **fields: events.append({"kind": kind, **fields})
+    with caplog.at_level(logging.INFO, logger=dlt_logger_name):
+        loop.emit_run_finished("succeeded")
+        loop.trace["tools_used"] = ["read_file"]
+        loop.trace["mcp_tools_used"] = ["list_runs", "get_logs"]
+        loop.emit_run_finished("succeeded")
+    messages = [r.getMessage() for r in caplog.records]
+    assert any("finished in 3 turns and 165 tokens, using no tools" in m for m in messages)
+    assert any("using tools: read_file; mcp tools: list_runs, get_logs" in m for m in messages)
+    assert events[-1]["tools"] == ["read_file"]
+    assert events[-1]["mcp_tools"] == ["list_runs", "get_logs"]
+
+    # the base counts every turn, so `max_tokens` means the same on any framework: the mock
+    # counts three turns of 55 tokens, and the second one passes a limit of 100
+    with pytest.raises(AgentTokenLimitExceeded, match="used 110 tokens, over its limit of 100"):
+        asyncio.run(
+            loop.run(inputs={"failed_job_ref": "jobs.b.ingest"}, limits={"max_tokens": 100})
+        )
+    assert loop.tokens_used == 110
+
+    # a signal the launcher intercepted stops the run at the next turn, before it is counted
+    signals.set_received_signal(signal.SIGTERM)
+    try:
+        with pytest.raises(SignalReceivedException):
+            asyncio.run(loop.run(inputs={"failed_job_ref": "jobs.b.ingest"}))
+    finally:
+        signals._clear_signals()
+    assert loop.tokens_used == 0
+
+
+def test_loops_wire_only_what_the_agent_declares(workspace: Any) -> None:
+    """Without `access` no local tool and nothing granted; without `tools` no server."""
+
+    for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
+        loop = _loop(workspace, loop_cls, access={})
+        assert loop.spec["tools"]
+        assert loop.local_tools() == {}, loop_cls.LOOP_TYPE
+        if isinstance(loop, PydanticAILoop):
+            args = loop._build_toolsets()[0].client.transport.args
+        else:
+            options = cast(ClaudeAgentSdkLoop, loop)._build_options("system")
+            args = options.mcp_servers[MCP_SERVER_ID]["args"]
+        # the server still serves the tools that require nothing, such as the toolkit catalogue
+        assert args[args.index("--access") + 1] == "local:,data:,context:", loop_cls.LOOP_TYPE
+
+        # `tools` is the whole request: nothing declared, nothing spawned
+        loop = _loop(workspace, loop_cls, tools=[], access={"local": ["read"]})
+        if isinstance(loop, PydanticAILoop):
+            assert loop._build_toolsets() == []
+        else:
+            options = cast(ClaudeAgentSdkLoop, loop)._build_options("system")
+            assert options.mcp_servers == {}
+            assert MCP_TOOL_PATTERN not in options.allowed_tools
+
+
+def test_loops_serve_the_workspace_mcp_server(workspace: Any) -> None:
+    """Each loop spawns the workspace server itself, for the feature groups the agent declared."""
+
+    for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
+        loop = _loop(workspace, loop_cls, access={"local": ["read"]}, tools=["telemetry"])
+        if isinstance(loop, PydanticAILoop):
+            transport = loop._build_toolsets()[0].client.transport
+            args, env = transport.args, transport.env
+            assert transport.cwd == workspace.run_dir
+        else:
+            options = cast(ClaudeAgentSdkLoop, loop)._build_options("system")
+            server = options.mcp_servers[MCP_SERVER_ID]
+            args, env = server["args"], server["env"]
+        assert args[:4] == ["ai", "mcp", "run", "--stdio"], loop_cls.LOOP_TYPE
+        # the agent gets the feature group it declared and none of the interactive defaults
+        assert "--no-default-features" in args, loop_cls.LOOP_TYPE
+        assert args[-2:] == ["--features", "telemetry"], loop_cls.LOOP_TYPE
+        assert "secrets" not in args, loop_cls.LOOP_TYPE
+        assert env["FASTMCP_SHOW_SERVER_BANNER"] == "false", loop_cls.LOOP_TYPE
+        # the server reads the profile the launcher exported
+        assert "WORKSPACE__PROFILE" in env or os.environ.get("WORKSPACE__PROFILE") is None
+
+    # project settings are read for the skills, never for servers: the project's own `.mcp.json`
+    # stays out, and the workspace server's tools ride along on `allowed_tools`
+    assert options.setting_sources == ["project"]
+    assert options.strict_mcp_config is True
+    assert MCP_TOOL_PATTERN in options.allowed_tools
+
+
+def test_loops_hand_entity_types_to_the_model_as_comments(workspace: Any) -> None:
+    """The Claude CLI validates the output schema strictly, so dlt's keyword travels as `$comment`."""
+
+    output = _spec(workspace.run_dir)["output"]
+    output["properties"]["classification"]["entity_type"] = "job"
+    for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
+        loop = _loop(workspace, loop_cls, config=_config(api_key="sk-test"), output=output)
+        if isinstance(loop, PydanticAILoop):
+            agent_spec = loop._agent_spec_dict(loop._build_model())
+            schemas = [agent_spec["deps_schema"], agent_spec["output_schema"]]
+            assert schemas[0]["properties"]["failed_run_id"]["$comment"] == "entity_type: job-runs"
+        else:
+            options = cast(ClaudeAgentSdkLoop, loop)._build_options("system")
+            schemas = [options.output_format["schema"]]
+        assert '"entity_type"' not in json.dumps(schemas), loop_cls.LOOP_TYPE
+        assert schemas[-1]["properties"]["classification"]["$comment"] == "entity_type: job"
+        # the manifest schema keeps the keyword
+        assert loop.spec["inputs"]["properties"]["failed_run_id"]["entity_type"] == "job-runs"
+
+
+@pytest.mark.parametrize(
+    "required,placeholder,warned",
+    [
+        ({}, "failed_job_ref", []),
+        (["failed_job_ref"], "failed_job_ref", ["failed_job_ref"]),
+        ({}, "failed_jobref", ["failed_jobref"]),
+    ],
+    ids=["optional-unset", "required-missing", "undeclared"],
+)
+def test_only_a_blank_that_may_not_be_blank_warns(
+    workspace: Any,
+    caplog: pytest.LogCaptureFixture,
+    dlt_logger_name: str,
+    required: Any,
+    placeholder: str,
+    warned: List[str],
+) -> None:
+    """An optional input left unset renders blank in silence; a typo or a missing required one warns."""
+    loop = _loop(workspace, PydanticAILoop)
+    loop.spec["inputs"]["required"] = required
+    loop._system_prompt = f"Inspect '{{{{ {placeholder} }}}}' from `{{{{ run_context.trigger }}}}`."
+    loop._prompt_appendix = []
+
+    with caplog.at_level(logging.WARNING, logger=dlt_logger_name):
+        rendered = loop.render_system_prompt({"run_context": {"trigger": "job.fail:*"}})
+
+    assert rendered == "Inspect '' from `job.fail:*`."
+    assert loop._unresolved_placeholders == warned
+    assert ("unresolved placeholders" in caplog.text) == bool(warned)
+
+
+def test_both_loops_render_the_body_and_keep_the_turn_out_of_it(workspace: Any) -> None:
+    """The system prompt is the rendered body plus what the loop inlines; the turn stays a turn."""
+
+    inputs = {"failed_run_id": "r-77", "run_context": {"trigger": "job.fail:*"}}
+    for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
+        loop = _loop(workspace, loop_cls, config=_config(instructions="focus on the loader step"))
+        rendered = loop.render_system_prompt(inputs)
+
+        assert "with failed run id 'r-77'" in rendered, loop_cls.LOOP_TYPE
+        # the rule the agent declared is inlined next to the body
+        assert "Resource changes are proposals" in rendered, loop_cls.LOOP_TYPE
+        assert "focus on the loader step" not in rendered, loop_cls.LOOP_TYPE
+        assert loop.user_turn == "focus on the loader step", loop_cls.LOOP_TYPE
+        assert loop._unresolved_placeholders == [], loop_cls.LOOP_TYPE
+
+
+@pytest.mark.parametrize(
+    "loop_cls", [PydanticAILoop, ClaudeAgentSdkLoop], ids=["pydantic", "claude"]
+)
+def test_inlined_rules_are_not_rendered(workspace: Any, loop_cls: Type[AgentLoop]) -> None:
+    """Placeholders belong to the body: a rule's own `{{ }}` (ie. Jinja) reaches the model as is."""
+    rule = os.path.join(workspace.run_dir, ".claude", "rules", "dbt-models.md")
+    with open(rule, "w", encoding="utf-8") as f:
+        f.write("Reference a model as {{ ref('orders') }} and a variable as {{ var }}.\n")
+    loop = _loop(workspace, loop_cls, rules=[".claude/rules/dbt-models.md"])
+
+    inputs = {"failed_run_id": "r-77", "run_context": {"trigger": "manual:"}}
+    rendered = loop.render_system_prompt(inputs)
+
+    assert "with failed run id 'r-77'" in rendered
+    assert "{{ ref('orders') }} and a variable as {{ var }}." in rendered
+    assert loop._unresolved_placeholders == []
+    # the claude loop hands the framework what it rendered; the pydantic one has its own test
+    if loop_cls is ClaudeAgentSdkLoop:
+        assert cast(Any, loop)._build_options(rendered).system_prompt == rendered
+
+
+def test_loops_name_the_workspace_and_the_temp_folder(workspace: Any) -> None:
+    """The tools' descriptions stay generic, so the prompt says which folders they mean."""
+
+    for loop_cls in (PydanticAILoop, ClaudeAgentSdkLoop):
+        loop = _loop(workspace, loop_cls)
+        prompt = loop.render_system_prompt({})
+        # both folders as posix paths, whatever the platform
+        assert Path(workspace.run_dir).resolve().as_posix() in prompt, loop_cls.LOOP_TYPE
+        assert temp_dir().as_posix() in prompt, loop_cls.LOOP_TYPE
+    # the CLI's file tools stop at the working directory unless the temp folder is added
+    assert cast(Any, loop)._build_options("system").add_dirs == [str(temp_dir())]
+
+
+def test_pydantic_loop_stops_at_the_token_limit(workspace: Any) -> None:
+    """A real run: the check sits in the event handler, and its raise ends the agent run."""
+
+    # local read tools give TestModel something to call, so the run takes more than one turn
+    loop = _loop(workspace, PydanticAILoop, access={"local": ["read"]})
+    native: Any = loop
+    native._build_model = lambda: TestModel()
+    native._build_toolsets = lambda: []
+
+    with pytest.raises(AgentTokenLimitExceeded, match="over its limit of 1"):
+        asyncio.run(
+            loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}, limits={"max_tokens": 1})
+        )
+    assert loop.tokens_used > 1
+
+
+def test_pydantic_loop_reports_each_turn_once_and_stops_at_max_turns(workspace: Any) -> None:
+    loop = _loop(workspace, PydanticAILoop, access={"local": ["read"]})
+    native: Any = loop
+    native._build_model = lambda: TestModel()
+    native._build_toolsets = lambda: []
+    turns: List[int] = []
+    native.emit = lambda kind, **fields: turns.append(fields["turn"]) if kind == "turn" else None
+    inputs = {"failed_run_id": "r-1", "run_context": {}}
+
+    # the handler runs for a turn's model response and again for its tool calls
+    asyncio.run(loop.run(inputs=inputs))
+    assert loop.trace["turn_count"] > 1
+    assert turns == list(range(1, loop.trace["turn_count"] + 1))
+
+    # the framework's request limit is `max_turns`, and ends the run like the other loop's
+    with pytest.raises(AgentRunFailed, match="In dlt that limit is `max_turns`"):
+        asyncio.run(loop.run(inputs=inputs, limits={"max_turns": 1}))
+
+
+class _Usage:
+    requests = 2
+    input_tokens = 10
+    output_tokens = 5
+    total_tokens = 15
+
+
+@pytest.mark.parametrize("usage_is_callable", [False, True], ids=["property", "method"])
+def test_pydantic_loop_reads_usage_either_way(workspace: Any, usage_is_callable: bool) -> None:
+    """`usage` is a property from pydantic-ai 2.36 on; calling it as a method killed the run."""
+
+    class _Result:
+        usage = (lambda self: _Usage()) if usage_is_callable else _Usage()
+
+        def all_messages(self) -> List[Any]:
+            return []
+
+    trace = _loop(workspace, PydanticAILoop)._build_trace({}, _Result())
+
+    assert trace["turn_count"] == 2
+    assert (trace["input_tokens"], trace["output_tokens"], trace["total_tokens"]) == (10, 5, 15)
+
+
+def test_pydantic_trace_tells_mcp_tools_from_local_ones(workspace: Any) -> None:
+    """Tools the loop did not build are traced as MCP tools, each listed once in first-use order."""
+
+    class _Result:
+        usage = _Usage()
+
+        def all_messages(self) -> List[Any]:
+            return [
+                ModelResponse(
+                    parts=[
+                        ToolCallPart(tool_name="Read", args={"path": "x"}),
+                        ToolCallPart(tool_name="list_toolkits", args={}),
+                    ]
+                ),
+                ModelResponse(
+                    parts=[
+                        ToolCallPart(tool_name="Grep", args={"pattern": "x"}),
+                        ToolCallPart(tool_name="Read", args={"path": "y"}),
+                        ToolCallPart(tool_name="toolkit_info", args={"name": "t"}),
+                        ToolCallPart(tool_name="list_toolkits", args={}),
+                        # the answer is not a tool the agent used
+                        ToolCallPart(tool_name="final_result", args={}),
+                    ]
+                ),
+            ]
+
+    loop = _loop(workspace, PydanticAILoop, access=TWorkspaceAccess(local=["read"]))
+    loop._build_tools()
+    trace = loop._build_trace({}, _Result())
+
+    assert trace["turns"][0]["tools"] == [
+        {"name": "Read", "kind": "builtin"},
+        {"name": "list_toolkits", "kind": "mcp", "server": "dlt-workspace-mcp"},
+    ]
+    assert [use["name"] for use in trace["turns"][1]["tools"]] == [
+        "Grep",
+        "Read",
+        "toolkit_info",
+        "list_toolkits",
+    ]
+    assert trace["tools_used"] == ["Read", "Grep"]
+    assert trace["mcp_tools_used"] == ["list_toolkits", "toolkit_info"]
+
+
+def test_pydantic_loop_reports_what_the_agent_does(
+    workspace: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    loop = _loop(workspace, PydanticAILoop)
+    # the handler reads the run's usage on entry; nothing was used yet
+    ctx = SimpleNamespace(usage=RunUsage())
+
+    async def _drive() -> None:
+        async def events() -> Any:
+            yield PartEndEvent(index=0, part=ThinkingPart(content="weighing the options"))
+            yield PartEndEvent(index=1, part=TextPart(content="here is the answer"))
+            yield PartEndEvent(index=2, part=ToolCallPart(tool_name="list_runs", args={"n": 3}))
+            yield FunctionToolResultEvent(
+                part=ToolReturnPart(tool_name="list_runs", content="r-1 failed", tool_call_id="1")
+            )
+            # the answer arrives as a call to pydantic-ai's output tool
+            yield PartEndEvent(
+                index=3,
+                part=ToolCallPart(
+                    tool_name="final_result", args={"summary": "r-1 ran out of memory"}
+                ),
+            )
+            yield FunctionToolResultEvent(
+                part=ToolReturnPart(
+                    tool_name="final_result", content="Final result processed.", tool_call_id="2"
+                )
+            )
+
+        await loop._emit_events(ctx, events())
+
+    loop.emit_run_start("inspect the failed run")
+    asyncio.run(_drive())
+
+    # the transcript goes to stdout, terminal or not; colors are stripped to match the text
+    out = capsys.readouterr().out
+    assert "job-inspector" in out and "anthropic:claude-sonnet-5" in out
+    assert "📝 prompt\n  inspect the failed run" in out
+    assert "💭 thinks  weighing the options" in out
+    assert "💬\n  here is the answer" in out
+    assert '🌐 list_runs (dlt-workspace-mcp)  {"n":3}' in out
+    # the result lives on the part; reporting `event.content` showed nothing
+    assert "✅ r-1 failed" in out
+    # the answer is the agent speaking, not a tool call to an MCP server it never made
+    assert "💬\n  r-1 ran out of memory" in out
+    assert "final_result" not in out
+
+
+def test_pydantic_loop_reports_a_tool_it_could_not_get_past(workspace: Any) -> None:
+    """A tool that keeps failing ends the run: say which one, and where the limit lives."""
+
+    loop = _loop(workspace, PydanticAILoop)
+
+    class _Failing:
+        async def __aenter__(self) -> Any:
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def run(self, *args: Any, **kwargs: Any) -> Any:
+            raise UnexpectedModelBehavior("Tool 'list_recent_runs' exceeded max retries count of 1")
+
+    loop._build_agent = lambda *args: _Failing()  # type: ignore[method-assign]
+
+    with pytest.raises(AgentRunFailed) as failed:
+        asyncio.run(loop.run(inputs={}))
+
+    said = str(failed.value)
+    assert "list_recent_runs" in said
+    assert "loop_run_args.retries" in said
+
+
+def test_system_prompt_is_shown_in_full_at_the_top_verbosity(
+    workspace: Any, capsys: pytest.CaptureFixture[str]
+) -> None:
+    """The prompt is what the agent actually got: too long for every run, too useful to drop."""
+    loop = _loop(workspace, PydanticAILoop)
+    loop._system_prompt = "RULE " * 400
+
+    loop.settings["verbosity"] = 1
+    loop.render_system_prompt({})
+    assert "system prompt" not in capsys.readouterr().out
+
+    loop.settings["verbosity"] = 2
+    loop.render_system_prompt({})
+    out = capsys.readouterr().out
+    assert "system prompt\n  RULE RULE" in out
+    assert out.count("RULE") == 400
+
+
+def test_pydantic_loop_hands_the_prompt_over_verbatim(workspace: Any) -> None:
+    """The rendered system prompt reaches the model verbatim, `{{ }}` included."""
+
+    # dlt blanks its own `{{ name }}`; a call is not its grammar, and must survive untouched
+    body = _spec(workspace.run_dir)["system_prompt"]
+    body += "\n\nAn example the agent must still see: {{helper(x)}}."
+    # native capabilities are anthropic's, and TestModel refuses them
+    loop = _loop(workspace, PydanticAILoop, system_prompt=body, access={"data": ["read"]})
+    rendered = loop.render_system_prompt({"failed_run_id": "r-77", "run_context": {}})
+
+    native: Any = loop
+    native._build_model = lambda: TestModel()
+    native._build_toolsets = lambda: []
+    # pydantic-ai renders `AgentSpec.instructions` as a template when `deps_schema` is set
+    agent = native._build_agent(rendered)
+    with capture_run_messages() as messages:
+        asyncio.run(agent.run("go", deps={"failed_run_id": "r-77"}))
+
+    assert "{{helper(x)}}" in rendered
+    assert cast(Any, messages[0]).instructions == rendered
+
+
+@pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
+def test_tool_errors_follow_the_retry_budget(workspace: Any, tmp_path: Path, retries: int) -> None:
+    """0 hands a tool error to the model as a failed call; above it pydantic-ai asks for a fix."""
+
+    # the spec's own default is 1, the decorator argument is what the run gets
+    loop = _loop(
+        workspace,
+        PydanticAILoop,
+        config=_config(api_key="sk-test"),
+        decorator_args={"loop_run_args": {"retries": retries}},
+    )
+
+    assert loop.tool_retries == retries
+    assert loop._build_toolsets()[0].tool_error_behavior == ("retry" if retries else "failed")
+    # tools get the turn limit, so running out of retries cannot end the run; the answer keeps
+    # the declared budget, or pydantic-ai's default of 1
+    assert loop._agent_spec_dict(loop._build_model()).get("retries") == {
+        "tools": loop.settings["max_turns"] or UNBOUNDED_RETRIES,
+        "output": retries or 1,
+    }
+    # the same tool error reaches pydantic-ai as a retry or as a failed call
+    tools = {t.name: t for t in make_local_tools(LocalTools(str(tmp_path)), {"read"}, retries)}
+    with pytest.raises(ToolFailed if retries == 0 else ModelRetry, match="does not exist"):
+        tools["Read"].function("missing.txt")
+
+
+def test_pydantic_loop_hands_a_failed_tool_call_to_the_model(workspace: Any) -> None:
+    """A real run without a budget: the missing file comes back as a result, and the run goes on."""
+
+    loop = _loop(
+        workspace,
+        PydanticAILoop,
+        decorator_args={"loop_run_args": {"retries": 0}},
+        access={"local": ["read"]},
+    )
+    native: Any = loop
+    native._build_model = lambda: TestModel()
+    native._build_toolsets = lambda: []
+    events: List[Dict[str, Any]] = []
+    emit = loop.emit
+
+    def recording(kind: Any, **fields: Any) -> None:
+        events.append({"kind": kind, **fields})
+        emit(kind, **fields)
+
+    native.emit = recording
+
+    # TestModel calls Read with a made-up path, which is the failure the model must get to see
+    output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    assert isinstance(output, dict)
+    failed = [e for e in events if e["kind"] == "tool_result" and e.get("error")]
+    assert failed and "does not exist" in str(failed[0]["detail"])
+    assert events[-1]["kind"] == "finish"
+
+
+def _scripted_loop(workspace: Any, retries: int, turns: List[Any]) -> PydanticAILoop:
+    """A loop on a model that streams the scripted tool calls, one per turn, then answers."""
+    loop = _loop(
+        workspace,
+        PydanticAILoop,
+        decorator_args={"loop_run_args": {"retries": retries}},
+        access={"local": ["read"]},
+    )
+    script = iter(turns)
+
+    async def model(messages: Any, info: Any) -> Any:
+        name, json_args = next(
+            script,
+            (OUTPUT_TOOL_NAME, json.dumps({"status": "succeeded", "summary": "found it"})),
+        )
+        yield {0: DeltaToolCall(name=name, json_args=json_args)}
+
+    native: Any = loop
+    native._build_model = lambda: FunctionModel(stream_function=model)
+    native._build_toolsets = lambda: []
+    return loop
+
+
+def _tool_parts(messages: Any) -> Tuple[List[Any], List[Any]]:
+    """The retry requests and the failed results the model got, in order."""
+    parts = [part for message in messages for part in message.parts]
+    retries = [p for p in parts if isinstance(p, RetryPromptPart)]
+    failed = [p for p in parts if isinstance(p, ToolReturnPart) and p.outcome == "failed"]
+    return retries, failed
+
+
+@pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
+def test_a_malformed_tool_call_never_ends_the_run(workspace: Any, retries: int) -> None:
+    """Truncated JSON is retried within the budget, then fails the call: the run goes on."""
+    # the model runs out of output tokens inside the arguments, three turns in a row
+    truncated = ("Glob", '{"pattern": "**/*.p')
+    loop = _scripted_loop(workspace, retries, [truncated] * 3 + [("Glob", '{"pattern": "*.md"}')])
+
+    with capture_run_messages() as messages:
+        output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    assert output["status"] == "succeeded"
+    assert loop.trace["turn_count"] == 5
+    retried, failed = _tool_parts(messages)
+    assert len(retried) == retries
+    assert len(failed) == 3 - retries
+    assert "Glob failed" in failed[0].content and "Invalid JSON" in failed[0].content
+    if retries:
+        assert "after 2 retries" in failed[0].content
+
+
+@pytest.mark.parametrize(
+    "answer",
+    ['{"status": "succ', json.dumps({"status": "unknown", "extra": 1})],
+    ids=["truncated", "against-schema"],
+)
+@pytest.mark.parametrize("retries", [0, 2], ids=["no-budget", "budget"])
+def test_invalid_structured_output_keeps_its_own_budget(
+    workspace: Any, retries: int, answer: str
+) -> None:
+    """Structured output that fails to parse or to match the output schema is retried once, or
+    `retries` times, then ends the run."""
+    invalid = (OUTPUT_TOOL_NAME, answer)
+    budget = retries or 1
+    loop = _scripted_loop(workspace, retries, [invalid] * (budget + 1))
+
+    with pytest.raises(AgentRunFailed, match=rf"output retries \({budget}\)"):
+        asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    # one fewer invalid structured output is retried, and the run finishes
+    loop = _scripted_loop(workspace, retries, [invalid] * budget)
+    with capture_run_messages() as messages:
+        output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+    assert output["status"] == "succeeded"
+    retried, _ = _tool_parts(messages)
+    if answer.startswith('{"status": "unknown"'):
+        # the model hears every violation at once
+        said = str(retried[0].content)
+        assert "$.status: 'unknown' is not one of" in said
+        assert "'summary' is a required property" in said
+
+
+def test_a_tool_error_past_the_budget_fails_the_call(workspace: Any) -> None:
+    """The model may retry a failing call once, then the failure is what it gets back."""
+    missing = ("Read", json.dumps({"path": "missing.txt"}))
+    loop = _scripted_loop(workspace, 1, [missing, missing])
+
+    with capture_run_messages() as messages:
+        output = asyncio.run(loop.run(inputs={"failed_run_id": "r-1", "run_context": {}}))
+
+    assert output["status"] == "succeeded"
+    retried, failed = _tool_parts(messages)
+    assert len(retried) == 1 and len(failed) == 1
+    assert "Read failed after 1 retry" in failed[0].content
+    assert "does not exist" in failed[0].content
+
+
+@pytest.mark.parametrize(
+    "local_access,expected",
+    [
+        (["read"], ["Read", "Glob", "Grep"]),
+        (["read", "write"], ["Read", "Glob", "Grep", "Write", "Edit"]),
+        (["execute"], [SHELL_TOOL, "RunPython"]),
+        (["all"], ["Read", "Glob", "Grep", "Write", "Edit", SHELL_TOOL, "RunPython"]),
+        ([], []),
+        # the provider runs the network tools itself, so no function is registered
+        (["network"], []),
+    ],
+    ids=["read", "read-write", "execute", "all", "none", "network"],
+)
+def test_pydantic_loop_local_tools_follow_access(
+    workspace: Any, local_access: List[str], expected: List[str]
+) -> None:
+    """Both loops answer a verb with the same tool names, whatever implements them."""
+    loop = _loop(workspace, PydanticAILoop, access=TWorkspaceAccess(local=cast(Any, local_access)))
+    assert [tool.name for tool in loop._build_tools()] == expected
+
+
+@pytest.mark.parametrize(
+    "model,expected_system",
+    [("sonnet", "anthropic"), ("openai:gpt-5.5", "openai"), ("gemini", "google")],
+    ids=["anthropic", "openai", "google"],
+)
+def test_pydantic_loop_builds_any_provider(
+    workspace: Any, model: str, expected_system: str
+) -> None:
+    """One key and url reach whichever provider the model names."""
+
+    loop = _loop(workspace, PydanticAILoop, config=_config(model=model, api_key="sk-test"))
+    built = loop._build_model()
+
+    assert built.system == expected_system
+    assert built.model_name == split_model_id(loop.model_id())[1]
+
+
+@pytest.mark.parametrize(
+    "provider",
+    ["openai", "azure", "litellm", "anthropic", "google"],
+    ids=["base_url", "azure_endpoint", "api_base", "anthropic", "google"],
+)
+def test_api_url_reaches_the_provider_under_its_own_argument(workspace: Any, provider: str) -> None:
+    """Every provider names the endpoint its own way, and dropping it talks to the wrong host."""
+
+    loop = _loop(workspace, PydanticAILoop)
+    loop.settings["api_key"] = "sk-test"
+    loop.settings["api_url"] = "https://gateway.example.com/v1"
+
+    assert (
+        str(loop._build_provider(provider).base_url).rstrip("/") == "https://gateway.example.com/v1"
+    )
+
+
+def test_a_provider_takes_its_own_endpoint_arguments(workspace: Any) -> None:
+    """Azure versions its data plane; deepseek runs on its own platform; nobody knows `nope`."""
+
+    loop = _loop(workspace, PydanticAILoop)
+    loop.settings["api_key"] = "sk-test"
+    loop.settings["api_url"] = "https://my-resource.openai.azure.com"
+    loop.settings["api_version"] = "2024-10-21"
+    assert loop._build_provider("azure").client._custom_query == {"api-version": "2024-10-21"}
+
+    # silently ignoring `api_url` sent the run to the provider's own platform
+    with pytest.raises(UnsupportedAgentModel, match="takes no api_url"):
+        loop._build_provider("deepseek")
+
+    loop = _loop(workspace, PydanticAILoop, config=_config(model="nope:x"))
+    with pytest.raises(UnsupportedAgentModel, match="nope:x"):
+        loop._build_model()
+
+
+def test_pydantic_loop_serves_network_from_the_provider(workspace: Any) -> None:
+    """Pydantic AI ships no web tool of its own; the provider runs both web tools."""
+    loop = _loop(workspace, PydanticAILoop)
+    loop.settings["loop_run_args"] = {"capabilities": [{"Thinking": {"effort": "medium"}}]}
+    loop.settings["api_key"] = "sk-test"
+    model = loop._build_model()
+
+    loop.spec["access"] = TWorkspaceAccess(local=["read"])
+    assert loop._agent_spec_dict(model)["capabilities"] == [{"Thinking": {"effort": "medium"}}]
+
+    loop.spec["access"] = TWorkspaceAccess(local=["read", "network", "execute"])
+    # what the manifest asked for survives; the web tools are added to it, `execute` adds nothing
+    assert loop._agent_spec_dict(model)["capabilities"] == [
+        {"Thinking": {"effort": "medium"}},
+        {"WebSearch": {}},
+        {"WebFetch": {}},
+    ]
+    # the spec must pass pydantic-ai's capability registry; pydantic-ai adds native tools of
+    # its own (tool search), so the two are a subset
+    agent = loop._build_agent("prompt")
+    assert {"WebSearchTool", "WebFetchTool"} <= {type(t).__name__ for t in agent._cap_native_tools}
+    # the function tools and the provider's own, each under its verb
+    loop._build_tools()
+    assert loop.local_tools() == {
+        "Read": "read",
+        "Glob": "read",
+        "Grep": "read",
+        SHELL_TOOL: "execute",
+        "RunPython": "execute",
+        "WebFetch": "network",
+        "WebSearch": "network",
+    }
+
+
+@pytest.mark.parametrize(
+    "model_name,expected",
+    [
+        ("openai:gpt-6-sol", [{"WebSearch": {}}]),
+        ("openai-chat:gpt-6-sol", []),
+    ],
+    ids=["responses", "chat-completions"],
+)
+def test_provider_capabilities_are_dropped_when_the_model_cannot_serve_them(
+    workspace: Any, model_name: str, expected: List[Dict[str, Any]]
+) -> None:
+    """OpenAI responses search the web but fetch no URL, chat completions have no native tools"""
+
+    loop = _loop(
+        workspace,
+        PydanticAILoop,
+        config=_config(model=model_name, api_key="sk-test"),
+        access=TWorkspaceAccess(local=["network", "execute"]),
+    )
+
+    spec_dict = loop._agent_spec_dict(loop._build_model())
+    assert spec_dict.get("capabilities", []) == expected
+    # the trace names only the provider tools that were attached
+    assert {name for name, verb in loop.local_tools().items() if verb == "network"} == {
+        name for capability in expected for name in capability
+    }
+
+
+@pytest.mark.parametrize(
+    "name,tool_input,expected",
+    [
+        ("Bash", None, {"name": "Bash", "kind": "builtin"}),
+        (
+            "mcp__dlt-workspace-mcp__list_tables",
+            None,
+            {"name": "list_tables", "kind": "mcp", "server": "dlt-workspace-mcp"},
+        ),
+        # a server name is not guaranteed to be there
+        ("mcp__bare", None, {"name": "bare", "kind": "mcp"}),
+        ("Skill", {"skill": "debug-deployment"}, {"name": "debug-deployment", "kind": "skill"}),
+        # the CLI may name the skill under another key, or not at all
+        ("Skill", {"name": "profiling"}, {"name": "profiling", "kind": "skill"}),
+        ("Skill", {}, {"name": "Skill", "kind": "skill"}),
+    ],
+    ids=["builtin", "mcp", "mcp-no-server", "skill", "skill-alt-key", "skill-unnamed"],
+)
+def test_classify_tool(name: str, tool_input: Any, expected: Dict[str, Any]) -> None:
+    assert classify_tool(name, tool_input) == expected
+
+
+@pytest.mark.parametrize(
+    "local_access,expected",
+    [
+        (["read"], ["Read", "NotebookRead", "Glob", "Grep"]),
+        (["write"], ["Write", "Edit", "MultiEdit", "NotebookEdit"]),
+        # one shell per platform, as Claude Code offers it: PowerShell on Windows, bash elsewhere
+        (["execute"], list(AI_LOOP_TOOLS[SHELL_TOOL])),
+        (["network"], ["WebFetch", "WebSearch"]),
+        ([], []),
+    ],
+    ids=["read", "write", "execute", "network", "none"],
+)
+def test_claude_loop_tools_follow_access(
+    workspace: Any, local_access: List[str], expected: List[str]
+) -> None:
+    """`tools` is the availability list: no verb, no built-in, not even a denied one."""
+
+    # the Skill tool follows `skills`, not access
+    loop = _loop(
+        workspace,
+        ClaudeAgentSdkLoop,
+        access=TWorkspaceAccess(local=cast(Any, local_access)),
+        skills=[],
+    )
+    options = loop._build_options("system")
+
+    assert options.tools == expected
+    # what exists may still need approving; the MCP pattern rides along on `allowed_tools`
+    assert options.allowed_tools[: len(expected)] == expected
+    # each allowed CLI tool is listed under the verb that bought it, extensions included
+    assert loop.local_tools() == {tool: verb for verb in local_access for tool in expected}
+
+
+def test_claude_loop_lists_only_the_declared_skills(workspace: Any) -> None:
+    """The CLI lists only the declared skills, never every skill installed in the workspace."""
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop)
+    options = loop._build_options("system")
+    assert options.skills == ["debug-deployment"]
+    # the CLI lists skills only where the Skill tool exists, and `tools` is the base set
+    assert "Skill" in options.tools
+    # nothing of the skill is pasted into the prompt
+    assert loop._inlined_skills == []
+    assert "<skill" not in loop.render_system_prompt({})
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop, skills=[])
+    options = loop._build_options("system")
+    # `None` would leave the CLI defaults in place, which list every skill it can find
+    assert options.skills == []
+    assert "Skill" not in options.tools
+    assert "Skill" not in options.allowed_tools
+
+
+def test_claude_loop_keeps_the_project_rules_out(workspace: Any, tmp_path: Path) -> None:
+    """The CLI loads no project rule files on its own, but keeps CLAUDE.md."""
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop)
+    # project rule files name every skill of the workspace; the agent declares its own rules
+    assert json.loads(loop._build_options("system").settings) == {
+        "claudeMdExcludes": RULES_EXCLUDES
+    }
+    assert not any("CLAUDE" in glob for glob in RULES_EXCLUDES)
+    # settings given in run args are kept, inline or from a file, and the exclusion stays
+    given = {"claudeMdExcludes": ["**/TEAM.md"], "env": {"X": "1"}}
+    loop.settings["loop_run_args"]["settings"] = json.dumps(given)
+    merged = json.loads(loop._build_options("system").settings)
+    assert merged["env"] == {"X": "1"}
+    assert merged["claudeMdExcludes"] == [*RULES_EXCLUDES, "**/TEAM.md"]
+    settings_file = tmp_path / "settings.json"
+    settings_file.write_text(json.dumps(given), encoding="utf-8")
+    loop.settings["loop_run_args"]["settings"] = str(settings_file)
+    assert json.loads(loop._build_options("system").settings) == merged
+
+
+def test_claude_loop_denies_its_file_tools_the_credentials(workspace: Any) -> None:
+    """The CLI owns its file tools, so the only lever is a deny rule per tool."""
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop, access={"local": ["read", "write"]})
+    denied = loop._build_options("system").disallowed_tools
+
+    assert "Read(**/*secrets.toml)" in denied
+    assert "Write(**/*secrets.toml)" in denied
+    assert "Grep(**/.env)" in denied
+
+
+def test_claude_loop_takes_the_bare_anthropic_name(workspace: Any) -> None:
+    """The CLI names Anthropic models without the provider prefix, and runs nothing else."""
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop, config=_config(model="opus"))
+    assert loop._ai_loop_model() == "claude-opus-5"
+    assert loop._build_options("system").model == "claude-opus-5"
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop, config=_config(model="claude-haiku-4-5"))
+    assert loop._ai_loop_model() == "claude-haiku-4-5"
+    assert loop._build_options("system").model == "claude-haiku-4-5"
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop, config=_config(model="gpt"))
+    with pytest.raises(UnsupportedAgentModel, match="pydantic-ai"):
+        loop._ai_loop_model()
+
+
+def test_claude_loop_keeps_the_cli_stderr_for_the_failure(
+    workspace: Any,
+    caplog: pytest.LogCaptureFixture,
+    dlt_logger_name: str,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """CLI stderr is logged, not shown in the transcript, and carried by the run failure."""
+
+    loop = _loop(workspace, ClaudeAgentSdkLoop)
+    options = loop._build_options("system")
+    with caplog.at_level(logging.DEBUG, logger=dlt_logger_name):
+        options.stderr("claude.ai connectors are disabled because ANTHROPIC_API_KEY is set")
+
+    assert any("connectors are disabled" in r.getMessage() for r in caplog.records)
+    # kept for a run that ends without a result, where the CLI never says why
+    assert loop._cli_stderr[-1].endswith("ANTHROPIC_API_KEY is set")
+
+    class _DyingClient:
+        def __init__(self, options: Any) -> None:
+            # what the CLI writes before exiting reaches the loop through the stderr callback
+            options.stderr("Error: Invalid API key. Please run /login")
+
+        async def __aenter__(self) -> Any:
+            # when the CLI dies the SDK says only "check stderr"
+            raise ProcessError(
+                "Command failed with exit code 1",
+                exit_code=1,
+                stderr="Check stderr output for details",
+            )
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+    monkeypatch.setattr(claude_sdk, "ClaudeSDKClient", _DyingClient)
+    with pytest.raises(AgentRunFailed) as failed:
+        asyncio.run(loop.run(inputs={}))
+
+    said = str(failed.value)
+    assert "exit code: 1" in said
+    assert "Invalid API key" in said
+
+
+def test_claude_loop_counts_one_response_once_with_cached_input(
+    workspace: Any, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from claude_agent_sdk import AssistantMessage, ResultMessage, UserMessage
+    from claude_agent_sdk.types import TextBlock, ThinkingBlock, ToolResultBlock, ToolUseBlock
+
+    usage = {
+        "input_tokens": 10,
+        "cache_read_input_tokens": 1000,
+        "cache_creation_input_tokens": 200,
+        "output_tokens": 30,
+    }
+    tool_call = ToolUseBlock(id="t1", name="mcp__dlt-workspace-mcp__list_runs", input={})
+    # one API response streamed as one message per content block, all with its id and usage
+    first_response = [
+        AssistantMessage(content=[block], model="m", usage=usage, message_id="msg_1")
+        for block in (ThinkingBlock(thinking="hm", signature="s"), TextBlock(text="let me look"))
+    ] + [AssistantMessage(content=[tool_call], model="m", usage=usage, message_id="msg_1")]
+    messages = [
+        *first_response,
+        UserMessage(content=[ToolResultBlock(tool_use_id="t1", content="r-1 failed")]),
+        AssistantMessage(
+            content=[TextBlock(text="done")], model="m", usage=usage, message_id="msg_2"
+        ),
+        ResultMessage(
+            subtype="success",
+            duration_ms=1,
+            duration_api_ms=1,
+            is_error=False,
+            num_turns=2,
+            session_id="s",
+            usage={key: value * 2 for key, value in usage.items()},
+            structured_output={"status": "succeeded", "summary": "r-1 failed"},
+        ),
+    ]
+
+    class _ScriptedClient:
+        def __init__(self, options: Any) -> None:
+            pass
+
+        async def __aenter__(self) -> Any:
+            return self
+
+        async def __aexit__(self, *args: Any) -> None:
+            return None
+
+        async def query(self, prompt: str) -> None:
+            return None
+
+        async def receive_response(self) -> Any:
+            for message in messages:
+                yield message
+
+    monkeypatch.setattr(claude_sdk, "ClaudeSDKClient", _ScriptedClient)
+    loop = _loop(workspace, ClaudeAgentSdkLoop)
+    turns: List[int] = []
+    native: Any = loop
+    native.emit = lambda kind, **fields: turns.append(fields["turn"]) if kind == "turn" else None
+
+    asyncio.run(loop.run(inputs={}))
+
+    # two responses: two turns, each counted once, input with the cache reads and writes
+    assert turns == [1, 2]
+    assert [t["input_tokens"] for t in loop.trace["turns"]] == [1210, 1210]
+    assert loop.tokens_used == 2 * (1210 + 30)
+    assert loop.trace["turns"][0]["tools"][0]["name"] == "list_runs"
+    assert (loop.trace["input_tokens"], loop.trace["output_tokens"]) == (2420, 60)
+    assert loop.trace["total_tokens"] == loop.tokens_used

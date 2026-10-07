@@ -3,7 +3,6 @@ title: Renaming columns
 description: Renaming columns by replacing the special characters
 keywords: [renaming, columns, special characters]
 ---
-
 # Renaming columns
 
 ## Renaming columns by replacing the special characters
@@ -51,4 +50,3 @@ for row in source_instance:
 # {'Objekt_0': {'Groesse': 0, 'Aequivalenzpruefung': True}}
 # ...
 ```
-

@@ -125,8 +125,8 @@ def test_sparse_checkout(test_storage: FileStorage) -> None:
     assert repo_storage.has_folder("tools")
     # only tools present
     assert len(repo_storage.list_folder_dirs(".")) == 2  # .git tools
-    # seven files inside
-    assert len(repo_storage.list_folder_files("tools")) == 7
+    # the external repo adds tools over time, so the test asserts only that the folder has files
+    assert len(repo_storage.list_folder_files("tools")) > 0
 
     # checkout the other one
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
@@ -144,6 +144,20 @@ def test_sparse_checkout_path_not_exist_on_clone(test_storage: FileStorage) -> N
     repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="__unknown")
     assert not repo_storage.has_folder("__unknown")
     assert len(repo_storage.list_folder_dirs(".")) == 1  # .git
+
+
+def test_sparse_checkout_reclones_a_full_clone(test_storage: FileStorage) -> None:
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path)
+    assert len(repo_storage.list_folder_dirs(".")) > 2
+
+    # a full clone is replaced by a shallow, sparse one
+    repo_storage = get_fresh_repo_files(CONTEXT_REPO, test_storage.storage_path, path="workbench")
+    assert sorted(os.path.basename(d) for d in repo_storage.list_folder_dirs(".")) == [
+        ".git",
+        "workbench",
+    ]
+    with get_repo(repo_storage.storage_path) as repo:
+        assert repo.git.rev_parse("--is-shallow-repository") == "true"
 
 
 def test_fresh_repo_files_branch_change_to_default(test_storage: FileStorage) -> None:

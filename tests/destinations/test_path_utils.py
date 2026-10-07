@@ -1,3 +1,4 @@
+from datetime import datetime, timezone  # noqa: I251
 from typing import List, Tuple
 
 import pytest
@@ -9,8 +10,12 @@ from dlt.common.storages.load_package import ParsedLoadJobFileName
 
 from dlt.common.normalizers.naming import NamingConvention, direct, duck_case, snake_case, sql_cs_v1
 
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
+
 from dlt.destinations.path_utils import (
     create_path,
+    prepare_datetime_params,
     get_table_prefix_layout,
     get_unsafe_prefix_separators,
     get_file_format_and_compression,
@@ -42,6 +47,8 @@ EXTRA_PLACEHOLDERS = {
     "random_value": dummy_callback2,
 }
 
+# tz-aware: a naive value would make every `{timestamp}` expectation below depend on
+# the machine timezone, which is exactly what layout paths must never do
 frozen_datetime = pendulum.DateTime(
     year=2024,
     month=4,
@@ -50,6 +57,7 @@ frozen_datetime = pendulum.DateTime(
     minute=32,
     second=0,
     microsecond=0,
+    tzinfo=pendulum.UTC,
 )
 
 # Each layout example is a tuple of
@@ -571,6 +579,29 @@ def test_create_path_uses_provided_load_package_timestamp(test_load: TestLoad) -
     assert path.endswith(f"{timestamp}.{job_info.file_format}")
 
 
+@pytest.mark.parametrize(
+    "tz_name", [None, "UTC", "Europe/Berlin", "Asia/Kolkata"], ids=lambda tz: str(tz)
+)
+def test_datetime_params_do_not_follow_context_timezone(tz_name: str) -> None:
+    """A path renders the same in every context timezone, or one table splits across two prefixes."""
+    # 23:30 UTC is already the next day in Berlin and in Kolkata, so a leak is visible in the day
+    moment = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+
+    if tz_name is None:
+        params = prepare_datetime_params(load_package_timestamp=moment)
+    else:
+        with Container().injectable_context(TimezoneContext(tz_name)):
+            params = prepare_datetime_params(load_package_timestamp=moment)
+
+    assert params["curr_date"] == "2024-01-15"
+    assert params["YYYY"] == "2024"
+    assert params["MM"] == "01"
+    assert params["DD"] == "15"
+    assert params["HH"] == "23"
+    assert params["load_package_timestamp"] == str(int(moment.timestamp()))
+    assert params["timestamp"] == str(int(moment.timestamp()))
+
+
 def test_create_path_resolves_current_datetime(test_load: TestLoad) -> None:
     """Check the flow when the current_datetime is passed
 
@@ -670,7 +701,7 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     now_timestamp = now
     logger_spy = mocker.spy(logger, "info")
     ensure_pendulum_datetime_spy = mocker.spy(
-        dlt.destinations.path_utils, "ensure_pendulum_datetime_utc"
+        dlt.destinations.path_utils, "ensure_pendulum_datetime"
     )
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
@@ -683,7 +714,8 @@ def test_create_path_uses_load_package_timestamp_as_current_datetime(
     logger_spy.assert_called_once_with(
         "current_datetime is not set, using timestamp from load package"
     )
-    ensure_pendulum_datetime_spy.assert_called_once_with(now_timestamp)
+    # pinned to UTC, so the path never moves with the context timezone
+    ensure_pendulum_datetime_spy.assert_called_once_with(now_timestamp, timezone.utc)
 
 
 def test_create_path_resolves_extra_placeholders(test_load: TestLoad) -> None:
