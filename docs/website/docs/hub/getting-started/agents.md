@@ -5,8 +5,8 @@ keywords: [dlthub, background agents, job inspector, ai harness, dlthub-platform
 ---
 # Getting started with agents
 
-:::warning
-Background agents are in private preview.
+:::info
+Background agents are in public preview.
 :::
 
 Background agents are dltHub jobs that run an AI agent loop. They run unattended, for example after another job fails, and report a structured result next to the job run they acted on.
@@ -29,13 +29,13 @@ Set up this directory for dltHub background agents. Use `uv run` and pass
 
 1. If there is no `.dlt/.workspace` file, run `uvx dlthub-init@latest`.
 2. Add these dependencies to pyproject.toml and run `uv sync`:
-   "dlt[hub]==1.30.1a0", "dlthub[mcp]", "dlthub-client>=0.28.5",
+   "dlt[hub]==1.31.0", "dlthub[mcp]", "dlthub-client>=0.28.7",
    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0", "aiohttp>=3.14.3"
 3. Run `uv run dlthub ai toolkit install dlthub-platform --overwrite`, then
    `uv run dlthub ai status`, and fix any warnings.
-4. Declare the `job-inspector` agent in `__deployment__.py` with an explicit
-   trigger on the jobs I choose, never the default `job.fail:*`. Ask me which
-   jobs to watch, or which pipeline to build first if there are none.
+4. Declare the `job-inspector` agent in `__deployment__.py`.
+   Trigger `job-inspector` on the jobs I choose, never the default `job.fail:*`.
+   Ask me which jobs to watch, or which pipeline to build first if there are none.
 
 I'll configure the model key and endpoint myself. Never ask for them, put them
 in a command, or write them to a file.
