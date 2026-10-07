@@ -24,12 +24,17 @@ DLTHUB_PKG_NAME = "dlthub"
 DLTHUB_CLIENT_PKG_NAME = "dlthub-client"
 
 from dlt._workspace.deployment.launchers import (
+    BUILTIN_AGENT_LOOPS,
+    LAUNCHER_AGENT,
     LAUNCHER_DASHBOARD,
     LAUNCHER_JOB,
     LAUNCHER_MARIMO,
     LAUNCHER_MCP,
     LAUNCHER_MODULE,
     LAUNCHER_STREAMLIT,
+    LOOP_CLAUDE_AGENT_SDK,
+    LOOP_PYDANTIC_AI,
+    agent_loop_group,
 )
 from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
@@ -245,6 +250,8 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
     per_launcher: Dict[str, List[str]] = {
         LAUNCHER_JOB: ["botocore", "s3fs"],
         LAUNCHER_MODULE: ["botocore", "s3fs"],
+        # loop packages are per-job, so they live in `agent-loop-*` groups instead
+        LAUNCHER_AGENT: ["botocore", "s3fs"],
         LAUNCHER_MARIMO: ["marimo", "uvicorn"],
         LAUNCHER_MCP: ["fastmcp", "uvicorn"],
         LAUNCHER_STREAMLIT: ["streamlit"],
@@ -262,6 +269,24 @@ def build_dashboard_group() -> List[str]:
     return sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
 
 
+_AGENT_LOOP_SPECS: Dict[str, List[str]] = {
+    LOOP_PYDANTIC_AI: ["pydantic-ai-slim[anthropic,openai,google,mcp,spec]"],
+    LOOP_CLAUDE_AGENT_SDK: ["claude-agent-sdk"],
+}
+
+
+def build_agent_loop_groups() -> Dict[str, List[str]]:
+    """Specs for each built-in agent loop, keyed by its requirements group name."""
+    return {agent_loop_group(loop): sorted(_AGENT_LOOP_SPECS[loop]) for loop in BUILTIN_AGENT_LOOPS}
+
+
+def _add_agent_loop_groups(groups: Dict[str, List[str]], default_names: Set[str]) -> None:
+    """Adds the built-in loop groups, leaving a group the workspace already declares alone."""
+    for name, specs in build_agent_loop_groups().items():
+        if name not in groups:
+            groups[name] = _prune_specs(specs, default_names)
+
+
 def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
     dlt_spec = get_dlt_requirement_spec()
     for launcher in launcher_requirements:
@@ -269,15 +294,17 @@ def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> N
 
 
 def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
-    """Minimal manifest: empty `main`, dashboard group, launcher specs with dlt injected."""
+    """Minimal manifest: empty `main`, dashboard and agent loop groups, launcher specs with dlt."""
     launcher_requirements = build_launcher_requirements()
     _inject_dlt_into_launchers(launcher_requirements)
+    groups: Dict[str, List[str]] = {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()}
+    groups.update(build_agent_loop_groups())
     return {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
         "python_version": python_version(),
         "dlt_version": get_pkg_install_spec(DLT_PKG_NAME),
         "default_groups": [MAIN_GROUP],
-        "groups": {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()},
+        "groups": groups,
         "launcher_requirements": launcher_requirements,
     }
 
@@ -325,6 +352,7 @@ def export_workspace_requirements(
     _expand_implied_names(default_names)
 
     groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
+    _add_agent_loop_groups(groups, default_names)
 
     launcher_requirements = build_launcher_requirements()
     for launcher, specs in launcher_requirements.items():

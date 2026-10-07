@@ -9,15 +9,15 @@ keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dl
 This feature is in private preview
 :::
 
-`job-inspector` is an agent definition shipped with the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit. It runs when a job fails, reads the run record, the logs, and the job definition, follows the traceback into the workspace source and a missing input back to the job that produces it, and reports a classification of the failure with evidence and a fix naming the target and the change. It inspects any batch job and doesn't change code or data.
+`job-inspector` is an agent definition that the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit ships. An agent job made from it diagnoses failed job runs. The agent reads the run record, the logs, and the job definition. It follows the traceback into the workspace source. It follows a missing input back to the job that produces it. It reports a classification of the failure, the evidence, and a fix that names the target and the change. The agent inspects any batch job, and it doesn't change code or data.
 
-Point its trigger at as much of the workspace as you want watched: one job, every job in a module, every job carrying a tag, or every job in the workspace. You declare the inspector once whichever you pick, and it inspects whatever fails. See [Triggers for agents](index.md#triggers-for-agents).
+Set the trigger of the agent job to the jobs that it must watch. A `job.fail:` trigger selects one job, the jobs in a section, the jobs that have a tag, the pipeline jobs, or all jobs. One agent job inspects every failed job run that its trigger selects. Without `trigger=`, the agent job runs only when you start it. See [Triggers for agents](index.md#triggers-for-agents).
 
-You declare it like any other agent job. [Background agents](index.md) covers the mechanics this page builds on.
+You declare an agent job for it, as for any other agent definition. [Background agents](index.md) covers the mechanics this page builds on.
 
 ## Install the toolkit
 
-Meet the [prerequisites](index.md#prerequisites) for agent jobs, then install the toolkit:
+Make sure that you meet the [prerequisites](index.md#prerequisites) for agent jobs. Then install the toolkit:
 
 ```sh
 dlthub ai toolkit install dlthub-platform
@@ -25,7 +25,7 @@ dlthub ai toolkit install dlthub-platform
 
 ## Quick start: inspect failed jobs
 
-Declare the `job-inspector` agent as a job in `__deployment__.py` and point its trigger at the jobs you want it to watch:
+Declare an agent job for the `job-inspector` agent definition in `__deployment__.py`. Set its trigger to the jobs that it must watch:
 
 ```py notype
 """GitHub ingest workspace with a failure inspector."""
@@ -41,7 +41,7 @@ inspector = run.agent(
 __all__ = ["load_commits", "inspector"]
 ```
 
-The job is named after the agent definition, `job_inspector`. `require={"profile": "access"}` keeps the production credentials out of the job's environment. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run it locally against a run that already failed, then deploy:
+The agent job is named after the agent definition: `job_inspector`. On the platform, `require={"profile": "access"}` keeps the production credentials out of the job environment. `dlthub local run` uses the active profile, or the profile you pass with `--profile`. See [Profile of an agent job](index.md#profile-of-an-agent-job). Run the agent job locally on a job run that failed. Then deploy:
 
 ```sh
 # a single manual run, on a failed run id from `dlthub job runs list`
@@ -51,56 +51,58 @@ dlthub local run job_inspector -c failed_run_id=<run-id>
 dlthub deploy
 ```
 
-The run log streams to your terminal as the agent works: its reasoning, each tool call, and what each tool returned. When the run ends you get a job result with a `status`, a Markdown `summary`, and the inspector's own fields (`classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, `requires_human`). On the platform the result appears on the failed run's page, because the agent reported that run as the entity it acted on.
+The run log streams to your terminal as the agent works: a one-line excerpt of its reasoning, each tool call, and the start of what each tool returned. Pass `-c agent.verbosity=2` to print them in full. When the agent run ends, the launcher delivers a job result. `status` and a Markdown `summary` are at the top level. The full agent output is in `result`, with the fields of the inspector: `classification`, `confidence`, `evidence`, `proposed_fix`, `fix_target`, `fix_change`, `open_points`, and `requires_human`.
 
 ## Agent inputs
 
-| Input            | Meaning                                                                               |
-| ---------------- | ------------------------------------------------------------------------------------- |
-| `failed_run_id`  | Run id of the failed job run to inspect                                               |
-| `failed_job_ref` | Job ref of the failed job. Its latest failed run is inspected when no run id is given |
+| Input            | Meaning                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------ |
+| `failed_run_id`  | Run id of the failed job run to inspect                                                    |
+| `failed_job_ref` | Job ref of the failed job. If no run id is given, the agent inspects its latest failed run |
 
-Both are optional, and a run resolves them in order:
+Both inputs are optional. The agent resolves them in this order:
 
-1. With a run id, that run is inspected.
-2. With a job ref, its latest failed run is inspected.
-3. With a `job.fail:<job ref>` trigger, the latest failed run of that job is inspected.
-4. With none of them, the run ends with `status: aborted` and a `summary` naming the inputs that were empty.
+1. If `failed_run_id` is set, the agent inspects that job run.
+2. If `failed_job_ref` is set, the agent inspects the latest failed run of that job.
+3. If the trigger is `job.fail:<job ref>`, the agent inspects the latest failed run of that job.
+4. If no input names a job run, the agent returns `status: aborted`, and its `summary` names the empty inputs. The launcher delivers the job result, and then the job run fails.
 
-A run started from a `job.fail:` trigger arrives with both inputs empty. The trigger string names the failed job, and the agent takes the job ref from `{{ run_context.trigger }}` in step 3. A run you start manually takes the inputs you give it on the command line or in configuration.
+An agent run that a `job.fail:` trigger starts gets both inputs empty. The trigger string names the failed job, and the agent takes the job ref from `{{ run_context.trigger }}` in step 3. An agent run that you start manually gets the inputs from the command line or from configuration.
 
-Only `job.fail:` resolves in step 3. A run started from a `job.success:` trigger reaches step 4 and ends `aborted`, because the trigger names a job but no failed run.
+Only `job.fail:` resolves in step 3. An agent run that a `job.success:` trigger starts reaches step 4 and ends `aborted`, because the trigger names a job but no failed run.
 
 ### Inspect a run that succeeded
 
-Hand the inspector a run id and it reads that run whatever its status, so a green run is inspectable:
+If you give the agent job a run id, the agent reads that job run, whatever its status. To inspect a job run that succeeded:
 
 ```sh
 dlthub local run job_inspector -c failed_run_id=<run-id>
 ```
 
-A green run that loaded nothing gets a description of the anomaly. The inspector reports the zero-row load in `summary` and leaves `fix_target` and `fix_change` empty, because a run that completed carries no error to trace back to a setting. Catch a silent shortfall with a [data quality](../data-quality/index.md) check on the loaded row count, and let that check's failed run be what starts the inspector.
+If a job run succeeded but loaded no rows, the agent looks for the cause as it does for a failure: it follows the empty input back to the job that produces it. If a filter or a date range in the source limited the load, the `Diagnosis` names the setting, its value, and the load. The agent can't run the source, so it can't prove that the filter is the cause.
+
+To find a load with too few rows, add a [data quality](../data-quality/index.md) check on the loaded row count. Make the job that runs the check fail when the check fails. Then a `job.fail:` trigger on that job starts the inspector.
 
 ## What it reports
 
-| Field            | Meaning                                                                                                               |
-| ---------------- | --------------------------------------------------------------------------------------------------------------------- |
-| `status`         | `succeeded`, `failed`, or `aborted`                                                                                   |
-| `summary`        | Markdown, in three sections: `Diagnosis`, `Recommendation`, `Confidence`. See [Summary format](#summary-format)       |
-| `failed_run_id`  | The run it inspected, reported as an entity                                                                           |
-| `failed_job_ref` | The job whose run it inspected, reported as an entity                                                                 |
-| `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown`                              |
-| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`                                       |
-| `evidence`       | A `source`, an `excerpt`, and a `provenance` per item. The source carries the line the excerpt sits on                |
-| `proposed_fix`   | What a person should do next, naming the target and the change. The agent never applies it                            |
-| `fix_target`     | The one thing the fix changes: a file path, a config key, a table or resource name, a secret name, or a job ref       |
-| `fix_change`     | The exact value or code change to apply to `fix_target`, such as `cursor_path="ordered_at"`. Empty when unestablished |
-| `open_points`    | What the agent couldn't verify, one entry each: a tool that failed, a file it didn't find, a value it inferred        |
-| `requires_human` | Whether the fix needs a person to act                                                                                 |
+| Field            | Meaning                                                                                                                                    |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| `status`         | `succeeded`, `failed`, or `aborted`                                                                                                        |
+| `summary`        | Markdown, in three sections: `Diagnosis`, `Recommendation`, `Confidence`. See [Summary format](#summary-format)                            |
+| `failed_run_id`  | The run it inspected, reported as an entity                                                                                                |
+| `failed_job_ref` | The job whose run it inspected, reported as an entity                                                                                      |
+| `classification` | `config`, `credentials`, `upstream_data`, `code`, `resources`, `transient`, or `unknown`                                                   |
+| `confidence`     | `high`, `medium`, or `low`. It's `low` whenever the classification is `unknown`                                                            |
+| `evidence`       | A `source`, an `excerpt`, and a `provenance` per item. The source carries the line the excerpt sits on                                     |
+| `proposed_fix`   | What a person should do next, naming the target and the change. The agent never applies it                                                 |
+| `fix_target`     | The one thing the fix changes: a file path, a config key, a table or resource name, a secret name, or a job ref                            |
+| `fix_change`     | The exact value or code change to apply to `fix_target`, such as `cursor_path="ordered_at"`. Empty when the evidence does not establish it |
+| `open_points`    | What the agent couldn't verify, one entry each: a tool that failed, a file it didn't find, a value it inferred                             |
+| `requires_human` | Whether the fix needs a person to act                                                                                                      |
 
-`provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `destination_query`, `repository_comment`, `job_description`, or `inference`. The first seven are facts and the last three are claims, so `confidence: high` rests on at least one fact.
+`provenance` says what kind of artifact an excerpt is: `run_log`, `run_record`, `trace`, `job_definition`, `workspace_file`, `secrets_redacted`, `repository_comment`, `job_description`, or `inference`. The first six values are facts. The last three values are claims. `confidence: high` needs at least one fact.
 
-On the platform the result appears on the failed run's page, because the agent reports that run as the entity it acted on. [Read the agent run result](index.md#read-the-agent-run-result) shows the full result envelope and an inspector result in it.
+On the platform, the result appears on the page of the failed job run, because the agent reports that job run as the entity it acted on. The `agent.py` that ships with the definition turns the run ids and job refs in `summary` into links to their Web UI pages. [Read the agent run result](index.md#read-the-agent-run-result) shows a full job result with an inspector output in it.
 
 ### Summary format
 
@@ -112,25 +114,28 @@ On the platform the result appears on the failed run's page, because the agent r
 | `## Recommendation` | The next action, written as the instruction itself and starting with its verb (`Set`, `Change`, `Unpause`), one action per bullet                        |
 | `## Confidence`     | The limits of the diagnosis: every entry of `open_points`, and why this confidence                                                                       |
 
-The format is meant to be pasted whole into a coding agent, so the Recommendation names the target and the value rather than asking the reader to investigate.
+A person can paste the whole summary into a coding agent. For this reason, each Recommendation bullet names the target and the value. It doesn't tell the reader to investigate.
 
 ## Defaults and overrides
 
-The definition ships these defaults. The agent job and the individual run override them.
+The agent definition declares these defaults. The agent job overrides them. Configuration overrides them for one agent run.
 
-| Setting         | Default                                                                                  |
-| --------------- | ---------------------------------------------------------------------------------------- |
-| `trigger`       | `job.fail:*`, every failed job in the workspace                                          |
-| `limits`        | `max_turns: 30`, `max_tokens: 1000000`                                                   |
-| `loop_run_args` | `retries: 2`, the number of times pydantic-ai lets the model correct a failing tool call |
+| Setting         | Default                                                                                                                                                                                                         |
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `limits`        | `max_turns: 30`, `max_tokens: 1000000`. `max_tokens` counts input tokens, cache reads and writes included, and output tokens. The run stops after the turn that passes it                                       |
+| `loop_run_args` | `retries: 2`. pydantic-ai lets the model call a failing tool again two times. After this, the tool call fails, the model sees the failed call, and the agent run continues. `claude-agent-sdk` ignores this key |
 
-The definition names no model, so the model comes from the job or the workspace. Give it one at least as capable as Claude Sonnet 5.
+The agent definition declares no `execute`, so the agent job runs up to 5 runs at once unless it sets `execute={"concurrency": ...}`.
+
+The agent definition declares no trigger. An agent job without `trigger=` runs only when you start it. To inspect every failed job in the workspace, declare `trigger="job.fail:*"`, and read the warning below first.
+
+The agent definition names no model. The model comes from the agent job or from configuration. If neither sets a model, the loop uses `sonnet`. On the platform, the runtime can supply its own model. See [Model and credentials](index.md#model-and-credentials). Give it one at least as capable as Claude Sonnet 5.
 
 :::warning
-Narrow the trigger as soon as a second agent job is deployed. `job.fail:*` matches every batch job in the workspace, agent jobs included. The declaring job is excluded, so the inspector never triggers on its own failures, but two agents both watching `job.fail:*` do trigger each other: a failed run of A starts B, a failed run of B starts A, and the pair keeps going. A tag or section selector such as `job.fail:tag:ingest` scopes the inspector to the jobs you want watched. Excluding agent jobs from wide selectors is planned.
+Do not give two agent jobs the trigger `job.fail:*`. `job.fail:*` selects every batch job in the workspace, agent jobs included. It never selects the job that declares it, so the inspector never triggers on its own failures. But a failed run of agent job A starts agent job B, and a failed run of B starts A. The loop does not stop. An agent run that ends `aborted` also counts as a failed job run. To limit the inspector to the jobs that it must watch, use a tag or section selector such as `job.fail:tag:ingest`, or `job.fail:pipeline_name:*` to watch every job declared with `@run.pipeline`. Excluding agent jobs from wide selectors is planned.
 :::
 
-Narrow the trigger and change the settings on the job:
+Narrow the trigger and change the settings on the agent job:
 
 ```py notype
 inspector = run.agent(
@@ -143,7 +148,7 @@ inspector = run.agent(
 )
 ```
 
-Or for a single run:
+To change a setting for one agent run, pass it with `-c`:
 
 ```sh
 dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
@@ -153,11 +158,11 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 
 ## Guardrails
 
-- **Reads, never writes.** The definition grants `local: [read]` and `context: [read]`: `Read`, `Glob`, and `Grep` over workspace files, and runs, logs, job definitions, and telemetry through the dltHub MCP server.
-- **No shell, by design.** The credential deny rules cover the file tools only, so `execute` would be a way around them and a way to rerun the job under inspection.
-- **No destination access.** The definition declares no `data` axis, so the agent can't query your data. A diagnosis is built from run records, logs, job definitions, the dlt trace, and workspace source. When the cause turns on what a table holds, the agent puts that in `open_points` and names the query that would settle it.
-- **No changes to your workspace.** The body rules it read-only on top of the grants: it doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
-- **Read-only credentials.** The job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
+- **Reads, never writes.** The agent definition declares `local: [read]` and `context: [read]`. The agent gets `Read`, `Glob`, and `Grep` over workspace files. Through the dltHub MCP server, it reads runs, logs, job definitions, telemetry, and the redacted view of secrets and variables.
+- **No shell.** The agent definition declares no `execute` verb. The deny rules for credential files apply only to the file tools. A shell can read those files, and it can run the inspected job again.
+- **No destination access.** The agent definition declares no `data` axis, so the agent can't query your data. A diagnosis uses run records, logs, job definitions, the dlt trace, workspace source, and the redacted view of secrets and variables. When the cause depends on the data in a table, the agent adds this to `open_points`. It names the table or the record that a person must read.
+- **No changes to your workspace.** The system prompt also forbids changes, in addition to the declared access: the agent doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
+- **Read-only credentials.** On the platform, the job runs on the `access` profile, which an agent job takes by default, so the production credentials stay out of its environment. Locally it runs on the active profile. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](index.md#profile-of-an-agent-job).
 
 ## Next steps
 

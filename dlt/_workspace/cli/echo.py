@@ -6,7 +6,6 @@ import contextlib
 from typing import Any, Dict, Iterable, Iterator, Optional, Tuple, ContextManager
 import click
 
-
 ALWAYS_CHOOSE_DEFAULT = False
 ALWAYS_CHOOSE_VALUE: Any = None
 ALWAYS_CONFIRM = False

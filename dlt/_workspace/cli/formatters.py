@@ -130,14 +130,17 @@ def extract_first_heading(body: str) -> Optional[str]:
     return h.text if h else None
 
 
-def read_md_name_desc(path: Path) -> Tuple[str, str]:
-    """Read a markdown file and return (name, description) from its frontmatter."""
+def read_md_name_desc(path: Path, default_name: Optional[str] = None) -> Tuple[str, str]:
+    """Read a markdown file and return (name, description) from its frontmatter.
+
+    Without a `name` in the frontmatter, `default_name` is used, else the file stem.
+    """
     text = path.read_text(encoding="utf-8")
     try:
         fm, body = parse_frontmatter(text)
     except yaml.YAMLError:
         fm, body = {}, text
-    name = fm.get("name", path.stem)
+    name = fm.get("name") or default_name or path.stem
     desc = fm.get("description") or extract_first_heading(body) or ""
     return name, desc
 

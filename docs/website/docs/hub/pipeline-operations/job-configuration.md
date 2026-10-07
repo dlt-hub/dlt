@@ -7,7 +7,7 @@ keywords: [dlthub platform, job configuration, timeout, dependency groups, insta
 
 This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.
 
-All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators.
+All options below are arguments to the `@run.pipeline`, `@run.job`, `@run.interactive`, and `@run.agent` decorators.
 
 ## Execution constraints
 
@@ -97,6 +97,31 @@ The static egress IPs for the **US region** are:
 - 34.193.87.36
 - 98.80.106.70
 - 54.81.217.233
+
+## Inputs and outputs
+
+The parameters of a job with a default or `dlt.config.value` are its inputs, and a TypedDict return type is its output. `dlthub deploy` writes both into the deployment manifest as JSON Schemas. Describe a parameter or a field with `run.Doc`. Mark a parameter or a field that holds the id of a workspace entity with `run.Entity`:
+
+```py notype
+from typing import Annotated, TypedDict
+
+class Report(TypedDict):
+    """Rows the report counted."""
+    pipeline: Annotated[str, run.Entity("pipeline")]
+    rows: int
+
+@run.job
+def rerun_report(
+    run_id: Annotated[str, run.Entity("job-runs"), run.Doc("Run to report on")] = dlt.config.value,
+) -> Report:
+    ...
+```
+
+- Entity types are `job-runs`, `job`, `workspace`, `pipeline`, and `dataset`. Another type fails `dlthub deploy`.
+- The [job result](deployments.md#job-results) of a run lists the entities from its entity-typed inputs, overwritten by output fields of the same name.
+- The first entity-typed input becomes `expose.object_input` in the manifest. The Web UI reads it to link the job to entities.
+
+See [Entity-typed inputs and outputs](../agents/agent-definitions.md#entity-typed-inputs-and-outputs) for how agent jobs use them.
 
 ## Job configuration via TOML
 

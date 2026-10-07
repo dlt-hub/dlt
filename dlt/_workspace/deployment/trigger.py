@@ -3,8 +3,8 @@ from typing import Optional, Union
 
 from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TAnyDateTime
-from dlt._workspace.deployment._job_ref import resolve_job_ref
 from dlt._workspace.deployment._trigger_helpers import (
+    job_event_expr,
     _parse_deployment,
     _parse_every,
     _parse_http,
@@ -98,17 +98,17 @@ def job_success(job_ref: str) -> TTrigger:
     """Create a job success event trigger.
 
     Args:
-        job_ref: Job reference — accepts `"name"` (2-part), `"section.name"`,
-            or `"jobs.section.name"`.
+        job_ref: Job reference (`"name"`, `"section.name"`, `"jobs.section.name"`) or a selector
+            such as `"tag:ingest"`, `"batch:"` or `"jobs.section.*"` matching many jobs.
     """
-    return _parse_job_success(resolve_job_ref(job_ref)).raw
+    return _parse_job_success(job_event_expr(job_ref)).raw
 
 
 def job_fail(job_ref: str) -> TTrigger:
     """Create a job failure event trigger.
 
     Args:
-        job_ref: Job reference — accepts `"name"` (2-part), `"section.name"`,
-            or `"jobs.section.name"`.
+        job_ref: Job reference (`"name"`, `"section.name"`, `"jobs.section.name"`) or a selector
+            such as `"tag:ingest"`, `"batch:"` or `"jobs.section.*"` matching many jobs.
     """
-    return _parse_job_fail(resolve_job_ref(job_ref)).raw
+    return _parse_job_fail(job_event_expr(job_ref)).raw

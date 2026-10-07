@@ -1,7 +1,9 @@
 import argparse
+import codecs
 import importlib.util
 import os
 import subprocess
+import sys
 from typing import Any, Dict, List, Optional, Tuple
 
 from dlt.common import json
@@ -16,6 +18,15 @@ from dlt._workspace._known_env import WORKSPACE__PROFILE
 from dlt._workspace.deployment._job_ref import parse_job_ref
 from dlt._workspace.deployment.configuration import JobConfiguration
 from dlt._workspace.deployment.typing import TRuntimeEntryPoint, resolve_incremental_mode
+
+
+def use_utf8_output() -> None:
+    """Writes stdout and stderr as UTF-8."""
+    # on Windows a pipe gets the system code page, which cannot encode emojis or box drawing
+    for stream in (sys.stdout, sys.stderr):
+        encoding = getattr(stream, "encoding", None)
+        if encoding and codecs.lookup(encoding).name != "utf-8" and hasattr(stream, "reconfigure"):
+            stream.reconfigure(encoding="utf-8")
 
 
 def exec_process(argv: List[str]) -> None:

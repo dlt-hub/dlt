@@ -285,7 +285,7 @@ jobs:
           PYTEST_ARGS: ${{ matrix.rerun_args || '' }}
 
   run_vault_providers:
-    name: vault providers
+    name: vault providers and agents
     env:
       # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
       UV_NO_SYNC: "1"
@@ -318,11 +318,16 @@ jobs:
           enable-cache: ${{ github.event_name != 'pull_request_target' }}
 
       - name: Install dependencies
-        # google-api-python-client for google secrets, botocore (s3 extra) for aws secrets manager
-        run: uv sync --group providers --extra s3
+        # google-api-python-client for google secrets, botocore (s3 extra) for aws secrets manager,
+        # the workspace and both agent loops for the agent runs
+        run: uv sync --group providers --extra s3 --group workspace-deps --extra cli --group agent --group agent-claude
 
       - name: create secrets.toml
         run: pwd && echo "$DLT_SECRETS_TOML" > tests/.dlt/secrets.toml
 
       - name: Run vault provider tests
         run: uv run pytest tests/helpers/providers
+
+      - name: Run agents on real loops and models
+        # skipped unless the secrets carry `jobs.agent.api_key`
+        run: make test-workspace-agents
