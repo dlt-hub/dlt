@@ -2,7 +2,7 @@
 import { instrument, type ResolveConfigFn } from "@microlabs/otel-cf-workers";
 import type { ReadableSpan } from "@opentelemetry/sdk-trace-base";
 import REDIRECTS from "./redirects.compiled.js";
-import { createRedirectResolver, isDocsRoute } from "./worker-routing.mjs";
+import { createRedirectResolver, isTopLevelDocsRoute } from "./worker-routing.mjs";
 
 const ROUTE_404 = "/docs/404";
 
@@ -37,7 +37,7 @@ const handler = {
     // The 404 page is served in place, with a 404 status. It used to be a
     // 301 to /docs/404, which answers 200, so every dead docs URL looked
     // like a live page to crawlers (a soft 404) and inherited nothing.
-    if (isDocsRoute(url.pathname, "404")) {
+    if (isTopLevelDocsRoute(url.pathname, "404")) {
       return notFound(request, env);
     }
 
@@ -61,7 +61,7 @@ const handler = {
       return notFound(request, env);
     }
 
-    if (NOINDEX_ROUTES.some((route) => isDocsRoute(url.pathname, route))) {
+    if (NOINDEX_ROUTES.some((route) => isTopLevelDocsRoute(url.pathname, route))) {
       const noindex = new Response(res.body, res);
       noindex.headers.set("X-Robots-Tag", "noindex, follow");
       return noindex;

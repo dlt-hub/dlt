@@ -20,7 +20,7 @@ const VERSION_SEGMENT = /^(devel|\d+(\.\d+)*)$/;
  * @param {string} route path segment, without slashes
  * @returns {boolean}
  */
-export function isDocsRoute(pathname, route) {
+export function isTopLevelDocsRoute(pathname, route) {
   const segments = pathname.split("/").filter(Boolean);
   if (segments[0] !== "docs") return false;
   if (segments[segments.length - 1] !== route) return false;

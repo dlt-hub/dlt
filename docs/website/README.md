@@ -92,7 +92,6 @@ $ npm run check-orphan-docs:all  # same, but also fails on unlisted orphans (lis
 $ npm run compile-redirects      # regenerate redirects.compiled.js from sources
 $ npm run verify-llms            # llms.txt index check
 $ npm run verify-redirects       # redirect targets check (requires a prior `npm run build`)
-$ npm test                       # unit tests for the worker routing helpers
 ```
 
 Run `verify-redirects` (or a full `npm run build`) whenever you add or change entries in `redirects.js`. See [Redirects](#redirects) below for the source-of-truth and how to add new entries.
