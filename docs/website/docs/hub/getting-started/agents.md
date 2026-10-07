@@ -21,7 +21,7 @@ The agents ship with the [AI Harness](../ai-harness/introduction.md). The [`dlth
 
 ## Move production secrets out of the workspace scope
 
-Do this before you set up an agent, in an existing workspace. An agent job runs on the read-only `access` profile unless it declares another one, which is what keeps the production credentials out of its environment. A variable set with `--workspace` carries no profile, so it defeats that: it reaches the job on every profile, `access` included. The job process then holds your production credential while a model decides what to do with the tools it was given.
+Do this before you set up an agent, in an existing workspace. An agent job runs on the read-only `access` profile unless it declares another one, which is what keeps the production credentials out of its environment. A variable set with `--workspace` carries no profile, so it defeats that: it reaches the job on every profile, `access` included. The job process then holds your production credential while a model decides what to do with the tools it was given. An agent that declares the `config` feature group also lists the variables of every profile through `dlthub_list_variables`, which returns a plain value as stored and a secret by name only.
 
 List the scopes:
 
@@ -36,7 +36,7 @@ printf '%s' '<value>' | uv run dlthub variable set DB_PASSWORD --secret --profil
 uv run dlthub variable delete DB_PASSWORD --workspace
 ```
 
-A value stored with `--secret` is never shown again, so you need the original to move it. Credential files follow the same rule: `secrets.toml` reaches every profile, `prod.secrets.toml` reaches only `prod`. See [Profiles](../pipeline-operations/profiles.md).
+Store the moved value with `--secret` rather than `--plain`, so the name alone reaches a listing. A secret is never shown again after it is set, so you need the original value to move it. Credential files follow the same rule: `secrets.toml` reaches every profile, `prod.secrets.toml` reaches only `prod`. See [Profiles](../pipeline-operations/profiles.md).
 
 Keep the model key in the workspace scope. The runner reads it to reach your provider, and every agent job needs it.
 
@@ -50,7 +50,7 @@ Set up this directory for dltHub background agents. Use `uv run` and pass
 
 1. If there is no `.dlt/.workspace` file, run `uvx dlthub-init@latest`.
 2. Add these dependencies to pyproject.toml and run `uv sync`:
-   "dlt[hub]==1.30.1a1", "dlthub[mcp]", "dlthub-client>=0.28.5",
+   "dlt[hub]==1.31.0", "dlthub[mcp]", "dlthub-client>=0.28.7",
    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0", "aiohttp>=3.14.3"
 3. Run `uv run dlthub ai toolkit install dlthub-platform --overwrite`, then
    `uv run dlthub ai status`, and fix any warnings.
@@ -63,6 +63,8 @@ Set up this directory for dltHub background agents. Use `uv run` and pass
 I'll configure the model key and endpoint myself. Never ask for them, put them
 in a command, or write them to a file.
 ```
+
+`dlthub-client` 0.28.7 is a floor, not a preference. The platform API changed with the agents public preview, and an older client is refused with a 426 and an upgrade hint.
 
 ## Set the model credentials
 
