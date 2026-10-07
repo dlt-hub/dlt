@@ -244,14 +244,17 @@ def python_version() -> str:
 _BASE_LAUNCHER_SPECS: List[str] = ["dlthub"]
 """Specs added to every launcher group and the dashboard group."""
 
+_S3_SPEC = f"{DLT_PKG_NAME}[s3]"
+"""Artifact storage deps, bounded by dlt's own `s3` extra."""
+
 
 def build_launcher_requirements() -> Dict[str, List[str]]:
     """Per-launcher mandatory specs. dlt is injected separately at build time."""
     per_launcher: Dict[str, List[str]] = {
-        LAUNCHER_JOB: ["botocore", "s3fs"],
-        LAUNCHER_MODULE: ["botocore", "s3fs"],
+        LAUNCHER_JOB: [_S3_SPEC],
+        LAUNCHER_MODULE: [_S3_SPEC],
         # loop packages are per-job, so they live in `agent-loop-*` groups instead
-        LAUNCHER_AGENT: ["botocore", "s3fs"],
+        LAUNCHER_AGENT: [_S3_SPEC],
         LAUNCHER_MARIMO: ["marimo", "uvicorn"],
         LAUNCHER_MCP: ["fastmcp", "uvicorn"],
         LAUNCHER_STREAMLIT: ["streamlit"],
@@ -263,14 +266,14 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
 def build_dashboard_group() -> List[str]:
     """Specs for the `DASHBOARD_JOB_REF` group.
 
-    Matches the dashboard runner's dependency gate plus `s3fs` for artifact access;
-    the launcher baseline (dlthub, dlt) comes from `launcher_requirements`.
+    Matches the dashboard runner's dependency gate plus dlt's `s3` extra for artifact
+    access; the launcher baseline (dlthub, dlt) comes from `launcher_requirements`.
     """
-    return sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
+    return sorted(["ibis-framework", "marimo", "pyarrow", _S3_SPEC])
 
 
 _AGENT_LOOP_SPECS: Dict[str, List[str]] = {
-    LOOP_PYDANTIC_AI: ["pydantic-ai-slim[anthropic,openai,google,mcp,spec]"],
+    LOOP_PYDANTIC_AI: ["pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.36.0"],
     LOOP_CLAUDE_AGENT_SDK: ["claude-agent-sdk"],
 }
 
@@ -564,7 +567,7 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
 
 _IMPLIED_NAMES: Dict[str, List[str]] = {
     f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME],
-    "s3fs": ["botocore"],
+    "s3fs": [_S3_SPEC],
     "marimo": ["uvicorn"],
     "fastmcp": ["uvicorn"],
 }
@@ -601,9 +604,17 @@ def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
     pruned: List[str] = []
     for s in specs:
         m = _LEADING_NAME_RE.match(s)
-        if m and _normalize_name(m.group(1)) in names:
+        if not m:
+            pruned.append(s)
             continue
-        pruned.append(s)
+        name = _normalize_name(m.group(1))
+        if name == DLT_PKG_NAME and m.group(2):
+            # dlt is present in nearly every workspace, so a dlt extra counts only by its own token
+            installed = _collect_package_names([s]) - {name} <= names
+        else:
+            installed = name in names
+        if not installed:
+            pruned.append(s)
     return pruned
 
 
