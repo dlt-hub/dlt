@@ -1148,6 +1148,133 @@ def test_limit_count_by_rows() -> None:
     assert list(r._clone().add_limit(2, count_rows=True)) == [1, [2, 3]]
 
 
+def test_source_add_limit_applies_to_transformer_parent() -> None:
+    @dlt.resource
+    def pages():
+        yield [1]
+        yield [2]
+        yield [3]
+
+    @dlt.transformer
+    def double(items):
+        yield from (i * 2 for i in items)
+
+    @dlt.source
+    def src():
+        return pages() | double()
+
+    assert list(src()) == [2, 4, 6]
+    assert list(src().add_limit(1)) == [2]
+
+    replaced = src()
+    replaced.add_limit(1).add_limit(2)
+    assert list(replaced) == [2, 4]
+
+    @dlt.source
+    def multi():
+        return (
+            pages().with_name("p1") | double().with_name("d1"),
+            pages().with_name("p2") | double().with_name("d2"),
+        )
+
+    assert sorted(list(multi().add_limit(1))) == [2, 2]
+
+    # shared parent: both transformers see the same limited pipe
+    @dlt.source
+    def shared():
+        parent = pages()
+        return parent | double().with_name("d1"), parent | double().with_name("d2")
+
+    shared_source = shared().add_limit(1)
+    assert shared_source.d1._pipe.parent is shared_source.d2._pipe.parent
+    parent = next(
+        r for r in shared_source.resources.extracted if r._pipe is shared_source.d1._pipe.parent
+    )
+    assert parent.limit.max_items == 1
+    assert sorted(list(shared_source)) == [2, 2]
+
+    # selected parent is limited together with the transformer
+    @dlt.source
+    def with_parent():
+        parent = pages()
+        return parent, parent | double()
+
+    assert sorted(list(with_parent().add_limit(1))) == [1, 2]
+
+    # limit stays on the parent when the transformer is moved into another source
+    readers = multi()
+    readers.add_limit(1)
+    pipe = readers.d1
+
+    @dlt.source
+    def only_one():
+        return pipe
+
+    assert list(only_one()) == [2]
+
+
+def test_source_add_limit_chain_and_selected_child() -> None:
+    @dlt.resource
+    def pages():
+        yield [1, 2]
+        yield [3, 4]
+
+    @dlt.transformer
+    def double(items):
+        for i in items:
+            yield i * 2
+
+    @dlt.transformer
+    def plus(item):
+        yield item + 1
+
+    @dlt.source
+    def chain():
+        return pages() | double() | plus()
+
+    # one root yield [1, 2] passes through both transformers in full
+    assert list(chain().add_limit(1)) == [3, 5]
+    assert list(chain()) == [3, 5, 7, 9]
+
+    @dlt.source
+    def with_parent():
+        parent = pages()
+        return parent, parent | double() | plus()
+
+    selected = with_parent().with_resources("plus").add_limit(1)
+    assert "pages" not in selected.resources.selected
+    assert list(selected) == [3, 5]
+
+
+def test_source_add_limit_does_not_mutate_empty_transformer_sentinel() -> None:
+    empty_pipe = DltResource.Empty._pipe
+    original_steps = list(empty_pipe.steps)
+    original_gen_idx = empty_pipe._gen_idx
+    try:
+        assert empty_pipe.is_empty
+        assert not empty_pipe.is_data_bound
+
+        @dlt.transformer
+        def unbound(item):
+            yield item
+
+        @dlt.source
+        def src():
+            return unbound()
+
+        source = src()
+        source.add_limit(1)
+        source.add_limit(1)
+        assert DltResource.Empty._pipe is empty_pipe
+        assert empty_pipe.is_empty
+        assert not empty_pipe.is_data_bound
+        assert list(empty_pipe.steps) == original_steps
+    finally:
+        empty_pipe._steps = original_steps
+        empty_pipe._gen_idx = original_gen_idx
+        DltResource.Empty._pipe = empty_pipe
+
+
 def test_limit_source() -> None:
     def mul_c(item):
         yield from "A" * (item + 2)
