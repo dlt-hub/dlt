@@ -5,8 +5,8 @@ keywords: [dlthub platform, agents, job inspector, failed job run, diagnosis, dl
 ---
 # Job inspector agent
 
-:::warning
-This feature is in private preview
+:::info
+This feature is in public preview
 :::
 
 `job-inspector` is an agent definition that the [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit ships. An agent job made from it diagnoses failed job runs. The agent reads the run record, the logs, and the job definition. It follows the traceback into the workspace source. It follows a missing input back to the job that produces it. It reports a classification of the failure, the evidence, and a fix that names the target and the change. The agent inspects any batch job, and it doesn't change code or data.
