@@ -12,4 +12,4 @@ Deploy your pipelines with a single `dlthub deploy` command. Schedule, refresh, 
 Read the [deployment reference](../../hub/pipeline-operations/deployments.md) for details.
 :::
 
-For your first deployment, try the [GitHub Actions guide](./deploy-a-pipeline/deploy-with-github-actions) which has a generous free tier for anyone using GitHub.
+For your first deployment, try the [GitHub Actions guide](./deploy-with-github-actions) which has a generous free tier for anyone using GitHub.
