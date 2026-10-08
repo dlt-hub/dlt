@@ -473,8 +473,7 @@ def test_nested_hints_subpath_with_separator() -> None:
         name="items",
         nested_hints={
             "sub__MoreItems": make_nested_hints(columns=[{"name": "x", "data_type": "bigint"}]),
-            # a deeper nested hint (subchild) declared under the same non-normalized sub_path
-            ("sub__MoreItems", "TheChild"): make_nested_hints(
+            ("sub", "MoreItems", "TheChild"): make_nested_hints(
                 columns=[{"name": "y", "data_type": "bigint"}]
             ),
         },
@@ -482,21 +481,19 @@ def test_nested_hints_subpath_with_separator() -> None:
     def items() -> Any:
         yield {}
 
-    # each nested-hint path fragment is normalized immediately in the resource, so a sub_path that
-    # contains the `__` separator / camel case yields a normalized table name AND a normalized parent
+    # String paths may use the naming convention separator to identify nested tables.
     nested = {t["name"]: t for t in items().compute_nested_table_schemas("items", schema.naming)}
 
-    # the direct child is a single level under the root
-    child = nested["items__sub_more_items"]
-    assert child["parent"] == "items"
-    assert len(schema.naming.break_path(child["name"])) == 2
+    child = nested["items__sub__more_items"]
+    assert child["parent"] == "items__sub"
+    assert child["columns"]["x"]["data_type"] == "bigint"
+    assert len(schema.naming.break_path(child["name"])) == 3
 
-    # the subchild's parent is the normalized name of the direct child (not the raw
-    # `items__sub__MoreItems`), proving the parent path is normalized right away
-    subchild = nested["items__sub_more_items__the_child"]
-    assert subchild["parent"] == "items__sub_more_items"
+    subchild = nested["items__sub__more_items__the_child"]
+    assert subchild["parent"] == "items__sub__more_items"
     assert subchild["parent"] == child["name"]
-    assert len(schema.naming.break_path(subchild["name"])) == 3
+    assert subchild["columns"]["y"]["data_type"] == "bigint"
+    assert len(schema.naming.break_path(subchild["name"])) == 4
 
 
 def test_nested_hints_dynamic_table_names(extract_step: Extract) -> None:
