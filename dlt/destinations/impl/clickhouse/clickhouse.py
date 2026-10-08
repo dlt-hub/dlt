@@ -1,6 +1,6 @@
 from copy import deepcopy
 from textwrap import dedent
-from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, cast
+from typing import Any, Dict, Iterable, Literal, Optional, List, Sequence, Tuple, cast
 from urllib.parse import ParseResult, urlparse
 
 import clickhouse_connect
@@ -20,7 +20,12 @@ from dlt.common.destination.client import (
     LoadJob,
 )
 from dlt.common.schema import Schema, TColumnSchema
-from dlt.common.schema.typing import TColumnType, C_DLT_LOADS_TABLE_LOAD_ID, C_DLT_LOAD_ID
+from dlt.common.schema.typing import (
+    TColumnType,
+    TSortOrder,
+    C_DLT_LOADS_TABLE_LOAD_ID,
+    C_DLT_LOAD_ID,
+)
 from dlt.common import logger
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
@@ -31,7 +36,7 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import FileStorage
 from dlt.common.storages.configuration import FilesystemConfiguration, ensure_canonical_az_url
 from dlt.common.storages.fsspec_filesystem import AZURE_BLOB_STORAGE_PROTOCOLS
-from dlt.common.storages.load_package import ParsedLoadJobFileName
+from dlt.common.storages.load_package import ParsedLoadJobFileName, load_package_state
 from dlt.common.destination.exceptions import DestinationTerminalException
 from dlt.destinations.exceptions import LoadJobTerminalException
 from dlt.destinations.impl.clickhouse.configuration import (
@@ -301,6 +306,143 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return False
 
 
+class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
+    "Merge job that scopes every staging read to the current `_dlt_load_id`."
+
+    @classmethod
+    def _load_id_predicate(cls, prefix: str = "") -> str:
+        load_id = load_package_state()["load_id"]
+        col = f"{prefix}`{C_DLT_LOAD_ID}`"
+        return f"{col} = {escape_clickhouse_literal(load_id)}"
+
+    @classmethod
+    def gen_key_table_clauses(
+        cls,
+        root_table_name: str,
+        staging_root_table_name: str,
+        primary_keys: Sequence[str],
+        merge_keys: Sequence[str],
+        for_delete: bool,
+    ) -> List[str]:
+        if for_delete:
+            sql: List[str] = []
+            for cols in (primary_keys, merge_keys):
+                if cols:
+                    col_tuple = ", ".join(cols)
+                    sql.append(
+                        f"FROM {root_table_name} WHERE ({col_tuple}) IN"
+                        f" (SELECT {col_tuple} FROM {staging_root_table_name}"
+                        f" WHERE {cls._load_id_predicate()})"
+                    )
+            return sql
+        # non-delete builds "FROM root AS d JOIN staging AS s ON ..."; scope the staging side
+        return [
+            f"{clause} WHERE {cls._load_id_predicate('s.')}"
+            for clause in super().gen_key_table_clauses(
+                root_table_name, staging_root_table_name, primary_keys, merge_keys, for_delete
+            )
+        ]
+
+    @classmethod
+    def gen_select_from_dedup_sql(
+        cls,
+        table_name: str,
+        primary_keys: Sequence[str],
+        columns: Sequence[str],
+        dedup_sort: Tuple[str, TSortOrder] = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
+    ) -> str:
+        # gen_select_from_dedup_sql only ever reads staging tables, so always scope it. The
+        # load id predicate goes *inside* the dedup subquery: the staging table is shared by
+        # concurrent loads, and ranking every load's rows before filtering would make the
+        # window grow with the number of loads in flight.
+        predicate = cls._load_id_predicate()
+        if condition is None:
+            condition = "1 = 1"
+        col_str = ", ".join(columns)
+        if skip_dedup:
+            return f"SELECT {col_str} FROM {table_name} WHERE ({condition}) AND {predicate}"
+        inner_col_str = col_str
+        if condition_columns is not None:
+            inner_col_str += ", " + ", ".join(condition_columns)
+        order_by = cls.default_order_by()
+        if dedup_sort is not None:
+            order_by = f"{dedup_sort[0]} {dedup_sort[1].upper()}"
+        return f"""
+            SELECT {col_str}
+                FROM (
+                    SELECT ROW_NUMBER() OVER (partition BY {", ".join(primary_keys)} ORDER BY {order_by}) AS _dlt_dedup_rn, {inner_col_str}
+                    FROM {table_name}
+                    WHERE {predicate}
+                ) AS _dlt_dedup_numbered WHERE _dlt_dedup_rn = 1 AND ({condition})
+        """
+
+    @classmethod
+    def _scope_condition(cls, condition: Optional[str]) -> str:
+        predicate = cls._load_id_predicate()
+        return predicate if not condition else f"({condition}) AND {predicate}"
+
+    @classmethod
+    def gen_insert_temp_table_sql(
+        cls,
+        table_name: str,
+        staging_root_table_name: str,
+        sql_client: SqlClientBase[Any],
+        primary_keys: Sequence[str],
+        unique_column: str,
+        dedup_sort: Tuple[str, TSortOrder] = None,
+        condition: str = None,
+        condition_columns: Sequence[str] = None,
+        skip_dedup: bool = False,
+    ) -> Tuple[List[str], str]:
+        # with primary keys the read goes through the already scoped gen_select_from_dedup_sql
+        if not primary_keys:
+            condition = cls._scope_condition(condition)
+        return super().gen_insert_temp_table_sql(
+            table_name,
+            staging_root_table_name,
+            sql_client,
+            primary_keys,
+            unique_column,
+            dedup_sort,
+            condition,
+            condition_columns,
+            skip_dedup,
+        )
+
+    @classmethod
+    def gen_merge_sql(
+        cls, table_chain: Sequence[PreparedTableSchema], sql_client: SqlClientBase[Any]
+    ) -> List[str]:
+        sql = super().gen_merge_sql(table_chain, sql_client)
+        root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
+            table_chain[0]["name"]
+        )
+        # without primary keys the root insert bypasses gen_select_from_dedup_sql and would copy
+        # the staged rows of every concurrent load, duplicating them in the destination
+        predicate = cls._load_id_predicate()
+        staging_read = f" FROM {staging_root_table_name} WHERE "
+        for i, stmt in enumerate(sql):
+            if (
+                stmt.startswith(f"INSERT INTO {root_table_name}(")
+                and staging_read in stmt
+                and predicate not in stmt
+            ):
+                head, _, condition = stmt.rpartition(staging_read)
+                sql[i] = f"{head}{staging_read}{cls._scope_condition(condition)}"
+        # drop only this load's rows from the shared staging table once merged
+        if sql_client.config.staging_partition_by_load_id:
+            # staging is partitioned by load id: dropping the partition is a metadata
+            # operation, a DELETE would be a mutation over every staging part
+            load_id = escape_clickhouse_literal(load_package_state()["load_id"])
+            sql.append(f"ALTER TABLE {staging_root_table_name} DROP PARTITION {load_id}")
+        else:
+            sql.append(f"DELETE FROM {staging_root_table_name} WHERE {predicate}")
+        return sql
+
+
 class ClickHouseStagingReplaceJob(SqlStagingReplaceFollowupJob):
     """Atomic staging-optimized replace via `EXCHANGE TABLES`.
 
@@ -371,10 +513,20 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         elif table["name"] == self.schema.loads_table_name:
             table[SORT_HINT] = [C_DLT_LOADS_TABLE_LOAD_ID]  # type: ignore[typeddict-unknown-key]
 
+    def initialize_storage(self, truncate_tables: Iterable[str] = None) -> None:
+        if self.config.merge_scope_by_load_id and self.in_staging_dataset_mode:
+            truncate_tables = None
+        super().initialize_storage(truncate_tables=truncate_tables)
+
     def _create_merge_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
     ) -> List[FollowupJobRequest]:
-        return [ClickHouseMergeJob.from_table_chain(table_chain, self.sql_client)]
+        merge_job_cls = (
+            LoadIdScopedClickHouseMergeJob
+            if self.config.merge_scope_by_load_id
+            else ClickHouseMergeJob
+        )
+        return [merge_job_cls.from_table_chain(table_chain, self.sql_client)]
 
     def _create_replace_followup_jobs(
         self, table_chain: Sequence[PreparedTableSchema]
@@ -482,6 +634,9 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
 
         return ", ".join(clauses)
 
+    def _make_create_table(self, qualified_name: str, table: PreparedTableSchema) -> str:
+        return f"CREATE TABLE IF NOT EXISTS {qualified_name}"
+
     def _get_table_update_sql(
         self, table_name: str, new_columns: Sequence[TColumnSchema], generate_alter: bool
     ) -> List[str]:
@@ -535,22 +690,29 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
         engine_name = TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(table_type)
         sql[0] = f"{sql[0]}\nENGINE = {engine_name}{engine_params}"
 
-        # PRIMARY KEY
+        sort_key = self._get_key(table, "sort")
+
+        # PRIMARY KEY: explicit when hinted, otherwise ClickHouse derives it from ORDER BY.
+        # An explicit `PRIMARY KEY tuple()` next to a sort key would leave the table without
+        # a primary index, so it is only emitted when there is no sort key either.
         if primary_key_list := [
             self.sql_client.escape_column_name(c["name"])
             for c in new_columns
             if c.get("primary_key")
         ]:
             sql[0] += "\nPRIMARY KEY (" + ", ".join(primary_key_list) + ")"
-        else:
+        elif not sort_key:
             sql[0] += "\nPRIMARY KEY tuple()"
 
         # ORDER BY
-        if sort_key := self._get_key(table, "sort"):
+        if sort_key:
             sql[0] += f"\nORDER BY {sort_key}"
 
         # PARTITION BY
-        if part_key := self._get_key(table, "partition"):
+        part_key = self._get_key(table, "partition")
+        if self._partition_staging_by_load_id(table):
+            part_key = self.sql_client.escape_column_name(C_DLT_LOAD_ID)
+        if part_key:
             sql[0] += f"\nPARTITION BY {part_key}"
 
         # SETTNGS
@@ -560,6 +722,16 @@ class ClickHouseClient(SqlJobClientWithStagingDataset, SupportsStagingDestinatio
             sql[0] += f"\nSETTINGS {settings_clause}"
 
         return sql
+
+    def _partition_staging_by_load_id(self, table: PreparedTableSchema) -> bool:
+        """Merge staging tables get `PARTITION BY _dlt_load_id` so the merge job can drop a
+        load's rows as a partition (see `staging_partition_by_load_id`)."""
+        return (
+            self.config.staging_partition_by_load_id
+            and self.in_staging_dataset_mode
+            and table.get("write_disposition") == "merge"
+            and C_DLT_LOAD_ID in table["columns"]
+        )
 
     def _gen_not_null(self, v: bool) -> str:
         # ClickHouse fields are not nullable by default.
