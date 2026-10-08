@@ -120,6 +120,7 @@ const credentials = [LINKS.managedInfrastructure];
 export const GO_FURTHER = {
   "/docs/intro": [LINKS.dlthub, LINKS.context, LINKS.blog],
   "/docs/general-usage/incremental-loading": [LINKS.scd2Guide, LINKS.scd2NestedJson],
+  "/docs/general-usage/merge-loading": [LINKS.scd2Guide, LINKS.scd2NestedJson],
   "/docs/general-usage/schema-contracts": schema,
   "/docs/general-usage/schema-evolution": schema,
   "/docs/general-usage/credentials/setup": credentials,
