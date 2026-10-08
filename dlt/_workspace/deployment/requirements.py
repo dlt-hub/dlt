@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, Final, List, Mapping, Optional, Sequence, Set
 
 import tomlkit
 from packaging.requirements import Requirement
@@ -40,6 +40,8 @@ from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
     MAIN_GROUP,
     REQUIREMENTS_ENGINE_VERSION,
+    TDltExtra,
+    TFlooredPackage,
     TInstallMode,
     TInstallSpec,
     TWorkspaceRequirementsManifest,
@@ -63,7 +65,9 @@ __all__ = [
     "build_dashboard_group",
     "build_launcher_requirements",
     "default_requirements_manifest",
+    "dlt_extra_specs",
     "export_workspace_requirements",
+    "floored_spec",
     "get_dlt_requirement_spec",
     "get_pkg_install_spec",
     "get_workspace_install_specs",
@@ -241,26 +245,66 @@ def python_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
-_BASE_LAUNCHER_SPECS: List[str] = ["dlthub"]
-"""Specs added to every launcher group and the dashboard group."""
+def dlt_extra_specs(extra: TDltExtra) -> List[str]:
+    """Specs of the installed dlt's `extra`, with dlt's own bounds and no markers.
 
-_S3_SPEC = f"{DLT_PKG_NAME}[s3]"
-"""Artifact storage deps, bounded by dlt's own `s3` extra."""
+    Raises:
+        ValueError: The installed dlt declares nothing under `extra`.
+    """
+    specs: List[str] = []
+    for raw in importlib.metadata.requires(DLT_PKG_NAME) or []:
+        req = Requirement(raw)
+        # core deps evaluate true without the extra; a marker false here is for another python
+        if (
+            req.marker is None
+            or req.marker.evaluate({"extra": ""})
+            or not req.marker.evaluate({"extra": extra})
+        ):
+            continue
+        req.marker = None
+        specs.append(str(req))
+    if not specs:
+        raise ValueError(f"installed {DLT_PKG_NAME} declares no `{extra}` extra")
+    return specs
+
+
+_HUB_SPEC = f"{DLT_PKG_NAME}[hub]"
+"""Added to every launcher; dlthub's bounds follow whichever dlt gets installed."""
+
+# relaxed floors: rarely conflicting with a workspace's pins, never resolving ancient releases
+_FLOORS: Final[Mapping[TFlooredPackage, str]] = {
+    # 0.2.126 is the first release whose ResultMessage carries terminal_reason
+    "claude-agent-sdk": ">=0.2.126",
+    "fastmcp": ">=3.1.0",
+    "ibis-framework": ">=12.0.0",
+    "marimo": ">=0.14.5",
+    # 2.33.0 is the first release that supports anthropic 1.x, which any resolve picks today
+    "pydantic-ai-slim": ">=2.33.0",
+    "streamlit": ">=1.50.0",
+    "uvicorn": ">=0.46.0",
+}
+
+
+def floored_spec(name: TFlooredPackage, *, extras: Sequence[str] = ()) -> str:
+    """PEP 508 spec for `name` with its relaxed floor."""
+    extras_part = f"[{','.join(extras)}]" if extras else ""
+    return f"{name}{extras_part}{_FLOORS[name]}"
 
 
 def build_launcher_requirements() -> Dict[str, List[str]]:
     """Per-launcher mandatory specs. dlt is injected separately at build time."""
+    s3 = dlt_extra_specs("s3")
     per_launcher: Dict[str, List[str]] = {
-        LAUNCHER_JOB: [_S3_SPEC],
-        LAUNCHER_MODULE: [_S3_SPEC],
+        LAUNCHER_JOB: s3,
+        LAUNCHER_MODULE: s3,
         # loop packages are per-job, so they live in `agent-loop-*` groups instead
-        LAUNCHER_AGENT: [_S3_SPEC],
-        LAUNCHER_MARIMO: ["marimo", "uvicorn"],
-        LAUNCHER_MCP: ["fastmcp", "uvicorn"],
-        LAUNCHER_STREAMLIT: ["streamlit"],
+        LAUNCHER_AGENT: s3,
+        LAUNCHER_MARIMO: [floored_spec("marimo"), floored_spec("uvicorn")],
+        LAUNCHER_MCP: [floored_spec("fastmcp"), floored_spec("uvicorn")],
+        LAUNCHER_STREAMLIT: [floored_spec("streamlit")],
         LAUNCHER_DASHBOARD: [],
     }
-    return {k: sorted(set(v + _BASE_LAUNCHER_SPECS)) for k, v in per_launcher.items()}
+    return {k: sorted(set(v + [_HUB_SPEC])) for k, v in per_launcher.items()}
 
 
 def build_dashboard_group() -> List[str]:
@@ -269,18 +313,24 @@ def build_dashboard_group() -> List[str]:
     Matches the dashboard runner's dependency gate plus dlt's `s3` extra for artifact
     access; the launcher baseline (dlthub, dlt) comes from `launcher_requirements`.
     """
-    return sorted(["ibis-framework", "marimo", "pyarrow", _S3_SPEC])
-
-
-_AGENT_LOOP_SPECS: Dict[str, List[str]] = {
-    LOOP_PYDANTIC_AI: ["pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.36.0"],
-    LOOP_CLAUDE_AGENT_SDK: ["claude-agent-sdk"],
-}
+    return sorted(
+        [floored_spec("ibis-framework"), floored_spec("marimo")]
+        + dlt_extra_specs("parquet")
+        + dlt_extra_specs("s3")
+    )
 
 
 def build_agent_loop_groups() -> Dict[str, List[str]]:
     """Specs for each built-in agent loop, keyed by its requirements group name."""
-    return {agent_loop_group(loop): sorted(_AGENT_LOOP_SPECS[loop]) for loop in BUILTIN_AGENT_LOOPS}
+    loop_specs: Dict[str, List[str]] = {
+        LOOP_PYDANTIC_AI: [
+            floored_spec(
+                "pydantic-ai-slim", extras=["anthropic", "openai", "google", "mcp", "spec"]
+            )
+        ],
+        LOOP_CLAUDE_AGENT_SDK: [floored_spec("claude-agent-sdk")],
+    }
+    return {agent_loop_group(loop): sorted(loop_specs[loop]) for loop in BUILTIN_AGENT_LOOPS}
 
 
 def _add_agent_loop_groups(groups: Dict[str, List[str]], default_names: Set[str]) -> None:
@@ -566,8 +616,7 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
 
 
 _IMPLIED_NAMES: Dict[str, List[str]] = {
-    f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME],
-    "s3fs": [_S3_SPEC],
+    "s3fs": ["botocore"],
     "marimo": ["uvicorn"],
     "fastmcp": ["uvicorn"],
 }
@@ -609,7 +658,7 @@ def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
             continue
         name = _normalize_name(m.group(1))
         if name == DLT_PKG_NAME and m.group(2):
-            # dlt is present in nearly every workspace, so a dlt extra counts only by its own token
+            # nearly every workspace lists plain dlt, so a dlt extra counts only by its own token
             installed = _collect_package_names([s]) - {name} <= names
         else:
             installed = name in names

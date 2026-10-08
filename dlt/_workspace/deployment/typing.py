@@ -156,6 +156,20 @@ class TRequireSpec(TypedDict, total=False):
 
 TInstallMode = Literal["pypi", "path", "editable", "git", "archive"]
 
+TDltExtra = Literal["parquet", "s3"]
+"""dlt extras whose packages the launchers add as plain specs, bounded as dlt declares them."""
+
+TFlooredPackage = Literal[
+    "claude-agent-sdk",
+    "fastmcp",
+    "ibis-framework",
+    "marimo",
+    "pydantic-ai-slim",
+    "streamlit",
+    "uvicorn",
+]
+"""Packages the launchers add that dlt publishes no extra for, so they carry their own floor."""
+
 
 class TInstallSpec(TypedDict):
     """How a Python package is installed, derived from PEP 610 `direct_url.json`."""

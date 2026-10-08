@@ -4,7 +4,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set
+from typing import Dict, List, Set, get_args
 from unittest.mock import patch
 
 import pytest
@@ -29,7 +29,8 @@ from dlt._workspace.deployment.requirements import (
     PRE_TRACKING_DLT_INSTALL_SPEC,
     REQUIREMENTS_ENGINE_VERSION,
     WorkspaceRequirementsError,
-    _BASE_LAUNCHER_SPECS,
+    _FLOORS,
+    dlt_extra_specs,
     build_agent_loop_groups,
     build_dashboard_group,
     build_launcher_requirements,
@@ -43,12 +44,19 @@ from dlt._workspace.deployment.requirements import (
     save_requirements,
     _collect_package_names,
 )
-from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF
+from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TFlooredPackage
 
 from tests.workspace.utils import isolated_workspace
 
 
 _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
+_REQUIRES = "dlt._workspace.deployment.requirements.importlib.metadata.requires"
+_HUB = "dlt[hub]"
+_S3_NAMES = ["botocore", "s3fs"]
+
+
+def _names(specs: List[str]) -> List[str]:
+    return sorted(Requirement(s).name for s in specs)
 
 
 def _uv_lock(run_dir: str) -> None:
@@ -320,28 +328,26 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_DASHBOARD,
         LAUNCHER_AGENT,
     }
-    # every launcher gets the base specs
+    # every launcher gets dlt's hub extra
     for specs in lreq.values():
-        for base in _BASE_LAUNCHER_SPECS:
-            assert base in specs
+        assert _HUB in specs
         assert specs == sorted(specs)
-    # dlt is NOT in the bare launcher dict — it's injected conditionally
+    # dlt itself is NOT in the bare launcher dict — it's injected conditionally
     # by export_workspace_requirements / default_requirements_manifest
-    assert lreq[LAUNCHER_JOB] == sorted(set(["dlt[s3]"] + _BASE_LAUNCHER_SPECS))
-    assert lreq[LAUNCHER_MODULE] == sorted(set(["dlt[s3]"] + _BASE_LAUNCHER_SPECS))
+    assert sorted(lreq[LAUNCHER_JOB]) == sorted(dlt_extra_specs("s3") + [_HUB])
+    assert sorted(lreq[LAUNCHER_MODULE]) == sorted(dlt_extra_specs("s3") + [_HUB])
     # loop packages live in agent-loop-* groups, not here
-    assert lreq[LAUNCHER_AGENT] == sorted(set(["dlt[s3]"] + _BASE_LAUNCHER_SPECS))
-    assert lreq[LAUNCHER_MARIMO] == sorted(set(["marimo", "uvicorn"] + _BASE_LAUNCHER_SPECS))
-    assert lreq[LAUNCHER_MCP] == sorted(set(["fastmcp", "uvicorn"] + _BASE_LAUNCHER_SPECS))
-    assert lreq[LAUNCHER_STREAMLIT] == sorted(set(["streamlit"] + _BASE_LAUNCHER_SPECS))
-    assert lreq[LAUNCHER_DASHBOARD] == sorted(_BASE_LAUNCHER_SPECS)
+    assert sorted(lreq[LAUNCHER_AGENT]) == sorted(dlt_extra_specs("s3") + [_HUB])
+    assert _names(lreq[LAUNCHER_MARIMO]) == ["dlt", "marimo", "uvicorn"]
+    assert _names(lreq[LAUNCHER_MCP]) == ["dlt", "fastmcp", "uvicorn"]
+    assert _names(lreq[LAUNCHER_STREAMLIT]) == ["dlt", "streamlit"]
+    assert lreq[LAUNCHER_DASHBOARD] == [_HUB]
 
 
 def test_interactive_launchers_omit_artifact_storage_deps() -> None:
     lreq = build_launcher_requirements()
     for launcher in (LAUNCHER_MARIMO, LAUNCHER_MCP, LAUNCHER_STREAMLIT, LAUNCHER_DASHBOARD):
-        per_launcher = [s for s in lreq[launcher] if s not in _BASE_LAUNCHER_SPECS]
-        assert "dlt[s3]" not in per_launcher
+        assert not set(_S3_NAMES) & set(_names(lreq[launcher]))
 
 
 def test_export_injects_dlt_when_absent_from_default_group() -> None:
@@ -365,7 +371,8 @@ def test_export_skips_dlt_injection_when_present_in_default_group() -> None:
 def test_dashboard_group_always_present() -> None:
     dashboard_specs = build_dashboard_group()
     # dashboard runner gate (marimo, pyarrow, ibis-framework) + dlt's s3 extra for artifacts
-    assert dashboard_specs == sorted(["dlt[s3]", "ibis-framework", "marimo", "pyarrow"])
+    assert _names(dashboard_specs) == sorted(["ibis-framework", "marimo", "pyarrow"] + _S3_NAMES)
+    assert set(dlt_extra_specs("parquet") + dlt_extra_specs("s3")) <= set(dashboard_specs)
 
     # present in every export path
     with isolated_workspace("deps_none") as ctx:
@@ -402,15 +409,14 @@ def test_default_requirements_manifest_shape() -> None:
     for specs in lreq.values():
         assert dlt_spec in specs
         assert specs == sorted(specs)
-    # base specs in every launcher
-    for base in _BASE_LAUNCHER_SPECS:
-        for specs in lreq.values():
-            assert base in specs
+    for specs in lreq.values():
+        assert _HUB in specs
     # batch launchers carry dlt's s3 extra; interactive don't
-    assert "dlt[s3]" in lreq[LAUNCHER_JOB]
-    assert "dlt[s3]" not in lreq[LAUNCHER_MARIMO]
-    # dashboard has base specs + dlt (extras come from DASHBOARD_JOB_REF group)
-    assert lreq[LAUNCHER_DASHBOARD] == sorted(set(_BASE_LAUNCHER_SPECS + [dlt_spec]))
+    s3 = dlt_extra_specs("s3")
+    assert set(s3) <= set(lreq[LAUNCHER_JOB])
+    assert not set(s3) & set(lreq[LAUNCHER_MARIMO])
+    # dashboard has dlt's hub extra + dlt (extras come from DASHBOARD_JOB_REF group)
+    assert lreq[LAUNCHER_DASHBOARD] == sorted([_HUB, dlt_spec])
 
 
 def test_default_requirements_manifest_is_save_load_stable() -> None:
@@ -474,8 +480,8 @@ def test_contains_package_name_normalization(spec: str, needle: str, expected: b
         ("croniter", set(), True),
         ("", {"s3fs"}, True),
         ("# comment", {"s3fs"}, True),
-        ("dlt[s3]", {"dlt"}, True),
-        ("dlt[s3]", {"dlt[s3]"}, False),
+        ("dlt[hub]", {"dlt"}, True),
+        ("dlt[hub]", {"dlt", "dlt[hub]"}, False),
     ],
     ids=[
         "bare-name",
@@ -505,15 +511,15 @@ def test_export_prunes_launcher_specs_against_default_group() -> None:
             result = export_workspace_requirements(Path(ctx.run_dir))
     lreq = result["launcher_requirements"]
     for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE):
-        # the user's own s3fs stands in for dlt's s3 extra
-        assert "dlt[s3]" not in lreq[launcher]
+        # the user's own s3fs prunes ours and the botocore it implies
+        assert not set(_S3_NAMES) & set(_names(lreq[launcher]))
     # dlt in main — no dlt spec injected anywhere
     for specs in lreq.values():
         assert get_dlt_requirement_spec() not in specs
         assert specs == sorted(specs)
     # dashboard group pruned against main too
-    dashboard = result["groups"][DASHBOARD_JOB_REF]
-    assert "dlt[s3]" not in dashboard
+    dashboard = _names(result["groups"][DASHBOARD_JOB_REF])
+    assert not set(_S3_NAMES) & set(dashboard)
     assert "marimo" in dashboard
     assert "pyarrow" in dashboard
 
@@ -525,15 +531,14 @@ def test_export_prunes_dashboard_group_with_normalized_names() -> None:
         )
         with patch(_SHUTIL_WHICH, return_value=None):
             result = export_workspace_requirements(Path(ctx.run_dir))
-    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    dashboard = _names(result["groups"][DASHBOARD_JOB_REF])
     assert "ibis-framework" not in dashboard
     # rest of the synthesized group survives
-    for kept in ("marimo", "pyarrow", "dlt[s3]"):
-        assert kept in dashboard
+    assert dashboard == sorted(["marimo", "pyarrow"] + _S3_NAMES)
     # launcher lists share none of these names — untouched except dlt injection
     dlt_spec = get_dlt_requirement_spec()
     assert result["launcher_requirements"][LAUNCHER_JOB] == sorted(
-        set(["dlt[s3]", dlt_spec] + _BASE_LAUNCHER_SPECS)
+        dlt_extra_specs("s3") + [_HUB, dlt_spec]
     )
 
 
@@ -556,7 +561,7 @@ def test_export_prunes_only_against_default_groups(
             'extras = ["pyarrow>=16.0.0"]\n'
         )
         result = export_workspace_requirements(Path(ctx.run_dir), default_groups=default_groups)
-    dashboard = result["groups"][DASHBOARD_JOB_REF]
+    dashboard = _names(result["groups"][DASHBOARD_JOB_REF])
     assert ("pyarrow" not in dashboard) is pyarrow_pruned
     # user groups are never modified by pruning
     assert result["groups"]["extras"] == ["pyarrow>=16.0.0"]
@@ -577,29 +582,30 @@ def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> N
 
 
 @pytest.mark.parametrize(
-    "spec, pruned, kept, dlt_injected",
+    "spec, hub_added, pruned, dlt_injected",
     [
-        ("dlt[hub]>=1.0", {"dlthub"}, {"dlt[s3]"}, False),
-        ("dlthub>=0.1", {"dlthub"}, {"dlt[s3]"}, True),
-        ("dlthub-client", set(), {"dlthub", "dlt[s3]"}, True),
-        ("dlt>=1.0", set(), {"dlthub", "dlt[s3]"}, False),
-        ("dlt[s3]>=1.0", {"dlt[s3]"}, {"dlthub"}, False),
+        ("dlt[hub]>=1.0", False, set(), False),
+        ("dlthub>=0.1", True, set(), True),
+        ("dlt>=1.0", True, set(), False),
+        ("s3fs>=2024.1", True, {"s3fs", "botocore"}, True),
     ],
-    ids=["dlt-hub-extra", "dlthub", "dlthub-client", "plain-dlt", "dlt-s3-extra"],
+    ids=["dlt-hub-extra", "dlthub-alone", "plain-dlt", "s3fs-implies-botocore"],
 )
 def test_export_prunes_implied_packages(
-    spec: str, pruned: Set[str], kept: Set[str], dlt_injected: bool
+    spec: str, hub_added: bool, pruned: Set[str], dlt_injected: bool
 ) -> None:
-    """`dlt[hub]` pulls dlthub and `dlt[s3]` the artifact deps; plain dlt pulls neither."""
+    """Only the workspace's own `dlt[hub]` prunes ours; s3fs pulls botocore."""
     with isolated_workspace("deps_none") as ctx:
         Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
         with patch(_SHUTIL_WHICH, return_value=None):
             result = export_workspace_requirements(Path(ctx.run_dir))
     job_specs = result["launcher_requirements"][LAUNCHER_JOB]
+    assert (_HUB in job_specs) is hub_added
+    job_names = _names(job_specs)
     for name in pruned:
-        assert name not in job_specs
-    for name in kept:
-        assert name in job_specs
+        assert name not in job_names
+    for name in set(_S3_NAMES) - pruned:
+        assert name in job_names
     has_dlt = get_dlt_requirement_spec() in job_specs
     assert has_dlt is dlt_injected
 
@@ -612,7 +618,7 @@ def test_export_scaffolded_workspace_prunes_all_launcher_specs() -> None:
         result = export_workspace_requirements(Path(ctx.run_dir))
     for launcher, specs in result["launcher_requirements"].items():
         if launcher == LAUNCHER_STREAMLIT:
-            assert specs == ["streamlit"]
+            assert _names(specs) == ["streamlit"]
         else:
             assert specs == [], f"{launcher!r} not fully pruned: {specs}"
     assert result["groups"][DASHBOARD_JOB_REF] == []
@@ -624,15 +630,82 @@ def test_export_prunes_marker_guarded_specs() -> None:
         Path(ctx.run_dir, "requirements.txt").write_text('s3fs ; python_version >= "3.8"\n')
         with patch(_SHUTIL_WHICH, return_value=None):
             result = export_workspace_requirements(Path(ctx.run_dir))
-    assert "dlt[s3]" not in result["launcher_requirements"][LAUNCHER_JOB]
-    assert "dlt[s3]" not in result["groups"][DASHBOARD_JOB_REF]
+    assert "s3fs" not in _names(result["launcher_requirements"][LAUNCHER_JOB])
+    assert "s3fs" not in _names(result["groups"][DASHBOARD_JOB_REF])
 
 
-def test_pydantic_ai_loop_group_has_a_floor() -> None:
-    """Without a floor, a conflict with the workspace's pins walks the resolver back to 0.2.4."""
+def test_pydantic_ai_loop_group_admits_the_first_release_supporting_anthropic_1() -> None:
     (spec,) = build_agent_loop_groups()[f"{AGENT_LOOP_GROUP_PREFIX}{LOOP_PYDANTIC_AI}"]
-    assert Requirement(spec).specifier.contains("2.36.0")
-    assert not Requirement(spec).specifier.contains("2.35.3")
+    req = Requirement(spec)
+    assert req.extras == {"anthropic", "openai", "google", "mcp", "spec"}
+    assert req.specifier.contains("2.33.0")
+    assert not req.specifier.contains("2.32.2")
+
+
+def test_every_floored_package_has_a_floor() -> None:
+    assert set(_FLOORS) == set(get_args(TFlooredPackage))
+
+
+def test_every_added_spec_has_a_lower_bound() -> None:
+    """An unbounded spec lets a conflict walk the resolver back to an ancient release.
+
+    A dlt extra counts as bounded: the installed dlt bounds every package in it.
+    """
+    added = [
+        *(s for specs in build_launcher_requirements().values() for s in specs),
+        *build_dashboard_group(),
+        *(s for specs in build_agent_loop_groups().values() for s in specs),
+    ]
+    unbounded = []
+    for s in added:
+        req = Requirement(s)
+        if req.name == "dlt" and req.extras:
+            continue
+        if not any(c.operator in (">=", ">", "==", "~=") for c in req.specifier):
+            unbounded.append(s)
+    assert unbounded == []
+
+
+def test_dlt_extra_specs_carry_the_bounds_dlt_declares() -> None:
+    (s3fs,) = [s for s in dlt_extra_specs("s3") if Requirement(s).name == "s3fs"]
+    assert not Requirement(s3fs).specifier.contains("0.4.2")
+    for spec in dlt_extra_specs("s3"):
+        assert Requirement(spec).marker is None
+
+
+@pytest.mark.parametrize(
+    "declared, expected",
+    [
+        (['s3fs>=2022.4.0 ; extra == "s3"'], ["s3fs>=2022.4.0"]),
+        (['s3fs[boto3]>=1 ; extra == "s3"'], ["s3fs[boto3]>=1"]),
+        (['pyarrow>=16 ; python_version >= "3.0" and extra == "s3"'], ["pyarrow>=16"]),
+        (['pyarrow>=16 ; python_version < "3.0" and extra == "s3"'], []),
+        (['gcsfs>=2022 ; extra == "gs"'], []),
+        (["requests>=2"], []),
+        (['tomlkit ; python_version >= "3.0"'], []),
+    ],
+    ids=[
+        "extra-marker",
+        "keeps-package-extras",
+        "compound-marker-for-this-python",
+        "compound-marker-for-another-python",
+        "other-extra",
+        "core-dep",
+        "core-dep-with-marker",
+    ],
+)
+def test_dlt_extra_specs_select_the_extra_and_drop_markers(
+    declared: List[str], expected: List[str]
+) -> None:
+    filler = ['botocore>=1.28 ; extra == "s3"']
+    with patch(_REQUIRES, return_value=declared + filler):
+        assert dlt_extra_specs("s3") == expected + ["botocore>=1.28"]
+
+
+def test_dlt_extra_specs_reject_an_extra_the_installed_dlt_does_not_declare() -> None:
+    with patch(_REQUIRES, return_value=['gcsfs>=2022 ; extra == "gs"', "requests>=2"]):
+        with pytest.raises(ValueError, match="no `s3` extra"):
+            dlt_extra_specs("s3")
 
 
 def test_python_version_shape() -> None:

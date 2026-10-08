@@ -12,7 +12,7 @@ from dlt._workspace.cli.dlthub._init_command import (
 )
 from dlt._workspace.cli.dlthub.typing import TInitPlan
 from dlt._workspace.cli.dlthub.utils import (
-    WORKSPACE_DEPS,
+    workspace_deps,
     fetch_init_plan,
 )
 from dlt._workspace.cli.exceptions import CliCommandException
@@ -35,7 +35,7 @@ def _paths(plan: TInitPlan) -> List[str]:
 
 
 def _assert_seeded_deps(deps_file: Path) -> None:
-    """Assert the deps file pins `dlt[hub]` (or `-e <path>` to dlt) and contains every WORKSPACE_DEPS entry."""
+    """Assert the deps file pins `dlt[hub]` (or `-e <path>` to dlt) and contains every `workspace_deps()` entry."""
     if deps_file.suffix == ".toml":
         parsed = tomlkit.parse(_read(deps_file))
         listed = [str(d) for d in parsed["project"]["dependencies"]]  # type: ignore[index, union-attr]
@@ -45,7 +45,7 @@ def _assert_seeded_deps(deps_file: Path) -> None:
         listed = _read(deps_file).splitlines()
         # requirements.txt path: editable installs render as `-e <path>` instead of `dlt[hub]==…`
         assert listed[0].startswith("dlt[hub]") or listed[0].startswith("-e ")
-    for d in WORKSPACE_DEPS:
+    for d in workspace_deps():
         assert d in listed
 
 
@@ -67,12 +67,12 @@ def _run_init(
 
 
 def test_workspace_deps_match_pyproject_group() -> None:
-    """`WORKSPACE_DEPS` constant mirrors `[dependency-groups] workspace-deps`."""
+    """`workspace_deps()` mirrors `[dependency-groups] workspace-deps`."""
     pyproject = tomlkit.parse(
         Path(__file__).parents[4].joinpath("pyproject.toml").read_text(encoding="utf-8")
     )
     group = list(pyproject["dependency-groups"]["workspace-deps"])  # type: ignore[index, arg-type]
-    assert list(WORKSPACE_DEPS) == [str(d) for d in group]
+    assert workspace_deps() == [str(d) for d in group]
 
 
 @pytest.mark.parametrize(
