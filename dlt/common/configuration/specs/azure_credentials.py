@@ -59,7 +59,13 @@ class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredential
         creds.pop("anon", None)
         creds.pop("credential", None)
 
-        if isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
+        # Static bearer token (e.g. Fabric notebookutils) — key/SAS take precedence when present
+        token = getattr(self, "azure_storage_token", None)
+        has_key = getattr(self, "azure_storage_account_key", None)
+        has_sas = getattr(self, "azure_storage_sas_token", None)
+        if token and not has_key and not has_sas:
+            creds["azure_storage_token"] = token
+        elif isinstance(self, CredentialsWithDefault) and self.has_default_credentials():
             if self.is_external_session():
                 # object_store cannot resolve a user-passed credential, so freeze a bearer token.
                 # NOTE: relies on the consumer merging AZURE_* env into the passed options - verified
@@ -69,6 +75,21 @@ class AzureCredentialsBase(CredentialsConfiguration, WithObjectStoreRsCredential
                 )
 
         return creds
+
+
+def _static_azure_token_credential(token: str) -> Any:
+    """Wrap a static bearer token as an azure-identity-compatible TokenCredential for adlfs."""
+    try:
+        from azure.core.credentials import AccessToken
+    except ModuleNotFoundError:
+        raise MissingDependencyException("AzureCredentials", [_AZURE_STORAGE_EXTRA])
+
+    class _StaticTokenCredential:
+        def get_token(self, *scopes: Any, **kwargs: Any) -> Any:
+            # Static token does not refresh; far-future expiry matches object_store freeze semantics
+            return AccessToken(token, 2**31 - 1)
+
+    return _StaticTokenCredential()
 
 
 class _AzureExternalSession:
@@ -122,6 +143,10 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
 
     azure_storage_account_key: Optional[TSecretStrValue] = None
     azure_storage_sas_token: TSecretStrValue = None
+    azure_storage_token: Optional[TSecretStrValue] = None
+    """Optional static bearer token (e.g. Fabric OneLake / notebookutils). Does not auto-refresh.
+    Precedence: account key / SAS > token > default credential chain.
+    """
     azure_sas_token_permissions: str = "racwdl"
     """Permissions to use when generating a SAS token. Ignored when sas token is provided directly"""
     azure_sas_token_expiration_hours: float = 24.0
@@ -129,14 +154,31 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
 
     def to_adlfs_credentials(self) -> Dict[str, Any]:
         """Return a dict that can be passed as kwargs to adlfs"""
-        return dict(
+        kwargs: Dict[str, Any] = dict(
             account_name=self.azure_storage_account_name,
             account_key=self.azure_storage_account_key,
             sas_token=self.azure_storage_sas_token,
             account_host=self.azure_account_host,
         )
+        # key/SAS win; otherwise pass a static TokenCredential for bearer auth
+        if (
+            self.azure_storage_token
+            and not self.azure_storage_account_key
+            and not self.azure_storage_sas_token
+        ):
+            kwargs["credential"] = _static_azure_token_credential(self.azure_storage_token)
+        return kwargs
 
     def to_pyiceberg_fileio_config(self) -> Dict[str, Any]:
+        if (
+            self.azure_storage_token
+            and not self.azure_storage_account_key
+            and not self.azure_storage_sas_token
+        ):
+            raise UnsupportedAuthenticationMethodException(
+                "A static azure_storage_token cannot be used with pyiceberg on Azure. Configure a"
+                " static account key, SAS token or service principal instead."
+            )
         return {
             "adls.account-name": self.azure_storage_account_name,
             "adls.account-key": self.azure_storage_account_key,
@@ -181,6 +223,14 @@ class AzureCredentialsWithoutDefaults(AzureCredentialsBase, WithPyicebergConfig)
         # sas token can be generated from account key
         if self.azure_storage_account_key and not self.azure_storage_sas_token:
             self.create_sas_token()
+        # account name + static bearer resolves without key/sas (sas field stays required otherwise)
+        if (
+            self.azure_storage_account_name
+            and self.azure_storage_token
+            and not self.azure_storage_account_key
+        ):
+            self.resolve()
+            return
         if not self.is_partial():
             self.resolve()
 
@@ -230,7 +280,11 @@ class AzureCredentials(
         except ModuleNotFoundError:
             raise MissingDependencyException(self.__class__.__name__, [_AZURE_STORAGE_EXTRA])
 
-        if not self.azure_storage_account_key and not self.azure_storage_sas_token:
+        if (
+            not self.azure_storage_account_key
+            and not self.azure_storage_sas_token
+            and not self.azure_storage_token
+        ):
             self._set_default_credentials(DefaultAzureCredential())
             if self.azure_storage_account_name:
                 self.resolve()
