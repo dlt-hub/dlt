@@ -133,6 +133,7 @@ export const GO_FURTHER = {
   "/docs/dlt-ecosystem/destinations/databricks": [LINKS.databricks],
   "/docs/dlt-ecosystem/transformations/dbt": [LINKS.dbtSemanticLayer, LINKS.transformations],
   "/docs/reference/performance": [LINKS.benchmark, LINKS.sqlBenchmark],
+  "docs/dlt-ecosystem/verified-sources/sql_database": LINKS.sqlBenchmark,
   "/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer": [LINKS.airflow],
   "/docs/walkthroughs/deploy-a-pipeline/deploy-with-dagster": [LINKS.dagster],
   "/docs/walkthroughs/deploy-a-pipeline/deploy-with-prefect": [LINKS.prefect],
