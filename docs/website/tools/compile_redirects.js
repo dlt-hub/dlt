@@ -137,12 +137,34 @@ function compile() {
     for (const entry of g.entries) compiled.push(entry);
   }
 
+  assertNoDuplicateSources(compiled);
+
   return {
     compiled,
     groups: grouped,
     passthrough,
     inputs: versions.map((v) => v.file),
   };
+}
+
+/**
+ * Reject two rules for the same `from` path. The worker resolves a path with a
+ * map (first rule wins), so a duplicate silently disables the later rule.
+ */
+function assertNoDuplicateSources(entries) {
+  const targetsByFrom = new Map();
+  for (const entry of entries) {
+    const targets = targetsByFrom.get(entry.from);
+    if (targets) targets.push(entry.to);
+    else targetsByFrom.set(entry.from, [entry.to]);
+  }
+  const duplicates = [...targetsByFrom].filter(([, targets]) => targets.length > 1);
+  if (duplicates.length === 0) return;
+  const details = duplicates.map(([from, targets]) => `  ${from} -> ${targets.join(", ")}`).join("\n");
+  throw new Error(
+    `duplicate "from" paths in the redirect sources - the worker would only ever apply ` +
+      `the first rule for each. Edit the existing entry instead of adding a second one:\n${details}`,
+  );
 }
 
 function renderEntry(entry) {
