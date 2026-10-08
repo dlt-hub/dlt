@@ -181,7 +181,7 @@ info = pipeline.run(products_tables)
 ```
 
 :::tip
-A more comprehensive pipeline would load data from [API](https://dlthub.com/workspace) or use one of dlt's [sources](../verified-sources/).
+A more comprehensive pipeline would load data from [API](https://dlthub.com/context) or use one of dlt's [sources](../verified-sources/).
 :::
 
 ## Write disposition
