@@ -5,8 +5,8 @@ keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.
 ---
 # Background agents
 
-:::warning
-This feature is in private preview
+:::info
+This feature is in public preview
 :::
 
 An agent job is a dltHub job that runs an AI agent loop. It runs unattended on a schedule, after another job fails, or when you start it from the CLI or the Web UI. It can read the workspace. It can query runs and logs through the dltHub Model Context Protocol (MCP) server. It returns a job result, which shows on the page of each entity that the agent run acted on.
