@@ -74,7 +74,12 @@ def create_sqlglot_schema(
 
         nested_schema[dataset_name] = sqlglot_tables
 
-    return ensure_schema(nested_schema, dialect=dialect, normalize=False)
+    # keep case-sensitive so star-expansion doesn't re-fold already-normalized identifiers
+    return ensure_schema(
+        nested_schema,
+        dialect=f"{dialect}, normalization_strategy=case_sensitive" if dialect else dialect,
+        normalize=False,
+    )
 
 
 # NOTE even if `infer_sqlglot_schema=True`, some queries can have undetermined final columns

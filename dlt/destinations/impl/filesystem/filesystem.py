@@ -1,7 +1,6 @@
 import posixpath
 import os
 import time as _time
-import orjson
 import base64
 from contextlib import contextmanager
 from types import TracebackType
@@ -38,6 +37,7 @@ from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableFormat,
     TTableSchemaColumns,
+    UPSERT_MERGE_STRATEGIES,
 )
 from dlt.common.storages.exceptions import (
     CurrentLoadPackageStateNotAvailable,
@@ -45,10 +45,16 @@ from dlt.common.storages.exceptions import (
     UnsupportedStorageVersionException,
 )
 from dlt.common.storages.fsspec_filesystem import glob_files
-from dlt.common.time import ensure_pendulum_datetime_utc
+from datetime import datetime, timezone
+
+from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
-from dlt.common.schema.utils import get_columns_names_with_prop, is_nested_table
+from dlt.common.schema.utils import (
+    get_columns_names_with_prop,
+    get_nested_tables,
+    is_nested_table,
+)
 from dlt.common.storages import FileStorage, fsspec_from_config
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -95,6 +101,7 @@ from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
     verify_schema_merge_disposition,
     verify_schema_replace_disposition,
+    verify_unsupported_merge_options,
 )
 
 if TYPE_CHECKING:
@@ -135,9 +142,14 @@ class FilesystemLoadJob(RunnableLoadJob):
 
     @property
     def load_package_timestamp(self) -> Optional[pendulum.DateTime]:
+        # NOTE: pendulum stays here. `path_utils.prepare_datetime_params` formats this value with
+        # pendulum tokens, so a stdlib datetime would not render the path placeholders
         # package state is optional
         try:
-            return ensure_pendulum_datetime_utc(current_load_package()["state"]["created_at"])
+            # UTC, never the context timezone: this timestamp renders into the object path
+            return ensure_pendulum_datetime(
+                current_load_package()["state"]["created_at"], timezone.utc
+            )
         except CurrentLoadPackageStateNotAvailable:
             return None
 
@@ -526,7 +538,10 @@ class FilesystemClient(
         self.config: FilesystemDestinationClientConfiguration = config
         # verify files layout. we need {table_name} and only allow {schema_name} before it, otherwise tables
         # cannot be replaced and we cannot initialize folders consistently
-        self.table_prefix_layout = path_utils.get_table_prefix_layout(config.layout)
+        self.table_prefix_layout = path_utils.get_table_prefix_layout(
+            config.layout,
+            naming=self.schema.naming if config.warn_unsafe_layout_separators else None,
+        )
         self.dataset_name = self.config.normalize_dataset_name(self.schema)
         self._sql_client: SqlClientBase[Any] = None
         # iceberg catalog
@@ -678,7 +693,7 @@ class FilesystemClient(
             version_dict: Dict[str, int] = json.loads(version_info_str)
             initial_version: int = version_dict["initial_version"]
             current_version: int = version_dict["current_version"]
-        except (KeyError, orjson.JSONDecodeError) as exc:
+        except (KeyError, TypeError, ValueError) as exc:
             raise ValueError(
                 f"Invalid content in {self.init_file_path}: {version_info_str!r}"
             ) from exc
@@ -863,8 +878,15 @@ class FilesystemClient(
         self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
         # TODO: finetune verify_schema_merge_disposition ie. hard deletes are not supported
+        # Delta merge predicates name the merged tables by their `source` and `target` aliases
         if exceptions := verify_schema_merge_disposition(
-            self.schema, loaded_tables, self.capabilities, warnings=True
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            warnings=True,
+            # the source filter selects the merge source, so it cannot read the target
+            source_filter_placeholders=("staging_table",),
+            destination_scope_placeholders=("table",),
         ):
             # filesystem falls back to append when merge is not supported
             filtered = []
@@ -906,6 +928,70 @@ class FilesystemClient(
                 if self.config.protocol == "hf":
                     message = "the `hf` protocol does not support table formats"
                 exception_log.append(TableFormatNotSupported(table_format, table["name"], message))
+            if table_format == "delta":
+                merge_strategy = resolve_merge_strategy(
+                    self.schema.tables, table, self.capabilities
+                )
+                # the job merges each Delta table alone, so root row conditions miss nested rows
+                has_nested_tables = bool(
+                    get_nested_tables(self.schema.tables, table["name"], include_self=False)
+                )
+                if merge_strategy == "cdc":
+                    if get_columns_names_with_prop(table, "merge_key"):
+                        # `merge_key` selects rows by staged values with a subquery. Delta
+                        # predicates have no subqueries
+                        exception_log.append(
+                            SchemaCorruptedException(
+                                self.schema.name,
+                                "dlt does not support `merge_key` with the `cdc` merge strategy"
+                                f" on Delta table `{table['name']}`. Use `destination_scope`"
+                                " instead.",
+                            )
+                        )
+                # upsert has no destination scope
+                has_merge_conditions = "x-merge-source-filter" in table or (
+                    merge_strategy == "cdc" and "x-merge-destination-scope" in table
+                )
+                if (
+                    merge_strategy in UPSERT_MERGE_STRATEGIES
+                    and has_nested_tables
+                    and has_merge_conditions
+                ):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            self.schema.name,
+                            "dlt does not support `source_filter` or `destination_scope` with the"
+                            f" `{merge_strategy}` merge strategy on Delta table `{table['name']}`."
+                            " The table has nested tables. Remove the merge conditions or the"
+                            " nested data.",
+                        )
+                    )
+                if (
+                    merge_strategy in UPSERT_MERGE_STRATEGIES
+                    and has_nested_tables
+                    and get_columns_names_with_prop(table, "hard_delete")
+                ):
+                    exception_log.append(
+                        SchemaCorruptedException(
+                            self.schema.name,
+                            "dlt does not support the `hard_delete` hint with the"
+                            f" `{merge_strategy}` merge strategy on Delta table `{table['name']}`."
+                            " The table has nested tables. Remove the `hard_delete` hint or the"
+                            " nested data.",
+                        )
+                    )
+            elif table_format == "iceberg":
+                # pyiceberg merges Arrow data: it cannot apply a SQL condition and it compares
+                # all columns, `_dlt_load_id` included, so every row changes
+                exception_log.extend(
+                    verify_unsupported_merge_options(
+                        self.schema,
+                        [table],
+                        self.capabilities,
+                        "iceberg",
+                        ("source_filter", "skip_unchanged_rows"),
+                    )
+                )
         return exception_log
 
     def update_stored_schema(
@@ -990,8 +1076,20 @@ class FilesystemClient(
             # it is crucial to append and keep "/" at the end
             table_prefix = self.pathlib.join(table_name, "")
         else:
+            prefix_placeholders = set(path_utils.get_placeholders(self.table_prefix_layout))
+            prefix_extra_placeholders = {
+                key: value
+                for key, value in (self.config.extra_placeholders or {}).items()
+                if key in prefix_placeholders
+            }
+            params = path_utils.prepare_params(
+                extra_placeholders=prefix_extra_placeholders,
+                schema_name=schema_name or self.schema.name,
+                table_name=table_name,
+            )
             table_prefix = self.table_prefix_layout.format(
-                schema_name=schema_name or self.schema.name, table_name=table_name
+                schema_name=params.get("schema_name", schema_name or self.schema.name),
+                table_name=params.get("table_name", table_name),
             )
         return self.pathlib.join(  # type: ignore[no-any-return]
             self.dataset_path, path_utils.normalize_path_sep(self.pathlib, table_prefix)
@@ -1125,7 +1223,7 @@ class FilesystemClient(
             C_DLT_LOADS_TABLE_LOAD_ID: load_id,
             "schema_name": self.schema.name,
             "status": 0,
-            "inserted_at": pendulum.now().isoformat(),
+            "inserted_at": datetime.now(timezone.utc).isoformat(),
             "schema_version_hash": self.schema.version_hash,
         }
         filepath = self.pathlib.join(
@@ -1265,7 +1363,8 @@ class FilesystemClient(
 
             if selected_path:
                 info = json.loads(self.fs_client.read_text(selected_path, encoding="utf-8"))
-                info["inserted_at"] = ensure_pendulum_datetime_utc(info["inserted_at"])
+                # UTC, never the context timezone: runs compare these across each other
+                info["inserted_at"] = ensure_datetime_in_tz(info["inserted_at"], timezone.utc)
                 return StorageSchemaInfo(**info)
         except DestinationUndefinedEntity:
             # ignore missing table
@@ -1284,7 +1383,7 @@ class FilesystemClient(
             "schema_name": schema.name,
             "version": schema.version,
             "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": pendulum.now(),
+            "inserted_at": datetime.now(timezone.utc),
             "schema": json.dumps(schema.to_dict()),
         }
 

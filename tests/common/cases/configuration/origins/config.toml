@@ -1,0 +1,26 @@
+base_only = "base"
+shared = "from_base"
+create_indexes = false
+dotted.key = "base"
+
+[tbl]
+from_base = 1
+shared_key = "from_base"
+
+[tbl.sub]
+deep = "base"
+
+[inline]
+it = { a = 1, b = "two" }
+
+[[aot]]
+n = 1
+
+[ooo.first]
+x = "base"
+
+[other]
+y = "base"
+
+[ooo.second]
+z = "base"

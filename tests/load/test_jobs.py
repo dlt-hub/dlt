@@ -1,3 +1,4 @@
+from datetime import datetime
 from typing import Any, List, Optional, Tuple
 
 import pytest
@@ -58,7 +59,9 @@ def test_runnable_job_results() -> None:
     assert j.state() == "ready"
     j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "retry"
-    assert j.failed_message() == "Oh no!"
+    # failed_message is the full traceback, not just the exception message
+    assert "Oh no!" in j.failed_message()
+    assert "Traceback" in j.failed_message()
     assert isinstance(j.exception(), Exception)
     metrics_3 = j.metrics()
     assert metrics_3.state == "retry"
@@ -75,7 +78,9 @@ def test_runnable_job_results() -> None:
     assert j.state() == "ready"
     j.run_managed(MockClient(), None)  # type: ignore
     assert j.state() == "failed"
-    assert j.failed_message() == "Oh no!"
+    # failed_message is the full traceback, not just the exception message
+    assert "Oh no!" in j.failed_message()
+    assert "Traceback" in j.failed_message()
     assert isinstance(j.exception(), Exception)
     metrics_4 = j.metrics()
     assert metrics_4.state == "failed"
@@ -195,7 +200,7 @@ def test_on_completed_fires_before_semaphore_release() -> None:
     from threading import BoundedSemaphore
 
     file_path = "/table.1234.0.jsonl"
-    finished_at_during_callback: List[Optional[pendulum.DateTime]] = []
+    finished_at_during_callback: List[Optional[datetime]] = []
 
     class SuccessfulJob(RunnableLoadJob):
         def run(self) -> None:
@@ -292,8 +297,8 @@ def test_finalized_load_job() -> None:
     assert j.state() == "completed"
     assert not j.failed_message()
     assert j.exception() is None
-    assert isinstance(j._started_at, pendulum.DateTime)
-    assert isinstance(j._finished_at, pendulum.DateTime)
+    assert isinstance(j._started_at, datetime)
+    assert isinstance(j._finished_at, datetime)
 
     j = FinalizedLoadJob(
         file_path, status="failed", failed_message="oh no!", exception=RuntimeError()
@@ -302,8 +307,8 @@ def test_finalized_load_job() -> None:
     assert j.failed_message() == "oh no!"
     assert isinstance(j.exception(), RuntimeError)
     # start and finish dates will be automatically set for terminal states
-    assert isinstance(j._started_at, pendulum.DateTime)
-    assert isinstance(j._finished_at, pendulum.DateTime)
+    assert isinstance(j._started_at, datetime)
+    assert isinstance(j._finished_at, datetime)
     metrics = j.metrics()
     assert metrics.table_name == "table"
     assert metrics.finished_at == j._finished_at
@@ -312,14 +317,14 @@ def test_finalized_load_job() -> None:
     assert metrics.retry_count == 1
 
     j = FinalizedLoadJob(file_path, status="retry")
-    assert isinstance(j._started_at, pendulum.DateTime)
+    assert isinstance(j._started_at, datetime)
     assert j._finished_at is None
 
     # explicit start and finish
     started_at = pendulum.now().subtract(days=-1)
     finished_at = pendulum.now().subtract(days=1)
     j = FinalizedLoadJob(file_path, status="retry", started_at=started_at, finished_at=finished_at)
-    assert isinstance(j._started_at, pendulum.DateTime)
+    assert isinstance(j._started_at, datetime)
     assert j._finished_at is finished_at
     assert j._started_at is started_at
 

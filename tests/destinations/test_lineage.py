@@ -6,6 +6,7 @@ import pytest
 import sqlglot.expressions as sge
 from sqlglot.schema import Schema as SQLGlotSchema, ensure_schema
 
+from dlt import Schema
 from dlt.common.libs.sqlglot import TSqlGlotDialect
 from dlt.common.schema import TTableSchemaColumns
 from dlt.dataset import lineage
@@ -217,3 +218,35 @@ def test_compute_columns_schema(
                 **config,
             )[0]
         )
+
+
+@pytest.mark.parametrize(
+    "names_ref",
+    (
+        "tests.common.cases.normalizers.sql_upper",
+        "tests.common.cases.normalizers.title_case",
+    ),
+)
+def test_star_select_preserves_case_sensitive_identifiers(names_ref: str) -> None:
+    """`SELECT *` expansion must keep the case of already normalized dlt identifiers."""
+    schema = Schema("d1")
+    schema._normalizers_config["names"] = names_ref
+    schema.update_normalizers()
+    schema.update_table(
+        {
+            "name": "products",
+            "columns": {
+                "id": {"data_type": "bigint", "name": "id"},
+                "name": {"data_type": "text", "name": "name"},
+                "_dlt_load_id": {"data_type": "text", "name": "_dlt_load_id"},
+            },
+        }
+    )
+    normalized_table = schema.naming.normalize_tables_path("products")
+    expected = [schema.naming.normalize_identifier(c) for c in ("id", "name", "_dlt_load_id")]
+
+    sqlglot_schema = lineage.create_sqlglot_schema({"d1": [schema]}, DIALECT)
+    columns, _ = lineage.compute_columns_schema(
+        sqlglot.parse_one(f'SELECT * FROM "{normalized_table}"'), sqlglot_schema, DIALECT
+    )
+    assert list(columns.keys()) == expected

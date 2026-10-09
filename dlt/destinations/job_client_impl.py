@@ -6,6 +6,7 @@ from copy import copy
 from types import TracebackType
 from typing import (
     Any,
+    cast,
     ClassVar,
     Dict,
     List,
@@ -21,8 +22,11 @@ import re
 
 import sqlglot.expressions
 
+from datetime import datetime, timezone
+
 from dlt.common.libs.sqlglot import TSqlGlotDialect
-from dlt.common import pendulum, logger
+from dlt.common import logger
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.destination.capabilities import DataTypeMapper
 from dlt.common.destination.exceptions import WriteDispositionNotSupported
 from dlt.common.destination.utils import resolve_replace_strategy
@@ -42,7 +46,6 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     version_table,
 )
-from dlt.common.utils import read_dialect_and_sql
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import (
     LoadJobInfo,
@@ -66,6 +69,8 @@ from dlt.common.destination.client import (
     JobClientBase,
     HasFollowupJobs,
     CredentialsConfiguration,
+    SqlModel,
+    WithAttachableEngine,
 )
 
 from dlt.destinations.exceptions import DatabaseUndefinedRelation
@@ -74,7 +79,7 @@ from dlt.destinations.job_impl import (
 )
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob, SqlStagingReplaceFollowupJob
 from dlt.destinations.typing import TNativeConn
-from dlt.destinations.sql_client import SqlClientBase, WithSqlClient
+from dlt.destinations.sql_client import SqlClientBase, TAttachInfo, WithAttach, WithSqlClient
 from dlt.destinations.utils import (
     get_pipeline_state_query_columns,
     info_schema_null_to_bool,
@@ -158,12 +163,33 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
 
     def run(self) -> None:
         with FileStorage.open_zipsafe_ro(self._file_path, "r", encoding="utf-8") as f:
-            select_dialect, select_statement = read_dialect_and_sql(
+            model = SqlModel.from_file(
                 file_obj=f,
                 fallback_dialect=self._job_client.capabilities.sqlglot_dialect,  # caps are available at this point
             )
+        select_dialect = model.query_dialect
+        select_statement = model.to_sql()
+        attach = model.attach
 
         sql_client = self._job_client.sql_client
+        if attach:
+            # dlt built the model against the input dataset. the model runs here, so this
+            # destination decides whether it can attach the foreign datasets
+            config = self._job_client.config
+            if not isinstance(sql_client, WithAttach) or not isinstance(
+                config, WithAttachableEngine
+            ):
+                raise ValueError(
+                    f"Destination `{config.destination_type}` cannot attach the"
+                    " foreign datasets that this model needs."
+                )
+            for info in attach:
+                if not config.can_attach(info["attach_type"]):
+                    raise ValueError(
+                        f"Destination `{config.destination_type}` cannot execute the"
+                        f" `{info['attach_type']}` attach statements that this model needs."
+                    )
+                sql_client.attach(info["alias"], info["statements"])
         insert_statement = self._insert_statement_from_select_statement(
             select_dialect, select_statement
         )
@@ -178,31 +204,11 @@ class ModelLoadJob(RunnableLoadJob, HasFollowupJobs):
         """
         sql_client = self._job_client.sql_client
         target_table = sql_client.make_qualified_table_name(self._load_table["name"])
-        target_catalog = sql_client.catalog_name(quote=False)
         destination_dialect = self._job_client.capabilities.sqlglot_dialect
 
-        # Parse SELECT
+        # dlt binds every table path when it builds the model. a foreign path carries its attach
+        # alias as the catalog, so this method must not rewrite the parts
         parsed_select = sqlglot.parse_one(select_statement, read=select_dialect)
-
-        # Adjust table parts (catalog/db/this) based on dialect and catalog presence
-        if select_dialect != destination_dialect:
-            # TODO: We might need this
-            for table in parsed_select.find_all(sqlglot.exp.Table):
-                parts = list(table.parts)
-                if target_catalog:
-                    if len(parts) == 3:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
-                    elif len(parts) == 2:
-                        table.set("catalog", sqlglot.to_identifier(target_catalog))
-                        table.set("db", sqlglot.to_identifier(parts[0].name))
-                        table.set("this", sqlglot.to_identifier(parts[1].name))
-                else:
-                    if len(parts) == 3:
-                        table.set("catalog", None)
-                        table.set("db", sqlglot.to_identifier(parts[1].name))
-                        table.set("this", sqlglot.to_identifier(parts[2].name))
 
         # Ensure there's a top-level SELECT, otherwise it doesn't make sense
         top_level_select = parsed_select.find(sqlglot.exp.Select)
@@ -431,7 +437,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
     def complete_load(self, load_id: str) -> None:
         self._set_query_tags(operation="complete_load", load_id=load_id)
         name = self.sql_client.make_qualified_table_name(self.schema.loads_table_name)
-        now_ts = pendulum.now()
+        now_ts = datetime.now(timezone.utc)
         self.sql_client.execute_sql(
             f"INSERT INTO {name}({self.loads_table_schema_columns}) VALUES(%s, %s, %s, %s, %s)",
             load_id,
@@ -589,7 +595,7 @@ class SqlJobClientBase(WithSqlClient, JobClientBase, WithStateSync):
             engine_version=row[1],
             pipeline_name=row[2],
             state=row[3],
-            created_at=pendulum.instance(row[4]),
+            created_at=ensure_datetime_in_tz(row[4], timezone.utc),
             _dlt_load_id=row[5],
         )
 
@@ -860,7 +866,7 @@ WHERE """
             pass
 
         # make utc datetime
-        inserted_at = pendulum.instance(row[2])
+        inserted_at = ensure_datetime_in_tz(row[2], timezone.utc)
 
         return StorageSchemaInfo(row[4], row[3], row[0], row[1], inserted_at, schema_str)
 
@@ -884,7 +890,7 @@ WHERE """
         self._commit_schema_update(schema, schema_str)
 
     def _commit_schema_update(self, schema: Schema, schema_str: str) -> None:
-        now_ts = pendulum.now()
+        now_ts = datetime.now(timezone.utc)
         name = self.sql_client.make_qualified_table_name(self.schema.version_table_name)
         # values =  schema.version_hash, schema.name, schema.version, schema.ENGINE_VERSION, str(now_ts), schema_str
         self.sql_client.execute_sql(

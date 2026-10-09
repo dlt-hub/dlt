@@ -8,6 +8,9 @@ jobs:
   run_airflow:
     name: ${{ matrix.display_name }}
     runs-on: blacksmith-8vcpu-ubuntu-2404
+    env:
+      # Prevent implicit resyncs by `uv run`; this is ignored by explicit `uv sync` commands.
+      UV_NO_SYNC: "1"
     strategy:
       fail-fast: false
       matrix:

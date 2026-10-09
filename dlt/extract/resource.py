@@ -8,6 +8,7 @@ from typing import (
     Iterable,
     Iterator,
     Generator,
+    List,
     Type,
     Union,
     Any,
@@ -16,6 +17,8 @@ from typing import (
 )
 
 from dlt.common import logger
+from dlt.common.exceptions import TypeErrorWithKnownTypes
+from dlt.common.metrics import TDataLocation
 from dlt.common.configuration.inject import get_fun_spec, with_config
 from dlt.common.configuration.resolve import inject_section
 from dlt.common.configuration.specs import BaseConfiguration, known_sections
@@ -74,6 +77,7 @@ from dlt.extract.pipe import Pipe
 from dlt.extract.hints import DltResourceHints, HintsMeta, TResourceHints
 from dlt.extract.incremental import Incremental, IncrementalResourceWrapper
 from dlt.extract.exceptions import (
+    DataLocationKindRequired,
     InvalidTransformerDataTypeGeneratorFunctionRequired,
     InvalidParentResourceDataType,
     InvalidParentResourceIsAFunction,
@@ -141,6 +145,7 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
         self.source_name = None
         self._parent: DltResource = None
         self._custom_metrics: Dict[str, Any] = {}
+        self._inputs: List[TDataLocation] = []
         super().__init__(hints)
         self._update_wrapper()
 
@@ -226,6 +231,45 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
     def custom_metrics(self) -> Dict[str, Any]:
         """Customizable resource metrics"""
         return self._custom_metrics
+
+    @property
+    def inputs(self) -> List[TDataLocation]:
+        """Data locations this resource read from, recorded during extraction."""
+        return self._inputs
+
+    def add_input(self, location: TDataLocation, replace: bool = False) -> Self:
+        """Records a data location this resource reads from, to be emitted in the pipeline trace.
+
+        Call on the resource instance when it is created, or from inside a running resource via
+        `dlt.current.resource()` when the location is only known once config is resolved. One entry
+        per location, listing the tables, endpoints or files touched inside it - not one entry per
+        table. `kind` defaults to the name of the source this resource belongs to, and must be
+        passed explicitly by a resource that has no source yet.
+
+        Args:
+            location (TDataLocation): Location that was read, or a `kind`-specific subclass of it.
+            replace (bool): Drops the locations recorded so far and records `location` as the only
+                one.
+
+        Returns:
+            DltResource: returns self
+
+        Raises:
+            TypeErrorWithKnownTypes: If `location` is not a mapping.
+            DataLocationKindRequired: If `kind` is absent and there is no source to default it from.
+        """
+        if not isinstance(location, dict):
+            raise TypeErrorWithKnownTypes("location", location, ["TDataLocation"])
+        # a fact that could not be established is absent from the row, not null
+        described: DictStrAny = dict(without_none(location))
+        if not described.get("kind"):
+            if not self.source_name:
+                raise DataLocationKindRequired(self.name)
+            described["kind"] = self.source_name
+        if replace:
+            self._inputs.clear()
+        self._inputs.append(cast(TDataLocation, described))
+        return self
 
     @property
     def name(self) -> str:
@@ -480,7 +524,6 @@ class DltResource(Iterable[TDataItem], DltResourceHints):
 
         Args:
             new_incremental: The Incremental instance/hint to set or replace
-            from_hints: If the incremental is set from hints. Defaults to False.
         """
         if new_incremental is Incremental.EMPTY:
             new_incremental = None

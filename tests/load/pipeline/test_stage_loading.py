@@ -149,6 +149,28 @@ def test_staging_load(destination_config: DestinationTestConfiguration) -> None:
     initial_counts = load_table_counts(pipeline)
     assert initial_counts["issues"] == 100
 
+    # the source records the read side, the load the write side, on every destination tested here
+    extract_info = pipeline.last_trace.last_extract_info
+    inputs = extract_info.metrics[extract_info.loads_ids[0]][0]["inputs"]
+    assert [location["resource_name"] for location in inputs] == ["load_issues"]
+    assert inputs[0]["location"] == "https://api.github.com"
+
+    written = next(
+        location
+        for metrics in info.metrics.values()
+        for location in metrics[0]["outputs"]
+        if location["resource_name"] == "load_issues"
+    )
+    # the only data resource, so it accounts for every table the schema has seen data for
+    assert set(written["tables"]) == {
+        table["name"] for table in pipeline.default_schema.data_tables(seen_data_only=True)
+    }
+    assert written["destination_type"].endswith(destination_config.destination_type)
+    assert written["physical_dataset_name"] == info.dataset_name
+    # every fact a location must carry is filled in, whatever the destination is
+    assert written["casefold"] in ("str", "upper", "lower")
+    assert written["schemas"][0]["version_hash"] == pipeline.default_schema.version_hash
+
     # check item of first row in db
     with pipeline.sql_client() as sql_client:
         qual_name = sql_client.make_qualified_table_name

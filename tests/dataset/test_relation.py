@@ -431,6 +431,40 @@ def test_multi_schema_row_counts(multi_schema_dataset: dlt.Dataset) -> None:
     assert counts == expected_counts
 
 
+@pytest.fixture(scope="module")
+def casefolding_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    """Dataset on a duckdb that folds identifiers to upper case, like snowflake."""
+    pipeline = dlt.pipeline(
+        pipeline_name="casefolding",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(
+            str(module_tmp_path / "casefolding.db"),
+            casefold_identifier=str.upper,
+            has_case_sensitive_identifiers=True,
+        ),
+        dev_mode=True,
+    )
+    pipeline.run(inventory())
+    return pipeline.dataset()
+
+
+def test_casefolding_row_counts_output_names(casefolding_dataset: dlt.Dataset) -> None:
+    """`row_counts` names its output columns in the dlt schema namespace, also when the
+    destination folds identifiers."""
+    counts = casefolding_dataset.row_counts()
+    assert counts.columns == ["table_name", "row_count"]
+    rows = counts.arrow().to_pylist()
+    assert {row["table_name"]: row["row_count"] for row in rows} == {
+        "items": len(ITEMS_DATA),
+        "warehouses": len(WAREHOUSES_DATA),
+    }
+
+
+def test_casefolding_literal_projection_output_name(casefolding_dataset: dlt.Dataset) -> None:
+    relation = casefolding_dataset("SELECT 'Widget' AS kind, item_id FROM items ORDER BY item_id")
+    assert relation.arrow().schema.names == ["kind", "item_id"]
+
+
 def test_multi_schema_cross_schema_sql_query(multi_schema_dataset: dlt.Dataset) -> None:
     result = multi_schema_dataset.query(
         "SELECT u.id, i.item_id FROM users u, items i WHERE u.id = i.item_id"
@@ -908,3 +942,34 @@ def test_changing_relation_with_query() -> None:
 
     with pytest.raises(LineageFailedException):
         relation.select("hello", "hillo").to_sql()
+
+
+@pytest.mark.skipif(
+    sys.version_info < (3, 10),
+    reason=f"Skipping tests for Python `{sys.version_info}`. Ibis only supports Python >= 3.10.",
+)
+def test_ibis_backend_gets_own_client(
+    dataset: dlt.Dataset, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """The ibis backend owns the client, so each call must get a new client."""
+    shared_client = dataset.destination_client
+
+    created: list[Any] = []
+    original_create = dlt.Dataset._create_destination_client
+
+    def _counting_create(self: Any) -> Any:
+        client = original_create(self)
+        created.append(client)
+        return client
+
+    monkeypatch.setattr(dlt.Dataset, "_create_destination_client", _counting_create)
+
+    dataset.ibis()
+    backend = dataset.ibis()
+
+    # each backend built its own client, and none of them is the shared client of the dataset
+    assert len(created) == 2
+    assert all(client is not shared_client for client in created)
+    assert "purchases" in backend.list_tables(database=dataset.dataset_name)
+    # the dataset keeps its own client usable
+    assert len(dataset.table("purchases").df()) == 3

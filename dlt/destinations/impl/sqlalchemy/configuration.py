@@ -272,7 +272,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
             ).startswith("md:"):
                 if self.credentials.is_external_engine:
                     # external engines are never rebuilt from credentials: keep the engine's
-                    # database so physical_location() reports the file actually written to
+                    # database so data_location() reports the file actually written to
                     if db and not os.path.isabs(db):
                         self.credentials.database = os.path.abspath(db)
                 elif not db or not os.path.isabs(db):
@@ -285,7 +285,7 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
                         self.make_location(db or None, name_pat)
                     )
 
-    def physical_location(self) -> str:
+    def _server_location(self) -> str:
         """Returns database file path for file-based backends, otherwise host:port."""
         if not self.credentials:
             return ""
@@ -307,35 +307,38 @@ class SqlalchemyClientConfiguration(WithLocalFiles, DestinationClientDwhConfigur
 
     def fingerprint(self) -> str:
         """Returns a fingerprint of the physical SQLAlchemy location."""
-        physical_location = self.physical_location()
-        if physical_location:
-            return digest128(physical_location)
+        server_location = self._server_location()
+        if server_location:
+            return digest128(server_location)
         return ""
 
-    def can_read_from(self, other: DestinationClientConfiguration) -> bool:
-        """Returns True when dialect-specific destination identities match."""
-        if not isinstance(other, SqlalchemyClientConfiguration):
-            return False
+    def data_location(self) -> str:
+        """Returns the server location. The dialect narrows this location to the data that one
+        query engine accesses."""
+        backend = self.get_backend_name()
+        if not backend or not self.credentials:
+            self._no_data_location("the configuration has no connection string")
+        server_location = self._server_location()
+        if not server_location:
+            if SqlalchemyCredentials.is_memory_database(
+                self.credentials.database, self.credentials.query
+            ):
+                # the database lives in the engine, so the engine is the only identity
+                managed = self.credentials._ensure_managed_engine()
+                handle = managed._engine if managed._engine is not None else managed
+                return f"{backend}://:memory:{hex(id(handle))}"
+            self._no_data_location("the connection string identifies no host or database")
+        location = f"{backend}://{server_location}"
 
-        if not self.credentials or not other.credentials:
-            return False
-
-        self_backend = self.get_backend_name()
-        if not self_backend or self_backend != other.get_backend_name():
-            return False
-
-        self_loc = self.physical_location()
-        other_loc = other.physical_location()
-        if not self_loc or not other_loc or self_loc != other_loc:
-            return False
-
-        # sqlite: the database file is the location. mysql and mssql can query across
-        # databases on the same server (database is schema-like / 3-part names)
-        if self_backend in ("sqlite", "mysql", "mssql"):
-            return True
-
-        # remaining dialects (postgresql, oracle, db2, unknown) bind a connection to a single
+        if backend == "sqlite":
+            # every dataset is a separate database file. a query engine attaches only its own file
+            return f"{location}#{self.dataset_name}"
+        if backend in ("mysql", "mssql", "duckdb"):
+            # database is schema-like here, so a query engine reads across the databases of the
+            # server. a duckdb file is the whole location already, and its database repeats the path
+            return location
+        # remaining dialects (postgresql, oracle, db2, unknown) bind a query engine to a single
         # database: oracle needs db links and db2 needs federation to query across databases
-        self_db = self.credentials.database
-        other_db = other.credentials.database
-        return self_db is not None and other_db is not None and self_db == other_db
+        if not (database := self.credentials.database):
+            self._no_data_location(f"the `{backend}` connection string identifies no database")
+        return f"{location}/{database}"

@@ -14,7 +14,6 @@ from typing import (
 )
 import time
 from dlt.common.metrics import LoadJobMetrics
-from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
@@ -80,6 +79,14 @@ class LoadDummyBaseJob(RunnableLoadJob):
             if self.config.retry_prob >= c_r:
                 # this will make the job go to a retry state
                 raise DestinationTransientException("a random retry occurred")
+
+            # check table name first to fail
+            if self.config.fail_table_names is not None:
+                table_name = self._parsed_file_name.table_name
+                if table_name in self.config.fail_table_names:
+                    raise DestinationTerminalException(f"table {table_name} configured to fail")
+                else:
+                    break
 
             # fail prob
             c_r = random.random()
@@ -159,8 +166,14 @@ class DummyClient(JobClientBase, SupportsStagingDestination, WithStagingDataset)
     ) -> Optional[TSchemaTables]:
         applied_update = super().update_stored_schema(only_tables, expected_update, force)
         if self.config.fail_schema_update:
-            raise DestinationTransientException(
+            # terminal to mimic a concurrent create/add-column collision, which retry_load skips
+            # and retry_schema_update retries
+            raise DestinationTerminalException(
                 "Raise on schema update due to `fail_schema_update` config flag"
+            )
+        if self.config.fail_schema_update_transiently:
+            raise DestinationTransientException(
+                "Raise on schema update due to `fail_schema_update_transiently` config flag"
             )
         return applied_update
 

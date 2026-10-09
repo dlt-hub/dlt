@@ -3,7 +3,6 @@ title: SQL database via SQLAlchemy
 description: SQLAlchemy destination
 keywords: [sql, sqlalchemy, database, destination]
 ---
-
 # SQLAlchemy destination
 
 The SQLAlchemy destination allows you to use any database that has an [SQLAlchemy dialect](https://docs.sqlalchemy.org/en/20/dialects/) implemented as a destination.
@@ -30,16 +29,20 @@ Refer to the [SQLAlchemy documentation on dialects](https://docs.sqlalchemy.org/
 
 ### Create a pipeline
 
-**1. Initialize a project with a pipeline that loads to MS SQL by running:**
+1. Initialize a project with a pipeline that loads to MS SQL by running:
+
 ```sh
 dlt init chess sqlalchemy
 ```
 
 **2. Install the necessary dependencies for SQLAlchemy by running:**
+
 ```sh
 pip install -r requirements.txt
 ```
+
 or run:
+
 ```sh
 pip install "dlt[sqlalchemy]"
 ```
@@ -47,6 +50,7 @@ pip install "dlt[sqlalchemy]"
 **3. Install your database client library.**
 
 E.g., for MySQL:
+
 ```sh
 pip install mysqlclient
 ```
@@ -54,6 +58,7 @@ pip install mysqlclient
 **4. Enter your credentials into `.dlt/secrets.toml`.**
 
 For example, replace with your database connection info:
+
 ```toml
 [destination.sqlalchemy.credentials]
 database = "dlt_data"
@@ -78,6 +83,10 @@ or
 export DESTINATION__SQLALCHEMY__CREDENTIALS="mysql://loader:<password>@localhost:3306/dlt_data"
 ```
 
+Some dialects need connection URL query parameters on top of the fields above, for example Oracle's `service_name`. Read
+[Oracle connection URL query parameters](#oracle-connection-url-query-parameters) to see how to pass them from `secrets.toml`
+and from environment variables.
+
 An SQLAlchemy `Engine` can also be passed directly by creating an instance of the destination:
 
 ```py
@@ -99,13 +108,16 @@ The SQLAlchemy destination accepts an optional `engine_kwargs` parameter, which 
 The equivalent `engine_args` parameter is maintained for backward compatibility, but will be removed in a future release.
 
 Example enabling SQLAlchemy verbose logging:
+
 #### In `.dlt/secrets.toml`
+
 ```toml
 [destination.sqlalchemy]
 credentials = "sqlite:///logger.db"
 ```
 
 #### In `.dlt/config.toml`
+
 ```toml
 [destination.sqlalchemy.engine_kwargs]
 echo = true
@@ -143,9 +155,24 @@ pipeline.run(
 
 Here, `engine_kwargs` configures only the engine used by SQLAlchemy as a **destination**. It does not affect resource extraction (use `engine_kwargs` for sql sources, see [here](../verified-sources/sql_database/configuration.md#passing-sqlalchemy-engine-options-engine_kwargs)).
 
+### Session timezone
+
+`sqlalchemy` has no `session_timezone` setting, unlike the other SQL destinations. The way to set one
+is dialect-specific, and SQLite has no timezone concept. On MySQL, set the timezone on each new
+connection with `connect_args`:
+
+```toml
+[destination.sqlalchemy.engine_kwargs.connect_args]
+init_command = "SET time_zone = '+00:00'"
+```
+
+Named zones such as `Europe/Berlin` work only on a MySQL server with populated timezone tables. A UTC
+offset always works.
+
 ## Notes on SQLite
 
 ### Dataset files
+
 When using an SQLite database file, each dataset is stored in a separate file since SQLite does not support multiple schemas in a single database file.
 Under the hood, this uses [`ATTACH DATABASE`](https://www.sqlite.org/lang_attach.html).
 
@@ -156,7 +183,8 @@ is stored in `/home/me/data/chess_data__games.db`
 
 **Note**: If the dataset name is `main`, no additional file is created as this is the default SQLite database.
 
-### In-memory databases
+### In-memory SQLite
+
 In-memory databases require a persistent connection as the database is destroyed when the connection is closed.
 Normally, connections are opened and closed for each load job and in other stages during the pipeline run.
 To ensure the database persists throughout the pipeline run, you need to pass in an SQLAlchemy `Engine` object instead of credentials.
@@ -239,11 +267,13 @@ committed data appears missing. Always set `workers=1` when using `StaticPool`.
 :::
 
 ### Database locking with `ATTACH DATABASE` on Windows
+
 When `dataset_name` is not `main`, dlt uses SQLite's `ATTACH DATABASE` to store each dataset in a separate file. On Windows, a second `ATTACH` on the same connection can lock indefinitely under concurrent access (e.g. when using the default parallel loading strategy).
 
 To work around this issue, use one of the following approaches:
 
 1. **Set `dataset_name` to `main`** so that no `ATTACH` is needed:
+
    ```py
    pipeline = dlt.pipeline(
        pipeline_name='my_pipeline',
@@ -253,12 +283,14 @@ To work around this issue, use one of the following approaches:
    ```
 
 2. **Use sequential loading** to avoid concurrent `ATTACH` calls:
+
    ```toml
    [load]
    workers=1
    ```
 
 ## Notes on DuckDB
+
 Install the [duckdb_engine](https://github.com/Mause/duckdb_engine) dialect to use DuckDB with the SQLAlchemy destination:
 
 ```sh
@@ -279,7 +311,8 @@ Relative database paths are placed in the pipeline's local directory, same as fo
 
 **Note**: Prefer the native [DuckDB destination](duckdb.md). Use SQLAlchemy when you need full control over the engine, e.g., to `ATTACH` encrypted database files with connection setup SQL.
 
-### In-memory databases
+### In-memory DuckDB
+
 An in-memory DuckDB database is private to each connection. Pass an `Engine` that shares a single connection and load sequentially:
 
 ```py
@@ -301,13 +334,116 @@ workers=1
 ```
 
 ### DuckDB dialect limitations
+
 * `duckdb_engine` does not reflect primary key and unique constraints nor indexes: they are created when `create_primary_keys` / `create_unique_indexes` are enabled but cannot be read back with SQLAlchemy tooling.
 * JSON columns are reflected as VARCHAR.
 * VARCHAR precision is accepted in DDL but not stored by DuckDB.
 * Parquet files are loaded with batch INSERT statements: ADBC ingestion is not implemented for this dialect.
 
+## Notes on Oracle
+
+Install the [python-oracledb](https://oracle.github.io/python-oracledb/) driver and use the `oracle+oracledb` dialect in your
+connection URL:
+
+```sh
+pip install oracledb
+```
+
+### Oracle connection URL query parameters
+
+Oracle instances are usually addressed by a service name, and SQLAlchemy takes it as a query parameter of the connection URL,
+not as a connection field. In `secrets.toml`, query parameters live in their own table:
+
+```toml
+[destination.sqlalchemy.credentials]
+drivername = "oracle+oracledb"
+username = "loader"
+password = "<password>"
+host = "orahost"
+port = 1521
+
+[destination.sqlalchemy.credentials.query]
+service_name = "svc.example.com"
+```
+
+There is no environment variable for a single query parameter. `query` is one credentials field holding a dictionary, and the
+environment provider reads one variable per field instead of walking into the dictionary. A variable such as
+`DESTINATION__SQLALCHEMY__CREDENTIALS__QUERY__SERVICE_NAME` is therefore never read, the credentials resolve with `query` unset,
+and `dlt` connects without the service name.
+
+Two forms do work. Pass the whole connection URL in one variable, with the query parameters appended to it:
+
+```sh
+export DESTINATION__SQLALCHEMY__CREDENTIALS="oracle+oracledb://loader:<password>@orahost:1521/?service_name=svc.example.com"
+```
+
+Or keep the fields separate and pass the entire `query` dictionary as the value of one variable:
+
+```sh
+export DESTINATION__SQLALCHEMY__CREDENTIALS__DRIVERNAME="oracle+oracledb"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__USERNAME="loader"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__PASSWORD="<password>"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__HOST="orahost"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__PORT="1521"
+export DESTINATION__SQLALCHEMY__CREDENTIALS__QUERY='{"service_name": "svc.example.com"}'
+```
+
+Both forms give the same connection, with `service_name` passed as a URL query parameter. Pass any other query parameter your
+driver accepts the same way.
+
+:::caution
+The `query` variable must hold valid JSON with double quotes. A Python-style value such as `{'service_name': 'svc.example.com'}`
+is rejected with `ConfigValueCannotBeCoercedException`. In the single-URL form, URL-encode characters like `@`, `/`, `?` and `#`
+in the password.
+:::
+
+### Oracle merge and staging datasets
+
+`merge`, and `replace` with the `insert-from-staging` or `staging-optimized` strategy, load data into a
+[staging dataset](../staging.md#staging-dataset) first. The staging dataset is a separate schema, named `<dataset_name>_staging`
+by default, and `dlt` writes to it over the same connection as the final dataset. You can't give it a second connection:
+`staging=` is for [file staging](../staging.md#staging-storage) and this destination refuses it.
+
+In Oracle, a schema is a user, and `CREATE SCHEMA` doesn't create one. If the staging schema doesn't exist, the load fails. You
+have two options:
+
+1. **Use a pre-created staging schema.** Ask a DBA to create it as a user, with quota on its tablespace, and point `dlt` at it:
+
+   ```py
+   import dlt
+
+   dest_ = dlt.destinations.sqlalchemy(staging_dataset_name_layout="analytics_staging")
+
+   pipeline = dlt.pipeline(
+       pipeline_name="oracle_merge",
+       destination=dest_,
+       dataset_name="analytics",
+   )
+   ```
+
+   Or in `config.toml`:
+
+   ```toml
+   [destination.sqlalchemy]
+   staging_dataset_name_layout = "analytics_staging"
+   ```
+
+   A layout without `%s` is used as the full name, so every dataset shares this schema. Because the connecting user doesn't own
+   it, the user also needs `CREATE ANY TABLE`, `ALTER ANY TABLE`, `INSERT ANY TABLE`, `SELECT ANY TABLE`, `DELETE ANY TABLE` and
+   `DROP ANY TABLE`. Check the exact set with your DBA.
+
+2. **Skip the staging dataset.** `append`, and `replace` with `truncate-and-insert` (the default for this destination), write
+   straight into the final tables.
+
+:::note
+Write the staging name in lowercase, like `analytics_staging`. Oracle stores it as `ANALYTICS_STAGING`, and `dlt` lowercases
+dataset names by default, so they match. Set `enable_dataset_name_normalization = false` only if you need to keep a different case.
+:::
+
 ## Notes on other dialects
+
 We tested this destination on **mysql**, **sqlite**, **duckdb**, **oracledb** and **mssql** dialects. Below are a few notes that may help enabling other dialects:
+
 1. `dlt` must be able to recognize if a database exception relates to non existing entity (like table or schema). We put
 some work to recognize those for most of the popular dialects (look for `db_api_client.py`)
 2. Primary keys and unique constraints are not created by default to avoid problems with particular dialects.
@@ -316,20 +452,19 @@ some work to recognize those for most of the popular dialects (look for `db_api_
 Please report issues with particular dialects. We'll try to make them work.
 
 ### Trino limitations
+
 * Trino dialect does not case fold identifiers. Use `snake_case` naming convention only.
 * Trino does not support merge/scd2 write disposition (or you somehow create PRIMARY KEYs on engine tables)
 * We convert JSON and BINARY types are cast to STRING (dialect seems to have a conversion bug)
 * Trino does not support PRIMARY/UNIQUE constraints
 
-### Oracle limitations
-* In Oracle, regular (non-DBA, non-SYS/SYSOPS) users are assigned one schema on user creation, and usually cannot create other schemas. For features requiring staging datasets you should either ensure schema creation rights for the DB user or exactly specify existing schema to be used for staging dataset. See [staging dataset documentation](../staging.md#staging-dataset) for more details
-
-
 ### Adapting destination for a dialect
 
 #### Quick approach: pass `type_mapper` directly
+
 You can adapt destination capabilities for a particular dialect [by passing your custom settings](../../general-usage/destination.md#pass-additional-parameters-and-change-destination-capabilities). In the example below we pass custom `TypeMapper` that
 converts `json` data into `text` on the fly.
+
 ```py
 from dlt.common import json
 
@@ -377,20 +512,22 @@ The `SqlalchemyTypeMapper` dispatches to per-type visitor methods (`db_type_from
 
 Custom type mapper is also useful when you want to limit the length of the string. Below we are adding variant
 for `mssql` dialect:
+
 ```py
 import sqlalchemy as sa
+from dlt.common.schema.typing import PreparedTableSchema
 from dlt.destinations.impl.sqlalchemy.type_mapper import SqlalchemyTypeMapper
 
 class CustomMssqlTypeMapper(SqlalchemyTypeMapper):
     """This is only an illustration, `sqlalchemy` destination already handles mssql types"""
 
-    def db_type_from_text_type(self, column, table=None):
+    def db_type_from_text_type(self, column, table: PreparedTableSchema):
         type_ = super().db_type_from_text_type(column, table)
         length = column.get("precision")
         if length is None:
-            return type_.with_variant(sa.UnicodeText(), "mssql")  # type: ignore[no-any-return]
+            return type_.with_variant(sa.UnicodeText(), "mssql")
         else:
-            return type_.with_variant(sa.Unicode(length=length), "mssql")  # type: ignore[no-any-return]
+            return type_.with_variant(sa.Unicode(length=length), "mssql")
 ```
 
 :::warning
@@ -431,7 +568,7 @@ class MyDialectCapabilities(DialectCapabilities):
         caps.max_column_identifier_length = 128
         caps.sqlglot_dialect = "oracle"  # type: ignore[assignment]
 
-    def type_mapper_class(self) -> Optional[Type[DataTypeMapper]]:
+    def type_mapper_class(self) -> Type[DataTypeMapper]:
         return MyTypeMapper
 
     def adapt_table(
@@ -474,17 +611,16 @@ After registration, any pipeline using a `my_dialect://` connection URL will aut
 
 The `DialectCapabilities` class supports four extension points:
 
-| Method | Description |
-| --- | --- |
-| `adjust_capabilities` | Modify destination capabilities (identifier lengths, timestamp precision, sqlglot dialect, etc.) |
-| `type_mapper_class` | Return a custom `DataTypeMapper` subclass for the dialect |
-| `adapt_table` | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
-| `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect |
+| Method                  | Description                                                                                                |
+| ----------------------- | ---------------------------------------------------------------------------------------------------------- |
+| `adjust_capabilities`   | Modify destination capabilities (identifier lengths, timestamp precision, sqlglot dialect, etc.)           |
+| `type_mapper_class`     | Return a custom `DataTypeMapper` subclass for the dialect                                                  |
+| `adapt_table`           | Modify `sa.Table` objects before they are created or used for loading (e.g. reorder columns for StarRocks) |
+| `is_undefined_relation` | Classify exceptions as "table/schema not found" errors for the dialect                                     |
 
 :::tip
 Passing `type_mapper=` directly to `dlt.destinations.sqlalchemy()` always takes precedence over the registered dialect capabilities. Use direct passing for one-off overrides and registration for reusable dialect support.
 :::
-
 
 ## Write dispositions
 
@@ -492,7 +628,7 @@ The following write dispositions are supported:
 
 - `append`
 - `replace` with `truncate-and-insert` and `insert-from-staging` replace strategies. `staging-optimized` falls back to `insert-from-staging`.
-- `merge` with `delete-insert` and `scd2` merge strategies.
+- `merge` with `delete-insert` and `scd2` merge strategies. Both strategies support [`destination_scope` and `source_filter`](../../general-usage/merge-loading.md#merge-conditions).
 
 ## Data loading
 
@@ -500,12 +636,14 @@ The following write dispositions are supported:
 
 [parquet](../file-formats.md#parquet) file format is supported via [ADBC driver](https://arrow.apache.org/adbc/) for **mysql**.
 The driver is provided by [Columnar](https://columnar.tech/). To install it you'll need `dbc` which is a tool to manage ADBC drivers:
+
 ```sh
 pip install adbc-driver-manager dbc
 dbc install mysql
 ```
 
 with `uv` you can run `dbc` directly:
+
 ```sh
 uv tool run dbc install mysql
 ```
@@ -548,11 +686,14 @@ For example, SQLite does not have `DATETIME` or `TIMESTAMP` types, so `timestamp
 * [Parquet](../file-formats.md#parquet) is supported.
 
 ## Supported column hints
+
 No indexes or constraints are created on the table. You can enable the following via destination configuration
+
 ```toml
 [destination.sqlalchemy]
 create_unique_indexes=true
 create_primary_keys=true
 ```
+
 * `unique` hints are translated to `UNIQUE` constraints via SQLAlchemy.
 * `primary_key` hints are translated to `PRIMARY KEY` constraints via SQLAlchemy.

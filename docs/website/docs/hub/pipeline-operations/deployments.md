@@ -3,7 +3,6 @@ title: Deployments
 description: Deploy dlt pipelines, jobs, and interactive applications to the dltHub platform with ad-hoc runs or a versioned deployment manifest
 keywords: [dlthub platform, deploy, deployment, jobs, decorators, manifest, reconciliation]
 ---
-
 # Deployments
 
 The dltHub platform offers two ways to get your code running in the cloud:
@@ -51,17 +50,18 @@ A dltHub platform workspace can contain many jobs scheduled on different cadence
 
 ### Job decorators
 
-The `dlt.hub.run` module provides three decorators:
+The `dlt.hub.run` module provides four decorators:
 
-| Decorator | Used for |
-|-----------|----------|
-| `@run.pipeline` | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking) |
-| `@run.job` | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts) |
-| `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API) |
+| Decorator          | Used for                                                                                                                       |
+| ------------------ | ------------------------------------------------------------------------------------------------------------------------------ |
+| `@run.pipeline`    | A batch job bound to a named `dlt.pipeline` (gets pipeline-aware retries and dataset linking)                                  |
+| `@run.job`         | A general-purpose batch job (any Python function — data quality checks, reports, custom scripts)                               |
+| `@run.interactive` | A long-running HTTP service (notebook, MCP server, Streamlit app, REST API)                                                    |
+| `@run.agent`       | A background agent that runs unattended, for example to inspect a failed job run (see [Background agents](../agents/index.md)) |
 
 Example: an ingestion pipeline that runs every 5 minutes and is tagged for bulk operations.
 
-```py
+```py notype
 import dlt
 from dlt.hub import run
 from dlt.hub.run import trigger
@@ -83,7 +83,7 @@ def load_commits():
 
 A general-purpose job, scheduled hourly:
 
-```py
+```py notype
 @run.job(
     trigger=trigger.schedule("0 * * * *"),
     expose={"display_name": "GitHub data quality"},
@@ -95,6 +95,24 @@ def run_dq_checks():
 ```
 
 For the full catalog of `trigger=` options (cron, intervals, follow-ups, freshness, refresh cascade), see [Triggers and scheduling](triggers.md). For per-job options like `execute=`, `require=`, and `expose=`, see [Job configuration](job-configuration.md).
+
+### Job results
+
+A job can report a structured result of its run. Pass a JSON-serializable value to `run.result()`. It returns the value unchanged, so you can return it as well:
+
+```py notype
+@run.job(trigger=trigger.schedule("0 6 * * *"))
+def daily_report():
+    rows = count_rows()
+    return run.result({"rows": rows, "tables": 12}, type="etl_summary")
+```
+
+- Only the job that the runner started records a result. A job called from another job as a plain function doesn't overwrite it, and a second call replaces the first.
+- `type` names the shape of the payload, `job.etl_summary` here. It defaults to the job name.
+- After the run, `dlthub local run` prints the job result and the runner sends it to the dltHub platform. It also lists the entities the run acted on, taken from its [entity-typed inputs and outputs](job-configuration.md#inputs-and-outputs).
+- Outside a job run, `run.result()` returns the value and records nothing.
+
+An [agent job](../agents/index.md) delivers its job result itself, with the agent output and the agent trace in it.
 
 ### The deployment module
 
@@ -147,12 +165,12 @@ The deploy command:
 
 The dltHub platform compares the new manifest against the currently deployed jobs:
 
-| Status | Meaning |
-|--------|---------|
-| **added** | New job — will be created |
-| **updated** | Job definition changed — will be updated |
-| **unchanged** | No changes — left as-is |
-| **archived** | Job was in the previous manifest but not in this one — triggers disabled, history preserved |
+| Status        | Meaning                                                                                     |
+| ------------- | ------------------------------------------------------------------------------------------- |
+| **added**     | New job — will be created                                                                   |
+| **updated**   | Job definition changed — will be updated                                                    |
+| **unchanged** | No changes — left as-is                                                                     |
+| **archived**  | Job was in the previous manifest but not in this one — triggers disabled, history preserved |
 
 Removing a job from `__deployment__.py` does not delete it — it archives it, preserving run history and logs.
 
@@ -215,3 +233,88 @@ dlthub workspace configuration info [version]
 ```
 
 See the [CLI reference](../command-line-interface.md) for the full set of deployment and job commands.
+
+## Deploy with AI Harness
+
+The [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit is the AI Harness's answer to "I've got a pipeline running locally, now how do I run it on dltHub?" It guides your coding agent through preparing `__deployment__.py`, running `dlthub deploy`, wiring up schedules, and debugging failures.
+
+Install the toolkit when you have a pipeline that runs locally with `dlthub local run` and you want to:
+
+- Run it on the platform on demand (one-off) or on a cron schedule.
+- Serve a notebook or dashboard as an interactive job.
+- Add freshness checks or chain jobs off other job outcomes.
+- Debug a job that failed after deploy.
+
+For a one-off remote execution without scheduling you don't strictly need this toolkit. `dlthub run <script>` uploads and runs the script as a batch job. Reach for `dlthub-platform` when you want persistent, scheduled deployment.
+
+### Install
+
+Either let the router pick it when you tell your agent "let's deploy," or install explicitly:
+
+```sh
+uv run dlthub ai toolkit install dlthub-platform
+```
+
+### The skills
+
+| Skill                | When it runs                                  | What it does                                                                                                                                                                                         |
+| -------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `setup-runtime`      | Once, before your first deploy                | Verifies the workspace is ready: `pyproject.toml` present, `dlt[hub]` installed, `.dlt/.workspace` exists, and you're logged in and connected to a workspace on the platform.                        |
+| `prepare-deployment` | Every time you add or change a deployable job | Splits dev and prod credentials into profile-scoped files, sets up a production destination, and helps you edit `__deployment__.py` so pipelines and notebooks are exported and triggered correctly. |
+| `deploy-workspace`   | After `prepare-deployment` finishes cleanly   | Runs `dlthub deploy`, streams progress, and confirms which jobs registered on the platform.                                                                                                          |
+| `debug-deployment`   | After a deploy or a scheduled run fails       | Reads platform logs, inspects the manifest, checks credentials, and proposes a fix.                                                                                                                  |
+
+The four skills chain naturally, so you usually don't invoke them by name. The workflow rule shipped with the toolkit tells the agent which one to run next.
+
+### Schedule a pipeline every 10 mins
+
+Assume you have a `fruitshop_pipeline.py` in the workspace that already runs locally. You tell your agent:
+
+> Deploy `fruitshop_pipeline` to the platform on a 10-minute schedule.
+
+Here's the sequence the toolkit drives, roughly what you'll see in the agent's turns:
+
+**1. `setup-runtime` (only on the first deploy)**: the agent checks `pyproject.toml`, verifies `.dlt/.workspace` exists and `dlt[hub]` is installed, then walks you through `dlthub login` and `dlthub workspace connect`. If anything is missing, it asks you to fix it before continuing.
+
+**2. `prepare-deployment`**: the agent splits dev and prod credentials into `.dlt/dev.secrets.toml` and `.dlt/prod.secrets.toml`, sets up a production destination (for example, Motherduck if you're on DuckDB locally), then opens `__deployment__.py`, imports `load_fruitshop` from your pipeline module, wraps it with `run.pipeline` and a schedule trigger, and exports it in `__all__`:
+
+**`fruitshop_pipeline.py`**:
+
+```py
+import dlt
+from fruitshop_source import fruitshop
+
+def load_fruitshop():
+    pipeline = dlt.pipeline(
+        pipeline_name="fruitshop_pipeline",
+        destination="fruitshop_destination",
+        dataset_name="fruitshop_data",
+    )
+    pipeline.run(fruitshop())
+```
+
+**`__deployment__.py`**:
+
+```py
+"""Fruitshop workspace — ingests fruitshop data every 10 minutes."""
+from dlt.hub import run
+from dlt.hub.run import trigger
+from fruitshop_pipeline import load_fruitshop
+
+load_fruitshop = run.pipeline(
+    "fruitshop_pipeline",
+    trigger=trigger.schedule("*/10 * * * *"),
+)(load_fruitshop)
+
+__all__ = ["load_fruitshop"]
+```
+
+**3. `deploy-workspace`**: the agent first runs `uv run dlthub deploy --dry-run` to preview the manifest changes, then, after you approve:
+
+```sh
+uv run dlthub deploy
+```
+
+It streams the output, confirms the job registered with the schedule you asked for, and links to the platform UI where you can watch the next run.
+
+**4. Later, if a scheduled run fails**: you tell the agent "the 10-minute job is failing." It invokes `debug-deployment`, fetches the failed job's logs, checks the manifest and credentials, and either fixes the issue in code or explains why the platform is rejecting the deploy.

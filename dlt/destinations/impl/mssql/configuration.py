@@ -141,9 +141,9 @@ class MsSqlClientConfiguration(DestinationClientDwhWithStagingConfiguration):
             return digest128(self.credentials.host)
         return ""
 
-    def physical_location(self) -> str:
+    def data_location(self) -> str:
         """Returns host:port."""
-        if self.credentials and self.credentials.host:
-            port = self.credentials.port or 1433
-            return f"{self.credentials.host}:{port}"
-        return ""
+        if not self.credentials or not self.credentials.host:
+            self._no_data_location("the configuration has no host")
+        port = self.credentials.port or 1433
+        return f"{self.credentials.host}:{port}"

@@ -9,14 +9,14 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, List, Literal, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, List, Optional, Sequence, Set
 
 import tomlkit
 from packaging.requirements import Requirement
 
 from dlt.common import json
 from dlt.common.exceptions import DictValidationException
-from dlt.common.typing import DictStrAny, NotRequired, TypedDict
+from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
 from dlt.version import DLT_PKG_NAME
 
@@ -24,17 +24,24 @@ DLTHUB_PKG_NAME = "dlthub"
 DLTHUB_CLIENT_PKG_NAME = "dlthub-client"
 
 from dlt._workspace.deployment.launchers import (
+    BUILTIN_AGENT_LOOPS,
+    LAUNCHER_AGENT,
     LAUNCHER_DASHBOARD,
     LAUNCHER_JOB,
     LAUNCHER_MARIMO,
     LAUNCHER_MCP,
     LAUNCHER_MODULE,
     LAUNCHER_STREAMLIT,
+    LOOP_CLAUDE_AGENT_SDK,
+    LOOP_PYDANTIC_AI,
+    agent_loop_group,
 )
 from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
     MAIN_GROUP,
     REQUIREMENTS_ENGINE_VERSION,
+    TInstallMode,
+    TInstallSpec,
     TWorkspaceRequirementsManifest,
 )
 
@@ -68,22 +75,6 @@ __all__ = [
     "render_uv_source",
     "save_requirements",
 ]
-
-
-TInstallMode = Literal["pypi", "path", "editable", "git", "archive"]
-
-
-class TInstallSpec(TypedDict):
-    """How a Python package is installed, derived from PEP 610 `direct_url.json`."""
-
-    name: str
-    extras: List[str]
-    version: str
-    mode: TInstallMode
-    path: NotRequired[str]
-    git_url: NotRequired[str]
-    git_rev: NotRequired[str]
-    archive_url: NotRequired[str]
 
 
 _UV_MISSING_MESSAGE = (
@@ -250,7 +241,7 @@ def python_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
-_BASE_LAUNCHER_SPECS: List[str] = ["croniter", "dlthub"]
+_BASE_LAUNCHER_SPECS: List[str] = ["dlthub"]
 """Specs added to every launcher group and the dashboard group."""
 
 
@@ -259,6 +250,8 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
     per_launcher: Dict[str, List[str]] = {
         LAUNCHER_JOB: ["botocore", "s3fs"],
         LAUNCHER_MODULE: ["botocore", "s3fs"],
+        # loop packages are per-job, so they live in `agent-loop-*` groups instead
+        LAUNCHER_AGENT: ["botocore", "s3fs"],
         LAUNCHER_MARIMO: ["marimo", "uvicorn"],
         LAUNCHER_MCP: ["fastmcp", "uvicorn"],
         LAUNCHER_STREAMLIT: ["streamlit"],
@@ -271,9 +264,27 @@ def build_dashboard_group() -> List[str]:
     """Specs for the `DASHBOARD_JOB_REF` group.
 
     Matches the dashboard runner's dependency gate plus `s3fs` for artifact access;
-    the launcher baseline (croniter, dlthub, dlt) comes from `launcher_requirements`.
+    the launcher baseline (dlthub, dlt) comes from `launcher_requirements`.
     """
     return sorted(["ibis-framework", "marimo", "pyarrow", "s3fs"])
+
+
+_AGENT_LOOP_SPECS: Dict[str, List[str]] = {
+    LOOP_PYDANTIC_AI: ["pydantic-ai-slim[anthropic,openai,google,mcp,spec]"],
+    LOOP_CLAUDE_AGENT_SDK: ["claude-agent-sdk"],
+}
+
+
+def build_agent_loop_groups() -> Dict[str, List[str]]:
+    """Specs for each built-in agent loop, keyed by its requirements group name."""
+    return {agent_loop_group(loop): sorted(_AGENT_LOOP_SPECS[loop]) for loop in BUILTIN_AGENT_LOOPS}
+
+
+def _add_agent_loop_groups(groups: Dict[str, List[str]], default_names: Set[str]) -> None:
+    """Adds the built-in loop groups, leaving a group the workspace already declares alone."""
+    for name, specs in build_agent_loop_groups().items():
+        if name not in groups:
+            groups[name] = _prune_specs(specs, default_names)
 
 
 def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> None:
@@ -283,14 +294,17 @@ def _inject_dlt_into_launchers(launcher_requirements: Dict[str, List[str]]) -> N
 
 
 def default_requirements_manifest() -> TWorkspaceRequirementsManifest:
-    """Minimal manifest: empty `main`, dashboard group, launcher specs with dlt injected."""
+    """Minimal manifest: empty `main`, dashboard and agent loop groups, launcher specs with dlt."""
     launcher_requirements = build_launcher_requirements()
     _inject_dlt_into_launchers(launcher_requirements)
+    groups: Dict[str, List[str]] = {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()}
+    groups.update(build_agent_loop_groups())
     return {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
         "python_version": python_version(),
+        "dlt_version": get_pkg_install_spec(DLT_PKG_NAME),
         "default_groups": [MAIN_GROUP],
-        "groups": {MAIN_GROUP: [], DASHBOARD_JOB_REF: build_dashboard_group()},
+        "groups": groups,
         "launcher_requirements": launcher_requirements,
     }
 
@@ -338,6 +352,7 @@ def export_workspace_requirements(
     _expand_implied_names(default_names)
 
     groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
+    _add_agent_loop_groups(groups, default_names)
 
     launcher_requirements = build_launcher_requirements()
     for launcher, specs in launcher_requirements.items():
@@ -349,19 +364,36 @@ def export_workspace_requirements(
     return {
         "engine_version": REQUIREMENTS_ENGINE_VERSION,
         "python_version": python_version(),
+        "dlt_version": get_pkg_install_spec(DLT_PKG_NAME),
         "default_groups": resolved_default_groups,
         "groups": dict(sorted(groups.items())),
         "launcher_requirements": launcher_requirements,
     }
 
 
+PRE_TRACKING_DLT_INSTALL_SPEC: TInstallSpec = {
+    "name": DLT_PKG_NAME,
+    "extras": [],
+    "version": "1.28.0",
+    "mode": "pypi",
+}
+"""dlt install assumed for engine-1 manifests, which predate dlt-version tracking."""
+
+
 def migrate_requirements(
     manifest_dict: DictStrAny, from_engine: int, to_engine: int
 ) -> TWorkspaceRequirementsManifest:
-    """Migrate a requirements manifest dict between engine versions."""
+    """Migrate a requirements manifest dict between engine versions, in place."""
     if from_engine == to_engine:
         return manifest_dict  # type: ignore[return-value]
-    raise ValueError(f"no requirements migration path from engine {from_engine} to {to_engine}")
+    if from_engine == 1 and to_engine > 1:
+        # engine 2 adds dlt_version; engine-1 manifests predate it, assume 1.28.0
+        manifest_dict.setdefault("dlt_version", dict(PRE_TRACKING_DLT_INSTALL_SPEC))
+        from_engine = 2
+    if from_engine != to_engine:
+        raise ValueError(f"no requirements migration path from engine {from_engine} to {to_engine}")
+    manifest_dict["engine_version"] = to_engine
+    return manifest_dict  # type: ignore[return-value]
 
 
 def save_requirements(req: TWorkspaceRequirementsManifest, f: BinaryIO) -> None:
@@ -531,8 +563,7 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
 
 
 _IMPLIED_NAMES: Dict[str, List[str]] = {
-    f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME, "croniter"],
-    DLTHUB_CLIENT_PKG_NAME: ["croniter"],
+    f"{DLT_PKG_NAME}[hub]": [DLTHUB_PKG_NAME],
     "s3fs": ["botocore"],
     "marimo": ["uvicorn"],
     "fastmcp": ["uvicorn"],

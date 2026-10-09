@@ -1,13 +1,9 @@
-import os
-from pathlib import Path
 import yaml
-from typing import Any, Dict, List, Sequence, Tuple, cast
-from inspect import signature
+from typing import Any, Sequence, Tuple
 import dlt
 
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
-from dlt.common.pipeline import get_dlt_pipelines_dir, TSourceState
+from dlt.common.pipeline import TSourceState
 from dlt.common.destination.reference import TDestinationReferenceArg
 from dlt.common.schema.utils import (
     group_tables_by_resource,
@@ -18,11 +14,17 @@ from dlt.common.schema.utils import (
 from dlt.common.storages import PackageStorage
 
 from dlt.extract.state import resource_state
-from dlt.pipeline.helpers import pipeline_drop
 from dlt.pipeline.exceptions import CannotRestorePipelineException
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.exceptions import CliCommandException, CliCommandInnerException
 from dlt._workspace.cli._urls import DLT_PIPELINE_COMMAND_DOCS_URL  # noqa: F401
+from dlt._workspace.cli._pipeline_command_helpers import (
+    abort_packages,
+    display_package_jobs,
+    display_package_row_counts,
+    drop_pipeline,
+    fail_package_job,
+)
 
 
 def list_pipelines(pipelines_dir: str = None, verbosity: int = 1) -> None:
@@ -86,11 +88,11 @@ def pipeline_command(
     try:
         if verbosity > 0:
             fmt.echo("Attaching to pipeline %s" % fmt.bold(pipeline_name))
-        p = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
-    except CannotRestorePipelineException as e:
+        pipeline = dlt.attach(pipeline_name=pipeline_name, pipelines_dir=pipelines_dir)
+    except CannotRestorePipelineException as exc:
         if operation not in {"sync", "drop"}:
             raise
-        fmt.warning(str(e))
+        fmt.warning(str(exc))
         if not fmt.confirm(
             "Do you want to attempt to restore the pipeline state from destination?",
             default=False,
@@ -102,16 +104,16 @@ def pipeline_command(
         dataset_name = dataset_name or fmt.text_input(
             f"Enter dataset name for pipeline {fmt.bold(pipeline_name)}"
         )
-        p = dlt.pipeline(
+        pipeline = dlt.pipeline(
             pipeline_name,
             pipelines_dir,
             destination=destination,
             dataset_name=dataset_name,
         )
-        p.sync_destination()
-        if p.first_run:
+        pipeline.sync_destination()
+        if pipeline.first_run:
             # remote state was not found
-            p._wipe_working_folder()
+            pipeline._wipe_working_folder()
             fmt.error(
                 f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in {destination}"
             )
@@ -120,7 +122,7 @@ def pipeline_command(
             return  # No need to sync again
 
     def _display_pending_packages() -> Tuple[Sequence[str], Sequence[str]]:
-        extracted_packages = p.list_extracted_load_packages()
+        extracted_packages = pipeline.list_extracted_load_packages()
         if extracted_packages:
             fmt.echo(
                 "Has %s extracted packages ready to be normalized with following load ids:"
@@ -128,7 +130,7 @@ def pipeline_command(
             )
             for load_id in extracted_packages:
                 fmt.echo(load_id)
-        norm_packages = p.list_normalized_load_packages()
+        norm_packages = pipeline.list_normalized_load_packages()
         if norm_packages:
             fmt.echo(
                 "Has %s normalized packages ready to be loaded with following load ids:"
@@ -137,7 +139,7 @@ def pipeline_command(
             for load_id in norm_packages:
                 fmt.echo(load_id)
             # load first (oldest) package
-            first_package_info = p.get_load_package_info(norm_packages[0])
+            first_package_info = pipeline.get_load_package_info(norm_packages[0])
             if PackageStorage.is_package_partially_loaded(first_package_info):
                 fmt.warning(
                     "This package is partially loaded. Data in the destination may be modified."
@@ -160,19 +162,22 @@ def pipeline_command(
             transport = "streamable-http"
         if transport != "stdio":
             fmt.echo("Starting dlt MCP server", err=True)
-        mcp = PipelineMCP(p.pipeline_name, command_kwargs["port"])
+        mcp = PipelineMCP(pipeline.pipeline_name, command_kwargs["port"])
         mcp.run(transport=transport)
 
         return
 
-    fmt.echo("Found pipeline %s in %s" % (fmt.bold(p.pipeline_name), fmt.bold(p.pipelines_dir)))
+    fmt.echo(
+        "Found pipeline %s in %s"
+        % (fmt.bold(pipeline.pipeline_name), fmt.bold(pipeline.pipelines_dir))
+    )
 
     if operation == "info":
-        state: TSourceState = p.state  # type: ignore
+        state: TSourceState = pipeline.state  # type: ignore
         fmt.echo("Synchronized state:")
-        for k, v in state.items():
-            if not isinstance(v, dict):
-                fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+        for key, value in state.items():
+            if not isinstance(value, dict):
+                fmt.echo("%s: %s" % (fmt.style(key, fg="green"), value))
         sources_state = state.get("sources")
         if sources_state:
             fmt.echo()
@@ -184,26 +189,26 @@ def pipeline_command(
 
         fmt.echo()
         fmt.echo("Local state:")
-        for k, v in state["_local"].items():
-            if isinstance(v, dict):
+        for key, value in state["_local"].items():
+            if isinstance(value, dict):
                 # show run context id
-                if k == "last_run_context":
-                    k = "last_run_context['uri']"
-                    v = v["uri"]
+                if key == "last_run_context":
+                    key = "last_run_context['uri']"
+                    value = value["uri"]
                 else:
-                    v = None
-            if v is not None:
-                fmt.echo("%s: %s" % (fmt.style(k, fg="green"), v))
+                    value = None
+            if value is not None:
+                fmt.echo("%s: %s" % (fmt.style(key, fg="green"), value))
         fmt.echo()
-        if p.default_schema_name is None:
+        if pipeline.default_schema_name is None:
             fmt.warning("This pipeline does not have a default schema")
         else:
-            is_single_schema = len(p.schema_names) == 1
-            for schema_name in p.schema_names:
+            is_single_schema = len(pipeline.schema_names) == 1
+            for schema_name in pipeline.schema_names:
                 fmt.echo("Resources in schema: %s" % fmt.bold(schema_name))
-                schema = p.schemas[schema_name]
-                data_tables = {t["name"]: t for t in schema.data_tables()}
-                for resource_name, tables in group_tables_by_resource(data_tables).items():
+                schema = pipeline.schemas[schema_name]
+                data_tables = {table["name"]: table for table in schema.data_tables()}
+                for resource_name, resource_tables in group_tables_by_resource(data_tables).items():
                     res_state_slots = 0
                     if sources_state:
                         source_state = (
@@ -218,12 +223,12 @@ def pipeline_command(
                         "%s with %s table(s) and %s resource state slot(s)"
                         % (
                             fmt.bold(resource_name),
-                            fmt.bold(str(len(tables))),
+                            fmt.bold(str(len(resource_tables))),
                             fmt.bold(str(res_state_slots)),
                         )
                     )
                     if verbosity > 0:
-                        for table in tables:
+                        for table in resource_tables:
                             incomplete_columns = len(
                                 [
                                     col
@@ -254,7 +259,7 @@ def pipeline_command(
         fmt.echo()
         fmt.echo("Working dir content:")
         _display_pending_packages()
-        loaded_packages = p.list_completed_load_packages()
+        loaded_packages = pipeline.list_completed_load_packages()
         if loaded_packages:
             fmt.echo(
                 "Has %s completed load packages with following load ids:"
@@ -263,7 +268,7 @@ def pipeline_command(
             for load_id in loaded_packages:
                 fmt.echo(load_id)
             fmt.echo()
-        trace = p.last_trace
+        trace = pipeline.last_trace
         if trace is None or len(trace.steps) == 0:
             fmt.echo("Pipeline does not have last run trace.")
         else:
@@ -273,20 +278,20 @@ def pipeline_command(
             )
 
     if operation == "trace":
-        trace = p.last_trace
+        trace = pipeline.last_trace
         if trace is None or len(trace.steps) == 0:
             fmt.warning("Pipeline does not have last run trace.")
             return
         fmt.echo(trace.asstr(verbosity))
 
     if operation == "failed-jobs":
-        completed_loads = p.list_completed_load_packages()
-        normalized_loads = p.list_normalized_load_packages()
+        completed_loads = pipeline.list_completed_load_packages()
+        normalized_loads = pipeline.list_normalized_load_packages()
         for load_id in completed_loads + normalized_loads:  # type: ignore
             fmt.echo("Checking failed jobs in load id '%s'" % fmt.bold(load_id))
-            failed_jobs = p.list_failed_jobs_in_package(load_id)
+            failed_jobs = pipeline.list_failed_jobs_in_package(load_id)
             if failed_jobs:
-                for failed_job in p.list_failed_jobs_in_package(load_id):
+                for failed_job in pipeline.list_failed_jobs_in_package(load_id):
                     fmt.echo(
                         "JOB: %s(%s)"
                         % (
@@ -303,13 +308,13 @@ def pipeline_command(
             else:
                 fmt.echo("No failed jobs found")
 
-    if operation == "drop-pending-packages":
-        extracted_packages, norm_packages = _display_pending_packages()
-        if len(extracted_packages) == 0 and len(norm_packages) == 0:
-            fmt.echo("No pending packages found")
-        if fmt.confirm("Delete the above packages?", default=False):
-            p.drop_pending_packages(with_partial_loads=True)
-            fmt.echo("Pending packages deleted")
+    if operation in ("abort-packages", "drop-pending-packages"):
+        if operation == "drop-pending-packages":
+            fmt.warning(
+                "drop-pending-packages is deprecated and now aborts packages. Use `%s` instead."
+                % fmt.cli_cmd(f"pipeline {pipeline_name} abort-packages")
+            )
+        abort_packages(pipeline, pipeline_name)
 
     if operation == "sync":
         if fmt.confirm(
@@ -318,12 +323,12 @@ def pipeline_command(
             default=False,
         ):
             fmt.echo("Dropping local state")
-            p = p.drop()
+            pipeline = pipeline.drop()
             fmt.echo("Restoring from destination")
-            p.sync_destination()
-            if p.first_run:
+            pipeline.sync_destination()
+            if pipeline.first_run:
                 # remote state was not found
-                p._wipe_working_folder()
+                pipeline._wipe_working_folder()
                 fmt.error(
                     f"Pipeline {pipeline_name} was not found in dataset {dataset_name} in"
                     f" {destination}"
@@ -332,23 +337,56 @@ def pipeline_command(
 
     if operation == "load-package":
         load_id = command_kwargs.get("load_id")
+        action = command_kwargs.get("action") or "info"
+        job_arg = command_kwargs.get("job")
         if not load_id:
-            packages = sorted(p.list_extracted_load_packages())
+            packages = sorted(pipeline.list_extracted_load_packages())
             if not packages:
-                packages = sorted(p.list_normalized_load_packages())
+                packages = sorted(pipeline.list_normalized_load_packages())
             if not packages:
-                packages = sorted(p.list_completed_load_packages())
-            if not packages:
+                packages = sorted(pipeline.list_completed_load_packages())
+            if packages:
+                load_id = packages[-1]
+            elif action != "row-counts":
                 raise CliCommandInnerException(
                     "pipeline", "There are no load packages for that pipeline"
                 )
-            load_id = packages[-1]
 
-        package_info = p.get_load_package_info(load_id)
+        if action == "row-counts":
+            if not load_id:
+                raise CliCommandInnerException("pipeline", "Provide a load-id to count rows for")
+            display_package_row_counts(pipeline, load_id)
+            return
+
+        if action == "abort":
+            # abort this package and all newer ones; older packages stay intact and loadable
+            abort_packages(pipeline, pipeline_name, load_id)
+            return
+
+        if action == "fail-job":
+            if not job_arg:
+                raise CliCommandInnerException(
+                    "pipeline",
+                    "Provide a job id to fail, e.g. `load-package <load-id> fail-job <job-id>`",
+                )
+            fail_package_job(pipeline, load_id, job_arg)
+            return
+
+        package_info = pipeline.get_load_package_info(load_id)
         fmt.echo(
             "Package %s found in %s" % (fmt.bold(load_id), fmt.bold(package_info.package_path))
         )
+        if action == "job":
+            if not job_arg:
+                raise CliCommandInnerException(
+                    "pipeline",
+                    "Provide a job name filter, e.g. `load-package <load-id> job <pattern>`",
+                )
+            display_package_jobs(pipeline, load_id, package_info, job_arg, verbosity)
+            return
         fmt.echo(package_info.asstr(verbosity))
+        if PackageStorage.is_package_partially_loaded(package_info):
+            fmt.warning(PackageStorage.partially_loaded_warning(load_id))
         if len(package_info.schema_update) > 0:
             if verbosity == 0:
                 fmt.echo("Add -v option to see schema update. Note that it could be large.")
@@ -365,95 +403,27 @@ def pipeline_command(
                 )
 
     if operation == "schema":
-        if not p.default_schema_name:
+        if not pipeline.default_schema_name:
             fmt.warning("Pipeline does not have a default schema")
         else:
-            fmt.echo("Found schema with name %s" % fmt.bold(p.default_schema_name))
+            fmt.echo("Found schema with name %s" % fmt.bold(pipeline.default_schema_name))
         format_ = command_kwargs.get("format")
         remove_defaults_ = command_kwargs.get("remove_defaults")
-        s = p.default_schema
-        export = utils.fetch_schema_export(s, format_=format_, remove_defaults=remove_defaults_)
+        default_schema = pipeline.default_schema
+        export = utils.fetch_schema_export(
+            default_schema, format_=format_, remove_defaults=remove_defaults_
+        )
         fmt.echo(export["content"])
 
     if operation == "drop":
-        drop = pipeline_drop(
-            p,
+        drop_pipeline(
+            pipeline,
             resources=command_kwargs.get("resources", ()),
             schema_name=command_kwargs.get("schema_name"),
             state_paths=command_kwargs.get("state_paths", ()),
             drop_all=command_kwargs.get("drop_all", False),
             state_only=command_kwargs.get("state_only", False),
         )
-        if drop.is_empty:
-            fmt.echo(
-                "Could not select any resources to drop and no resource/source state to reset. Use"
-                " the command below to inspect the pipeline:"
-            )
-            fmt.echo(fmt.cli_cmd(f"pipeline -v {p.pipeline_name} info"))
-            if len(drop.info["warnings"]):
-                fmt.echo("Additional warnings are available")
-                for warning in drop.info["warnings"]:
-                    fmt.warning(warning)
-            return
-
-        # drop command will fail if first run but that happens later, so we make sure that last_run_context exists
-        if not p.first_run:
-            from dlt.common.runtime import run_context
-
-            active_run_dir = os.path.abspath(run_context.active().run_dir)
-
-            if p.last_run_context["run_dir"] != active_run_dir:
-                fmt.warning(
-                    fmt.style(
-                        "You should run this from the same directory as the pipeline script (%s),"
-                        " where the folder with credentials (%s) is located. Alternatively, you can"
-                        " set the required credentials as environment variables."
-                        % (
-                            p.last_run_context["run_dir"],
-                            p.last_run_context["settings_dir"],
-                        ),
-                        fg="yellow",
-                    )
-                )
-
-        fmt.echo(
-            "About to drop the following data in dataset %s in destination %s:"
-            % (
-                fmt.bold(p.dataset_name),
-                fmt.bold(p.destination.destination_name),
-            )
-        )
-        fmt.echo("%s: %s" % (fmt.style("Selected schema", fg="green"), drop.info["schema_name"]))
-        fmt.echo(
-            "%s: %s"
-            % (
-                fmt.style("Selected resource(s)", fg="green"),
-                drop.info["resource_names"],
-            )
-        )
-        fmt.echo("%s: %s" % (fmt.style("Table(s) to drop", fg="green"), drop.info["tables"]))
-        fmt.echo(
-            "%s: %s"
-            % (fmt.style("\twith data in destination", fg="green"), drop.info["tables_with_data"])
-        )
-        fmt.echo(
-            "%s: %s"
-            % (
-                fmt.style("Resource(s) state to reset", fg="green"),
-                drop.info["resource_states"],
-            )
-        )
-        fmt.echo(
-            "%s: %s"
-            % (
-                fmt.style("Source state path(s) to reset", fg="green"),
-                drop.info["state_paths"],
-            )
-        )
-        for warning in drop.info["warnings"]:
-            fmt.warning(warning)
-        if fmt.confirm("Do you want to apply these changes?", default=False):
-            drop()
 
 
 def pipeline_command_wrapper(

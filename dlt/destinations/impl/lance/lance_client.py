@@ -31,7 +31,9 @@ from lancedb.table import LanceTable, _append_vector_columns
 from lancedb.embeddings import EmbeddingFunctionConfig, EmbeddingFunctionRegistry
 from lancedb.namespace import LanceNamespaceDBConnection
 
-from dlt.common import json, pendulum, logger
+from datetime import datetime, timezone
+
+from dlt.common import json, logger
 from dlt.common.libs.numpy import numpy
 from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -51,6 +53,7 @@ from dlt.common.destination.client import (
 from dlt.common.storages import FileStorage
 from dlt.common.storages.load_package import LoadJobInfo
 from dlt.common.schema import Schema, TSchemaTables
+from dlt.common.time import get_context_timezone_name
 from dlt.common.schema.typing import (
     C_DLT_LOADS_TABLE_LOAD_ID,
     TTableSchemaColumns,
@@ -63,6 +66,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages import ParsedLoadJobFileName
+from dlt.destinations.utils import verify_unsupported_merge_options
 from dlt.destinations.impl.lance.configuration import (
     LanceClientConfiguration,
     LanceNamespaceHandle,
@@ -389,6 +393,17 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         # tables receiving data files are not truncated in `initialize_storage`
         self._tables_with_jobs = {job.table_name for job in new_jobs or ()}
         loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
         for load_table in loaded_tables:
             # Skip nested tables as they inherit behavior from parent tables
@@ -488,7 +503,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
     def make_arrow_table_schema(self, table_name: str) -> pa.Schema:
         """Creates a PyArrow schema for a table, including embedding metadata if configured."""
         columns = self.schema.get_table_columns(table_name)
-        arrow_schema = columns_to_arrow(columns, self.capabilities)
+        arrow_schema = columns_to_arrow(columns, self.capabilities, get_context_timezone_name())
 
         embedding_fields = None
         vector_column = None
@@ -529,7 +544,10 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
 
     @raise_destination_error
     def add_null_columns_to_table(self, table_name: str, new_columns: List[TColumnSchema]) -> None:
-        new_fields = [dlt_column_to_arrow_field(col, self.capabilities) for col in new_columns]
+        new_fields = [
+            dlt_column_to_arrow_field(col, self.capabilities, get_context_timezone_name())
+            for col in new_columns
+        ]
         self.open_lance_dataset(table_name, branch_name=self.config.branch_name).add_columns(
             new_fields
         )
@@ -642,7 +660,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
         record = {
             "version": schema.version,
             "engine_version": schema.ENGINE_VERSION,
-            "inserted_at": pendulum.now(),
+            "inserted_at": datetime.now(timezone.utc),
             "schema_name": schema.name,
             "version_hash": schema.stored_version_hash,
             "schema": json.dumps(schema.to_dict()),
@@ -663,7 +681,7 @@ class LanceClient(JobClientBase, WithStateSync, WithSqlClient):
             C_DLT_LOADS_TABLE_LOAD_ID: load_id,
             "schema_name": self.schema.name,
             "status": 0,
-            "inserted_at": pendulum.now(),
+            "inserted_at": datetime.now(timezone.utc),
             "schema_version_hash": self.schema.version_hash,
         }
         records = [{self.schema.naming.normalize_identifier(k): v for k, v in record.items()}]

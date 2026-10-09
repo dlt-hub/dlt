@@ -1,5 +1,6 @@
 import os
 import pytest
+import semver
 from pathlib import Path
 from os.path import join
 
@@ -8,11 +9,16 @@ import dlt
 from dlt.common import sleep
 from dlt.common.schema import Schema
 from dlt.common.storages import PackageStorage, LoadStorage, ParsedLoadJobFileName
-from dlt.common.storages.exceptions import LoadPackageAlreadyCompleted, LoadPackageNotCompleted
+from dlt.common.storages.exceptions import (
+    LoadPackageAlreadyCompleted,
+    LoadPackageInconsistent,
+    LoadPackageNotCompleted,
+)
 from dlt.common.utils import uniq_id
 from dlt.common.pendulum import pendulum
 from dlt.common.configuration.container import Container
 from dlt.common.storages.load_package import (
+    TExceptionType,
     LoadPackageStateInjectableContext,
     create_load_id,
     destination_state,
@@ -85,6 +91,23 @@ def test_is_partially_loaded(load_storage: LoadStorage) -> None:
     load_storage.normalized_packages.fail_job(load_id, file_names[1], "much broken, so bad")
     info = load_storage.get_load_package_info(load_id)
     assert PackageStorage.is_package_partially_loaded(info) is True
+
+    # schema migrated at the destination while jobs remain -> partially loaded, even with
+    # no completed jobs (the schema DDL already modified the destination)
+    load_id, file_names = start_loading_files(
+        load_storage, [{"content": "a"}], start_job=False, file_count=1
+    )
+    info = load_storage.get_load_package_info(load_id)
+    assert PackageStorage.is_package_partially_loaded(info) is False
+    load_storage.commit_schema_update(load_id, {"table": {"name": "table", "columns": {}}})
+    info = load_storage.get_load_package_info(load_id)
+    assert info.schema_update
+    assert PackageStorage.is_package_partially_loaded(info) is True
+    # once every job completed the package is fully loaded despite the schema migration
+    load_storage.normalized_packages.start_job(load_id, file_names[0])
+    load_storage.normalized_packages.complete_job(load_id, file_names[0])
+    info = load_storage.get_load_package_info(load_id)
+    assert PackageStorage.is_package_partially_loaded(info) is False
 
 
 @pytest.mark.parametrize(
@@ -278,7 +301,7 @@ def test_job_elapsed_time_seconds(load_storage: LoadStorage) -> None:
     # most probably
     assert elapsed_2 - elapsed >= 0.47
     # rename the file
-    fp = load_storage.normalized_packages.retry_job(load_id, fn)
+    fp = load_storage.normalized_packages.retry_job(load_id, fn, "error!", "transient")
     # retry_job increases retry number in file name so the line below does not work
     # fp = storage.storage._make_path(storage._get_job_file_path(load_id, "new_jobs", fn))
     elapsed_2 = PackageStorage._job_elapsed_time_seconds(fp)
@@ -292,13 +315,13 @@ def test_retry_job(load_storage: LoadStorage) -> None:
     assert job_fn_t.table_name == "mock_table"
     assert job_fn_t.retry_count == 0
     # now retry
-    new_fp = load_storage.normalized_packages.retry_job(load_id, fn)
+    new_fp = load_storage.normalized_packages.retry_job(load_id, fn, "error!", "transient")
     assert_package_info(load_storage, load_id, "normalized", "new_jobs")
     assert ParsedLoadJobFileName.parse(new_fp).retry_count == 1
     # try again
     fn = Path(new_fp).name
     load_storage.normalized_packages.start_job(load_id, fn)
-    new_fp = load_storage.normalized_packages.retry_job(load_id, fn)
+    new_fp = load_storage.normalized_packages.retry_job(load_id, fn, "error!", "transient")
     assert ParsedLoadJobFileName.parse(new_fp).retry_count == 2
 
 
@@ -385,7 +408,9 @@ def test_load_package_listings(load_storage: LoadStorage) -> None:
     load_storage.new_packages.complete_job(load_id, os.path.basename(new_jobs[0]))
     load_storage.new_packages.fail_job(load_id, os.path.basename(new_jobs[1]), None)
     load_storage.new_packages.fail_job(load_id, os.path.basename(new_jobs[-1]), "error!")
-    path = load_storage.new_packages.retry_job(load_id, os.path.basename(new_jobs[-2]))
+    path = load_storage.new_packages.retry_job(
+        load_id, os.path.basename(new_jobs[-2]), "error!", "terminal"
+    )
     assert ParsedLoadJobFileName.parse(path).retry_count == 1
     assert (
         load_storage.new_packages.get_job_failed_message(
@@ -519,14 +544,189 @@ def test_migrate_to_load_package_state() -> None:
     p.load()
 
 
+@pytest.mark.parametrize(
+    "exception_type",
+    ["terminal", "transient"],
+)
+def test_retry_and_fail_retried_job(
+    load_storage: LoadStorage, exception_type: TExceptionType
+) -> None:
+    load_id = create_load_package(load_storage.new_packages, 1)
+    new_job = sorted(load_storage.new_packages.list_new_jobs(load_id))[0]
+
+    # retry twice
+    load_storage.new_packages.start_job(load_id, os.path.basename(new_job))
+    path = load_storage.new_packages.retry_job(
+        load_id, os.path.basename(new_job), "first error!", exception_type
+    )
+    job = ParsedLoadJobFileName.parse(path)
+    assert job.retry_count == 1
+    exc_type, exc_msg = load_storage.new_packages.get_last_job_exception(load_id, job)
+    assert exc_type == exception_type
+    assert exc_msg == "first error!"
+
+    load_storage.new_packages.start_job(load_id, os.path.basename(path))
+    retried_path = load_storage.new_packages.retry_job(
+        load_id, os.path.basename(path), "second error!", exception_type
+    )
+    retried_job = ParsedLoadJobFileName.parse(retried_path)
+    assert retried_job.retry_count == 2
+    exc_type, exc_msg = load_storage.new_packages.get_last_job_exception(load_id, retried_job)
+    assert exc_type == exception_type
+    assert exc_msg == "second error!"
+
+    # the retried job is returned as pending
+    path_in_package, folder = load_storage.new_packages.list_retried_new_jobs(load_id)[0]
+    assert folder == "new_jobs"
+    assert ParsedLoadJobFileName.parse(os.path.basename(path_in_package)) == retried_job
+
+    # fail the pending job
+    load_storage.new_packages.fail_retried_job(load_id, os.path.basename(retried_path))
+
+    # job is now in failed_jobs
+    failed_jobs = load_storage.new_packages.list_failed_jobs(load_id)
+    assert len(failed_jobs) == 1
+    assert os.path.basename(retried_path) in failed_jobs[0]
+
+    # exception is in failed_jobs
+    failed_job = ParsedLoadJobFileName.parse(failed_jobs[0])
+    failed_message = load_storage.new_packages.get_job_failed_message(load_id, failed_job)
+    assert failed_message == "second error!"
+
+    # full per-retry exception history is kept after failing the job
+    exceptions_folder = os.path.join(
+        load_storage.new_packages.get_package_path(load_id),
+        PackageStorage.EXCEPTIONS_FOLDER,
+    )
+    exc_files = load_storage.new_packages.storage.list_folder_files(
+        exceptions_folder, to_root=False
+    )
+    assert len(exc_files) == 2
+    history = load_storage.new_packages.list_job_exceptions(load_id, failed_job)
+    assert [(retry, msg) for retry, _, msg in history] == [
+        (0, "first error!"),
+        (1, "second error!"),
+    ]
+
+    # retry the failed job
+    retry_again_path = load_storage.new_packages.retry_failed_job(
+        load_id, os.path.basename(retried_path)
+    )
+    retry_again_job = ParsedLoadJobFileName.parse(retry_again_path)
+    assert retry_again_job.retry_count == 3
+
+    # job is back in new_jobs
+    new_jobs = load_storage.new_packages.list_retried_new_jobs(load_id)
+    assert len(new_jobs) == 1
+    assert os.path.basename(retry_again_path) in new_jobs[0][0]
+
+    # failed_jobs is now empty
+    failed_jobs = load_storage.new_packages.list_failed_jobs(load_id)
+    assert len(failed_jobs) == 0
+
+    # exception was moved to exceptions/ folder (marked as terminal)
+    exc_type, exc_msg = load_storage.new_packages.get_last_job_exception(load_id, retry_again_job)
+    assert exc_type == "terminal"  # always terminal when coming from failed_jobs
+    assert exc_msg == "second error!"
+
+    # history grows with the new terminal retry, nothing is discarded
+    history = load_storage.new_packages.list_job_exceptions(load_id, retry_again_job)
+    assert [(retry, exc_type, msg) for retry, exc_type, msg in history] == [
+        (0, exception_type, "first error!"),
+        (1, exception_type, "second error!"),
+        (2, "terminal", "second error!"),
+    ]
+
+
+def test_list_retried_new_jobs_started_jobs(load_storage: LoadStorage) -> None:
+    """Started jobs are listed by their pending transition, without resolving it."""
+    load_id = create_load_package(load_storage.new_packages, 1)
+    new_job = load_storage.new_packages.list_new_jobs(load_id)[0]
+    job_name = os.path.basename(new_job)
+    load_storage.new_packages.start_job(load_id, job_name)
+
+    # interrupted job (no marker) is pending a retry
+    jobs = load_storage.new_packages.list_retried_new_jobs(load_id)
+    assert len(jobs) == 1
+    job_file, folder = jobs[0]
+    assert folder == "started_jobs"
+    assert os.path.basename(job_file) == job_name
+
+    # retry marker keeps the job pending
+    load_storage.new_packages.save_pending_transition(load_id, job_name, "retry", "oops")
+    assert len(load_storage.new_packages.list_retried_new_jobs(load_id)) == 1
+    # completed/failed markers record the outcome - job is no longer pending
+    load_storage.new_packages.save_pending_transition(load_id, job_name, "completed")
+    assert len(load_storage.new_packages.list_retried_new_jobs(load_id)) == 0
+    load_storage.new_packages.save_pending_transition(load_id, job_name, "failed", "fatal")
+    assert len(load_storage.new_packages.list_retried_new_jobs(load_id)) == 0
+    # nothing was resolved - job is still in started_jobs
+    assert len(load_storage.new_packages.list_started_jobs(load_id)) == 1
+
+    # abort of a package with unresolved started jobs is rejected
+    with pytest.raises(LoadPackageInconsistent):
+        load_storage.new_packages.abort_package(load_id)
+    load_storage.new_packages.complete_job(load_id, job_name)
+    load_storage.new_packages.abort_package(load_id)
+
+
 def test_pending_transition_folder_created(load_storage: LoadStorage) -> None:
-    """create_package creates the .pending_transitions folder."""
+    """create_package creates .pending_transitions but not .restore (created lazily on snapshot)."""
     load_id, _ = start_loading_file(load_storage, [{"content": "a"}], start_job=False)
     pkg_path = load_storage.normalized_packages.storage.make_full_path(
         load_storage.normalized_packages.get_package_path(load_id)
     )
-    pt_path = os.path.join(pkg_path, PackageStorage.PENDING_TRANSITIONS_FOLDER)
-    assert os.path.isdir(pt_path)
+    assert os.path.isdir(os.path.join(pkg_path, PackageStorage.PENDING_TRANSITIONS_FOLDER))
+    assert not os.path.isdir(os.path.join(pkg_path, PackageStorage.RESTORE_FOLDER))
+
+
+def test_restore_snapshot_roundtrip(load_storage: LoadStorage) -> None:
+    """save/load roundtrip; the first snapshot wins; empty snapshot is still a snapshot."""
+    packages = load_storage.new_packages
+    load_id = create_load_id()
+    packages.create_package(load_id, schema=Schema("mock"))
+    assert not packages.can_restore_pipeline_state(load_id)
+    with pytest.raises(FileNotFoundError):
+        packages.load_pipeline_state(load_id)
+
+    schemas = {"event": '{"name": "event"}', "other": '{"name": "other"}'}
+    assert packages.save_pipeline_state(load_id, '{"pipeline_name": "p"}', schemas) is True
+    assert packages.can_restore_pipeline_state(load_id)
+    state_blob, schema_blobs = packages.load_pipeline_state(load_id)
+    assert state_blob == '{"pipeline_name": "p"}'
+    assert schema_blobs == schemas
+    # write once
+    assert packages.save_pipeline_state(load_id, "other state", {}) is False
+    state_blob, schema_blobs = packages.load_pipeline_state(load_id)
+    assert state_blob == '{"pipeline_name": "p"}'
+    assert schema_blobs == schemas
+
+    # first run snapshot has no state and no schemas but is complete
+    load_id = create_load_id()
+    packages.create_package(load_id, schema=Schema("mock"))
+    assert packages.save_pipeline_state(load_id, None, {}) is True
+    assert packages.can_restore_pipeline_state(load_id)
+    assert packages.load_pipeline_state(load_id) == (None, {})
+
+
+def test_migrate_package_creates_dot_folders(load_storage: LoadStorage) -> None:
+    """migration chain backfills .pending_transitions and .exceptions."""
+    packages = load_storage.normalized_packages
+    load_id = create_load_id()
+    packages.create_package(load_id, schema=Schema("mock"))
+    for folder in (
+        PackageStorage.PENDING_TRANSITIONS_FOLDER,
+        PackageStorage.EXCEPTIONS_FOLDER,
+    ):
+        packages.storage.delete_folder(os.path.join(load_id, folder), recursively=True)
+    packages.migrate_package(
+        load_id, semver.Version.parse("1.0.0"), semver.Version.parse(LoadStorage.STORAGE_VERSION)
+    )
+    for folder in (
+        PackageStorage.PENDING_TRANSITIONS_FOLDER,
+        PackageStorage.EXCEPTIONS_FOLDER,
+    ):
+        assert packages.storage.has_folder(os.path.join(load_id, folder))
 
 
 def test_save_load_pending_transition(load_storage: LoadStorage) -> None:

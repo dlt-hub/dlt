@@ -132,14 +132,17 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         return sql, temp_table_name
 
     @classmethod
-    def gen_scd2_key_present_sql(
+    def gen_merge_key_present_clause(
         cls,
-        root_table_name: str,
+        table_qualifier: str,
         staging_root_table_name: str,
         merge_keys: Sequence[str],
-    ) -> str:
-        key_tuple = ", ".join(merge_keys)
-        return f"({key_tuple}) IN (SELECT {key_tuple} FROM {staging_root_table_name})"
+        source_filter: Optional[str] = None,
+    ) -> Optional[str]:
+        # Athena does not support correlated subqueries in DML
+        if not merge_keys:
+            return None
+        return cls._gen_keys_in_staging_cond(staging_root_table_name, merge_keys, source_filter)
 
     @classmethod
     def requires_temp_table_for_delete(cls) -> bool:
@@ -241,6 +244,9 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
                 config.staging_config.layout,
                 supported_prefix_placeholders=[],
                 table_needs_own_folder=True,
+                naming=(
+                    schema.naming if config.staging_config.warn_unsafe_layout_separators else None
+                ),
             )
 
         dataset_name, staging_dataset_name = SqlJobClientWithStagingDataset.create_dataset_names(

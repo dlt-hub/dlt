@@ -3,7 +3,6 @@ title: Run a pipeline
 description: How to run a pipeline
 keywords: [how to, run a pipeline]
 ---
-
 # Run a pipeline
 
 Follow the steps below to run your pipeline script, see your loaded data and tables, inspect
@@ -114,14 +113,19 @@ dlt pipeline chess_pipeline info
 You can inspect the package, get a list of jobs, and in the case of failed ones, get the associated error
 messages.
 - See the most recent load package info:
+
   ```sh
   dlt pipeline chess_pipeline load-package
   ```
+
 - See package info with a given load id:
+
   ```sh
   dlt pipeline chess_pipeline load-package 1679931001.985323
   ```
+
 - Also, see the schema changes introduced in the package:
+
   ```sh
   dlt pipeline -v chess_pipeline load-package
   ```
@@ -141,7 +145,9 @@ for more details.
 ## Run dlt in Notebooks
 
 ### Colab
+
 You'll need to install `dlt` like any other dependency:
+
 ```sh
 !pip install dlt
 ```
@@ -153,7 +159,6 @@ the content of the **toml** file from your `.dlt` folder into it. We support `co
 `dlt` will not reload the secrets automatically. Please restart your interpreter in Colab options when you add/change
 content of the variables above.
 :::
-
 
 ## Troubleshooting
 
@@ -207,10 +212,12 @@ and just add the `password` to your
 credentials.password="loader"
 ```
 
-> 💡 Make sure you run the script from the same folder in which it is saved. For example,
-> `python chess_demo/chess.py` will run the script from the `chess_demo` folder, but the current working
-> directory is the folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and
-> filling in credentials.
+:::info
+Make sure you run the script from the same folder in which it is saved. For example,
+`python chess_demo/chess.py` will run the script from the `chess_demo` folder, but the current working
+directory is the folder above. This prevents `dlt` from finding `chess_demo/.dlt/secrets.toml` and
+filling in credentials.
+:::
 
 ### Failed API or database connections and other exceptions
 
@@ -244,8 +251,9 @@ Failed due to: connection to server at "localhost" (127.0.0.1), port 5432 failed
 
 In rare cases, some jobs in a load package will fail in such a way that `dlt` will not be able
 to load it, even if it retries the process. In that case, the job is marked as failed, and additional
-information is available. Please note that ([if not otherwise configured](../running-in-production//running.md#failed-jobs)), `dlt` **will raise
-an exception on failed jobs and abort the package**. Aborted packages cannot be retried.
+information is available. Please note that ([if not otherwise configured](../running-in-production/running.md#how-dlt-reacts-to-a-failed-job)), `dlt` **will raise
+an exception on failed jobs and keep the package pending** so you can retry, fail, or abort it. See
+[how to handle problems in the load step](../running-in-production/running.md#handle-problems-in-load-step).
 
 ```text
 Step run COMPLETED in 14.21 seconds.

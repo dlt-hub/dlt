@@ -151,6 +151,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         # https://www.postgresql.org/docs/current/limits.html
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "insert_values"
         caps.supported_loader_file_formats = ["insert_values", "csv", "parquet", "model"]
         caps.loader_file_format_selector = make_adbc_parquet_file_format_selector(
@@ -177,7 +178,7 @@ class postgres(Destination[PostgresClientConfiguration, "PostgresClient"]):
         caps.max_text_data_type_length = 1024 * 1024 * 1024
         caps.is_max_text_data_type_length_in_bytes = True
         caps.supports_ddl_transactions = True
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",

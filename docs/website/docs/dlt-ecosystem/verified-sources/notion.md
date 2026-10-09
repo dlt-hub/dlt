@@ -3,9 +3,9 @@ title: Notion
 description: dlt pipeline for Notion API
 keywords: [notion api, notion pipeline, notion]
 ---
-import Header from './_source-info-header.md';
-
 # Notion
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -19,7 +19,7 @@ loads data using the “Notion API” to the destination of your choice.
 Sources that can be loaded using this verified source are:
 
 | Name             | Description                           |
-|------------------|---------------------------------------|
+| ---------------- | ------------------------------------- |
 | notion_databases | Retrieves data from Notion databases. |
 
 ## Setup guide
@@ -31,7 +31,6 @@ Sources that can be loaded using this verified source are:
    [My Integrations](https://www.notion.so/my-integrations).
 1. Click "New Integration" on the left and name it appropriately.
 1. Finally, click on "Submit" located at the bottom of the page.
-
 
 ### Add a connection to the database
 
@@ -45,7 +44,6 @@ Sources that can be loaded using this verified source are:
 
 > Note: The Notion UI, which is described here, might change.
 The full guide is available at [this link.](https://developers.notion.com/docs/authorization)
-
 
 ### Initialize the verified source
 
@@ -94,18 +92,24 @@ For more information, read the [General usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python notion_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `notion`, you may also use any
    custom name instead.
 
@@ -121,9 +125,12 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function loads notion databases from Notion into the destination.
 
 ```py
+from typing import Iterator
+from dlt.extract import DltResource
+
 @dlt.source
 def notion_databases(
-    database_ids: Optional[List[Dict[str, str]]] = None,
+    database_ids: list[dict[str, str]] | None = None,
     api_key: str = dlt.secrets.value,
 ) -> Iterator[DltResource]:
    ...
@@ -139,8 +146,8 @@ def notion_databases(
 It is important to note that the data is loaded in “replace” mode where the existing data is
 completely replaced.
 
-
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -161,7 +168,7 @@ verified source.
 
 2. To load all the integrated databases:
 
-   ```py
+   ```py notype
    load_data = notion_databases()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -169,7 +176,7 @@ verified source.
 
 3. To load the custom databases:
 
-   ```py
+   ```py notype
    selected_database_ids = [{"id": "0517dae9409845cba7d","use_name":"db_one"}, {"id": "d8ee2d159ac34cfc"}]
    load_data = notion_databases(database_ids=selected_database_ids)
    load_info = pipeline.run(load_data)

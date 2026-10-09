@@ -165,9 +165,24 @@ def test_gen_copy_sql_local_file(test_table: str, local_file_path: str, local_st
     assert_sql_contains(
         sql,
         f"COPY INTO {test_table}",
-        f"FROM {local_stage_path}",
+        f"FROM '{local_stage_path}'",
         "FILE_FORMAT = (TYPE = 'JSON'",
         "MATCH_BY_COLUMN_NAME='CASE_SENSITIVE'",
+    )
+
+
+def test_gen_copy_sql_local_file_special_chars(test_table: str):
+    sql = gen_copy_sql(
+        file_url="/tmp/load dir/my table.ab'c.0.jsonl",
+        qualified_table_name=test_table,
+        loader_file_format="jsonl",
+        is_case_sensitive=True,
+        local_stage_file_path='@test_schema."%my table"/"1749667187.11"/my table.ab\'c.0.jsonl',
+    )
+
+    assert_sql_contains(
+        sql,
+        "FROM '@test_schema.\"%my table\"/\"1749667187.11\"/my table.ab''c.0.jsonl'",
     )
 
 

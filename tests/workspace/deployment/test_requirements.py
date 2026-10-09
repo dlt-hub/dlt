@@ -11,6 +11,8 @@ import pytest
 from packaging.requirements import Requirement
 
 from dlt._workspace.deployment.launchers import (
+    AGENT_LOOP_GROUP_PREFIX,
+    LAUNCHER_AGENT,
     LAUNCHER_DASHBOARD,
     LAUNCHER_JOB,
     LAUNCHER_MARIMO,
@@ -23,14 +25,17 @@ from dlt._workspace.cli.dlthub.utils import fetch_init_plan
 from dlt._workspace.deployment.manifest import default_dashboard_job
 from dlt._workspace.deployment.requirements import (
     MAIN_GROUP,
+    PRE_TRACKING_DLT_INSTALL_SPEC,
     REQUIREMENTS_ENGINE_VERSION,
     WorkspaceRequirementsError,
     _BASE_LAUNCHER_SPECS,
+    build_agent_loop_groups,
     build_dashboard_group,
     build_launcher_requirements,
     default_requirements_manifest,
     export_workspace_requirements,
     get_dlt_requirement_spec,
+    get_pkg_install_spec,
     load_requirements,
     migrate_requirements,
     python_version,
@@ -101,7 +106,11 @@ def test_pyproject_with_lock_resolves_all_groups() -> None:
         result = export_workspace_requirements(Path(ctx.run_dir))
 
     groups = result["groups"]
-    user_groups = {k: v for k, v in groups.items() if k != DASHBOARD_JOB_REF}
+    user_groups = {
+        k: v
+        for k, v in groups.items()
+        if k != DASHBOARD_JOB_REF and not k.startswith(AGENT_LOOP_GROUP_PREFIX)
+    }
     assert set(user_groups.keys()) == {"main", "dev", "gpu"}
 
     # every user spec must be pinned, and free of hashes / local paths
@@ -143,7 +152,11 @@ def test_requirements_file_resolved_with_uv(fixture_name: str, required_names: S
     with isolated_workspace(fixture_name) as ctx:
         result = export_workspace_requirements(Path(ctx.run_dir))
 
-    user_group_names = [k for k in result["groups"] if k != DASHBOARD_JOB_REF]
+    user_group_names = [
+        k
+        for k in result["groups"]
+        if k != DASHBOARD_JOB_REF and not k.startswith(AGENT_LOOP_GROUP_PREFIX)
+    ]
     assert user_group_names == [MAIN_GROUP]
     specs = result["groups"][MAIN_GROUP]
     assert specs
@@ -252,6 +265,23 @@ def test_migrate_requirements_unknown_path_raises() -> None:
         migrate_requirements({}, 99, REQUIREMENTS_ENGINE_VERSION)
 
 
+def test_migrate_requirements_v1_backfills_dlt_version() -> None:
+    """Engine-1 manifests (no dlt_version) load as engine 2 with the 1.28.0 default."""
+    data = json.dumps(
+        {
+            "engine_version": 1,
+            "python_version": "3.11",
+            "default_groups": [MAIN_GROUP],
+            "groups": {MAIN_GROUP: ["dlt==1.0.0"]},
+            "launcher_requirements": {},
+        }
+    ).encode("utf-8")
+    manifest = load_requirements(io.BytesIO(data))
+    assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    assert manifest["dlt_version"] == PRE_TRACKING_DLT_INSTALL_SPEC
+    assert manifest["dlt_version"]["version"] == "1.28.0"
+
+
 def test_load_unknown_engine_version_raises() -> None:
     data = json.dumps(
         {
@@ -287,6 +317,7 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_MCP,
         LAUNCHER_STREAMLIT,
         LAUNCHER_DASHBOARD,
+        LAUNCHER_AGENT,
     }
     # every launcher gets the base specs
     for specs in lreq.values():
@@ -297,6 +328,8 @@ def test_launcher_requirements_shape() -> None:
     # by export_workspace_requirements / default_requirements_manifest
     assert lreq[LAUNCHER_JOB] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_MODULE] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
+    # loop packages live in agent-loop-* groups, not here
+    assert lreq[LAUNCHER_AGENT] == sorted(set(["botocore", "s3fs"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_MARIMO] == sorted(set(["marimo", "uvicorn"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_MCP] == sorted(set(["fastmcp", "uvicorn"] + _BASE_LAUNCHER_SPECS))
     assert lreq[LAUNCHER_STREAMLIT] == sorted(set(["streamlit"] + _BASE_LAUNCHER_SPECS))
@@ -353,11 +386,15 @@ def test_default_dashboard_job_declares_dashboard_group() -> None:
 def test_default_requirements_manifest_shape() -> None:
     manifest = default_requirements_manifest()
     assert manifest["engine_version"] == REQUIREMENTS_ENGINE_VERSION
+    # dlt version + source captured at export time
+    assert manifest["dlt_version"] == get_pkg_install_spec("dlt")
+    assert manifest["dlt_version"]["version"]
     assert manifest["default_groups"] == [MAIN_GROUP]
-    # empty main + dashboard group
+    # empty main + dashboard group + one group per built-in agent loop
     assert manifest["groups"] == {
         MAIN_GROUP: [],
         DASHBOARD_JOB_REF: build_dashboard_group(),
+        **build_agent_loop_groups(),
     }
     # dlt injected into every launcher entry
     dlt_spec = get_dlt_requirement_spec()
@@ -540,17 +577,17 @@ def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> N
 @pytest.mark.parametrize(
     "spec, pruned, kept, dlt_injected",
     [
-        ("dlt[hub]>=1.0", {"dlthub", "croniter"}, set(), False),
-        ("dlthub>=0.1", {"dlthub"}, {"croniter"}, True),
-        ("dlthub-client", {"croniter"}, {"dlthub"}, True),
-        ("dlt>=1.0", set(), {"dlthub", "croniter"}, False),
+        ("dlt[hub]>=1.0", {"dlthub"}, set(), False),
+        ("dlthub>=0.1", {"dlthub"}, set(), True),
+        ("dlthub-client", set(), {"dlthub"}, True),
+        ("dlt>=1.0", set(), {"dlthub"}, False),
     ],
     ids=["dlt-hub-extra", "dlthub", "dlthub-client", "plain-dlt"],
 )
 def test_export_prunes_implied_packages(
     spec: str, pruned: Set[str], kept: Set[str], dlt_injected: bool
 ) -> None:
-    """`dlt[hub]` pulls dlthub + croniter; dlthub / dlthub-client pull croniter."""
+    """`dlt[hub]` pulls dlthub; croniter is a core dep, not a launcher spec."""
     with isolated_workspace("deps_none") as ctx:
         Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
         with patch(_SHUTIL_WHICH, return_value=None):

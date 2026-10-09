@@ -210,7 +210,7 @@ def test_sqlalchemy_file_db_follows_local_dir(driver: str, ext: str) -> None:
 
 def test_external_engine_database_not_relocated() -> None:
     """A user-provided engine is never rebuilt from credentials: its relative database
-    path must not be relocated to the local dir and physical_location() must report
+    path must not be relocated to the local dir and data_location() must report
     the file the engine actually writes to.
     """
     local_dir = os.path.join(get_test_storage_root(), uniq_id())
@@ -225,15 +225,23 @@ def test_external_engine_database_not_relocated() -> None:
     )
     assert c.credentials.is_external_engine
     assert c.credentials.database == os.path.abspath("relative_data.db")
-    assert c.physical_location() == os.path.abspath("relative_data.db")
+    # a sqlite connection attaches only its own dataset file, so the location must name the dataset
+    assert c.data_location() == f"sqlite://{os.path.abspath('relative_data.db')}#test_dataset"
 
-    # in-memory external engine has no physical identity
+    # an in-memory engine names no file, so the engine that holds the database gives the identity
     c = resolve_configuration(
         SqlalchemyClientConfiguration(
             credentials=SqlalchemyCredentials(sa.create_engine("sqlite:///:memory:"))
         )._bind_dataset_name(dataset_name="test_dataset")
     )
-    assert c.physical_location() == ""
+    assert c.data_location().startswith("sqlite://:memory:")
+    # and dlt never treats two in-memory engines as the same database
+    other = resolve_configuration(
+        SqlalchemyClientConfiguration(
+            credentials=SqlalchemyCredentials(sa.create_engine("sqlite:///:memory:"))
+        )._bind_dataset_name(dataset_name="test_dataset")
+    )
+    assert c.data_location() != other.data_location()
 
 
 def test_engine_kwargs_forwarded_to_credentials() -> None:

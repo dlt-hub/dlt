@@ -3,13 +3,14 @@
 import copy
 import os
 import os.path
-from datetime import datetime, timezone  # noqa: I251
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Callable, Dict, List, Optional, Tuple, cast
+from typing import Any, Callable, Dict, List, Optional, Tuple, cast
 from uuid import uuid4
-from zoneinfo import ZoneInfo
 
-from dlt.common.time import ensure_datetime_utc
+from packaging.version import Version
+
+from dlt.common.time import UTC_NAME, ensure_datetime_in_tz, to_tzinfo
 
 from dlt._workspace._workspace_context import active
 from dlt._workspace.deployment._job_ref import format_job_label, resolve_job_ref, short_name
@@ -44,14 +45,21 @@ from dlt._workspace.deployment.manifest import (
     generate_manifest_hash,
     manifest_from_module,
 )
+from dlt._workspace.deployment.requirements import get_pkg_install_spec
 from dlt._workspace.deployment.trigger import manual
 from dlt._workspace.deployment.typing import (
     DEFAULT_DEPLOYMENT_MODULE,
+    TInstallSpec,
     TJobDefinition,
     TJobsDeploymentManifest,
     TRuntimeEntryPoint,
     TTrigger,
+    resolve_refresh_propagation,
 )
+from dlt.version import DLT_PKG_NAME
+
+INCREMENTAL_MODE_DLT_VERSION = Version("1.30.1a0")
+"""First dlt whose launcher reads `incremental_mode` and `auto_refresh_pipeline_mode`."""
 
 
 TCandidate = Tuple[TJobDefinition, TTrigger]
@@ -132,7 +140,9 @@ def select_candidates(
     for job_def in manifest["jobs"]:
         job_type = job_def["entry_point"]["job_type"]
         expanded = expand_triggers(job_def)
-        hits = match_triggers_with_selectors(job_type, expanded, selectors)
+        hits = match_triggers_with_selectors(
+            job_type, expanded, selectors, job_ref=job_def["job_ref"]
+        )
         trigger = pick_trigger(hits, job_def.get("default_trigger"))
         if trigger is None:
             continue
@@ -229,14 +239,15 @@ def warn_missing_profiles() -> List[str]:
 
 def resolve_refresh(user_refresh: bool, job_def: TJobDefinition) -> Tuple[bool, Optional[str]]:
     """Apply a job's `TRefreshPolicy` to `user_refresh`. Returns `(effective, warning_or_None)`."""
-    policy = job_def.get("refresh", "auto")
+    policy = resolve_refresh_propagation(job_def)
     if policy == "always":
         return True, None
     if policy == "block":
         warning: Optional[str] = None
         if user_refresh:
             warning = (
-                f"--refresh ignored: job {short_name(job_def['job_ref'])!r} declares refresh=block"
+                f"--refresh ignored: job {short_name(job_def['job_ref'])!r} declares"
+                " refresh_propagation=block"
             )
         return False, warning
     return user_refresh, None
@@ -262,15 +273,15 @@ def resolve_interval(
     now_utc: datetime,
     refresh: bool,
 ) -> Tuple[datetime, datetime, str]:
-    """Resolve `(start_utc, end_utc, tz)` for a run; user values win verbatim, otherwise clamp to declared `interval`."""
+    """Resolve `(start, end, tz)` for a run in `tz`; user values win verbatim, otherwise clamp to declared `interval`."""
     # refresh=true + declared interval -> backfill from declared start to most
     # recent schedule tick; otherwise the most recently elapsed window
     tz = job_def.get("require", {}).get("timezone", "UTC")
 
     if user_start:
-        target_tz = ZoneInfo(tz)
-        start = ensure_datetime_utc(user_start, default_tz=target_tz)
-        end = ensure_datetime_utc(user_end, default_tz=target_tz) if user_end else now_utc
+        target_tz = to_tzinfo(tz)
+        start = ensure_datetime_in_tz(user_start, target_tz)
+        end = ensure_datetime_in_tz(user_end, target_tz) if user_end else now_utc
         return start, end, tz
 
     declared = job_def.get("interval")
@@ -285,9 +296,9 @@ def resolve_interval(
             if declared.get("end"):
                 declared_end_dt = spec_end
         else:
-            declared_start_dt = ensure_datetime_utc(declared["start"])
+            declared_start_dt = ensure_datetime_in_tz(declared["start"], timezone.utc)
             if declared.get("end"):
-                declared_end_dt = ensure_datetime_utc(declared["end"])
+                declared_end_dt = ensure_datetime_in_tz(declared["end"], timezone.utc)
 
     natural_start, natural_end = compute_run_interval(
         trigger, now_utc, prev_interval_end=None, tz=tz
@@ -308,15 +319,38 @@ def resolve_interval(
 
 def build_runtime_entry_point(
     job_def: TJobDefinition,
-    cli_config: Dict[str, str],
-    profile: str,
+    cli_config: Dict[str, Any],
+    profile: Optional[str],
     refresh: bool,
-    interval_start: datetime,
-    interval_end: datetime,
-    tz: str,
+    interval_start: Optional[datetime],
+    interval_end: Optional[datetime],
+    dlt_version: TInstallSpec,
+    tz: Optional[str] = None,
 ) -> TRuntimeEntryPoint:
-    """Assemble a `TRuntimeEntryPoint` from a job def and resolved context, without mutating `job_def`."""
+    """Assemble a `TRuntimeEntryPoint` from a job def and resolved context, without mutating `job_def`.
+
+    Args:
+        job_def: Job definition to build the entry point from; never mutated.
+        cli_config: `KEY=VALUE` overrides merged over the entry point's `config`.
+        profile: Active workspace profile; written to the entry point when truthy.
+        refresh: Whether this run carries the refresh (reload) signal.
+        interval_start: UTC-serialized start of the interval, or `None` for point-in-time runs.
+        interval_end: UTC-serialized end of the interval, or `None`.
+        dlt_version: Target dlt install (version + source) the deployment runs on. The entry
+            point is emitted in the shape that dlt version's launcher understands; callers
+            pass the value from the requirements manifest, where engine-1 deployments resolve
+            to 1.28.0 via `migrate_requirements`.
+        tz: IANA timezone carried alongside the interval for the launcher to re-apply;
+            defaults to the job's `require.timezone` (or UTC).
+
+    Returns:
+        TRuntimeEntryPoint: The entry point enriched with runtime launch context.
+
+    Raises:
+        InvalidVersion: `dlt_version` names no valid package version.
+    """
     entry_point: TRuntimeEntryPoint = copy.copy(job_def["entry_point"])  # type: ignore[assignment]
+    entry_point["job_ref"] = job_def["job_ref"]
 
     if cli_config:
         merged = dict(entry_point.get("config", {}))
@@ -324,13 +358,29 @@ def build_runtime_entry_point(
         entry_point["config"] = merged
 
     if entry_point.get("job_type") == "interactive":
-        entry_point["run_args"] = {"port": 5000}
+        entry_point.setdefault("run_args", {"port": 5000})
 
-    entry_point["interval_start"] = interval_start.isoformat()
-    entry_point["interval_end"] = interval_end.isoformat()
-    entry_point["interval_timezone"] = tz
-    entry_point["allow_external_schedulers"] = job_def.get("allow_external_schedulers", False)
-    entry_point["profile"] = profile
+    if tz is None:
+        tz = job_def.get("require", {}).get("timezone", "UTC")
+    if interval_start is not None:
+        entry_point["interval_start"] = ensure_datetime_in_tz(
+            interval_start, timezone.utc
+        ).isoformat()
+    if interval_end is not None:
+        entry_point["interval_end"] = ensure_datetime_in_tz(interval_end, timezone.utc).isoformat()
+    if interval_start is not None or interval_end is not None or tz != UTC_NAME:
+        entry_point["interval_timezone"] = tz
+    # unset jobs get neither key so launcher-side `jobs` configuration may apply
+    mode = job_def.get("incremental_mode")
+    if Version(dlt_version["version"]) >= INCREMENTAL_MODE_DLT_VERSION:
+        if mode is not None:
+            entry_point["incremental_mode"] = mode
+        if job_def.get("auto_refresh_pipeline_mode"):
+            entry_point["auto_refresh_pipeline_mode"] = job_def["auto_refresh_pipeline_mode"]
+    elif mode is not None:
+        entry_point["allow_external_schedulers"] = mode == "interval"
+    if profile:
+        entry_point["profile"] = profile
     entry_point["refresh"] = refresh
     execute_spec = job_def.get("execute") or {}
     if "intercept_signals" in execute_spec:
@@ -355,7 +405,7 @@ def fetch_run_info(
     user_start: Optional[str] = None,
     user_end: Optional[str] = None,
     user_refresh: bool = False,
-    cli_config: Optional[Dict[str, str]] = None,
+    cli_config: Optional[Dict[str, Any]] = None,
     job_ref: Optional[str] = None,
     forbidden_job_type: Optional[str] = None,
     available_selectors: Optional[List[str]] = None,
@@ -445,6 +495,7 @@ def fetch_run_info(
         interval_start=interval_start,
         interval_end=interval_end,
         tz=tz,
+        dlt_version=get_pkg_install_spec(DLT_PKG_NAME),
     )
 
     info: TRunJobInfo = {

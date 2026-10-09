@@ -1,3 +1,4 @@
+import os
 import pytest
 
 import dlt
@@ -42,6 +43,8 @@ def test_bigquery_streaming_wrong_disposition():
 
     test_resource.apply_hints(additional_table_hints={"x-insert-api": "streaming"})
 
+    # auto-abort so the terminal job is recorded in failed_jobs
+    os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "true"
     pipe = dlt.pipeline(pipeline_name="insert_test", destination="bigquery")
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipe.run(test_resource)

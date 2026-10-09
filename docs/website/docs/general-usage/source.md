@@ -3,7 +3,6 @@ title: Source
 description: Explanation of what a dlt source is
 keywords: [source, api, dlt.source]
 ---
-
 # Source
 
 A [source](glossary.md#source) is a logical grouping of resources, i.e., endpoints of a
@@ -90,6 +89,7 @@ You can modify and filter data in resources, for example, if we want to keep onl
 date:
 
 ```py
+yesterday = "2026-01-31"
 source.deals.add_filter(lambda deal: deal["created_at"] > yesterday)
 ```
 
@@ -126,19 +126,24 @@ Note that `add_limit` **does not limit the number of rows** but rather the "numb
 Find more on sampling data [here](resource.md#sample-from-large-data).
 
 ### Rename the source
+
 dlt allows you to rename the source i.e. to place the source configuration into custom section or to have many instances
 of the source created side by side. For example:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
 my_db = sql_database.clone(name="my_db", section="my_db")(table_names=["table_1"])
 print(my_db.name)
 ```
+
 Here we create a renamed version of the `sql_database` and then instantiate it. You can configure it using a compact layout with just the source name:
+
 ```toml
 [sources.my_db.credentials]
 password="..."
 ```
+
 The full path `sources.my_db.my_db.credentials` is also supported and takes precedence if both are present. See [how dlt looks for values](credentials/setup.md#how-dlt-looks-for-values) for details.
 
 ### Add more resources to existing source
@@ -155,22 +160,22 @@ source = hubspot()
 @dlt.transformer
 def deal_scores(deal_item):
     # obtain the score, deal_items contains data yielded by source.deals
-    score = model.predict(featurize(deal_item))
+    score = model.predict(featurize(deal_item))  # ty: ignore
     yield {"deal_id": deal_item, "score": score}
 
 # connect the data from `deals` resource into `deal_scores` and add to the source
 source.resources.add(source.deals | deal_scores)
 # load the data: you'll see the new table `deal_scores` in your destination!
 pipeline.run(source)
-```
-You can also set the resources in the source as follows:
-```py
+
+
+# You can also set the resources in the source as follows:
 source.deal_scores = source.deals | deal_scores
-```
-or
-```py
+
+# or
 source.resources["deal_scores"] = source.deals | deal_scores
 ```
+
 :::note
 When adding a resource to the source, dlt clones the resource so your existing instance is not affected.
 :::
@@ -212,7 +217,9 @@ You can directly configure the `max_table_nesting` parameter on the resource lev
 def my_resource():
     ...
 ```
+
 or
+
 ```py
 source.my_resource.max_table_nesting = 0
 ```
@@ -251,12 +258,26 @@ You can temporarily change the "write disposition" to `replace` on all (or selec
 a source to force a full refresh:
 
 ```py
+@dlt.source
+def merge_source():
+    ...
+
 p.run(merge_source(), write_disposition="replace")
 ```
 
 With selected resources:
 
 ```py
-p.run(tables.with_resources("users"), write_disposition="replace")
-```
+@dlt.source
+def crm():
+    @dlt.resource
+    def users():
+        ...
 
+    return [users, ...]
+
+p.run(
+    crm().with_resources("users"),
+    write_disposition="replace"
+)
+```

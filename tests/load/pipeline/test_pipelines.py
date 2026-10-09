@@ -525,6 +525,7 @@ def test_evolve_schema(destination_config: DestinationTestConfiguration) -> None
     # lets violate unique constraint on postgres, redshift and BQ ignore unique indexes
     if destination_config.destination_type == "postgres":
         # let it complete even with PK violation (which is a teminal error)
+        os.environ["LOAD__AUTO_ABORT_ON_TERMINAL_ERROR"] = "false"
         os.environ["RAISE_ON_FAILED_JOBS"] = "false"
         assert p.dataset_name == dataset_name
         err_info = p.run(
@@ -680,7 +681,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         "synapse",
         "databricks",
         "clickhouse",
-        "fabric",
     ]:
         datetime_data.pop("col11")
         datetime_data.pop("col11_null")
@@ -1096,11 +1096,11 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
                     "timestamp_values": output_values,
                 },
                 "EVENTS_TIMEZONE_ON": {
-                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_type": "TIMESTAMP_LTZ",
                     "timestamp_values": output_values,
                 },
                 "EVENTS_TIMEZONE_UNSET": {
-                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_type": "TIMESTAMP_LTZ",
                     "timestamp_values": output_values,
                 },
             },

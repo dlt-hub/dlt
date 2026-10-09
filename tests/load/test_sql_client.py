@@ -19,7 +19,7 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import ensure_pendulum_datetime_utc, to_py_datetime
+from dlt.common.time import ensure_pendulum_datetime, to_py_datetime
 
 from tests.utils import get_test_storage_root
 from tests.load.utils import (
@@ -220,12 +220,12 @@ def test_execute_sql(client: SqlJobClientBaseWithDestinationTestConfiguration) -
     assert len(rows) == 1
     # print(rows)
     assert rows[0][0] == "event"
-    assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
+    assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     assert rows[0][0] == "event"
     # print(rows[0][1])
     # print(type(rows[0][1]))
     # ensure datetime obj to make sure it is supported by dbapi
-    inserted_at = to_py_datetime(ensure_pendulum_datetime_utc(rows[0][1]))
+    inserted_at = to_py_datetime(ensure_pendulum_datetime(rows[0][1]))
     if client.config.destination_name == "sqlalchemy_sqlite":
         # timezone aware datetime is not supported by sqlite
         inserted_at = inserted_at.replace(tzinfo=None)
@@ -299,7 +299,7 @@ def test_execute_query(client: SqlJobClientBaseWithDestinationTestConfiguration)
         rows = curr.fetchall()
         assert len(rows) == 1
         assert rows[0][0] == "event"
-        assert isinstance(ensure_pendulum_datetime_utc(rows[0][1]), datetime.datetime)
+        assert isinstance(ensure_pendulum_datetime(rows[0][1]), datetime.datetime)
     with client.sql_client.execute_query(
         f"SELECT schema_name, inserted_at FROM {version_table_name} WHERE inserted_at = %s",
         rows[0][1],
@@ -613,6 +613,62 @@ def test_transaction_isolation(client: SqlJobClientBaseWithDestinationTestConfig
     assert len(rows) == 1
     # only thread 2 is left
     assert rows[0][0] == py_type("2.0")
+
+
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(default_sql_configs=True),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_connection_owned_from_outside(
+    client: SqlJobClientBaseWithDestinationTestConfiguration,
+) -> None:
+    """When `owns_connection` is False, a borrower receives the client but not the connection
+    lifetime. The `with` block must not open a second connection and must not close the
+    connection of the owner.
+    """
+    client.update_stored_schema()
+    sql_client = client.sql_client
+    version_table_name = sql_client.make_qualified_table_name(client.schema.version_table_name)
+    query = f"SELECT schema_name FROM {version_table_name}"
+
+    # if no outside owner takes control, a client owns its connection
+    assert sql_client.owns_connection is True
+    owned_conn = sql_client.native_connection
+    assert owned_conn is not None
+
+    sql_client.owns_connection = False
+    try:
+        with sql_client as borrowed:
+            assert borrowed is sql_client
+            # a second connection here leaks, because the owner already opened one
+            assert borrowed.native_connection is owned_conn
+            assert len(borrowed.execute_sql(query)) == 1
+        # the borrower did not change the connection of the owner
+        assert sql_client.native_connection is owned_conn
+        assert len(sql_client.execute_sql(query)) == 1
+
+        # nested borrows are no-ops as well
+        with sql_client:
+            with sql_client:
+                pass
+        assert sql_client.native_connection is owned_conn
+        assert len(sql_client.execute_sql(query)) == 1
+    finally:
+        sql_client.owns_connection = True
+
+    # the owner still closes the connection on demand. after the owner owns the connection again,
+    # the `with` block closes it on exit
+    sql_client.close_connection()
+    assert not sql_client.native_connection
+    with sql_client:
+        assert sql_client.native_connection is not None
+    assert not sql_client.native_connection
+
+    # the connection stays open, because the fixture drops the dataset through it
+    sql_client.open_connection()
+    assert len(sql_client.execute_sql(query)) == 1
 
 
 @pytest.mark.parametrize(

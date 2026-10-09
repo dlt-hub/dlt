@@ -15,12 +15,14 @@ from dlt.common.libs.pyarrow import (
     should_normalize_arrow_schema,
     add_constant_column,
     add_dlt_load_id_column,
+    InvalidTimezoneException,
 )
 from dlt.common.destination.configuration import ParquetFormatConfiguration
 
 from dlt.common.schema.utils import new_column, TColumnSchema
 from dlt.common.schema.normalizers import configured_normalizers, import_normalizers
 from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.time import set_context_timezone
 
 
 def _normalize(item: Any, columns: List[TColumnSchema]) -> Any:
@@ -420,6 +422,71 @@ def test_normalize_py_arrow_item_column_timestamp_param(
         assert modified_column[i].as_py() == expected
 
 
+_INSTANT = datetime(2024, 1, 15, 23, 30, tzinfo=timezone.utc)
+
+
+@pytest.mark.parametrize(
+    "context_tz, timezone_hint, supports_tz, supports_naive, expected_tz, expected_value",
+    [
+        pytest.param(
+            "Europe/Berlin", True, True, True, "Europe/Berlin", _INSTANT, id="berlin-caps-both"
+        ),
+        # a destination without tz support gets the context wall clock, naive, UTC included
+        pytest.param(
+            "UTC", True, False, True, None, datetime(2024, 1, 15, 23, 30), id="utc-caps-no-tz"
+        ),
+        pytest.param(
+            "Europe/Berlin",
+            True,
+            False,
+            True,
+            None,
+            datetime(2024, 1, 16, 0, 30),
+            id="berlin-caps-no-tz",
+        ),
+        # a destination without naive support keeps the instant of a `timezone=False` column
+        pytest.param("UTC", False, True, False, "UTC", _INSTANT, id="utc-caps-no-naive"),
+        pytest.param(
+            "Europe/Berlin",
+            False,
+            True,
+            False,
+            "Europe/Berlin",
+            _INSTANT,
+            id="berlin-caps-no-naive",
+        ),
+    ],
+)
+def test_normalize_py_arrow_item_column_follows_destination_tz_support(
+    context_tz: str,
+    timezone_hint: bool,
+    supports_tz: bool,
+    supports_naive: bool,
+    expected_tz: Optional[str],
+    expected_value: datetime,
+) -> None:
+    set_context_timezone(ZoneInfo(context_tz))
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.supports_tz_aware_datetime = supports_tz
+    caps.supports_naive_datetime = supports_naive
+    column_schema = _ts_schema(timezone_hint)
+
+    field, column = _ts_field_and_array("UTC", [_INSTANT])
+    modified_type, modified_column = normalize_py_arrow_item_column(
+        column_schema, field.type, column, caps=caps
+    )
+    assert modified_type.tz == expected_tz
+    assert modified_column[0].as_py() == expected_value
+
+    # a naive input is never converted, only labelled when the column stays aware
+    naive_field, naive_column = _ts_field_and_array(None, [datetime(2024, 1, 15, 23, 30)])
+    naive_type, naive_out = normalize_py_arrow_item_column(
+        column_schema, naive_field.type, naive_column, caps=caps
+    )
+    assert naive_type.tz == expected_tz
+    assert naive_out[0].as_py().replace(tzinfo=None) == datetime(2024, 1, 15, 23, 30)
+
+
 @pytest.mark.parametrize(
     "source_tz, values, timezone_setting",
     [
@@ -457,6 +524,19 @@ def test_normalize_py_arrow_item_column_non_timestamp() -> None:
 
     assert original_type is time_field.type
     assert original_column is time_column
+
+
+@pytest.mark.parametrize("tz", ["utc", "Nowhere/Bogus"])
+def test_normalize_py_arrow_item_column_unknown_timezone(tz: str) -> None:
+    """`pyarrow.timestamp` takes any string, so an unresolvable name must be caught here."""
+    field, column = _ts_field_and_array(None, [datetime(2021, 1, 1, 12, 0, 0)])
+
+    with pytest.raises(InvalidTimezoneException) as exc:
+        normalize_py_arrow_item_column(_ts_schema(True), field.type, column, tz)
+
+    assert tz in str(exc.value)
+    assert "canonical IANA name" in str(exc.value)
+    assert exc.value.tz == tz
 
 
 def test_normalize_py_arrow_item_column_timezone_conversion() -> None:
@@ -635,6 +715,26 @@ def test_add_dlt_load_id_column_replaces_existing(use_record_batch: bool) -> Non
     assert load_id_col[0].as_py() == "new_load_456"
     # Should not be dictionary-encoded
     assert not pa.types.is_dictionary(load_id_col.type)
+
+
+@pytest.mark.parametrize("use_record_batch", [False, True])
+def test_add_dlt_load_id_column_keeps_columns_named_like_load_id(use_record_batch: bool) -> None:
+    """Replacing _dlt_load_id must not drop columns whose name is a substring of it."""
+    _, naming, _ = import_normalizers(configured_normalizers())
+    caps = DestinationCapabilitiesContext()
+    caps.parquet_format = ParquetFormatConfiguration(supports_dictionary_encoding=False)
+
+    item = _make_item(
+        [{"_dlt_load_id": "old_load", "id": 1, "load_id": "L1", "keep": "x"}], use_record_batch
+    )
+    columns = {"_dlt_load_id": new_column("_dlt_load_id", "text")}
+
+    result = add_dlt_load_id_column(item, columns, caps, naming, "new_load_456")
+
+    assert result.column("_dlt_load_id")[0].as_py() == "new_load_456"
+    assert result.column("id")[0].as_py() == 1
+    assert result.column("load_id")[0].as_py() == "L1"
+    assert result.column("keep")[0].as_py() == "x"
 
 
 @pytest.mark.parametrize("use_record_batch", [False, True])

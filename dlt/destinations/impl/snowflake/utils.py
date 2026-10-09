@@ -7,6 +7,7 @@ from dlt.common.configuration.specs import (
     AwsCredentialsWithoutDefaults,
     AzureCredentialsWithoutDefaults,
 )
+from dlt.common.data_writers.escape import escape_snowflake_literal
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.storages import FilesystemConfiguration
 from dlt.common.storages.configuration import ensure_canonical_az_url
@@ -88,7 +89,7 @@ def gen_copy_sql(
 
     # Handle different file location types
     if parsed_file_url.scheme == "file" or FilesystemConfiguration.is_local_path(file_url):
-        from_clause = f"FROM {local_stage_file_path}"
+        from_clause = f"FROM {escape_snowflake_literal(local_stage_file_path)}"
 
     elif stage_name:
         relative_url = parsed_file_url.path.lstrip("/")

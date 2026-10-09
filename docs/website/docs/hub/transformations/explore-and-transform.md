@@ -1,18 +1,17 @@
 ---
-title: Explore and Transform your data with dltHub AI Workbench
-description: Explore loaded pipeline data, build interactive dashboards, and transform data into a Canonical Data Model using dltHub AI Workbench toolkits
+title: Explore and Transform your data with dltHub AI Harness
+description: Explore loaded pipeline data, build interactive dashboards, and transform data into a Canonical Data Model using dltHub AI Harness toolkits
 keywords: [cursor, claude, codex, llm, data exploration, transformations, marimo, dashboard, cdm, kimball, ai, workbench, toolkit]
 ---
-
-# Explore and Transform your data with dltHub AI Workbench
+# Explore and Transform your data with dltHub AI Harness
 
 :::info
-The dltHub AI Workbench is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The dltHub AI Harness is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
 
-Once your pipeline is running and your data is loaded, the next step is to understand it and shape it for downstream use. The dltHub AI Workbench provides two toolkits for this phase:
+Once your pipeline is running and your data is loaded, the next step is to understand it and shape it for downstream use. The dltHub AI Harness provides two toolkits for this phase:
 
 - **`data-exploration`** — connects to your loaded pipeline data, profiles it, plans charts, and assembles an interactive [marimo](../../general-usage/dataset-access/marimo.md) dashboard with Altair visualizations.
 - **`transformations`** — maps your raw source tables to canonical business concepts, builds a Kimball-style CDM, and generates `@dlt.hub.transformation` functions to populate it.
@@ -123,7 +122,7 @@ Translates the ontology into an implementation-ready CDM schema using Kimball pr
 
 Generates `@dlt.hub.transformation` functions that map your source tables to CDM entities using ibis:
 
-```py
+```py notype
 import dlt
 import ibis
 
@@ -142,7 +141,6 @@ def dim_person(dataset: dlt.Dataset):
 ```
 
 The output script follows naming conventions based on business domain, not source system names (e.g. `person_interactions_to_cdm.py`).
-
 
 ### Anatomy of the transformations toolkit
 
@@ -170,5 +168,6 @@ By the end of this guide you should have:
 - A working `@dlt.hub.transformation` script that populates the CDM
 
 Next steps:
+
 - [Deploy and schedule your pipeline](../ingestion/rest-api-source.md#handover-to-other-toolkits) with the `dlthub-platform` toolkit
 - [Replace the local destination with your data warehouse](../../walkthroughs/share-a-dataset.md)

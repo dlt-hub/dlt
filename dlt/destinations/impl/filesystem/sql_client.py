@@ -1,4 +1,4 @@
-from typing import Any, Optional, TYPE_CHECKING, Tuple, List
+from typing import Any, ClassVar, Optional, TYPE_CHECKING, Tuple, List
 from packaging.version import Version
 import duckdb
 
@@ -11,6 +11,7 @@ from dlt.common.storages.configuration import FileSystemCredentials
 
 from dlt.common.typing import TLoaderFileFormat
 from dlt.destinations.sql_client import raise_database_error
+from dlt.destinations.impl.duckdb.configuration import ConnStatement
 from dlt.destinations.impl.duckdb.sql_client import WithTableScanners
 from dlt.destinations.impl.duckdb.factory import DuckDbCredentials
 
@@ -42,9 +43,16 @@ class FilesystemSqlClient(WithTableScanners):
         super().__init__(remote_client, dataset_name, cache_db, persist_secrets=persist_secrets)
         self.remote_client: FilesystemClient = remote_client
         self.is_abfss = self.remote_client.config.protocol == "abfss"
-        self.iceberg_initialized = False
         if self.is_abfss:
             self._global_config["azure_transport_option_type"] = "curl"
+            # TODO: we need to frontload the httpfs extension for abfss for some reason.
+            # `extensions` cannot express it: that field only runs `LOAD`, never `INSTALL`
+            self.credentials.conn_pool.add_statements(
+                [ConnStatement("INSTALL httpfs; LOAD httpfs")]
+            )
+        self.credentials.conn_pool.add_statements(
+            [ConnStatement(sql) for sql in self._iceberg_setup_statements()]
+        )
 
     def can_create_view(self, table_schema: PreparedTableSchema) -> bool:
         if table_schema.get("table_format") in ("delta", "iceberg"):
@@ -96,22 +104,40 @@ class FilesystemSqlClient(WithTableScanners):
 
         return True
 
-    def open_connection(self) -> duckdb.DuckDBPyConnection:
-        with self.credentials.conn_pool._conn_lock:
-            first_connection = self.credentials.conn_pool.never_borrowed
-            super().open_connection()
-
-        if first_connection:
-            # TODO: we need to frontload the httpfs extension for abfss for some reason
-            if self.is_abfss:
-                self._conn.sql("INSTALL httpfs; LOAD httpfs")
-
-            # create single authentication for the whole client
-            self.create_secret(
-                self.remote_client.config.bucket_url,
-                self.remote_client.config.credentials,
-                persist_secrets=self.persist_secrets,
+    def _attach_extension_statements(self) -> List[str]:
+        config = self.remote_client.config
+        if config.attach_type() is None:
+            raise NotImplementedError(
+                f"The filesystem protocol `{config.protocol}` needs an fsspec registration."
+                " dlt cannot attach this protocol with SQL statements."
             )
+        statements = ["INSTALL httpfs; LOAD httpfs"] if self.is_abfss else []
+        return statements + self._iceberg_setup_statements()
+
+    def _attach_secret_statements(self) -> List[str]:
+        if self.remote_client.config.protocol == "file":
+            return []
+        scope = self.remote_client.config.bucket_url
+        if "@" in scope:
+            scope = scope.split("@")[0]
+        secret_statements = self._build_secret_statements(
+            scope, self.remote_client.config.credentials, self.create_secret_name(scope), "", False
+        )
+        if not secret_statements:
+            raise NotImplementedError(
+                f"duckdb has no secret for the protocol `{self.remote_client.config.protocol}`."
+            )
+        return secret_statements
+
+    def open_connection(self) -> duckdb.DuckDBPyConnection:
+        super().open_connection()
+        # not a pool statement. for a protocol that duckdb has no secret for, this call registers
+        # an fsspec filesystem. the statements it does emit can embed a token that expires
+        self.create_secret(
+            self.remote_client.config.bucket_url,
+            self.remote_client.config.credentials,
+            persist_secrets=self.persist_secrets,
+        )
         return self._conn
 
     def should_replace_view(self, view_name: str, table_schema: PreparedTableSchema) -> bool:
@@ -163,9 +189,11 @@ class FilesystemSqlClient(WithTableScanners):
             from_statement = f"delta_scan('{table_location}')"
         elif table_format == "iceberg":
             table_location = table_location.rstrip("/")
-            if not self.iceberg_initialized:
-                self._setup_iceberg(self._conn)
-                self.iceberg_initialized = True
+            if Version(duckdb.__version__) <= Version("1.1.2"):
+                raise NotImplementedError(
+                    f"Iceberg scanner for duckdb `{duckdb.__version__}` does not implement recent"
+                    " snapshot discovery. Please install duckdb >= 1.1.3"
+                )
 
             from dlt.common.libs.pyiceberg import get_last_metadata_file
 

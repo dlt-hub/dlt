@@ -1,35 +1,114 @@
 # Contributing to dlt
 
-Thank you for considering contributing to **dlt**! We appreciate your help in making dlt better. This document will guide you through the process of contributing to the project.
+Thank you for considering contributing to **dlt**! We appreciate your help in making dlt better.
+
+Maintainer review time is limited. To ensure contributors work on changes that are useful, appropriately scoped, and ready for review, please follow the contribution eligibility and approval process below. Pull requests that do not follow this process may be closed without review.
 
 ## Table of Contents
 
-1. [Getting Started](#getting-started)
-2. [Submitting Changes](#submitting-changes)
-3. [Adding or Updating Core Dependencies](#adding-or-updating-core-dependencies)
-4. [Formatting and Linting](#formatting-and-linting)
-5. [Testing](#testing)
-6. [Local Development](#local-development)
-7. [Publishing (Maintainers Only)](#publishing-maintainers-only)
-8. [Resources](#resources)
+1. [Before You Begin](#before-you-begin)
+2. [Getting Started](#getting-started)
+3. [Submitting Changes](#submitting-changes)
+4. [AI-Assisted Contributions](#ai-assisted-contributions)
+5. [Active Branches](#active-branches)
+6. [Branch Naming Rules](#branch-naming-rules)
+7. [Commit Message Rules](#commit-message-rules)
+8. [Submitting a Hotfix](#submitting-a-hotfix)
+9. [Submitting Changes Requiring Full CI Credentials](#submitting-changes-requiring-full-ci-credentials)
+10. [Deprecation Guidelines](#deprecation-guidelines)
+11. [Adding or Updating Core Dependencies](#adding-or-updating-core-dependencies)
+12. [Formatting and Linting](#formatting-and-linting)
+13. [Testing](#testing)
+14. [Local Development](#local-development)
+15. [Publishing — Maintainers Only](#publishing-maintainers-only)
+16. [Resources](#resources)
 
 ## Before You Begin
 
-- **Proposing significant changes or enhancements**: If you're considering major changes, please [submit an issue](https://github.com/dlt-hub/dlt/issues/new/choose) first. This ensures your efforts align with the project's direction and prevents you from investing time in a feature that may not be merged. Please note:
-   - 📣 **New destinations are unlikely to be merged** due to high maintenance costs (though we are happy to improve the SQLAlchemy destination to support more dialects).
-   - Significant changes require tests and documentation. Writing tests will often be more time-consuming than writing the code.
-   - There's probably already an [issue](https://github.com/dlt-hub/dlt/issues) for it—if so, feel free to implement it.
+### Contribution eligibility
 
-- **Small improvements**: We’re always happy to receive improvements if they are tested and documented.
-   - Examples: additional auth methods for destinations, optimizations, or more options.
-   - Quality-of-life improvements—better log messages, improved exceptions, fixing inconsistent behaviors.
-  
-- **Fixing bugs**:
-  - Check existing issues first: search [open issues](https://github.com/dlt-hub/dlt/issues) to see if the bug has already been reported.
-    - If not reported, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose). You're welcome to fix it and submit a pull request with your solution—thank you!
-    - If the bug is already reported, please comment on that issue to let others know you're working on it. This avoids duplicate efforts.
+New and first-time contributors should submit pull requests only for issues labeled with
+
+* [`help wanted`](https://github.com/dlt-hub/dlt/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22help%20wanted%22)
+* [`good first issue`](https://github.com/dlt-hub/dlt/issues?q=is%3Aissue%20state%3Aopen%20label%3A%22good%20first%20issue%22)
+
+> **Maintainers:** always pair `good first issue` with `help wanted`. If we don't want to hand an issue out, apply neither.
+
+A pull request for any other issue requires explicit maintainer approval before implementation begins. Approval must be recorded in the linked GitHub issue or discussion.
+
+An issue being open does not automatically mean that the project is ready to accept an implementation. Before starting work:
+
+1. Confirm that the issue has an eligible label or explicit maintainer approval.
+2. Check that nobody else is already assigned to or actively working on it.
+3. Comment on the issue with a brief description of your intended approach.
+4. Wait for a maintainer to confirm that the issue is available and that your proposed approach is appropriate.
+
+Do not submit speculative implementations while waiting for approval.
+
+Pull requests that:
+
+* do not link to an eligible or explicitly approved issue;
+* implement an approach that was not approved;
+* significantly exceed the agreed scope; or
+* duplicate work already in progress
+
+may be closed without a detailed review.
+
+Small, self-contained corrections to documentation, spelling, or broken links may be accepted without a pre-existing issue. Maintainers may still ask you to open an issue or close the pull request if the change is subjective, broad, or requires product decisions.
+
+Established contributors may propose work outside the eligible issue list, but significant changes must still be discussed and approved before implementation.
+
+### Scope and ownership
+
+Acceptance of an issue or proposed approach is not a guarantee that the resulting pull request will be merged.
+
+Contributors are expected to:
+
+* keep the change within the agreed scope;
+* understand and be able to explain the implementation;
+* write or update the required tests and documentation;
+* respond to review feedback;
+* revise the implementation when requested; and
+* remain available to help resolve problems caused by the change.
+
+### Proposing significant changes or enhancements
+
+Do not begin implementing a major feature, architectural change, refactor, new public API, or significant behavior change without prior maintainer approval.
+
+Create or find a relevant [issue](https://github.com/dlt-hub/dlt/issues) and describe:
+
+* the problem being solved;
+* the proposed behavior;
+* the intended implementation approach;
+* alternatives considered.
+
+Please note:
+
+* **New destinations are unlikely to be merged** because of their ongoing maintenance cost. We are, however, happy to consider improvements to the SQLAlchemy destination that add support for more dialects.
+* Significant changes require tests and documentation.
+* There may already be an issue for the requested change. Search the [existing issues](https://github.com/dlt-hub/dlt/issues) before creating a new one.
+* Creating an issue does not reserve the work or authorize implementation. Wait for explicit maintainer approval.
+
+### Small improvements
+
+Small improvements must also be linked to an eligible issue or receive explicit maintainer approval before implementation, except for minor documentation corrections described above.
+Even small changes must be tested and documented when they affect behavior.
+
+### Fixing bugs
+
+Before working on a bug:
+
+1. Search the [open issues](https://github.com/dlt-hub/dlt/issues) to see whether it has already been reported.
+2. If it has not been reported, [create a new issue](https://github.com/dlt-hub/dlt/issues/new/choose) with a minimal reproduction and enough information for maintainers to evaluate it.
+3. If it has already been reported, comment on the existing issue rather than opening a duplicate.
+4. Wait for the issue to receive an eligible label or for a maintainer to approve your proposed fix.
+5. Comment with your intended approach and wait for confirmation before beginning substantial implementation work.
+
+Please do not open a pull request immediately after reporting a new bug unless a maintainer has approved the work.
 
 ## Getting Started
+
+After a maintainer has confirmed your contribution:
 
 1. Fork the `dlt` repository and clone it to your local machine.
 2. Install `uv` with `make install-uv` (or follow the [official instructions](https://docs.astral.sh/uv/getting-started/installation/)).
@@ -38,26 +117,72 @@ Thank you for considering contributing to **dlt**! We appreciate your help in ma
 
 ## Submitting Changes
 
-When you're ready to contribute, follow these steps:
+When you are ready to contribute, follow these steps:
 
-1. Create an issue describing the feature, bug fix, or improvement you'd like to make.
-2. Create a new branch in your forked repository for your changes.
-3. Write your code and tests.
-4. Lint your code by running `make lint` and test common modules with `make test-common`.
-5. If you're working on destination code, contact us to get access to test destinations.
-6. If you’ve added, removed, or updated dependencies in `pyproject.toml`, make sure `uv.lock` is up to date by running `uv lock`.  
-   - If you merge upstream changes from the **devel** branch and get a conflict on the lockfile, it’s best to keep the **devel** version and re-run `uv lock` to re-apply your changes.
-7. Create a pull request targeting the **devel** branch of the main repository. Please link the ticket that describes what you are doing in the PR, or write a PR comment that makes it clear to us and other users without prior knowledge what you are doing here.
+1. Select an issue labeled `help wanted` or `good first issue`, or obtain explicit maintainer approval for another issue.
+2. Create a new branch in your fork using the required branch naming convention.
+3. Keep the implementation focused on the agreed issue.
+4. Write or update the required code, tests, and documentation.
+5. Run `make format` and `make lint`.
+6. Run `make test-common` and any additional test suites relevant to the changed components.
+7. If you are working on destination code, contact us to request access to the necessary test destinations.
+8. If you added, removed, or updated dependencies in `pyproject.toml`, update `uv.lock` by running `uv lock`.
 
-**Note:** In some special cases, you’ll need us to create a branch in this repository (not in your fork). See below.
+   * If you merge upstream changes from the **devel** branch and encounter a lockfile conflict, keep the **devel** version of the lockfile and run `uv lock` again to apply your changes.
+9. Create a pull request targeting the **devel** branch of the main repository, unless the change qualifies as a hotfix.
+10. Link the issue in the pull request description. Prefer a closing reference such as `Fixes #1234` when the pull request fully resolves the issue. Explain the change in the pull request description so that maintainers and other contributors can understand it without prior knowledge of the issue.
 
-### Active Branches
+A pull request should be ready for review when it is opened.
 
-- **devel** (default GitHub branch): Used to prepare the next release of `dlt`. We accept all regular contributions here (including most bug fixes).  
-- **master**: Used for hotfixes (including documentation) that must be released outside of the normal schedule.  
-- On release day, **devel** is merged into **master**. All releases of `dlt` are made only from **master**.
+Maintainers may close a pull request without detailed review when it:
 
-### Branch Naming Rules
+* was submitted without prior approval;
+* does not link to an eligible issue;
+* does not follow the agreed approach;
+* is incomplete or speculative;
+* lacks required tests or documentation;
+* contains unrelated changes;
+* cannot be clearly explained by its author;
+* repeatedly ignores review instructions; or
+* imposes a review or maintenance cost that is disproportionate to its benefit.
+
+## AI-Assisted Contributions
+
+AI tools may be used as development aids, but they do not replace contributor judgment, understanding, testing, or accountability.
+
+The person submitting a contribution is fully responsible for every part of it, including:
+
+* correctness;
+* security;
+* performance;
+* compatibility;
+* licensing and provenance;
+* tests;
+* documentation; and
+* long-term maintainability.
+
+Do not add AI tools as commit authors or co-authors, and do not add generated tool footers to commit messages.
+
+### Human understanding is required
+
+You must be able to explain the implementation in your own words and justify important design decisions. A pull request may be closed if the author cannot demonstrate sufficient understanding of the submitted change.
+
+### Autonomous submissions are not accepted
+
+Do not use autonomous agents or bots to select issues without human approval, open issues or pull requests.
+
+All issue comments, pull request descriptions, and review responses must be written or carefully reviewed by the human contributor responsible for the work.
+
+Primarily generated and unverified submissions may be closed without detailed review. Repeated submissions of this kind may result in restrictions on further participation.
+
+## Active Branches
+
+* **devel** is the default GitHub branch and is used to prepare the next release of `dlt`. Regular contributions, including most bug fixes, target this branch.
+* **master** is used for hotfixes, including urgent documentation fixes, that must be released outside the normal schedule.
+* On release day, **devel** is merged into **master**.
+* All releases of `dlt` are made from **master**.
+
+## Branch Naming Rules
 
 To ensure that our git history clearly explains what was changed by which branch or PR, we use the following naming convention (all lowercase, with dashes, no underscores):
 
@@ -67,24 +192,26 @@ To ensure that our git history clearly explains what was changed by which branch
 feat/4922-add-avro-support
 ```
 
-#### Branch Categories
+### Branch Categories
 
-* **feat**: A new feature (ticket required).
-* **fix**: A bug fix (ticket required).
-* **exp**: An experiment (ticket encouraged). May later become a `feat`.
-* **test**: Related to tests (ticket encouraged).
-* **docs**: Documentation changes (ticket optional).
-* **keep**: Branches we want to keep and revisit later (ticket encouraged).
+* **feat**: A new feature. An approved issue is required.
+* **fix**: A bug fix. An approved issue is required.
+* **exp**: An approved experiment. An issue and explicit maintainer approval are required.
+* **test**: A test-related change. An issue is normally required.
+* **docs**: A documentation change. An issue is required unless the change is a minor spelling, formatting, or broken-link correction.
+* **keep**: A maintainer-approved branch that will be retained and revisited later.
 
-#### Ticket Numbers
+### Ticket Numbers
 
-We encourage attaching your branches to a ticket. If none exists, create one and explain what you’re doing.
+All code changes must be linked to an eligible or explicitly approved issue.
 
-* For `feat` and `fix` branches, tickets are **mandatory**.
-* For `exp` and `test` branches, tickets are **encouraged**.
-* For `docs` branches, tickets are **optional**.
+* `feat`, `fix`, and `exp` branches require an issue number.
+* `test` branches normally require an issue number.
+* `docs` branches require an issue number unless they contain only a minor documentation correction.
+* The issue number in the branch name must match the issue linked in the pull request.
+* Note: creating an issue is not sufficient; the issue must be eligible for contribution or explicitly approved by a maintainer.
 
-### Commit Message Rules
+## Commit Message Rules
 
 We use [Conventional Commits](https://www.conventionalcommits.org/). Keep messages clean — this matters most when squash-merging a PR, since GitHub hides everything after the first line in the commit list:
 
@@ -93,37 +220,40 @@ We use [Conventional Commits](https://www.conventionalcommits.org/). Keep messag
 * No footers (e.g. `Co-Authored-By`, "Generated with …") and no emojis.
 * When squash-merging, clean the squash message down to a single subject line.
 
-### Submitting a Hotfix
+## Submitting a Hotfix
 
-We occasionally fix critical bugs and release `dlt` outside of schedule. Follow the regular procedure but open your PR against the **master** branch. Please ping us on Slack if you do this.
+We occasionally fix critical bugs and release `dlt` outside of the normal schedule. Follow the regular procedure but open your PR against the **master** branch. Please ping us on Slack if you do this.
 
-### Submitting Changes Requiring Full CI Credentials
+## Submitting Changes Requiring Full CI Credentials
 
-Our CI runs tests for contributions from forks. By default, only tests that do not require credentials are run. Full CI tests may be enabled with labels:
+Our CI runs tests for contributions from forks. By default, only tests that do not require credentials are run.
 
-* `ci from fork`: Enables CI credentials in PRs from forks and runs associated tests.
-* `ci full`: Runs all tests (by default only essential destination tests are run).
+Full CI tests may be enabled with the following labels:
 
-Labels are assigned by the core team. If you need CI credentials for local tests, contact us on Slack.
+* `ci from fork`: Enables CI credentials in pull requests from forks and runs the associated tests.
+* `ci full`: Runs all tests. By default, only essential destination tests are run.
+
+These labels are assigned by the core team after reviewing the pull request. If you need CI credentials for local tests, contact us on Slack.
 
 ## Deprecation Guidelines
 
 We introduce breaking changes only in major versions. Meanwhile, we maintain backward compatibility and deprecate features.
 
 **Example:**
-The `complex` type was renamed to `json` in a minor version, with backward compatibility:
 
-* `complex` data type is still allowed in schema definitions.
-* `migrate_complex_types` is used to migrate schemas and handle `columns` hints at runtime.
-* The `warnings` Python module and `Dlt100DeprecationWarning` category are used to generate warnings with full deprecation info.
+The `complex` type was renamed to `json` in a minor version while preserving backward compatibility:
 
-**What counts as a breaking change:**
+* The `complex` data type remains valid in schema definitions.
+* `migrate_complex_types` migrates schemas and handles `columns` hints at runtime.
+* The Python `warnings` module and the `Dlt100DeprecationWarning` category generate warnings containing complete deprecation information.
+
+### What counts as a breaking change
 
 * A change in a well-documented and common behavior that breaks user code.
 * A change in undocumented behavior that we know is being used.
 * We do **not** consider changes that only define previously undefined edge cases. Still, if possible, backward compatibility should be maintained.
 
-**Mechanisms to maintain backward compatibility:**
+### Mechanisms for maintaining backward compatibility
 
 * Schemas/state files have built-in migration methods (`engine_version`).
 * Storages (extract/normalize/load) have versioned layouts and can be upgraded or wiped out if the version changes.
@@ -132,7 +262,7 @@ The `complex` type was renamed to `json` in a minor version, with backward compa
 * Backward compatibility must be tested—there are many such tests in our codebase.
 * We have end-to-end tests in `tests_dlt_versions.py` that create pipelines with old `dlt` versions (starting with `0.3.x`) and then upgrade and test them.
 
-Please review the `warnings.py` module to see how deprecation warnings and decorators are used.
+Review the `warnings.py` module to understand how deprecation warnings and decorators are used.
 
 ## Adding or Updating Core Dependencies
 
@@ -153,7 +283,7 @@ Our goal is to maintain stability and compatibility across all environments. Ple
    example-package>=1.2.3,<2.0.0
    ```
 
-   This permits the security update while preventing unintended upgrades to a breaking major version.
+   This permits compatible security updates while preventing unintended upgrades to a breaking major version.
 
    Maintaining minimum versions also prevents cases where dependencies cannot be resolved.
 
@@ -191,7 +321,7 @@ You can view our GitHub Actions setup in `.github/workflows` to see which tests 
 
 ### Common Components
 
-To test components that don’t require external resources, run:
+To test components that do not require external resources, run:
 
 ```sh
 make test-common
@@ -230,7 +360,7 @@ You can see the GitHub actions setup for local destinations in `.github/workflow
 
 ### External Destinations
 
-To run all tests including all external destinations run:
+To run all tests, including tests for external destinations, use:
 
 ```sh
 make test
@@ -295,7 +425,7 @@ The source of truth for the current version is `pyproject.toml`, managed with `u
 5. Create a new branch and PR targeting **devel**, then merge it.
 6. Merge **devel** into **master** with a ❗ **merge commit** (not squash).
 
-**To publish**
+### Publishing
 
 1. Check out **master** and pull the latest code.
 2. Verify the version with `uv version`.
@@ -303,7 +433,7 @@ The source of truth for the current version is `pyproject.toml`, managed with `u
 4. Run `make publish-library` and provide the token.
 5. Create a GitHub release using the version and git tag.
 
-**bump hub extra dependencies on minor/major bump**: 
+**bump hub extra dependencies on minor/major bump**:
 
 1. Find the `hub` extra in `pyproject.toml` and bump the **upper bound** minor version on each plugin.
 2. You may keep the lower bound if this `dlt` version is compatible

@@ -27,15 +27,22 @@ from dlt.common.exceptions import (
     MissingDependencyException,
     ValueErrorWithKnownValues,
 )
+from dlt.common.metrics import TDataLocation
 from dlt.common.schema import TTableSchemaColumns
 from dlt.common.schema.typing import TWriteDispositionDict
 from dlt.common.schema.utils import merge_columns
-from dlt.common.typing import TColumnNames, TDataItem, TSortOrder, add_value_to_literal
-from dlt.common.jsonpath import extract_simple_field_name
+from dlt.common.typing import (
+    NotRequired,
+    TColumnNames,
+    TDataItem,
+    TSortOrder,
+    add_value_to_literal,
+)
 from dlt.common.utils import is_typeerror_due_to_wrong_call
 
 from dlt.extract import Incremental
 from dlt.extract.items_transform import LimitItem
+from dlt.extract.resource import DltResource
 
 from .arrow_helpers import row_tuples_to_arrow
 from .schema_types import (
@@ -124,7 +131,7 @@ class BaseTableLoader(ABC):
         self.incremental = incremental
         self.limit = limit
         if incremental:
-            column_name = extract_simple_field_name(incremental.cursor_path)
+            column_name = incremental.get_cursor_column_name()
 
             if column_name is None:
                 raise ValueError(
@@ -139,8 +146,7 @@ class BaseTableLoader(ABC):
                     f"Cursor column `{incremental.cursor_path}` does not exist in table"
                     f" `{table.name}`"
                 ) from e
-            self.last_value = incremental.last_value
-            self.end_value = incremental.end_value
+            self.last_value, self.end_value = incremental.get_current_range()
             self.row_order: TSortOrder = self.incremental.row_order
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
             self.range_start = self.incremental.range_start
@@ -435,6 +441,50 @@ def get_table_loader_class(backend_name: str) -> Type[BaseTableLoader]:
         return TABLE_LOADER_REGISTRY[backend_name]
     except KeyError:
         raise ValueErrorWithKnownValues("backend", backend_name, list(TABLE_LOADER_REGISTRY.keys()))
+
+
+class TSqlDatabaseDataLocation(TDataLocation):
+    """A SQL database server: databases and schemas holding tables."""
+
+    database: NotRequired[str]
+    db_schema: NotRequired[str]
+    tables: NotRequired[List[str]]
+
+
+def record_table_input(
+    resource: DltResource,
+    credentials: Union[ConnectionStringCredentials, Engine, str],
+    db_schema: Optional[str],
+    table_name: str,
+) -> None:
+    """Records the database table `resource` reads from, without credentials."""
+    try:
+        if isinstance(credentials, Engine):
+            # an externally provided engine carries no credentials object to ask
+            url = credentials.url
+            credentials = ConnectionStringCredentials(
+                {
+                    "drivername": url.drivername,
+                    "host": url.host,
+                    "port": url.port,
+                    "database": url.database,
+                }
+            )
+        elif not isinstance(credentials, ConnectionStringCredentials):
+            credentials = ConnectionStringCredentials(credentials)
+        resource.add_input(
+            TSqlDatabaseDataLocation(
+                kind="sql_database",
+                resource_name=resource.name,
+                location=credentials.data_location(),
+                database=credentials.database,
+                db_schema=db_schema,
+                tables=[table_name],
+            ),
+            replace=True,
+        )
+    except Exception as ex:
+        logger.debug(f"Could not record input location for table `{table_name}`: {ex}")
 
 
 def table_rows(

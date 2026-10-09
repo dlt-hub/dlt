@@ -1,4 +1,4 @@
-from typing import ClassVar, Optional, Type
+from typing import ClassVar, Collection, List, Optional, Type
 
 import duckdb
 from duckdb import DuckDBPyConnection
@@ -12,7 +12,12 @@ from dlt.common.storages.fsspec_filesystem import fsspec_from_config
 from dlt.destinations.impl.duckdb.configuration import DuckDbCredentials
 from dlt.destinations.impl.duckdb.sql_client import DuckDBDBApiCursorImpl, DuckDbSqlClient
 from dlt.destinations.impl.ducklake.configuration import DuckLakeCredentials
-from dlt.destinations.sql_client import raise_open_connection_error
+from dlt.destinations.sql_client import (
+    TAttachStatement,
+    WithAttach,
+    attach_statement,
+    raise_open_connection_error,
+)
 
 
 class DuckLakeDBApiCursorImpl(DuckDBDBApiCursorImpl):
@@ -91,6 +96,41 @@ class DuckLakeSqlClient(DuckDbSqlClient):
                 # `memory` is a name of initial memory database opened
                 self._conn.execute(f"USE memory;DETACH {self.credentials.ducklake_name}")
         return super().close_connection()
+
+    def attach_statements(
+        self, *, alias: str, tables: Optional[Collection[str]] = None
+    ) -> List[TAttachStatement]:
+        # the statements attach the whole lake, so `tables` cannot narrow it
+        statements: List[TAttachStatement] = []
+        storage = self.credentials.storage
+        if not storage.is_local_filesystem:
+            secret_name = self.create_secret_name(storage.bucket_url)
+            statements += [
+                # one key for the whole set: when the client emits the set again, it replaces
+                # the rotated credentials
+                attach_statement(s, secret=True, key=f"{alias}:secret")
+                for s in self._build_secret_statements(
+                    storage.bucket_url, storage.credentials, secret_name, "", False
+                )
+            ]
+        # `alias` names the local attach catalog. `metadata_schema` must stay the schema of the
+        # original lake
+        attach = self.build_attach_statement(
+            ducklake_name=alias,
+            metadata_schema=self.credentials.metadata_schema or self.credentials.ducklake_name,
+            catalog=self.credentials.catalog,
+            storage_url=self.credentials.storage_url,
+            override_data_path=self.override_data_path,
+            automatic_migration=self.automatic_migration,
+        )
+        # postgres and mysql catalogs embed the password in the attach url, so it is a secret
+        is_secret = getattr(self.credentials.catalog, "drivername", "") in (
+            "postgres",
+            "postgresql",
+            "mysql",
+        )
+        statements.append(attach_statement(attach, secret=is_secret, key=f"{alias}:attach"))
+        return statements
 
     def create_secret(
         self,

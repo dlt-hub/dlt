@@ -2,14 +2,23 @@
 
 import asyncio
 import inspect
+import sys
 from typing import Any, Dict, List, Literal, cast
 
 import pytest
 
 import dlt
+from dlt.common.configuration.specs import (
+    BaseConfiguration,
+    ConnectionStringCredentials,
+    configspec,
+)
+from dlt.common.typing import Annotated, TSecretStrValue, TypedDict
+from dlt.common.warnings import DltDeprecationWarning
 from dlt._workspace.deployment.decorators import JobFactory, interactive, job, pipeline_run
 from dlt._workspace.deployment.exceptions import InvalidJobName, InvalidJobSection
-from dlt._workspace.deployment.typing import TTrigger
+from dlt._workspace.deployment.reflection import Entity
+from dlt._workspace.deployment.typing import TJobRunContext, TTrigger
 
 
 # module-level sources and resources for deliver tests
@@ -341,6 +350,147 @@ def test_job_definition_batch() -> None:
     assert job_def["description"] == "Daily ETL."
 
 
+@pytest.mark.parametrize(
+    "deco_kwargs,expected",
+    [
+        (
+            {"incremental_mode": "interval", "interval": {"start": "2024-01-01T00:00:00Z"}},
+            "interval",
+        ),
+        # explicit pipeline mode is emitted so it survives `jobs` config defaults
+        ({"incremental_mode": "pipeline"}, "pipeline"),
+        ({}, None),
+    ],
+    ids=["interval", "explicit-pipeline", "unset"],
+)
+def test_job_definition_incremental_mode(deco_kwargs: Dict[str, Any], expected: str) -> None:
+    """Engine-2 job definitions carry `incremental_mode` only; unset emits nothing."""
+
+    @job(**deco_kwargs)
+    def etl():
+        pass
+
+    job_def = etl.to_job_definition()
+    assert job_def.get("incremental_mode") == expected
+    assert "allow_external_schedulers" not in job_def
+
+    @pipeline_run("my_pipeline", **deco_kwargs)
+    def run_pipeline():
+        pass
+
+    assert run_pipeline.to_job_definition().get("incremental_mode") == expected
+
+
+def test_job_definition_auto_refresh_pipeline_mode() -> None:
+    @job(auto_refresh_pipeline_mode="drop_sources")
+    def refreshing():
+        pass
+
+    @job
+    def plain():
+        pass
+
+    assert refreshing.to_job_definition()["auto_refresh_pipeline_mode"] == "drop_sources"
+    assert "auto_refresh_pipeline_mode" not in plain.to_job_definition()
+
+
+def test_deprecated_refresh_kwarg_maps_to_refresh_propagation() -> None:
+    with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
+
+        @job(refresh="block")  # type: ignore[call-overload]
+        def etl():
+            pass
+
+    assert etl.refresh_propagation == "block"
+    assert etl.to_job_definition()["refresh_propagation"] == "block"
+
+    # explicit new arg wins: the decorator discards the converted deprecated value
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(refresh="block", refresh_propagation="always")  # type: ignore[call-overload]
+        def etl_both():
+            pass
+
+    assert etl_both.refresh_propagation == "always"
+
+    # also when the explicit value equals the default, which must not read as "unset"
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(refresh="block", refresh_propagation="auto")  # type: ignore[call-overload]
+        def etl_explicit_auto():
+            pass
+
+    assert etl_explicit_auto.refresh_propagation == "auto"
+
+
+def test_deprecated_allow_external_schedulers_maps_to_incremental_mode() -> None:
+    with pytest.warns(DltDeprecationWarning, match="incremental_mode"):
+
+        @job(allow_external_schedulers=True, interval={"start": "2024-01-01T00:00:00Z"})  # type: ignore[call-overload]
+        def etl():
+            pass
+
+    assert etl.incremental_mode == "interval"
+    assert etl.to_job_definition()["incremental_mode"] == "interval"
+
+    # False is equivalent to the replacement spelling, so it pins `pipeline`
+    with pytest.warns(DltDeprecationWarning):
+
+        @job(allow_external_schedulers=False)  # type: ignore[call-overload]
+        def etl_off():
+            pass
+
+    assert etl_off.incremental_mode == "pipeline"
+    job_def = etl_off.to_job_definition()
+    assert job_def["incremental_mode"] == "pipeline"
+    assert "allow_external_schedulers" not in job_def
+
+
+def test_unknown_kwarg_still_raises_type_error() -> None:
+    with pytest.raises(TypeError, match="unexpected keyword argument"):
+
+        @job(refrsh="block")  # type: ignore[call-overload]
+        def etl():
+            pass
+
+
+def test_deprecated_kwarg_routed_through_pipeline_run_and_interactive() -> None:
+    # pipeline_run and interactive forward **kwargs into _job, so the same deprecation applies
+    with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
+
+        @pipeline_run("my_pipeline", refresh="always")  # type: ignore[call-arg]
+        def pr():
+            pass
+
+    assert pr.refresh_propagation == "always"
+
+    with pytest.warns(DltDeprecationWarning, match="refresh_propagation"):
+
+        @interactive(refresh="always")  # type: ignore[call-overload]
+        def it():
+            pass
+
+    assert it.refresh_propagation == "always"
+
+
+@pytest.mark.parametrize(
+    "deco,apply",
+    [
+        ("job", lambda **kw: job(**kw)),
+        ("interactive", lambda **kw: interactive(**kw)),
+        ("pipeline_run", lambda **kw: pipeline_run("my_pipeline", **kw)),
+    ],
+    ids=["job", "interactive", "pipeline_run"],
+)
+def test_messages_name_the_decorator_used(deco: str, apply: Any) -> None:
+    """`_job` serves all three, so a shared message would send users to the wrong decorator."""
+    with pytest.warns(DltDeprecationWarning, match=rf"deprecated at `@{deco}`"):
+        apply(refresh="block")(lambda: None)
+
+    with pytest.raises(TypeError, match=rf"^{deco}\(\) got an unexpected keyword argument"):
+        apply(bogus=1)(lambda: None)
+
+
 def test_job_definition_interactive() -> None:
     """to_job_definition produces correct TJobDefinition for interactive jobs."""
 
@@ -383,6 +533,41 @@ def test_require_static_egress_ips_stored_on_job_definition() -> None:
     assert job_def["require"]["static_egress_ips"] is True
 
 
+def test_require_instance_stored_on_job_definition() -> None:
+    """`require.instance` is passed through to the job definition as an opaque dict."""
+
+    @job(require={"instance": {"size": "medium"}})
+    def train():
+        pass
+
+    job_def = train.to_job_definition()
+    assert job_def["require"]["instance"] == {"size": "medium"}
+
+
+def test_require_machine_emits_deprecation_warning() -> None:
+    """Deprecated `require.machine` warns and migrates to `require.instance`."""
+
+    with pytest.warns(DltDeprecationWarning, match="require.instance"):
+
+        @job(require={"machine": "gpu-a100"})  # type: ignore[call-overload]
+        def legacy():
+            pass
+
+    job_def = legacy.to_job_definition()
+    assert job_def["require"]["instance"] == {"size": "gpu-a100"}
+    assert "machine" not in job_def["require"]
+
+
+def test_require_instance_no_deprecation_warning(recwarn: Any) -> None:
+    """Using `require.instance` alone does not emit a deprecation warning."""
+
+    @job(require={"instance": {"size": "medium"}})
+    def train():
+        pass
+
+    assert not [w for w in recwarn.list if issubclass(w.category, DltDeprecationWarning)]
+
+
 def test_config_key_discovery() -> None:
     """Config keys from dlt.config.value defaults are discovered in job definition."""
 
@@ -393,6 +578,154 @@ def test_config_key_discovery() -> None:
     job_def = with_config.to_job_definition()
     assert "api_key" in job_def["config_keys"]
     assert "limit" in job_def["config_keys"]
+
+
+def test_a_job_declares_its_arguments() -> None:
+    """A job's `inputs` schema covers the same arguments as `config_keys`, with their types."""
+
+    @job
+    def typed_job(
+        run_context: TJobRunContext = None,
+        since: str = dlt.config.value,
+        depth: int = 3,
+        verbose: bool = False,
+    ):
+        """Reads what configuration gives it."""
+
+    job_def = typed_job.to_job_definition()
+    inputs = job_def["inputs"]
+
+    assert set(inputs["properties"]) == set(job_def["config_keys"]) == {"since", "depth", "verbose"}
+    # `dlt.config.value` is required with no default; a real default is optional and carries it
+    assert inputs["required"] == ["since"]
+    assert inputs["properties"]["depth"] == {"default": 3, "type": "integer"}
+    assert inputs["properties"]["verbose"]["type"] == "boolean"
+
+
+def test_the_run_context_is_not_an_argument() -> None:
+    """The launcher passes it, configuration never does, so it is in neither list."""
+
+    @job
+    def needs_context(run_context: TJobRunContext):
+        pass
+
+    @job
+    def optional_context(run_context: TJobRunContext = None):
+        pass
+
+    for job_def in (needs_context.to_job_definition(), optional_context.to_job_definition()):
+        assert "inputs" not in job_def
+        assert "config_keys" not in job_def
+
+
+def test_an_argument_configuration_cannot_fill_is_not_declared() -> None:
+    """No default means nothing can inject it, so the manifest does not offer it."""
+
+    @job
+    def positional(needed: str, optional: int = 1):
+        pass
+
+    job_def = positional.to_job_definition()
+    assert set(job_def["inputs"]["properties"]) == set(job_def["config_keys"]) == {"optional"}
+
+
+class _Report(TypedDict):
+    rows: int
+
+
+@pytest.mark.parametrize(
+    "hint,declares",
+    [(_Report, True), ("_Report", True), (Dict[str, Any], False), (str, False), (None, False)],
+    ids=["typeddict", "pep563-typeddict", "dict", "str", "none"],
+)
+def test_a_job_declares_an_output_only_when_it_returns_one(hint: Any, declares: bool) -> None:
+    """`output` is the result contract, and a TypedDict return type is how a job declares one."""
+
+    def returns() -> Any:
+        pass
+
+    returns.__annotations__["return"] = hint
+    job_def = job(returns).to_job_definition()
+
+    assert ("output" in job_def) is declares
+    if declares:
+        assert job_def["output"]["properties"]["rows"]["type"] == "integer"
+
+
+def test_an_unreadable_signature_still_deploys() -> None:
+    """An argument configuration cannot resolve is neither a config key nor an input."""
+
+    @job
+    def opaque(thing: "NoSuchType" = None):  # type: ignore[name-defined] # noqa: F821
+        pass
+
+    job_def = opaque.to_job_definition()
+
+    assert "config_keys" not in job_def
+    assert "inputs" not in job_def
+
+
+def test_a_job_describes_what_configuration_injects_without_pydantic(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Credentials and configspec arguments are described, and no pydantic is needed for it."""
+
+    @configspec
+    class Table(BaseConfiguration):
+        name: str = None
+        credentials: ConnectionStringCredentials = None
+
+    @job
+    def sync(
+        credentials: ConnectionStringCredentials = dlt.secrets.value,
+        table: Table = None,
+        api_key: TSecretStrValue = dlt.secrets.value,
+        mode: Literal["full", "delta"] = "full",
+    ):
+        pass
+
+    # any import of pydantic fails, also through dlt's wrapper loaded by earlier tests
+    for module in ("pydantic", "dlt.common.libs.pydantic"):
+        monkeypatch.setitem(sys.modules, module, None)
+    inputs = sync.to_job_definition()["inputs"]
+    properties, defs = inputs["properties"], inputs["$defs"]
+
+    assert inputs["required"] == ["credentials", "api_key"]
+    # credentials take their fields or a connection string, and keep their password write-only
+    credentials_ref = {"$ref": "#/$defs/ConnectionStringCredentials"}
+    assert properties["credentials"] == {"anyOf": [credentials_ref, {"type": "string"}]}
+    password = defs["ConnectionStringCredentials"]["properties"]["password"]
+    assert password["writeOnly"] is True
+    # a configspec nests, and its own nested credentials point at the same definition
+    assert properties["table"]["anyOf"] == [{"$ref": "#/$defs/Table"}, {"type": "null"}]
+    assert defs["Table"]["properties"]["credentials"]["anyOf"][0] == credentials_ref
+    # a configspec field without a value and not optional is required, as the resolver sees it
+    assert defs["Table"]["required"] == ["name", "credentials"]
+    assert properties["api_key"] == {"type": "string", "writeOnly": True}
+    assert properties["mode"] == {"enum": ["full", "delta"], "type": "string", "default": "full"}
+
+
+def test_entity_annotation_reaches_the_schema() -> None:
+    """`Entity` on an argument is `entity_type` in the schema, and the first one is the job's object."""
+
+    @job
+    def inspect(
+        run_id: Annotated[str, Entity("job-runs")] = dlt.config.value,
+        dataset: Annotated[str, Entity("dataset")] = None,
+        depth: int = 3,
+    ):
+        pass
+
+    job_def = inspect.to_job_definition()
+    properties = job_def["inputs"]["properties"]
+
+    assert properties["run_id"]["entity_type"] == "job-runs"
+    assert properties["dataset"]["entity_type"] == "dataset"
+    assert "entity_type" not in properties["depth"]
+    assert job_def["expose"]["object_input"] == {
+        "entity_type": "job-runs",
+        "input": f"{inspect.job_ref}.run_id",
+    }
 
 
 def test_isinstance_check() -> None:
@@ -609,53 +942,55 @@ def test_pipeline_run_with_expose_override() -> None:
     assert job_def["expose"]["tags"] == ["daily"]
 
 
-def test_job_refresh_default_auto_omitted_from_manifest() -> None:
-    """Default `refresh="auto"` is not written to the manifest dict."""
+def test_job_refresh_propagation_default_auto_omitted_from_manifest() -> None:
+    """Default `refresh_propagation="auto"` is not written to the manifest dict."""
 
     @job
     def default_job():
         pass
 
-    assert default_job.refresh == "auto"
+    assert default_job.refresh_propagation == "auto"
     job_def = default_job.to_job_definition()
     assert "refresh" not in job_def
+    assert "refresh_propagation" not in job_def
 
 
 @pytest.mark.parametrize("policy", ["always", "block"])
-def test_job_refresh_non_default_written_to_manifest(policy: str) -> None:
-    """Non-default refresh values are written to the manifest dict."""
+def test_job_refresh_propagation_non_default_written_to_manifest(policy: str) -> None:
+    """Non-default values serialize under `refresh_propagation`."""
     refresh_policy = cast(Literal["always", "auto", "block"], policy)
 
-    @job(refresh=refresh_policy)
+    @job(refresh_propagation=refresh_policy)
     def explicit_job():
         pass
 
-    assert explicit_job.refresh == policy
+    assert explicit_job.refresh_propagation == policy
     job_def = explicit_job.to_job_definition()
-    assert job_def["refresh"] == policy
+    assert job_def["refresh_propagation"] == policy
+    assert "refresh" not in job_def
 
 
-def test_job_refresh_explicit_auto_omitted() -> None:
-    """Explicitly passing `refresh="auto"` still results in no manifest field."""
+def test_job_refresh_propagation_explicit_auto_omitted() -> None:
+    """Explicitly passing `refresh_propagation="auto"` still results in no manifest field."""
 
-    @job(refresh="auto")
+    @job(refresh_propagation="auto")
     def explicit_auto():
         pass
 
     job_def = explicit_auto.to_job_definition()
-    assert "refresh" not in job_def
+    assert "refresh_propagation" not in job_def
 
 
-def test_pipeline_run_refresh() -> None:
+def test_pipeline_run_refresh_propagation() -> None:
     """`pipeline_run` accepts and propagates the refresh policy."""
 
-    @pipeline_run("analytics", refresh="always")
+    @pipeline_run("analytics", refresh_propagation="always")
     def loader():
         pass
 
-    assert loader.refresh == "always"
+    assert loader.refresh_propagation == "always"
     job_def = loader.to_job_definition()
-    assert job_def["refresh"] == "always"
+    assert job_def["refresh_propagation"] == "always"
 
 
 @pytest.mark.parametrize(

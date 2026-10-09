@@ -6,6 +6,7 @@ from typing import (
     List,
     Any,
     Generic,
+    Optional,
     Tuple,
     Union,
     overload,
@@ -61,6 +62,18 @@ class SourceFactory(ABC, Generic[TSourceFunParams, TDltSourceImpl]):
         self, func: Callable[[TDltSourceImpl], Union[TDltSourceImpl, Awaitable[TDltSourceImpl]]]
     ) -> None:
         """Adds a callback that receives and returns a DltSource after it is created."""
+
+    @abstractmethod
+    def add_limit(
+        self,
+        max_items: Optional[int] = None,
+        max_time: Optional[float] = None,
+        count_rows: Optional[bool] = False,
+    ) -> None:
+        """Adds a post-processor to the source factory that adds limits to the source instance.
+
+        Returns `None` to match the behavior of `.add_postprocessor()`
+        """
 
     @abstractmethod
     def clone(

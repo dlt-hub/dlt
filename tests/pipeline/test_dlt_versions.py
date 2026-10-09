@@ -1,5 +1,6 @@
 import os
-from typing import List, Optional, Dict
+from datetime import datetime  # noqa: I251
+from typing import Any, List, Optional, Dict
 import sys
 from subprocess import CalledProcessError
 import pytest
@@ -163,12 +164,12 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
                 test_storage.load(f".dlt/pipelines/{GITHUB_PIPELINE_NAME}/state.json")
             )
             assert "_version_hash" not in state_dict
-            # also we expect correctly decoded pendulum here
+            # the legacy `Z` suffix must still decode to the same instant
             legacy_incremental = state_dict["sources"]["github"]["resources"]["load_issues"][
                 "incremental"
             ]["created_at"]
             created_at_value = custom_pua_decode(legacy_incremental["last_value"])
-            assert isinstance(created_at_value, pendulum.DateTime)
+            assert isinstance(created_at_value, datetime)
             assert created_at_value == pendulum.parse("2021-04-16T04:34:05Z")
             # legacy state predates start_value field
             assert "start_value" not in legacy_incremental
@@ -238,6 +239,46 @@ def test_pipeline_with_dlt_update(test_storage: FileStorage) -> None:
             GITHUB_PIPELINE_NAME, destination=duckdb(credentials=duckdb_cfg.credentials)
         )
         assert_github_pipeline_end_state(pipeline, github_schema, 2)
+
+
+@skip_on_312
+def test_dataset_on_schema_stored_by_old_dlt(test_storage: FileStorage) -> None:
+    """`dlt.dataset` reads the stored schema straight from the destination, without any pipeline
+    state, so it must migrate it like every other stored schema load.
+    """
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_github_3.duckdb"}):
+        # 0.3.0 stores an engine 5 schema in the destination
+        with Venv.create(
+            tempfile.mkdtemp(), ["dlt[duckdb]==0.3.0", "json-logging==1.4.1rc0", "setuptools<80"]
+        ) as venv:
+            venv.install_deps(venv.context, ["duckdb" + "==" + pkg_version("duckdb")])
+            print(
+                venv.run_script(
+                    "../tests/pipeline/cases/github_pipeline/github_pipeline.py", "duckdb", "20"
+                )
+            )
+
+        duckdb_cfg = resolve_configuration(
+            DuckDbClientConfiguration()._bind_dataset_name(dataset_name=GITHUB_DATASET),
+            sections=("destination", "duckdb"),
+        )
+        dataset = dlt.dataset(duckdb(credentials=duckdb_cfg.credentials), GITHUB_DATASET)
+
+        issues = dataset.schema.tables["issues"]
+        # 9 -> 10 renamed the data type and derived row and parent keys from the old hints
+        assert issues["columns"]["assignee"]["data_type"] == "json"
+        assert issues["columns"]["_dlt_id"]["row_key"] is True
+        assignees = dataset.schema.tables["issues__assignees"]
+        assert assignees["columns"]["_dlt_parent_id"]["parent_key"] is True
+        assert "foreign_key" not in assignees["columns"]["_dlt_parent_id"]
+        # 10 -> 11 pins the legacy path separator behavior
+        assert dataset.schema._normalizers_config["use_break_path_on_normalize"] is False
+
+        assert len(dataset.issues.fetchall()) == 20
 
 
 @pytest.mark.parametrize(
@@ -386,12 +427,12 @@ def assert_github_pipeline_end_state(
         "incremental"
     ]["created_at"]
     created_at_value = incremental_state["last_value"]
-    assert isinstance(created_at_value, pendulum.DateTime)
+    assert isinstance(created_at_value, datetime)
     assert created_at_value == pendulum.parse("2023-02-17T09:52:12Z")
     # start_value snapshots the previous (legacy) run's last_value, so the covered range
     # for this current-version run is [legacy_last_value, new_last_value)
     start_value = incremental_state["start_value"]
-    assert isinstance(start_value, pendulum.DateTime)
+    assert isinstance(start_value, datetime)
     assert start_value == pendulum.parse("2021-04-16T04:34:05Z")
     pipeline = pipeline.drop()
     # print(pipeline.working_dir)
@@ -777,3 +818,127 @@ def test_load_normalized_refresh_package_from_1_25(test_storage: FileStorage) ->
         assert package_state["applied_dropped_tables"] == ["items"]
         # `items` was dropped and re-created with only the second run's row
         assert load_table_counts(pipeline, "items") == {"items": 1}
+
+
+def _run_datetime_key_case(old_version: str, strategy: str) -> None:
+    """Loads the datetime-key case with an old dlt."""
+    with Venv.create(tempfile.mkdtemp(), [f"dlt[duckdb]=={old_version}", "setuptools<80"]) as venv:
+        # force a compatible duckdb so the current version can open the same database file
+        venv.install_deps(venv.context, ["duckdb==" + pkg_version("duckdb")])
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", strategy))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+
+@skip_on_312
+def test_scd2_datetime_rows_not_reversioned_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace({"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_key.duckdb"}):
+        _run_datetime_key_case("0.4.10", "scd2")
+
+        pipeline = dlt.attach("datetime_key")
+        with pipeline.sql_client() as client:
+            old_rows = client.execute_sql("SELECT _dlt_id, _dlt_valid_to FROM events ORDER BY id")
+        assert len(old_rows) == 3
+        assert all(row[1] is None for row in old_rows)
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "scd2"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        with pipeline.sql_client() as client:
+            new_rows = client.execute_sql("SELECT _dlt_id, _dlt_valid_to FROM events ORDER BY id")
+        # unchanged data must not be re-versioned: a moved row hash would retire all three rows
+        assert len(new_rows) == 3
+        assert [row[0] for row in old_rows] == [row[0] for row in new_rows]
+        assert all(row[1] is None for row in new_rows)
+
+
+@skip_on_312
+def test_upsert_datetime_key_hash_stable_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_upsert.duckdb"}
+    ):
+        # 0.4.x has no `upsert` strategy, so the oldest version that keys on a hash is 1.25.0
+        _run_datetime_key_case("1.25.0", "upsert")
+
+        pipeline = dlt.attach("datetime_key")
+        with pipeline.sql_client() as client:
+            old_rows = client.execute_sql("SELECT _dlt_id FROM events ORDER BY occurred_at")
+        assert len(old_rows) == 3
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "upsert"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        with pipeline.sql_client() as client:
+            new_rows = client.execute_sql("SELECT _dlt_id FROM events ORDER BY occurred_at")
+        # the datetime primary key is the hash, so a moved rendering inserts copies instead
+        assert len(new_rows) == 3
+        assert [row[0] for row in old_rows] == [row[0] for row in new_rows]
+
+
+def _incremental_state(pipeline: dlt.Pipeline) -> Dict[str, Any]:
+    return pipeline.state["sources"]["datetime_key"]["resources"]["events"]["incremental"][
+        "occurred_at"
+    ]
+
+
+def test_incremental_boundary_hashes_stable_after_dlt_update(test_storage: FileStorage) -> None:
+    """read datetime_key_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace(
+        {"DESTINATION__DUCKDB__CREDENTIALS": "duckdb:///test_datetime_incremental.duckdb"}
+    ):
+        _run_datetime_key_case("1.25.0", "incremental")
+
+        pipeline = dlt.attach("datetime_key")
+        assert load_table_counts(pipeline, "events") == {"events": 3}
+        # both rows on the max cursor are remembered so the next run can skip them
+        old_hashes = set(_incremental_state(pipeline)["unique_hashes"])
+        assert len(old_hashes) == 2
+
+        venv = Venv.restore_current()
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "incremental"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        pipeline = dlt.attach("datetime_key")
+        # the same rows must hash the same, or the two boundary rows are loaded a second time
+        assert load_table_counts(pipeline, "events") == {"events": 3}
+        assert set(_incremental_state(pipeline)["unique_hashes"]) == old_hashes
+
+        # a row past the boundary rebuilds the set in the short format
+        try:
+            print(venv.run_script("datetime_key_pipeline.py", "incremental", "advance"))
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        pipeline = dlt.attach("datetime_key")
+        assert load_table_counts(pipeline, "events") == {"events": 4}
+        new_hashes = _incremental_state(pipeline)["unique_hashes"]
+        assert len(new_hashes) == 1
+        assert len(new_hashes[0]) == 12

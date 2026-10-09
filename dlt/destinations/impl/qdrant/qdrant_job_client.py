@@ -2,9 +2,10 @@ from types import TracebackType
 from typing import Optional, Sequence, List, Dict, Type, Iterable, Any
 import threading
 
+from datetime import datetime, timezone
+
 from dlt.common import logger
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.schema import Schema, TSchemaTables
 from dlt.common.schema.typing import C_DLT_LOAD_ID, C_DLT_LOADS_TABLE_LOAD_ID
 from dlt.common.schema.utils import (
@@ -23,10 +24,13 @@ from dlt.common.destination.client import (
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
-from dlt.destinations.utils import get_pipeline_state_query_columns
+from dlt.destinations.utils import (
+    get_pipeline_state_query_columns,
+    verify_unsupported_merge_options,
+)
 from dlt.destinations.impl.qdrant.configuration import QdrantClientConfiguration
 from dlt.destinations.impl.qdrant.qdrant_adapter import VECTORIZE_HINT
 
@@ -284,6 +288,23 @@ class QdrantClient(JobClientBase, WithStateSync):
         """Delete the sentinel collection."""
         self.db_client.delete_collection(self.sentinel_collection)
 
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
+        return loaded_tables
+
     def update_stored_schema(
         self,
         only_tables: Iterable[str] = None,
@@ -456,7 +477,13 @@ class QdrantClient(JobClientBase, WithStateSync):
         )
 
     def complete_load(self, load_id: str) -> None:
-        values = [load_id, self.schema.name, 0, str(pendulum.now()), self.schema.version_hash]
+        values = [
+            load_id,
+            self.schema.name,
+            0,
+            str(datetime.now(timezone.utc)),
+            self.schema.version_hash,
+        ]
         assert len(values) == len(self.loads_collection_properties)
         properties = {k: v for k, v in zip(self.loads_collection_properties, values)}
         loads_table_name = self._make_qualified_collection_name(self.schema.loads_table_name)
@@ -481,7 +508,7 @@ class QdrantClient(JobClientBase, WithStateSync):
         values = [
             schema.version,
             schema.ENGINE_VERSION,
-            str(pendulum.now().isoformat()),
+            str(datetime.now(timezone.utc).isoformat()),
             schema.name,
             schema.stored_version_hash,
             schema_str,

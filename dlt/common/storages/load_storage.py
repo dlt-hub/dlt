@@ -42,7 +42,7 @@ class LoadItemStorage(DataItemStorage):
 
 
 class LoadStorage(VersionedStorage):
-    STORAGE_VERSION = "1.0.1"
+    STORAGE_VERSION = "1.0.2"
     NORMALIZED_FOLDER = "normalized"  # folder within the volume where load packages are stored
     LOADED_FOLDER = "loaded"  # folder to keep the loads that were completely processed
     NEW_PACKAGES_FOLDER = "new"  # folder where new packages are created
@@ -95,6 +95,11 @@ class LoadStorage(VersionedStorage):
         )
         # import schema
         self.new_packages.save_schema(load_id, extract_package_storage.load_schema(load_id))
+        # carry over the restore snapshot, extracted package gets deleted after normalize
+        if extract_package_storage.can_restore_pipeline_state(load_id):
+            self.new_packages.save_pipeline_state(
+                load_id, *extract_package_storage.load_pipeline_state(load_id)
+            )
 
     def list_new_jobs(self, load_id: str) -> Sequence[str]:
         """Lists all jobs in new jobs folder of normalized package storage and checks if file formats are supported"""
@@ -192,25 +197,23 @@ class LoadStorage(VersionedStorage):
     def get_loaded_package_path(self, load_id: str) -> str:
         return join(LoadStorage.LOADED_FOLDER, self.loaded_packages.get_package_path(load_id))
 
+    def get_package_storage(self, load_id: str) -> PackageStorage:
+        """Returns the loaded or normalized package storage that holds `load_id`."""
+        for packages in (self.loaded_packages, self.normalized_packages):
+            if packages.storage.has_folder(packages.get_package_path(load_id)):
+                return packages
+        raise LoadPackageNotFound(load_id)
+
     def get_load_package_info(self, load_id: str) -> LoadPackageInfo:
         """Gets information on normalized OR loaded package with given load_id, all jobs and their statuses."""
-        try:
-            return self.loaded_packages.get_load_package_info(load_id)
-        except LoadPackageNotFound:
-            return self.normalized_packages.get_load_package_info(load_id)
+        return self.get_package_storage(load_id).get_load_package_info(load_id)
 
     def get_load_package_state(self, load_id: str) -> TLoadPackageState:
         """Gets state of normalized or loaded package with given load_id, all jobs and their statuses."""
-        try:
-            return self.loaded_packages.get_load_package_state(load_id)
-        except LoadPackageNotFound:
-            return self.normalized_packages.get_load_package_state(load_id)
+        return self.get_package_storage(load_id).get_load_package_state(load_id)
 
     def migrate_storage(self, from_version: semver.Version, to_version: semver.Version) -> None:
-        if from_version == "1.0.0" and from_version < to_version:
-            # do migration
+        if from_version < to_version:
             for load_id in self.list_normalized_packages():
                 self.normalized_packages.migrate_package(load_id, from_version, to_version)
-            # save migrated version
-            from_version = semver.Version.parse("1.0.1")
-            self._save_version(from_version)
+            self._save_version(to_version)

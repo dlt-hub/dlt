@@ -1,8 +1,7 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Type, Union
 import posixpath
 import os
 import json
-import orjson
 from unittest import mock
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +9,6 @@ from urllib.parse import urlparse
 
 import pytest
 
-from dlt.common.configuration.specs.azure_credentials import AzureCredentials
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
@@ -20,11 +18,12 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import custom_environ, digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
 
+import dlt.destinations.path_utils
 from dlt.destinations import filesystem
 from dlt.destinations.impl.filesystem.configuration import (
     HfFilesystemDestinationClientConfiguration,
@@ -40,7 +39,11 @@ from dlt.destinations.impl.filesystem.filesystem import (
 from dlt.destinations.path_utils import create_path, prepare_datetime_params
 from tests.load.filesystem.utils import perform_load, setup_loader
 from tests.utils import get_test_storage_root, clean_test_storage, init_test_logging
-from tests.load.utils import TEST_FILE_LAYOUTS
+from tests.load.utils import (
+    TEST_FILE_LAYOUTS,
+    FILE_LAYOUT_TABLE_FOLDER_ONLY,
+    FILE_LAYOUT_TABLE_NAME_ONLY,
+)
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -159,6 +162,61 @@ def test_trailing_separators(layout: str, with_gdrive_buckets_env: str) -> None:
         assert client.get_table_prefix("letters").endswith("_data/letters.")
 
 
+def test_table_prefix_resolves_standard_extra_placeholders() -> None:
+    def unused_load_id(*args: str) -> str:
+        raise AssertionError("placeholder outside table prefix must not be resolved")
+
+    client = _client_factory(
+        filesystem(
+            bucket_url=get_test_storage_root(),
+            layout="{schema_name}/{table_name}/{load_id}.{file_id}.{ext}",
+            extra_placeholders={
+                "schema_name": "custom",
+                "table_name": "custom_table",
+                "load_id": unused_load_id,
+            },
+        )
+    )
+
+    assert client.get_table_prefix("letters").endswith("/custom/custom_table/")
+
+    def custom_schema_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_callable"
+
+    def custom_table_name(
+        schema_name: str,
+        table_name: str,
+        load_id: str,
+        file_id: str,
+        ext: str,
+    ) -> str:
+        assert (schema_name, table_name, load_id, file_id, ext) == (
+            "test",
+            "letters",
+            None,
+            None,
+            None,
+        )
+        return "custom_table_callable"
+
+    client.config.extra_placeholders["schema_name"] = custom_schema_name
+    client.config.extra_placeholders["table_name"] = custom_table_name
+    assert client.get_table_prefix("letters").endswith("/custom_callable/custom_table_callable/")
+
+
 @pytest.mark.parametrize("write_disposition", ("replace", "append", "merge"))
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_successful_load(write_disposition: str, layout: str, default_buckets_env: str) -> None:
@@ -174,7 +232,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -188,7 +246,10 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         ) as load_info,
     ):
         client, jobs, _, load_id = load_info
+        # dlt appends `.{ext}` to a layout that does not declare it
         layout = client.config.layout
+        if "{ext}" not in layout:
+            layout += ".{ext}"
         dataset_path = posixpath.join(client.bucket_path, client.config.dataset_name)
 
         # Assert dataset dir exists
@@ -228,7 +289,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # state is typed now
-    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -297,11 +358,49 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
             assert ls == {job_2_load_1_path, job_1_load_2_path}
 
 
+def test_replace_does_not_truncate_sibling_tables() -> None:
+    """Regression for #4265: with layout `{table_name}`, truncating `event` must not
+    delete files of the sibling table `events`."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}"
+    client = _client_factory(filesystem("random_location"))
+    client.initialize_storage()
+    event_file = client.pathlib.join(client.dataset_path, "event.jsonl")
+    events_file = client.pathlib.join(client.dataset_path, "events.jsonl")
+    client.fs_client.touch(event_file)
+    client.fs_client.touch(events_file)
+
+    client.truncate_tables(["event"])
+
+    assert not client.fs_client.isfile(event_file)
+    assert client.fs_client.isfile(events_file)
+
+
+def test_unsafe_layout_separator_warning(mocker) -> None:
+    """`_` can occur in a table name so the `event` prefix also selects `event__child` files."""
+    os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = "{table_name}_{load_id}.{file_id}.{ext}"
+    logger_mock = mocker.patch("dlt.destinations.path_utils.logger")
+    # the warning is emitted once per layout and naming convention, process-wide
+    dlt.destinations.path_utils._log_unsafe_prefix_separators.cache_clear()
+
+    # dlt creates a job client many times per run but warns the user once
+    _client_factory(filesystem("random_location"))
+    _client_factory(filesystem("random_location"))
+    logger_mock.warning.assert_called_once()
+    assert "'_'" in logger_mock.warning.call_args[0][0]
+
+    logger_mock.reset_mock()
+    _client_factory(filesystem("random_location", warn_unsafe_layout_separators=False))
+    logger_mock.warning.assert_not_called()
+
+
 @pytest.mark.parametrize("layout", TEST_FILE_LAYOUTS)
 def test_append_write_disposition(layout: str, default_buckets_env: str) -> None:
     """Run load twice with append write_disposition and assert that there are two copies of each file in destination"""
     if default_buckets_env.startswith("hf://"):
         pytest.skip("`perform_load` util does not handle `hf` protocol properly")
+    if layout in (FILE_LAYOUT_TABLE_NAME_ONLY, FILE_LAYOUT_TABLE_FOLDER_ONLY):
+        # without {load_id} and {file_id} every load writes the same path so it cannot keep two copies
+        pytest.skip(f"layout {layout} cannot append, each load overwrites the previous one")
 
     if layout:
         os.environ["DESTINATION__FILESYSTEM__LAYOUT"] = layout
@@ -310,7 +409,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # also we would like to have reliable timestamp for this test so we patch it
-    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -408,16 +507,35 @@ def test_get_storage_version_valid(version_info: Union[str, Dict[str, int]]) -> 
 
 
 @pytest.mark.parametrize(
-    "invalid_version_info",
+    "invalid_version_info,expected_exception,match",
     [
-        "random",
-        {"unexpected": 2, "current_version": 2},
-        {"initial_version": 1},
-        {"current_version": 2},
-        {"initial_version": 2, "current_version": 3},
+        # not json at all
+        ("random", ValueError, "Invalid content"),
+        # valid json, but not an object so the version keys cannot be looked up
+        ("5", ValueError, "Invalid content"),
+        ('"2"', ValueError, "Invalid content"),
+        ("[1, 2]", ValueError, "Invalid content"),
+        ("null", ValueError, "Invalid content"),
+        # object with an unexpected or a missing key
+        ({"unexpected": 2, "current_version": 2}, ValueError, "Invalid content"),
+        ({"initial_version": 1}, ValueError, "Invalid content"),
+        ({"current_version": 2}, ValueError, "Invalid content"),
+        # both keys present but the version is not supported
+        (
+            {
+                "initial_version": min(SUPPORTED_VERSIONS),
+                "current_version": max(SUPPORTED_VERSIONS) + 1,
+            },
+            UnsupportedStorageVersionException,
+            "Expected storage",
+        ),
     ],
 )
-def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, int]]) -> None:
+def test_get_storage_version_invalid(
+    invalid_version_info: Union[str, Dict[str, int]],
+    expected_exception: Type[Exception],
+    match: str,
+) -> None:
     filesystem_ = filesystem("random_location")
     client = _client_factory(filesystem_)
     init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
@@ -433,21 +551,9 @@ def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, 
         encoding="utf-8",
     )
 
-    # If random text
-    if invalid_version_info == "random":
-        with pytest.raises(ValueError):
-            client.get_storage_versions()
-    # If unexpected key
-    elif invalid_version_info == {"unexpected": 2, "current_version": 2}:
-        with pytest.raises(ValueError):
-            client.get_storage_versions()
-    # If one key is missing
-    elif invalid_version_info in [{"initial_version": 1}, {"current_version": 2}]:
-        with pytest.raises(ValueError):
-            client.get_storage_versions()
-    else:
-        with pytest.raises(UnsupportedStorageVersionException):
-            client.get_storage_versions()
+    # match pins the curated message: a decode error leaking from the json backend must fail here
+    with pytest.raises(expected_exception, match=match):
+        client.get_storage_versions()
 
 
 @pytest.mark.parametrize(

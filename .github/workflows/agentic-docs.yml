@@ -1,0 +1,217 @@
+# Copy this file to dlt-hub/dlt as .github/workflows/agentic-docs.yml.
+# It lives here so the bot repo owns the trigger contract it depends on.
+#
+# Repository secrets required in dlt-hub/dlt:
+#   AGENTIC_DOCS_ALLOWLIST   comma-separated GitHub usernames allowed to trigger
+#   GCP_WORKLOAD_IDENTITY_PROVIDER   projects/.../workloadIdentityPools/.../providers/...
+#   GCP_SERVICE_ACCOUNT      service account the workflow impersonates
+#
+# Nothing attacker-controlled is interpolated into a shell script: the job
+# receives only numeric IDs and fetches the comment text itself.
+#
+# ---------------------------------------------------------------------------
+# MAINTAINERS: triggering this is a privileged act, not a convenience.
+#
+# The job feeds the issue and its comments — text anyone on the internet can
+# write — to a model, then EXECUTES the Python that model writes, because a dlt
+# page whose snippets have not run is not worth publishing. That code runs in a
+# container whose identity can read GH_TOKEN, a PAT with write access to this
+# repository and shared with two other bots.
+#
+# So before you apply the labels or write /revise:
+#   * read the RAW issue body and every comment, not the rendered page. Text
+#     that instructs the bot rather than describing a feature is an attack,
+#     however politely it is phrased.
+#   * review the resulting PR's diff, not only its prose. Its snippets executed;
+#     that is not the same as anyone having vetted them.
+#   * if a run does something unexpected, assume GH_TOKEN is exposed and say so
+#     — rotating it stops all three bots until they are redeployed.
+#
+# Only names in AGENTIC_DOCS_ALLOWLIST can do any of this. Adding a name grants
+# the ability to spend money and to cause code to run. See the security section
+# of the agentic-docs README.
+# ---------------------------------------------------------------------------
+
+name: Agentic Docs
+
+on:
+  issues:
+    types: [labeled]
+  issue_comment:
+    types: [created]
+  # A maintainer reviewing prose clicks a line in the Files tab and types.
+  # That is not an issue_comment — it is a review, and without this trigger the
+  # bot never wakes up for the review mode maintainers actually use.
+  #
+  # Deliberately only `submitted`, not `pull_request_review_comment`. A reviewer
+  # leaving six line comments submits one review; triggering per comment would
+  # start six jobs racing on the same branch. The run reads every inline comment
+  # once it starts, so nothing is lost by waiting for the submit.
+  pull_request_review:
+    types: [submitted]
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  trigger:
+    runs-on: ubuntu-latest
+    # Label events must carry both labels. Comment events must look like a
+    # command, and must be on a pull request — `/revise`, which is where
+    # maintainers review. Nothing a comment says starts a run on an issue.
+    #
+    # GitHub models PR comments as issue comments, so for a comment on a PR
+    # `github.event.issue.number` is the PR number, not the issue's. The step
+    # below therefore passes it under a different name and lets the driver map
+    # PR back to issue through its own state.
+    #
+    # Submitting a review is itself the request; no command is needed. Both
+    # `commented` and `changes_requested` start a run, because GitHub preselects
+    # "Comment" in the Submit review dialog — gating on `changes_requested` would
+    # mean a maintainer who writes notes on lines and clicks the green button
+    # without touching the radios gets silence. An approval starts nothing.
+    # The driver re-checks the state; `if:` here is only the cheap filter.
+    # Anything on the pull-request side must additionally carry the bot's own
+    # label. `pull_request_review` fires for EVERY pull request in this
+    # repository, and dlt has many: without this, a maintainer reviewing an
+    # unrelated pull request passes the allowlist gate and starts a job that can
+    # only fail. The bot labels the pull requests it opens.
+    #
+    # A comment carrying `<!-- agentic-docs -->` is the bot's own and starts
+    # nothing. This is not hygiene, it is a self-trigger that happened: the bot's
+    # position request shows an example line reading `/position under Pipeline
+    # operations, add a section to Profiles`, which matched the `/position` arm
+    # below. The comment is posted with the maintainer's PAT, so the allowlist
+    # gate passed, and the driver read the bot's own example as an instruction —
+    # resolving to a real dlt page and starting to write the wrong page into it.
+    # Filtering by author cannot work, because the PAT belongs to a person.
+    # `github.event.comment.body` is the raw body here, markers included, unlike
+    # what the driver's fetch returns.
+    # `github.event.label.name` is the label that was *just added*, not the set the
+    # issue now carries. Testing the set fires once per label: two labels applied
+    # together produce two `labeled` events, both evaluated against an issue that
+    # already has both, so both match. That happened on issue #4334 and opened two
+    # pull requests. Only `agent` arms a run, and `documentation` scopes it — the
+    # same split as dlt-hub/runtime's UI loop, where `frontend` alone never
+    # triggers.
+    #
+    # The cost is that order matters: add `documentation` first, then `agent`. And
+    # `agent` is the retry — remove it and add it again to re-run. Do not "fix" this
+    # by also matching a `documentation` add on an issue that already has `agent`:
+    # both events would satisfy their own clause and the double run returns.
+    #
+    # `/position` is deliberately absent. It sets the location and nothing else;
+    # arming is the label's job, so a `/position` comment on an unlabelled issue no
+    # longer starts a job. The generation run reads it out of the issue's comments
+    # instead — which is why it must be posted before the label goes on.
+    if: |
+      (github.event_name == 'issues' &&
+       github.event.label.name == 'agent' &&
+       contains(github.event.issue.labels.*.name, 'documentation')) ||
+      (github.event_name == 'issue_comment' &&
+       !contains(github.event.comment.body, '<!-- agentic-docs -->') &&
+       github.event.issue.pull_request &&
+       contains(github.event.issue.labels.*.name, 'agentic-docs') &&
+       contains(github.event.comment.body, '/revise')) ||
+      (github.event_name == 'pull_request_review' &&
+       contains(github.event.pull_request.labels.*.name, 'agentic-docs') &&
+       (github.event.review.state == 'commented' ||
+        github.event.review.state == 'changes_requested'))
+
+    steps:
+      # Gate on the actor — whoever applied the label or wrote the comment —
+      # because that is who causes the spend. Matching is exact against list
+      # entries, so "ann" cannot be satisfied by "annabel".
+      #
+      # This gate is a courtesy, not the boundary. GitHub decides which copy of a
+      # workflow file runs, and for `pull_request_review` that is the copy on the
+      # pull request's head branch — so a branch could carry a copy without this
+      # step. The job checks the allowlist again itself, asking GitHub who wrote
+      # the comment or review rather than trusting what it was passed. What this
+      # step buys is not spending a Cloud Run execution on a stranger.
+      # A comment from someone not on the list is ordinary traffic, not an
+      # error, so this reports "false" and the run ends green rather than
+      # leaving a failed check on every unrelated /revise mention.
+      - name: Check allowlist
+        id: allowlist
+        env:
+          ALLOWLIST: ${{ secrets.AGENTIC_DOCS_ALLOWLIST }}
+          ACTOR: ${{ github.actor }}
+        run: |
+          set -euo pipefail
+          allowed=false
+          IFS=',' read -ra names <<< "$ALLOWLIST"
+          for name in "${names[@]}"; do
+            if [[ "$(echo "$name" | xargs)" == "$ACTOR" ]]; then
+              allowed=true
+              break
+            fi
+          done
+          if [[ "$allowed" == "false" ]]; then
+            echo "::notice::$ACTOR is not in AGENTIC_DOCS_ALLOWLIST; skipping"
+          fi
+          echo "allowed=$allowed" >> "$GITHUB_OUTPUT"
+
+      - name: Authenticate to Google Cloud
+        if: steps.allowlist.outputs.allowed == 'true'
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WORKLOAD_IDENTITY_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Set up gcloud
+        if: steps.allowlist.outputs.allowed == 'true'
+        uses: google-github-actions/setup-gcloud@v2
+
+      # Exactly one of ISSUE_NUMBER / PR_NUMBER is set, and both are numbers:
+      #
+      #   labelled issue        ISSUE_NUMBER, no COMMENT_ID  -> generation
+      #   comment on a PR       PR_NUMBER + COMMENT_ID       -> /revise
+      #   review on a PR        PR_NUMBER + REVIEW_ID        -> /revise
+      #
+      # `github.event.issue.pull_request` is present only for a comment on a PR,
+      # which is how a comment that reaches here is known to be one. A review
+      # event has no `issue` at all — its number is on `pull_request` — so it is
+      # handled separately rather than folded into the same expression.
+      #
+      # Only numeric IDs cross this boundary. The job fetches the comment or
+      # review text itself, so nothing a stranger wrote passes through this shell.
+      - name: Execute agentic-docs job
+        if: steps.allowlist.outputs.allowed == 'true'
+        env:
+          IS_REVIEW: ${{ github.event_name == 'pull_request_review' && 'true' || 'false' }}
+          IS_PR_COMMENT: ${{ github.event.issue.pull_request && 'true' || 'false' }}
+          ISSUE_NUMBER: ${{ github.event.issue.number }}
+          PR_NUMBER: ${{ github.event.pull_request.number }}
+          COMMENT_ID: ${{ github.event.comment.id }}
+          REVIEW_ID: ${{ github.event.review.id }}
+          # Whoever applied the label or wrote the comment. In practice a
+          # maintainer says where the page goes and then labels the issue, so the
+          # job reads that person's comments as an instruction rather than as
+          # untrusted prose. A login, not free text — it cannot carry a payload
+          # through this shell.
+          #
+          # Passed for *placement* only. The job never uses it to decide whether
+          # the run is allowed: this workflow chooses what it sends, so a copy of
+          # this file could send any name. Authorisation is settled by asking
+          # GitHub who wrote the artifact the run is reacting to.
+          ACTOR: ${{ github.actor }}
+          # Linked from the "process triggered" comment the job posts on the issue,
+          # so whoever labelled it can watch. Safe in the comma-separated list
+          # below: an Actions run URL contains no comma.
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          set -euo pipefail
+          if [[ "$IS_REVIEW" == "true" ]]; then
+            target="PR_NUMBER=${PR_NUMBER},REVIEW_ID=${REVIEW_ID},ACTOR=${ACTOR}"
+          elif [[ "$IS_PR_COMMENT" == "true" ]]; then
+            target="PR_NUMBER=${ISSUE_NUMBER},COMMENT_ID=${COMMENT_ID},ACTOR=${ACTOR}"
+          else
+            target="ISSUE_NUMBER=${ISSUE_NUMBER},COMMENT_ID=${COMMENT_ID},ACTOR=${ACTOR}"
+          fi
+          target="${target},RUN_URL=${RUN_URL}"
+          gcloud run jobs execute agentic-docs \
+            --region=europe-west3 \
+            --update-env-vars="${target}" \
+            --wait

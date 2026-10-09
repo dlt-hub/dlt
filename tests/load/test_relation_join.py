@@ -8,7 +8,10 @@ import pytest
 import dlt
 from dlt import Pipeline
 from dlt.common.destination import Destination
+from dlt.common.storages.configuration import FilesystemConfiguration
+from dlt.common.utils import uniq_id
 from dlt.dataset.relation import TJoinType
+from dlt.extract.hints import make_hints
 
 from tests.dataset.utils import (
     crm,
@@ -22,6 +25,8 @@ from tests.load.read_dataset_fixtures import (
 )
 from tests.load.utils import (
     DestinationTestConfiguration,
+    HF_BUCKET,
+    destinations_configs,
     drop_pipeline_data,
 )
 from tests.utils import (
@@ -33,6 +38,15 @@ from tests.utils import (
 
 def _skip_unsupported(destination_config: DestinationTestConfiguration) -> None:
     skip_if_unsupported_filesystem_format(destination_config)
+
+
+def _assert_users_purchases(relation: dlt.Relation) -> None:
+    """Makes sure that the join of `crm.users` to `inventory.purchases` is correct. The
+    `INNER JOIN` drops the orphan row `user_id=99`.
+    """
+    df = relation.order_by("purchases__purchase_id").df()
+    assert list(df["name"]) == ["Alice", "Alice", "Bob"]
+    assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
 
 
 @pytest.fixture(scope="module")
@@ -83,11 +97,6 @@ def cross_dataset_pipelines(
 ) -> Any:
     """Two pipelines on the same physical destination, distinct dataset names."""
     _skip_unsupported(destination_config)
-    if destination_config.destination_type in ("filesystem", "lance", "lancedb"):
-        pytest.skip(
-            "cross-dataset joins are not supported on filesystem destinations"
-            " (see dlt/dataset/relation.py:_resolve_join_target)"
-        )
     if destination_config.destination_name == "sqlalchemy_sqlite":
         # TODO: remove when we attach foreign datasets in sqlite
         pytest.skip("sqlite cross-dataset joins require ATTACH DATABASE for both datasets")
@@ -264,11 +273,54 @@ def test_cross_dataset_explicit_join(
     assert casefold(ds_a.sql_client.dataset_name) in sql, sql
     assert casefold(ds_b.sql_client.dataset_name) in sql, sql
 
-    df = joined.order_by("purchases__purchase_id").df()
-    assert df is not None
-    # orphan user_id=99 dropped by INNER
-    assert len(df) == 3
-    assert "purchases__sku" in df.columns
-    assert "name" in df.columns
-    assert list(df["name"]) == ["Alice", "Alice", "Bob"]
-    assert list(df["purchases__sku"]) == ["W-001", "G-001", "W-001"]
+    config = ds_a.destination_client.config
+    skip = isinstance(config, FilesystemConfiguration) and config.protocol == "gs"
+    if not skip:
+        _assert_users_purchases(joined)
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(all_buckets_filesystem_configs=True, bucket_subset=(HF_BUCKET,)),
+    ids=lambda x: x.name,
+)
+def test_cross_destination_attach_join_hf(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """A local duckdb primary joins a Hugging Face dataset. The test reads the join and then
+    materializes it.
+
+    dlt must have a credential to attach `hf://`. Lazy materialization therefore also covers a
+    secret that dlt encrypts into the `.model` file and the load job decrypts.
+    """
+    suffix = uniq_id()
+    primary = dlt.pipeline(
+        "attach_hf_primary_" + suffix,
+        destination=dlt.destinations.duckdb(
+            os.path.join(get_test_storage_root(), f"attach_hf_{suffix}.duckdb")
+        ),
+        dataset_name="ds_primary",
+    )
+    primary.run(crm(0), **destination_config.run_kwargs)
+
+    foreign = destination_config.setup_pipeline(
+        "attach_hf_foreign_" + suffix, dataset_name="ds_hf_" + suffix, dev_mode=True
+    )
+    foreign.run(inventory(), **destination_config.run_kwargs)
+
+    joined = (
+        primary.dataset()
+        .table("users")
+        .join(foreign.dataset().table("purchases"), on="users.id = purchases.user_id")
+    )
+    assert [info["attach_type"] for info in joined._attach_infos()] == ["duckdb"]
+    _assert_users_purchases(joined)
+
+    # lazy materialization writes into the primary. the load job attaches the hf dataset and its
+    # secret again
+    @dlt.resource(table_name="user_purchases")
+    def joined_purchases() -> Any:
+        yield dlt.mark.with_hints(joined, hints=make_hints(columns=joined.columns_schema))
+
+    primary.run(joined_purchases(), loader_file_format="model")
+    _assert_users_purchases(primary.dataset().table("user_purchases"))

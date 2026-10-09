@@ -2,7 +2,7 @@
     <strong>data load tool (dlt) — the open-source Python library that automates all your tedious data loading tasks</strong>
 </h1>
 <p align="center">
-Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local laptop,<br/>or a GPT-4 assisted development playground—<strong>dlt</strong> can be dropped in anywhere.
+Be it a Google Colab notebook, AWS Lambda function, an Airflow DAG, your local laptop,<br/>or an AI coding agent—<strong>dlt</strong> can be dropped in anywhere.
 </p>
 
 
@@ -37,56 +37,247 @@ dlt supports Python 3.10 through Python 3.14. Note that some optional extras are
 pip install dlt
 ```
 
+Add the extras you need for your sources and destinations, for example:
+
+```sh
+pip install "dlt[duckdb]"        # local DuckDB destination
+pip install "dlt[bigquery]"      # or snowflake, postgres, redshift, databricks, athena, ...
+pip install "dlt[s3]"            # or gs, az for cloud filesystems
+pip install "dlt[sql_database]"  # read from any SQL database
+pip install "dlt[hub]"           # data quality, transformations, and AI (see below)
+```
+
+Prefer [uv](https://docs.astral.sh/uv/)? `uv add "dlt[duckdb]"`.
+
 ## Quick Start
 
-Load chess game data from chess.com API and save it in DuckDB:
+Describe an API declaratively and load it into DuckDB — dlt handles requests, pagination, schema inference, and typing for you:
 
 ```python
 import dlt
-from dlt.sources.helpers import requests
+from dlt.sources.rest_api import rest_api_source
 
-# Create a dlt pipeline that will load
-# chess player data to the DuckDB destination
+# 1. Describe the API declaratively
+source = rest_api_source({
+    "client": {"base_url": "https://api.spotify.com/v1"},
+    "resources": [
+        {
+          "name": "playlist_tracks",
+          "endpoint": {"path": "playlists/{playlist_id}/tracks"},
+        },
+    ],
+})
+
+# 2. Point a pipeline at any destination
 pipeline = dlt.pipeline(
-    pipeline_name='chess_pipeline',
-    destination='duckdb',
-    dataset_name='player_data'
+    pipeline_name="spotify",
+    destination="duckdb",
+    dataset_name="spotify_data",
 )
 
-# Grab some player data from Chess.com API
-data = []
-for player in ['magnuscarlsen', 'rpragchess']:
-    response = requests.get(f'https://api.chess.com/pub/player/{player}')
-    response.raise_for_status()
-    data.append(response.json())
+# 3. Extract, normalize, and load
+pipeline.run(source)
 
-# Extract, normalize, and load the data
-pipeline.run(data, table_name='player')
+# 4. ...and read it straight back as a DataFrame
+pipeline.dataset().playlist_tracks.df()
 ```
 
+...or load any Python iterable — a [resource](https://dlthub.com/docs/general-usage/resource) is just a generator, and dlt infers the schema, types the columns, and writes the table:
 
-Try it out in our **[Colab Demo](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)** or directly on our wasm-based [playground](https://dlthub.com/docs/tutorial/playground) in our docs.
+```python
+import dlt
 
-## Features
+@dlt.resource(table_name="tracks", primary_key="id", write_disposition="merge")
+def tracks():
+    yield {"id": 1, "title": "Yellow",       "artist": "Coldplay",   "streams": 4_200_000_000}
+    yield {"id": 2, "title": "Shape of You", "artist": "Ed Sheeran", "streams": 3_900_000_000}
 
-dlt is an open-source Python library that loads data from various, often messy data sources into well-structured datasets. It provides lightweight Python interfaces to extract, load, inspect, and transform data. dlt and dlt docs are built from the ground up to be used with LLMs: the [LLM-native workflow](https://dlthub.com/docs/dlt-ecosystem/llm-tooling/llm-native-workflow) will take your pipeline code to data in a notebook for over [5000 sources](https://dlthub.com/workspace).
+dlt.pipeline(
+    destination="duckdb",
+    dataset_name="spotify_data",
+).run(
+  source=tracks(),
+)
+```
 
-dlt is designed to be easy to use, flexible, and scalable:
+Check out a basic in **[Colab](https://colab.research.google.com/drive/1NfSB1DpwbbHX9_t5vlalBTf13utwpMGx?usp=sharing)** or a more advanced [Hugging Face demo with Marimo notebooks](https://molab.marimo.io/github/marimo-team/gallery-examples/blob/main/notebooks/external/dlthub-huggingface.py).
 
-- dlt extracts data from [REST APIs](https://dlthub.com/docs/tutorial/rest-api), [SQL databases](https://dlthub.com/docs/tutorial/sql-database), [cloud storage](https://dlthub.com/docs/tutorial/filesystem), [Python data structures](https://dlthub.com/docs/tutorial/load-data-from-an-api), and [many more](https://dlthub.com/docs/dlt-ecosystem/verified-sources).
-- dlt infers [schemas](https://dlthub.com/docs/general-usage/schema) and [data types](https://dlthub.com/docs/general-usage/schema/#data-types), [normalizes the data](https://dlthub.com/docs/general-usage/schema/#data-normalizer), and handles nested data structures.
-- dlt supports a variety of [popular destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/) and has an interface to add [custom destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/destination) to create reverse ETL pipelines.
-- dlt automates pipeline maintenance with [incremental loading](https://dlthub.com/docs/general-usage/incremental-loading), [schema evolution](https://dlthub.com/docs/general-usage/schema-evolution), and [schema and data contracts](https://dlthub.com/docs/general-usage/schema-contracts).
-- dlt supports [Python and SQL data access](https://dlthub.com/docs/general-usage/dataset-access/), [transformations](https://dlthub.com/docs/dlt-ecosystem/transformations), [pipeline inspection](https://dlthub.com/docs/general-usage/dashboard.md), and [visualizing data in Marimo Notebooks](https://dlthub.com/docs/general-usage/dataset-access/marimo).
-- dlt can be deployed anywhere Python runs, be it on [Airflow](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer), [serverless functions](https://dlthub.com/docs/walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions), or any other cloud deployment of your choice.
+## Why dlt
+
+**dlt** loads data from messy, often unstructured sources into well-structured, typed datasets. It's a **library, not a platform** — you `pip install` it into your existing code and keep your workflow and the other tools you already use. No black boxes: clean Pythonic interfaces, human-readable file formats, schemas you can inspect, no hidden side effects.
+
+dlt and its docs are **built from the ground up for LLMs and coding agents**. Pair the typed, declarative primitives below with [dlthub.com/context](https://dlthub.com/context) and the [LLM-native workflow](https://dlthub.com/docs/dlt-ecosystem/llm-tooling/llm-native-workflow) to go from prompt to working pipeline — across [5000+ sources](https://dlthub.com/workspace) — often in a single shot.
+
+## Extract from any source
+
+**REST APIs** — describe the endpoints declaratively; filter, map, and flatten records right at the source ([docs](https://dlthub.com/docs/tutorial/rest-api)):
+
+```python
+from dlt.sources.rest_api import rest_api_source
+
+source = rest_api_source({
+    "client": {
+        "base_url": "https://api.spotify.com/v1",
+        "paginator": {"type": "cursor", "cursor_path": "next_cursor"},
+    },
+    "resources": [
+        {
+            "name": "playlist_tracks",
+            "endpoint": {"path": "playlists/{playlist_id}/tracks"},
+            "processing_steps": [
+                {"filter": lambda r: r["track"]["duration_ms"] > 0},
+                {"map": flatten_track},
+            ],
+        },
+    ],
+})
+```
+
+```python
+def flatten_track(record: dict[str, Any]) -> dict[str, Any]:
+    ...
+```
+
+**SQL databases** — reflect tables and types straight from the database ([docs](https://dlthub.com/docs/tutorial/sql-database)):
+
+```python
+from dlt.sources.sql_database import sql_database
+
+source = sql_database("mysql+pymysql://user:pass@host/spotify")
+```
+
+**Files in any bucket** — list, then parse CSV / JSONL / Parquet from local disk, S3, GCS, or Azure ([docs](https://dlthub.com/docs/tutorial/filesystem)):
+
+```python
+from dlt.sources.filesystem import filesystem, read_csv_duckdb
+
+source = (
+    filesystem(
+        bucket_url="s3://my-bucket/spotify",
+        file_glob="tracks_*.csv",
+    ) | read_csv_duckdb()
+).with_name("tracks")
+```
+
+**DataFrames & Arrow** — pandas, Polars, and Arrow tables load directly; Arrow-backed frames move with zero copies:
+
+```python
+import dlt
+import pandas as pd
+
+df = pd.DataFrame({
+  "track": ["Yellow",        "Shape of You"],
+  "streams": [4_200_000_000, 3_900_000_000],
+})
+dlt.pipeline(
+    destination="duckdb",
+    dataset_name="spotify_data",
+).run(
+    df,
+    table_name="tracks",
+)
+```
+
+See [many more sources](https://dlthub.com/docs/dlt-ecosystem/verified-sources) in the ecosystem.
+
+## Load to 20+ destinations — swap one string
+
+The same resource runs anywhere. Change the `destination` string and dlt takes care of credentials, DDL in the target dialect, staging, and schema drift:
+
+```python
+pipeline = dlt.pipeline(
+    pipeline_name="spotify",
+    destination="duckdb",         # → snowflake, bigquery, postgres, redshift, databricks,
+    dataset_name="spotify_data",  #   athena, clickhouse, motherduck, filesystem (S3/GCS/Azure),
+)                                 #   iceberg, delta, ... and custom reverse-ETL destinations
+pipeline.run(source)
+```
+
+dlt handles the parts you'd rather not:
+
+- **Credentials** → `secrets.toml` / env vars, injected automatically
+- **DDL** → `CREATE TABLE` in the target's dialect
+- **Type mapping** → source types converted to the destination's types
+- **Staging** → S3 / GCS for warehouses that need it
+- **Schema drift** → `ALTER TABLE` on the fly
+
+Browse all [supported destinations](https://dlthub.com/docs/dlt-ecosystem/destinations/), or build a [custom one](https://dlthub.com/docs/dlt-ecosystem/destinations/destination).
+
+## Declare intent with decorators
+
+Decorators let you declare *what* you want — incremental loading, merge strategies, schema contracts, column hints — instead of hand-rolling it. Every knob can be overridden at runtime ([docs](https://dlthub.com/docs/general-usage/resource)):
+
+```python
+import dlt
+
+@dlt.resource(
+    primary_key="id",
+    write_disposition="merge",                        # upsert on the primary key
+    columns={"artist": {"x-annotation-pii": False}},  # type and annotate columns
+    schema_contract={"columns": "freeze"},            # reject unexpected columns
+)
+def tracks(
+    updated_at=dlt.sources.incremental("updated_at"),  # load only new/changed rows
+):
+    yield from fetch_tracks(since=updated_at.last_value)
+
+
+@dlt.source
+def spotify(api_key: str = dlt.secrets.value):
+    return tracks(), playlists()   # group one or more resources behind shared config/auth
+```
+
+[**Schema contracts**](https://dlthub.com/docs/general-usage/schema-contracts) enforce the shape at the gate, with three modes — `evolve` (accept and adapt the schema), `freeze` (reject the record), and `discard` (drop the offending row/column) — applied independently to `tables`, `columns`, and `data_type`. You also get [schema inference](https://dlthub.com/docs/general-usage/schema), [normalization of nested data](https://dlthub.com/docs/general-usage/schema/#data-normalizer), [incremental loading](https://dlthub.com/docs/general-usage/incremental-loading), and [secrets & config injection](https://dlthub.com/docs/general-usage/credentials) out of the box.
+
+## Read your data back: the Dataset API
+
+A pipeline is durable. Reconnect to one by name with `dlt.attach` and read any table back in the shape that fits your tool ([docs](https://dlthub.com/docs/general-usage/dataset-access/)):
+
+```python
+import dlt
+
+pipeline = dlt.attach(
+    pipeline_name="spotify",
+    destination="duckdb",
+    dataset_name="spotify_data",
+)
+
+dataset = pipeline.dataset()
+dataset.tables               # ['tracks', 'playlists', ...]
+
+tracks = dataset.tracks      # a lazy dlt.Relation
+tracks.df()                  # pandas DataFrame
+tracks.arrow()               # pyarrow.Table (zero-copy)
+tracks.to_ibis()             # ibis expression — lazy, composable
+```
+
+## Transform with Ibis — Python in, SQL out
+
+Lift any loaded table into an [Ibis](https://ibis-project.org/) expression, compose group-bys, joins, and window functions in Python, and let dlt compile it to SQL in the destination's dialect. Nothing runs until you ask for the result:
+
+```python
+import ibis
+
+tracks = pipeline.dataset().tracks.to_ibis()
+
+streams_by_artist = (
+    tracks
+    .group_by("artist")
+    .aggregate(total_streams=ibis._.streams.sum())
+)
+
+streams_by_artist.to_pyarrow()   # compiles to SQL and runs on the destination
+```
+
+dlt also supports [Python and SQL data access](https://dlthub.com/docs/general-usage/dataset-access/), [transformations](https://dlthub.com/docs/dlt-ecosystem/transformations), [pipeline inspection](https://dlthub.com/docs/general-usage/dashboard), and [visualizing data in Marimo notebooks](https://dlthub.com/docs/general-usage/dataset-access/marimo).
 
 ## Documentation
 
 For detailed usage and configuration, please refer to the [official documentation](https://dlthub.com/docs).
 
-## Examples
+### Examples
 
-You can find examples for various use cases in the [examples](docs/examples) folder, or in the [code examples section](https://dlthub.com/docs/examples) of our docs page.
+Find examples in the [cookbook section](https://dlthub.com/docs/examples) of our docs page.
 
 ## Adding as dependency
 

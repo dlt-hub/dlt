@@ -1,23 +1,22 @@
 ---
 title: Job configuration
-description: Per-job options on the dltHub platform — execution timeouts, dependency groups, and TOML configuration sections
-keywords: [dlthub platform, job configuration, timeout, dependency groups, static egress, execute, require, expose, section]
+description: Per-job options on the dltHub platform — execution timeouts, dependency groups, instance size, and TOML configuration sections
+keywords: [dlthub platform, job configuration, timeout, dependency groups, instance, size, require.instance, static egress, execute, require, expose, section]
 ---
-
 # Job configuration
 
-This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, the Python environment it gets, and the configuration values it reads at runtime.
+This page documents the per-job options that aren't about *when* a job runs (those live in [Triggers and scheduling](triggers.md)) but about *how* it runs — execution limits, runner resources, the Python environment it gets, and the configuration values it reads at runtime.
 
-All options below are arguments to the `@run.pipeline`, `@run.job`, and `@run.interactive` decorators.
+All options below are arguments to the `@run.pipeline`, `@run.job`, `@run.interactive`, and `@run.agent` decorators.
 
 ## Execution constraints
 
 `execute={"timeout": "6h"}` overrides the default 120-minute job timeout. Use the dict form to also customize the grace period — the window for the job to finish in-flight work before the dltHub platform hard-kills the process:
 
-```py
+```py notype
 @run.pipeline(
     my_pipeline,
-    execute={"timeout": 7200, "grace_period": 60},
+    execute={"timeout": {"timeout": 7200, "grace_period": 60}},
 )
 def long_load():
     ...
@@ -36,7 +35,7 @@ ibis = ["ibis-framework[duckdb]"]
 
 Then opt into it in the decorator:
 
-```py
+```py notype
 @run.pipeline(my_pipeline, require={"dependency_groups": ["ibis"]})
 def transform(run_context: TJobRunContext):
     ...
@@ -44,11 +43,39 @@ def transform(run_context: TJobRunContext):
 
 The dltHub platform composes the execution environment from the workspace's base dependencies plus the job's declared groups.
 
+## Instance size
+
+:::warning
+This feature is in public preview
+:::
+
+Pick how much CPU and memory the job’s runner gets. Pass it under `require.instance`:
+
+```py notype
+@run.pipeline(
+    my_pipeline,
+    require={"instance": {"size": "medium"}},
+)
+def heavy_sync():
+    ...
+```
+
+| `size`   | vCPU | Memory | Disk   | Multiplier |
+| -------- | ---- | ------ | ------ | ---------- |
+| `small`  | 2    | 4 GiB  | 500 GB | 1×         |
+| `medium` | 4    | 8 GiB  | 500 GB | 2×         |
+| `large`  | 8    | 16 GiB | 500 GB | 4×         |
+| `xlarge` | 16   | 32 GiB | 500 GB | 8×         |
+
+If you omit `instance`, jobs default to `small`. Larger sizes use a higher `multiplier` against your organization's run time budget. For example, a one-hour `large` run consumes four hours of budget.
+
+Pipeline-level tuning (chunking, parallelism, memory settings) often lowers the size you need, see [Optimizing dlt](../../reference/performance.md).
+
 ## Static egress IPs
 
 Use this when you must whitelist outbound IP addresses so external systems can grant your jobs access to private resources. Opt in per job so outbound requests use your workspace's static egress IPs:
 
-```py
+```py notype
 @run.pipeline(my_pipeline, require={"static_egress_ips": True})
 def sync_from_vendor():
     ...
@@ -57,17 +84,44 @@ def sync_from_vendor():
 Which static egress IPs your jobs use depends on your organization's region and data residency settings. See [Regions and data residency](../platform-capabilities/regions.md) for how regional data planes relate to your organization.
 
 The static egress IPs for the **EU region** are:
+
 - 63.181.217.92
 - 18.156.57.4
 - 63.183.227.2
 - 63.182.151.74
 
 The static egress IPs for the **US region** are:
+
 - 34.205.113.62
 - 44.221.24.144
 - 34.193.87.36
 - 98.80.106.70
 - 54.81.217.233
+
+## Inputs and outputs
+
+The parameters of a job with a default or `dlt.config.value` are its inputs, and a TypedDict return type is its output. `dlthub deploy` writes both into the deployment manifest as JSON Schemas. Describe a parameter or a field with `run.Doc`. Mark a parameter or a field that holds the id of a workspace entity with `run.Entity`:
+
+```py notype
+from typing import Annotated, TypedDict
+
+class Report(TypedDict):
+    """Rows the report counted."""
+    pipeline: Annotated[str, run.Entity("pipeline")]
+    rows: int
+
+@run.job
+def rerun_report(
+    run_id: Annotated[str, run.Entity("job-runs"), run.Doc("Run to report on")] = dlt.config.value,
+) -> Report:
+    ...
+```
+
+- Entity types are `job-runs`, `job`, `workspace`, `pipeline`, and `dataset`. Another type fails `dlthub deploy`.
+- The [job result](deployments.md#job-results) of a run lists the entities from its entity-typed inputs, overwritten by output fields of the same name.
+- The first entity-typed input becomes `expose.object_input` in the manifest. The Web UI reads it to link the job to entities.
+
+See [Entity-typed inputs and outputs](../agents/agent-definitions.md#entity-typed-inputs-and-outputs) for how agent jobs use them.
 
 ## Job configuration via TOML
 
@@ -89,7 +143,7 @@ For inline jobs in `__deployment__.py`, pass `section="my_job"` to the decorator
 
 `expose={...}` controls how the job appears in the dashboard and to selectors:
 
-```py
+```py notype
 @run.pipeline(
     "github_pipeline",
     expose={
@@ -101,10 +155,11 @@ def load_commits():
     ...
 ```
 
-| Key | Purpose |
-|-----|---------|
-| `tags` | List of labels for grouping in the dashboard and matching CLI selectors (`tag:ingest`) |
-| `display_name` | Human-readable label shown in the dashboard |
+| Key            | Purpose                                                                                |
+| -------------- | -------------------------------------------------------------------------------------- |
+| `tags`         | List of labels for grouping in the dashboard and matching CLI selectors (`tag:ingest`) |
+| `display_name` | Human-readable label shown in the dashboard                                            |
+| `manual`       | Whether the runner adds the `manual:` trigger. `True` by default                       |
 
 See [Tags and bulk triggering](triggers.md#tags-and-bulk-triggering) for how tags drive `dlthub job trigger` selectors.
 

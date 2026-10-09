@@ -220,7 +220,11 @@ const REDIRECTS = [
   },
   {
     from: "/docs/hub/getting-started/runtime-tutorial",
-    to: "/docs/hub/getting-started/platform-tutorial",
+    to: "/docs/hub/pipeline-operations/deployments",
+  },
+  {
+    from: "/docs/hub/getting-started/platform-tutorial",
+    to: "/docs/hub/pipeline-operations/deployments",
   },
   {
     from: "/docs/hub/workspace/overview",
@@ -321,6 +325,101 @@ const REDIRECTS = [
   {
     from: "/docs/dlt-ecosystem/llm-tooling/explore-and-transform",
     to: "/docs/hub/transformations/explore-and-transform",
+  },
+  // Removed pages that external sites still link to (public backlink crawl,
+  // Sept 2026: rest-client alone is linked from ~100 GitHub repos, many via
+  // the DataTalksClub zoomcamp). Without these they answer 404.
+  {
+    from: "/docs/general-usage/http/rest-client",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
+  },
+  {
+    from: "/docs/general-usage/http/requests",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
+  },
+  {
+    from: "/docs/general-usage/http/overview",
+    to: "/docs/dlt-ecosystem/verified-sources/rest_api/advanced",
+  },
+  {
+    from: "/docs/general-usage/dashboard",
+    to: "/docs/hub/ingestion/dashboard",
+  },
+  {
+    from: "/docs/reference",
+    to: "/docs/api_reference/dlt/__init__",
+  },
+  {
+    from: "/docs/api_reference",
+    to: "/docs/api_reference/dlt/__init__",
+  },
+  {
+    from: "/docs/api_reference/dlt",
+    to: "/docs/api_reference/dlt/__init__",
+  },
+  {
+    from: "/docs/api_reference/sources/sql_database/__init__",
+    to: "/docs/api_reference/dlt/sources/sql_database/__init__",
+  },
+  {
+    from: "/docs/api_reference/helpers/dbt/runner",
+    to: "/docs/api_reference/dlt/helpers/dbt/runner",
+  },
+  {
+    from: "/docs/walkthroughs/add-a-verified-source",
+    to: "/docs/dlt-ecosystem/verified-sources",
+  },
+  {
+    from: "/docs/dlt-ecosystem/verified-sources/filesystem/basic",
+    to: "/docs/dlt-ecosystem/verified-sources/filesystem",
+  },
+  {
+    from: "/docs/performance",
+    to: "/docs/reference/performance",
+  },
+  {
+    from: "/docs/general-usage/performance",
+    to: "/docs/reference/performance",
+  },
+  {
+    from: "/docs/reference/explainers/airflow-gcp-cloud-composer",
+    to: "/docs/walkthroughs/deploy-a-pipeline/deploy-with-airflow-composer",
+  },
+  {
+    from: "/docs/walkthroughs/deploy-a-pipeline/deploy-gcp-cloud-function-as-webhook",
+    to: "/docs/walkthroughs/deploy-a-pipeline/deploy-with-google-cloud-functions",
+  },
+  {
+    from: "/docs/general-usage/dataset-access/transformations",
+    to: "/docs/dlt-ecosystem/transformations",
+  },
+  {
+    from: "/docs/dlt-ecosystem/transformations/dbt/dbt_cloud",
+    to: "/docs/dlt-ecosystem/transformations/dbt",
+  },
+  {
+    from: "/docs/general-usage/dataset-access/",
+    to: "/docs/general-usage/dataset-access/dataset",
+  },
+  {
+    from: "/docs/hub/features/ai",
+    to: "/docs/hub/ai-harness/introduction",
+  },
+  {
+    from: "/docs/hub/features/mcp-server",
+    to: "/docs/hub/ai-harness/introduction",
+  },
+  {
+    from: "/docs/plus/features/ai",
+    to: "/docs/hub/ai-harness/introduction",
+  },
+  {
+    from: "/docs/guides/schema-management",
+    to: "/docs/general-usage/schema-evolution",
+  },
+  {
+    from: "/docs/dlt-ecosystem/visualizations/understanding-the-tables",
+    to: "/docs/general-usage/destination-tables",
   },
 ];
 

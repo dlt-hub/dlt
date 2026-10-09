@@ -148,6 +148,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
 
     def _raw_capabilities(self) -> DestinationCapabilitiesContext:
         caps = DestinationCapabilitiesContext()
+        caps.supports_session_timezone = True
         caps.preferred_loader_file_format = "parquet"
         caps.supported_loader_file_formats = ["jsonl", "parquet", "model"]
         caps.preferred_staging_file_format = "parquet"
@@ -176,7 +177,7 @@ class databricks(Destination[DatabricksClientConfiguration, "DatabricksClient"])
         caps.alter_add_multi_column = True
         caps.supports_multiple_statements = False
         caps.supports_clone_table = True
-        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only"]
+        caps.supported_merge_strategies = ["delete-insert", "upsert", "scd2", "insert-only", "cdc"]
         caps.supported_replace_strategies = [
             "truncate-and-insert",
             "insert-from-staging",

@@ -129,6 +129,7 @@ def test_only_authenticator() -> None:
     assert c.token is None
     # token not present
     assert c.to_connector_params() == {
+        "timezone": "UTC",
         "authenticator": "uri",
         "user": None,
         "password": None,
@@ -140,8 +141,32 @@ def test_only_authenticator() -> None:
         SnowflakeCredentialsWithoutDefaults("snowflake://host1/db1?authenticator=oauth&token=TOK")
     )
     assert c.to_connector_params() == {
+        "timezone": "UTC",
         "authenticator": "oauth",
         "token": "TOK",
+        "user": None,
+        "password": None,
+        "account": "host1",
+        "database": "db1",
+        "application": "dltHub_dlt",
+    }
+
+
+def test_workload_identity_provider() -> None:
+    c = resolve_configuration(
+        SnowflakeCredentialsWithoutDefaults(
+            "snowflake://host1/db1?authenticator=WORKLOAD_IDENTITY"
+            "&workload_identity_provider=AWS&warehouse=wh1"
+        )
+    )
+    assert c.authenticator == "WORKLOAD_IDENTITY"
+    assert c.workload_identity_provider == "AWS"
+    assert c.warehouse == "wh1"
+    assert c.to_connector_params() == {
+        "timezone": "UTC",
+        "authenticator": "WORKLOAD_IDENTITY",
+        "workload_identity_provider": "AWS",
+        "warehouse": "wh1",
         "user": None,
         "password": None,
         "account": "host1",
@@ -169,6 +194,23 @@ def test_query_additional_params() -> None:
         assert c.to_connector_params()["keep_alive"] is True
         # serialize to str
         assert c.to_url().query["keep_alive"] == "True"
+
+
+def test_session_timezone() -> None:
+    # UTC is pinned so the offset `TIMESTAMP_LTZ` renders does not follow the account
+    c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1")
+    assert c.to_connector_params()["timezone"] == "UTC"
+
+    c.session_timezone = "Europe/Berlin"
+    assert c.to_connector_params()["timezone"] == "Europe/Berlin"
+
+    # `None` hands the session back to the account default
+    c.session_timezone = None
+    assert "timezone" not in c.to_connector_params()
+
+    # a timezone passed in the query takes precedence
+    c = SnowflakeCredentialsWithoutDefaults("snowflake://user1:pass1@host1/db1?timezone=Asia/Tokyo")
+    assert c.to_connector_params()["timezone"] == "Asia/Tokyo"
 
 
 def test_overwrite_query_value_from_explicit() -> None:
@@ -207,6 +249,7 @@ def test_to_connector_params_private_key(private_key: str) -> None:
         warehouse="warehouse1",
         role="role1",
         application="dltHub_dlt",
+        timezone="UTC",
     )
 
 
@@ -313,6 +356,7 @@ def test_snowflake_credentials_native_value(environment) -> None:
         "password": "pass",
         "account": "host1",
         "database": "db1",
+        "timezone": "UTC",
     }
 
 

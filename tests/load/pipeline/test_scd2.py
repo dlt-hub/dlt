@@ -2,22 +2,31 @@
 
 from unittest import mock
 import pytest
-from typing import List, Dict, Any, Optional
-from datetime import date, datetime, timezone  # noqa: I251
+from typing import Iterator, List, Dict, Any, Optional
+from datetime import date, datetime  # noqa: I251
 from contextlib import nullcontext as does_not_raise
 
 import dlt
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.typing import TAnyDateTime
 from dlt.common.pendulum import pendulum
-from dlt.common.pipeline import LoadInfo
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
-from dlt.common.normalizers.json.helpers import get_row_hash
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.time import ensure_pendulum_datetime_utc, reduce_pendulum_datetime_precision
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
+from tests.load.pipeline.merge_utils import (
+    FROM,
+    TO,
+    boundary_wall_clock,
+    get_load_package_created_at,
+    get_rows,
+    get_table,
+)
+from tests.load.pipeline.utils import LOCAL_DESTINATIONS
 from tests.load.utils import (
     destinations_configs,
     DestinationTestConfiguration,
@@ -31,55 +40,12 @@ from tests.pipeline.utils import (
 
 from tests.utils import TPythonTableFormat
 
-FROM, TO = DEFAULT_VALIDITY_COLUMN_NAMES
 
-
-def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> datetime:
-    """Returns `created_at` property of load package state."""
-    load_id = load_info.asdict()["loads_ids"][0]
-    created_at = (
-        pipeline.get_load_package_state(load_id)["created_at"]
-        .in_timezone(tz="UTC")
-        .replace(tzinfo=None)
-    )
-    caps = pipeline._get_destination_capabilities()
-    return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
-
-
-def strip_timezone(ts: TAnyDateTime) -> pendulum.DateTime:
-    """Converts timezone of datetime object to UTC and removes timezone awareness."""
-    return ensure_pendulum_datetime_utc(ts).astimezone(tz=timezone.utc).replace(tzinfo=None)
-
-
-def get_table(
-    pipeline: dlt.Pipeline,
-    table_name: str,
-    sort_column: str = None,
-    # include_root_id: bool = True,
-    include_dlt_id: bool = False,
-    ts_columns: Optional[List[str]] = None,
-) -> List[Dict[str, Any]]:
-    """Returns destination table contents as list of dictionaries."""
-    ts_columns = ts_columns or []
-
-    table = [
-        {
-            k: (
-                strip_timezone(v)
-                if isinstance(v, datetime) or (k in ts_columns and v is not None)
-                else v
-            )
-            for k, v in r.items()
-            if not k.startswith("_dlt") or k in DEFAULT_VALIDITY_COLUMN_NAMES
-            # or (k == "_dlt_root_id" if include_root_id else False)
-            or (k == "_dlt_id" if include_dlt_id else False)
-        }
-        for r in load_tables_to_dicts(pipeline, table_name)[table_name]
-    ]
-
-    if sort_column is None:
-        return table
-    return sorted(table, key=lambda d: d[sort_column])
+@pytest.fixture
+def context_tz(request: pytest.FixtureRequest) -> Iterator[str]:
+    """Runs the test under the context timezone passed as the indirect parameter."""
+    with Container().injectable_context(TimezoneContext(request.param)):
+        yield request.param
 
 
 @pytest.mark.essential
@@ -668,14 +634,15 @@ def test_active_record_timestamp(
             yield {"foo": "bar"}
 
         p.run(r(), **destination_config.run_kwargs)
-        actual_active_record_timestamp = ensure_pendulum_datetime_utc(
+        actual_active_record_timestamp = ensure_pendulum_datetime(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
-        assert actual_active_record_timestamp == ensure_pendulum_datetime_utc(
-            active_record_timestamp
-        )
+        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
 
 
+@pytest.mark.parametrize(
+    "context_tz", ["UTC", "Europe/Berlin"], ids=["utc-context", "berlin-context"], indirect=True
+)
 @pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["sqlalchemy", "duckdb"]),
@@ -683,6 +650,7 @@ def test_active_record_timestamp(
 )
 def test_boundary_timestamp(
     destination_config: DestinationTestConfiguration,
+    context_tz: str,
 ) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
@@ -704,10 +672,10 @@ def test_boundary_timestamp(
         yield data
 
     # normalize timestamps once for assertions
-    ts1_dt = strip_timezone(ts1)
-    ts2_dt = strip_timezone(ts2)
-    ts3_dt = strip_timezone(ts3)
-    ts5_dt = strip_timezone(ts5)
+    ts1_dt = boundary_wall_clock(ts1)
+    ts2_dt = boundary_wall_clock(ts2)
+    ts3_dt = boundary_wall_clock(ts3)
+    ts5_dt = boundary_wall_clock(ts5)
 
     # load 1 — initial load
     dim_snap = [
@@ -874,12 +842,8 @@ def test_merge_key_natural_key(
     assert load_table_counts(p, "dim_test")["dim_test"] == 3
     ts3 = get_load_package_created_at(p, info)
     # natural key 1 should now have two records (one retired, one active)
-    actual = [
-        {k: v for k, v in row.items() if k in ("nk", TO)}
-        for row in get_table(p, "dim_test", ts_columns=[FROM, TO])
-    ]
-    expected = [{"nk": 1, TO: ts3}, {"nk": 1, TO: None}, {"nk": 2, TO: None}]
-    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+    expected: List[Dict[str, Any]] = [{"nk": 1, TO: ts3}, {"nk": 1, TO: None}, {"nk": 2, TO: None}]
+    assert_records_as_set(get_rows(p, "dim_test", ("nk", TO)), expected)
 
     # load 4 — natural key 2 is absent, natural key 1 has changed back to
     # initial version
@@ -891,12 +855,8 @@ def test_merge_key_natural_key(
     assert load_table_counts(p, "dim_test")["dim_test"] == 4
     ts4 = get_load_package_created_at(p, info)
     # natural key 1 should now have three records (two retired, one active)
-    actual = [
-        {k: v for k, v in row.items() if k in ("nk", TO)}
-        for row in get_table(p, "dim_test", ts_columns=[FROM, TO])
-    ]
     expected = [{"nk": 1, TO: ts3}, {"nk": 1, TO: ts4}, {"nk": 1, TO: None}, {"nk": 2, TO: None}]
-    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+    assert_records_as_set(get_rows(p, "dim_test", ("nk", TO)), expected)
 
 
 @pytest.mark.essential
@@ -913,7 +873,6 @@ def test_merge_key_compound_natural_key(
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     @dlt.resource(
-        name="s",  # ensure the staging alias cannot shadow the root table name
         merge_key=["first_name", "last_name"],
         write_disposition={"disposition": "merge", "strategy": "scd2"},
     )
@@ -943,9 +902,9 @@ def test_merge_key_compound_natural_key(
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(p, "s")["s"] == 3
+    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 3
     # all records should be active (i.e. not retired)
-    assert [row[TO] for row in get_table(p, "s")] == [None, None, None]
+    assert [row[TO] for row in get_table(p, "dim_test_compound")] == [None, None, None]
 
     # load 2 — "Dodo" and the colliding key are absent, while the first record has changed
     dim_snap = [
@@ -953,14 +912,10 @@ def test_merge_key_compound_natural_key(
     ]
     info = p.run(dim_test_compound(dim_snap), **destination_config.run_kwargs)
     assert_load_info(info)
-    assert load_table_counts(p, "s")["s"] == 4
+    assert load_table_counts(p, "dim_test_compound")["dim_test_compound"] == 4
     ts3 = get_load_package_created_at(p, info)
-    # the changed key should have two records; unrelated absent keys must stay active
-    actual = [
-        {k: v for k, v in row.items() if k in ("first_name", "last_name", TO)}
-        for row in get_table(p, "s", ts_columns=[FROM, TO])
-    ]
-    expected = [
+    # the changed key should have two records, unrelated absent keys must stay active
+    expected: List[Dict[str, Any]] = [
         {"first_name": first_name, "last_name": last_name, TO: ts3},
         {"first_name": first_name, "last_name": last_name, TO: None},
         {"first_name": first_name, "last_name": "Dodo", TO: None},
@@ -970,7 +925,9 @@ def test_merge_key_compound_natural_key(
             TO: None,
         },
     ]
-    assert_records_as_set(actual, expected)
+    assert_records_as_set(
+        get_rows(p, "dim_test_compound", ("first_name", "last_name", TO)), expected
+    )
 
 
 @pytest.mark.essential
@@ -1025,18 +982,14 @@ def test_merge_key_partition(
     # should be untouched
     assert load_table_counts(p, "dim_test")["dim_test"] == 5
     ts2 = get_load_package_created_at(p, info)
-    actual = [
-        {k: v for k, v in row.items() if k in ("date", "name", TO)}
-        for row in get_table(p, "dim_test", ts_columns=[TO])
-    ]
-    expected = [
+    expected: List[Dict[str, Any]] = [
         {"date": "2024-01-01", "name": "a", TO: None},
         {"date": "2024-01-01", "name": "b", TO: ts2},
         {"date": "2024-01-01", "name": "bb", TO: None},
         {"date": "2024-01-02", "name": "c", TO: None},
         {"date": "2024-01-02", "name": "d", TO: None},
     ]
-    assert_records_as_set(actual, expected)  # type: ignore[arg-type]
+    assert_records_as_set(get_rows(p, "dim_test", ("date", "name", TO)), expected)
 
 
 @pytest.mark.parametrize(
@@ -1232,3 +1185,83 @@ def test_scd2_validity_column_position(
     # nk=3: new active only
     assert len(rows_for(3)) == 1
     assert len(active(rows_for(3))) == 1
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "source_filter,destination_scope",
+    [
+        (None, "bucket = 'new'"),
+        ("bucket = 'new'", None),
+        ("bucket = 'new'", "bucket = 'new'"),
+        # Databricks rejects a subquery nested in another subquery of an UPDATE condition
+        ("bucket IN (SELECT LOWER('new'))", None),
+    ],
+    ids=["scope", "filter", "filter_scope", "filter_subquery"],
+)
+@pytest.mark.parametrize("root_key", [False, True], ids=["parent_chain", "root_key"])
+def test_merge_conditions(
+    destination_config: DestinationTestConfiguration,
+    source_filter: Optional[str],
+    destination_scope: Optional[str],
+    root_key: bool,
+) -> None:
+    """`scd2` retires absent records only in the destination scope. It does not insert a record
+    that the source filter discards, or its nested rows, and the discarded record does not count
+    as present."""
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    def make_resource(data: List[Dict[str, Any]], conditions: bool) -> Any:
+        disposition: Any = {"disposition": "merge", "strategy": "scd2"}
+        if conditions:
+            disposition["source_filter"] = source_filter
+            disposition["destination_scope"] = destination_scope
+
+        # the merge applies the source filter to nested tables via the root key or the parent chain
+        @dlt.source(root_key=root_key)
+        def dim_source():
+            @dlt.resource(name="dim_test", write_disposition=disposition)
+            def dim_test():
+                yield data
+
+            return dim_test
+
+        return dim_source()
+
+    def row(bucket: str, foo: str) -> Dict[str, Any]:
+        key = f"{bucket}-{foo}"
+        return {"bucket": bucket, "foo": foo, "children": [{"c": key, "grand": [{"g": key}]}]}
+
+    info = p.run(
+        make_resource([row("old", "foo"), row("new", "foo")], conditions=False),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+
+    info = p.run(
+        make_resource([row("new", "bar"), row("old", "baz")], conditions=True),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    ts2 = get_load_package_created_at(p, info)
+
+    # the source filter does not limit what `scd2` retires. Only the destination scope does
+    expected: List[Dict[str, Any]] = [
+        {"bucket": "old", "foo": "foo", TO: None if destination_scope else ts2},
+        {"bucket": "new", "foo": "foo", TO: ts2},
+        {"bucket": "new", "foo": "bar", TO: None},
+    ]
+    children = ["new-bar", "new-foo", "old-foo"]
+    if not source_filter:
+        expected.append({"bucket": "old", "foo": "baz", TO: None})
+        children.append("old-baz")
+    assert_records_as_set(get_rows(p, "dim_test", ("bucket", "foo", TO)), expected)
+
+    tables = load_tables_to_dicts(p, "dim_test__children", "dim_test__children__grand")
+    assert all(("_dlt_root_id" in g) == root_key for g in tables["dim_test__children__grand"])
+    assert sorted(c["c"] for c in tables["dim_test__children"]) == sorted(children)
+    assert sorted(g["g"] for g in tables["dim_test__children__grand"]) == sorted(children)

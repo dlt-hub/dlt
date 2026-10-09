@@ -24,8 +24,13 @@ from dlt.common.typing import TDataItem, TFun, TTableNames
 
 from dlt._workspace.cli.source_detection import detect_source_configs
 from dlt.common.utils import custom_environ
-from dlt.extract.decorators import _DltSingleSource, DltSourceFactoryWrapper, defer
+from dlt.extract.decorators import (
+    _DltSingleSource,
+    DltSourceFactoryWrapper,
+    defer,
+)
 from dlt.extract.hints import TResourceNestedHints
+from dlt.extract.items_transform import LimitItem
 from dlt.extract.reference import SourceReference
 from dlt.extract import DltResource, DltSource
 from dlt.extract.exceptions import (
@@ -1153,6 +1158,91 @@ def test_resource_sets_invalid_write_disposition() -> None:
     assert "write_disposition" in str(py_ex.value)
 
 
+@pytest.mark.parametrize("strategy", ["upsert", "cdc", None], ids=["upsert", "cdc", "default"])
+@pytest.mark.parametrize("skip_unchanged_rows", [False, True], ids=["update", "skip"])
+def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows: bool) -> None:
+    """The table schema has the `x-row-version` hint only when the merge skips unchanged rows.
+    Without a strategy, the hints are kept for the strategy that the destination picks."""
+    write_disposition: Any = {
+        "disposition": "merge",
+        "skip_unchanged_rows": skip_unchanged_rows,
+        "row_version_column_name": "version",
+    }
+    if strategy:
+        write_disposition["strategy"] = strategy
+
+    @dlt.resource(primary_key="id", write_disposition=write_disposition)
+    def items():
+        yield [{"id": 1, "version": 1}]
+
+    table = items().compute_table_schema()
+    assert bool(table.get("x-merge-skip-unchanged-rows")) is skip_unchanged_rows
+    version_column = table["columns"].get("version", {})
+    assert bool(version_column.get("x-row-version")) is skip_unchanged_rows
+
+
+@pytest.mark.parametrize(
+    "disposition,expected",
+    [
+        ({"destination_scope": "id = {nope}"}, "unknown placeholders `{nope}`"),
+        ({"destination_scope": "id = {table.id}"}, "unknown placeholders `{table.id}`"),
+        ({"source_filter": "name LIKE '{'"}, "cannot parse"),
+        (
+            {"strategy": "delete-insert", "skip_unchanged_rows": True},
+            "dlt supports `skip_unchanged_rows` only with the `upsert`, `cdc`",
+        ),
+        (
+            {"strategy": "scd2", "skip_unchanged_rows": True},
+            "dlt supports `skip_unchanged_rows` only with the `upsert`, `cdc`",
+        ),
+        (
+            {"strategy": "upsert", "destination_scope": "bucket = 'new'"},
+            "dlt supports `destination_scope` only with the `delete-insert`, `scd2`, `cdc`",
+        ),
+        (
+            {"strategy": "insert-only", "source_filter": "bucket = 'new'"},
+            "dlt supports `source_filter` only with the `delete-insert`, `scd2`, `upsert`, `cdc`",
+        ),
+        (
+            {"strategy": "delete-insert", "row_version_column_name": "version"},
+            "dlt supports `row_version_column_name` only with the `scd2`, `upsert`, `cdc`",
+        ),
+    ],
+    ids=[
+        "unknown_placeholder",
+        "attribute_placeholder",
+        "unbalanced_brace",
+        "skip_unchanged_delete_insert",
+        "skip_unchanged_scd2",
+        "scope_upsert",
+        "filter_insert_only",
+        "row_version_delete_insert",
+    ],
+)
+def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str) -> None:
+    write_disposition: Any = {"disposition": "merge", **disposition}
+    with pytest.raises(ValueError) as py_ex:
+
+        @dlt.resource(write_disposition=write_disposition)
+        def invalid_filter():
+            yield [1, 2, 3]
+
+    assert expected in str(py_ex.value)
+
+    # apply_hints validates the same way
+    @dlt.resource
+    def valid_resource():
+        yield [1, 2, 3]
+
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(write_disposition=write_disposition)
+    assert expected in str(py_ex.value)
+
+    # a doubled brace is a literal brace
+    literal_brace: Any = {"disposition": "merge", "destination_scope": "name LIKE '{{x}}'"}
+    valid_resource.apply_hints(write_disposition=literal_brace)
+
+
 def test_custom_source_impl() -> None:
     class TypedSource(DltSource):
         def users(self, mode: str) -> DltResource:
@@ -1837,3 +1927,148 @@ async def test_async_source_postprocessor() -> None:
     assert "alpha" in source.selected_resources
     assert "beta" not in source.selected_resources
     assert list(source) == [1, 2, 3]
+
+
+def test_add_limit_on_source_instance():
+    # NOTE the source needs to be defined within the test to avoid mutations.
+    USERS = [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+    CITIES = [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+    @dlt.source
+    def mock_source():
+        """Source used"""
+
+        @dlt.resource
+        def users():
+            return USERS
+
+        @dlt.resource
+        def cities():
+            return CITIES
+
+        return [users(), cities()]
+
+    instance = mock_source()
+
+    # check before setting the limit
+    for resource in instance.resources.values():
+        assert len(resource._pipe) == 1
+
+    output_instance = instance.add_limit(1)
+
+    # instance is mutated
+    assert output_instance is instance
+
+    # all resources now have a LimitItem step
+    for resource in instance.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+    # we retrieve the first record of each resource
+    # the resource order matches the order the source returns them
+    data = list(instance)
+    assert data[0] == USERS[0]
+    assert data[1] == CITIES[0]
+
+
+def test_add_limit_on_source_factory() -> None:
+    # NOTE the source needs to be defined within the test to avoid mutations.
+    USERS = [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+    CITIES = [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+    @dlt.source
+    def mock_source():
+        @dlt.resource
+        def users():
+            return USERS
+
+        @dlt.resource
+        def cities():
+            return CITIES
+
+        return [users(), cities()]
+
+    before_instance = mock_source()
+
+    # check before setting the limit
+    for resource in before_instance.resources.values():
+        assert len(resource._pipe) == 1
+
+    output_factory = mock_source.add_limit(1)
+
+    # .add_limit() on factory doesn't return
+    assert output_factory is None
+
+    after_instance = mock_source()
+
+    # the existing instance is not mutated
+    assert before_instance is not after_instance
+    for resource in before_instance.resources.values():
+        assert len(resource._pipe) == 1
+
+    # all resources now have a LimitItem step
+    for resource in after_instance.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+    # we retrieve the first record of each resource
+    # the resource order matches the order the source returns them
+    data = list(after_instance)
+    assert data[0] == USERS[0]
+    assert data[1] == CITIES[0]
+
+
+def test_source_factory_add_limit_preserved_on_clone() -> None:
+    @dlt.source
+    def mock_source():
+        @dlt.resource
+        def users():
+            return [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+
+        @dlt.resource
+        def cities():
+            return [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+        return [users(), cities()]
+
+    cloned = mock_source().add_limit(1).clone()
+
+    # all resources now have a LimitItem step
+    for resource in cloned.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+
+@pytest.mark.asyncio
+async def test_async_source_factory_add_limit() -> None:
+    # NOTE the source needs to be defined within the test to avoid mutations.
+    USERS = [dict(id=1, name="Alice"), dict(id=2, name="Bob")]
+    CITIES = [dict(id=1, name="London"), dict(id=2, name="Paris")]
+
+    @dlt.source
+    async def async_mock_source():
+        @dlt.resource
+        def users():
+            return USERS
+
+        @dlt.resource
+        def cities():
+            return CITIES
+
+        return [users(), cities()]
+
+    async_mock_source.add_limit(1)
+
+    # TODO there's a real typing error somewhere in the dlt source / source wrapper code
+    instance = await async_mock_source()  # type: ignore[misc]
+
+    # all resources now have a LimitItem step
+    for resource in instance.resources.values():
+        assert len(resource._pipe) == 2
+        assert isinstance(resource._pipe[-1], LimitItem)
+
+    # we retrieve the first record of each resource
+    # the resource order matches the order the source returns them
+    data = list(instance)
+    assert data[0] == USERS[0]
+    assert data[1] == CITIES[0]

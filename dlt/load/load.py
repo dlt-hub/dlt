@@ -1,17 +1,17 @@
 import contextlib
 from functools import reduce
 from threading import BoundedSemaphore
-from typing import Dict, List, Optional, Tuple, Iterator, Sequence
+from typing import Dict, List, NoReturn, Optional, Set, Tuple, Iterator, Sequence
 from concurrent.futures import Executor
 
 from dlt.common import logger, pendulum
 from dlt.common.exceptions import TerminalException
-from dlt.common.metrics import LoadJobMetrics
+from dlt.common.metrics import LoadJobMetrics, TDatasetDataLocation
 from dlt.common.runtime.signals import sleep
 from dlt.common.configuration import with_config, known_sections
 from dlt.common.configuration.accessors import config
 from dlt.common.pipeline import LoadInfo, LoadMetrics, SupportsPipeline, WithStepInfo
-from dlt.common.schema.utils import get_root_table
+from dlt.common.schema.utils import get_root_table, group_tables_by_resource
 from dlt.common.storages.load_storage import (
     LoadJobInfo,
     LoadPackageInfo,
@@ -19,6 +19,7 @@ from dlt.common.storages.load_storage import (
 )
 from dlt.common.storages.load_package import (
     LoadPackageStateInjectableContext,
+    TLoadPackageStatus,
     commit_load_package_state,
     load_package_state as current_load_package,
 )
@@ -30,6 +31,8 @@ from dlt.common.schema import Schema
 from dlt.common.storages import LoadStorage
 from dlt.common.storages.file_storage import FileStorage
 from dlt.common.destination import DestinationReference, AnyDestination, Destination
+from dlt.common.destination.capabilities import DestinationCapabilitiesContext
+from dlt.common.destination.reference import describe_dataset_location
 from dlt.common.destination.client import (
     DestinationClientDwhConfiguration,
     HasFollowupJobs,
@@ -52,7 +55,9 @@ from dlt.destinations.job_impl import FinalizedLoadJobWithFollowupJobs
 from dlt.load.configuration import LoaderConfiguration
 from dlt.load.exceptions import (
     LoadClientJobFailed,
+    LoadClientJobTerminalRetry,
     LoadClientJobRetry,
+    LoadPackageAborted,
     LoadClientUnsupportedWriteDisposition,
     LoadClientUnsupportedFileFormats,
     LoadClientJobException,
@@ -523,31 +528,53 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 )
                 # try to get exception message from job
                 failed_message = job.failed_message()
-                self.load_storage.normalized_packages.fail_job(
-                    load_id, job.file_name(), failed_message
-                )
-                # consume pending transition only after successful file move
-                self.load_storage.normalized_packages.clear_pending_transition(
-                    load_id, job.file_name()
-                )
                 logger.error(
                     f"Job for {job.job_id()} failed terminally in load {load_id} with message"
                     f" {failed_message}"
                 )
-                # schedule exception on job failure
-                if self.config.raise_on_failed_jobs:
+                if self.config.auto_abort_on_terminal_error:
+                    # persist abort intent before moving the job so a crash resumes the abort
+                    current_load_package()["state"]["abort_requested"] = True
+                    commit_load_package_state()
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message, "terminal"
+                    )
                     pending_exception = LoadClientJobFailed(
                         load_id,
                         job.job_file_info().job_id(),
                         failed_message,
                         job.exception(),
                     )
+                elif not self.config.raise_on_failed_jobs:
+                    # complete the package as loaded with the failed job recorded, no exception
+                    self.load_storage.normalized_packages.fail_job(
+                        load_id, job.file_name(), failed_message
+                    )
+                else:
+                    self.load_storage.normalized_packages.retry_job(
+                        load_id, job.file_name(), failed_message, "terminal"
+                    )
+                    pending_exception = LoadClientJobTerminalRetry(
+                        load_id,
+                        job.job_file_info().job_id(),
+                        failed_message,
+                        job.exception(),
+                    )
+                # consume pending transition only after successful file move
+                self.load_storage.normalized_packages.clear_pending_transition(
+                    load_id, job.file_name()
+                )
                 finalized_jobs.append(job)
             elif state == "retry":
                 # try to get exception message from job
                 retry_message = job.failed_message()
                 # move back to new folder to try again
-                self.load_storage.normalized_packages.retry_job(load_id, job.file_name())
+                self.load_storage.normalized_packages.retry_job(
+                    load_id,
+                    job.file_name(),
+                    failed_message=retry_message,
+                    exception_type="transient",
+                )
                 logger.warning(
                     f"Job for {job.job_id()} retried in load {load_id} with message {retry_message}"
                 )
@@ -624,17 +651,24 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     self._maybe_truncate_staging_dataset(schema, job_client)
 
         self.load_storage.complete_load_package(load_id, aborted)
-        self.gather_metrics(load_id, finished=True)
+        self.gather_metrics(load_id, schema, "aborted" if aborted else "loaded")
         # delete jobs only after metrics collected
         self.load_storage.maybe_remove_completed_jobs(load_id)
         logger.info(
             f"All jobs completed, archiving package {load_id} with aborted set to {aborted}"
         )
 
-    def gather_metrics(self, load_id: str, finished: bool) -> None:
+    def gather_metrics(self, load_id: str, schema: Schema, state: TLoadPackageStatus) -> None:
         # collect package info
-        self._loaded_packages.append(self.load_storage.get_load_package_info(load_id))
-        self._step_info_complete_load_id(load_id, finished=finished)
+        package_info = self.load_storage.get_load_package_info(load_id)
+        self._loaded_packages.append(package_info)
+        if state == "loaded":
+            metrics = self._step_info_metrics(load_id)[0]
+            # `dataset_name` was normalized when the metrics were first recorded
+            metrics["outputs"] = self._compute_outputs(
+                schema, *self._output_context(schema), metrics["dataset_name"]
+            )
+        self._step_info_complete_load_id(load_id, finished=state in ("aborted", "loaded"))
 
     def initialize_package(
         self, load_id: str, schema: Schema, new_jobs: List[ParsedLoadJobFileName]
@@ -714,6 +748,9 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
 
     def load_single_package(self, load_id: str, schema: Schema) -> None:
+        if self.load_storage.normalized_packages.has_abort_flag(load_id):
+            # aborts package - always raises
+            self._raise_package_abort(load_id, schema)
         new_jobs = self.get_new_jobs_info(load_id)
         self.init_jobs_counter(load_id)
         running_jobs = self.initialize_package(load_id, schema, new_jobs)
@@ -729,7 +766,8 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
             )
             pending_exception = pending_exception or new_pending_exception
 
-            # do not spool new jobs if there was a signal or an exception was encountered
+            # stop spooling new jobs on a signal or a pending exception; a terminal failure
+            # without raise_on_failed_jobs sets no exception, so the package keeps loading
             # we inform the users how many jobs remain when shutting down, but only if the count of running jobs
             # has changed (as determined by finalized jobs)
             if signals.was_signal_received() and not self.config.start_new_jobs_on_signal:
@@ -747,13 +785,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 running_jobs += self.start_new_jobs(load_id, schema, running_jobs)
 
             # update metrics on each run so they are available even in exception
-            metrics: LoadMetrics = {
-                "started_at": None,
-                "finished_at": None,
-                "job_metrics": self._job_metrics,
-                "dataset_name": dataset_name,
-            }
-            self._step_info_update_metrics(load_id, metrics)
+            self._step_info_update_metrics(load_id, self._package_metrics(dataset_name))
 
             if len(running_jobs) > 0:
                 # wakes when managed job enters terminal state (in the pool)
@@ -767,27 +799,75 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
         # we can raise it now
         if pending_exception:
             if isinstance(pending_exception, LoadClientJobFailed):
-                # the package is completed and skipped
-                self.complete_package(load_id, schema, aborted=True)
+                # only set under auto abort; always aborts the package (never returns)
+                self._raise_package_abort(
+                    load_id,
+                    schema,
+                    job_exception=(pending_exception if self.config.raise_on_failed_jobs else None),
+                )
+            elif isinstance(pending_exception, LoadClientJobTerminalRetry):
+                # created only with raise_on_failed_jobs set, package stays pending.
+                # gather package info so retried jobs and their exceptions reach the trace
+                self.gather_metrics(load_id, schema, state="normalized")
+                raise pending_exception from pending_exception.client_exception
             else:
-                self.gather_metrics(load_id, finished=False)
+                self.gather_metrics(load_id, schema, state="normalized")
                 logger.warning(
                     f"Package {load_id} was not fully loaded. Load job pool is successfully drained"
                     f" but {len(remaining_jobs)} new jobs are left in the package."
                 )
-            # raise exception with continuous backtrace into client exception
-            raise pending_exception from pending_exception.client_exception
+                # raise exception with continuous backtrace into client exception
+                raise pending_exception from pending_exception.client_exception
 
         # pool is drained
         if not remaining_jobs:
-            # no new jobs, load package done
             self.complete_package(load_id, schema, aborted=False)
         else:
-            self.gather_metrics(load_id, finished=False)
+            self.gather_metrics(load_id, schema, state="normalized")
             logger.warning(
                 f"Package {load_id} was not fully loaded. Load job pool is successfully drained but"
                 f" {len(remaining_jobs)} new jobs are left in the package."
             )
+
+    def _raise_package_abort(
+        self, load_id: str, schema: Schema, job_exception: Optional[LoadClientJobFailed] = None
+    ) -> NoReturn:
+        """Aborts a drained package and raises `LoadPackageAborted` so the pipeline runs the
+        abort cleanup. `job_exception` is carried over to be re-raised after the cleanup."""
+        logger.info(f"Aborting package {load_id} as requested")
+        packages = self.load_storage.normalized_packages
+        # replay started jobs with file moves only - no destination client is created
+        # so abort works also when the destination is unreachable. a pending transition
+        # means the destination already committed the job, so it moves to its recorded
+        # terminal state without followup jobs
+        for file_path in packages.list_started_jobs(load_id):
+            file_name = FileStorage.get_file_name_from_file_path(file_path)
+            pending = packages.load_pending_transition(load_id, file_name)
+            if pending is None:
+                # never committed, queue as retried so abort fails it below
+                packages.retry_job(
+                    load_id, file_name, "job interrupted by package abort", "terminal"
+                )
+            else:
+                pending_state, failed_message = pending
+                if pending_state == "failed":
+                    packages.fail_job(load_id, file_name, failed_message)
+                elif pending_state == "completed":
+                    packages.complete_job(load_id, file_name)
+                else:
+                    packages.retry_job(
+                        load_id, file_name, failed_message or "job retry", "transient"
+                    )
+                packages.clear_pending_transition(load_id, file_name)
+        # move retried jobs to failed_jobs and clear the abort flag
+        packages.abort_package(load_id)
+        dataset_name: Optional[str] = None
+        if isinstance(self.initial_client_config, DestinationClientDwhConfiguration):
+            dataset_name = self.initial_client_config.normalize_dataset_name(schema)
+        self._step_info_update_metrics(load_id, self._package_metrics(dataset_name))
+        self.complete_package(load_id, schema, aborted=True)
+        logger.info(f"Package {load_id} aborted successfully")
+        raise LoadPackageAborted(load_id, job_exception)
 
     def run(self, pool: Optional[Executor]) -> TRunMetrics:
         # store pool
@@ -839,6 +919,63 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                 self._job_metrics[job_id] = LoadJobMetrics(**m)
         except Exception as ex:
             logger.warning(f"Metrics could not be restored from state: {ex}")
+
+    def _package_metrics(
+        self, dataset_name: Optional[str], outputs: List[TDatasetDataLocation] = None
+    ) -> LoadMetrics:
+        return {
+            "started_at": None,
+            "finished_at": None,
+            "job_metrics": self._job_metrics,
+            "dataset_name": dataset_name,
+            "outputs": outputs or [],
+        }
+
+    def _output_context(
+        self, schema: Schema
+    ) -> Tuple[DestinationCapabilitiesContext, Dict[str, Set[str]]]:
+        """Capabilities and table ownership of a package, constant while it loads."""
+        # nested tables are owned by the resource of their root table
+        tables_by_resource = {
+            resource_name: {table["name"] for table in tables}
+            for resource_name, tables in group_tables_by_resource(schema.tables).items()
+        }
+        return (
+            self.destination.capabilities(self.initial_client_config, schema.naming),
+            tables_by_resource,
+        )
+
+    def _compute_outputs(
+        self,
+        schema: Schema,
+        caps: DestinationCapabilitiesContext,
+        tables_by_resource: Dict[str, Set[str]],
+        physical_dataset_name: Optional[str],
+    ) -> List[TDatasetDataLocation]:
+        """Describes the dataset per resource that owns tables written by the package.
+
+        `physical_dataset_name` is passed in already normalized so the normalization warning is not
+        emitted again.
+        """
+        # a failed job wrote nothing, and a table written in several files is listed once
+        written_tables = {
+            job.table_name for job in self._job_metrics.values() if job.state == "completed"
+        }
+        outputs: List[TDatasetDataLocation] = []
+        for resource_name, tables in tables_by_resource.items():
+            resource_tables = sorted(tables & written_tables)
+            if resource_tables:
+                outputs.append(
+                    describe_dataset_location(
+                        self.initial_client_config,
+                        caps,
+                        [schema],
+                        resource_name,
+                        resource_tables,
+                        physical_dataset_name,
+                    )
+                )
+        return outputs
 
     def _maybe_truncate_staging_dataset(self, schema: Schema, job_client: JobClientBase) -> None:
         """

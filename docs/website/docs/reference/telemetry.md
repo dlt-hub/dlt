@@ -3,7 +3,6 @@ title: Telemetry
 description: Anonymous usage information with dlt telemetry
 keywords: [telemetry, usage information, opt out]
 ---
-
 # Telemetry
 
 `dlt` collects and reports **anonymous** usage information. This information is essential to figuring out how we should improve the library. Telemetry does not send any personal data. We create a random tracking cookie that is stored in your `~/.dlt` directory. You can disable telemetry at any moment or send it to your own servers instead.
@@ -64,7 +63,10 @@ Here is an example `dlt init` telemetry message:
       "name": "Linux",
       "version": "4.19.128-microsoft-standard"
     },
-    "python": "3.8.11"
+    "python": "3.8.11",
+    "run_context": {
+      "name": "dlt"
+    }
   },
   "event": "command_init",
   "properties": {
@@ -95,7 +97,11 @@ Example for `load` pipeline run step:
       "name": "Darwin",
       "version": "21.6.0"
     },
-    "python": "3.10.10"
+    "python": "3.10.10",
+    "run_context": {
+      "name": "my_workspace",
+      "profile": "dev"
+    }
   },
   "event": "pipeline_load",
   "properties": {
@@ -130,7 +136,10 @@ Example for data access telemetry:
       "name": "Darwin",
       "version": "21.6.0"
     },
-    "python": "3.10.10"
+    "python": "3.10.10",
+    "run_context": {
+      "name": "dlt"
+    }
   },
   "event": "data_access_connect",
   "properties": {
@@ -154,6 +163,7 @@ The message `context` contains the following information:
 - `ci_run`: a flag indicating if the message was sent from a CI environment (e.g., `GitHub Actions`, `Travis CI`).
 - `cpu`: contains the number of cores.
 - `exec_info`: contains a list of strings that identify the execution environment: (e.g., `kubernetes`, `docker`, `airflow`).
+- `run_context`: the name of the active run context (`dlt` for the default one) and, if the context supports profiles, the active profile name.
 - The `library`, `os`, and `python` give us some understanding of the runtime environment of the `dlt`.
 
 ## Send telemetry data to your own tracker
@@ -176,4 +186,3 @@ You can send anonymous telemetry to your own [Segment](https://segment.com/) acc
 dlthub_telemetry_endpoint="https://api.segment.io/v1/track"
 dlthub_telemetry_segment_write_key="<write_key>"
 ```
-
