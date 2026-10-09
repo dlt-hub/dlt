@@ -10,6 +10,8 @@ from unittest.mock import patch
 import pytest
 from packaging.requirements import Requirement
 
+import dlt
+
 from dlt._workspace.deployment.launchers import (
     AGENT_LOOP_GROUP_PREFIX,
     LAUNCHER_AGENT,
@@ -78,6 +80,30 @@ def _names(specs: List[str]) -> List[str]:
 def _uv_lock(run_dir: str) -> None:
     """Generate uv.lock inside an isolated workspace copy."""
     subprocess.run(["uv", "lock"], cwd=run_dir, check=True, capture_output=True)
+
+
+_DLT_CHECKOUT_SPEC = f"dlt @ {Path(dlt.__file__).parents[1].as_uri()}"
+"""This checkout of dlt, so extras resolve with the bounds under test rather than PyPI's."""
+
+
+def _uv_compile(specs: List[str], tmp_path: Path) -> subprocess.CompletedProcess[str]:
+    """Resolve `specs` together the way the runtime installs a run's requirements."""
+    requirements = tmp_path / "requirements.in"
+    requirements.write_text("".join(f"{s}\n" for s in specs))
+    return subprocess.run(
+        [
+            "uv",
+            "pip",
+            "compile",
+            "--python-version",
+            python_version(),
+            "--no-header",
+            requirements.name,
+        ],
+        cwd=tmp_path,
+        capture_output=True,
+        text=True,
+    )
 
 
 def test_get_dlt_requirement_spec() -> None:
@@ -653,6 +679,7 @@ def _added_key(spec: str) -> str:
         (["s3fs>=2024.1"], {"botocore", "s3fs"}, True),
         (["dlt[hub,s3]>=1.0"], {_HUB, "botocore", "s3fs"}, False),
         (["pydantic-ai>=2.33.0"], {"pydantic-ai-slim"}, True),
+        (["pydantic-ai==1.0.0"], {"pydantic-ai-slim"}, True),
         (["marimo>=0.14.5"], {"marimo", "uvicorn"}, True),
     ],
     ids=[
@@ -666,6 +693,7 @@ def _added_key(spec: str) -> str:
         "s3fs-pulls-botocore",
         "dlt-hub-and-s3-extras",
         "pydantic-ai-meta-package",
+        "pydantic-ai-pinned-below-floor",
         "marimo-pulls-uvicorn",
     ],
 )
@@ -681,8 +709,8 @@ def test_export_adds_only_what_the_default_group_lacks(
     main = result["groups"][MAIN_GROUP]
     # precondition: uv-resolved sources pin every spec and flatten extras; the others keep them
     as_written = source.endswith("-verbatim") or source == "pyproject-declared"
-    assert all((s in main) is as_written for s in specs)
-    assert all(("==" in s and not Requirement(s).extras) is not as_written for s in main)
+    assert not as_written or all(s in main for s in specs)
+    assert as_written or all("==" in s and not Requirement(s).extras for s in main)
 
     installed = _installed_keys(main)
     built = {
@@ -781,6 +809,28 @@ def test_every_added_spec_has_a_lower_bound() -> None:
 def test_no_added_spec_opts_into_prereleases() -> None:
     """A direct spec naming a prerelease makes uv install prereleases of that package."""
     assert [s for s in _all_added_specs() if Requirement(s).specifier.prereleases] == []
+
+
+_ADDED_GROUPS = {
+    **build_launcher_requirements(),
+    DASHBOARD_JOB_REF: build_dashboard_group(),
+    **build_agent_loop_groups(),
+}
+
+
+@pytest.mark.parametrize("group", sorted(_ADDED_GROUPS))
+def test_every_added_group_resolves_with_dlt(group: str, tmp_path: Path) -> None:
+    """Floors that contradict each other, or dlt, fail here rather than in a user's deploy."""
+    result = _uv_compile(_ADDED_GROUPS[group] + [_DLT_CHECKOUT_SPEC], tmp_path)
+    assert result.returncode == 0, result.stderr
+
+
+def test_pydantic_loop_refuses_an_anthropic_before_1(tmp_path: Path) -> None:
+    """A workspace pinning anthropic<1 fails to resolve instead of walking pydantic-ai back."""
+    (loop_spec,) = build_agent_loop_groups()[f"{AGENT_LOOP_GROUP_PREFIX}{LOOP_PYDANTIC_AI}"]
+    result = _uv_compile(["anthropic==0.75.0", loop_spec], tmp_path)
+    assert result.returncode != 0
+    assert "unsatisfiable" in result.stderr
 
 
 def test_dlt_extra_specs_carry_the_bounds_dlt_declares() -> None:
