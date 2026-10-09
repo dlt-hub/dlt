@@ -436,13 +436,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def gen_merge_key_present_clause(
         cls,
-        table_qualifier: str,
+        table_name: str,
         staging_root_table_name: str,
         merge_keys: Sequence[str],
+        sql_client: SqlClientBase[Any],
         source_filter: Optional[str] = None,
     ) -> Optional[str]:
-        """Generate a condition that selects the destination rows whose `merge_key` is in the
-        merge source.
+        """Generate a condition that selects the rows of the destination table `table_name` whose
+        `merge_key` is in the merge source.
 
         Returns `None` when the table has no merge keys.
         """
@@ -451,7 +452,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         if len(merge_keys) == 1:
             return cls._gen_keys_in_staging_cond(staging_root_table_name, merge_keys, source_filter)
         return cls._gen_keys_exist_in_staging_cond(
-            table_qualifier, staging_root_table_name, merge_keys, source_filter
+            table_name, staging_root_table_name, merge_keys, sql_client, source_filter
         )
 
     @classmethod
@@ -475,21 +476,26 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def _gen_keys_exist_in_staging_cond(
         cls,
-        table_qualifier: str,
+        table_name: str,
         staging_root_table_name: str,
         key_columns: Sequence[str],
+        sql_client: SqlClientBase[Any],
         source_filter: Optional[str] = None,
     ) -> str:
-        """Generate a correlated `EXISTS` condition that is true when `key_columns` of the
-        destination row are in the merge source.
+        """Generate a correlated `EXISTS` condition that is true when `key_columns` of a row of
+        the destination table `table_name` are in the merge source.
         """
         # a derived table applies the source filter, so bare columns resolve only to staging
         staging_source = staging_root_table_name
         if source_filter:
             staging_source = f"(SELECT * FROM {staging_root_table_name} WHERE {source_filter})"
-        # the deleted or updated table has no alias, so its qualified name prefixes its columns
-        on_str = cls._gen_key_table_clauses([], key_columns)[0].format(d=table_qualifier, s="s")
-        return f"EXISTS (SELECT 1 FROM {staging_source} s WHERE {on_str})"
+        # the deleted or updated table has no alias, so its qualified name prefixes its columns.
+        # the qualifier may be the bare table name, which a staging alias of the same name shadows
+        alias = "s_" if table_name.casefold() == "s" else "s"
+        on_str = cls._gen_key_table_clauses([], key_columns)[0].format(
+            d=cls.gen_column_qualifier(table_name, sql_client), s=alias
+        )
+        return f"EXISTS (SELECT 1 FROM {staging_source} {alias} WHERE {on_str})"
 
     @classmethod
     def get_merge_conditions(
@@ -512,13 +518,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def gen_merge_partition_clauses(
         cls,
-        table_qualifier: str,
+        table_name: str,
         staging_root_table_name: str,
         merge_keys: Sequence[str],
+        sql_client: SqlClientBase[Any],
         source_filter: Optional[str],
         destination_scope: Optional[str],
     ) -> List[str]:
-        """Generate conditions that select the destination rows that a merge can delete or retire.
+        """Generate conditions that select the rows of the destination table `table_name` that a
+        merge can delete or retire.
 
         `destination_scope` replaces `merge_key`. Returns an empty list when the merge can delete
         or retire rows in the whole table.
@@ -527,7 +535,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             # `merge_key` compiles to a subquery, which prevents partition pruning
             return [destination_scope]
         key_present = cls.gen_merge_key_present_clause(
-            table_qualifier, staging_root_table_name, merge_keys, source_filter
+            table_name, staging_root_table_name, merge_keys, sql_client, source_filter
         )
         return [key_present] if key_present else []
 
@@ -539,13 +547,15 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     @classmethod
     def gen_absent_rows_cond(
         cls,
-        table_qualifier: str,
+        table_name: str,
         staging_root_table_name: str,
         match_columns: Sequence[str],
         partition_clauses: Sequence[str],
+        sql_client: SqlClientBase[Any],
         source_filter: Optional[str] = None,
     ) -> str:
-        """Generate a condition that selects the destination rows absent from the merge source."""
+        """Generate a condition that selects the rows of the destination table `table_name` absent
+        from the merge source."""
         if len(match_columns) == 1:
             # not correlated, so destinations without correlated subqueries accept it
             column = match_columns[0]
@@ -555,7 +565,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             conds = [f"{column} NOT IN ({present})"]
         else:
             exists_cond = cls._gen_keys_exist_in_staging_cond(
-                table_qualifier, staging_root_table_name, match_columns, source_filter
+                table_name, staging_root_table_name, match_columns, sql_client, source_filter
             )
             conds = [f"NOT {exists_cond}"]
         conds.extend(partition_clauses)
@@ -1110,16 +1120,21 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             get_columns_names_with_prop(root_table, "merge_key"), escape_column_id
         )
         source_filter, destination_scope = cls.get_merge_conditions(root_table, sql_client)
-        table_qualifier = cls.gen_column_qualifier(root_table["name"], sql_client)
         partition_clauses = cls.gen_merge_partition_clauses(
-            table_qualifier, staging_root_table_name, merge_keys, source_filter, destination_scope
+            root_table["name"],
+            staging_root_table_name,
+            merge_keys,
+            sql_client,
+            source_filter,
+            destination_scope,
         )
 
         absent_cond = cls.gen_absent_rows_cond(
-            table_qualifier,
+            root_table["name"],
             staging_root_table_name,
             primary_keys,
             partition_clauses,
+            sql_client,
             source_filter=source_filter,
         )
         # nested rows go first: their delete selects them through root rows that still exist
@@ -1403,16 +1418,21 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             get_columns_names_with_prop(root_table, "merge_key"),
             escape_column_id,
         )
-        table_qualifier = cls.gen_column_qualifier(root_table["name"], sql_client)
         partition_clauses = cls.gen_merge_partition_clauses(
-            table_qualifier, staging_root_table_name, merge_keys, source_filter, destination_scope
+            root_table["name"],
+            staging_root_table_name,
+            merge_keys,
+            sql_client,
+            source_filter,
+            destination_scope,
         )
         # `scd2` identifies records by row hash and retires only active records
         retire_cond = cls.gen_absent_rows_cond(
-            table_qualifier,
+            root_table["name"],
             staging_root_table_name,
             [hash_],
             [is_active, *partition_clauses],
+            sql_client,
             source_filter=source_filter,
         )
         # retired and active records can share a row hash

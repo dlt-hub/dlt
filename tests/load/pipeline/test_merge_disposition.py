@@ -2242,6 +2242,8 @@ def test_cdc_composite_primary_key(
         return merge_resource(
             data,
             "cdc",
+            # the staging alias must not shadow the root table
+            name="s",
             primary_key=["region", "id"],
             table_format=destination_config.table_format,
             **options,
@@ -2289,7 +2291,7 @@ def test_cdc_composite_primary_key(
     # the source filter discards (us, 1), so cdc deletes its stored copy although (eu, 1) stays
     if not source_filter:
         expected.append(us_1)
-    rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
+    rows = load_tables_to_dicts(p, "s", exclude_system_cols=True)["s"]
     assert_records_as_set(rows, expected)
 
 
@@ -2676,24 +2678,28 @@ def test_merge_key_source_filter(
     strategy: TLoaderMergeStrategy,
     conditions: Dict[str, str],
 ) -> None:
-    """Seeds four records in three buckets and reloads two of them with `merge_key` on the
-    bucket, a source filter that discards one, and a destination scope. Checks which partitions
-    the merge replaces."""
+    """Seeds five records in four partitions and reloads two of them with a compound `merge_key`
+    on bucket and shard, a source filter that discards one, and a destination scope. Checks which
+    partitions the merge replaces."""
     skip_if_unsupported_merge_strategy(destination_config, strategy)
 
     def events(data: List[StrAny], **options: Any) -> DltSource:
-        return merge_resource(data, strategy, name="events", merge_key="bucket", **options)
+        return merge_resource(
+            data, strategy, name="events", merge_key=["bucket", "shard"], **options
+        )
 
-    # seed four records in the buckets 'old', 'new' and 'mid'
+    # seed five records in the partitions 'old', 'new', 'mid' and ('ne', 'wa')
     p = destination_config.setup_pipeline("merge_key_source_filter", dev_mode=True)
     assert_load_info(
         p.run(
             events(
                 [
-                    {"id": 1, "bucket": "old", "value": 1},
-                    {"id": 2, "bucket": "new", "value": 2},
-                    {"id": 3, "bucket": "new", "value": 3},
-                    {"id": 4, "bucket": "mid", "value": 4},
+                    {"id": 1, "bucket": "old", "shard": "a", "value": 1},
+                    {"id": 2, "bucket": "new", "shard": "a", "value": 2},
+                    {"id": 3, "bucket": "new", "shard": "a", "value": 3},
+                    {"id": 4, "bucket": "mid", "shard": "a", "value": 4},
+                    # concatenated, the key equals the key of partition ('new', 'a')
+                    {"id": 6, "bucket": "ne", "shard": "wa", "value": 6},
                 ]
             ),
             **destination_config.run_kwargs,
@@ -2704,20 +2710,27 @@ def test_merge_key_source_filter(
     assert_load_info(
         p.run(
             events(
-                [{"id": 2, "bucket": "new", "value": 22}, {"id": 5, "bucket": "mid", "value": 1}],
+                [
+                    {"id": 2, "bucket": "new", "shard": "a", "value": 22},
+                    {"id": 5, "bucket": "mid", "shard": "a", "value": 1},
+                ],
                 **conditions,
             ),
             **destination_config.run_kwargs,
         )
     )
 
-    # in all cases the merge replaces partition 'new' and keeps 1 in partition 'old'
-    expected = [{"id": 1, "bucket": "old", "value": 1}, {"id": 2, "bucket": "new", "value": 22}]
+    # in all cases the merge replaces partition 'new' and keeps partitions 'old' and ('ne', 'wa')
+    expected = [
+        {"id": 1, "bucket": "old", "shard": "a", "value": 1},
+        {"id": 2, "bucket": "new", "shard": "a", "value": 22},
+        {"id": 6, "bucket": "ne", "shard": "wa", "value": 6},
+    ]
     if not conditions:
-        expected.append({"id": 5, "bucket": "mid", "value": 1})
+        expected.append({"id": 5, "bucket": "mid", "shard": "a", "value": 1})
     elif "destination_scope" not in conditions:
         # 5 is not in the merge source, so the merge does not replace partition 'mid'
-        expected.append({"id": 4, "bucket": "mid", "value": 4})
+        expected.append({"id": 4, "bucket": "mid", "shard": "a", "value": 4})
     # with the destination scope, the merge deletes partition 'mid' and inserts nothing
     tables = load_tables_to_dicts(p, "events", exclude_system_cols=True)
     assert_records_as_set(tables["events"], expected)

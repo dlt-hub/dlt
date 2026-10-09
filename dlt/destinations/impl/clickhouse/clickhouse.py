@@ -299,9 +299,10 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
     @classmethod
     def gen_merge_key_present_clause(
         cls,
-        table_qualifier: str,
+        table_name: str,
         staging_root_table_name: str,
         merge_keys: Sequence[str],
+        sql_client: SqlClientBase[Any],
         source_filter: Optional[str] = None,
     ) -> Optional[str]:
         # mutations do not support correlated subqueries
