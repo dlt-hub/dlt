@@ -1,6 +1,5 @@
 from functools import partial
-from typing import Any, Dict, Sequence, Tuple, Optional, List, Union, cast
-import operator
+from typing import Any, Dict, Sequence, Tuple, Optional, List, cast
 from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common.typing import TAnyDateTime
@@ -429,27 +428,21 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             return [sa.text(destination_scope)]
         if not merge_keys:
             return []
-        root_merge_key_cols = [root_table_obj.c[key] for key in merge_keys]
-        staging_merge_key_cols = [staging_root_table_obj.c[key] for key in merge_keys]
-        present_keys = sa.select(cls._gen_concat_sqla(staging_merge_key_cols))
-        # only rows of the merge source count as present
+        if len(merge_keys) == 1:
+            key = merge_keys[0]
+            present_keys = sa.select(staging_root_table_obj.c[key])
+            # only rows of the merge source count as present
+            if source_filter:
+                present_keys = present_keys.where(sa.text(source_filter))
+            return [root_table_obj.c[key].in_(present_keys)]
+        # a derived table applies the source filter, so its bare columns resolve only to staging
+        staging_rows: Any = staging_root_table_obj
         if source_filter:
-            present_keys = present_keys.where(sa.text(source_filter))
-        return [cls._gen_concat_sqla(root_merge_key_cols).in_(present_keys)]
-
-    @classmethod
-    def _gen_concat_sqla(
-        cls, columns: Sequence[sa.Column]
-    ) -> Union[sa.sql.elements.BinaryExpression, sa.Column]:
-        # Use col1 + col2 + col3 ... to generate a dialect specific concat expression
-        result = columns[0]
-        if len(columns) == 1:
-            return result
-        # Cast because CONCAT is only generated for string columns
-        result = sa.cast(result, sa.String)
-        for col in columns[1:]:
-            result = operator.add(result, sa.cast(col, sa.String))
-        return result  # type: ignore[no-any-return]
+            staging_rows = (
+                sa.select(staging_root_table_obj).where(sa.text(source_filter)).subquery("s")
+            )
+        key_match = cls._generate_key_table_clauses([], merge_keys, root_table_obj, staging_rows)
+        return [sa.exists(sa.select(sa.literal(1)).select_from(staging_rows).where(key_match))]
 
     @classmethod
     def gen_scd2_sql(
