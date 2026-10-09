@@ -31,6 +31,7 @@ from tests.load.clickhouse.utils import (
     get_create_table_query,
     get_deployment_type,
     get_partition_key,
+    get_primary_key,
     get_sorting_key,
 )
 from tests.load.utils import DestinationTestConfiguration, destinations_configs
@@ -219,6 +220,8 @@ def test_clickhouse_adapter_sort(
     sql_client = cast(ClickHouseSqlClient, pipe.sql_client())
     sorting_key = get_sorting_key(sql_client, table_name=res.name)
     assert sorting_key == expected_sorting_key
+    # without a `primary_key` hint ClickHouse derives the primary index from the sorting key
+    assert get_primary_key(sql_client, table_name=res.name) == expected_sorting_key
 
 
 # NOTE: if you update `test_clickhouse_adapter_partition`, check if the equivalent
