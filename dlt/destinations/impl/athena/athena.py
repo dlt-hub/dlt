@@ -132,22 +132,8 @@ class AthenaMergeJob(SqlMergeFollowupJob):
         return sql, temp_table_name
 
     @classmethod
-    def gen_merge_key_present_clause(
-        cls,
-        table_name: str,
-        staging_root_table_name: str,
-        merge_keys: Sequence[str],
-        sql_client: SqlClientBase[Any],
-        source_filter: Optional[str] = None,
-    ) -> Optional[str]:
-        # Athena does not support correlated subqueries in DML
-        if not merge_keys:
-            return None
-        return cls._gen_keys_in_staging_cond(staging_root_table_name, merge_keys, source_filter)
-
-    @classmethod
-    def requires_temp_table_for_delete(cls) -> bool:
-        return True
+    def supports_alias_in_delete(cls) -> bool:
+        return False
 
 
 class LfTagsManager:

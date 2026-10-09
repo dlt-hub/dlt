@@ -244,6 +244,16 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         A list of clauses may be returned for engines that do not support OR in subqueries. Like BigQuery
         """
         key_clauses = cls._gen_key_table_clauses(primary_keys, merge_keys)
+        if for_delete and not cls.supports_alias_in_delete():
+            # the qualified table names prefix the columns
+            key_cond = " OR ".join(
+                [c.format(d=root_table_name, s=staging_root_table_name) for c in key_clauses]
+            )
+            return [
+                f"FROM {root_table_name} WHERE EXISTS (SELECT 1 FROM"
+                f" {staging_root_table_name} WHERE"
+                f" {cls._gen_staging_rows_cond(key_cond, source_filter)})"
+            ]
         key_cond = " OR ".join([c.format(d="d", s="s") for c in key_clauses])
         # only rows of the merge source match the keys
         return [
@@ -616,6 +626,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         Must be `True` for destinations that don't support correlated subqueries.
         """
         return False
+
+    @classmethod
+    def supports_alias_in_delete(cls) -> bool:
+        """Whether `DELETE FROM` accepts an alias of the deleted table."""
+        return True
 
     @classmethod
     def _escape_list(cls, list_: List[str], escape_id: Callable[[str], str]) -> List[str]:

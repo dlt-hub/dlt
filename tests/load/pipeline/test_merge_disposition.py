@@ -1850,8 +1850,6 @@ def test_merge_arrow(
     """Merges Arrow tables by `primary_key` or by `merge_key` only. Without a primary key there is
     no `_dlt_id`, so destinations that delete through a temp table failed (#2248)."""
     skip_if_unsupported_merge_strategy(destination_config, merge_strategy)
-    if key_hint == "merge_key" and destination_config.destination_type == "athena":
-        pytest.skip("Athena requires _dlt_id for merge (no correlated subquery support)")
     hints: Any = {key_hint: "id"}
 
     @dlt.resource(
