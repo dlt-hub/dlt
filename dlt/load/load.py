@@ -698,6 +698,7 @@ class Load(Runnable[Executor], WithStepInfo[LoadMetrics, LoadInfo]):
                     lambda table_name: True,  # drop all passed tables
                     drop_tables=dropped_tables,
                     truncate_tables=truncated_tables,
+                    truncate_staging_dataset=self.config.truncate_staging_dataset_before_load,
                 )
 
                 # init staging client
