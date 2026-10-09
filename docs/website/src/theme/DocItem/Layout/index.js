@@ -8,7 +8,7 @@ import {
   useDoc,
   useDocsVersion,
 } from '@docusaurus/plugin-content-docs/client';
-import {getSearchSection} from '../../SearchBar/sections';
+import {getSearchSection, SearchWeightContext} from '../../SearchBar/sections';
 import DocItemPaginator from '@theme/DocItem/Paginator';
 import DocVersionBanner from '@theme/DocVersionBanner';
 import DocVersionBadge from '@theme/DocVersionBadge';
@@ -47,10 +47,18 @@ function SearchContent({children}) {
     return children;
   }
   const {section, weight} = getSearchSection(metadata.id);
+  // an explicit weight overrides Pagefind's heading weights for all descendants,
+  // so set it only when needed and let @theme/Heading scale the headings
+  const weighted = weight !== 1;
   return (
-    <div data-pagefind-body="" data-pagefind-weight={String(weight)}>
+    <div
+      data-pagefind-body=""
+      data-pagefind-weight={weighted ? String(weight) : undefined}
+    >
       <meta data-pagefind-filter="section[content]" content={section} />
-      {children}
+      <SearchWeightContext.Provider value={weighted ? weight : null}>
+        {children}
+      </SearchWeightContext.Provider>
     </div>
   );
 }

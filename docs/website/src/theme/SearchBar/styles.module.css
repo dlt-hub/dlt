@@ -15,27 +15,30 @@
   font-size: 0.75rem;
 }
 
-.backdrop {
-  position: fixed;
-  inset: 0;
-  z-index: 1000;
-  display: flex;
-  justify-content: center;
-  align-items: flex-start;
-  padding-top: 8vh;
-  background: var(--docsearch-container-background, rgba(9, 10, 17, 0.6));
-}
-
+/* native <dialog> opened with showModal(): top layer, focus trap, Escape to close */
 .modal {
   width: min(860px, 94vw);
-  max-height: 84vh;
-  overflow-y: auto;
-  padding: 1.25rem;
+  max-width: none;
+  max-height: none;
+  margin: 8vh auto auto;
+  padding: 0;
+  border: none;
   border-radius: 0.75rem;
   /* --ifm-background-color is transparent in light mode, reuse the theme's search modal colors */
   background: var(--docsearch-modal-background, #ffffff);
   color: var(--ifm-font-color-base);
   box-shadow: var(--ifm-global-shadow-tl);
+}
+
+.modal::backdrop {
+  background: var(--docsearch-container-background, rgba(9, 10, 17, 0.6));
+}
+
+/* padding lives here so that clicks on the dialog element itself are backdrop clicks */
+.modalBody {
+  max-height: 84vh;
+  overflow-y: auto;
+  padding: 1.25rem;
 }
 
 .input {

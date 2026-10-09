@@ -85,6 +85,7 @@ function Result({result, onNavigate}) {
 
 function SearchModal({onClose, bundleUrl, baseUrl}) {
   const history = useHistory();
+  const dialogRef = useRef(null);
   const inputRef = useRef(null);
   const pagefindRef = useRef(null);
   const [error, setError] = useState(false);
@@ -96,6 +97,7 @@ function SearchModal({onClose, bundleUrl, baseUrl}) {
   const [shown, setShown] = useState(PAGE_SIZE);
 
   useEffect(() => {
+    dialogRef.current?.showModal();
     inputRef.current?.focus();
     loadPagefind(bundleUrl, baseUrl)
       .then(async (pagefind) => {
@@ -107,16 +109,20 @@ function SearchModal({onClose, bundleUrl, baseUrl}) {
   }, [bundleUrl, baseUrl]);
 
   const enabled = useMemo(() => sections.filter((s) => !disabled.has(s)), [sections, disabled]);
+  // an index built without section tags has no sections: don't filter
+  const filters = useMemo(
+    () => (sections.length > 0 ? {section: {any: enabled}} : {}),
+    [sections, enabled],
+  );
+  const canSearch = query.trim() !== '' && (sections.length === 0 || enabled.length > 0);
 
   // Run the search when query or toggles change
   useEffect(() => {
     const pagefind = pagefindRef.current;
-    if (!pagefind || !query.trim() || (sections.length > 0 && enabled.length === 0)) {
+    if (!pagefind || !canSearch) {
       setSearch(null);
       return;
     }
-    // an index built without section tags has no sections: don't filter
-    const filters = sections.length > 0 ? {section: {any: enabled}} : {};
     let cancelled = false;
     pagefind
       .debouncedSearch(query, {filters}, 150)
@@ -130,7 +136,7 @@ function SearchModal({onClose, bundleUrl, baseUrl}) {
     return () => {
       cancelled = true;
     };
-  }, [query, enabled, sections]);
+  }, [query, filters, canSearch]);
 
   // Load data of the visible results only
   useEffect(() => {
@@ -182,10 +188,18 @@ function SearchModal({onClose, bundleUrl, baseUrl}) {
     [history, onClose],
   );
 
-  const onKeyDown = (e) => {
-    if (e.key === 'Enter' && results[0]) {
+  // Search the current query directly: the shown results may predate the debounce
+  const onKeyDown = async (e) => {
+    const pagefind = pagefindRef.current;
+    if (e.key !== 'Enter' || !pagefind || !canSearch) {
+      return;
+    }
+    e.preventDefault();
+    const top = (await pagefind.search(query, {filters}))?.results[0];
+    if (top) {
+      const data = await top.data();
       onClose();
-      history.push(results[0].url);
+      history.push(stripHtml(data.url));
     }
   };
 
@@ -193,59 +207,68 @@ function SearchModal({onClose, bundleUrl, baseUrl}) {
   const counts = search?.totalFilters?.section ?? {};
 
   return (
-    <div className={styles.modal} role="dialog" aria-label="Search">
-      <input
-        ref={inputRef}
-        className={styles.input}
-        type="search"
-        placeholder="Search docs"
-        value={query}
-        onChange={(e) => setQuery(e.target.value)}
-        onKeyDown={onKeyDown}
-      />
-      {sections.length > 0 && (
-        <div className={styles.toggles} title="Alt+click: show only this section">
-          {sections.map((section) => (
-            <button
-              key={section}
-              type="button"
-              aria-pressed={!disabled.has(section)}
-              className={clsx(styles.toggle, !disabled.has(section) && styles.toggleOn)}
-              onClick={(e) => toggleSection(section, e.altKey)}
-            >
-              {section}
-              {search && <span className={styles.count}>{counts[section] ?? 0}</span>}
-            </button>
+    // biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes the dialog natively
+    <dialog
+      ref={dialogRef}
+      className={styles.modal}
+      aria-label="Search"
+      onClose={onClose}
+      onClick={(e) => e.target === e.currentTarget && onClose()}
+    >
+      <div className={styles.modalBody}>
+        <input
+          ref={inputRef}
+          className={styles.input}
+          type="search"
+          placeholder="Search docs"
+          value={query}
+          onChange={(e) => setQuery(e.target.value)}
+          onKeyDown={onKeyDown}
+        />
+        {sections.length > 0 && (
+          <div className={styles.toggles} title="Alt+click: show only this section">
+            {sections.map((section) => (
+              <button
+                key={section}
+                type="button"
+                aria-pressed={!disabled.has(section)}
+                className={clsx(styles.toggle, !disabled.has(section) && styles.toggleOn)}
+                onClick={(e) => toggleSection(section, e.altKey)}
+              >
+                {section}
+                {search && <span className={styles.count}>{counts[section] ?? 0}</span>}
+              </button>
+            ))}
+          </div>
+        )}
+        {error && (
+          <p>
+            Search index not found. Run <code>make search-index</code> (in <code>docs/</code>)
+            to build it, then restart the dev server.
+          </p>
+        )}
+        {query.trim() && sections.length > 0 && enabled.length === 0 && (
+          <p className={styles.summary}>All sections are hidden, enable one above.</p>
+        )}
+        {search && (
+          <p className={styles.summary}>
+            {search.results.length} results
+            {search.unfilteredResultCount > search.results.length &&
+              ` (${search.unfilteredResultCount - search.results.length} more in hidden sections)`}
+          </p>
+        )}
+        <ul className={styles.results}>
+          {results.map((result) => (
+            <Result key={result.url} result={result} onNavigate={onNavigate} />
           ))}
-        </div>
-      )}
-      {error && (
-        <p>
-          Search index not found. Run <code>make search-index</code> (in <code>docs/</code>)
-          to build it, then restart the dev server.
-        </p>
-      )}
-      {query.trim() && sections.length > 0 && enabled.length === 0 && (
-        <p className={styles.summary}>All sections are hidden, enable one above.</p>
-      )}
-      {search && (
-        <p className={styles.summary}>
-          {search.results.length} results
-          {search.unfilteredResultCount > search.results.length &&
-            ` (${search.unfilteredResultCount - search.results.length} more in hidden sections)`}
-        </p>
-      )}
-      <ul className={styles.results}>
-        {results.map((result) => (
-          <Result key={result.url} result={result} onNavigate={onNavigate} />
-        ))}
-      </ul>
-      {search && shown < search.results.length && (
-        <button type="button" className={styles.more} onClick={() => setShown(shown + PAGE_SIZE)}>
-          Load more results
-        </button>
-      )}
-    </div>
+        </ul>
+        {search && shown < search.results.length && (
+          <button type="button" className={styles.more} onClick={() => setShown(shown + PAGE_SIZE)}>
+            Load more results
+          </button>
+        )}
+      </div>
+    </dialog>
   );
 }
 
@@ -255,14 +278,12 @@ export default function SearchBar() {
   const bundleUrl = useBaseUrl('/pagefind/');
   const close = useCallback(() => setOpen(false), []);
 
-  // Cmd/Ctrl+K to open, Escape to close
+  // Cmd/Ctrl+K to open, the dialog handles Escape
   useEffect(() => {
     const onKeyDown = (e) => {
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setOpen(true);
-      } else if (e.key === 'Escape') {
-        setOpen(false);
       }
     };
     window.addEventListener('keydown', onKeyDown);
@@ -275,12 +296,7 @@ export default function SearchBar() {
         <span>Search</span>
         <kbd className={styles.kbd}>⌘K</kbd>
       </button>
-      {open && (
-        // biome-ignore lint/a11y/useKeyWithClickEvents: Escape closes the modal
-        <div className={styles.backdrop} onClick={(e) => e.target === e.currentTarget && close()}>
-          <SearchModal onClose={close} bundleUrl={bundleUrl} baseUrl={baseUrl} />
-        </div>
-      )}
+      {open && <SearchModal onClose={close} bundleUrl={bundleUrl} baseUrl={baseUrl} />}
     </>
   );
 }

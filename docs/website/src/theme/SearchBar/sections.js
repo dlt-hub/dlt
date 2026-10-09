@@ -6,6 +6,7 @@
  *
  * Rules are matched in order against the doc id (path under docs_processed).
  */
+import {createContext} from 'react';
 const SECTION_RULES = [
   {prefix: 'api_reference/', section: 'API reference', weight: 0.3},
   {prefix: 'release-notes/', section: 'Release notes', weight: 0.3},
@@ -26,6 +27,17 @@ export const SECTION_ORDER = [
   'API reference',
   'Release notes',
 ];
+
+// Pagefind default heading weights, body text is 1. An explicit weight on a parent
+// element replaces them, so headings in weighted pages get scaled explicitly.
+const HEADING_WEIGHTS = {h1: 7, h2: 6, h3: 5, h4: 4, h5: 3, h6: 2};
+
+// weight of the doc page being rendered, null when not weighted or not indexed
+export const SearchWeightContext = createContext(null);
+
+export function headingWeight(pageWeight, tag) {
+  return pageWeight * (HEADING_WEIGHTS[tag] ?? 1);
+}
 
 export function getSearchSection(docId) {
   return SECTION_RULES.find((r) => docId.startsWith(r.prefix)) ?? DEFAULT_SECTION;
