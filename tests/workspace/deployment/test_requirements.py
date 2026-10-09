@@ -4,7 +4,7 @@ import re
 import subprocess
 import sys
 from pathlib import Path
-from typing import Dict, List, Set, get_args
+from typing import Dict, List, Literal, Set, get_args
 from unittest.mock import patch
 
 import pytest
@@ -44,8 +44,13 @@ from dlt._workspace.deployment.requirements import (
     python_version,
     save_requirements,
     _collect_package_names,
+    _expand_implied_names,
 )
-from dlt._workspace.deployment.typing import DASHBOARD_JOB_REF, TFlooredPackage
+from dlt._workspace.deployment.typing import (
+    DASHBOARD_JOB_REF,
+    TFlooredPackage,
+    TWorkspaceRequirementsManifest,
+)
 
 from tests.workspace.utils import isolated_workspace
 
@@ -54,6 +59,16 @@ _SHUTIL_WHICH = "dlt._workspace.deployment.requirements.shutil.which"
 _REQUIRES = "dlt._workspace.deployment.requirements.importlib.metadata.requires"
 _HUB = "dlt[hub]"
 _S3_NAMES = ["botocore", "s3fs"]
+
+TDepsSource = Literal[
+    "requirements-txt-verbatim",
+    "requirements-txt-compiled",
+    "requirements-in-verbatim",
+    "requirements-in-compiled",
+    "pyproject-declared",
+    "pyproject-locked",
+]
+"""How a workspace's dependencies reach the export: as written, or resolved by uv."""
 
 
 def _names(specs: List[str]) -> List[str]:
@@ -329,16 +344,16 @@ def test_launcher_requirements_shape() -> None:
         LAUNCHER_DASHBOARD,
         LAUNCHER_AGENT,
     }
-    # every launcher gets dlt's hub extra
+    # every launcher gets dlt's hub extra, so dlthub follows whichever dlt resolves
     for specs in lreq.values():
         assert _HUB in specs
+        assert not {"dlthub", "dlthub-client"} & set(_names(specs))
         assert specs == sorted(specs)
     # dlt itself is NOT in the bare launcher dict — it's injected conditionally
     # by export_workspace_requirements / default_requirements_manifest
-    assert sorted(lreq[LAUNCHER_JOB]) == sorted(dlt_extra_specs("s3") + [_HUB])
-    assert sorted(lreq[LAUNCHER_MODULE]) == sorted(dlt_extra_specs("s3") + [_HUB])
-    # loop packages live in agent-loop-* groups, not here
-    assert sorted(lreq[LAUNCHER_AGENT]) == sorted(dlt_extra_specs("s3") + [_HUB])
+    for launcher in (LAUNCHER_JOB, LAUNCHER_MODULE, LAUNCHER_AGENT):
+        # loop packages live in agent-loop-* groups, not here
+        assert lreq[launcher] == sorted(dlt_extra_specs("s3") + [_HUB])
     assert _names(lreq[LAUNCHER_MARIMO]) == ["dlt", "marimo", "uvicorn"]
     assert _names(lreq[LAUNCHER_MCP]) == ["dlt", "fastmcp", "uvicorn"]
     assert _names(lreq[LAUNCHER_STREAMLIT]) == ["dlt", "streamlit"]
@@ -482,7 +497,9 @@ def test_contains_package_name_normalization(spec: str, needle: str, expected: b
         ("", {"s3fs"}, True),
         ("# comment", {"s3fs"}, True),
         ("dlt[hub]", {"dlt"}, True),
+        ("dlt[hub]", {"dlt", "dlthub"}, True),
         ("dlt[hub]", {"dlt", "dlt[hub]"}, False),
+        ("dlt[hub]", {"dlthub", "dlthub-client"}, False),
     ],
     ids=[
         "bare-name",
@@ -496,7 +513,9 @@ def test_contains_package_name_normalization(spec: str, needle: str, expected: b
         "empty-line",
         "comment-line",
         "dlt-extra-kept-by-plain-dlt",
+        "dlt-extra-kept-by-part-of-its-packages",
         "dlt-extra-pruned-by-its-token",
+        "dlt-extra-pruned-by-all-its-packages",
     ],
 )
 def test_prune_specs_normalization(spec: str, names: Set[str], kept: bool) -> None:
@@ -582,33 +601,122 @@ def test_collect_package_names_extras_tokens(spec: str, expected: Set[str]) -> N
     assert _collect_package_names([spec]) == expected
 
 
-@pytest.mark.parametrize(
-    "spec, hub_added, pruned, dlt_injected",
-    [
-        ("dlt[hub]>=1.0", False, set(), False),
-        ("dlthub>=0.1", True, set(), True),
-        ("dlt>=1.0", True, set(), False),
-        ("s3fs>=2024.1", True, {"s3fs", "botocore"}, True),
-    ],
-    ids=["dlt-hub-extra", "dlthub-alone", "plain-dlt", "s3fs-implies-botocore"],
-)
-def test_export_prunes_implied_packages(
-    spec: str, hub_added: bool, pruned: Set[str], dlt_injected: bool
-) -> None:
-    """Only the workspace's own `dlt[hub]` prunes ours; s3fs pulls botocore."""
+def _export_declaring(specs: List[str], source: TDepsSource) -> TWorkspaceRequirementsManifest:
+    """Exports a workspace whose main dependencies are `specs`, read from `source`."""
     with isolated_workspace("deps_none") as ctx:
-        Path(ctx.run_dir, "requirements.txt").write_text(f"{spec}\n")
-        with patch(_SHUTIL_WHICH, return_value=None):
-            result = export_workspace_requirements(Path(ctx.run_dir))
-    job_specs = result["launcher_requirements"][LAUNCHER_JOB]
-    assert (_HUB in job_specs) is hub_added
-    job_names = _names(job_specs)
-    for name in pruned:
-        assert name not in job_names
-    for name in set(_S3_NAMES) - pruned:
-        assert name in job_names
-    has_dlt = get_dlt_requirement_spec() in job_specs
-    assert has_dlt is dlt_injected
+        run_dir = Path(ctx.run_dir)
+        if source in ("pyproject-declared", "pyproject-locked"):
+            deps = ", ".join(f'"{s}"' for s in specs)
+            (run_dir / "pyproject.toml").write_text(
+                '[project]\nname = "deps-case"\nversion = "0.0.1"\n'
+                f'requires-python = ">={python_version()}"\ndependencies = [{deps}]\n'
+            )
+            if source == "pyproject-locked":
+                _uv_lock(ctx.run_dir)
+        else:
+            file_name = (
+                "requirements.in" if source.startswith("requirements-in") else "requirements.txt"
+            )
+            (run_dir / file_name).write_text("".join(f"{s}\n" for s in specs))
+        if source.endswith("-verbatim"):
+            with patch(_SHUTIL_WHICH, return_value=None):
+                return export_workspace_requirements(run_dir)
+        return export_workspace_requirements(run_dir)
+
+
+def _installed_keys(specs: List[str]) -> Set[str]:
+    """Package names in `specs`, plus a `name[extra]` key per declared extra."""
+    keys: Set[str] = set()
+    for s in specs:
+        req = Requirement(s)
+        keys.add(req.name)
+        keys.update(f"{req.name}[{extra}]" for extra in req.extras)
+    return keys
+
+
+def _added_key(spec: str) -> str:
+    req = Requirement(spec)
+    return f"{req.name}[{','.join(sorted(req.extras))}]" if req.name == "dlt" else req.name
+
+
+@pytest.mark.parametrize("source", get_args(TDepsSource))
+@pytest.mark.parametrize(
+    "specs, covered, dlt_injected",
+    [
+        (["requests>=2.0"], set(), True),
+        (["dlt>=1.0"], set(), False),
+        (["dlt[hub]>=1.0"], {_HUB}, False),
+        (["dlthub"], set(), True),
+        (["dlthub", "dlthub-client"], {_HUB}, True),
+        (["dlt[s3]>=1.0"], {"botocore", "s3fs"}, False),
+        (["dlt[filesystem]>=1.0"], {"botocore", "s3fs"}, False),
+        (["s3fs>=2024.1"], {"botocore", "s3fs"}, True),
+        (["dlt[hub,s3]>=1.0"], {_HUB, "botocore", "s3fs"}, False),
+        (["pydantic-ai>=2.33.0"], {"pydantic-ai-slim"}, True),
+        (["marimo>=0.14.5"], {"marimo", "uvicorn"}, True),
+    ],
+    ids=[
+        "unrelated",
+        "plain-dlt",
+        "dlt-hub-extra",
+        "dlthub-alone",
+        "dlthub-and-client",
+        "dlt-s3-extra",
+        "dlt-filesystem-extra",
+        "s3fs-pulls-botocore",
+        "dlt-hub-and-s3-extras",
+        "pydantic-ai-meta-package",
+        "marimo-pulls-uvicorn",
+    ],
+)
+def test_export_adds_only_what_the_default_group_lacks(
+    specs: List[str], covered: Set[str], dlt_injected: bool, source: TDepsSource
+) -> None:
+    """Every spec we add is skipped when the workspace covers it, however its deps are exported.
+
+    Resolved sources flatten extras into separate packages and add transitive ones, so a spec is
+    also skipped when the exported main group lists its package.
+    """
+    result = _export_declaring(specs, source)
+    main = result["groups"][MAIN_GROUP]
+    # precondition: uv-resolved sources pin every spec and flatten extras; the others keep them
+    as_written = source.endswith("-verbatim") or source == "pyproject-declared"
+    assert all((s in main) is as_written for s in specs)
+    assert all(("==" in s and not Requirement(s).extras) is not as_written for s in main)
+
+    installed = _installed_keys(main)
+    built = {
+        **build_launcher_requirements(),
+        DASHBOARD_JOB_REF: build_dashboard_group(),
+        **build_agent_loop_groups(),
+    }
+    exported = {**result["groups"], **result["launcher_requirements"]}
+    dlt_spec = get_dlt_requirement_spec()
+    for name, ours in built.items():
+        expected = [s for s in ours if _added_key(s) not in covered | installed]
+        assert [s for s in exported[name] if s != dlt_spec] == expected, name
+    for launcher_specs in result["launcher_requirements"].values():
+        assert (dlt_spec in launcher_specs) is dlt_injected
+
+
+@pytest.mark.parametrize(
+    "names, implied",
+    [
+        ({"dlt", "dlt[hub]"}, {"dlthub", "dlthub-client"}),
+        ({"dlt", "dlt[s3]"}, {"botocore", "s3fs"}),
+        ({"dlt", "dlt[not-an-extra]"}, set()),
+        ({"s3fs"}, {"botocore"}),
+        ({"pydantic-ai"}, {"pydantic-ai-slim"}),
+        ({"dlt"}, set()),
+    ],
+    ids=["dlt-hub-extra", "dlt-s3-extra", "unknown-dlt-extra", "s3fs", "pydantic-ai", "plain-dlt"],
+)
+def test_expand_implied_names_adds_what_installed_packages_pull_in(
+    names: Set[str], implied: Set[str]
+) -> None:
+    expanded = set(names)
+    _expand_implied_names(expanded)
+    assert expanded - names == implied
 
 
 def test_export_scaffolded_workspace_prunes_all_launcher_specs() -> None:
@@ -647,24 +755,32 @@ def test_every_floored_package_has_a_floor() -> None:
     assert set(_FLOORS) == set(get_args(TFlooredPackage))
 
 
-def test_every_added_spec_has_a_lower_bound() -> None:
-    """An unbounded spec lets a conflict walk the resolver back to an ancient release.
-
-    A dlt extra counts as bounded: the installed dlt bounds every package in it.
-    """
-    added = [
+def _all_added_specs() -> List[str]:
+    return [
         *(s for specs in build_launcher_requirements().values() for s in specs),
         *build_dashboard_group(),
         *(s for specs in build_agent_loop_groups().values() for s in specs),
     ]
+
+
+def test_every_added_spec_has_a_lower_bound() -> None:
+    """An unbounded spec lets a conflict walk the resolver back to an ancient release.
+
+    A dlt extra counts as bounded: the dlt that resolves bounds every package in it.
+    """
     unbounded = []
-    for s in added:
+    for s in _all_added_specs():
         req = Requirement(s)
-        if req.name == "dlt" and req.extras:
+        if req.name == "dlt" and req.extras and not req.specifier:
             continue
         if not any(c.operator in (">=", ">", "==", "~=") for c in req.specifier):
             unbounded.append(s)
     assert unbounded == []
+
+
+def test_no_added_spec_opts_into_prereleases() -> None:
+    """A direct spec naming a prerelease makes uv install prereleases of that package."""
+    assert [s for s in _all_added_specs() if Requirement(s).specifier.prereleases] == []
 
 
 def test_dlt_extra_specs_carry_the_bounds_dlt_declares() -> None:
@@ -724,7 +840,7 @@ def test_dlt_extra_specs_select_the_extra_and_drop_markers(
 
 def test_dlt_extra_specs_reject_an_extra_the_installed_dlt_does_not_declare() -> None:
     with patch(_REQUIRES, return_value=['gcsfs>=2022 ; extra == "gs"', "requests>=2"]):
-        with pytest.raises(ValueError, match="no `s3` extra"):
+        with pytest.raises(WorkspaceRequirementsError, match="no `s3` extra"):
             dlt_extra_specs("s3")
 
 
