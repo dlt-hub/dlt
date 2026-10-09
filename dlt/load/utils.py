@@ -78,6 +78,7 @@ def init_client(
     drop_staging_filter: Callable[[TTableSchema], bool],
     drop_tables: Optional[List[TTableSchema]] = None,
     truncate_tables: Optional[List[TTableSchema]] = None,
+    truncate_staging_dataset: bool = True,
 ) -> Tuple[TSchemaTables, Set[str], Set[str]]:
     """Initializes destination storage including staging dataset if supported
 
@@ -93,6 +94,7 @@ def init_client(
         drop_staging_filter (Callable[[str], bool]): A filter which tell if table may be dropped
         drop_tables (Optional[List[TTableSchema]]): List of tables to drop before initializing storage
         truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
+        truncate_staging_dataset (bool): If `False`, staging tables with jobs are not truncated
 
     Returns:
         Tuple[TSchemaTables, Set[str], Set[str]]: Actual migrations done at destination and the
@@ -173,7 +175,10 @@ def init_client(
                         job_client,
                         expected_update,
                         all_staging_tables | {schema.version_table_name},
-                        truncate_tables=staging_tables_with_jobs,  # only truncate tables with jobs in this load
+                        # only truncate tables with jobs in this load
+                        truncate_tables=(
+                            staging_tables_with_jobs if truncate_staging_dataset else None
+                        ),
                         staging_info=True,
                         drop_tables=drop_table_names,  # try to drop all the same tables on staging
                     )

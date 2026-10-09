@@ -4772,6 +4772,31 @@ def test_staging_dataset_truncate(truncate) -> None:
             assert len(cur.fetchall()) == 3
 
 
+@pytest.mark.parametrize("truncate", (True, False), ids=("truncate", "keep"))
+def test_staging_dataset_truncate_before_load(truncate: bool) -> None:
+    dlt.config["truncate_staging_dataset_before_load"] = truncate
+
+    @dlt.resource(write_disposition="merge", primary_key="id")
+    def test_data(ids: List[int]):
+        yield [{"field": i, "id": i} for i in ids]
+
+    pipeline = dlt.pipeline(
+        pipeline_name="test_staging_kept",
+        destination="duckdb",
+        dev_mode=True,
+    )
+    assert_load_info(pipeline.run(test_data([1, 2, 3]), table_name="staging_kept"))
+    assert_load_info(pipeline.run(test_data([4, 5]), table_name="staging_kept"))
+
+    with pipeline.sql_client() as client:
+        staging_ids = client.execute_sql(
+            f"SELECT id FROM {pipeline.dataset_name}_staging.staging_kept ORDER BY id"
+        )
+        # without truncation, the staging table keeps the records of the first load
+        assert [r[0] for r in staging_ids] == ([4, 5] if truncate else [1, 2, 3, 4, 5])
+        assert len(client.execute_sql(f"SELECT * FROM {pipeline.dataset_name}.staging_kept")) == 5
+
+
 def test_change_naming_convention_name_collision() -> None:
     duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
     caps = duck_.capabilities()

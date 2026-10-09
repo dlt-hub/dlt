@@ -42,6 +42,19 @@ If you prefer to truncate it, put the following line in `config.toml`:
 truncate_staging_dataset=true
 ```
 
+### Keep the staging tables when the load begins
+
+When the load step begins, `dlt` truncates the staging tables that receive data. To keep the data of earlier loads in these tables, put the following line in `config.toml`:
+
+```toml
+[load]
+truncate_staging_dataset_before_load=false
+```
+
+:::caution
+Use this setting only if you limit the merge to the records of the current load, for example with a [source filter](../general-usage/merge-loading.md#merge-conditions). `dlt` merges or copies the whole staging table into the destination table. Without a limit, `dlt` loads the records of earlier loads again.
+:::
+
 :::warning
 When configuring a custom staging dataset naming pattern, ensure that the resulting staging dataset name differs from the final dataset name. If the pattern results in identical names, dlt will raise a `ValueError` to alert you that the pattern must be adjusted. This prevents potential data loss from setup commands accidentally truncating the final dataset instead of the staging dataset.
 
