@@ -107,9 +107,10 @@ def main():
         env["DLT_SMOKE_DB_PATH"] = db_path
         # use 2 normalize workers to exercise spawn pool inside Airflow (#3586)
         env["NORMALIZE__WORKERS"] = "2"
+        env["RUNTIME__LOG_OUTPUT"] = "propagate"
+        env["RUNTIME__LOG_LEVEL"] = "INFO"
         scheduler_env = env.copy()
         scheduler_env["AIRFLOW__LOGGING__LOGGING_LEVEL"] = "INFO"
-        scheduler_env["RUNTIME__LOG_LEVEL"] = "INFO"
 
         print("=== Initializing Airflow DB ===")
         try:
@@ -209,8 +210,7 @@ def main():
 
         print("=== Verifying results ===")
         verify(db_path)
-        if env.get("RUNTIME__LOG_OUTPUT", "").lower() == "propagate":
-            verify_log_levels(airflow_home, run_id)
+        verify_log_levels(airflow_home, run_id)
         print("\nSmoke test PASSED")
 
     finally:
