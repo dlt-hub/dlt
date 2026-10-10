@@ -1,10 +1,11 @@
 """CLI prompting and output helpers."""
 
 import io
+import os
+import re
 import sys
 import contextlib
-from typing import Any, Dict, Iterable, Iterator, Optional, Tuple, ContextManager
-import click
+from typing import Any, Dict, Iterable, Iterator, List, Optional, Tuple, ContextManager
 
 ALWAYS_CHOOSE_DEFAULT = False
 ALWAYS_CHOOSE_VALUE: Any = None
@@ -160,29 +161,96 @@ def maybe_no_stdin() -> ContextManager[None]:
     )
 
 
-echo = click.echo
-secho = click.secho
-style = click.style
+_ANSI_ESCAPE_RE = re.compile(r"\033\[[0-9;]*m")
+
+_ANSI_FG_CODES: Dict[str, int] = {
+    "black": 30,
+    "red": 31,
+    "green": 32,
+    "yellow": 33,
+    "blue": 34,
+    "magenta": 35,
+    "cyan": 36,
+    "white": 37,
+}
+
+
+def _isatty(stream: Any) -> bool:
+    try:
+        return bool(stream.isatty())
+    except Exception:
+        return False
+
+
+def _should_strip_ansi(file: Any) -> bool:
+    """Mirrors click's auto-detection: colors are stripped unless the target is a real
+    terminal, `FORCE_COLOR` is set, or overridden off entirely by `NO_COLOR`."""
+    if os.environ.get("NO_COLOR") is not None:
+        return True
+    if os.environ.get("FORCE_COLOR") is not None:
+        return False
+    return not _isatty(file)
+
+
+def style(text: str, fg: Optional[str] = None, bold: bool = False, reset: bool = True) -> str:
+    """Wraps `text` in ANSI SGR codes. Unlike `echo`/`secho`, this always embeds the codes;
+    stripping (when output is not a terminal) happens at `echo` time, matching click."""
+    codes: List[str] = []
+    if fg is not None and fg in _ANSI_FG_CODES:
+        codes.append(str(_ANSI_FG_CODES[fg]))
+    if bold:
+        codes.append("1")
+    if not codes:
+        return text
+    prefix = "\033[" + ";".join(codes) + "m"
+    return prefix + text + ("\033[0m" if reset else "")
+
+
+def echo(message: Any = None, file: Any = None, nl: bool = True, err: bool = False) -> None:
+    out = file if file is not None else (sys.stderr if err else sys.stdout)
+    text = "" if message is None else str(message)
+    if _should_strip_ansi(out):
+        text = _ANSI_ESCAPE_RE.sub("", text)
+    out.write(text)
+    if nl:
+        out.write("\n")
+    try:
+        out.flush()
+    except Exception:
+        pass
+
+
+def secho(
+    message: Any = None,
+    file: Any = None,
+    nl: bool = True,
+    err: bool = False,
+    fg: Optional[str] = None,
+    bold: bool = False,
+) -> None:
+    if message is not None:
+        message = style(str(message), fg=fg, bold=bold)
+    echo(message, file=file, nl=nl, err=err)
 
 
 def bold(msg: str) -> str:
-    return click.style(msg, bold=True, reset=False) + click.style("", bold=False, reset=False)
+    return style(msg, bold=True, reset=False) + style("", bold=False, reset=False)
 
 
 def warning_style(msg: str) -> str:
-    return click.style(msg, fg="yellow", reset=True)
+    return style(msg, fg="yellow", reset=True)
 
 
 def error(msg: str) -> None:
-    click.secho("ERROR: " + msg, fg="red")
+    secho("ERROR: " + msg, fg="red")
 
 
 def warning(msg: str) -> None:
-    click.secho("WARNING: " + msg, fg="yellow")
+    secho("WARNING: " + msg, fg="yellow")
 
 
 def note(msg: str) -> None:
-    click.secho("NOTE: " + msg, fg="green")
+    secho("NOTE: " + msg, fg="green")
 
 
 def _raise_no_default(text: str) -> None:
@@ -206,7 +274,18 @@ def confirm(text: str, default: Optional[bool] = None) -> bool:
         if default is None:
             _raise_no_default(text)
         return default
-    return click.confirm(text, default=default)
+    suffix = "[y/n]" if default is None else ("[Y/n]" if default else "[y/N]")
+    while True:
+        answer = input("%s %s: " % (text, suffix)).strip().lower()
+        if not answer:
+            if default is not None:
+                return default
+            continue
+        if answer in ("y", "yes"):
+            return True
+        if answer in ("n", "no"):
+            return False
+        echo('Error: %s is not a valid boolean, choose from "y", "n"' % answer, err=True)
 
 
 def prompt(
@@ -223,14 +302,23 @@ def prompt(
         if default is None:
             _raise_no_default(text)
         return default
-    click_choices = click.Choice(choices)
-    return click.prompt(
-        text,
-        type=click_choices,
-        default=default,
-        show_choices=show_choices,
-        show_default=show_default,
-    )
+    choices = list(choices)
+    prompt_text = text
+    if show_choices:
+        prompt_text += " (%s)" % ", ".join(choices)
+    if show_default and default is not None:
+        prompt_text += " [%s]" % default
+    prompt_text += ": "
+    while True:
+        answer = input(prompt_text).strip()
+        if not answer and default is not None:
+            return default
+        if answer in choices:
+            return answer
+        echo(
+            "Error: %r is not one of %s." % (answer, ", ".join(repr(c) for c in choices)),
+            err=True,
+        )
 
 
 def text_input(text: str, default: str = None) -> str:
@@ -240,4 +328,11 @@ def text_input(text: str, default: str = None) -> str:
         if default is None:
             _raise_no_default(text)
         return default
-    return click.prompt(text, default=default)  # type: ignore[no-any-return]
+    prompt_text = text if default is None else "%s [%s]" % (text, default)
+    prompt_text += ": "
+    while True:
+        answer = input(prompt_text)
+        if answer:
+            return answer
+        if default is not None:
+            return default
