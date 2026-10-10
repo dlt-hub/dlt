@@ -155,6 +155,42 @@ def test_relation_columns_match_execution(
         assert relation.arrow().schema.names == expected_columns
 
 
+@pytest.mark.parametrize(
+    "query,expected_columns",
+    [
+        ("SELECT item_id, name FROM items", ["item_id", "name"]),
+        ("SELECT col_unknown FROM table_unknown", ["col_unknown"]),
+        # a `*` over an unknown table cannot be expanded
+        ("SELECT * FROM table_unknown", []),
+    ],
+    ids=["known_table", "unknown_table_unqualified_column", "unknown_table_star"],
+)
+@pytest.mark.parametrize("execute_raw_query", [True, False], ids=["raw", "partial"])
+def test_relation_partial_lineage(
+    multi_schema_dataset: dlt.Dataset,
+    query: str,
+    expected_columns: Any,
+    execute_raw_query: bool,
+) -> None:
+    # a raw query implies partial lineage
+    relation = multi_schema_dataset(
+        query,
+        _execute_raw_query=execute_raw_query,
+        _allow_partial_lineage=not execute_raw_query,
+    )
+    assert relation.columns == expected_columns
+
+    # relations derived from the relation keep both modes
+    derived = relation.limit(1)
+    assert derived._allow_partial_lineage is True
+    assert derived._execute_raw_query is execute_raw_query
+    assert derived.columns == expected_columns
+    if execute_raw_query:
+        assert derived.to_sql() == derived.sqlglot_expression.sql(
+            dialect=derived.destination_dialect
+        )
+
+
 def test_relation_lineage_computed_once(tmp_path: pathlib.Path, mocker: Any) -> None:
     pipeline = dlt.pipeline(
         "relation_lineage",
@@ -181,6 +217,13 @@ def test_relation_lineage_computed_once(tmp_path: pathlib.Path, mocker: Any) -> 
     assert "value" in relation.columns
     assert lineage_spy.call_count == 2
     assert sqlglot_schema_spy.call_count == 2
+
+    # a raw query executes without lineage, its columns compute it on request
+    raw_relation = dataset("SELECT * FROM items", _execute_raw_query=True)
+    raw_relation.fetchall()
+    assert lineage_spy.call_count == 2
+    assert raw_relation.columns == ["id", "_dlt_load_id", "_dlt_id", "value"]
+    assert lineage_spy.call_count == 3
 
 
 def test_cross_dataset_relation_lineage_follows_foreign_schema(

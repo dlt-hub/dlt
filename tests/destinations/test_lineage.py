@@ -205,6 +205,72 @@ def test_compute_columns_schema(
 
 
 @pytest.mark.parametrize(
+    "sql_query,expected_dlt_schema",
+    [
+        (QUERY_UNKNOWN_TABLE_AND_COLUMN_SELECT, {"col_unknown": {"name": "col_unknown"}}),
+        (QUERY_KNOWN_TABLE_AND_UNKNOWN_COLUM_SELECT, {"col_unknown": {"name": "col_unknown"}}),
+        (
+            "SELECT col_varchar, col_unknown FROM table_1",
+            {
+                "col_varchar": {"name": "col_varchar", "data_type": "text"},
+                "col_unknown": {"name": "col_unknown"},
+            },
+        ),
+        (QUERY_UNKNOWN_TABLE_STAR_SELECT, {}),
+        # the `*` of the unknown table is skipped, other columns are kept
+        (
+            "SELECT *, 1 AS x FROM table_unknown",
+            {"x": {"name": "x", "data_type": "bigint"}},
+        ),
+        # sqlglot does not expand a `*` when any of the joined tables is unknown
+        (QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_SELECT, {}),
+        (
+            QUERY_KNOWN_AND_UNKNOWN_JOIN_STAR_ON_KNOW_TABLE_SELECT,
+            {
+                "col_varchar": {"name": "col_varchar", "data_type": "text"},
+                "col_bool": {"name": "col_bool", "data_type": "bool"},
+                "col_unknown_1": {"name": "col_unknown_1"},
+            },
+        ),
+        # resolvable queries give the same columns as in strict mode
+        (
+            QUERY_KNOWN_TABLE_STAR_SELECT,
+            {
+                "col_varchar": {"name": "col_varchar", "data_type": "text"},
+                "col_bool": {"name": "col_bool", "data_type": "bool"},
+            },
+        ),
+        (QUERY_DROP, LineageFailedException()),
+    ],
+    ids=[
+        "unknown_table_unqualified_column",
+        "known_table_unknown_column",
+        "known_and_unknown_column",
+        "unknown_table_star",
+        "unknown_table_star_and_literal",
+        "known_and_unknown_join_star",
+        "known_table_star_with_unknown_table_column",
+        "known_table_star",
+        "drop",
+    ],
+)
+def test_compute_columns_schema_partial(
+    sqlglot_schema: SQLGlotSchema,
+    sql_query: str,
+    expected_dlt_schema: Union[TTableSchemaColumns, Exception],
+) -> None:
+    expression = sqlglot.parse_one(sql_query)
+    if isinstance(expected_dlt_schema, Exception):
+        with pytest.raises(LineageFailedException):
+            lineage.compute_columns_schema(expression, sqlglot_schema, DIALECT, allow_partial=True)
+    else:
+        columns, _ = lineage.compute_columns_schema(
+            expression, sqlglot_schema, DIALECT, allow_partial=True
+        )
+        assert columns == expected_dlt_schema
+
+
+@pytest.mark.parametrize(
     "names_ref",
     (
         "tests.common.cases.normalizers.sql_upper",

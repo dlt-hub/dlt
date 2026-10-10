@@ -85,6 +85,7 @@ def compute_columns_schema(
     expression: sge.Expression,
     sqlglot_schema: SQLGlotSchema,
     dialect: TSqlGlotDialect,
+    allow_partial: bool = False,
 ) -> Tuple[TTableSchemaColumns, sge.Query]:
     """Compute the dlt columns schema of the output of an SQL SELECT query. No case-folding or
     quoting is performed on the query.
@@ -98,6 +99,8 @@ def compute_columns_schema(
         sqlglot_schema (SQLGlotSchema): Schema of the tables the query reads, as created by
             `create_sqlglot_schema`. Provides column types and dlt column hints.
         dialect (TSqlGlotDialect): SQLGlot dialect used to qualify the query.
+        allow_partial (bool): If True, columns that cannot be resolved have no `data_type` and a
+            `*` over a table unknown to `sqlglot_schema` is skipped.
 
     Returns:
         Tuple[TTableSchemaColumns, sge.Query]: The dlt columns schema of the query output, keyed
@@ -105,8 +108,8 @@ def compute_columns_schema(
             stars expanded and every projection aliased.
 
     Raises:
-        LineageFailedException: If the query is not a SELECT, a column cannot be resolved or a `*`
-            selects from a table unknown to `sqlglot_schema`.
+        LineageFailedException: If the query is not a SELECT or, unless `allow_partial` is set,
+            a column cannot be resolved or a `*` selects from a table unknown to `sqlglot_schema`.
     """
     if not isinstance(expression, sge.Query):
         raise LineageFailedException(
@@ -128,6 +131,8 @@ def compute_columns_schema(
                 dialect=f"{dialect}, normalization_strategy=case_sensitive" if dialect else None,
                 quote_identifiers=False,
                 expand_stars=True,
+                # keeps columns that cannot be tied to a table instead of raising
+                validate_qualify_columns=not allow_partial,
             ),
         )
     except (OptimizeError, SchemaError) as e:
@@ -140,6 +145,8 @@ def compute_columns_schema(
     dlt_table_schema: dict[str, TColumnSchema] = {}
     for col in select_expression.selects:
         if col.output_name == "*":
+            if allow_partial:
+                continue
             raise LineageFailedException(
                 "SELECT statement includes a `*` selection that can't be resolved. Modify the"
                 " query to select columns explicitly or limit `*` to known tables (e.g., `SELECT"

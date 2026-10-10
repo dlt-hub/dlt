@@ -151,6 +151,7 @@ class Relation(WithSqlClient):
         query: Union[str, sge.Query],
         query_dialect: Optional[str] = None,
         _execute_raw_query: bool = False,
+        _allow_partial_lineage: bool = False,
     ) -> None: ...
 
     @overload
@@ -169,6 +170,7 @@ class Relation(WithSqlClient):
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
         _execute_raw_query: bool = False,
+        _allow_partial_lineage: bool = False,
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
         if table_name is None and query is None:
@@ -182,6 +184,8 @@ class Relation(WithSqlClient):
         self._query_dialect = query_dialect
         self._table_name = table_name
         self._execute_raw_query: bool = _execute_raw_query
+        # a raw query never executes the qualified query so its lineage may be partial
+        self._allow_partial_lineage: bool = _allow_partial_lineage or _execute_raw_query
 
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
@@ -238,12 +242,9 @@ class Relation(WithSqlClient):
         already exists.
 
         Raises:
-            LineageFailedException: If the relation is not a SELECT statement or a column cannot be
-                resolved against the schemas of its datasets.
+            LineageFailedException: If the relation is not a SELECT statement or, unless lineage
+                may be partial, a column cannot be resolved against the schemas of its datasets.
         """
-        # a raw query has no columns schema
-        if self._execute_raw_query:
-            return {"columns": {}}
         # TODO use lineage features to propagate table-level dlt annotations
         return {"columns": self._lineage().columns}
 
@@ -304,7 +305,8 @@ class Relation(WithSqlClient):
         """Gets a DBApiCursor for the current relation"""
         try:
             client = self._opened_sql_client = self.sql_client
-            columns_schema = self.columns_schema
+            # a raw query executes without lineage
+            columns_schema = None if self._execute_raw_query else self.columns_schema
             # the columns schema and the SQL need no open connection, so both run before this
             # relation borrows a connection
             query = self.to_sql()
@@ -1150,7 +1152,12 @@ class Relation(WithSqlClient):
         return simple_repr("dlt.Relation", **without_none(kwargs))
 
     def __copy__(self) -> Self:
-        rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+        rel = self.__class__(
+            dataset=self._dataset,
+            query=self.sqlglot_expression,
+            _execute_raw_query=self._execute_raw_query,
+            _allow_partial_lineage=self._allow_partial_lineage,
+        )
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
         rel._foreign_datasets = dict(self._foreign_datasets)
@@ -1183,6 +1190,7 @@ class Relation(WithSqlClient):
                 self.sqlglot_expression,
                 sqlglot_schema,
                 dialect=self.destination_dialect,
+                allow_partial=self._allow_partial_lineage,
             )
             self._lineage_cache = _RelationLineage(key, sqlglot_schema, columns, qualified_query)
         return self._lineage_cache
