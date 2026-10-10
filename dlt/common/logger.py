@@ -87,7 +87,7 @@ class _MetricsFormatter(logging.Formatter):
         return s
 
 
-class _DltStreamHandler(logging.StreamHandler):
+class _DltStreamHandler(logging.StreamHandler):  # type: ignore[type-arg]
     """Identify dlt-owned handlers when switching to propagation."""
 
 
