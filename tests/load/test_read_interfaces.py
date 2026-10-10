@@ -548,35 +548,33 @@ def test_sql_queries(populated_pipeline: Pipeline) -> None:
         populated_pipeline.dataset()(query, _execute_raw_query=True).df()
     assert "Must be an SQL SELECT statement" in str(exc2.value)
 
-    # we only test the following for duckdb
-    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
-        return
-
-    # test various query stages
+    # the raw and the qualified query are in the dlt schema identifier space on every destination
     # raw query has no aliases
     assert (
         join_relationship.sqlglot_expression.sql("duckdb").replace(dataset_name, "dataset_name")
         == "SELECT i.id, di.double_id FROM dataset_name.items AS i JOIN dataset_name.double_items"
         " AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
     )
-
-    # TODO move these tests to the `dlt.destination.queries::normalize_query()`
-    # TODO modify `dlt.dataset.lineage::compute_columns_schema()` to return the normalized query instead of a tuple
     # qualified query has aliases
-    # assert (
-    #     join_relationship._qualified_query.sql("duckdb").replace(dataset_name, "dataset_name")
-    #     == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
-    #     " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
-    # )
+    assert (
+        join_relationship._lineage()
+        .qualified_query.sql("duckdb")
+        .replace(dataset_name, "dataset_name")
+        == "SELECT i.id AS id, di.double_id AS double_id FROM dataset_name.items AS i JOIN"
+        " dataset_name.double_items AS di ON (i.id = di.id) WHERE i.id < 20 ORDER BY i.id ASC"
+    )
 
-    # TODO move these tests to the `dlt.destination.queries::normalize_query()`
-    # normalized has quoted indentifiers
-    # assert (
-    #     join_relationship._normalized_query.sql("duckdb").replace(dataset_name, "dataset_name")
-    #     == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
-    #     ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
-    #     ' "i"."id" < 20 ORDER BY "i"."id" ASC'
-    # )
+    # the bound query depends on the destination identifiers and dialect
+    if populated_pipeline.destination.destination_type != "dlt.destinations.duckdb":
+        return
+
+    # bound query has quoted identifiers
+    assert (
+        join_relationship.to_sql().replace(dataset_name, "dataset_name")
+        == 'SELECT "i"."id" AS "id", "di"."double_id" AS "double_id" FROM "dataset_name"."items" AS'
+        ' "i" JOIN "dataset_name"."double_items" AS "di" ON ("i"."id" = "di"."id") WHERE'
+        ' "i"."id" < 20 ORDER BY "i"."id" ASC'
+    )
 
 
 @pytest.mark.no_load
