@@ -18,6 +18,7 @@ from datetime import datetime, timezone  # noqa: I251
 
 import dlt
 from dlt.common import logger
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.configuration.specs import (
     BaseConfiguration,
     ConnectionStringCredentials,
@@ -39,7 +40,6 @@ from dlt.common.typing import (
     TSortOrder,
     add_value_to_literal,
 )
-from dlt.common.jsonpath import extract_simple_field_name
 from dlt.common.utils import is_typeerror_due_to_wrong_call
 
 from dlt.extract import Incremental
@@ -136,7 +136,7 @@ class BaseTableLoader(ABC):
         self.incremental = incremental
         self.limit = limit
         if incremental:
-            column_name = extract_simple_field_name(incremental.cursor_path)
+            column_name = incremental.get_cursor_column_name()
 
             if column_name is None:
                 raise ValueError(
@@ -151,8 +151,7 @@ class BaseTableLoader(ABC):
                     f"Cursor column `{incremental.cursor_path}` does not exist in table"
                     f" `{table.name}`"
                 ) from e
-            self.last_value = incremental.last_value
-            self.end_value = incremental.end_value
+            self.last_value, self.end_value = incremental.get_current_range()
             self.row_order: TSortOrder = self.incremental.row_order
             self.on_cursor_value_missing = self.incremental.on_cursor_value_missing
             self.range_start = self.incremental.range_start
@@ -717,26 +716,39 @@ class SqlTableResourceConfiguration(BaseConfiguration):
 class OracleUTCTimestamp(TypeDecorator):
     """Oracle TIMESTAMP WITH (LOCAL) TIME ZONE read as a UTC instant."""
 
-    impl = sqltypes.TIMESTAMP
+    impl = ORACLE_TIMESTAMP
     cache_ok = True
 
-    def __init__(self) -> None:
-        # SYS_EXTRACT_UTC makes the value an instant in UTC, which is tz-aware
+    def __init__(self, local_timezone: bool = False) -> None:
         super().__init__(timezone=True)
+        self.local_timezone = local_timezone
 
     def column_expression(self, colexpr: Any) -> Any:
         # `oracledb` returns naive datetimes that are not the instant: WITH TIME ZONE drops the
         # stored offset, WITH LOCAL TIME ZONE arrives in the database (thin) or session (thick)
-        # time zone, and values stored with a region name fail with DPY-3022 / ORA-01805
-        return sa.func.sys_extract_utc(colexpr, type_=sqltypes.TIMESTAMP())
+        # time zone, and values stored with a region name fail with DPY-3022 / ORA-01805.
+        # `type_=self` keeps `process_result_value` on the result column
+        return sa.func.sys_extract_utc(colexpr, type_=self)
 
     def bind_expression(self, bindvalue: Any) -> Any:
         # a naive bound value is compared in the session time zone, anchor it to UTC instead
-        return sa.func.from_tz(sa.cast(bindvalue, sqltypes.TIMESTAMP()), "+00:00")
+        value = sa.func.from_tz(sa.cast(bindvalue, sqltypes.TIMESTAMP()), "+00:00")
+        if self.local_timezone:
+            # matching the column type lets Oracle use an index on it. SQLAlchemy 2.0+ only, as is
+            # reflecting LOCAL TIME ZONE
+            value = sa.cast(value, ORACLE_TIMESTAMP(local_timezone=True))  # type: ignore[call-arg]
+        return value
 
     def process_bind_param(self, value: Any, dialect: Any) -> Any:
-        if isinstance(value, datetime) and value.tzinfo is not None:
-            return value.astimezone(timezone.utc).replace(tzinfo=None)
+        if isinstance(value, datetime):
+            # a naive value is in the context timezone, as everywhere else in `dlt`
+            return ensure_datetime_in_tz(value).astimezone(timezone.utc).replace(tzinfo=None)
+        return value
+
+    def process_result_value(self, value: Any, dialect: Any) -> Any:
+        # SYS_EXTRACT_UTC returns a naive UTC instant, `dlt` would read it in the context timezone
+        if isinstance(value, datetime) and value.tzinfo is None:
+            return value.replace(tzinfo=timezone.utc)
         return value
 
     def literal_processor(self, dialect: Any) -> Any:
@@ -772,10 +784,10 @@ def _oracle_column_reflect_listener(
         )
     # zoned types only. SYS_EXTRACT_UTC shifts a plain TIMESTAMP by the session offset and
     # rejects DATE with ORA-30175, and Oracle DATE is a SQLAlchemy DateTime subclass
-    elif isinstance(column_type, ORACLE_TIMESTAMP) and (
-        column_type.timezone or getattr(column_type, "local_timezone", False)
-    ):
-        column_info["type"] = OracleUTCTimestamp()
+    elif isinstance(column_type, ORACLE_TIMESTAMP):
+        local_timezone = getattr(column_type, "local_timezone", False)
+        if column_type.timezone or local_timezone:
+            column_info["type"] = OracleUTCTimestamp(local_timezone=local_timezone)
 
 
 def default_engine_adapter_callback(engine: Engine, metadata: MetaData) -> None:

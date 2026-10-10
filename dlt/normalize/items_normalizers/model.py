@@ -2,6 +2,7 @@ from typing import List, Optional
 
 import sqlglot
 
+from dlt.common import logger
 from dlt.common.destination.client import SqlModel
 from dlt.common.libs.sqlglot import (
     TSqlGlotDialect,
@@ -152,9 +153,24 @@ class ModelItemsNormalizer(ItemsNormalizer):
             schema_updates.append(dlt_col_update)
 
         if needs_reordering:
+            table_columns = self.schema.get_table_columns(root_table_name)
+            # incomplete columns have no data type, so the destination table cannot hold them
+            known_columns = {name.lower() for name in table_columns}
+            dropped_columns = [
+                select.alias
+                for select in outer_parsed_select.selects
+                if select.alias.lower() not in known_columns
+            ]
+            if dropped_columns:
+                logger.warning(
+                    f"Columns {dropped_columns} selected by the model of table `{root_table_name}`"
+                    f" in schema `{self.schema.name}` are not loaded because their data type is"
+                    " unknown. Cast them in the query or set their data type with the `columns`"
+                    " hint."
+                )
             reorder_or_adjust_outer_select(
                 outer_parsed_select,
-                self.schema.get_table_columns(root_table_name),
+                table_columns,
                 self._normalize_casefold,
                 self.schema.name,
                 root_table_name,

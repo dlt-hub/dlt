@@ -11,7 +11,7 @@ from dlt._workspace.helpers.dashboard.utils.queries import (
 )
 from tests.workspace.helpers.dashboard.example_pipelines import (
     PIPELINES_WITH_LOAD,
-    SUCCESS_PIPELINE_DUCKDB,
+    SUCCESS_PIPELINE_FILESYSTEM,
 )
 
 
@@ -27,11 +27,9 @@ def test_get_query_result(pipeline: dlt.Pipeline):
     if pipeline.pipeline_name in PIPELINES_WITH_LOAD:
         assert isinstance(result, pyarrow.Table)
         assert len(result) == 1
-        assert (
-            result[0][0].as_py() == 100
-            if pipeline.pipeline_name == SUCCESS_PIPELINE_DUCKDB
-            else 103
-        )  #  merge does not work on filesystem
+        # merge does not work on filesystem
+        expected_count = 103 if pipeline.pipeline_name == SUCCESS_PIPELINE_FILESYSTEM else 100
+        assert result[0][0].as_py() == expected_count
     else:
         assert len(result) == 0
         assert error_message

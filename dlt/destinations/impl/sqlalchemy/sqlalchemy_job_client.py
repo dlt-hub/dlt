@@ -1,11 +1,12 @@
 from typing import Iterable, Optional, Sequence, List, Tuple
 from contextlib import suppress
 
+from datetime import datetime, timezone
+
 from dlt.common.libs.sql_alchemy import sa
 
 from dlt.common.json import json
 from dlt.common import logger
-from dlt.common import pendulum
 from dlt.common.destination.client import (
     JobClientBase,
     LoadJob,
@@ -161,7 +162,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
 
     def complete_load(self, load_id: str) -> None:
         loads_table = self._to_table_object(self.schema.tables[self.schema.loads_table_name])  # type: ignore[arg-type]
-        now_ts = pendulum.now()
+        now_ts = datetime.now(timezone.utc)
         self.sql_client.execute_sql(
             loads_table.insert().values(
                 (
@@ -278,7 +279,7 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
             schema_name=schema.name,
             version_hash=schema.stored_version_hash,
             schema=schema_str,
-            inserted_at=pendulum.now(),
+            inserted_at=datetime.now(timezone.utc),
         ).to_normalized_mapping(schema.naming)
 
         self.sql_client.execute_sql(table_obj.insert().values(schema_mapping))

@@ -18,7 +18,11 @@ import sqlglot.expressions as sge
 from sqlglot.expressions import DataType, DATA_TYPE
 from sqlglot.optimizer.scope import build_scope
 
-from dlt.common.time import DEFAULT_TIMESTAMP_PRECISION
+from dlt.common.time import (
+    DEFAULT_TIMESTAMP_PRECISION,
+    ensure_date,
+    ensure_datetime_in_tz,
+)
 from dlt.common.utils import without_none
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.schema.typing import TColumnType, TDataType, TColumnSchema, TTableSchemaColumns
@@ -120,6 +124,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     DataType.Type.BOOLEAN: "bool",
     # UNKNOWN
     DataType.Type.UNKNOWN: None,
+    # older sqlglot types a `NULL` literal as `NULL`, newer as `UNKNOWN`
+    DataType.Type.NULL: None,
 }
 
 # these types were introduced after our sqlglot minimum version of 23.6.3
@@ -205,7 +211,7 @@ def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
         sqlglot_type = sge.DataType.build(sqlglot_type)
     assert isinstance(sqlglot_type, sge.DataType)
 
-    # only the `DataType.UNKNOWN` will produce `dlt_type=None`
+    # only `DataType.UNKNOWN` and `DataType.NULL` produce `dlt_type=None`
     dlt_type = SQLGLOT_TO_DLT_TYPE_MAP.get(sqlglot_type.this, "text")
 
     if dlt_type == "bigint":
@@ -685,6 +691,12 @@ def resolve_timestamp_cast(
     # `dlt.common.destination`, which imports this module at load time
     from dlt.common.data_writers.escape import format_datetime_value
 
+    # coerce date / ISO-string bounds in the context timezone; real datetimes carry their own
+    if lower is not None and not isinstance(lower, datetime):
+        lower = ensure_datetime_in_tz(lower)
+    if upper is not None and not isinstance(upper, datetime):
+        upper = ensure_datetime_in_tz(upper)
+
     dialect = caps.sqlglot_dialect if caps is not None else None
     precision = caps.timestamp_precision if caps is not None else DEFAULT_TIMESTAMP_PRECISION
 
@@ -700,8 +712,8 @@ def resolve_timestamp_cast(
 
     # naive cast when destination can't store tz-aware (dremio, athena) or its
     # tz-aware CAST rejects offset literals (clickhouse via the `_in_cast`
-    # override); sqlite emits no cast, but its literal still needs UTC-naive
-    # form to match TEXT-affinity column storage
+    # override); sqlite emits no cast, but its literal still needs the naive
+    # context wall clock to match TEXT-affinity column storage
     if timezone and caps is not None:
         cast_tz_ok = (
             caps.supports_tz_aware_datetime_in_cast
@@ -737,6 +749,24 @@ def resolve_timestamp_cast(
         sqlglot_type = None
 
     return sqlglot_type, lower, upper
+
+
+def resolve_date_cast(lower: Any, upper: Any) -> Tuple[Any, Any]:
+    """Coerce date bounds to stdlib dates so DATE literals render without a time component.
+
+    Args:
+        lower (Any): Lower bound; a datetime / date / ISO-string is reduced to its calendar date,
+            `None` passes through.
+        upper (Any): Upper bound; same handling as `lower`.
+
+    Returns:
+        Tuple[Any, Any]: `(lower, upper)` as stdlib `datetime.date` (or `None`).
+    """
+    if lower is not None:
+        lower = ensure_date(lower)
+    if upper is not None:
+        upper = ensure_date(upper)
+    return lower, upper
 
 
 DLT_SUBQUERY_NAME = "_dlt_subquery"
@@ -1103,7 +1133,7 @@ def bind_query(
     if is_casefolding:
         orig_selects = {}
         for i, proj in enumerate(qualified_query.selects):
-            orig_selects[i] = proj.name or proj.args["alias"].name
+            orig_selects[i] = proj.output_name
 
     # case-fold overrides for identifiers that belong to a dataset, recorded at the parent
     # table or column (the walk visits a parent first and its mutated children after)

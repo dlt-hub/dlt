@@ -21,7 +21,8 @@ from tests.load.sources.sql_database.utils import assert_incremental_chunks
 from tests.pipeline.utils import assert_load_info, assert_schema_on_data, load_tables_to_dicts
 
 import dlt
-from dlt.common.time import ensure_datetime_utc, ensure_pendulum_datetime_utc
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.utils import uniq_id
 from dlt.common.incremental.typing import TIncrementalRange
 
@@ -81,14 +82,9 @@ def test_all_data_types(
     ntz_flag = reflection_level == "minimal"
     assert table["columns"]["some_timestamp_ntz"].get("timezone", True) is ntz_flag
 
-    # both zoned columns hold the same instants, stored at different offsets per row
     rows = load_tables_to_dicts(pipeline, "app_user")["app_user"]
-    instants = {
-        col: [ensure_pendulum_datetime_utc(row[col]) for row in rows]
-        for col in ("some_timestamp_tz", "some_timestamp_ltz")
-    }
-    assert instants["some_timestamp_tz"] == instants["some_timestamp_ltz"]
-    assert len(set(instants["some_timestamp_tz"])) == len(rows)
+    for col in ("some_timestamp_tz", "some_timestamp_ltz", "some_timestamp_ntz"):
+        _assert_loaded_source_values(oracle_db, "app_user", rows, col, table["columns"][col])
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
@@ -111,7 +107,7 @@ def test_sql_table_incremental_datetime_ntz(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             "some_timestamp_ntz",
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00").naive(),
+            initial_value=datetime(1999, 1, 1),
             row_order="asc",
             range_start="open",
         ),
@@ -148,7 +144,7 @@ def test_sql_table_incremental_datetime_tz_aware(
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
             cursor,
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            initial_value=datetime(1999, 1, 1, tzinfo=timezone.utc),
             row_order="asc",
             range_start="open",
         ),
@@ -157,15 +153,11 @@ def test_sql_table_incremental_datetime_tz_aware(
 
     pipeline = make_pipeline("duckdb")
     rc = oracle_db.table_infos["app_user"]["row_count"]
-    # incremental keeps the raw value, and `oracledb` never returns a tz-aware datetime. only the
-    # pyarrow backend makes it aware, by applying the reflected timezone hint while building the
-    # arrow table
-    aware = backend == "pyarrow" and reflection_level != "minimal"
     assert_incremental_chunks(
         pipeline,
         table,
         cursor,
-        timezone=aware,
+        timezone=True,
         row_count=rc,
         cursor_values=_cursor_values(oracle_db, cursor),
     )
@@ -188,7 +180,7 @@ def test_sql_table_incremental_datetime_tz_aware_session_zone(
         backend=backend,
         incremental=dlt.sources.incremental(
             cursor,
-            initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
+            initial_value=datetime(1999, 1, 1, tzinfo=timezone.utc),
             row_order="asc",
             range_start="open",
         ),
@@ -201,7 +193,7 @@ def test_sql_table_incremental_datetime_tz_aware_session_zone(
         pipeline,
         table,
         cursor,
-        timezone=backend == "pyarrow",
+        timezone=True,
         row_count=rc,
         cursor_values=_cursor_values(oracle_db, cursor),
     )
@@ -269,17 +261,50 @@ def test_zoned_timestamps_load(
 
     rows = load_tables_to_dicts(pipeline, "tz_probe")["tz_probe"]
     for col in TZ_PROBE_COLUMNS:
-        source = oracle_db.tz_probe_source(col)
         # Oracle agrees with Python on what was written
-        assert oracle_db.tz_probe_expected(col) == source, col
-        # naive values are UTC in dlt, compare everything as naive UTC
-        actual = {
-            int(row["id"]): (
-                None if row[col] is None else ensure_datetime_utc(row[col]).replace(tzinfo=None)
-            )
-            for row in rows
-        }
-        assert actual == source, col
+        assert oracle_db.tz_probe_expected(col) == oracle_db.tz_probe_source(col), col
+        _assert_loaded_source_values(oracle_db, "tz_probe", rows, col, columns[col])
+
+
+@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas"])
+@pytest.mark.parametrize(
+    "context_tz", ["UTC", "Europe/Warsaw", "America/Los_Angeles", "Asia/Kolkata"]
+)
+def test_zoned_timestamps_context_timezone(
+    oracle_db: OracleSourceDB, backend: TableBackend, context_tz: str
+) -> None:
+    """Zoned values keep their instant and naive values their wall clock in any context timezone."""
+    with Container().injectable_context(TimezoneContext(context_tz)):
+        pipeline = make_pipeline("duckdb")
+        table = sql_table(
+            credentials=oracle_db.credentials,
+            table="tz_probe",
+            schema=oracle_db.schema,
+            backend=backend,
+        )
+        assert_load_info(pipeline.run(table))
+        rows = load_tables_to_dicts(pipeline, "tz_probe")["tz_probe"]
+        columns = pipeline.default_schema.tables["tz_probe"]["columns"]
+        for col in TZ_PROBE_COLUMNS:
+            _assert_loaded_source_values(oracle_db, "tz_probe", rows, col, columns[col])
+
+        cursor = "some_timestamp_tz"
+        app_user = sql_table(
+            credentials=oracle_db.credentials,
+            table="app_user",
+            schema=oracle_db.schema,
+            backend=backend,
+            incremental=dlt.sources.incremental(cursor, row_order="asc", range_start="open"),
+            chunk_size=10,
+        )
+        assert_incremental_chunks(
+            make_pipeline("duckdb"),
+            app_user,
+            cursor,
+            timezone=True,
+            row_count=oracle_db.table_infos["app_user"]["row_count"],
+            cursor_values=_cursor_values(oracle_db, cursor),
+        )
 
 
 @pytest.mark.parametrize(
@@ -352,6 +377,27 @@ def test_oracledb_zoned_reads(oracle_db: OracleSourceDB, session_zone: Optional[
                 conn.execute(current_timestamp).fetchall()
         else:
             conn.execute(current_timestamp).fetchall()
+
+
+def _assert_loaded_source_values(
+    oracle_db: OracleSourceDB,
+    table: str,
+    rows: List[Dict[str, Any]],
+    col: str,
+    column: TColumnSchema,
+) -> None:
+    """Compares loaded `col` to the source values without normalizing them.
+
+    Aware values compare by instant, naive by wall clock and naive never equals aware. A naive
+    source value is expected aware in UTC only when the loaded column has `timezone`.
+    """
+    source = oracle_db.table_infos[table]["rows"]
+    aware = column.get("timezone", True)
+    for row in rows:
+        expected = source[int(row["id"])][col]
+        if expected is not None and expected.tzinfo is None and aware:
+            expected = expected.replace(tzinfo=timezone.utc)
+        assert row[col] == expected, (col, row["id"], row[col], expected)
 
 
 def _cursor_values(oracle_db: OracleSourceDB, cursor: str) -> List[datetime]:

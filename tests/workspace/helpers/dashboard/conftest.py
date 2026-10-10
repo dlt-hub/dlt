@@ -8,6 +8,7 @@ from dlt._workspace.helpers.dashboard import strings
 
 from tests.workspace.helpers.dashboard.example_pipelines import (
     create_success_pipeline_duckdb,
+    create_success_pipeline_duckdb_casefold,
     create_success_pipeline_filesystem,
     create_extract_exception_pipeline,
     create_normalize_exception_pipeline,
@@ -58,6 +59,18 @@ def success_pipeline_duckdb():
         db_conn = duckdb.connect()
         try:
             yield create_success_pipeline_duckdb(temp_dir, db_conn=db_conn)
+        finally:
+            db_conn.close()
+
+
+@pytest.fixture
+def success_pipeline_duckdb_casefold():
+    with tempfile.TemporaryDirectory() as temp_dir:
+        import duckdb
+
+        db_conn = duckdb.connect()
+        try:
+            yield create_success_pipeline_duckdb_casefold(temp_dir, db_conn=db_conn)
         finally:
             db_conn.close()
 

@@ -20,7 +20,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     parse_toml_mcp,
     redact_toml_document,
     redact_value,
-    safe_write_text,
+    safe_write_bytes,
     fetch_workbench_toolkits,
     strip_rule_frontmatter,
     wrap_as_skill,
@@ -299,34 +299,35 @@ def test_extract_toolkit_info_missing_fields() -> None:
         extract_toolkit_info({"name": "tk", "description": "ok", "version": ""}, "tk")
 
 
-def test_safe_write_text_creates_file() -> None:
+def test_safe_write_bytes_creates_file() -> None:
     dest = Path("output") / "test.txt"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_text(dest, "hello")
-    assert dest.read_text(encoding="utf-8") == "hello"
+    # newlines are written as given, so the bytes match a hash taken before writing
+    safe_write_bytes(dest, b"hello\nworld\n")
+    assert dest.read_bytes() == b"hello\nworld\n"
 
 
-def test_safe_write_text_overwrites_existing() -> None:
+def test_safe_write_bytes_overwrites_existing() -> None:
     dest = Path("output") / "test2.txt"
     dest.parent.mkdir(parents=True, exist_ok=True)
     dest.write_text("old", encoding="utf-8")
-    safe_write_text(dest, "new")
-    assert dest.read_text(encoding="utf-8") == "new"
+    safe_write_bytes(dest, b"new")
+    assert dest.read_bytes() == b"new"
 
 
-def test_safe_write_text_no_tmp_file_left() -> None:
+def test_safe_write_bytes_no_tmp_file_left() -> None:
     dest = Path("output") / "test3.txt"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_text(dest, "content")
+    safe_write_bytes(dest, b"content")
     assert not list(dest.parent.glob("*.tmp"))
 
 
-def test_safe_write_text_cleanup_on_failure() -> None:
+def test_safe_write_bytes_cleanup_on_failure() -> None:
     """Temp file is cleaned up if os.replace fails."""
     dest = Path("output") / "sub" / "test4.txt"
     dest.parent.mkdir(parents=True, exist_ok=True)
-    safe_write_text(dest, "ok")
-    assert dest.read_text(encoding="utf-8") == "ok"
+    safe_write_bytes(dest, b"ok")
+    assert dest.read_bytes() == b"ok"
 
 
 def _make_settings(project_root: Path, with_config: bool = False) -> str:

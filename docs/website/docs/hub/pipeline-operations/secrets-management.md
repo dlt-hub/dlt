@@ -3,7 +3,6 @@ title: Secrets management
 description: How dltHub handles your secrets, and how to manage them safely in production with vaults and access controls.
 keywords: [secrets, secrets management, vault, encryption, google secret manager, credentials, hub, dltHub]
 ---
-
 # Secrets management
 
 Pipelines deployed to dltHub need access to credentials (warehouse passwords, API keys, tokens) at run time. This page explains how dltHub handles those secrets for you, and the options you have for managing them yourself in production.
@@ -81,7 +80,7 @@ uv run dlthub run my_job
 
 If your vault, or the warehouse it holds credentials for, supports IP allowlisting, restrict it so it only accepts traffic from your dltHub runners. Opt in per job by adding `require={"static_egress_ips": True}` to the job's `@run.pipeline` decorator:
 
-```py
+```py notype
 @run.pipeline(my_pipeline, require={"static_egress_ips": True})
 def my_job():
     ...
@@ -98,4 +97,5 @@ A built-in dltHub vault is on the roadmap, so you'll be able to manage secrets n
 - [Adding credentials](../../walkthroughs/add_credentials.md): general guide to dlt credentials.
 - [Vaults](../../general-usage/credentials/vaults.md): OSS reference for vault providers.
 - [Profiles](profiles.md): how `dev`, `prod`, and `access` profiles separate environments.
+- [Environment variables](environment-variables.md): workspace- and profile-scoped process environment for platform runs.
 - [Static egress IPs](job-configuration.md#static-egress-ips): pin job outbound traffic to known IPs for vault and destination allowlisting.

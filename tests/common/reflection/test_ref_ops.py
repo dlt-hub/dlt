@@ -1,10 +1,13 @@
+import os
+from pathlib import Path
 from typing import Iterator
 import pytest
 import sys
 
-from dlt.common.reflection.ref import object_from_ref, callable_typechecker
+from dlt.common.reflection.ref import callable_typechecker, import_folder_module, object_from_ref
+from dlt.common.storages import FileStorage
 from dlt.extract.reference import SourceFactory, SourceReference
-from tests.utils import auto_unload_modules
+from tests.utils import auto_unload_modules, test_storage
 
 
 @pytest.fixture(autouse=True)
@@ -151,3 +154,34 @@ def test_ref_import() -> None:
     # typechecker may modify attr. source typechecker can extract factory from standalone function
     r_, _ = object_from_ref("regular_mod.r", SourceReference._factory_typechecker)
     assert isinstance(r_, SourceFactory)
+
+
+def test_import_folder_module(test_storage: FileStorage) -> None:
+    # the folder is named like an installed package: it imports under the given package instead
+    test_storage.create_folder("json")
+    folder = Path(test_storage.make_full_path("json"))
+    (folder / "helpers.py").write_text("VALUE = 1\n")
+    (folder / "agent.py").write_text("from .helpers import VALUE\nCALLS = [VALUE]\n")
+    package = "_test_folder_pkg"
+    try:
+        module = import_folder_module(str(folder), "agent", package)
+        assert module.CALLS == [1]
+        assert module.__name__ == f"{package}.agent"
+        assert sys.modules[f"{package}.helpers"].VALUE == 1
+
+        # changed code: served from the cache unless reloaded
+        (folder / "helpers.py").write_text("VALUE = 2\n")
+        # same size, maybe same mtime: move the mtime so the cached bytecode is not reused
+        os.utime(folder / "helpers.py", (0, 0))
+        assert import_folder_module(str(folder), "agent", package) is module
+        reloaded = import_folder_module(str(folder), "agent", package, reload=True)
+        assert reloaded.CALLS == [2]
+
+        # a module that fails to run is not left behind
+        (folder / "broken.py").write_text("raise RuntimeError('boom')\n")
+        with pytest.raises(RuntimeError):
+            import_folder_module(str(folder), "broken", package, reload=True)
+        assert f"{package}.broken" not in sys.modules
+    finally:
+        for name in [n for n in sys.modules if n.startswith(package)]:
+            del sys.modules[name]

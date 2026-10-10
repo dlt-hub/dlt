@@ -1,7 +1,5 @@
 from datetime import datetime  # noqa: I251
 from typing import Any, Optional, Set, Tuple, List, Type, TYPE_CHECKING
-from pendulum.tz import UTC
-from pendulum import DateTime  # noqa: I251
 
 from dlt.common import logger
 from dlt.common.libs import (
@@ -9,9 +7,7 @@ from dlt.common.libs import (
     is_pandas_frame,
     is_polars_frame,
 )
-from dlt.common.utils import digest128
-from dlt.common.json import json
-from dlt.common.pendulum import create_dt, pendulum
+from dlt.common.time import ensure_datetime_in_tz, normalize_timezone
 from dlt.common.typing import TDataItem, TColumnNames
 from dlt.common.jsonpath import find_values, compile_path, extract_simple_field_name
 from dlt.extract.incremental.exceptions import (
@@ -26,7 +22,7 @@ from dlt.common.incremental.typing import (
     OnCursorValueMissing,
     TIncrementalRange,
 )
-from dlt.extract.utils import resolve_column_value
+from dlt.extract.utils import resolve_column_value, digest_dedup_value, has_legacy_dedup_hashes
 from dlt.extract.items import TTableHintTemplate
 
 if TYPE_CHECKING:
@@ -74,6 +70,9 @@ class IncrementalTransform:
         self.last_value_func = last_value_func
         self.unique_hashes = unique_hashes
         self.start_unique_hashes = set(unique_hashes)
+        # hashes from before 1.29 keep their format until the set is rebuilt on a new last value
+        self.start_hashes_legacy = has_legacy_dedup_hashes(unique_hashes)
+        self.unique_hashes_legacy = self.start_hashes_legacy
         self.on_cursor_value_missing = on_cursor_value_missing
         self.lag = lag
         self.range_start = range_start
@@ -94,12 +93,13 @@ class IncrementalTransform:
         self,
         row: TDataItem,
         primary_key: Optional[TTableHintTemplate[TColumnNames]],
+        legacy: bool = False,
     ) -> str:
         try:
             if primary_key:
-                return digest128(json.dumps(resolve_column_value(primary_key, row), sort_keys=True))
+                return digest_dedup_value(resolve_column_value(primary_key, row), legacy)
             elif primary_key is None:
-                return digest128(json.dumps(row, sort_keys=True))
+                return digest_dedup_value(row, legacy)
             else:
                 return None
         except KeyError as k_err:
@@ -132,44 +132,17 @@ class IncrementalTransform:
                 )
             message = (
                 f"In resource {resource_name}: {cursor_value_name} '{cursor_value}' and row value"
-                f" {row_value} have different timezone awareness. {last_value_source_message}Row"
-                f" value is the actual data. {cursor_value_name} will be corrected to match the row"
-                " value timezone. The reason for that may be: (1) you set wrong tz-awareness on"
-                f" the {config_value_name} (note that pendulum is tz-aware by default) (2) the data"
-                " has changed its tz-awareness across runs. (3) your pipeline state got upgraded"
-                " to always store last value with tz-awareness following your data."
+                f" {row_value} differ in timezone awareness. {last_value_source_message}The row"
+                f" value comes from the data, so {cursor_value_name} follows it. A naive value is"
+                " read in the context timezone, UTC by default. Check the tz-awareness of"
+                f" {config_value_name}, or whether the data changed it between runs."
             )
             logger.warning(message)
             if row_value.tzinfo is None:
-                cursor_value = (
-                    create_dt(
-                        cursor_value.year,
-                        cursor_value.month,
-                        cursor_value.day,
-                        cursor_value.hour,
-                        cursor_value.minute,
-                        cursor_value.second,
-                        cursor_value.microsecond,
-                        tz=cursor_value.tzinfo,
-                        fold=cursor_value.fold,
-                    )
-                    .in_tz(tz=UTC)
-                    .naive()
-                )
+                cursor_value = normalize_timezone(cursor_value, False)
             else:
-                cursor_value = create_dt(
-                    cursor_value.year,
-                    cursor_value.month,
-                    cursor_value.day,
-                    cursor_value.hour,
-                    cursor_value.minute,
-                    cursor_value.second,
-                    cursor_value.microsecond,
-                    tz=cursor_value.tzinfo,
-                    fold=cursor_value.fold,
-                ).in_tz(
-                    row_value.tzinfo  # type: ignore[arg-type]
-                )
+                # a naive cursor value is read in the context timezone, then moved to the row's zone
+                cursor_value = ensure_datetime_in_tz(cursor_value).astimezone(row_value.tzinfo)
         return cursor_value
 
     def compute_deduplication_disabled(self) -> bool:
@@ -331,7 +304,9 @@ class JsonIncremental(IncrementalTransform):
                 # if equal there's still a chance that item gets in
                 if processed_row_value == self.start_value:
                     if self.boundary_deduplication:
-                        unique_value = self.compute_unique_value(row, self._primary_key)
+                        unique_value = self.compute_unique_value(
+                            row, self._primary_key, self.start_hashes_legacy
+                        )
                         # if unique value exists then use it to deduplicate
                         if unique_value in self.start_unique_hashes:
                             return None, True, False
@@ -349,6 +324,7 @@ class JsonIncremental(IncrementalTransform):
                 # store rows with "max" values to compute hashes after processing full batch
                 self.last_rows = [row]
                 self.unique_hashes = set()
+                self.unique_hashes_legacy = False
 
         return row, False, False
 
@@ -383,21 +359,23 @@ class ArrowIncremental(IncrementalTransform):
                 "Only `min` or `max` of `last_value_func` is supported for arrow tables"
             )
 
-    def compute_unique_values(self, item: "TAnyArrowItem", unique_columns: List[str]) -> List[str]:
+    def compute_unique_values(
+        self, item: "TAnyArrowItem", unique_columns: List[str], legacy: bool = False
+    ) -> List[str]:
         if not unique_columns:
             return []
         rows = item.select(unique_columns).to_pylist()
-        return [self.compute_unique_value(row, self._primary_key) for row in rows]
+        return [self.compute_unique_value(row, self._primary_key, legacy) for row in rows]
 
     def compute_unique_values_with_index(
-        self, item: "TAnyArrowItem", unique_columns: List[str]
+        self, item: "TAnyArrowItem", unique_columns: List[str], legacy: bool = False
     ) -> List[Tuple[Any, str]]:
         if not unique_columns:
             return []
         indices = item[self._dlt_index].to_pylist()
         rows = item.select(unique_columns).to_pylist()
         return [
-            (index, self.compute_unique_value(row, self._primary_key))
+            (index, self.compute_unique_value(row, self._primary_key, legacy))
             for index, row in zip(indices, rows)
         ]
 
@@ -542,7 +520,9 @@ class ArrowIncremental(IncrementalTransform):
                 # Remove already processed rows where the cursor is equal to the start value
                 eq_rows = tbl.filter(pa.compute.equal(tbl[cursor_path], start_value_scalar))
                 # compute index, unique hash mapping
-                unique_values_index = self.compute_unique_values_with_index(eq_rows, unique_columns)
+                unique_values_index = self.compute_unique_values_with_index(
+                    eq_rows, unique_columns, self.start_hashes_legacy
+                )
                 unique_values_index = [
                     (i, uq_val)
                     for i, uq_val in unique_values_index
@@ -570,6 +550,7 @@ class ArrowIncremental(IncrementalTransform):
                         unique_columns,
                     )
                 )
+                self.unique_hashes_legacy = False
         elif self.last_value == row_value and self.boundary_deduplication:
             # last value is unchanged, add the hashes
             self.unique_hashes.update(
@@ -577,6 +558,7 @@ class ArrowIncremental(IncrementalTransform):
                     self.compute_unique_values(
                         tbl.filter(pa.compute.equal(tbl[cursor_path], row_value_scalar)),
                         unique_columns,
+                        self.unique_hashes_legacy,
                     )
                 )
             )
@@ -614,32 +596,20 @@ class ArrowIncremental(IncrementalTransform):
 
 
 class ModelIncremental(IncrementalTransform):
-    """Incremental transform for `Relation` items.
+    """Incremental transform for `Relation` items."""
 
-    Filtering happens via SQL pushdown when `Relation.incremental(cursor)` is applied.
-    When `end_value` is set, state is not advanced from observed data; otherwise the
-    aggregate over the filtered relation advances `last_value`.
-    """
-
-    # parent `Incremental` so we can auto-apply below
     _incremental: Optional["Incremental[Any]"]
 
     def __call__(self, relation: TDataItem) -> Tuple[Optional[TDataItem], bool, bool]:
-        ctx = getattr(relation, "_incremental_ctx", None)
-        if ctx is None:
-            # bare relation, no `.incremental()`. Auto-apply using the parent `Incremental`
-            relation = relation.incremental(self._incremental)
-
-        if self.end_value is not None:
-            # external scheduler/ephemeral mode: state not advanced from observed data.
-            self.seen_data = True
-            return relation, False, False
-
-        agg_rel = relation._incremental_aggregate_relation()
-        if agg_rel is not None:
-            new_value = agg_rel.fetchscalar()
-            if new_value is not None:
-                self.last_value = new_value
-
         self.seen_data = True
-        return relation, False, False
+        # advance=True sets the range end and advances state; with end_value set
+        # it uses end_value directly, otherwise computes MAX/MIN over the filtered relation
+        result = relation.incremental(self._incremental, advance=True)
+        # mirror state advanced by apply_incremental so Incremental.__call__ write-back preserves it
+        self.last_value = self._incremental.last_value
+        self.unique_hashes = set(self._incremental._cached_state["unique_hashes"])
+        self.unique_hashes_legacy = has_legacy_dedup_hashes(self.unique_hashes)
+        # framework-driven advance, not user-driven: clear the flag so subsequent
+        # relations yielded by the same resource get filtered too
+        self._incremental._advanced = False
+        return result, False, False

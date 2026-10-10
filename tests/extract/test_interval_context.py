@@ -1,48 +1,71 @@
 """Tests for TimeIntervalContext — creation, detection, and dlt.current.interval()."""
 
 import os
+import subprocess
+import sys
 import time
-from datetime import date, datetime, timezone  # noqa: I251
-from typing import Any, Dict, List, Optional
+from datetime import date, datetime, timezone, tzinfo  # noqa: I251
+from functools import partial
+from typing import Any, Callable, Dict, List, Optional, Tuple
 from unittest.mock import MagicMock, patch
 from zoneinfo import ZoneInfo
 
 import pytest
 
 import dlt
+from dlt.common import known_env
 from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
 from dlt.common.pendulum import pendulum
-from dlt.common.time import ensure_pendulum_datetime_non_utc, ensure_pendulum_datetime_utc
+from dlt.common.time import InvalidTimezoneName, ensure_datetime, ensure_pendulum_datetime
 from dlt.common.typing import TTimeInterval
 from dlt.common.utils import uniq_id
-from dlt.extract.incremental.context import TimeIntervalContext, get_interval_context
-from dlt.extract.incremental.exceptions import ExternalSchedulerNotAvailable, JoinSchedulerError
+from dlt.extract.incremental.context import (
+    TimeIntervalContext,
+    get_interval_context,
+    interval as _interval_accessor,
+)
+from dlt.extract.incremental.exceptions import (
+    ExternalSchedulerNotAvailable,
+    IntervalNotAvailable,
+    JoinSchedulerError,
+)
 
 from tests.extract.utils import AssertItems, data_item_to_list
 from tests.utils import (
     ALL_TEST_DATA_ITEM_FORMATS,
+    LOCAL_TIMEZONES,
     TestDataItemFormat,
     data_to_item_format,
+    local_timezone,
+    make_interval,
 )
 
 
-def _utc_iv(start: str, end: str) -> TTimeInterval:
-    """Build a UTC interval from ISO strings."""
-    return (ensure_pendulum_datetime_utc(start), ensure_pendulum_datetime_utc(end))
+_START = pendulum.datetime(2024, 6, 1, tz="UTC")
+_END = pendulum.datetime(2024, 6, 2, tz="UTC")
+_BERLIN = ZoneInfo("Europe/Berlin")
 
 
-def test_explicit_context_with_tuple() -> None:
-    """Created with (start, end) tuple, .interval returns it."""
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
-    ctx = TimeIntervalContext(interval=iv)
-    assert ctx.interval == iv
-
-
-def test_explicit_context_with_pendulum() -> None:
-    start = pendulum.datetime(2024, 6, 1, tz="UTC")
-    end = pendulum.datetime(2024, 6, 2, tz="UTC")
-    ctx = TimeIntervalContext(interval=(start, end))
-    assert ctx.interval == (start, end)
+@pytest.mark.parametrize(
+    "interval",
+    [
+        pytest.param(TTimeInterval(_START, _END), id="time-interval"),
+        pytest.param((_START, _END), id="plain-tuple"),
+    ],
+)
+def test_explicit_interval_is_normalized(interval: Any) -> None:
+    """Any (start, end) shape is stored as a `TTimeInterval` by the constructor, the setter
+    and `dlt.current.interval.set()` alike."""
+    ctx = TimeIntervalContext(interval=interval)
+    assert isinstance(ctx.interval, TTimeInterval)
+    assert ctx.interval == (_START, _END)
+    ctx.interval = interval
+    assert isinstance(ctx.interval, TTimeInterval)
+    with Container().injectable_context(TimeIntervalContext()):
+        _interval_accessor.set(interval)
+        assert isinstance(_interval_accessor(), TTimeInterval)
+        assert _interval_accessor() == (_START, _END)
 
 
 def test_no_interval_when_empty() -> None:
@@ -80,10 +103,8 @@ def test_detect_from_env_vars(env_vars: Dict[str, str], expect_interval: bool) -
         # assertion must happen inside the patch.dict scope
         if expect_interval:
             assert ctx.interval is not None
-            assert ctx.interval[0] == ensure_pendulum_datetime_non_utc(
-                env_vars["DLT_INTERVAL_START"]
-            )
-            assert ctx.interval[1] == ensure_pendulum_datetime_non_utc(env_vars["DLT_INTERVAL_END"])
+            assert ctx.interval[0] == ensure_datetime(env_vars["DLT_INTERVAL_START"])
+            assert ctx.interval[1] == ensure_datetime(env_vars["DLT_INTERVAL_END"])
         else:
             assert ctx.interval is None
 
@@ -148,7 +169,7 @@ def test_detect_from_airflow(
 
 def test_injectable_context_and_current() -> None:
     """Injected context accessible via get_interval_context and dlt.current.interval."""
-    iv = _utc_iv("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z")
+    iv = make_interval("2024-06-01T00:00:00Z", "2024-06-02T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         assert get_interval_context() is ctx
@@ -179,8 +200,15 @@ def test_injectable_context_and_current() -> None:
             datetime(2024, 1, 15, tzinfo=timezone.utc),
             datetime(2024, 1, 16, tzinfo=timezone.utc),
         ),
+        # an explicit UTC resolves to the stdlib singleton, not to a `ZoneInfo`
+        (
+            "UTC",
+            None,
+            datetime(2024, 1, 15, tzinfo=timezone.utc),
+            datetime(2024, 1, 16, tzinfo=timezone.utc),
+        ),
     ],
-    ids=["berlin", "new-york", "no-tz-defaults-utc"],
+    ids=["berlin", "new-york", "no-tz-defaults-utc", "explicit-utc"],
 )
 def test_detect_applies_interval_timezone_env_var(
     iv_tz: Optional[str],
@@ -211,12 +239,25 @@ def test_detect_applies_interval_timezone_env_var(
             assert ctx.interval[0].tzinfo == timezone.utc
 
 
+def test_detect_rejects_invalid_interval_timezone() -> None:
+    """The env var goes through the same validation as `TimezoneContext`."""
+    env = {
+        "DLT_INTERVAL_START": "2024-01-15T00:00:00Z",
+        "DLT_INTERVAL_END": "2024-01-16T00:00:00Z",
+        "DLT_INTERVAL_TIMEZONE": "Nowhere/Bogus",
+    }
+    with patch.dict(os.environ, env, clear=False):
+        with pytest.raises(InvalidTimezoneName) as exc:
+            TimeIntervalContext().interval
+    assert exc.value.timezone == "Nowhere/Bogus"
+
+
 def test_context_preserves_timezone() -> None:
     """Timezone-aware datetimes are preserved — not forced to UTC."""
     ny_tz = pendulum.timezone("America/New_York")
     start = pendulum.datetime(2024, 1, 15, 8, tz=ny_tz)
     end = pendulum.datetime(2024, 1, 16, 8, tz=ny_tz)
-    ctx = TimeIntervalContext(interval=(start, end))
+    ctx = TimeIntervalContext(interval=TTimeInterval(start, end))
     assert ctx.interval == (start, end)
     assert ctx.interval[0].tzinfo is not None
     assert str(ctx.interval[0].utcoffset()) == "-1 day, 19:00:00"  # UTC-5 for Jan NY
@@ -236,7 +277,7 @@ def test_incremental_with_explicit_context() -> None:
             "state": updated_at.get_state(),
         }
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -246,6 +287,29 @@ def test_incremental_with_explicit_context() -> None:
     inc = r.incremental._incremental
     assert inc.initial_value == pendulum.datetime(2024, 1, 15, tz="UTC")
     assert inc.end_value == pendulum.datetime(2024, 1, 16, tz="UTC")
+
+
+def test_join_scheduler_with_pendulum_type() -> None:
+    """A pendulum-typed incremental joins the interval; the bounds arrive as stdlib datetimes."""
+    initial_value = pendulum.datetime(2000, 1, 1, tz="UTC")
+
+    @dlt.resource()
+    def my_resource(
+        updated_at: dlt.sources.incremental[pendulum.DateTime] = dlt.sources.incremental(
+            "updated_at", initial_value=initial_value, allow_external_schedulers=True
+        ),
+    ):
+        yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
+
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        r = my_resource()
+        assert len(list(r)) == 1
+
+    inc = r.incremental._incremental
+    assert inc.initial_value == pendulum.datetime(2024, 1, 15, tz="UTC")
+    assert inc.end_value == pendulum.datetime(2024, 1, 16, tz="UTC")
+    assert type(inc.initial_value) is type(inc.end_value) is datetime
 
 
 def test_incremental_raises_when_no_interval() -> None:
@@ -276,7 +340,7 @@ def test_decorator_incremental_with_interval_context() -> None:
     ):
         yield {"updated_at": pendulum.datetime(2024, 1, 15, 12, tz="UTC")}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -308,7 +372,7 @@ def test_allow_external_schedulers_from_config() -> None:
     env = {
         "UPDATED_AT__ALLOW_EXTERNAL_SCHEDULERS": "true",
     }
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with patch.dict(os.environ, env), Container().injectable_context(ctx):
         r = scheduled_resource()
@@ -554,7 +618,7 @@ def test_scheduler_range_clipping(
         for day in data_items:
             yield {"updated_at": _dt(day)}
 
-    iv = _utc_iv(sched_start + "T00:00:00Z", sched_end + "T00:00:00Z")
+    iv = make_interval(sched_start + "T00:00:00Z", sched_end + "T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -569,21 +633,37 @@ def test_scheduler_range_clipping(
 @pytest.mark.parametrize(
     "incr_aes,ctx_aes,expect_joined",
     [
-        # context True forces join even though incremental is False
-        (False, True, True),
-        # context False prevents join even though incremental is True
-        (True, False, False),
-        # context None defers to incremental's own False
-        (False, None, False),
-        # context None defers to incremental's own True
+        # user-set per-incremental wins; context only fills in when user setting is None
+        (True, False, True),
+        (False, True, False),
+        (True, True, True),
+        (False, False, False),
+        # user setting is None: context fills in
+        (None, True, True),
+        (None, False, False),
+        # context unset: the user setting stands on its own
         (True, None, True),
+        (False, None, False),
+        # both None: no join
+        (None, None, False),
     ],
-    ids=["ctx-forces-join", "ctx-prevents-join", "ctx-defers-false", "ctx-defers-true"],
+    ids=[
+        "user-true-wins",
+        "user-false-wins",
+        "user-true-ctx-true",
+        "user-false-ctx-false",
+        "ctx-fills-in-true",
+        "ctx-fills-in-false",
+        "user-true-ctx-none",
+        "user-false-ctx-none",
+        "both-none",
+    ],
 )
 def test_context_allow_external_schedulers_flag(
-    incr_aes: bool, ctx_aes: bool, expect_joined: bool
+    incr_aes: Optional[bool], ctx_aes: Optional[bool], expect_joined: bool
 ) -> None:
-    """allow_external_schedulers on context overrides per-incremental setting."""
+    """User-set `allow_external_schedulers` wins over context; context `True` joins
+    unset (None) incrementals, `False` does nothing. The flag is never written back."""
     initial = pendulum.datetime(2024, 1, 1, tz="UTC")
 
     @dlt.resource()
@@ -596,7 +676,7 @@ def test_context_allow_external_schedulers_flag(
     ):
         yield {"updated_at": pendulum.datetime(2024, 7, 15, tz="UTC")}
 
-    iv = _utc_iv("2024-07-01T00:00:00Z", "2024-08-01T00:00:00Z")
+    iv = make_interval("2024-07-01T00:00:00Z", "2024-08-01T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv, allow_external_schedulers=ctx_aes)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -610,6 +690,8 @@ def test_context_allow_external_schedulers_flag(
     else:
         assert inc.initial_value == initial
         assert inc.end_value is None
+    # the flag is never written back: it stays exactly as the user set it (or None)
+    assert inc.allow_external_schedulers is incr_aes
 
 
 def test_str_cursor_raises_join_error() -> None:
@@ -623,7 +705,7 @@ def test_str_cursor_raises_join_error() -> None:
     ):
         yield {"updated_at": "2024-01-15"}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -640,7 +722,7 @@ def test_any_cursor_raises_join_error() -> None:
     ):
         yield {"updated_at": "2024-01-15"}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -659,7 +741,7 @@ def test_date_cursor_with_datetime_interval() -> None:
     ):
         yield {"updated_at": date(2024, 1, 15)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -682,7 +764,7 @@ def test_date_cursor_non_midnight_interval() -> None:
     ):
         yield {"updated_at": date(2024, 1, 15)}
 
-    iv = _utc_iv("2024-01-15T06:30:00Z", "2024-01-16T18:45:00Z")
+    iv = make_interval("2024-01-15T06:30:00Z", "2024-01-16T18:45:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -708,7 +790,7 @@ def test_float_cursor_as_timestamp() -> None:
     ):
         yield {"updated_at": mid_ts}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -732,7 +814,7 @@ def test_naive_datetime_cursor_with_tz_aware_scheduler() -> None:
     ):
         yield {"updated_at": datetime(2024, 1, 15, 12)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = no_bounds()
@@ -752,7 +834,7 @@ def test_naive_datetime_cursor_with_tz_aware_scheduler() -> None:
     ):
         yield {"updated_at": datetime(2024, 1, 15, 12)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = with_naive_bounds()
@@ -777,7 +859,7 @@ def test_naive_datetime_cursor_with_tz_aware_scheduler() -> None:
     ):
         yield {"updated_at": datetime(2024, 1, 15, 12)}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = with_clipping_naive_bounds()
@@ -804,7 +886,7 @@ def test_int_cursor_as_timestamp() -> None:
     ):
         yield {"updated_at": mid_ts}
 
-    iv = _utc_iv("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
     ctx = TimeIntervalContext(interval=iv)
     with Container().injectable_context(ctx):
         r = my_resource()
@@ -814,3 +896,291 @@ def test_int_cursor_as_timestamp() -> None:
     inc = r.incremental._incremental
     assert inc.initial_value == start_ts
     assert inc.end_value == end_ts
+
+
+@pytest.mark.parametrize("local_tz", LOCAL_TIMEZONES)
+def test_numeric_cursor_from_naive_interval(local_tz: str) -> None:
+    """A naive interval is read as UTC, so the bounds do not depend on the machine timezone."""
+    # 2024-01-15T00:00:00Z and the following midnight
+    start_ts, end_ts = 1705276800, 1705363200
+
+    @dlt.resource()
+    def int_cursor(
+        updated_at: dlt.sources.incremental[int] = dlt.sources.incremental(
+            "updated_at", allow_external_schedulers=True
+        ),
+    ):
+        yield {"updated_at": 1705320000}
+
+    @dlt.resource()
+    def float_cursor(
+        updated_at: dlt.sources.incremental[float] = dlt.sources.incremental(
+            "updated_at", allow_external_schedulers=True
+        ),
+    ):
+        yield {"updated_at": 1705320000.5}
+
+    iv = TTimeInterval(
+        ensure_datetime("2024-01-15T00:00:00"), ensure_datetime("2024-01-16T00:00:00")
+    )
+    assert iv.start.tzinfo is None
+    with local_timezone(local_tz):
+        with Container().injectable_context(TimeIntervalContext(interval=iv)):
+            for resource, expected_type in ((int_cursor(), int), (float_cursor(), float)):
+                assert len(list(resource)) == 1
+                inc = resource.incremental._incremental
+                assert inc.initial_value == start_ts
+                assert inc.end_value == end_ts
+                assert type(inc.initial_value) is expected_type
+
+
+def test_accessor_get_and_set() -> None:
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    new_iv = make_interval("2023-06-01T00:00:00Z", "2023-12-31T00:00:00Z")
+    with Container().injectable_context(TimeIntervalContext()):
+        # empty context reads as None
+        assert _interval_accessor() is None
+        # set populates
+        _interval_accessor.set(iv)
+        assert _interval_accessor() == iv
+        # set replaces
+        _interval_accessor.set(new_iv)
+        assert _interval_accessor() == new_iv
+        # set(None) clears
+        _interval_accessor.set(None)
+        assert _interval_accessor() is None
+
+
+def test_accessor_is_empty() -> None:
+    """`is_empty` flags missing and zero-length intervals (manual and event runs)."""
+    # no context at all
+    assert _interval_accessor.is_empty
+    with Container().injectable_context(TimeIntervalContext()):
+        # context without an interval
+        assert _interval_accessor.is_empty
+        # zero-length [now, now) interval of a manual dispatch
+        now = pendulum.now("UTC")
+        _interval_accessor.set(TTimeInterval(now, now))
+        assert _interval_accessor.is_empty
+        # real interval
+        _interval_accessor.set(make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z"))
+        assert not _interval_accessor.is_empty
+
+
+@pytest.mark.parametrize(
+    "kwargs,expected_start,expected_end",
+    [
+        (
+            {"start": "2023-01-01T00:00:00Z"},
+            "2023-01-01T00:00:00Z",
+            "2024-01-16T00:00:00Z",
+        ),
+        (
+            {"end": "2024-02-01T00:00:00Z"},
+            "2024-01-15T00:00:00Z",
+            "2024-02-01T00:00:00Z",
+        ),
+        (
+            {"start": "2023-01-01T00:00:00Z", "end": "2025-01-01T00:00:00Z"},
+            "2023-01-01T00:00:00Z",
+            "2025-01-01T00:00:00Z",
+        ),
+    ],
+    ids=["start-only", "end-only", "both"],
+)
+def test_accessor_update(kwargs: Dict[str, str], expected_start: str, expected_end: str) -> None:
+    iv = make_interval("2024-01-15T00:00:00Z", "2024-01-16T00:00:00Z")
+    parsed = {k: ensure_pendulum_datetime(v) for k, v in kwargs.items()}
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        _interval_accessor.update(**parsed)
+        assert _interval_accessor() == make_interval(expected_start, expected_end)
+
+
+@pytest.mark.parametrize(
+    "mutate,operation",
+    [
+        (partial(_interval_accessor.update, start="2024-01-01T00:00:00Z"), "update"),
+        (partial(_interval_accessor.apply_lag, "0 0 * * *"), "lag"),
+        (_interval_accessor.apply_full_days, "widen"),
+    ],
+    ids=["update", "apply_lag", "apply_full_days"],
+)
+def test_accessor_mutators_raise_without_interval(
+    mutate: Callable[[], Any], operation: str
+) -> None:
+    """Manual and event triggers generate no interval, so a job adjusting one must be told."""
+    with (
+        patch.dict(os.environ, {}, clear=True),
+        Container().injectable_context(TimeIntervalContext()),
+    ):
+        with pytest.raises(IntervalNotAvailable, match=f"Cannot {operation} the interval"):
+            mutate()
+
+
+def test_accessor_set_raises_without_context() -> None:
+    # `set` needs only a context, not an interval, so it fails one step earlier
+    with patch("dlt.extract.incremental.context.get_interval_context", return_value=None):
+        with pytest.raises(IntervalNotAvailable, match="no `TimeIntervalContext` is active"):
+            _interval_accessor.set(None)
+
+
+def test_accessor_apply_lag_and_full_days() -> None:
+    """`dlt.current.interval` mutators chain and replicate the manual lag-and-widen pattern."""
+    iv = make_interval("2024-01-13T07:00:00Z", "2024-01-15T14:00:00Z")
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        assert not _interval_accessor.is_empty
+        # mutators return the accessor so calls chain; result reads via the call form
+        assert _interval_accessor.apply_full_days().apply_lag("0 0 * * *", 3)() == make_interval(
+            "2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z"
+        )
+        # mutators set the active interval
+        assert _interval_accessor() == make_interval("2024-01-10T00:00:00Z", "2024-01-16T00:00:00Z")
+        # the schedule: trigger form and lag_end reach the same lag helper
+        _interval_accessor.set(iv)
+        assert _interval_accessor.apply_lag(
+            "schedule:0 0 * * *", 1, lag_end=True
+        )() == make_interval("2024-01-13T07:00:00Z", "2024-01-14T00:00:00Z")
+
+
+@pytest.mark.parametrize(
+    "interval,expected",
+    [
+        # the named zone survives, so it can be passed back to ensure_datetime_in_tz
+        pytest.param(
+            (datetime(2024, 1, 15, tzinfo=_BERLIN), datetime(2024, 1, 16, tzinfo=_BERLIN)),
+            _BERLIN,
+            id="named-zone",
+        ),
+        pytest.param(
+            (
+                datetime(2024, 1, 15, tzinfo=timezone.utc),
+                datetime(2024, 1, 16, tzinfo=timezone.utc),
+            ),
+            timezone.utc,
+            id="utc",
+        ),
+        # a naive interval carries no zone, so the context timezone answers instead
+        pytest.param((datetime(2024, 1, 15), datetime(2024, 1, 16)), timezone.utc, id="naive"),
+        # taken from the start, so a mixed interval reports the start's zone
+        pytest.param(
+            (datetime(2024, 1, 15, tzinfo=_BERLIN), datetime(2024, 1, 16)), _BERLIN, id="mixed"
+        ),
+    ],
+)
+def test_accessor_timezone(interval: Tuple[datetime, datetime], expected: tzinfo) -> None:
+    # without an interval to carry a zone, the context timezone answers
+    assert _interval_accessor.timezone == timezone.utc
+    with Container().injectable_context(TimeIntervalContext()):
+        assert _interval_accessor.timezone == timezone.utc
+        _interval_accessor.set(interval)
+        assert _interval_accessor.timezone == expected
+
+
+@pytest.mark.parametrize(
+    "new_start,expected_wall_clock",
+    [
+        # naive datetime is wall clock in the interval's zone
+        (datetime(2024, 1, 10, 6, 0), datetime(2024, 1, 10, 6, 0)),
+        # a bare date string is midnight in the interval's zone
+        ("2024-01-10", datetime(2024, 1, 10, 0, 0)),
+        ("2024-01-10T06:00:00", datetime(2024, 1, 10, 6, 0)),
+        # an aware value is converted into the interval's zone, keeping the instant.
+        # 05:00 UTC is 06:00 in Berlin in January (UTC+1)
+        (datetime(2024, 1, 10, 5, 0, tzinfo=timezone.utc), datetime(2024, 1, 10, 6, 0)),
+        ("2024-01-10T05:00:00+00:00", datetime(2024, 1, 10, 6, 0)),
+    ],
+    ids=["naive-datetime", "date-string", "naive-string", "aware-datetime", "offset-string"],
+)
+def test_accessor_update_keeps_interval_timezone(
+    new_start: Any, expected_wall_clock: datetime
+) -> None:
+    """`update` takes new bounds into the interval's timezone, so both ends keep one zone."""
+    berlin = ZoneInfo("Europe/Berlin")
+    iv = TTimeInterval(datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16, tzinfo=berlin))
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        _interval_accessor.update(start=new_start)
+        updated = _interval_accessor()
+        assert updated.start == expected_wall_clock.replace(tzinfo=berlin)
+        # the untouched end and the whole interval stay in the job's zone
+        assert updated.end == iv.end
+        assert updated.start.tzinfo == updated.end.tzinfo == berlin
+        assert _interval_accessor.timezone == berlin
+
+
+def test_naive_interval_is_read_in_context_timezone() -> None:
+    """Bounds are always tz-aware: a naive one is read in the context timezone, never the local."""
+    iv = TTimeInterval(datetime(2024, 1, 15), datetime(2024, 1, 16))
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        assert _interval_accessor() == TTimeInterval(
+            datetime(2024, 1, 15, tzinfo=timezone.utc),
+            datetime(2024, 1, 16, tzinfo=timezone.utc),
+        )
+        assert _interval_accessor.timezone == timezone.utc
+        # an update stays in that zone
+        _interval_accessor.update(start="2024-01-10T06:00:00")
+        assert _interval_accessor()[0] == datetime(2024, 1, 10, 6, tzinfo=timezone.utc)
+
+
+def test_interval_does_not_install_timezone() -> None:
+    """The zone the bounds carry stays on the interval; the context timezone is set by the run."""
+    berlin = ZoneInfo("Europe/Berlin")
+    iv = TTimeInterval(datetime(2024, 1, 15, tzinfo=berlin), datetime(2024, 1, 16, tzinfo=berlin))
+    with Container().injectable_context(TimeIntervalContext(interval=iv)):
+        assert dlt.current.interval.timezone == berlin
+        assert dlt.current.timezone() == timezone.utc
+        assert TimezoneContext not in Container()
+
+
+@pytest.mark.parametrize(
+    "flag,expected",
+    [("True", True), ("true", True), ("False", False), ("0", False), (None, None)],
+    ids=["True", "true", "False", "0", "unset"],
+)
+def test_context_reads_allow_external_schedulers_from_env(
+    flag: Optional[str], expected: Optional[bool], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """A subprocess launcher passes the join decision through `DLT_ALLOW_EXTERNAL_SCHEDULERS`."""
+    monkeypatch.delenv(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, raising=False)
+    if flag is not None:
+        monkeypatch.setenv(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, flag)
+    assert TimeIntervalContext().allow_external_schedulers is expected
+    # an explicit value always wins over the environment
+    assert TimeIntervalContext(allow_external_schedulers=False).allow_external_schedulers is False
+
+
+def test_allow_external_schedulers_env_survives_process_boundary() -> None:
+    """The whole point of the env var: subprocess launchers `exec`, losing any injected context."""
+    script = (
+        "import dlt\n"
+        "from datetime import datetime\n"
+        "@dlt.resource\n"
+        "def events(updated_at=dlt.sources.incremental('updated_at',"
+        " initial_value=datetime(2000, 1, 1))):\n"
+        "    yield []\n"
+        "r = events()\n"
+        "list(r)\n"
+        "inc = r.incremental._incremental\n"
+        "print(f'RANGE {inc.start_value}|{inc.end_value}')\n"
+    )
+    env = {
+        **os.environ,
+        known_env.DLT_INTERVAL_START: "2024-01-15T00:00:00+00:00",
+        known_env.DLT_INTERVAL_END: "2024-01-16T00:00:00+00:00",
+    }
+
+    joined = subprocess.run(
+        [sys.executable, "-c", script],
+        env={**env, known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS: "True"},
+        capture_output=True,
+        text=True,
+        timeout=120,
+    )
+    assert joined.returncode == 0, joined.stderr
+    assert "RANGE 2024-01-15 00:00:00|2024-01-16 00:00:00+00:00" in joined.stdout
+
+    env.pop(known_env.DLT_ALLOW_EXTERNAL_SCHEDULERS, None)
+    unset = subprocess.run(
+        [sys.executable, "-c", script], env=env, capture_output=True, text=True, timeout=120
+    )
+    assert unset.returncode == 0, unset.stderr
+    assert "RANGE 2000-01-01 00:00:00|None" in unset.stdout

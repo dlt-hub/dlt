@@ -6,7 +6,9 @@ import sqlglot
 import sqlglot.expressions
 from typing import Iterator, List, Tuple, NamedTuple, Union, Optional, cast
 from packaging.version import Version
+from pytest_mock import MockerFixture
 
+from dlt.common import logger
 from dlt.common.destination import DestinationCapabilitiesContext, merge_caps_file_formats
 from dlt.common.configuration.container import Container
 from dlt.common.storages import (
@@ -153,7 +155,7 @@ def test_star_select_rejection(
 
 @pytest.mark.parametrize("caps", MODEL_CAPS, indirect=True, ids=DESTINATIONS_SUPPORTING_MODEL)
 def test_simple_model_normalizing(
-    caps: DestinationCapabilitiesContext, model_normalize: Normalize
+    caps: DestinationCapabilitiesContext, model_normalize: Normalize, mocker: MockerFixture
 ) -> None:
     """
     This test demonstrates how a model with simple sql query is transformed by the normalizer for each destination capabilities.
@@ -178,9 +180,17 @@ def test_simple_model_normalizing(
     # Ensure the schema contains the table "my_table" with columns a, b
     schema = create_schema_with_complete_columns("my_table", "text", ["a_a", "b", "d"])
 
+    logger_spy = mocker.spy(logger, "warning")
     select_dialect, normalized_select_query, load_id = extract_normalize_retrieve(
         model_normalize, model, schema, "my_table", dialect
     )
+    # `c` is not a column of `my_table`, so the model does not load it
+    dropped_warnings = [
+        call.args[0] for call in logger_spy.call_args_list if "are not loaded" in call.args[0]
+    ]
+    assert len(dropped_warnings) == 1
+    # the warning names the casefolded destination identifier
+    assert "['c']" in dropped_warnings[0].lower()
 
     assert select_dialect == dialect
     if dialect == "duckdb":

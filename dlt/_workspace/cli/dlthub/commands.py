@@ -72,7 +72,10 @@ class AiCommand(SupportsCliCommand):
             "--overwrite",
             default=False,
             action="store_true",
-            help="Overwrite existing files instead of skipping them.",
+            help=(
+                "Overwrite existing files instead of skipping them and remove files the"
+                " installed version shipped but the new one does not."
+            ),
         )
 
         # secrets command group
@@ -164,7 +167,10 @@ class AiCommand(SupportsCliCommand):
             "--overwrite",
             default=False,
             action="store_true",
-            help="Overwrite existing files instead of skipping them.",
+            help=(
+                "Overwrite existing files instead of skipping them and remove files the"
+                " installed version shipped but the new one does not."
+            ),
         )
         install_cmd.add_argument(
             "--strict",
@@ -299,6 +305,8 @@ class AiCommand(SupportsCliCommand):
                     stdio=getattr(args, "stdio", False),
                     sse=getattr(args, "sse", False),
                     features=getattr(args, "features", None),
+                    no_default_features=getattr(args, "no_default_features", False),
+                    access=getattr(args, "access", None),
                 )
         else:
             self.parser.print_usage()
@@ -361,7 +369,7 @@ def _add_common_run_args(
         parser.add_argument(
             "--refresh",
             action="store_true",
-            help="Request a refresh run. Honored unless the job declares refresh=block.",
+            help="Request a refresh run.",
         )
 
 
@@ -516,7 +524,9 @@ class LocalWorkspaceCommand(SupportsCliCommand):
         pipeline_run_p.add_argument(
             "--refresh",
             action="store_true",
-            help="Request a refresh run. Honored unless the job declares refresh=block.",
+            help=(
+                "Request a refresh run. Honored unless the job declares refresh_propagation=block."
+            ),
         )
         pipeline_run_p.add_argument(
             "--dry-run",

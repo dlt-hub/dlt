@@ -188,20 +188,8 @@ class FabricClient(SynapseClient):
             self.active_hints.pop("unique", None)
 
     def _get_column_def_sql(self, c: TColumnSchema, table: PreparedTableSchema = None) -> str:
-        """Override to use varchar instead of nvarchar for unique text columns"""
-        sc_type = c["data_type"]
-        if sc_type == "text" and c.get("unique"):
-            # Fabric does not support nvarchar - use varchar with max length 900 for unique columns
-            db_type = "varchar(%i)" % (c.get("precision") or 900)
-        else:
-            db_type = self.type_mapper.to_destination_type(c, table)
-
-        # Don't add COLLATE clause here - let the database default handle it
-        # The warehouse-level collation will be applied automatically
-
-        hints_str = self._get_column_hints_sql(c)
-        column_name = self.sql_client.escape_column_name(c["name"])
-        return f"{column_name} {db_type} {hints_str} {self._gen_not_null(c.get('nullable', True))}"
+        """Override to skip the mssql 900 byte cap on unique text columns, Fabric has no index keys"""
+        return SqlJobClientBase._get_column_def_sql(self, c, table)
 
     def prepare_load_table(self, table_name: str) -> PreparedTableSchema:
         """Override to ensure proper table configuration for Fabric

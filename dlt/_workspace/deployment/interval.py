@@ -4,9 +4,10 @@ from datetime import datetime, timedelta, timezone  # noqa: I251
 from typing import Dict, List, Optional, Tuple
 from zoneinfo import ZoneInfo
 
-from dlt import version
-from dlt.common.exceptions import MissingDependencyException
-from dlt.common.time import ensure_datetime_in_tz, ensure_datetime_utc
+from croniter import croniter
+
+from dlt.common.interval import lag_cron
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import TTimeInterval
 
 from dlt._workspace.deployment._trigger_helpers import (
@@ -21,14 +22,6 @@ from dlt._workspace.deployment.typing import (
     TJobDefinition,
     TTrigger,
 )
-
-try:
-    from croniter import croniter
-except ModuleNotFoundError:
-    raise MissingDependencyException(
-        "dltHub",
-        [f"{version.DLT_PKG_NAME}[hub]"],
-    )
 
 
 # disable interval based freshness checks
@@ -56,7 +49,7 @@ def next_scheduled_run(
     """
     parsed = parse_trigger(trigger)
     tt = parsed.type
-    now_ref = ensure_datetime_utc(now_reference)
+    now_ref = ensure_datetime_in_tz(now_reference, timezone.utc)
 
     if tt == "schedule":
         cron_expr = str(parsed.expr)
@@ -73,7 +66,7 @@ def next_scheduled_run(
     if tt == "every":
         period = float(parsed.expr)  # type: ignore[arg-type]
         if prev_scheduled_run is not None:
-            prev_p = ensure_datetime_utc(prev_scheduled_run)
+            prev_p = ensure_datetime_in_tz(prev_scheduled_run, timezone.utc)
             next_dt = prev_p + timedelta(seconds=period)
             if next_dt < now_ref:
                 next_dt = now_ref + timedelta(seconds=period)
@@ -83,7 +76,7 @@ def next_scheduled_run(
         return next_dt
 
     if tt == "once":
-        once_dt = ensure_datetime_utc(parsed.expr)  # type: ignore[arg-type]
+        once_dt = ensure_datetime_in_tz(parsed.expr, timezone.utc)  # type: ignore[arg-type]
         return max(once_dt, now_ref)
 
     raise InvalidTrigger(str(trigger), f"not a timed trigger (type={tt!r})")
@@ -124,7 +117,7 @@ def compute_run_interval(
     Raises:
         InvalidTrigger: If `trigger` cannot be parsed.
     """
-    now_p = ensure_datetime_utc(now)
+    now_p = ensure_datetime_in_tz(now, timezone.utc)
     parsed = parse_trigger(trigger)
     tt = parsed.type
 
@@ -141,26 +134,26 @@ def compute_run_interval(
         natural_start = start_naive.replace(tzinfo=target_tz).astimezone(timezone.utc)
         # prev_interval_end overrides cron-derived start for gap-filling
         start_utc = (
-            ensure_datetime_utc(prev_interval_end)
+            ensure_datetime_in_tz(prev_interval_end, timezone.utc)
             if prev_interval_end is not None
             else natural_start
         )
-        return (start_utc, end_utc)
+        return TTimeInterval(start_utc, end_utc)
 
     if tt == "every":
         period = float(parsed.expr)  # type: ignore[arg-type]
         # continuity: prev_interval_end extends start backward; else [now-period, now)
         if prev_interval_end is not None:
-            return (ensure_datetime_utc(prev_interval_end), now_p)
-        return (now_p - timedelta(seconds=period), now_p)
+            return TTimeInterval(ensure_datetime_in_tz(prev_interval_end, timezone.utc), now_p)
+        return TTimeInterval(now_p - timedelta(seconds=period), now_p)
 
     if tt == "once":
         # point-in-time: prev_interval_end ignored by design
-        once_dt = ensure_datetime_utc(parsed.expr)  # type: ignore[arg-type]
-        return (once_dt, once_dt)
+        once_dt = ensure_datetime_in_tz(parsed.expr, timezone.utc)  # type: ignore[arg-type]
+        return TTimeInterval(once_dt, once_dt)
 
     # all remaining trigger types: point-in-time at now (prev_interval_end ignored)
-    return (now_p, now_p)
+    return TTimeInterval(now_p, now_p)
 
 
 def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") -> TTimeInterval:
@@ -179,31 +172,12 @@ def resolve_interval_spec(spec: TIntervalSpec, cron_expr: str, tz: str = "UTC") 
     raw_end = ensure_datetime_in_tz(end_str, target_tz) if end_str else datetime.now(target_tz)
     end = cron_floor(cron_expr, raw_end)
 
-    return start.astimezone(timezone.utc), end.astimezone(timezone.utc)
+    return TTimeInterval(start.astimezone(timezone.utc), end.astimezone(timezone.utc))
 
 
 def cron_floor(cron_expr: str, dt: datetime) -> datetime:
-    """Latest cron tick <= dt, preserving dt's timezone.
-
-    Iterates cron in naive local time (stripping `dt`'s tzinfo internally) to
-    get clean wall-clock semantics across DST transitions, then re-attaches
-    `dt.tzinfo` to the result.
-    """
-    # get_prev returns the tick strictly before its base, so step forward by
-    # one microsecond to include dt itself when it falls exactly on a tick
-    # (seconds-epsilon is too coarse for sub-second inputs: `11:59:59.999999`
-    # would yield `12:00:00` which is > dt).
-    base = (dt.replace(tzinfo=None) if dt.tzinfo else dt) + timedelta(microseconds=1)
-    cron = croniter(cron_expr, base)
-    prev_naive: datetime = cron.get_prev(datetime)
-    if dt.tzinfo is not None:
-        return prev_naive.replace(tzinfo=dt.tzinfo)
-    return prev_naive
-
-
-def is_cron_expression(s: str) -> bool:
-    """Check if string is a valid cron expression."""
-    return croniter.is_valid(s)
+    """Latest cron tick <= dt, preserving dt's timezone."""
+    return lag_cron(cron_expr, dt, 0)
 
 
 def _check_schedule_run_freshness(
@@ -216,7 +190,7 @@ def _check_schedule_run_freshness(
     """Checks if last (per `utc_now`) cron interval was processed by `upstream_ref`"""
     # the just-elapsed cron tick in target tz, converted back to UTC
     expected = cron_floor(cron_expr, now_utc.astimezone(ZoneInfo(tz))).astimezone(timezone.utc)
-    if ensure_datetime_utc(prev_interval_end) < expected:
+    if ensure_datetime_in_tz(prev_interval_end, timezone.utc) < expected:
         return False, f"upstream {upstream_ref} missing run for {expected}"
     return True, ""
 
@@ -230,7 +204,7 @@ def _check_every_freshness(
     """every: upstream's last-completed `interval_end` is within the previous period"""
     # interval_end is exclusive: elapsed == period means `now` has crossed into the next period
     # and the previous one is unprocessed — stale
-    elapsed = (now_utc - ensure_datetime_utc(prev_interval_end)).total_seconds()
+    elapsed = (now_utc - ensure_datetime_in_tz(prev_interval_end, timezone.utc)).total_seconds()
     if elapsed >= period_seconds:
         return (
             False,

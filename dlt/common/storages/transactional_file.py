@@ -9,13 +9,13 @@ import random
 import string
 import time
 import typing as t
+from datetime import datetime, timedelta, timezone  # noqa: I251
 from pathlib import Path
 import posixpath
 from contextlib import contextmanager
 from threading import Timer
 import fsspec
 
-from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.storages.fsspec_filesystem import MTIME_DISPATCH
 
 
@@ -96,14 +96,22 @@ class TransactionalFile:
     def _sync_locks(self) -> t.List[str]:
         """Gets a list of lock names after removing stale locks. The list is time-sortable with earliest created lock coming first."""
         output = []
-        now = pendulum.now()
+        now = datetime.now(timezone.utc)
 
         for lock in self._fs.ls(posixpath.dirname(self.lock_path), refresh=True, detail=True):
             name = lock["name"]
             if not name.startswith(self.lock_prefix):
                 continue
-            # Purge stale locks
+            # purge stale locks
             mtime = self.extract_mtime(lock)
+            if mtime is None:
+                # without an mtime a lock left behind by a crashed holder never expires and
+                # everybody else waits on it forever
+                raise RuntimeError(
+                    f"Filesystem `{self._fs.protocol}` reports no modification time for lock file"
+                    f" `{name}` so stale locks cannot be detected. `TransactionalFile` cannot lock"
+                    " on this filesystem."
+                )
             if now - mtime > timedelta(seconds=TransactionalFile.LOCK_TTL_SECONDS):
                 try:  # Janitors can race, so we ignore errors
                     self._fs.rm(name)

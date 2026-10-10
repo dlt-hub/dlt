@@ -8,6 +8,9 @@ from sqlalchemy.dialects.oracle import DATE as OracleDATE
 from sqlalchemy.dialects.oracle.base import OracleDialect
 from sqlalchemy.dialects.postgresql import UUID
 
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs import TimezoneContext
+
 from dlt.sources.sql_database.schema_types import (
     default_table_adapter,
     get_table_references,
@@ -125,29 +128,42 @@ def test_oracle_timestamp_timezone_mapping(kwargs: Dict[str, Any], expected_tz: 
     assert col_schema["timezone"] is expected_tz
 
 
-def test_oracle_utc_timestamp_compiles() -> None:
+@pytest.mark.parametrize("local_timezone", [False, True], ids=["tstz", "ltz"])
+def test_oracle_utc_timestamp_query(local_timezone: bool) -> None:
+    """Only the select list is converted, the filter and the order use the raw (indexed) column."""
+    if local_timezone:
+        pytest.importorskip("sqlalchemy", minversion="2.0")
     from dlt.sources.sql_database.helpers import OracleUTCTimestamp
 
-    table = sa.Table("t", sa.MetaData(), sa.Column("col", OracleUTCTimestamp()))
+    table = sa.Table("t", sa.MetaData(), sa.Column("col", OracleUTCTimestamp(local_timezone)))
     cutoff = datetime(2024, 7, 2, 13, 45, 10, 123456, tzinfo=timezone(timedelta(hours=2)))
     query = sa.select(table.c.col).where(table.c.col > cutoff).order_by(table.c.col)
 
-    # only the select list is converted, the filter and the order compare the raw column
-    compiled = query.compile(dialect=OracleDialect())
-    sql = " ".join(str(compiled).split())
-    assert sql.startswith("SELECT sys_extract_utc(t.col) AS col FROM t")
-    assert "WHERE t.col > from_tz(CAST(:col_1 AS TIMESTAMP), :from_tz_1) ORDER BY t.col" in sql
-    bind = compiled.binds["col_1"]
-    assert bind.type.process_bind_param(cutoff, None) == datetime(2024, 7, 2, 11, 45, 10, 123456)
-    naive = datetime(2024, 7, 2, 11, 45, 10)
-    assert bind.type.process_bind_param(naive, None) is naive
-
-    literal = str(query.compile(dialect=OracleDialect(), compile_kwargs={"literal_binds": True}))
-    assert (
+    sql = " ".join(
+        str(query.compile(dialect=OracleDialect(), compile_kwargs={"literal_binds": True})).split()
+    )
+    bind = (
         "from_tz(CAST(TO_TIMESTAMP('2024-07-02 11:45:10.123456', 'YYYY-MM-DD HH24:MI:SS.FF6')"
         " AS TIMESTAMP), '+00:00')"
-        in literal
     )
+    if local_timezone:
+        bind = f"CAST({bind} AS TIMESTAMP WITH LOCAL TIME ZONE)"
+    assert sql == f"SELECT sys_extract_utc(t.col) AS col FROM t WHERE t.col > {bind} ORDER BY t.col"
+
+
+def test_oracle_utc_timestamp_values() -> None:
+    from dlt.sources.sql_database.helpers import OracleUTCTimestamp
+
+    utc_type = OracleUTCTimestamp()
+    # bound values are sent as naive UTC, a naive value is in the context timezone
+    aware = datetime(2024, 7, 2, 13, 45, 10, 123456, tzinfo=timezone(timedelta(hours=2)))
+    assert utc_type.process_bind_param(aware, None) == datetime(2024, 7, 2, 11, 45, 10, 123456)
+    naive = datetime(2024, 7, 2, 11, 45, 10)
+    assert utc_type.process_bind_param(naive, None) == naive
+    with Container().injectable_context(TimezoneContext("Europe/Warsaw")):
+        assert utc_type.process_bind_param(naive, None) == datetime(2024, 7, 2, 9, 45, 10)
+    # SYS_EXTRACT_UTC returns naive UTC, handed out as aware
+    assert utc_type.process_result_value(naive, None) == naive.replace(tzinfo=timezone.utc)
 
 
 def test_type_decorator_is_unwrapped() -> None:

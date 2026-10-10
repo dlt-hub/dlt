@@ -3,9 +3,9 @@ title: Google Analytics
 description: dlt verified source for Google Analytics API
 keywords: [google analytics api, google analytics verified source, google analytics]
 ---
-import Header from './_source-info-header.md';
+# Google Analytics
 
-# Google analytics
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -55,11 +55,11 @@ one, follow these steps:
 
 1. Generate credentials:
 
-   1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
-   1. Identify the service account you intend to use, and click on the three-dot menu under the
+  1. Navigate to IAM & Admin in the console's left panel, and then select Service Accounts.
+  1. Identify the service account you intend to use, and click on the three-dot menu under the
       "Actions" column next to it.
-   1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
-   1. You can download the ".json" file containing the necessary credentials for future use.
+  1. Create a new JSON key by selecting "Manage Keys" > "ADD KEY" > "CREATE".
+  1. You can download the ".json" file containing the necessary credentials for future use.
 
 ### Grab Google OAuth credentials
 
@@ -102,8 +102,6 @@ python google_analytics/setup_script_gcp_oauth.py
 
 Once you have executed the script and completed the authentication, you will receive a "refresh
 token" that can be used to set up the "secrets.toml".
-
-
 
 ### Share the Google Analytics property with the API
 
@@ -217,18 +215,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python google_analytics_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `dlt_google_analytics_pipeline`, but you may also use any custom name instead.
 
@@ -245,14 +249,18 @@ This function returns a list of resources including metadata, metrics, and dimen
 the Google Analytics API.
 
 ```py
+from dlt.extract import DltResource
+from dlt.common.typing import DictStrAny
+from dlt.common.configuration.specs import GcpOAuthCredentials, GcpServiceAccountCredentials
+
 @dlt.source(max_table_nesting=2)
 def google_analytics(
-    credentials: Union[ GcpOAuthCredentials, GcpServiceAccountCredentials ] = dlt.secrets.value,
+    credentials: GcpOAuthCredentials | GcpServiceAccountCredentials = dlt.secrets.value,
     property_id: int = dlt.config.value,
-    queries: List[DictStrAny] = dlt.config.value,
-    start_date: Optional[str] = START_DATE_STRING,
+    queries: list[DictStrAny] = dlt.config.value,
+    start_date: str | None = "2026-01-31",
     rows_per_page: int = 1000,
-) -> List[DltResource]:
+) -> list[DltResource]:
    ...
 ```
 
@@ -273,7 +281,7 @@ set to 1000.
 
 This function retrieves all the metrics and dimensions for a report from a Google Analytics project.
 
-```py
+```py notype
 @dlt.resource(selected=False)
 def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
    ...
@@ -288,7 +296,7 @@ def get_metadata(client: Resource, property_id: int) -> Iterator[Metadata]:
 
 This transformer function extracts data using metadata and populates a table called "metrics" with the data from each metric.
 
-```py
+```py notype
 @dlt.transformer(data_from=get_metadata, write_disposition="replace", name="metrics")
 def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
     for metric in metadata.metrics:
@@ -300,6 +308,7 @@ def metrics_table(metadata: Metadata) -> Iterator[TDataItem]:
 Similarly, there is a transformer function called `dimensions_table` that populates a table called "dimensions" with the data from each dimension.
 
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
@@ -318,7 +327,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the data from metrics and dimensions:
 
-   ```py
+   ```py notype
    load_data = google_analytics()
    load_info = pipeline.run(load_data)
    print(load_info)
@@ -328,7 +337,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from a specific start date:
 
-   ```py
+   ```py notype
    load_data = google_analytics(start_date='2023-01-01')
    load_info = pipeline.run(load_data)
    print(load_info)
