@@ -39,6 +39,12 @@ except MissingDependencyException:
 pytestmark = pytest.mark.mssql
 
 
+PANDAS_MIXED_OFFSETS = "pandas backend yields a DATETIMEOFFSET column with mixed offsets as strings"
+CONNECTORX_DATETIMEOFFSET = (
+    "connectorx (0.4.5 to 0.4.7a1) returns DATETIMEOFFSET as the instant minus its offset"
+)
+
+
 def make_pipeline(destination_name: TDestinationReferenceArg) -> dlt.Pipeline:
     return dlt.pipeline(
         pipeline_name="sql_database" + uniq_id(),
@@ -54,7 +60,11 @@ def test_all_data_types(
     mssql_db: MSSQLSourceDB,
     backend: TableBackend,
     reflection_level: ReflectionLevel,
+    request: pytest.FixtureRequest,
 ) -> None:
+    if backend == "pandas" and reflection_level == "minimal":
+        # without a reflected type nothing turns the strings back into timestamps
+        request.applymarker(pytest.mark.xfail(strict=True, reason=PANDAS_MIXED_OFFSETS))
     source = sql_database(
         credentials=mssql_db.credentials,
         schema=mssql_db.schema,
@@ -122,11 +132,38 @@ def test_sql_table_incremental_datetime_ntz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = mssql_db.table_infos["app_user"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "some_smalldatetime", timezone=False, row_count=rc)
+    info = mssql_db.table_infos["app_user"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "some_smalldatetime",
+        timezone=False,
+        row_count=info["row_count"],
+        cursor_values=[row["some_smalldatetime"] for row in info["rows"]],
+    )
 
 
-@pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
+@pytest.mark.parametrize(
+    "backend",
+    [
+        "sqlalchemy",
+        "pyarrow",
+        pytest.param(
+            "pandas",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=PANDAS_MIXED_OFFSETS,
+            ),
+        ),
+        pytest.param(
+            "connectorx",
+            marks=pytest.mark.xfail(
+                strict=True,
+                reason=CONNECTORX_DATETIMEOFFSET,
+            ),
+        ),
+    ],
+)
 @pytest.mark.parametrize("reflection_level", ["minimal", "full", "full_with_precision"])
 def test_sql_table_incremental_datetime_tz(
     mssql_db: MSSQLSourceDB,
@@ -142,7 +179,7 @@ def test_sql_table_incremental_datetime_tz(
         backend=backend,
         reflection_level=reflection_level,
         incremental=dlt.sources.incremental(
-            "created_at",
+            "some_datetimeoffset",
             initial_value=ensure_pendulum_datetime_utc("1999-01-01T00:00:00+00:00"),
             row_order="asc",
             range_start="open",
@@ -151,8 +188,15 @@ def test_sql_table_incremental_datetime_tz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = mssql_db.table_infos["app_user"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "created_at", timezone=True, row_count=rc)
+    info = mssql_db.table_infos["app_user"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "some_datetimeoffset",
+        timezone=True,
+        row_count=info["row_count"],
+        cursor_values=[row["some_datetimeoffset"] for row in info["rows"]],
+    )
 
 
 @pytest.mark.no_load
