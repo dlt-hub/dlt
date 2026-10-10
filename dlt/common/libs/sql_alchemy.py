@@ -9,6 +9,7 @@ try:
     from sqlalchemy.sql.sqltypes import TypeEngine  # noqa: I251
     from sqlalchemy.exc import CompileError  # noqa: I251
     from sqlalchemy.dialects.oracle import NUMBER as ORACLE_NUMBER  # noqa: I251
+    from sqlalchemy.dialects.oracle import TIMESTAMP as ORACLE_TIMESTAMP  # noqa: I251
     from sqlalchemy.dialects.oracle.base import OracleDialect  # noqa: I251
     import sqlalchemy as sa  # noqa: I251
 except ModuleNotFoundError:
@@ -40,6 +41,7 @@ __all__ = [
     "TypeEngine",
     "CompileError",
     "ORACLE_NUMBER",
+    "ORACLE_TIMESTAMP",
     "OracleDialect",
     "sa",
 ]
