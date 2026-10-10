@@ -464,7 +464,7 @@ def merge_column(
 
     All properties from `col_b` are copied into `col_a`, potentially overwriting existing values.
     When `col_b` changes the data type of `col_a`, type modifiers of `col_a` (`precision`,
-    `scale`, `timezone`) are dropped first.
+    `scale`, `timezone`, `x-nested-type`) are dropped first.
 
     Args:
         col_a: Target column schema that will be modified

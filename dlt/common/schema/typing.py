@@ -136,6 +136,7 @@ _ColumnPropInfos = [
     TColumnPropInfo("incremental", (False, None), False, True),
     # any x- hint with special settings ie. defaults
     TColumnPropInfo("x-active-record-timestamp", (), is_hint=True),  # no default values
+    TColumnPropInfo("x-nested-type", type_modifier=True),
 ]
 
 ColumnPropInfos: Dict[Union[TColumnProp, str], TColumnPropInfo] = {

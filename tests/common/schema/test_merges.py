@@ -273,6 +273,21 @@ def test_none_resets_on_merge_column() -> None:
             {"data_type": "text"},
             {"precision": 50, "data_type": "text"},
         ),
+        (
+            {"x-nested-type": "struct<a: int64>", "data_type": "json", "nullable": False},
+            {"data_type": "text"},
+            {"data_type": "text", "nullable": False},
+        ),
+        (
+            {"data_type": "text", "x-nested-type": "struct<a: int64>"},
+            {"data_type": "json"},
+            {"data_type": "json"},
+        ),
+        (
+            {"data_type": "json", "x-nested-type": "struct<a: int64>"},
+            {"nullable": False, "data_type": "json"},
+            {"x-nested-type": "struct<a: int64>", "nullable": False, "data_type": "json"},
+        ),
     ],
     ids=[
         "decimal_to_text",
@@ -281,6 +296,9 @@ def test_none_resets_on_merge_column() -> None:
         "same_type",
         "modifiers_only",
         "incomplete_target",
+        "json_to_text_drops_nested_type",
+        "stale_nested_type_not_revived",
+        "json_keeps_nested_type",
     ],
 )
 def test_merge_column_data_type_change(
