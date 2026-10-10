@@ -229,7 +229,7 @@ dlt.pipeline("demo").run(source)
 `dlt` adds `NULL`/`NOT NULL` information to reflected schemas in **all reflection levels**. There are cases where you do not want this information to be present
 i.e.
 
-* if you plan to use replication source that will (soft) delete rows.
+* if you plan to use a replication source that will (soft) delete rows, for example [Postgres replication](../pg_replication.md).
 * if you expect that columns will be dropped from the source table.
 
 In such cases you can use a table adapter that removes nullability (`dlt` will create nullable tables as a default):

@@ -12,12 +12,12 @@ Planning to use `dlt` in production and need a source that isn't listed? We're h
 ## Core sources
 
 - [REST APIs](./rest_api/index.md)
-- [30+ SQL databases](./sql_database/index.md)
+- [30+ SQL databases](./sql_database/index.md), with [Postgres replication](./pg_replication.md) for change data capture
 - [Object store & filesystem](./filesystem/index.md)
 
 ### Verified sources
 
-Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization.
+Choose from our collection of verified sources, developed and maintained by the `dlt` team and community. Each source is rigorously tested against a real API and provided as Python code for easy customization. Popular choices include CRMs such as [Salesforce](./salesforce.md) and [HubSpot](./hubspot.md), streams such as [Kafka](./kafka.md), and marketing platforms such as [Google Ads](./google_ads.md).
 
 :::tip
 If you couldn't find a source implementation, you can easily create your own. Check out the [resource page](../../general-usage/resource.md) to learn how!

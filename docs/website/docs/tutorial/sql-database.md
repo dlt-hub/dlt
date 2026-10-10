@@ -5,7 +5,7 @@ keywords: [sql connector, sql database pipeline, sql database]
 ---
 # Load data from a SQL database
 
-This tutorial will show you how you can use dlt to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any dlt-compatible destination (Postgres, BigQuery, Snowflake, DuckDB, etc.).
+This tutorial will show you how you can use dlt to load data from a SQL Database (PostgreSQL, MySQL, Microsoft SQL Server, Oracle, IBM DB2, etc.) into any dlt-compatible destination ([Postgres](../dlt-ecosystem/destinations/postgres.md), [Microsoft SQL Server](../dlt-ecosystem/destinations/mssql.md), [BigQuery](../dlt-ecosystem/destinations/bigquery.md), [Snowflake](../dlt-ecosystem/destinations/snowflake.md), [DuckDB](../dlt-ecosystem/destinations/duckdb.md), etc.).
 
 To make it easy to reproduce, we will be loading data from the [public MySQL RFam database](https://docs.rfam.org/en/latest/database.html) into a local DuckDB instance.
 

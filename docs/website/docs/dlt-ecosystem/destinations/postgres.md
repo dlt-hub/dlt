@@ -5,6 +5,10 @@ keywords: [postgres, destination, data warehouse]
 ---
 # Postgres
 
+:::tip
+To load changes out of a Postgres database (change data capture), use the [Postgres replication](../verified-sources/pg_replication.md) source.
+:::
+
 ## Install dlt with PostgreSQL
 
 To install the dlt library with PostgreSQL dependencies, run:
