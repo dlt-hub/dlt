@@ -6,7 +6,7 @@ help: ## Shows this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Set up development environment
-	uv sync --all-extras --all-groups --all-packages --quiet --locked
+	uv sync --all-extras --all-groups --all-packages --quiet
 	uv run prek install --hook-type pre-commit --hook-type pre-push
 
 start: ## Generate docs and start the docusaurus dev server

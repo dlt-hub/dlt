@@ -1044,7 +1044,6 @@ dev = [
     { name = "requests-mock", specifier = ">=1.10.0,<2" },
     { name = "ruff", specifier = ">=0.3.2,<0.4" },
     { name = "sqlfluff", specifier = ">=2.3.2,<3" },
-    { name = "sqlglot", specifier = "<30.22" },
     { name = "types-cachetools", specifier = ">=4.2.9" },
     { name = "types-click", specifier = ">=7.1.8,<8" },
     { name = "types-croniter", specifier = ">=6.0.0" },

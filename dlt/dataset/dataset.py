@@ -265,6 +265,7 @@ class Dataset:
         query_dialect: Optional[TSqlGlotDialect] = None,
         *,
         _execute_raw_query: bool = False,
+        _allow_partial_lineage: bool = False,
     ) -> dlt.Relation:
         """Create a `dlt.Relation` from an SQL query, SQLGlot expression or Ibis expression.
 
@@ -281,6 +282,7 @@ class Dataset:
             query=query,
             query_dialect=query_dialect,
             _execute_raw_query=_execute_raw_query,
+            _allow_partial_lineage=_allow_partial_lineage,
         )
 
     # NOTE could simply accept `*args, **kwargs` and pass to `.query()` but would decrease readability
@@ -291,9 +293,15 @@ class Dataset:
         query_dialect: Optional[TSqlGlotDialect] = None,
         *,
         _execute_raw_query: bool = False,
+        _allow_partial_lineage: bool = False,
     ) -> dlt.Relation:
         """Convenience method to proxy `Dataset.query()`. See this method for details."""
-        return self.query(query, query_dialect, _execute_raw_query=_execute_raw_query)
+        return self.query(
+            query,
+            query_dialect,
+            _execute_raw_query=_execute_raw_query,
+            _allow_partial_lineage=_allow_partial_lineage,
+        )
 
     def table(
         self,

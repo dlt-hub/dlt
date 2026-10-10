@@ -285,8 +285,6 @@ dev = [
     "types-paramiko>=3.5.0.20250708",
     "griffe>=1.10.0",
     "graphviz>=0.21",
-    # caps CI only: sqlglot 30.22 removed `infer_schema` from `qualify()`
-    "sqlglot<30.22",
 ]
 
 # NOTE: those dependencies are used to test built in sources

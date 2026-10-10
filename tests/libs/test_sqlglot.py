@@ -115,6 +115,7 @@ def _from_sqlglot_cases() -> list[tuple[sge.DataType.Type, Optional[TDataType]]]
         sge.DataType.Type.BOOLEAN: "bool",
         # UNKNOWN
         sge.DataType.Type.UNKNOWN: None,
+        sge.DataType.Type.NULL: None,
     }
 
     try:
