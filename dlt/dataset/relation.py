@@ -132,6 +132,16 @@ class _ForeignDataset(NamedTuple):
     `alias` is `None`."""
 
 
+class _RelationLineage(NamedTuple):
+    """Lineage of a relation, computed against one version of the schemas of its datasets."""
+
+    schemas_key: tuple[str, ...]
+    """Version hashes of the schemas the lineage was computed against."""
+    sqlglot_schema: SQLGlotSchema
+    columns: TTableSchemaColumns
+    qualified_query: sge.Query
+
+
 class Relation(WithSqlClient):
     @overload
     def __init__(
@@ -175,7 +185,8 @@ class Relation(WithSqlClient):
 
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
-        self._schema: Optional[TTableSchemaColumns] = None
+        # first element (list of schema version hashes) is a cache key
+        self._lineage_cache: Optional[_RelationLineage] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
         self._foreign_datasets: Dict[str, _ForeignDataset] = {}
         """Datasets outside the dataset of this relation, keyed by the logical dataset name."""
@@ -225,19 +236,16 @@ class Relation(WithSqlClient):
         This infers the schema from the relation's content. It's likely to include less
         information than retrieving the schema from the pipeline or the dataset if the table
         already exists.
-        """
-        if self._schema is None:
-            schema, _ = _get_relation_output_columns_schema(
-                self,
-                infer_sqlglot_schema=True,
-                allow_anonymous_columns=True,
-                allow_partial=True,
-            )
-            self._schema = schema
 
-        assert self._schema is not None
+        Raises:
+            LineageFailedException: If the relation is not a SELECT statement or a column cannot be
+                resolved against the schemas of its datasets.
+        """
+        # a raw query has no columns schema
+        if self._execute_raw_query:
+            return {"columns": {}}
         # TODO use lineage features to propagate table-level dlt annotations
-        return {"columns": self._schema}
+        return {"columns": self._lineage().columns}
 
     @schema.setter
     def schema(self, new_value: Any) -> None:
@@ -296,13 +304,7 @@ class Relation(WithSqlClient):
         """Gets a DBApiCursor for the current relation"""
         try:
             client = self._opened_sql_client = self.sql_client
-
-            # we only compute the columns schema if we are not executing the raw query
-            if self._execute_raw_query:
-                columns_schema = None
-            else:
-                columns_schema = self.columns_schema
-
+            columns_schema = self.columns_schema
             # the columns schema and the SQL need no open connection, so both run before this
             # relation borrows a connection
             query = self.to_sql()
@@ -333,14 +335,16 @@ class Relation(WithSqlClient):
         if self._execute_raw_query or _raw_query:
             query = self.sqlglot_expression
         else:
-            _, _qualified_query = _get_relation_output_columns_schema(self)
+            relation_lineage = self._lineage()
+            _qualified_query = relation_lineage.qualified_query
             if pretty:
-                # optimize only for readable output; executed SQL stays as constructed
-                _qualified_query = _optimize_query(_qualified_query)
+                # optimize only for readable output; executed SQL stays as constructed.
+                # the optimizer works in place and the qualified query is cached
+                _qualified_query = _optimize_query(_qualified_query.copy())
             bindings, default_binding = self._compute_identifier_bindings()
             query = bind_query(
                 qualified_query=_qualified_query,
-                sqlglot_schema=self._relation_sqlglot_schema(),
+                sqlglot_schema=relation_lineage.sqlglot_schema,
                 bindings=bindings,
                 default_binding=default_binding,
             )
@@ -1165,8 +1169,23 @@ class Relation(WithSqlClient):
             },
         }
 
-    def _relation_sqlglot_schema(self) -> SQLGlotSchema:
-        return lineage.create_sqlglot_schema(self._all_schemas(), dialect=self.destination_dialect)
+    def _lineage(self) -> _RelationLineage:
+        """Returns the lineage of the relation against the current schemas of its datasets."""
+        all_schemas = self._all_schemas()
+        # the dataset schemas may evolve while the relation lives
+        key = tuple(schema.version_hash for schemas in all_schemas.values() for schema in schemas)
+        if self._lineage_cache is None or self._lineage_cache.schemas_key != key:
+            sqlglot_schema = lineage.create_sqlglot_schema(
+                all_schemas, dialect=self.destination_dialect
+            )
+            columns, qualified_query = lineage.compute_columns_schema(
+                # use dlt schema compliant query so lineage works on non case folded identifiers
+                self.sqlglot_expression,
+                sqlglot_schema,
+                dialect=self.destination_dialect,
+            )
+            self._lineage_cache = _RelationLineage(key, sqlglot_schema, columns, qualified_query)
+        return self._lineage_cache
 
     def _compute_identifier_bindings(
         self,
@@ -1251,25 +1270,6 @@ class Relation(WithSqlClient):
         """Serializes this relation to a `SqlModel`. The model holds the query and the context
         that the destination needs to run it"""
         return SqlModel(self.to_sql(), self.query_dialect, self._attach_infos())
-
-
-def _get_relation_output_columns_schema(
-    relation: dlt.Relation,
-    *,
-    infer_sqlglot_schema: bool = False,
-    allow_anonymous_columns: bool = True,
-    allow_partial: bool = False,
-) -> tuple[TTableSchemaColumns, sge.Query]:
-    columns_schema, normalized_query = lineage.compute_columns_schema(
-        # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
-        relation.sqlglot_expression,
-        relation._relation_sqlglot_schema(),
-        dialect=relation.destination_dialect,
-        infer_sqlglot_schema=infer_sqlglot_schema,
-        allow_anonymous_columns=allow_anonymous_columns,
-        allow_partial=allow_partial,
-    )
-    return columns_schema, normalized_query
 
 
 def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTableSchemaColumns:

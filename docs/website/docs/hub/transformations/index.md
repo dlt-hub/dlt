@@ -670,6 +670,10 @@ For lower-level cursor rules, including range inclusivity and `lag`, see [Filter
 
 For example, a transformation that joins two tables and creates new columns makes `dlt` update the destination schema. An incompatible schema change, such as a column type change that can lose data, makes `dlt` fail before the transformation runs. This protects your data and saves execution and debug time.
 
+`dlt` resolves every column of the query against the dataset schema. If a column cannot be resolved, for example an unqualified column of a table that is not in the dataset schema, computing the schema fails with `LineageFailedException` before the transformation runs.
+
+A column whose data type cannot be derived from the query, such as a `NULL` literal, a function unknown to `dlt`, or a column of a table outside the dataset schema, has no data type. A transformation that runs as SQL on the destination does not load such a column and logs a warning. Cast the column in the query, or set its data type with the `columns` hint.
+
 You can inspect the computed result schema during development. Read `Relation.columns_schema`, or print `Relation.columns` for the column names only:
 
 ```py notype execute
