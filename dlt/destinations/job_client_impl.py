@@ -658,10 +658,21 @@ WHERE """
     def _execute_schema_update_sql(
         self, only_tables: Iterable[str], store_schema: bool = True
     ) -> TSchemaTables:
-        # Only `only_tables` are included, or all if None.
-        sql_scripts, schema_update = self._build_schema_update_sql(
-            list(self.get_storage_tables(only_tables or self.schema.tables.keys()))
-        )
+        # `only_tables` are created or altered, or all tables if None
+        table_names = list(only_tables or self.schema.tables.keys())
+        may_create = set(table_names)
+        if store_schema:
+            # The version hash stored below says that the destination matches the whole schema,
+            # so tables outside of `only_tables` cannot be skipped. Those that already exist get
+            # the columns they miss. Those that do not exist are not created here: tables are
+            # created when they receive data and are passed in `only_tables`.
+            table_names.extend(t for t in self.schema.tables.keys() if t not in may_create)
+        storage_tables = [
+            (table_name, storage_columns)
+            for table_name, storage_columns in self.get_storage_tables(table_names)
+            if table_name in may_create or len(storage_columns) > 0
+        ]
+        sql_scripts, schema_update = self._build_schema_update_sql(storage_tables)
         # Stay within max query size when doing DDL.
         # Some DB backends use bytes not characters, so decrease the limit by half,
         # assuming most of the characters in DDL encoded into single bytes.
