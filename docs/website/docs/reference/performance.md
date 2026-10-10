@@ -686,6 +686,46 @@ call `pipeline.activate()` to inject the right context into the current thread.
 
 You can also run pipelines in parallel across multiple machines. Please consult our [deployment guides](../walkthroughs/deploy-a-pipeline) for more information. Please take note of the pitfalls listed below.
 
+### Load many pipelines into one dataset
+
+In a multi-tenant setup, each tenant has its own pipeline. All pipelines load into the same dataset and share the destination tables. Each record carries a tenant column. `dlt` supports this setup, but **pipelines that load at the same time must not share a staging dataset**.
+
+The `merge` write disposition and the `insert-from-staging` and `staging-optimized` [replace strategies](../general-usage/full-loading.md#choosing-the-correct-replace-strategy-for-your-full-load) first load data into the [staging dataset](../dlt-ecosystem/staging.md#staging-dataset). When the load step begins, `dlt` truncates the staging tables that receive data. Then it merges or copies the whole staging table into the destination table. By default, `dlt` derives the name of the staging dataset from the dataset name. As a result, pipelines that load into the same dataset also share the staging tables. When two such loads overlap, one pipeline can truncate the staging tables before the other pipeline merges its records. Or both pipelines merge the records of both loads. Both loads succeed, but the destination tables lose records or contain duplicates.
+
+Set a unique `staging_dataset_name_layout` for each pipeline:
+
+```py
+import dlt
+
+tenant_id = "acme"
+pipeline = dlt.pipeline(
+    pipeline_name=f"tenant_{tenant_id}",
+    destination=dlt.destinations.clickhouse(
+        staging_dataset_name_layout=f"%s_staging_{tenant_id}"
+    ),
+    dataset_name="analytics",
+)
+```
+
+#### Limit the number of staging tables
+
+A staging dataset contains one table for each table that `dlt` loads through staging. With 800 tenants and 40 tables, you have 32,000 staging tables. A staging dataset must be unique only among the pipelines that **load at the same time**. Some orchestrators run at most N loads at the same time, from a pool of N slots. In this case, name the staging dataset after the slot instead of the tenant: `staging_dataset_name_layout=f"%s_staging_{slot}"`.
+
+:::caution
+Make sure that the orchestrator never assigns one slot to two loads at the same time. Two loads that share a slot lose or duplicate records.
+:::
+
+After each load, to free the storage of the staging tables, enable [`truncate_staging_dataset`](../dlt-ecosystem/staging.md#cleanup-staging-dataset-automatically).
+
+#### Choose the keys and the write disposition
+
+- With `merge`, add the tenant column to the `primary_key`, for example `primary_key=["tenant_id", "id"]`. Then records of different tenants never match.
+- `replace` replaces the whole destination table, including the records of other tenants. To replace only the records of one tenant, use the [`delete-insert` strategy](../general-usage/merge-loading.md#delete-insert-strategy) with `merge_key="tenant_id"`. `dlt` deletes all records of the tenants in the loaded data. Then it inserts the loaded records.
+
+#### Schema changes
+
+Pipelines that load into the same tables also evolve the same tables. When two loads create the same table or add the same column at the same time, one of them can fail. [Retry the load](../running-in-production/running.md#retry-the-load) to resume the pending package. To avoid this failure, run a single pipeline first after a schema change. Then start the other pipelines.
+
 ### Pitfalls
 
 Due to the way `dlt` works, there are a few general pitfalls to be aware of:
@@ -699,8 +739,7 @@ Due to the way `dlt` works, there are a few general pitfalls to be aware of:
 
     If you do not, files might be deleted by one pipeline that are still required to be loaded by another pipeline running in parallel.
 
-3. If you are using a write disposition that requires a staging dataset on the final destination, you should provide a unique staging dataset name for each pipeline, otherwise similar problems as noted above may occur. You can do this with the
-[`staging_dataset_name_layout` setting.](../dlt-ecosystem/staging#staging-dataset)
+3. If a write disposition uses a staging dataset, give each pipeline a unique staging dataset. Otherwise, the destination tables can lose records or contain duplicates. Read [Load many pipelines into one dataset](#load-many-pipelines-into-one-dataset).
 
 ## Keep pipeline working folder in a bucket on constrained environments
 
