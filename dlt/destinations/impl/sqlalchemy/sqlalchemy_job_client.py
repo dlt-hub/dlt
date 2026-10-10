@@ -222,19 +222,31 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
                 self.schema.stored_version_hash,
             )
 
+        # `only_tables` are created or altered, or all tables if None
+        table_names = list(only_tables or self.schema.tables)
+        may_create = set(table_names)
+        if schema_info is None:
+            # The version hash stored below says that the destination matches the whole schema,
+            # so tables outside of `only_tables` cannot be skipped. Those that already exist get
+            # the columns they miss. Those that do not exist are not created here: tables are
+            # created when they receive data and are passed in `only_tables`.
+            table_names.extend(t for t in self.schema.tables if t not in may_create)
+
         # Create all schema tables in metadata
-        for table_name in only_tables or self.schema.tables:
+        for table_name in table_names:
             self._to_table_object(self.schema.tables[table_name])  # type: ignore[arg-type]
 
         schema_update: TSchemaTables = {}
         tables_to_create: List[sa.Table] = []
         columns_to_add: List[sa.Column] = []
 
-        for table_name in only_tables or self.schema.tables:
+        for table_name in table_names:
             table = self.schema.tables[table_name]
             table_obj, new_columns, exists = self.sql_client.compare_storage_table(table["name"])
             if not new_columns:  # Nothing to do, don't create table without columns
                 continue
+            if not exists and table_name not in may_create:
+                continue  # created when the table receives data
             if not exists:
                 logger.debug(f"Will create table {table_name} with new columns {len(new_columns)}")
                 tables_to_create.append(table_obj)
