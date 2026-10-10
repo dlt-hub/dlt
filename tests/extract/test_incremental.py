@@ -29,7 +29,7 @@ from dlt.common.json import json
 from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.pipeline import NormalizeInfo, StateInjectableContext
 from dlt.common.schema.schema import Schema
-from dlt.common.typing import TSortOrder, TDataItems
+from dlt.common.typing import TSortOrder, TDataItem, TDataItems
 from dlt.common.utils import chunks, uniq_id
 
 from dlt.extract import DltSource
@@ -44,7 +44,7 @@ from dlt.extract.incremental.exceptions import (
 )
 from dlt.extract.incremental.lag import apply_lag
 from dlt.extract.incremental.transform import ArrowIncremental
-from dlt.extract.items_transform import ValidateItem
+from dlt.extract.items_transform import MapItem, MetricsItem, ValidateItem
 from dlt.extract.resource import DltResource
 from dlt.extract.utils import (
     digest_dedup_value,
@@ -2040,6 +2040,71 @@ def test_incremental_wrapper_on_clone_incremental() -> None:
     assert r_3.incremental.incremental is not r_4.incremental.incremental
     # now the clone should share the incremental because it was done after parameters were bound
     assert r_4_clone.incremental is r_4.incremental
+
+
+def test_incremental_step_keeps_position() -> None:
+    """Steps inserted after incremental keep their place when hints are re-applied or resource is cloned"""
+    data = [{"id": 1, "updated_at": 1}, {"id": 2, "updated_at": 2}, {"id": 3, "updated_at": 3}]
+
+    @dlt.source
+    def my_source():
+        @dlt.resource
+        def events():
+            yield data
+
+        @dlt.resource
+        def events_arg(updated_at=dlt.sources.incremental("updated_at", initial_value=2)):
+            yield data
+
+        @dlt.resource
+        def events_cfg(api_key: str = "key"):
+            yield data
+
+        return events, events_arg, events_cfg
+
+    seen: List[int] = []
+
+    def collect(item: TDataItem) -> TDataItem:
+        seen.append(item["id"])
+        return item
+
+    def count_rows(items: TDataItems, meta: Any, metrics: Dict[str, Any]) -> None:
+        metrics["row_count"] = metrics.get("row_count", 0) + len(items)
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id())
+
+    # hints based incremental: pipeline.extract re-applies hints on a copy of the resource
+    r = my_source().events
+    r.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
+    r.add_map(collect, insert_at=len(r._pipe))
+    r.add_metrics(count_rows, insert_at=len(r._pipe))
+    steps = [type(s) for s in r._pipe.steps]
+    assert steps.index(Incremental) < steps.index(MapItem) < steps.index(MetricsItem)
+    r.apply_hints()
+    assert [type(s) for s in r._pipe.steps] == steps
+    info = p.extract(r)
+    assert seen == [2, 3]
+    resource_metrics = info.metrics[info.loads_ids[0]][0]["resource_metrics"]["events"]
+    assert resource_metrics.custom_metrics["row_count"] == 2
+    assert [type(s) for s in r.with_name("events_clone")._pipe.steps] == steps
+
+    # arg based incremental: clone ejects and re-injects the wrapper
+    r = my_source().events_arg
+    r.add_map(collect, insert_at=len(r._pipe))
+    steps = [type(s) for s in r._pipe.steps]
+    assert steps.index(IncrementalResourceWrapper) < steps.index(MapItem)
+    r_clone = r.with_name("events_arg_clone")
+    assert [type(s) for s in r_clone._pipe.steps] == steps
+    seen.clear()
+    p.extract(r_clone)
+    assert seen == [2, 3]
+
+    # hints based incremental on resource with config: clone ejects config wrapper
+    r = my_source().events_cfg
+    r.apply_hints(incremental=dlt.sources.incremental("updated_at", initial_value=2))
+    r_clone = r.with_name("events_cfg_clone")
+    assert isinstance(r_clone.incremental, Incremental)
+    assert [item["id"] for item in r_clone] == [2, 3]
 
 
 def test_last_value_func_on_dict() -> None:
