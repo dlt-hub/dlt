@@ -1406,7 +1406,7 @@ Incremental loading using the `incremental` field:
 
 ## Troubleshooting
 
-If you encounter issues while running the pipeline, enable [logging](../../../running-in-production/running.md#set-the-log-level-and-format) for detailed information about the execution:
+If you encounter issues while running the pipeline, enable [logging](../../../running-in-production/running.md#set-the-log-level-format-and-output) for detailed information about the execution:
 
 ```sh
 RUNTIME__LOG_LEVEL=INFO python my_script.py
