@@ -124,6 +124,8 @@ SQLGLOT_TO_DLT_TYPE_MAP: dict[DataType.Type, TDataType] = {
     DataType.Type.BOOLEAN: "bool",
     # UNKNOWN
     DataType.Type.UNKNOWN: None,
+    # older sqlglot types a `NULL` literal as `NULL`, newer as `UNKNOWN`
+    DataType.Type.NULL: None,
 }
 
 # these types were introduced after our sqlglot minimum version of 23.6.3
@@ -209,7 +211,7 @@ def from_sqlglot_type(sqlglot_type: DATA_TYPE) -> TColumnType:
         sqlglot_type = sge.DataType.build(sqlglot_type)
     assert isinstance(sqlglot_type, sge.DataType)
 
-    # only the `DataType.UNKNOWN` will produce `dlt_type=None`
+    # only `DataType.UNKNOWN` and `DataType.NULL` produce `dlt_type=None`
     dlt_type = SQLGLOT_TO_DLT_TYPE_MAP.get(sqlglot_type.this, "text")
 
     if dlt_type == "bigint":
