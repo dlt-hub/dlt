@@ -14,7 +14,15 @@ from typing_extensions import TypeAlias
 from sqlalchemy.exc import NoReferencedTableError
 
 from dlt.common.typing import TypedDict
-from dlt.common.libs.sql_alchemy import Table, Column, Row, sqltypes, Select, TypeEngine
+from dlt.common.libs.sql_alchemy import (
+    Table,
+    Column,
+    Row,
+    sqltypes,
+    Select,
+    TypeDecorator,
+    TypeEngine,
+)
 from dlt.common import logger
 from dlt.common.schema.typing import TColumnSchema, TTableSchemaColumns, TTableReference
 
@@ -125,6 +133,13 @@ def sqla_col_to_column_schema(
     if sql_t is None:
         # Column ignored by callback
         return col
+
+    # a TypeDecorator is not an instance of the type it wraps so the matching below would miss it.
+    # `impl` is the wrapped instance on both SQLAlchemy 1.4 and 2.x, `impl_instance` is 2.x only
+    while isinstance(sql_t, TypeDecorator):
+        sql_t = sql_t.impl
+        if isinstance(sql_t, type):
+            sql_t = sql_t()
 
     add_precision = reflection_level == "full_with_precision"
 
