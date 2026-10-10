@@ -662,10 +662,8 @@ WHERE """
         table_names = list(only_tables or self.schema.tables.keys())
         may_create = set(table_names)
         if store_schema:
-            # The version hash stored below says that the destination matches the whole schema,
-            # so tables outside of `only_tables` cannot be skipped. Those that already exist get
-            # the columns they miss. Those that do not exist are not created here: tables are
-            # created when they receive data and are passed in `only_tables`.
+            # the stored hash claims the whole schema is applied, so existing tables that
+            # are behind get altered too; tables with no data are still created lazily
             table_names.extend(t for t in self.schema.tables.keys() if t not in may_create)
         storage_tables = [
             (table_name, storage_columns)
