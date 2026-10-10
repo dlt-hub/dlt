@@ -108,10 +108,7 @@ class TypeMapperImpl(DataTypeMapper):
 
         if precision is None:
             return None
-        # NOTE: scale is only meaningful for decimal/wei (handled above). A stale
-        # scale may linger on the column after a data_type drift (e.g. decimal ->
-        # text) and must not be passed to single-argument templates like
-        # VARCHAR(%i), which would raise a TypeError.
+        # scale applies only to decimal and wei
         return (precision,)
 
     def decimal_precision(
