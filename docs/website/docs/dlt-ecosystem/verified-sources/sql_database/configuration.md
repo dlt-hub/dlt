@@ -521,6 +521,7 @@ There are certain limitations when using this backend:
 * For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
     * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
 * Nullability of the columns is ignored (always true).
+* On MS SQL Server, `DATETIMEOFFSET` values stored with an offset other than `+00:00` are returned as wrong instants (verified with `connectorx` 0.4.5 to 0.4.7a1). See [MS SQL Server DATETIMEOFFSET with ConnectorX](./troubleshooting.md#ms-sql-server-datetimeoffset-with-connectorx).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
 * JSON fields (at least those coming from PostgreSQL) are double-wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):
 

@@ -96,7 +96,7 @@ This approach can help resolve connection-related issues.
 2. Mind that `SQLAlchemy` translates Oracle identifiers into lower case! Keep the default `dlt` naming convention (`snake_case`) when loading data. We'll support more naming conventions soon.
 3. `Connectorx` is not compatible with `oracledb` in thin mode. In thick mode with `cx_oracle` it is for some reason slower for Oracle than the `PyArrow` backend, so it is not recommended for Oracle.
 4. To preserve the original DB type semantics and avoid data loss, NUMBER is always treated as decimal, with sqlalchemy backend keeping the original DB precision and scale and pyarrow setting the default ones. pandas is generally discouraged when it comes to decimals, not only for Oracle
-5. For the `TIMESTAMP WITH TIME ZONE` columns, both `cx_Oracle` and `oracledb` truncate timezone info in select results, so it's not possible to fetch actual timezone data.
+5. Since `dlt` 1.32.0, `TIMESTAMP WITH TIME ZONE` and `TIMESTAMP WITH LOCAL TIME ZONE` load as correct UTC instants, also incrementally. See [Oracle timestamps with a time zone](#oracle-timestamps-with-a-time-zone) below.
 
   
 See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/oracledb#installing-and-setting-up-oracle-db) for information and code on setting up and benchmarking on Oracle.
@@ -111,9 +111,69 @@ See [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/db2#in
 1. The `SQLAlchemy` dialect converts doubles to decimals. (This can be disabled via the table adapter argument as shown in the code example [here](./configuration#pyarrow))
 
 #### Postgres / MSSQL
-No issues were found for these databases. Postgres is the only backend where we observed a 2x speedup with `ConnectorX` (see [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/postgres) for the benchmarking code). On other db systems, it performs the same as (or sometimes worse than) the `PyArrow` backend.
+No issues were found for these databases, except [`DATETIMEOFFSET` with `ConnectorX`](#ms-sql-server-datetimeoffset-with-connectorx) on MS SQL Server. Postgres is the only backend where we observed a 2x speedup with `ConnectorX` (see [here](https://github.com/dlt-hub/sql_database_benchmarking/tree/main/postgres) for the benchmarking code). On other db systems, it performs the same as (or sometimes worse than) the `PyArrow` backend.
 
 ### Notes on specific data types
+
+#### Oracle timestamps with a time zone
+
+Since `dlt` 1.32.0, Oracle timestamps load as correct UTC instants in any database or session time
+zone, in both thin and thick `oracledb` mode:
+
+* `TIMESTAMP WITH TIME ZONE`: loaded as the UTC instant with the `timezone` hint. Values stored
+  with a region name such as `Europe/Warsaw` load too. The original offset is not kept.
+* `TIMESTAMP WITH LOCAL TIME ZONE`: loaded as the UTC instant with the `timezone` hint.
+* `TIMESTAMP` and `DATE`: loaded as stored, without the `timezone` hint. `DATE` keeps its time of
+  day.
+
+Incremental loading works on all of them. A cursor on a zoned column is compared as a UTC
+instant, so no rows are skipped or loaded twice whatever the session time zone is. `dlt` does not
+change the session of its connections, including those of an `Engine` you pass as `credentials`.
+
+:::caution
+Versions before 1.32.0 loaded `TIMESTAMP WITH TIME ZONE` values as their wall clock labeled as UTC,
+so values stored with a non-zero offset were shifted, and region names failed with `DPY-3022`.
+`TIMESTAMP WITH LOCAL TIME ZONE` columns lost the `timezone` hint and were shifted by the database
+time zone. After upgrading, such rows load as different (correct) instants, and the destination
+column type may change. If you load these columns incrementally, check the stored cursor value
+before the first run.
+:::
+
+:::note
+`oracledb` returns zoned timestamps as naive datetimes that are not UTC. `dlt` selects such columns
+as `SYS_EXTRACT_UTC(column)` and binds the cursor value as
+`FROM_TZ(CAST(:value AS TIMESTAMP), '+00:00')`, so Oracle does both conversions. Filters and ordering
+use the column itself, so its index still works.
+:::
+
+#### MS SQL Server DATETIMEOFFSET with ConnectorX
+
+`ConnectorX` (verified with 0.4.5 to 0.4.7a1, with both the `tiberius` and the `mssql-tds` driver)
+applies the offset of a `DATETIMEOFFSET` value twice: the
+returned instant is the correct one minus the stored offset. For example `05:06 -05:00` (10:06 UTC)
+arrives as 15:06 UTC, and `12:00 +02:00` (10:00 UTC) as 08:00 UTC. Only values stored at `+00:00`
+are correct, and the time zone of the client does not matter. The data is shifted silently, and an
+incremental cursor on such a column skips or repeats rows.
+
+If your `DATETIMEOFFSET` columns hold offsets other than `+00:00`, use the `pyarrow` or `sqlalchemy`
+backend, which return correct instants. To keep `ConnectorX`, select the column normalized to UTC
+with a `query_adapter_callback`:
+
+```py
+import sqlalchemy as sa
+from dlt.sources.sql_database import sql_table
+
+def utc_offsets(query, table):
+    columns = [
+        sa.func.switchoffset(col, "+00:00").label(col.name)
+        if col.name == "updated_at"
+        else col
+        for col in table.c
+    ]
+    return query.with_only_columns(*columns)
+
+orders = sql_table(table="orders", backend="connectorx", query_adapter_callback=utc_offsets)
+```
 
 #### JSON
 
