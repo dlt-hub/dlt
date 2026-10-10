@@ -111,14 +111,15 @@ class TColumnPropInfo(NamedTuple):
     defaults: Tuple[Any, ...] = (None,)
     is_hint: bool = False
     compound: bool = False
+    type_modifier: bool = False
 
 
 _ColumnPropInfos = [
     TColumnPropInfo("name"),
     TColumnPropInfo("data_type"),
-    TColumnPropInfo("precision"),
-    TColumnPropInfo("scale"),
-    TColumnPropInfo("timezone", (True, None)),
+    TColumnPropInfo("precision", type_modifier=True),
+    TColumnPropInfo("scale", type_modifier=True),
+    TColumnPropInfo("timezone", (True, None), type_modifier=True),
     TColumnPropInfo("nullable", (True, None)),
     TColumnPropInfo("variant", (False, None)),
     TColumnPropInfo("partition", (False, None), False, True),
@@ -135,6 +136,7 @@ _ColumnPropInfos = [
     TColumnPropInfo("incremental", (False, None), False, True),
     # any x- hint with special settings ie. defaults
     TColumnPropInfo("x-active-record-timestamp", (), is_hint=True),  # no default values
+    TColumnPropInfo("x-nested-type", type_modifier=True),
 ]
 
 ColumnPropInfos: Dict[Union[TColumnProp, str], TColumnPropInfo] = {

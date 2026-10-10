@@ -164,6 +164,13 @@ def is_compound_prop(prop: str) -> bool:
     return False
 
 
+def is_type_modifier_prop(prop: str) -> bool:
+    """Checks if a column property modifies the data type ie. precision or scale."""
+    if prop in ColumnPropInfos:
+        return ColumnPropInfos[prop].type_modifier is True
+    return False
+
+
 def remove_compound_props(
     columns: TTableSchemaColumns, compound_props: set[str]
 ) -> TTableSchemaColumns:
@@ -456,6 +463,8 @@ def merge_column(
     """Merges properties from `col_b` into `col_a`, modifying `col_a` in place.
 
     All properties from `col_b` are copied into `col_a`, potentially overwriting existing values.
+    When `col_b` changes the data type of `col_a`, type modifiers of `col_a` (`precision`,
+    `scale`, `timezone`, `x-nested-type`) are dropped first.
 
     Args:
         col_a: Target column schema that will be modified
@@ -467,6 +476,12 @@ def merge_column(
         The modified col_a (same object that was passed in)
     """
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
+    # remove type modifiers before any other merges
+    a_type, b_type = col_a.get("data_type"), col_b_clean.get("data_type")
+    if a_type and b_type and a_type != b_type:
+        for prop in [p for p in col_a if is_type_modifier_prop(p)]:
+            col_a.pop(prop)  # type: ignore[misc]
+    # merge props as usual
     for n, v in col_b_clean.items():
         col_a[n] = v  # type: ignore
 
