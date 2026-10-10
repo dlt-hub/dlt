@@ -563,7 +563,7 @@ dlt pipeline <pipeline_name> load-package <load_id> row-counts
 ```
 
 :::tip
-Load package does not need to be present locally - if you are investigating remore pipeline ie. running on Airflow, sync the newest
+Load package does not need to be present locally - if you are investigating remote pipeline ie. running on Airflow, sync the newest
 destination state with
 
 ```sh
