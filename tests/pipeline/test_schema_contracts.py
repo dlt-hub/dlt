@@ -1,7 +1,9 @@
 import dlt, pytest
 import contextlib
-from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type
+from typing import Any, Callable, ClassVar, Dict, Iterator, Literal, Union, Optional, Type, cast
 
+from dlt.common import Decimal
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema.typing import (
     TColumnSchema,
     TSchemaContract,
@@ -13,6 +15,7 @@ from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.typing import TDataItems
+from dlt.destinations import snowflake
 from dlt.extract.hints import make_hints
 
 from dlt.extract import DltResource
@@ -1282,6 +1285,54 @@ def test_arrow_data_new_column_blocked_by_contract(contract_setting: TSchemaEvol
         assert (
             "email" not in table["columns"]
         ), f"arrow-data column 'email' should be blocked by {contract_setting}"
+
+
+@pytest.mark.parametrize("item_format", ["pandas", "arrow-table", "arrow-batch"])
+@pytest.mark.parametrize("data_type_contract", ["evolve", "discard_value"])
+def test_arrow_hint_changes_data_type(
+    item_format: TestDataItemFormat, data_type_contract: TSchemaEvolutionMode
+) -> None:
+    """Text hint over decimal arrow data (ie. sql_database reflection) leaves no stale scale."""
+    pipeline = get_pipeline()
+    contract: TSchemaContract = {"data_type": data_type_contract}
+    decimals = data_to_item_format(item_format, [{"id": 1, "value": Decimal("10.25")}])
+    texts = data_to_item_format(item_format, [{"id": 2, "value": "some text"}])
+    text_hint: TColumnSchema = {"data_type": "text", "precision": 50}
+    decimal_hint: TColumnSchema = {"data_type": "decimal", "precision": 10, "scale": 2}
+
+    # new table: contract does not apply, text hint replaces arrow decimal type
+    pipeline.extract(
+        dlt.resource(
+            decimals, name=NEW_ITEMS_TABLE, columns={"value": text_hint}, schema_contract=contract
+        )
+    )
+    # existing decimal column: text hint is accepted or discarded by the contract
+    pipeline.extract(
+        dlt.resource(
+            decimals, name=ITEMS_TABLE, columns={"value": decimal_hint}, schema_contract=contract
+        )
+    )
+    pipeline.normalize()
+    pipeline.extract(
+        dlt.resource(
+            texts, name=ITEMS_TABLE, columns={"value": text_hint}, schema_contract=contract
+        )
+    )
+
+    expected = [(NEW_ITEMS_TABLE, text_hint, "VARCHAR(50)")]
+    if data_type_contract == "evolve":
+        expected.append((ITEMS_TABLE, text_hint, "VARCHAR(50)"))
+    else:
+        expected.append((ITEMS_TABLE, decimal_hint, "NUMBER(10,2)"))
+    mapper = snowflake().capabilities().get_type_mapper()
+    for table_name, hint, destination_type in expected:
+        table = pipeline.default_schema.get_table(table_name)
+        column = table["columns"]["value"]
+        assert column == {"name": "value", "nullable": True, **hint}
+        # a stale scale fails in VARCHAR(%i) with TypeError
+        assert (
+            mapper.to_destination_type(column, cast(PreparedTableSchema, table)) == destination_type
+        )
 
 
 TABLE_NAME_MAP = {"click": "click_events", "purchase": "purchase_events", "debug": "debug_events"}

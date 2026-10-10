@@ -240,6 +240,57 @@ def test_none_resets_on_merge_column() -> None:
     assert col_a == {"name": "col1", "x-prop": None}
 
 
+@pytest.mark.parametrize(
+    "col_a,col_b,expected",
+    [
+        (
+            {"precision": 10, "scale": 2, "nullable": False, "data_type": "decimal"},
+            {"precision": 50, "data_type": "text"},
+            {"nullable": False, "precision": 50, "data_type": "text"},
+        ),
+        (
+            {"precision": 3, "data_type": "timestamp", "primary_key": True, "timezone": False},
+            {"data_type": "text"},
+            {"primary_key": True, "data_type": "text"},
+        ),
+        (
+            {"scale": 2, "data_type": "decimal", "precision": 10},
+            {"precision": 32, "data_type": "bigint"},
+            {"data_type": "bigint", "precision": 32},
+        ),
+        (
+            {"precision": 10, "data_type": "decimal", "scale": 2},
+            {"precision": 20, "data_type": "decimal"},
+            {"precision": 20, "scale": 2, "data_type": "decimal"},
+        ),
+        (
+            {"precision": 10, "scale": 2, "data_type": "decimal"},
+            {"precision": 20},
+            {"precision": 20, "scale": 2, "data_type": "decimal"},
+        ),
+        (
+            {"precision": 50},
+            {"data_type": "text"},
+            {"precision": 50, "data_type": "text"},
+        ),
+    ],
+    ids=[
+        "decimal_to_text",
+        "timestamp_to_text",
+        "new_type_with_modifiers",
+        "same_type",
+        "modifiers_only",
+        "incomplete_target",
+    ],
+)
+def test_merge_column_data_type_change(
+    col_a: TColumnSchema, col_b: TColumnSchema, expected: TColumnSchema
+) -> None:
+    # type modifiers of col_a are dropped only when both columns have different data types
+    assert utils.merge_column(deepcopy(col_a), col_b) == expected
+    assert utils.merge_column(deepcopy(col_a), col_b, merge_defaults=False) == expected
+
+
 def test_merge_columns() -> None:
     columns = utils.merge_columns(
         {"test": deepcopy(COL_1_HINTS)}, {"test_2": deepcopy(COL_2_HINTS)}

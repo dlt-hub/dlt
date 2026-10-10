@@ -134,6 +134,8 @@ Data type information:
 5. `nullable` tells if the column is nullable or not.
 6. `is_variant` indicates that the column was generated as a variant of another column.
 
+When a column hint changes `data_type`, the `precision`, `scale`, and `timezone` of the previous type are dropped. Set them again in the same hint if the new type needs them.
+
 A column schema contains the following basic hints:
 
 1. `primary_key` marks a column as part of the primary key.
