@@ -4,6 +4,8 @@ import os
 import shutil
 from typing import Any, Dict, List, Optional
 
+from packaging.requirements import Requirement
+
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.pluggable_run_context import (
@@ -46,6 +48,8 @@ from dlt._workspace.deployment._trigger_helpers import parse_trigger
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.manifest import expand_triggers
 from dlt._workspace.deployment.requirements import (
+    dlt_extra_specs,
+    floored_spec,
     get_workspace_install_specs,
     render_pep508,
     render_requirements_lines,
@@ -55,19 +59,24 @@ from dlt._workspace.profile import BUILT_IN_PROFILES, is_local_profile, read_pro
 from dlt._workspace.typing import TLocationInfo, TProviderInfo
 
 
-# kept in sync with the workspace deps that dlthub init seeds into the scaffolded project
-# (was the `workspace` extra in pyproject.toml; mirrored in `[dependency-groups] workspace-deps`)
-WORKSPACE_DEPS: List[str] = [
-    "duckdb>=0.9",
-    "ibis-framework>=12.0.0",
-    "pyarrow>=16.0.0",
-    "marimo>=0.14.5",
-    "fastmcp>=3.1.0",
-    "mowidgets>=0.2.1 ; python_version >= '3.11'",
-    "pathspec>=0.11.2",
-    "pydbml>=1.2.0",
-    "s3fs>=2022.4.0",
-]
+def workspace_deps() -> List[str]:
+    """Deps `dlthub init` seeds into the scaffolded project.
+
+    Mirrored in `[dependency-groups] workspace-deps`; the launcher floors and dlt's own
+    extras supply the bounds both share with the deployment requirements.
+    """
+    (s3fs,) = [s for s in dlt_extra_specs("s3") if Requirement(s).name == "s3fs"]
+    return [
+        "duckdb>=0.9",
+        floored_spec("ibis-framework"),
+        *dlt_extra_specs("parquet"),
+        floored_spec("marimo"),
+        floored_spec("fastmcp"),
+        "mowidgets>=0.2.1 ; python_version >= '3.11'",
+        "pathspec>=0.11.2",
+        "pydbml>=1.2.0",
+        s3fs,
+    ]
 
 
 def is_uv_available() -> bool:
@@ -489,7 +498,7 @@ def fetch_init_plan(
     workspace_specs = get_workspace_install_specs()
     dependency_specs: List[str] = [
         render_pep508(s, for_deployment=False) for s in workspace_specs
-    ] + list(WORKSPACE_DEPS)
+    ] + workspace_deps()
     uv_sources: Dict[str, Dict[str, Any]] = {}
     for s in workspace_specs:
         src = render_uv_source(s)
@@ -498,7 +507,7 @@ def fetch_init_plan(
     requirements_lines: List[str] = []
     for s in workspace_specs:
         requirements_lines.extend(render_requirements_lines(s))
-    requirements_lines.extend(WORKSPACE_DEPS)
+    requirements_lines.extend(workspace_deps())
 
     return TInitPlan(
         run_dir=abs_run_dir,
@@ -508,7 +517,7 @@ def fetch_init_plan(
         dependency_specs=dependency_specs,
         uv_sources=uv_sources,
         requirements_lines=requirements_lines,
-        workspace_deps=list(WORKSPACE_DEPS),
+        workspace_deps=workspace_deps(),
         files=files,
         workspace_exists=os.path.isfile(workspace_marker),
     )
