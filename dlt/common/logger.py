@@ -88,7 +88,7 @@ class _MetricsFormatter(logging.Formatter):
 
 
 class _DltStreamHandler(logging.StreamHandler):
-    pass
+    """Identify dlt-owned handlers when switching to propagation."""
 
 
 def _create_logger(
@@ -110,11 +110,16 @@ def _create_logger(
         logger = logging.getLogger(logger_name)
         logger.setLevel(level)
 
+        owned = [
+            handler
+            for handler in logger.handlers
+            if isinstance(handler, _DltStreamHandler)
+        ]
+
         if log_output == "propagate":
-            for handler in logger.handlers[:]:
-                if isinstance(handler, _DltStreamHandler):
-                    logger.removeHandler(handler)
-                    handler.close()
+            for handler in owned:
+                logger.removeHandler(handler)
+                handler.close()
 
             logger.propagate = True
             return logger
@@ -122,15 +127,12 @@ def _create_logger(
         logger.propagate = False
         stream = sys.stdout if log_output == "stdout" else sys.stderr
 
-        handler = next(
-            (h for h in logger.handlers if isinstance(h, _DltStreamHandler)),
-            None,
-        )
-        if handler is None:
+        if owned:
+            handler = owned[0]
+            handler.setStream(stream)
+        else:
             handler = _DltStreamHandler(stream)
             logger.addHandler(handler)
-        else:
-            handler.setStream(stream)
 
     # set right formatter
     if is_json_logging(fmt):

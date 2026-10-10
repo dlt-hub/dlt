@@ -1,6 +1,6 @@
 import binascii
 from os.path import isfile, join
-from typing import Any, ClassVar, Optional, IO
+from typing import Any, ClassVar, Optional, IO, Literal
 
 from dlt.common.typing import TSecretStrValue
 from dlt.common.utils import encoding_for_mode, reveal_pseudo_secret
@@ -22,7 +22,7 @@ class RuntimeConfiguration(BaseConfiguration):
         "{asctime}|[{levelname}]|{process}|{thread}|{name}|{filename}|{funcName}:{lineno}|{message}"
     )
     log_level: str = "WARNING"
-    log_output: str = "stderr"
+    log_output: Literal["stdout", "stderr", "propagate"] = "stderr"
     request_timeout: float = 60
     """Timeout for http requests"""
     request_max_attempts: int = 5
