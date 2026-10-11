@@ -15,7 +15,7 @@ from .doc import BaseDocProvider
 SECRETS_TOML_KEY = "dlt_secrets_toml"
 
 # translation table that removes punctuation from secret name components
-# "-" and "_" are allowed in secret names by all supported vaults so we keep them
+# "-" and "_" are allowed in secret names by most vaults so we keep them here
 PUNCTUATION_TRANSLATOR = str.maketrans("", "", "".join(set(string.punctuation) - {"-", "_"}))
 WHITESPACE_RE = re.compile(r"\s+")
 
