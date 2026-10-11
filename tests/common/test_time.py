@@ -28,6 +28,7 @@ from dlt.common.time import (
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
     datetime_to_timestamp_us,
+    datetime_to_placeholders,
     detect_datetime_format,
     ensure_pendulum_time,
     normalize_timezone,
@@ -1253,3 +1254,38 @@ def test_import_dlt_rejects_invalid_env_timezone() -> None:
     assert result.returncode != 0
     assert "InvalidTimezoneName" in result.stderr
     assert "Nowhere/Bogus" in result.stderr
+
+
+# expected strings are the output of `pendulum.DateTime.format(token).lower()`, which rendered
+# filesystem layouts before. object paths written then must not change
+@pytest.mark.parametrize(
+    "moment,expected",
+    [
+        (
+            datetime(2024, 1, 7, 3, 4, 5, 123456, tzinfo=timezone.utc),
+            "2024 24 2024 january jan 01 1 07 7 03 3 04 4 05 5 sunday sun su 0 1234 123 12 1 1",
+        ),
+        (
+            datetime(5, 12, 31, 23, 59, 9, 9, tzinfo=ZoneInfo("Europe/Berlin")),
+            "5  5 december dec 12 12 31 31 23 23 59 59 09 9 saturday sat sa 6 0000 000 00 0 4",
+        ),
+        (
+            datetime(2026, 10, 9, 13, tzinfo=ZoneInfo("Asia/Kolkata")),
+            "2026 26 2026 october oct 10 10 09 9 13 13 00 0 00 0 friday fri fr 5 0000 000 00 0 4",
+        ),
+        (
+            datetime(2024, 2, 29, 0, 0, 0, 999999, tzinfo=timezone.utc),
+            "2024 24 2024 february feb 02 2 29 29 00 0 00 0 00 0 thursday thu th 4 9999 999 99 9 1",
+        ),
+    ],
+    ids=["sunday", "year_5", "kolkata", "leap_day"],
+)
+@pytest.mark.parametrize("as_pendulum", [False, True], ids=["stdlib", "pendulum"])
+def test_datetime_to_placeholders(moment: datetime, expected: str, as_pendulum: bool) -> None:
+    tokens = "YYYY YY Y MMMM MMM MM M DD D HH H mm m ss s dddd ddd dd d SSSS SSS SS S Q"
+    if as_pendulum:
+        moment = pendulum.instance(moment)
+    params = datetime_to_placeholders(moment)
+    assert " ".join(params[token] for token in tokens.split()) == expected
+    assert params["curr_date"] == str(moment.date())
+    assert params["timestamp"] == str(datetime_to_timestamp(moment))
