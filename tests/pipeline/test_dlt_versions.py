@@ -1,5 +1,5 @@
 import os
-from datetime import datetime  # noqa: I251
+from datetime import datetime, timezone  # noqa: I251
 from typing import Any, List, Optional, Dict
 import sys
 from subprocess import CalledProcessError
@@ -19,6 +19,7 @@ from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.utils import custom_environ, set_working_dir
 from dlt.common.storages import FileStorage
+from dlt.common.time import datetime_to_timestamp, datetime_to_timestamp_ms, ensure_datetime_in_tz
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
@@ -818,6 +819,46 @@ def test_load_normalized_refresh_package_from_1_25(test_storage: FileStorage) ->
         assert package_state["applied_dropped_tables"] == ["items"]
         # `items` was dropped and re-created with only the second run's row
         assert load_table_counts(pipeline, "items") == {"items": 1}
+
+
+def test_load_filesystem_package_with_date_layout_from_1_25(test_storage: FileStorage) -> None:
+    """read filesystem_layout_pipeline.py docstring for test case details."""
+    shutil.copytree(
+        "tests/pipeline/cases/github_pipeline", get_test_storage_root(), dirs_exist_ok=True
+    )
+
+    with test_workspace():
+        with Venv.create(tempfile.mkdtemp(), ["dlt==1.25.0"]) as venv:
+            try:
+                old_output = venv.run_script("filesystem_layout_pipeline.py", "old")
+                print(old_output)
+            except CalledProcessError as cpe:
+                print(f"script output: {cpe.output}")
+                raise
+
+        venv = Venv.restore_current()
+        try:
+            output = venv.run_script("filesystem_layout_pipeline.py", "load")
+            print(output)
+        except CalledProcessError as cpe:
+            print(f"script output: {cpe.output}")
+            raise
+
+        # the package state written by the old dlt has no placeholders
+        pipeline = dlt.attach("filesystem_layout")
+        load_id = pipeline.list_completed_load_packages()[-1]
+        package_state = pipeline.get_load_package_state(load_id)
+        assert "placeholders" not in package_state
+        # the current dlt reads the creation time that the old dlt wrote to the package state
+        created_at = ensure_datetime_in_tz(package_state["created_at"], timezone.utc)
+        old_created_at_ms = int(old_output.split("CREATED_AT_MS:")[1].split()[0])
+        assert datetime_to_timestamp_ms(created_at) == old_created_at_ms
+        # the path renders the creation time of the package, not the time of the load, in UTC
+        expected = (
+            f"items/{created_at:%Y-%m-%d}/{datetime_to_timestamp(created_at)}/"
+            f"{old_created_at_ms}/{load_id}."
+        )
+        assert expected in output
 
 
 def _run_datetime_key_case(old_version: str, strategy: str) -> None:

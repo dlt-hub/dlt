@@ -699,17 +699,22 @@ def test_create_path_uses_current_moment_if_current_datetime_is_not_given(
 ) -> None:
     load_id, job_info = test_load
     logger_spy = mocker.spy(logger, "info")
-    before = int(datetime.now(timezone.utc).timestamp())
+    now = datetime(2024, 4, 14, 3, 4, 5, tzinfo=timezone.utc)
+
+    class FixedDatetime(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return now
+
+    mocker.patch.object(dlt.destinations.path_utils, "datetime", FixedDatetime)
     path = create_path(
         "{schema_name}/{table_name}/{load_id}.{file_id}.{timestamp}.{ext}",
         schema_name="schema_name",
         load_id=load_id,
         file_name=job_info.file_name(),
     )
-    after = int(datetime.now(timezone.utc).timestamp())
-    prefix = f"schema_name/mock_table/{load_id}.{job_info.file_id}."
-    assert path.startswith(prefix) and path.endswith(".jsonl")
-    assert before <= int(path[len(prefix) : -len(".jsonl")]) <= after
+    timestamp = int(now.timestamp())
+    assert path == f"schema_name/mock_table/{load_id}.{job_info.file_id}.{timestamp}.jsonl"
     logger_spy.assert_called_once_with("`current_datetime` is not set. dlt uses the current time.")
 
 
