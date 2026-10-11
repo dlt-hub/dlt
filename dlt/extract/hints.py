@@ -43,7 +43,11 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     remove_compound_props,
 )
-from dlt.common.destination.utils import validate_merge_condition
+from dlt.common.destination.utils import (
+    MERGE_CONDITION_PLACEHOLDERS,
+    MERGE_CONDITION_VALUE_PLACEHOLDERS,
+    validate_merge_condition,
+)
 from dlt.common.typing import TAny, TDataItem, TColumnNames
 from dlt.common.time import ensure_datetime
 from dlt.common.utils import clone_dict_nested
@@ -834,9 +838,34 @@ class DltResourceHints:
                     "write_disposition['strategy']", strategy, MERGE_STRATEGIES
                 )
 
+            extra_placeholders = md.get("extra_placeholders") or {}
+            if not isinstance(extra_placeholders, dict):
+                raise ValueError(
+                    "`write_disposition['extra_placeholders']` must be a dict of placeholder names"
+                    f" and values, not `{type(extra_placeholders).__name__}`."
+                )
+            reserved = (*MERGE_CONDITION_PLACEHOLDERS, *MERGE_CONDITION_VALUE_PLACEHOLDERS)
+            if clashing := sorted(set(extra_placeholders).intersection(reserved)):
+                raise ValueError(
+                    "`write_disposition['extra_placeholders']` redefines the placeholders"
+                    f" {', '.join('`' + name + '`' for name in clashing)}. dlt fills them. Rename"
+                    " these placeholders."
+                )
+            # merge conditions are the only consumers of `extra_placeholders`
+            if (
+                extra_placeholders
+                and strategy
+                and strategy not in MERGE_STRATEGY_OPTIONS["source_filter"]
+            ):
+                raise ValueError(
+                    "dlt supports `extra_placeholders` only with the `delete-insert`, `scd2`,"
+                    f" `upsert`, `cdc` merge strategies, not with `{strategy}`. Use one of these"
+                    " strategies or remove `extra_placeholders`."
+                )
+            placeholders = [*reserved, *extra_placeholders]
             for hint_name in ("source_filter", "destination_scope"):
                 if filter_ := md.get(hint_name):
-                    validate_merge_condition(hint_name, cast(str, filter_))
+                    validate_merge_condition(hint_name, cast(str, filter_), placeholders)
             # the default strategy depends on the destination, which checks its options
             if strategy:
                 for option, strategies in MERGE_STRATEGY_OPTIONS.items():

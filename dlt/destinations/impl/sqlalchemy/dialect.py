@@ -255,6 +255,21 @@ def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = Fal
     return format_datetime_literal(v, precision, no_tz=True)
 
 
+def escape_dialect_literal(dialect_class: Type[sa.engine.Dialect], value: Any) -> str:
+    """Renders `value` as a SQL literal of the dialect."""
+    try:
+        return str(
+            sa.literal(value).compile(
+                dialect=dialect_class(), compile_kwargs={"literal_binds": True}
+            )
+        )
+    except sa.exc.CompileError:
+        # some dialects cannot render dates, the database casts the ISO string instead
+        return escape_dialect_literal(
+            dialect_class, value.isoformat() if hasattr(value, "isoformat") else str(value)
+        )
+
+
 register_dialect_capabilities("mysql", MysqlDialectCapabilities)
 register_dialect_capabilities("mariadb", MysqlDialectCapabilities)
 register_dialect_capabilities("sqlite", SqliteDialectCapabilities)

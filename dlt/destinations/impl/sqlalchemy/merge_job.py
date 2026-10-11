@@ -214,7 +214,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                 if condition_columns:
                     inner_cols += condition_columns
 
-                inner_select = sa.select(
+                inner_select_sql = sa.select(
                     sa.func.row_number()
                     .over(
                         partition_by=set(staging_primary_key_cols),
@@ -222,7 +222,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                     )
                     .label("_dlt_dedup_rn"),
                     *inner_cols,
-                ).subquery()
+                )
+                # deduplicate the merge source only, discarded records must not win the dedup
+                if source_filter:
+                    inner_select_sql = inner_select_sql.where(sa.text(source_filter))
+                inner_select = inner_select_sql.subquery()
 
                 select_for_temp_insert = sa.select(inner_select.c[row_key_col_name]).where(
                     inner_select.c._dlt_dedup_rn == 1
@@ -293,7 +297,7 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                     order_by_col = sa.select(sa.literal(None))
                     order_dir_func = sa.asc
 
-                inner_select = sa.select(
+                inner_select_sql = sa.select(
                     staging_table_obj,
                     sa.func.row_number()
                     .over(
@@ -301,7 +305,10 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
                         order_by=order_dir_func(order_by_col),
                     )
                     .label("_dlt_dedup_rn"),
-                ).subquery()
+                )
+                if source_filter:
+                    inner_select_sql = inner_select_sql.where(sa.text(source_filter))
+                inner_select = inner_select_sql.subquery()
 
                 select_sql = sa.select(
                     *[c for c in inner_select.c if c.name != "_dlt_dedup_rn"]

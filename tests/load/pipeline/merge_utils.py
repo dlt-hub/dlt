@@ -18,7 +18,7 @@ from dlt.common.time import (
     reduce_pendulum_datetime_precision,
 )
 from dlt.common.typing import TAnyDateTime, TColumnNames
-from dlt.extract import DltSource
+from dlt.extract import DltResource, DltSource
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.pipeline.utils import load_tables_to_dicts
@@ -56,9 +56,17 @@ PARTITIONED_INPUT = [
     {"id": 1, "v": "a2", "part": "p15"},
     {"id": 3, "v": "c2", "part": "p15"},
 ]
-PARTITION = "part = 'p15'"
+PARTITION = "part = {part}"
 # the subquery is not correlated, because ClickHouse cannot reference the outer table
 PARTITION_LOCAL_KEY = PARTITION + " AND id IN (SELECT id FROM {staging_table})"
+
+
+def part_of(resource: DltResource, table_name: str) -> Any:
+    """Returns the `part` argument of the resource."""
+    return resource.explicit_args["part"]
+
+
+PARTITION_PLACEHOLDERS = {"part": part_of}
 
 
 def merge_resource(
@@ -71,10 +79,12 @@ def merge_resource(
     columns: TTableSchemaColumns = None,
     table_format: TTableFormat = None,
     append: bool = False,
+    part: Optional[str] = None,
     **options: Any,
 ) -> DltSource:
     """A source with one merge resource `name` that yields `data`. `options` are merge options
-    such as `source_filter`. With `append`, the resource appends to seed a table."""
+    such as `source_filter`. With `append`, the resource appends to seed a table. The resource
+    receives `part` as an argument."""
     disposition: Any = {"disposition": "merge"}
     if strategy:
         disposition["strategy"] = strategy
@@ -91,10 +101,10 @@ def merge_resource(
             table_format=table_format,
             write_disposition="append" if append else disposition,
         )
-        def items():
+        def items(part: Optional[str] = None):
             yield data
 
-        return items
+        return items(part=part) if part else items
 
     return merge_source()
 

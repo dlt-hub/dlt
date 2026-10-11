@@ -1,7 +1,7 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-from typing import Iterator, List, Dict, Any, Optional, cast
+from typing import Iterator, List, Dict, Any, Optional, Set, cast
 import yaml
 
 from dlt.common import logger
@@ -544,6 +544,32 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         # go to 100%
                         collector.update("Resources", left_gens)
 
+    def _resolve_extra_placeholders(self, source: DltSource, state: TLoadPackageState) -> None:
+        """Stores the values of `extra_placeholders` of the merge write disposition in the load
+        package, by table. Callable values receive the resource and the table name.
+        """
+        tables_with_items: Set[str] = set().union(
+            *[e.tables_with_items for e in self._last_extractors.values()]
+        )
+        for table_name in tables_with_items:
+            table = source.schema.tables.get(table_name)
+            if not table or utils.is_nested_table(table) or "resource" not in table:
+                continue
+            resource = source.resources.get(table["resource"])
+            write_disposition = (
+                (resource._hints or {}).get("write_disposition") if resource else None
+            )
+            if not isinstance(write_disposition, dict):
+                continue
+            extra_placeholders = cast(
+                Optional[Dict[str, Any]], write_disposition.get("extra_placeholders")
+            )
+            if extra_placeholders:
+                state.setdefault("placeholders", {})[table_name] = {
+                    name: value(resource, table_name) if callable(value) else value
+                    for name, value in extra_placeholders.items()
+                }
+
     @contextlib.contextmanager
     def manage_writers(self, load_id: str, source: DltSource) -> Iterator[ExtractStorage]:
         self._step_info_start_load_id(load_id)
@@ -611,6 +637,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     max_parallel_items=max_parallel_items,
                     workers=workers,
                 )
+                self._resolve_extra_placeholders(source, load_package.state)
                 commit_load_package_state()
         return load_id
 

@@ -395,6 +395,7 @@ Some things to note with the adapter's behavior:
 - You can only partition on one column (refer to [supported hints](#supported-column-hints)).
 - You can cluster on as many columns as you would like.
 - Sequential adapter calls on the same resource accumulate parameters, akin to an OR operation, for a unified execution.
+- To replace one partition with a merge that reads only this partition, read [Prune partitions in the delete](../../general-usage/merge-loading.md#prune-partitions-in-the-delete).
 
 :::warning
 At the time of writing, table level options aren't supported for `ALTER` operations.

@@ -1044,7 +1044,9 @@ The conditions can reference the tables by placeholder. The expansion depends on
 On SQL destinations:
 
 - `destination_scope` can use both placeholders.
-- `source_filter` cannot use placeholders. dlt applies it to the staging table, so write it with bare column names.
+- `source_filter` cannot use the table placeholders. dlt applies it to the staging table, so write it with bare column names.
+
+Both conditions can also use [value placeholders](#fill-placeholders-with-values-from-the-load).
 
 On the `delta` table format, the conditions are Delta merge predicates:
 
@@ -1056,49 +1058,74 @@ To write a literal brace, double it: `{{` or `}}`.
 
 ### Replacing a partition with `delete-insert`
 
-For [`delete-insert`](#delete-insert-strategy), `destination_scope` is the delete condition. dlt deletes the records that the destination scope selects and inserts the merge source. The delete does not use keys, so `primary_key` and `merge_key` are optional. If you set a `primary_key`, dlt still deduplicates the loaded data. BigQuery and Snowflake prune partitions for this delete:
+For [`delete-insert`](#delete-insert-strategy), `destination_scope` is the delete condition. dlt deletes the records that the destination scope selects and inserts the merge source. The delete does not use keys, so `primary_key` and `merge_key` are optional. If you set a `primary_key`, dlt still deduplicates the loaded data.
+
+The partition usually changes with every load. Write it as a [placeholder](#fill-placeholders-with-values-from-the-load). Take its value from the argument of the resource:
 
 ```py
+from datetime import date
+
 @dlt.resource(
     write_disposition={
         "disposition": "merge",
         "strategy": "delete-insert",
-        "destination_scope": "date_col = '2026-08-01'",
+        "destination_scope": "date_col = {day}",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
     },
 )
-def my_partition():
+def my_partition(day: date):
     # yield the records for that one partition
     ...
-...
+
+pipeline = dlt.pipeline("my_pipeline", destination="duckdb")
+pipeline.run(my_partition(date(2026, 8, 1)))
 ```
 
+The schema keeps `date_col = {day}`. The load package stores the value, and dlt expands the destination scope to `date_col = '2026-08-01'`. A load for another day does not create a new schema version.
+
 :::warning
-If a record **changes** the value that the destination scope tests, dlt does not delete its old copy. For example, a record can move to another date. Then the destination has two records with this key. To also delete records by key, add the key match to the destination scope: `"date_col = '2026-08-01' OR id IN (SELECT id FROM {staging_table})"`. With this destination scope, the destination cannot prune partitions.
+If a record **changes** the value that the destination scope tests, dlt does not delete its old copy. For example, a record can move to another date. Then the destination has two records with this key. To also delete records by key, add the key match to the destination scope: `"date_col = {day} OR id IN (SELECT id FROM {staging_table})"`. With this destination scope, the destination cannot prune partitions.
 :::
 
 If a `delete-insert` resource has no keys and no `destination_scope`, dlt appends the data. With a `destination_scope`, dlt replaces the records that the destination scope selects.
 
 With `source_filter` and no `destination_scope`, `delete-insert` deletes by the keys and `merge_key` partitions of the merge source. dlt keeps a destination record only when its key and partition are not in the merge source.
 
+### Prune partitions in the delete
+
+If the destination table is partitioned, the delete of `delete-insert` can read only the partition that it replaces. BigQuery and Snowflake prune partitions for this delete when:
+
+1. On BigQuery, the destination table is partitioned on the column, for example with [`bigquery_adapter(my_partition, partition="date_col")`](../dlt-ecosystem/destinations/bigquery.md#use-an-adapter-to-apply-hints-to-a-resource). Snowflake has no partition hint. It skips micro-partitions by the minimum and maximum values of the column, which works best when records arrive in date order.
+2. The destination scope compares this column to a literal, for example `"date_col = {day}"`. A value placeholder expands to a literal.
+
+These conditions prevent partition pruning:
+
+- a `merge_key` instead of a destination scope. On BigQuery, a `merge_key` compiles to a subquery.
+- a subquery in the destination scope, for example `OR id IN (SELECT id FROM {staging_table})`
+- a function on the partition column, for example `DATE(date_col) = {day}` on a timestamp column
+
 ### Use placeholders to match keys in one partition
 
 By default, dlt deletes all records that the destination scope selects. If the primary key is unique only within a partition, match the keys against the staging table. Then dlt deletes only the records that the load replaces:
 
 ```py
+from datetime import date
+
 @dlt.resource(
     primary_key="id",
     write_disposition={
         "disposition": "merge",
         "strategy": "delete-insert",
-        "destination_scope": "day = '2026-08-01' AND id IN (SELECT id FROM {staging_table})",
+        "destination_scope": "day = {day} AND id IN (SELECT id FROM {staging_table})",
+        "extra_placeholders": {"day": lambda resource, table_name: resource.explicit_args["day"]},
     },
 )
-def items():
-    # yield the records for 2026-08-01
+def items(day: date):
+    # yield the records for that day
     ...
 ```
 
-On a SQL destination, dlt expands the placeholder and runs this delete before the insert:
+For `day=date(2026, 8, 1)`, dlt expands the placeholders on a SQL destination and runs this delete before the insert:
 
 ```sql
 DELETE FROM "my_dataset"."items"
@@ -1107,4 +1134,50 @@ WHERE day = '2026-08-01' AND id IN (SELECT id FROM "my_dataset_staging"."items")
 
 The outer `day` and `id` refer to the destination table. The `id` in the subquery refers to the staging table. The subquery is not correlated, so ClickHouse also accepts this form.
 
-The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = '2026-08-01'"`. dlt expands it to `target.day = '2026-08-01'`.
+The `delta` table format does not support `delete-insert`. With `cdc`, write the partition condition as `"{table}.day = {day}"`. dlt expands it to `target.day = '2026-08-01'`.
+
+### Fill placeholders with values from the load
+
+dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it.
+
+dlt fills these value placeholders from the load package:
+
+| placeholder                               | value                                                  |
+| ----------------------------------------- | ------------------------------------------------------ |
+| `{load_id}`                               | the load id, the value of `_dlt_load_id` in this load  |
+| `{table_name}`                            | the name of the root table                             |
+| `{load_package_timestamp}`                | the creation time of the load package, in seconds      |
+| `{load_package_timestamp_ms}`             | the creation time of the load package, in milliseconds |
+| `{curr_date}`                             | the date of the load package, a date literal           |
+| `{YYYY}`, `{MM}`, `{DD}`, `{HH}` and more | parts of the creation time of the load package         |
+
+The date and time placeholders are the same as the [date and time placeholders of the filesystem layout](../dlt-ecosystem/destinations/filesystem.md#date-and-time-placeholders). In merge conditions, a number is a number literal, so `{MM}` expands to `3`, not `'03'`. Names like `{MMMM}` expand to string literals.
+
+If the table is partitioned by the load date, a destination scope like `"load_day = {curr_date}"` needs no other values.
+
+:::caution
+The date placeholders give the date of the **load** in UTC, not the date of the data. A load that runs after midnight, or that carries late records, has a different date from its records. To replace the partitions of the data, set the value in `extra_placeholders`.
+:::
+
+Set other values in `extra_placeholders`. A value is a constant or a function. dlt calls the function after the extract step, once for each table of the resource. The function receives the resource and the table name. It can read the arguments of the resource from `resource.explicit_args`, as in [Replacing a partition with `delete-insert`](#replacing-a-partition-with-delete-insert). For an [incremental](incremental-loading.md) resource, it can read `resource.incremental.incremental.last_value`, the highest cursor value of the load.
+
+dlt stores the values in the load package, not in the schema. The schema does not change between loads. If a load fails, dlt retries the package with the values of the extract step, even if the resource changed after the extract step.
+
+To merge only the records of the current load, use `{load_id}` in the source filter:
+
+```py
+@dlt.resource(
+    primary_key="id",
+    write_disposition={
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "source_filter": "_dlt_load_id = {load_id}",
+    },
+)
+def items():
+    ...
+```
+
+This source filter is useful when the staging tables keep the records of earlier loads, for example with [`truncate_staging_dataset_before_load`](../dlt-ecosystem/staging.md#keep-the-staging-tables-when-the-load-begins).
+
+The names of `extra_placeholders` cannot be `table`, `staging_table` or the name of a value placeholder that dlt fills. dlt reads `extra_placeholders` only from a write disposition dict, not from a function that returns the write disposition.

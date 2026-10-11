@@ -21,7 +21,7 @@ class LoaderConfiguration(PoolRunnerConfiguration):
     truncate_staging_dataset: bool = False
     """If set to `True`, the staging dataset will be truncated after loading the data"""
     truncate_staging_dataset_before_load: bool = True
-    """If set to `False`, the staging tables that receive data are not truncated when the load begins"""
+    """If `False`, dlt does not truncate the staging tables that receive data when the load begins"""
     start_new_jobs_on_signal: bool = False
     """If set to False: will attempt to drain load pool on signal, if True: will continue loading new job"""
     auto_abort_on_terminal_error: bool = False

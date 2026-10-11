@@ -103,6 +103,8 @@ class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=Fals
     """A section of state that does not participate in change merging and version control"""
     destination_state: NotRequired[Dict[str, Any]]
     """private space for destinations to store state relevant only to the load package"""
+    placeholders: NotRequired[Dict[str, Dict[str, Any]]]
+    """Placeholder values resolved for this package, by table name"""
     load_metrics: NotRequired[Dict[str, Any]]
     """Per-job load metrics, persisted so they survive process restarts"""
     applied_dropped_tables: NotRequired[List[str]]

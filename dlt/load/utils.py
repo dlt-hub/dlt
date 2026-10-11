@@ -94,7 +94,7 @@ def init_client(
         drop_staging_filter (Callable[[str], bool]): A filter which tell if table may be dropped
         drop_tables (Optional[List[TTableSchema]]): List of tables to drop before initializing storage
         truncate_tables (Optional[List[TTableSchema]]): List of tables to truncate before initializing storage
-        truncate_staging_dataset (bool): If `False`, staging tables with jobs are not truncated
+        truncate_staging_dataset (bool): If `False`, dlt does not truncate the staging tables with jobs
 
     Returns:
         Tuple[TSchemaTables, Set[str], Set[str]]: Actual migrations done at destination and the

@@ -1,6 +1,7 @@
 import contextlib
 import string
-from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set
+from datetime import timezone
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -33,9 +34,38 @@ from dlt.common.schema.utils import (
     find_incomplete_columns,
 )
 from dlt.common.storages import ParsedLoadJobFileName
+from dlt.common.storages.exceptions import CurrentLoadPackageStateNotAvailable
+from dlt.common.storages.load_package import load_package_state
+from dlt.common.time import (
+    DATETIME_PLACEHOLDERS,
+    datetime_to_placeholders,
+    datetime_to_timestamp,
+    datetime_to_timestamp_ms,
+    ensure_datetime_in_tz,
+)
 from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
 
 MERGE_CONDITION_PLACEHOLDERS = ("table", "staging_table")
+"""Placeholders that expand to table identifiers."""
+MERGE_CONDITION_VALUE_PLACEHOLDERS = (
+    "load_id",
+    "table_name",
+    "load_package_timestamp",
+    "load_package_timestamp_ms",
+    "curr_date",
+    *sorted(DATETIME_PLACEHOLDERS),
+)
+"""Placeholders that dlt fills from the load package. They expand to literals."""
+
+
+def _get_condition_placeholders(hint_name: str, filter_: str) -> Set[str]:
+    try:
+        return {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
+    except ValueError as format_ex:
+        raise ValueError(
+            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. To write a literal brace,"
+            " use `{{` or `}}`."
+        ) from format_ex
 
 
 def validate_merge_condition(
@@ -44,13 +74,7 @@ def validate_merge_condition(
     """Raises `ValueError` if the merge condition `filter_` is malformed or uses a placeholder
     not in `placeholders`.
     """
-    try:
-        used = {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
-    except ValueError as format_ex:
-        raise ValueError(
-            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. To write a literal brace,"
-            " use `{{` or `}}`."
-        ) from format_ex
+    used = _get_condition_placeholders(hint_name, filter_)
     if unknown := sorted(used.difference(placeholders)):
         if placeholders:
             available = ", ".join("`{" + name + "}`" for name in placeholders)
@@ -62,6 +86,50 @@ def validate_merge_condition(
             f" {', '.join('`{' + name + '}`' for name in unknown)}. {allowed} To write a literal"
             " brace, use `{{` or `}}`."
         )
+
+
+def get_merge_placeholder_values(table_name: str) -> Dict[str, Any]:
+    """Returns the values of the value placeholders of `table_name` in the current load package.
+
+    Returns an empty dict outside of a load package.
+    """
+    try:
+        package = load_package_state()
+    except CurrentLoadPackageStateNotAvailable:
+        return {}
+    state = package["state"]
+    values = dict(state.get("placeholders", {}).get(table_name, {}))
+    values.update(load_id=package["load_id"], table_name=table_name)
+    if state.get("created_at"):
+        created_at = ensure_datetime_in_tz(state["created_at"], timezone.utc)
+        values["load_package_timestamp"] = datetime_to_timestamp(created_at)
+        values["load_package_timestamp_ms"] = datetime_to_timestamp_ms(created_at)
+        values["curr_date"] = created_at.date()
+        for name, rendered in datetime_to_placeholders(created_at).items():
+            if name in DATETIME_PLACEHOLDERS:
+                # a SQL condition compares numbers to numbers, `{MM}` is 1, not '01'
+                values[name] = int(rendered) if rendered.isdigit() else rendered
+    return values
+
+
+def expand_merge_condition(
+    hint_name: str,
+    filter_: str,
+    identifiers: Dict[str, str],
+    values: Dict[str, Any],
+    escape_literal: Callable[[Any], Any],
+) -> str:
+    """Expands identifier placeholders as they are and value placeholders as escaped literals.
+
+    Raises `ValueError` if `filter_` uses a placeholder that has no identifier or value.
+    """
+    validate_merge_condition(hint_name, filter_, [*identifiers, *values])
+    literals = {
+        name: escape_literal(values[name])
+        for name in _get_condition_placeholders(hint_name, filter_)
+        if name not in identifiers
+    }
+    return filter_.format(**identifiers, **literals)
 
 
 def get_merge_compare_columns(table: TTableSchema) -> List[str]:

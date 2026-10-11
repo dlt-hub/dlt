@@ -2,7 +2,7 @@ from typing import Any, Dict, Sequence, Tuple, Type, Union, TYPE_CHECKING, Optio
 
 from dlt.common.destination.configuration import CsvFormatConfiguration
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
-from dlt.common.data_writers.escape import escape_snowflake_identifier
+from dlt.common.data_writers.escape import escape_snowflake_identifier, escape_snowflake_literal
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
@@ -179,6 +179,7 @@ class snowflake(Destination[SnowflakeClientConfiguration, "SnowflakeClient"]):
         # snowflake is case sensitive but all unquoted identifiers are upper cased
         # so upper case identifiers are considered case insensitive
         caps.escape_identifier = escape_snowflake_identifier
+        caps.escape_literal = escape_snowflake_literal
         # dlt is configured to create case insensitive identifiers
         # note that case sensitive naming conventions will change this setting to "str" (case sensitive)
         caps.casefold_identifier = str.upper

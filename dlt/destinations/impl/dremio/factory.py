@@ -2,7 +2,7 @@ from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tu
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
-from dlt.common.data_writers.escape import escape_dremio_identifier
+from dlt.common.data_writers.escape import escape_ansi_literal, escape_dremio_identifier
 
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.exceptions import TerminalValueError
@@ -91,6 +91,7 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["jsonl", "parquet", "model"]
         caps.escape_identifier = escape_dremio_identifier
+        caps.escape_literal = escape_ansi_literal
         caps.type_mapper = DremioTypeMapper
         # all identifiers are case insensitive but are stored as is
         # https://docs.dremio.com/current/sonar/data-sources

@@ -25,7 +25,11 @@ from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
-from dlt.common.destination.utils import get_merge_changed_cond
+from dlt.common.destination.utils import (
+    expand_merge_condition,
+    get_merge_changed_cond,
+    get_merge_placeholder_values,
+)
 from dlt.destinations.exceptions import MergeDispositionException
 from dlt.destinations.job_impl import FollowupJobRequestImpl
 from dlt.destinations.sql_client import SqlClientBase
@@ -511,18 +515,29 @@ class SqlMergeFollowupJob(SqlFollowupJob):
     def get_merge_conditions(
         cls, root_table: PreparedTableSchema, sql_client: SqlClientBase[Any]
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Returns the `source_filter` and `destination_scope` of `root_table`.
-
-        dlt expands the placeholders in `destination_scope`.
+        """Returns the `source_filter` and `destination_scope` of `root_table` with expanded
+        placeholders.
         """
         # `verify_schema_merge_disposition` verifies the placeholders before loading
         source_filter = cast(Optional[str], root_table.get("x-merge-source-filter"))
         destination_scope = cast(Optional[str], root_table.get("x-merge-destination-scope"))
+        values = get_merge_placeholder_values(root_table["name"])
+        escape_lit = sql_client.capabilities.escape_literal
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
         if source_filter:
-            source_filter = source_filter.format()
+            source_filter = expand_merge_condition(
+                "source_filter", source_filter, {}, values, escape_lit
+            )
         if destination_scope:
             table, staging_table = sql_client.get_qualified_table_names(root_table["name"])
-            destination_scope = destination_scope.format(table=table, staging_table=staging_table)
+            destination_scope = expand_merge_condition(
+                "destination_scope",
+                destination_scope,
+                {"table": table, "staging_table": staging_table},
+                values,
+                escape_lit,
+            )
         return source_filter, destination_scope
 
     @classmethod
@@ -939,6 +954,14 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             dedup_sort = (escape_column_id(dedup_sort[0]), dedup_sort[1])
         skip_dedup: bool = root_table.get("x-stage-data-deduplicated", False)  # type: ignore[assignment]
 
+        # dedup ranks only the merge source, a discarded record must not win it
+        merge_source = staging_root_table_name
+        if source_filter:
+            merge_source = (
+                f"(SELECT * FROM {staging_root_table_name} WHERE {source_filter})"
+                " AS _dlt_merge_source"
+            )
+
         insert_temp_table_name: str = None
         if len(table_chain) > 1:
             if len(primary_keys) > 0 or hard_delete_col is not None:
@@ -959,7 +982,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                     insert_temp_table_name,
                 ) = cls.gen_insert_temp_table_sql(
                     root_table["name"],
-                    staging_root_table_name,
+                    merge_source,
                     sql_client,
                     primary_keys,
                     row_key_column,
@@ -998,19 +1021,18 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                         )
                     )
                 insert_cond = f"{uniq_column} IN (SELECT * FROM {insert_temp_table_name})"
-            if source_filter:
-                if is_nested_table(table):
-                    nested_root_key = escape_column_id(
-                        cls.get_root_key_col(
-                            table_chain,
-                            table,
-                            sql_client.fully_qualified_dataset_name(),
-                            sql_client.fully_qualified_dataset_name(staging=True),
-                        )
+            if source_filter and is_nested_table(table):
+                nested_root_key = escape_column_id(
+                    cls.get_root_key_col(
+                        table_chain,
+                        table,
+                        sql_client.fully_qualified_dataset_name(),
+                        sql_client.fully_qualified_dataset_name(staging=True),
                     )
-                    insert_cond += f" AND {nested_root_key} IN ({filtered_root_row_keys})"
-                else:
-                    insert_cond += f" AND ({source_filter})"
+                )
+                insert_cond += f" AND {nested_root_key} IN ({filtered_root_row_keys})"
+            if not is_nested_table(table):
+                staging_table_name = merge_source
 
             columns = list(map(escape_column_id, get_columns_names_with_prop(table, "name")))
             col_str = ", ".join(columns)

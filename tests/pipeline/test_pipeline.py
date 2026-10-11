@@ -4797,6 +4797,40 @@ def test_staging_dataset_truncate_before_load(truncate: bool) -> None:
         assert len(client.execute_sql(f"SELECT * FROM {pipeline.dataset_name}.staging_kept")) == 5
 
 
+def test_merge_extra_placeholders_stored_in_load_package() -> None:
+    calls: List[Tuple[str, str]] = []
+
+    def last_day(resource: DltResource, table_name: str) -> Any:
+        calls.append((resource.name, table_name))
+        return resource.incremental.incremental.last_value
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {"day": last_day, "tenant": "acme"},
+        },
+    )
+    def events(day=dlt.sources.incremental("day")):
+        yield [{"id": 1, "day": 1}, {"id": 2, "day": 3}]
+
+    pipeline = dlt.pipeline(pipeline_name="merge_placeholders_" + uniq_id(), destination="duckdb")
+    pipeline.extract(events())
+    pipeline.normalize()
+    load_id = pipeline.list_normalized_load_packages()[0]
+
+    # the callable runs once per table after extract and sees the final incremental state
+    assert calls == [("events", "events")]
+    state = pipeline.get_load_package_state(load_id)
+    assert state["placeholders"] == {"events": {"day": 3, "tenant": "acme"}}
+    # the schema keeps only the template
+    table = pipeline.default_schema.tables["events"]
+    assert table["x-merge-destination-scope"] == "day = {day}"  # type: ignore[typeddict-item]
+    assert "extra_placeholders" not in json.dumps(pipeline.default_schema.to_dict())
+
+
 def test_change_naming_convention_name_collision() -> None:
     duck_ = dlt.destinations.duckdb(naming_convention="duck_case", recommended_file_size=120000)
     caps = duck_.capabilities()

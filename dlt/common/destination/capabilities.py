@@ -21,7 +21,6 @@ from dlt.common.destination.configuration import ParquetFormatConfiguration
 from dlt.common.exceptions import TerminalValueError
 from dlt.common.normalizers.typing import TNamingConventionReferenceArg
 from dlt.common.typing import TLoaderFileFormat, get_args
-from dlt.common.configuration.utils import serialize_value
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import ContainerInjectableContext
 from dlt.common.destination.exceptions import (
@@ -258,7 +257,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         supported_merge_strategies: Sequence[TLoaderMergeStrategy] = None,
         merge_strategies_selector: MergeStrategySelector = None,
     ) -> "DestinationCapabilitiesContext":
-        from dlt.common.data_writers.escape import format_datetime_literal
+        from dlt.common.data_writers.escape import escape_ansi_literal, format_datetime_literal
 
         caps = DestinationCapabilitiesContext()
         caps.preferred_loader_file_format = preferred_loader_file_format
@@ -269,7 +268,7 @@ class DestinationCapabilitiesContext(ContainerInjectableContext):
         caps.naming_convention = naming_convention or caps.naming_convention
         caps.escape_identifier = str
         caps.supported_table_formats = supported_table_formats or []
-        caps.escape_literal = serialize_value
+        caps.escape_literal = escape_ansi_literal
         caps.casefold_identifier = str
         caps.has_case_sensitive_identifiers = True
         caps.format_datetime_literal = format_datetime_literal

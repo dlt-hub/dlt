@@ -46,6 +46,7 @@ from tests.load.pipeline.merge_utils import (
     NEW_BUCKET_SUBQUERY,
     PARTITION,
     PARTITION_LOCAL_KEY,
+    PARTITION_PLACEHOLDERS,
     PARTITIONED_INPUT,
     PARTITIONED_TARGET,
     STORED_RECORDS,
@@ -2871,10 +2872,16 @@ def test_delete_insert_partition_local_primary_key(
             **destination_config.run_kwargs,
         )
     )
-    # merge 1 and 3 into p15
+    # merge 1 and 3 into p15. the scope takes the partition from the resource argument
     assert_load_info(
         p.run(
-            merge_resource(PARTITIONED_INPUT, strategy, destination_scope=destination_scope),
+            merge_resource(
+                PARTITIONED_INPUT,
+                strategy,
+                destination_scope=destination_scope,
+                extra_placeholders=PARTITION_PLACEHOLDERS,
+                part="p15",
+            ),
             **destination_config.run_kwargs,
         )
     )
@@ -3012,6 +3019,144 @@ def test_delete_insert_destination_scope_nested_tables(
     # 2 is not reloaded, so the scope deletes it with its nested rows
     load([{"id": 1, "part": "A", "child": [{"val": "c1_final"}]}])
     assert observed() == ([1, 3], ["c1_final", "c3", "c4"])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, table_format_local_configs=True, supports_merge=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_delete_insert_destination_scope_placeholders(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Replaces one partition per load with a destination scope that takes the partition from
+    `extra_placeholders`. Checks that the schema does not change between loads and that a load
+    uses the values stored at extract."""
+    if destination_config.table_format == "iceberg":
+        pytest.skip("Iceberg does not support merge conditions.")
+    p = destination_config.setup_pipeline("di_scope_placeholders", dev_mode=True)
+    scope = merge_condition("part = {part}", destination_config, "table")
+    # delta has no `delete-insert`. `cdc` deletes the absent records of the partition the same way
+    strategy: TLoaderMergeStrategy = (
+        "cdc" if destination_config.table_format == "delta" else "delete-insert"
+    )
+
+    def items(data: Sequence[StrAny], part: Any, part_arg: str = None) -> DltSource:
+        return merge_resource(
+            data,
+            strategy,
+            table_format=destination_config.table_format,
+            destination_scope=scope,
+            extra_placeholders={"part": part},
+            part=part_arg,
+        )
+
+    assert_load_info(
+        p.run(
+            items([{"id": 1, "part": "A"}, {"id": 2, "part": "A"}], "A"),
+            **destination_config.run_kwargs,
+        )
+    )
+    assert_load_info(p.run(items([{"id": 3, "part": "B"}], "B"), **destination_config.run_kwargs))
+    version_hash = p.default_schema.version_hash
+
+    # a callable reads the partition from the resource argument. 2 is absent from A and is deleted
+    assert_load_info(
+        p.run(
+            items([{"id": 1, "part": "A"}], PARTITION_PLACEHOLDERS["part"], "A"),
+            **destination_config.run_kwargs,
+        )
+    )
+    assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 3]
+    assert p.default_schema.version_hash == version_hash
+
+    # the load uses the value stored at extract, not the current hint of the resource
+    source = items([{"id": 4, "part": "B"}], "B")
+    p.extract(source, **destination_config.run_kwargs)
+    source.resources["items"].write_disposition["extra_placeholders"]["part"] = "A"  # type: ignore[index,typeddict-item]
+    p.normalize()
+    assert_load_info(p.load())
+    assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 4]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(
+        default_sql_configs=True, table_format_local_configs=True, supports_merge=True
+    ),
+    ids=lambda x: x.name,
+)
+def test_destination_scope_load_date(destination_config: DestinationTestConfiguration) -> None:
+    """Replaces the partition of the load day with `{curr_date}` and keeps older partitions."""
+    if destination_config.table_format == "iceberg":
+        pytest.skip("Iceberg does not support merge conditions.")
+    p = destination_config.setup_pipeline("scope_load_date", dev_mode=True)
+    strategy: TLoaderMergeStrategy = (
+        "cdc" if destination_config.table_format == "delta" else "delete-insert"
+    )
+
+    def items(ids: Sequence[int], append: bool = False) -> DltSource:
+        disposition: Any = "append"
+        if not append:
+            disposition = {
+                "disposition": "merge",
+                "strategy": strategy,
+                "destination_scope": merge_condition(
+                    "load_day = {curr_date}", destination_config, "table"
+                ),
+            }
+
+        @dlt.source(root_key=True)
+        def source():
+            @dlt.resource(
+                name="items",
+                primary_key="id",
+                table_format=destination_config.table_format,
+                write_disposition=disposition,
+            )
+            def items_():
+                # the records of a load carry its UTC date, the date that `{curr_date}` expands to
+                created_at = dlt.current.load_package_state()["state"]["created_at"]
+                day = created_at.astimezone(timezone.utc).date()
+                # `day` is a reserved word in dremio
+                yield [{"id": i, "load_day": date(2000, 1, 1) if append else day} for i in ids]
+
+            return items_
+
+        return source()
+
+    assert_load_info(p.run(items([1], append=True), **destination_config.run_kwargs))
+    assert_load_info(p.run(items([2, 3]), **destination_config.run_kwargs))
+    # 3 is absent from the partition of the load day. the old partition keeps 1
+    assert_load_info(p.run(items([2]), **destination_config.run_kwargs))
+    assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 2]
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+def test_source_filter_scoped_to_load_id(
+    destination_config: DestinationTestConfiguration,
+) -> None:
+    """Keeps the staging tables between loads and merges only the records of the current load
+    with `source_filter` on `{load_id}`."""
+    os.environ["LOAD__TRUNCATE_STAGING_DATASET_BEFORE_LOAD"] = "false"
+    p = destination_config.setup_pipeline("source_filter_load_id", dev_mode=True)
+
+    def load(data: Sequence[StrAny]) -> None:
+        resource = merge_resource(data, "delete-insert", source_filter="_dlt_load_id = {load_id}")
+        assert_load_info(p.run(resource, **destination_config.run_kwargs))
+
+    load([{"id": 1, "val": "a"}])
+    load([{"id": 1, "val": "b"}])
+    # the staging table still holds both versions of 1. only the current load is merged
+    load([{"id": 2, "val": "c"}])
+    rows = sorted((r["id"], r["val"]) for r in load_tables_to_dicts(p, "items")["items"])
+    assert rows == [(1, "b"), (2, "c")]
 
 
 @pytest.mark.parametrize(

@@ -4,6 +4,7 @@ from dlt.common.data_types.typing import TDataType
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.configuration.specs import AwsCredentials
 from dlt.common.data_writers.escape import (
+    escape_ansi_literal,
     escape_athena_identifier,
     format_bigquery_datetime_literal,
 )
@@ -146,6 +147,7 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         # it also uses lower case in all the queries
         # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
         caps.escape_identifier = escape_athena_identifier
+        caps.escape_literal = escape_ansi_literal
         caps.casefold_identifier = str.lower
         caps.has_case_sensitive_identifiers = False
         caps.format_datetime_literal = format_bigquery_datetime_literal

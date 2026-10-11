@@ -24,7 +24,12 @@ from dlt.common.schema.utils import (
     is_nested_table,
     pipeline_state_table,
 )
-from dlt.common.destination.utils import MERGE_CONDITION_PLACEHOLDERS, validate_merge_condition
+from dlt.common.destination.utils import (
+    MERGE_CONDITION_PLACEHOLDERS,
+    MERGE_CONDITION_VALUE_PLACEHOLDERS,
+    get_merge_placeholder_values,
+    validate_merge_condition,
+)
 
 from dlt.destinations.exceptions import DatabaseTransientException
 from dlt.extract import DltResource, resource as make_resource, DltSource
@@ -217,13 +222,21 @@ def verify_schema_merge_disposition(
                 )
                 continue
             has_destination_scope = "x-merge-destination-scope" in table
+            value_placeholders = {
+                *MERGE_CONDITION_VALUE_PLACEHOLDERS,
+                *get_merge_placeholder_values(table_name),
+            }
             for hint_name, x_hint, placeholders in (
                 ("source_filter", "x-merge-source-filter", source_filter_placeholders),
                 ("destination_scope", "x-merge-destination-scope", destination_scope_placeholders),
             ):
                 if filter_ := table.get(x_hint):
                     try:
-                        validate_merge_condition(hint_name, cast(str, filter_), placeholders)
+                        validate_merge_condition(
+                            hint_name,
+                            cast(str, filter_),
+                            [*placeholders, *sorted(value_placeholders)],
+                        )
                     except ValueError as filter_ex:
                         exception_log.append(
                             SchemaCorruptedException(

@@ -179,6 +179,20 @@ def escape_snowflake_literal(v: Any) -> Any:
     return "NULL" if v is None else str(v)
 
 
+def escape_ansi_literal(v: Any) -> Any:
+    """Escapes `v` as a standard SQL literal."""
+    if isinstance(v, str):
+        return "'" + v.replace("'", "''") + "'"
+    if isinstance(v, bool):
+        return "TRUE" if v else "FALSE"
+    # typed literals, because Trino does not compare strings to date columns
+    if isinstance(v, datetime):
+        return f"TIMESTAMP '{v.isoformat(sep=' ')}'"
+    if isinstance(v, date):
+        return f"DATE '{v.isoformat()}'"
+    return "NULL" if v is None else str(v)
+
+
 def escape_databricks_identifier(v: str) -> str:
     # databricks escapes an embedded backtick by doubling it; backslash is literal
     return "`" + v.replace("`", "``") + "`"

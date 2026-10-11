@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
@@ -79,7 +80,11 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         from dlt.destinations.impl.sqlalchemy.dialect import (
             get_dialect_capabilities,
             DialectCapabilities,
+            escape_dialect_literal,
         )
+
+        # the class, an instance does not pickle into the normalize process pool
+        caps.escape_literal = partial(escape_dialect_literal, dialect_class)
 
         dialect_caps = (
             get_dialect_capabilities(backend_name)
