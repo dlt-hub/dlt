@@ -4,7 +4,19 @@ import hashlib
 import warnings
 import yaml
 from copy import deepcopy, copy
-from typing import Dict, List, Sequence, Tuple, Type, Any, cast, Iterable, Optional, Union
+from typing import (
+    Dict,
+    FrozenSet,
+    List,
+    Sequence,
+    Tuple,
+    Type,
+    Any,
+    cast,
+    Iterable,
+    Optional,
+    Union,
+)
 
 from dlt.common.pendulum import pendulum
 from dlt.common.time import ensure_pendulum_datetime
@@ -69,6 +81,8 @@ from dlt.common.warnings import Dlt100DeprecationWarning
 
 RE_NON_ALPHANUMERIC_UNDERSCORE = re.compile(r"[^a-zA-Z\d_]")
 DEFAULT_WRITE_DISPOSITION: TWriteDisposition = "append"
+DECIMAL_DATA_TYPES: FrozenSet[TDataType] = frozenset(("decimal", "wei"))
+"""Data types that share precision and scale"""
 
 
 def is_valid_schema_name(name: str) -> bool:
@@ -464,7 +478,8 @@ def merge_column(
 
     All properties from `col_b` are copied into `col_a`, potentially overwriting existing values.
     When `col_b` changes the data type of `col_a`, type modifiers of `col_a` (`precision`,
-    `scale`, `timezone`, `x-nested-type`) are dropped first.
+    `scale`, `timezone`, `x-nested-type`) are dropped first. Changing between `decimal` and
+    `wei` keeps them.
 
     Args:
         col_a: Target column schema that will be modified
@@ -478,7 +493,7 @@ def merge_column(
     col_b_clean = col_b if merge_defaults else remove_column_defaults(copy(col_b))
     # remove type modifiers before any other merges
     a_type, b_type = col_a.get("data_type"), col_b_clean.get("data_type")
-    if a_type and b_type and a_type != b_type:
+    if a_type and b_type and a_type != b_type and not {a_type, b_type} <= DECIMAL_DATA_TYPES:
         for prop in [p for p in col_a if is_type_modifier_prop(p)]:
             col_a.pop(prop)  # type: ignore[misc]
     # merge props as usual
