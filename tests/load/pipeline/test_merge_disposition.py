@@ -27,6 +27,7 @@ from dlt.common.schema.typing import (
     TTableFormat,
     TTableSchemaColumns,
 )
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import StrAny
 from dlt.common.utils import digest128
 from dlt.common.destination import DestinationCapabilitiesContext
@@ -3063,12 +3064,12 @@ def test_delete_insert_destination_scope_placeholders(
     version_hash = p.default_schema.version_hash
 
     # a callable reads the partition from the resource argument. 2 is absent from A and is deleted
-    assert_load_info(
-        p.run(
-            items([{"id": 1, "part": "A"}], PARTITION_PLACEHOLDERS["part"], "A"),
-            **destination_config.run_kwargs,
-        )
+    info = p.run(
+        items([{"id": 1, "part": "A"}], PARTITION_PLACEHOLDERS["part"], "A"),
+        **destination_config.run_kwargs,
     )
+    assert_load_info(info)
+    assert p.get_load_package_state(info.loads_ids[0])["placeholders"] == {"items": {"part": "A"}}
     assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 3]
     assert p.default_schema.version_hash == version_hash
 
@@ -3077,6 +3078,8 @@ def test_delete_insert_destination_scope_placeholders(
     p.extract(source, **destination_config.run_kwargs)
     source.resources["items"].write_disposition["extra_placeholders"]["part"] = "A"  # type: ignore[index,typeddict-item]
     p.normalize()
+    load_id = p.list_normalized_load_packages()[0]
+    assert p.get_load_package_state(load_id)["placeholders"] == {"items": {"part": "B"}}
     assert_load_info(p.load())
     assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 4]
 
@@ -3130,8 +3133,15 @@ def test_destination_scope_load_date(destination_config: DestinationTestConfigur
     assert_load_info(p.run(items([1], append=True), **destination_config.run_kwargs))
     assert_load_info(p.run(items([2, 3]), **destination_config.run_kwargs))
     # 3 is absent from the partition of the load day. the old partition keeps 1
-    assert_load_info(p.run(items([2]), **destination_config.run_kwargs))
-    assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 2]
+    info = p.run(items([2]), **destination_config.run_kwargs)
+    assert_load_info(info)
+    rows = load_tables_to_dicts(p, "items")["items"]
+    assert sorted(r["id"] for r in rows) == [1, 2]
+    # dlt computes `{curr_date}` from the package state at load time and does not store it
+    package_state = p.get_load_package_state(info.loads_ids[0])
+    assert "placeholders" not in package_state
+    load_date = ensure_datetime_in_tz(package_state["created_at"], timezone.utc).date()
+    assert [str(r["load_day"])[:10] for r in rows if r["id"] == 2] == [load_date.isoformat()]
 
 
 @pytest.mark.parametrize(

@@ -13,6 +13,7 @@ from dlt.common.storages import (
     SchemaStorageConfiguration,
     NormalizeStorageConfiguration,
 )
+from dlt.common.storages.load_package import default_load_package_state
 from dlt.common.storages.schema_storage import SchemaStorage
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.typing import TTableNames, TDataItems
@@ -656,7 +657,13 @@ def test_extract_renamed_clone_and_parent(extract_step: Extract):
 def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = DltSource(dlt.Schema("selectables"), "module", [resource(10)])
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    extract_step._extract_single_source(
+        load_id,
+        source,
+        max_parallel_items=5,
+        workers=1,
+        package_state=default_load_package_state(),
+    )
     # odd and even tables must be in the source schema
     assert len(source.schema.data_tables(include_incomplete=True)) == 2
     assert "odd_table" in source.schema._schema_tables
@@ -679,7 +686,13 @@ def expect_tables(extract_step: Extract, resource: DltResource) -> dlt.Schema:
     source = source.with_resources(resource.name)
     source.selected_resources[resource.name].bind(10).select_tables("odd_table")
     load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
-    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    extract_step._extract_single_source(
+        load_id,
+        source,
+        max_parallel_items=5,
+        workers=1,
+        package_state=default_load_package_state(),
+    )
     assert len(source.schema.data_tables(include_incomplete=True)) == 1
     assert "odd_table" in source.schema._schema_tables
     extract_step.extract_storage.commit_new_load_package(load_id, source.schema)
@@ -1210,7 +1223,13 @@ def _extract_resource(
     return its per-table writer metrics (table name -> DataWriterMetrics)."""
     source = DltSource(schema, "module", [resource])
     load_id = extract_step.extract_storage.create_load_package(schema)
-    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+    extract_step._extract_single_source(
+        load_id,
+        source,
+        max_parallel_items=5,
+        workers=1,
+        package_state=default_load_package_state(),
+    )
     table_metrics: Dict[str, Any] = extract_step._step_info_metrics(load_id)[0]["table_metrics"]
     extract_step.extract_storage.commit_new_load_package(load_id, schema)
     for extractor in extract_step._last_extractors.values():

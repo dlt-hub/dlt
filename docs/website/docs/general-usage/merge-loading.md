@@ -1091,9 +1091,9 @@ If a `delete-insert` resource has no keys and no `destination_scope`, dlt append
 
 With `source_filter` and no `destination_scope`, `delete-insert` deletes by the keys and `merge_key` partitions of the merge source. dlt keeps a destination record only when its key and partition are not in the merge source.
 
-### Prune partitions in the delete
+#### Partition pruning
 
-If the destination table is partitioned, the delete of `delete-insert` can read only the partition that it replaces. BigQuery and Snowflake prune partitions for this delete when:
+If the destination table is partitioned, the delete can read only the partition that it replaces. BigQuery and Snowflake prune partitions for this delete when:
 
 1. On BigQuery, the destination table is partitioned on the column, for example with [`bigquery_adapter(my_partition, partition="date_col")`](../dlt-ecosystem/destinations/bigquery.md#use-an-adapter-to-apply-hints-to-a-resource). Snowflake has no partition hint. It skips micro-partitions by the minimum and maximum values of the column, which works best when records arrive in date order.
 2. The destination scope compares this column to a literal, for example `"date_col = {day}"`. A value placeholder expands to a literal.

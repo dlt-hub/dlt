@@ -301,10 +301,8 @@ class TDestinationScopeDict(TypedDict):
 
 
 class TMergeConditionPlaceholdersDict(TypedDict):
-    extra_placeholders: NotRequired[Dict[str, Any]]
-    """Values of the placeholders in `source_filter` and `destination_scope`. A callable value
-    receives the resource and the table name after extract. dlt stores the values in the load
-    package, not in the schema."""
+    extra_placeholders: NotRequired[Dict[str, Union[Any, Callable[[Any, str], Any]]]]
+    """Values of the merge condition placeholders. A callable gets the resource and table name."""
 
 
 class TDeleteInsertStrategyDict(

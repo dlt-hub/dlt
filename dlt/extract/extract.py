@@ -1,7 +1,7 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-from typing import Iterator, List, Dict, Any, Optional, Set, cast
+from typing import Iterator, List, Dict, Any, Optional, cast
 import yaml
 
 from dlt.common import logger
@@ -490,6 +490,34 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         for table_name in tables_with_empty:
             json_extractor.write_empty_items_file(table_name)
 
+    def _resolve_extra_placeholders(
+        self,
+        source: DltSource,
+        extractors: Dict[TDataItemFormat, Extractor],
+        state: TLoadPackageState,
+    ) -> None:
+        """Stores the values of `extra_placeholders` of the merge write disposition in the load
+        package, by table. Callable values receive the resource and the table name.
+        """
+        tables_with_items = set().union(*[e.tables_with_items for e in extractors.values()])
+        for table_name in tables_with_items:
+            table = source.schema.tables[table_name]
+            if utils.is_nested_table(table):
+                continue
+            resource = source.resources[table["resource"]]
+            write_disposition = resource.write_disposition
+            # dynamic write dispositions can't be handled here
+            if not isinstance(write_disposition, dict):
+                continue
+            extra_placeholders = cast(
+                Optional[Dict[str, Any]], write_disposition.get("extra_placeholders")
+            )
+            if extra_placeholders:
+                state.setdefault("placeholders", {})[table_name] = {
+                    name: value(resource, table_name) if callable(value) else value
+                    for name, value in extra_placeholders.items()
+                }
+
     def _extract_single_source(
         self,
         load_id: str,
@@ -497,6 +525,7 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         *,
         max_parallel_items: int,
         workers: int,
+        package_state: TLoadPackageState,
     ) -> None:
         schema = source.schema
         collector = self.collector
@@ -539,36 +568,11 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                         )
 
                     self._handle_empty_tables(source, extractors)
+                    self._resolve_extra_placeholders(source, extractors, package_state)
                     self._last_extractors = extractors
                     if left_gens > 0:
                         # go to 100%
                         collector.update("Resources", left_gens)
-
-    def _resolve_extra_placeholders(self, source: DltSource, state: TLoadPackageState) -> None:
-        """Stores the values of `extra_placeholders` of the merge write disposition in the load
-        package, by table. Callable values receive the resource and the table name.
-        """
-        tables_with_items: Set[str] = set().union(
-            *[e.tables_with_items for e in self._last_extractors.values()]
-        )
-        for table_name in tables_with_items:
-            table = source.schema.tables.get(table_name)
-            if not table or utils.is_nested_table(table) or "resource" not in table:
-                continue
-            resource = source.resources.get(table["resource"])
-            write_disposition = (
-                (resource._hints or {}).get("write_disposition") if resource else None
-            )
-            if not isinstance(write_disposition, dict):
-                continue
-            extra_placeholders = cast(
-                Optional[Dict[str, Any]], write_disposition.get("extra_placeholders")
-            )
-            if extra_placeholders:
-                state.setdefault("placeholders", {})[table_name] = {
-                    name: value(resource, table_name) if callable(value) else value
-                    for name, value in extra_placeholders.items()
-                }
 
     @contextlib.contextmanager
     def manage_writers(self, load_id: str, source: DltSource) -> Iterator[ExtractStorage]:
@@ -636,8 +640,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     source,
                     max_parallel_items=max_parallel_items,
                     workers=workers,
+                    package_state=load_package.state,
                 )
-                self._resolve_extra_placeholders(source, load_package.state)
                 commit_load_package_state()
         return load_id
 
