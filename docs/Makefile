@@ -57,12 +57,13 @@ cli-check: ## Checks CLI reference docs are up to date (CI)
 
 # the newest stable dlthub and dlthub-client from PyPI, outside the docs lockfile.
 # runs in tools/dlthub_cli because workspace commands need a workspace context
+HUB_CLI_DOCS ?= website/docs_processed/hub/command-line-interface.md
 cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_processed`
 	cd tools/dlthub_cli && RUNTIME__LICENSE="" uv --quiet run \
 		--isolated --no-project --prerelease disallow \
 		--refresh-package dlthub --refresh-package dlthub-client \
 		--with "../../..[hub,cli]" \
-		python ../generate_cli_docs.py ../../website/docs_processed/hub/command-line-interface.md \
+		python ../generate_cli_docs.py ../../$(HUB_CLI_DOCS) \
 		--executable-name dlthub --title "CLI reference" --sort-commands
 
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
@@ -108,7 +109,9 @@ snippets-typecheck:
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
 
+# links into the hub CLI reference resolve against a fresh, git-ignored copy
 md-check:  ## Check markdown file formatting errors in website/docs
+	$(MAKE) cli-generate-hub HUB_CLI_DOCS=website/docs/hub/command-line-interface.md
 	uv run mdsmith check website/docs
 
 md-fix:  ## Fix markdown file formatting errors in website/docs
