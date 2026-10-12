@@ -8,6 +8,7 @@
 /docs_processed
 
 # Generated files
+/docs/hub/command-line-interface.md
 .docusaurus
 .cache-loader
 jaffle_shop
