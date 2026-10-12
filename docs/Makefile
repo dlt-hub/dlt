@@ -57,14 +57,19 @@ cli-generate: ## Regenerates CLI reference docs
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
-# the newest stable dlthub and dlthub-client from PyPI, outside the docs lockfile.
+# the CLI, SDK and REST API references describe the newest dlthub-client on PyPI, alphas
+# included; 0.28.8a1 is the first that bundles the API specs. A prerelease specifier enables
+# alphas for that package only, so dlthub stays on stable releases in the range of dlt's `hub` extra
+HUB_CLIENT_REQ ?= dlthub-client>=0.28.8a1
+HUB_DLTHUB_REQ := dlthub>=0.30,<0.32
+HUB_RUN = uv --quiet run --isolated --no-project --prerelease explicit \
+	--refresh-package dlthub --refresh-package dlthub-client --with "$(HUB_CLIENT_REQ)"
+
 # runs in tools/dlthub_cli because workspace commands need a workspace context
 HUB_CLI_DOCS ?= website/docs_processed/hub/command-line-interface.md
 cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_processed`
-	cd tools/dlthub_cli && RUNTIME__LICENSE="" uv --quiet run \
-		--isolated --no-project --prerelease disallow \
-		--refresh-package dlthub --refresh-package dlthub-client \
-		--with "../../..[hub,cli]" \
+	cd tools/dlthub_cli && RUNTIME__LICENSE="" $(HUB_RUN) \
+		--with "../../..[cli]" --with "$(HUB_DLTHUB_REQ)" \
 		python ../generate_cli_docs.py ../../$(HUB_CLI_DOCS) \
 		--executable-name dlthub --title "CLI reference" --sort-commands
 
@@ -111,23 +116,17 @@ snippets-typecheck:
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
 
-RUNTIME_OPENAPI_DIR ?= tools/runtime_openapi
-RUNTIME_REPO ?= ../../runtime
-api-sync-specs: ## Copies the published runtime OpenAPI specs from a local runtime checkout
-	mkdir -p $(RUNTIME_OPENAPI_DIR)
-	cp $(addprefix $(RUNTIME_REPO)/clients/cli/tools/runtime_clients/,api.openapi.yaml dataplane_api.openapi.yaml telemetry.openapi.yaml logs.openapi.yaml) $(RUNTIME_OPENAPI_DIR)/
-
+# set to a folder of specs, e.g. a runtime checkout's clients/cli/tools/runtime_clients
+RUNTIME_OPENAPI_DIR ?=
 API_DOCS_DIR ?= website/docs_processed/hub/reference/api
 api-generate-hub: ## Generates the runtime REST API reference into `website/docs_processed`
-	uv --quiet run --script tools/generate_openapi_docs.py \
-		--spec-dir $(RUNTIME_OPENAPI_DIR) --output-dir $(API_DOCS_DIR)
+	$(HUB_RUN) --with pyyaml python tools/generate_openapi_docs.py --output-dir $(API_DOCS_DIR) \
+		$(if $(RUNTIME_OPENAPI_DIR),--spec-dir $(RUNTIME_OPENAPI_DIR))
 
-# the newest stable dlthub-client from PyPI, read with griffe without importing it
+# read with griffe, without importing the package
 SDK_DOCS ?= website/docs_processed/hub/reference/python-sdk.md
 sdk-generate-hub: ## Generates the Python SDK reference into `website/docs_processed`
-	uv --quiet run --isolated --no-project --prerelease disallow --refresh-package dlthub-client \
-		--with dlthub-client --with "griffe>=1.5" \
-		python tools/generate_sdk_docs.py $(SDK_DOCS)
+	$(HUB_RUN) --with "griffe>=1.5" python tools/generate_sdk_docs.py $(SDK_DOCS)
 
 # links into the generated hub references resolve against fresh, git-ignored copies
 md-check:  ## Check markdown file formatting errors in website/docs

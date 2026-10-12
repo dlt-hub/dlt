@@ -1,24 +1,22 @@
-# /// script
-# requires-python = ">=3.10"
-# dependencies = [
-#     "pyyaml>=6.0",
-# ]
-# ///
 """Generates the dltHub Runtime REST API reference from OpenAPI specs.
 
-Renders one Docusaurus page per service into `website/docs_processed/hub/reference/api`.
+Reads the specs bundled in the installed `dlthub-client` package (`dlthub_sdk/openapi`), or
+from `--spec-dir`, and renders one Docusaurus page per service.
 
 Usage:
-    uv run --script tools/generate_openapi_docs.py [--spec-dir DIR] [--output-dir DIR]
+    uv run --no-project --with dlthub-client --with pyyaml python tools/generate_openapi_docs.py \
+        [--spec-dir DIR] [--output-dir DIR]
 """
 
 from __future__ import annotations
 
 import argparse
+import importlib.util
 import pathlib
 import re
 import textwrap
 from http import HTTPStatus
+from importlib.metadata import version
 from typing import Any, Dict, List
 
 import yaml
@@ -26,7 +24,6 @@ import yaml
 from mdx_utils import escape_mdx
 
 DOCS_DIR = pathlib.Path(__file__).resolve().parents[1]
-DEFAULT_SPEC_DIR = DOCS_DIR / "tools" / "runtime_openapi"
 DEFAULT_OUTPUT_DIR = DOCS_DIR / "website" / "docs_processed" / "hub" / "reference" / "api"
 
 #: spec file stem -> (page slug, sidebar label); also the page order
@@ -245,11 +242,28 @@ def render_spec(spec: Schema, slug: str, label: str) -> str:
     return md.rstrip() + "\n"
 
 
+def bundled_spec_dir() -> pathlib.Path:
+    """Locates the specs shipped in `dlthub-client` without importing the package."""
+    spec = importlib.util.find_spec("dlthub_sdk")
+    if spec is None or not spec.submodule_search_locations:
+        raise SystemExit("dlthub-client is not installed; pass --spec-dir")
+    spec_dir = pathlib.Path(spec.submodule_search_locations[0]) / "openapi"
+    if not spec_dir.is_dir():
+        raise SystemExit(
+            f"dlthub-client {version('dlthub-client')} bundles no OpenAPI specs; "
+            "0.28.8a1 is the first version that does"
+        )
+    return spec_dir
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--spec-dir", type=pathlib.Path, default=DEFAULT_SPEC_DIR)
+    parser.add_argument("--spec-dir", type=pathlib.Path, default=None)
     parser.add_argument("--output-dir", type=pathlib.Path, default=DEFAULT_OUTPUT_DIR)
     args = parser.parse_args()
+    if args.spec_dir is None:
+        args.spec_dir = bundled_spec_dir()
+        print(f"Reading the OpenAPI specs of dlthub-client {version('dlthub-client')}")
 
     args.output_dir.mkdir(parents=True, exist_ok=True)
     for stem, (slug, label) in SERVICES.items():
