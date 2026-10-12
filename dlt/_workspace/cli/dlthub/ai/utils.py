@@ -8,7 +8,6 @@ import tomlkit
 import yaml
 
 from dlt.common.json import json
-from dlt.common.pendulum import pendulum
 from dlt.common.utils import uniq_id, update_dict_nested
 from dlt.common.configuration.const import TYPE_EXAMPLES
 from dlt.common.configuration.providers.toml import SecretsTomlProvider, SettingsTomlProvider
@@ -577,36 +576,13 @@ def is_toolkit_installed(name: str) -> bool:
     return name in load_toolkits_index()
 
 
-def save_toolkit_entry(
-    toolkit_meta: TToolkitInfo,
-    agent: Optional[str] = None,
-    files: Optional[Dict[str, Any]] = None,
-    mcp_servers: Optional[List[str]] = None,
-) -> None:
-    """Record that a toolkit was installed or updated in the toolkits index.
-
-    Args:
-        toolkit_meta: Core toolkit metadata to persist.
-        agent: Name of the AI agent that triggered the install.
-        files: Mapping of installed file paths to their content hashes.
-        mcp_servers: Names of MCP servers provided by the toolkit.
-    """
-
-    index = load_toolkits_index()
-    entry: Dict[str, Any] = dict(toolkit_meta)
-    name = entry.pop("name")
-    entry["installed_at"] = pendulum.now("UTC").isoformat()
-    if agent:
-        entry["agent"] = agent
-    if files:
-        entry["files"] = files
-    if mcp_servers:
-        entry["mcp_servers"] = mcp_servers
-    index[name] = entry  # type: ignore[assignment]
+def save_toolkits_index(index: Dict[str, TToolkitIndexEntry]) -> None:
+    """Save supplied records without reloading. Names are represented by YAML keys."""
+    data = {name: {k: v for k, v in entry.items() if k != "name"} for name, entry in index.items()}
     path = _toolkits_index_path()
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
-        yaml.dump(index, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
+        yaml.dump(data, f, allow_unicode=True, default_flow_style=False, sort_keys=False)
 
 
 _INIT_TOOLKIT = "init"
@@ -624,11 +600,14 @@ def read_agents_md_template(workbench_base: Optional[Path]) -> str:
     return tpl_path.read_text(encoding="utf-8")
 
 
-def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
+def fetch_ai_status(
+    project_root: Path, installed_index: Optional[Dict[str, TToolkitIndexEntry]] = None
+) -> TAiStatusInfo:
     """Collect AI setup status for the current workspace.
 
     Args:
         project_root: Path to the project root for agent detection.
+        installed_index: Current records, or None to read the index.
 
     Returns:
         Status info including dlt version, detected agent, installed toolkits,
@@ -636,7 +615,7 @@ def fetch_ai_status(project_root: Path) -> TAiStatusInfo:
     """
     from dlt._workspace.cli.dlthub.ai.agents import _AIAgent  # circular
 
-    index = load_toolkits_index()
+    index = load_toolkits_index() if installed_index is None else installed_index
     warnings: List[TAiStatusWarning] = []
 
     # detect agent

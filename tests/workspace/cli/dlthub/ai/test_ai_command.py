@@ -307,7 +307,14 @@ def test_user_session_e2e(
         for toolkit_name in installable:
             assert toolkit_name in result.stdout
 
-        # 6. verify index and installed files
+        # 6. update the installed set through the real CLI, including init
+        result = script_runner.run(["dlthub", "ai", "toolkit", "update"] + location_args)
+        assert result.returncode == 0, result.stderr
+        assert "Updating toolkit init" in result.stdout
+        for toolkit_name in installable:
+            assert "Updating toolkit %s" % toolkit_name in result.stdout
+
+        # 7. verify index and installed files
         project_root = Path.cwd()
         assert_toolkit_install(project_root, "init", "claude")
         for toolkit_name in installable:
