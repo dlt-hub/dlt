@@ -222,6 +222,28 @@ def test_extract_hints_mark(extract_step: Extract) -> None:
     assert "pk" not in table["columns"]
 
 
+def test_empty_key_hints_clear_existing_schema_columns(extract_step: Extract) -> None:
+    os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
+
+    @dlt.resource
+    def with_table_hints():
+        yield {"id": 1, "merge_id": 1}
+
+    source = DltSource(dlt.Schema("hintable"), "module", [with_table_hints])
+    resource = source.resources["with_table_hints"]
+    resource.apply_hints(primary_key="id", merge_key="merge_id")
+    extract_step.extract(source, 20, 1)
+    table = source.schema.tables["with_table_hints"]
+    assert table["columns"]["id"]["primary_key"] is True
+    assert table["columns"]["merge_id"]["merge_key"] is True
+
+    resource.apply_hints(primary_key="", merge_key=[])
+    extract_step.extract(source, 20, 1)
+    table = source.schema.tables["with_table_hints"]
+    assert table["columns"]["id"].get("primary_key") is not True
+    assert table["columns"]["merge_id"].get("merge_key") is not True
+
+
 def test_extract_hints_table_variant(extract_step: Extract) -> None:
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
 
