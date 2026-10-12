@@ -10,7 +10,7 @@ from dlt.common.data_writers import (
     get_best_writer_spec,
     is_native_writer,
 )
-from dlt.common.destination.utils import prepare_load_table
+from dlt.common.destination.utils import prepare_load_table, verify_supported_data_types
 from dlt.common.metrics import DataWriterMetrics
 from dlt.common.schema.utils import new_table
 from dlt.common.typing import TLoaderFileFormat
@@ -271,6 +271,29 @@ def w_normalize_files(
             raise NormalizeJobFailed(load_id, job_id, str(exc), writer_metrics) from exc
         else:
             writer_metrics = _gather_metrics_and_close(parsed_file_name, in_exception=False)
+            # fail early if any discovered data type is not supported by the destination for the
+            # file format that was actually selected for the job, instead of failing at load time
+            new_jobs = [
+                ParsedLoadJobFileName.parse(metrics.file_path) for metrics in writer_metrics
+            ]
+            # model and reference jobs carry no typed data file, so they have no format to check
+            new_jobs = [job for job in new_jobs if job.file_format not in ("model", "reference")]
+            verified_tables = {job.table_name for job in new_jobs}
+            prepared_tables = [
+                prepare_load_table(schema.tables, schema.tables[table_name], destination_caps)
+                for table_name in verified_tables
+                if table_name in schema.tables
+            ]
+            if exceptions := verify_supported_data_types(
+                prepared_tables,
+                new_jobs,
+                destination_caps,
+                config.destination_type,
+                warnings=False,
+            ):
+                for exception in exceptions:
+                    logger.error(str(exception))
+                raise exceptions[0]
         finally:
             for normalizer in item_normalizers.values():
                 normalizer.close()
