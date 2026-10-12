@@ -1,0 +1,247 @@
+components:
+  schemas:
+    ErrorResponse:
+      properties:
+        code:
+          description: Machine-readable error code, when the error has one
+          type: string
+        detail:
+          description: Human-readable description of the error
+          type: string
+        extra:
+          description: Additional error details (free-form)
+        status_code:
+          description: The HTTP status code
+          type: integer
+      title: ErrorResponse
+      type: object
+    LogIoStream:
+      description: Stream a log line was written to.
+      enum:
+      - stdout
+      - stderr
+      - other
+      title: LogIoStream
+      type: string
+    LogLine:
+      properties:
+        content:
+          description: Contents of the log message
+          type: string
+        io_stream:
+          description: Stream the line was written to
+          oneOf:
+          - $ref: '#/components/schemas/LogIoStream'
+          - type: string
+        line_num:
+          description: Line number of the log
+          type: integer
+        reported_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+        source:
+          description: Who emitted the line
+          oneOf:
+          - $ref: '#/components/schemas/LogSource'
+          - type: string
+        stage:
+          description: Stage of the run the line belongs to
+          oneOf:
+          - $ref: '#/components/schemas/RunSignalStage'
+          - type: string
+      required:
+      - content
+      - io_stream
+      - line_num
+      - reported_at
+      - source
+      - stage
+      title: LogLine
+      type: object
+    LogSource:
+      description: The subset of ``RunSignalSource`` clients are shown as a log line's
+        source.
+      enum:
+      - user
+      - setup
+      - runner
+      title: LogSource
+      type: string
+    RunSignalStage:
+      description: When in a run's lifecycle a signal was emitted.
+      enum:
+      - build
+      - run
+      title: RunSignalStage
+      type: string
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      description: 'A short-lived data plane token sent as `Authorization: Bearer
+        <token>`. API keys are not
+
+        accepted here: exchange one for a token with
+
+        `POST https://api.dlthub.com/api/v1/workspaces/{workspace_id}/-issue-dataplane-token`.'
+      scheme: bearer
+      type: http
+info:
+  description: "Logs of job runs, read once a run has written them or followed live\
+    \ while it runs.\n\n## Base URL and authentication\n\nEach workspace keeps its\
+    \ data on the data plane of its region. Its services are not on\n`api.dlthub.com`\
+    \ and do not accept API keys. To call them:\n\n1. Read `dataplane_url` from `GET\
+    \ https://api.dlthub.com/api/v1/workspaces/{workspace_id}`.\n   This is the base\
+    \ URL of every data plane service: Dataplane, Logs and Telemetry API.\n2. Exchange\
+    \ your API key for a data plane token with\n   `POST https://api.dlthub.com/api/v1/workspaces/{workspace_id}/-issue-dataplane-token`.\n\
+    \   The token is valid for one workspace until `expires_at`, currently 10 minutes\
+    \ after it\n   was issued; request a new one before then. What it may do follows\
+    \ your workspace role.\n3. Call the service at `dataplane_url` with `Authorization:\
+    \ Bearer <token>`.\n\nThe data planes today:\n\n| Region | `dataplane_url` |\n\
+    | --- | --- |\n| Europe (`eu1`, europe-west4) | `https://eu1.dlthub.com` |\n|\
+    \ US East (`us1`, us-east4) | `https://us1.dlthub.com` |\n\n## Versioning\n\n\
+    The API version is part of the path. Endpoints under `/v1` are stable: breaking\
+    \ changes ship\nonly under a new version prefix. New endpoints, optional parameters\
+    \ and response fields can\nbe added to `/v1` at any time, so ignore fields you\
+    \ do not know."
+  title: Log Service
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /logs/v1/workspaces/{workspace_id}/job-runs/{job_run_id}/log-stream:
+    get:
+      deprecated: false
+      description: '
+
+        Follows the log of a running job as server-sent events (`text/event-stream`).
+        Each `log` event
+
+        carries one log line object as JSON in `data`; an `error` event carries `{"error":
+        "..."}` and
+
+        ends the stream. The stream ends when the run finishes.
+
+        '
+      operationId: get_job_run_log_stream
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: job_run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            text/event-stream:
+              schema: {}
+          description: Stream Response
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: StreamWorkspaceRunLogs
+  /logs/v1/workspaces/{workspace_id}/job-runs/{job_run_id}/logs:
+    get:
+      deprecated: false
+      description: '
+
+        Returns the stored log of a job run as newline-delimited JSON (`application/x-ndjson`),
+        one
+
+        log line object per line. Answers 404 until the run has written a log.
+
+        '
+      operationId: get_job_run_logs
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: job_run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/x-ndjson:
+              schema:
+                $ref: '#/components/schemas/LogLine'
+          description: Newline-delimited LogLine objects.
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: GetWorkspaceRunLogs
+security:
+- BearerAuth: []
+servers:
+- url: /

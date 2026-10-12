@@ -40,6 +40,7 @@ preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	uv run --script tools/preprocess_docs.py
 	uv run --script tools/generate_api_reference.py
 	$(MAKE) cli-generate-hub
+	$(MAKE) api-generate-hub
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -109,9 +110,21 @@ snippets-typecheck:
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
 
-# links into the hub CLI reference resolve against a fresh, git-ignored copy
+RUNTIME_OPENAPI_DIR ?= tools/runtime_openapi
+RUNTIME_REPO ?= ../../runtime
+api-sync-specs: ## Copies the published runtime OpenAPI specs from a local runtime checkout
+	mkdir -p $(RUNTIME_OPENAPI_DIR)
+	cp $(addprefix $(RUNTIME_REPO)/clients/cli/tools/runtime_clients/,api.openapi.yaml dataplane_api.openapi.yaml telemetry.openapi.yaml logs.openapi.yaml) $(RUNTIME_OPENAPI_DIR)/
+
+API_DOCS_DIR ?= website/docs_processed/hub/reference/api
+api-generate-hub: ## Generates the runtime REST API reference into `website/docs_processed`
+	uv --quiet run --script tools/generate_openapi_docs.py \
+		--spec-dir $(RUNTIME_OPENAPI_DIR) --output-dir $(API_DOCS_DIR)
+
+# links into the generated hub references resolve against fresh, git-ignored copies
 md-check:  ## Check markdown file formatting errors in website/docs
 	$(MAKE) cli-generate-hub HUB_CLI_DOCS=website/docs/hub/command-line-interface.md
+	$(MAKE) api-generate-hub API_DOCS_DIR=website/docs/hub/reference/api
 	uv run mdsmith check website/docs
 
 md-fix:  ## Fix markdown file formatting errors in website/docs
