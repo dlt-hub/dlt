@@ -9,6 +9,7 @@
 
 # Generated files
 /docs/hub/command-line-interface.md
+/docs/hub/reference/api/*-api.md
 .docusaurus
 .cache-loader
 jaffle_shop

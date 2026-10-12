@@ -1,0 +1,1933 @@
+components:
+  schemas:
+    DatasetStatsResponse:
+      properties:
+        average_duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        dataset_name:
+          type: string
+        distinct_pipeline_count:
+          type: integer
+        latest_destination_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        latest_pipeline_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        latest_pipeline_run_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        latest_pipeline_run_id:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+        latest_status:
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStatus'
+          - type: string
+          - type: 'null'
+        schema_migration_count:
+          type: integer
+        succeeded_pipeline_run_count:
+          type: integer
+        success_ratio:
+          type: number
+        table_count:
+          default: 0
+          type: integer
+        total_bytes_loaded:
+          type: integer
+        total_pipeline_run_count:
+          type: integer
+        total_rows_loaded:
+          type: integer
+      required:
+      - dataset_name
+      - distinct_pipeline_count
+      - schema_migration_count
+      - succeeded_pipeline_run_count
+      - success_ratio
+      - total_bytes_loaded
+      - total_pipeline_run_count
+      - total_rows_loaded
+      title: DatasetStatsResponse
+      type: object
+    DetailedPipelineRunResponse:
+      properties:
+        created_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+        dataset_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        destination_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        dlt_plus_version:
+          oneOf:
+          - type: string
+          - type: 'null'
+        dlt_version:
+          oneOf:
+          - type: string
+          - type: 'null'
+        duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        error_message:
+          oneOf:
+          - type: string
+          - type: 'null'
+        error_step:
+          oneOf:
+          - type: string
+          - type: 'null'
+        error_traceback:
+          oneOf:
+          - type: string
+          - type: 'null'
+        extract_duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        finished_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        has_failed_load_jobs:
+          default: false
+          oneOf:
+          - default: false
+            type: boolean
+          - type: 'null'
+        has_pending_packages:
+          default: false
+          oneOf:
+          - default: false
+            type: boolean
+          - type: 'null'
+        has_schema_migration:
+          oneOf:
+          - type: boolean
+          - type: 'null'
+        id:
+          format: uuid
+          type: string
+        is_empty_run:
+          default: false
+          oneOf:
+          - default: false
+            type: boolean
+          - type: 'null'
+        job_run_id:
+          oneOf:
+          - format: uuid
+            type: string
+          - type: 'null'
+        load_duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        load_package_count:
+          default: 0
+          oneOf:
+          - default: 0
+            type: integer
+          - type: 'null'
+        load_packages:
+          default: []
+          items:
+            $ref: '#/components/schemas/LoadPackageResponse'
+          type: array
+        normalize_duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        os_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        os_version:
+          oneOf:
+          - type: string
+          - type: 'null'
+        pipeline_name:
+          type: string
+        python_version:
+          oneOf:
+          - type: string
+          - type: 'null'
+        resources:
+          default: []
+          items:
+            $ref: '#/components/schemas/PipelineRunResourceResponse'
+          type: array
+        started_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        status:
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStatus'
+          - type: string
+        tables:
+          default: []
+          items:
+            $ref: '#/components/schemas/PipelineRunTableResponse'
+          type: array
+        total_bytes_extracted:
+          default: 0
+          type: integer
+        total_bytes_loaded:
+          default: 0
+          type: integer
+        total_rows_extracted:
+          default: 0
+          type: integer
+        total_rows_loaded:
+          default: 0
+          type: integer
+        transaction_id:
+          type: string
+        updated_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+      required:
+      - created_at
+      - id
+      - pipeline_name
+      - status
+      - transaction_id
+      - updated_at
+      title: DetailedPipelineRunResponse
+      type: object
+    ErrorResponse:
+      properties:
+        code:
+          description: Machine-readable error code, when the error has one
+          type: string
+        detail:
+          description: Human-readable description of the error
+          type: string
+        extra:
+          description: Additional error details (free-form)
+        status_code:
+          description: The HTTP status code
+          type: integer
+      title: ErrorResponse
+      type: object
+    JobResultResponse:
+      properties:
+        agent_status:
+          description: 'The agent''s self-report, which may legitimately disagree
+            with the run''s own status: a failed agent inside a succeeded run is normal.'
+          oneOf:
+          - type: string
+          - type: 'null'
+        cost_usd:
+          description: Decimal string, never a float.
+          oneOf:
+          - type: string
+          - type: 'null'
+        created_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+        engine_version:
+          type: integer
+        id:
+          format: uuid
+          type: string
+        input_tokens:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        job_ref:
+          type: string
+        job_run_id:
+          format: uuid
+          type: string
+        loop_type:
+          oneOf:
+          - type: string
+          - type: 'null'
+        model:
+          oneOf:
+          - type: string
+          - type: 'null'
+        output_tokens:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        result:
+          description: The job's declared output. Shape is job-defined.
+        result_type:
+          type: string
+        stop_reason:
+          oneOf:
+          - type: string
+          - type: 'null'
+        summary:
+          description: "Model-authored markdown, unbounded. Untrusted \u2014 render\
+            \ as user content."
+          oneOf:
+          - type: string
+          - type: 'null'
+        total_tokens:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        turn_count:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        updated_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+      required:
+      - created_at
+      - engine_version
+      - id
+      - job_ref
+      - job_run_id
+      - result_type
+      - updated_at
+      title: JobResultResponse
+      type: object
+    JobResultTraceResponse:
+      properties:
+        job_ref:
+          description: The job that declared the result.
+          type: string
+        type:
+          description: 'The result type: `job.{name}`, or `job.background_agent.{name}`
+            for an agent.'
+          type: string
+      required:
+      - job_ref
+      - type
+      title: JobResultTraceResponse
+      type: object
+    ListPage_DatasetStatsResponse_:
+      properties:
+        items:
+          description: The rows of this page, in sort order.
+          items:
+            $ref: '#/components/schemas/DatasetStatsResponse'
+          type: array
+        limit:
+          description: The page size this page was fetched with.
+          type: integer
+        next_cursor:
+          description: Cursor for the page after this one; null on the last.
+          oneOf:
+          - type: string
+          - type: 'null'
+        offset:
+          description: How many rows were skipped before this page.
+          type: integer
+        total:
+          description: Rows matching the filters, reported up to 10001.
+          type: integer
+      required:
+      - items
+      - limit
+      - offset
+      - total
+      title: ListPage[DatasetStatsResponse]
+      type: object
+    ListPage_PipelineRunResponse_:
+      properties:
+        items:
+          description: The rows of this page, in sort order.
+          items:
+            $ref: '#/components/schemas/PipelineRunResponse'
+          type: array
+        limit:
+          description: The page size this page was fetched with.
+          type: integer
+        next_cursor:
+          description: Cursor for the page after this one; null on the last.
+          oneOf:
+          - type: string
+          - type: 'null'
+        offset:
+          description: How many rows were skipped before this page.
+          type: integer
+        total:
+          description: Rows matching the filters, reported up to 10001.
+          type: integer
+      required:
+      - items
+      - limit
+      - offset
+      - total
+      title: ListPage[PipelineRunResponse]
+      type: object
+    ListPage_PipelineStatsResponse_:
+      properties:
+        items:
+          description: The rows of this page, in sort order.
+          items:
+            $ref: '#/components/schemas/PipelineStatsResponse'
+          type: array
+        limit:
+          description: The page size this page was fetched with.
+          type: integer
+        next_cursor:
+          description: Cursor for the page after this one; null on the last.
+          oneOf:
+          - type: string
+          - type: 'null'
+        offset:
+          description: How many rows were skipped before this page.
+          type: integer
+        total:
+          description: Rows matching the filters, reported up to 10001.
+          type: integer
+      required:
+      - items
+      - limit
+      - offset
+      - total
+      title: ListPage[PipelineStatsResponse]
+      type: object
+    LoadJobMetricState:
+      description: Job state from load_info.job_metrics[].state, separate from PackageJobState.
+      enum:
+      - completed
+      - failed
+      title: LoadJobMetricState
+      type: string
+    LoadPackageResponse:
+      properties:
+        completed_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        completed_job_count:
+          default: 0
+          oneOf:
+          - default: 0
+            type: integer
+          - type: 'null'
+        failed_job_count:
+          default: 0
+          oneOf:
+          - default: 0
+            type: integer
+          - type: 'null'
+        has_failed_load_jobs:
+          default: false
+          oneOf:
+          - default: false
+            type: boolean
+          - type: 'null'
+        has_schema_migration:
+          default: false
+          oneOf:
+          - default: false
+            type: boolean
+          - type: 'null'
+        is_pending:
+          default: false
+          oneOf:
+          - default: false
+            type: boolean
+          - type: 'null'
+        job_count:
+          default: 0
+          oneOf:
+          - default: 0
+            type: integer
+          - type: 'null'
+        load_id:
+          type: string
+        load_status:
+          oneOf:
+          - $ref: '#/components/schemas/LoadPackageStatus'
+          - type: string
+          - type: 'null'
+        schema_hash:
+          oneOf:
+          - type: string
+          - type: 'null'
+        schema_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        total_bytes_loaded:
+          default: 0
+          oneOf:
+          - default: 0
+            type: integer
+          - type: 'null'
+        total_rows_loaded:
+          default: 0
+          oneOf:
+          - default: 0
+            type: integer
+          - type: 'null'
+      required:
+      - load_id
+      title: LoadPackageResponse
+      type: object
+    LoadPackageStatus:
+      description: Status of a load package (from dlt step_info.load_packages[].state).
+      enum:
+      - new
+      - extracted
+      - normalized
+      - loaded
+      - aborted
+      title: LoadPackageStatus
+      type: string
+    PipelineRunResourceResponse:
+      properties:
+        bytes_extracted:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        parent_resource_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        resource_name:
+          type: string
+        rows_extracted:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        schema_name:
+          default: ''
+          type: string
+        write_disposition:
+          oneOf:
+          - $ref: '#/components/schemas/WriteDisposition'
+          - type: string
+          - type: 'null'
+      required:
+      - resource_name
+      title: PipelineRunResourceResponse
+      type: object
+    PipelineRunResponse:
+      properties:
+        created_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+        dataset_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        destination_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        dlt_version:
+          oneOf:
+          - type: string
+          - type: 'null'
+        duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        error_message:
+          oneOf:
+          - type: string
+          - type: 'null'
+        error_step:
+          oneOf:
+          - type: string
+          - type: 'null'
+        finished_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        has_schema_migration:
+          oneOf:
+          - type: boolean
+          - type: 'null'
+        id:
+          format: uuid
+          type: string
+        pipeline_name:
+          type: string
+        started_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        status:
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStatus'
+          - type: string
+        total_bytes_loaded:
+          default: 0
+          type: integer
+        total_rows_extracted:
+          default: 0
+          type: integer
+        total_rows_loaded:
+          default: 0
+          type: integer
+        updated_at:
+          description: datetime with the constraint that the value must have timezone
+            info
+          format: date-time
+          type: string
+      required:
+      - created_at
+      - id
+      - pipeline_name
+      - status
+      - updated_at
+      title: PipelineRunResponse
+      type: object
+    PipelineRunStatus:
+      description: Overall status of a pipeline run.
+      enum:
+      - succeeded
+      - failed
+      title: PipelineRunStatus
+      type: string
+    PipelineRunTableResponse:
+      properties:
+        bytes_extracted:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        bytes_loaded:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        file_format:
+          oneOf:
+          - type: string
+          - type: 'null'
+        load_duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        load_job_state:
+          oneOf:
+          - $ref: '#/components/schemas/LoadJobMetricState'
+          - type: string
+          - type: 'null'
+        rows_extracted:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        rows_loaded:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        schema_name:
+          default: ''
+          type: string
+        table_name:
+          type: string
+        write_disposition:
+          oneOf:
+          - $ref: '#/components/schemas/WriteDisposition'
+          - type: string
+          - type: 'null'
+      required:
+      - table_name
+      title: PipelineRunTableResponse
+      type: object
+    PipelineRunTraceResponse:
+      properties:
+        execution_context:
+          additionalProperties: {}
+          description: The dlt, Python and host versions the pipeline ran with.
+          type: object
+        pipeline_name:
+          description: The pipeline that ran.
+          type: string
+        steps:
+          description: The extract, normalize and load steps, in order.
+          items:
+            additionalProperties: {}
+            type: object
+          type: array
+        transaction_id:
+          description: The dlt transaction the trace records.
+          type: string
+      required:
+      - execution_context
+      - pipeline_name
+      - steps
+      - transaction_id
+      title: PipelineRunTraceResponse
+      type: object
+    PipelineStatsResponse:
+      properties:
+        average_duration_ms:
+          oneOf:
+          - type: integer
+          - type: 'null'
+        latest_dataset_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        latest_destination_name:
+          oneOf:
+          - type: string
+          - type: 'null'
+        latest_pipeline_run_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+        latest_source_names:
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+        latest_status:
+          oneOf:
+          - $ref: '#/components/schemas/PipelineRunStatus'
+          - type: string
+          - type: 'null'
+        pipeline_name:
+          type: string
+        succeeded_pipeline_run_count:
+          type: integer
+        success_ratio:
+          type: number
+        total_bytes_loaded:
+          type: integer
+        total_duration_ms:
+          default: 0
+          type: integer
+        total_pipeline_run_count:
+          type: integer
+        total_rows_extracted:
+          type: integer
+        total_rows_loaded:
+          type: integer
+      required:
+      - pipeline_name
+      - succeeded_pipeline_run_count
+      - success_ratio
+      - total_bytes_loaded
+      - total_pipeline_run_count
+      - total_rows_extracted
+      - total_rows_loaded
+      title: PipelineStatsResponse
+      type: object
+    TelemetryWatermarkResponse:
+      properties:
+        updated_at:
+          oneOf:
+          - description: datetime with the constraint that the value must have timezone
+              info
+            format: date-time
+            type: string
+          - type: 'null'
+      required: []
+      title: TelemetryWatermarkResponse
+      type: object
+    WriteDisposition:
+      description: dlt write dispositions for resources and tables.
+      enum:
+      - append
+      - replace
+      - merge
+      title: WriteDisposition
+      type: string
+  securitySchemes:
+    BearerAuth:
+      bearerFormat: JWT
+      description: 'A short-lived data plane token sent as `Authorization: Bearer
+        <token>`. API keys are not
+
+        accepted here: exchange one for a token with
+
+        `POST https://api.dlthub.com/api/v1/workspaces/{workspace_id}/-issue-dataplane-token`.'
+      scheme: bearer
+      type: http
+info:
+  description: "Telemetry of a workspace's pipelines: pipeline runs and their traces,\
+    \ the load results of job runs, and per-pipeline and per-dataset statistics.\n\
+    \n## Base URL and authentication\n\nEach workspace keeps its data on the data\
+    \ plane of its region. Its services are not on\n`api.dlthub.com` and do not accept\
+    \ API keys. To call them:\n\n1. Read `dataplane_url` from `GET https://api.dlthub.com/api/v1/workspaces/{workspace_id}`.\n\
+    \   This is the base URL of every data plane service: Dataplane, Logs and Telemetry\
+    \ API.\n2. Exchange your API key for a data plane token with\n   `POST https://api.dlthub.com/api/v1/workspaces/{workspace_id}/-issue-dataplane-token`.\n\
+    \   The token is valid for one workspace until `expires_at`, currently 10 minutes\
+    \ after it\n   was issued; request a new one before then. What it may do follows\
+    \ your workspace role.\n3. Call the service at `dataplane_url` with `Authorization:\
+    \ Bearer <token>`.\n\nThe data planes today:\n\n| Region | `dataplane_url` |\n\
+    | --- | --- |\n| Europe (`eu1`, europe-west4) | `https://eu1.dlthub.com` |\n|\
+    \ US East (`us1`, us-east4) | `https://us1.dlthub.com` |\n\n## Versioning\n\n\
+    The API version is part of the path. Endpoints under `/v1` are stable: breaking\
+    \ changes ship\nonly under a new version prefix. New endpoints, optional parameters\
+    \ and response fields can\nbe added to `/v1` at any time, so ignore fields you\
+    \ do not know."
+  title: Telemetry Service
+  version: 1.0.0
+openapi: 3.1.0
+paths:
+  /telemetry/v1/workspaces/{workspace_id}/datasets/-/stats:
+    get:
+      deprecated: false
+      description: '
+
+        One row per dataset in the time range, with its aggregate metrics.
+
+
+        Search with `q` over the dataset name, filter on what a row displays, and
+        sort
+
+        with paired `sort` and `order` lists.
+
+        '
+      operationId: list_dataset_stats
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Maximum number of items to return. At most 1000.
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          description: Maximum number of items to return. At most 1000.
+          maximum: 1000.0
+          minimum: 1.0
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Number of items to skip. At most 10000; a list reports its total
+          up to 10001, so narrow with filters instead of paging deeper.
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          description: Number of items to skip. At most 10000; a list reports its
+            total up to 10001, so narrow with filters instead of paging deeper.
+          maximum: 10000.0
+          minimum: 0.0
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Start of period. Naive datetime (no offset), interpreted in `timezone`.
+          E.g. `2026-03-01T00:00:00`. Defaults to 7 days before `end`.
+        in: query
+        name: start
+        required: false
+        schema:
+          description: Start of period. Naive datetime (no offset), interpreted in
+            `timezone`. E.g. `2026-03-01T00:00:00`. Defaults to 7 days before `end`.
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: End of period. Naive datetime (no offset), interpreted in `timezone`.
+          E.g. `2026-03-11T00:00:00`. Defaults to now.
+        in: query
+        name: end
+        required: false
+        schema:
+          description: End of period. Naive datetime (no offset), interpreted in `timezone`.
+            E.g. `2026-03-11T00:00:00`. Defaults to now.
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: IANA timezone name (e.g. 'Europe/Berlin', 'America/New_York',
+          'UTC'). Used for bucket alignment and interpreting `start`/`end`.
+        in: query
+        name: timezone
+        required: false
+        schema:
+          default: UTC
+          description: IANA timezone name (e.g. 'Europe/Berlin', 'America/New_York',
+            'UTC'). Used for bucket alignment and interpreting `start`/`end`.
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Case-insensitive substring match on `dataset_name`.
+        in: query
+        name: q
+        required: false
+        schema:
+          description: Case-insensitive substring match on `dataset_name`.
+          oneOf:
+          - type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `dataset_name`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: dataset_name
+        required: false
+        schema:
+          description: Exact match on `dataset_name`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `latest_status`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: latest_status
+        required: false
+        schema:
+          description: Exact match on `latest_status`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              $ref: '#/components/schemas/PipelineRunStatus'
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `latest_destination_name`. Repeat the parameter
+          to match any of several values.
+        in: query
+        name: latest_destination_name
+        required: false
+        schema:
+          description: Exact match on `latest_destination_name`. Repeat the parameter
+            to match any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Keys to sort by, applied in the order given. Pairs positionally
+          with `order`, which must have the same number of entries.
+        in: query
+        name: sort
+        required: false
+        schema:
+          description: Keys to sort by, applied in the order given. Pairs positionally
+            with `order`, which must have the same number of entries.
+          oneOf:
+          - items:
+              enum:
+              - latest_pipeline_run_at
+              - total_pipeline_run_count
+              - success_ratio
+              - average_duration_ms
+              - total_rows_loaded
+              - dataset_name
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Sort directions, one per `sort` key and in the same order. Required
+          whenever `sort` is supplied.
+        in: query
+        name: order
+        required: false
+        schema:
+          description: Sort directions, one per `sort` key and in the same order.
+            Required whenever `sort` is supplied.
+          oneOf:
+          - items:
+              enum:
+              - asc
+              - desc
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Opaque cursor from a previous response's `next_cursor`; returns
+          the rows after it under the same `sort` and `order`. Mutually exclusive
+          with `offset`.
+        in: query
+        name: cursor
+        required: false
+        schema:
+          description: Opaque cursor from a previous response's `next_cursor`; returns
+            the rows after it under the same `sort` and `order`. Mutually exclusive
+            with `offset`.
+          oneOf:
+          - type: string
+          - type: 'null'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPage_DatasetStatsResponse_'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: ListDatasetOverview
+  /telemetry/v1/workspaces/{workspace_id}/job-runs/{job_run_id}/result:
+    get:
+      deprecated: false
+      description: "\nThe structured result a job run declared \u2014 an agent's status,\
+        \ summary and declared\noutput, or any other job's result object. A run yields\
+        \ at most one.\n\n`job_run_id` is the platform run id the runner was provisioned\
+        \ with, not a telemetry\n`pipeline_run_id`. Only the promoted scalars are\
+        \ served here; for the agent trace and\neverything else the runner delivered,\
+        \ read the envelope at `/result-trace`.\n"
+      operationId: get_job_run_result
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: job_run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResultResponse'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: GetJobResult
+  /telemetry/v1/workspaces/{workspace_id}/job-runs/{job_run_id}/result-trace:
+    get:
+      deprecated: false
+      description: '
+
+        The job-result envelope exactly as the runner delivered it: the declared output,
+        and the
+
+        agent trace with its per-turn tool calls, token counts and stop reason.
+
+
+        Returned verbatim, so this carries fields no column promotes; only `type`
+        and `job_ref` are
+
+        declared. `job_run_id` is the platform run id, not a telemetry `pipeline_run_id`.
+
+
+        An envelope past the size this serves in one response answers 413 with
+
+        `job_result_trace_too_large`; the promoted scalars stay readable at `/result`.
+
+        '
+      operationId: get_job_run_result_trace
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: job_run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobResultTraceResponse'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: GetJobResultTrace
+  /telemetry/v1/workspaces/{workspace_id}/pipeline-runs:
+    get:
+      deprecated: false
+      description: '
+
+        Lists the pipeline runs of a workspace within a time range.
+
+
+        Search with `q` over the pipeline name; filter by status, pipeline, dataset,
+
+        destination, job run, or empty run; sort with paired `sort` and `order` lists.
+
+        '
+      operationId: list_pipeline_runs
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Maximum number of items to return. At most 1000.
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          description: Maximum number of items to return. At most 1000.
+          maximum: 1000.0
+          minimum: 1.0
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Number of items to skip. At most 10000; a list reports its total
+          up to 10001, so narrow with filters instead of paging deeper.
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          description: Number of items to skip. At most 10000; a list reports its
+            total up to 10001, so narrow with filters instead of paging deeper.
+          maximum: 10000.0
+          minimum: 0.0
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Start of period. Naive datetime (no offset), interpreted in `timezone`.
+          E.g. `2026-03-01T00:00:00`. Defaults to 7 days before `end`.
+        in: query
+        name: start
+        required: false
+        schema:
+          description: Start of period. Naive datetime (no offset), interpreted in
+            `timezone`. E.g. `2026-03-01T00:00:00`. Defaults to 7 days before `end`.
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: End of period. Naive datetime (no offset), interpreted in `timezone`.
+          E.g. `2026-03-11T00:00:00`. Defaults to now.
+        in: query
+        name: end
+        required: false
+        schema:
+          description: End of period. Naive datetime (no offset), interpreted in `timezone`.
+            E.g. `2026-03-11T00:00:00`. Defaults to now.
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: IANA timezone name (e.g. 'Europe/Berlin', 'America/New_York',
+          'UTC'). Used for bucket alignment and interpreting `start`/`end`.
+        in: query
+        name: timezone
+        required: false
+        schema:
+          default: UTC
+          description: IANA timezone name (e.g. 'Europe/Berlin', 'America/New_York',
+            'UTC'). Used for bucket alignment and interpreting `start`/`end`.
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Case-insensitive substring match on `pipeline_name`.
+        in: query
+        name: q
+        required: false
+        schema:
+          description: Case-insensitive substring match on `pipeline_name`.
+          oneOf:
+          - type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `status`. Repeat the parameter to match any of
+          several values.
+        in: query
+        name: status
+        required: false
+        schema:
+          description: Exact match on `status`. Repeat the parameter to match any
+            of several values.
+          oneOf:
+          - items:
+              $ref: '#/components/schemas/PipelineRunStatus'
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `pipeline_name`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: pipeline_name
+        required: false
+        schema:
+          description: Exact match on `pipeline_name`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `dataset_name`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: dataset_name
+        required: false
+        schema:
+          description: Exact match on `dataset_name`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `destination_name`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: destination_name
+        required: false
+        schema:
+          description: Exact match on `destination_name`. Repeat the parameter to
+            match any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `job_run_id`. Repeat the parameter to match any
+          of several values.
+        in: query
+        name: job_run_id
+        required: false
+        schema:
+          description: Exact match on `job_run_id`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              format: uuid
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Match `is_empty_run`. Omit to list both.
+        in: query
+        name: is_empty_run
+        required: false
+        schema:
+          description: Match `is_empty_run`. Omit to list both.
+          oneOf:
+          - type: boolean
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Keys to sort by, applied in the order given. Pairs positionally
+          with `order`, which must have the same number of entries.
+        in: query
+        name: sort
+        required: false
+        schema:
+          description: Keys to sort by, applied in the order given. Pairs positionally
+            with `order`, which must have the same number of entries.
+          oneOf:
+          - items:
+              enum:
+              - started_at
+              - duration_ms
+              - total_rows_loaded
+              - total_bytes_loaded
+              - finished_at
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Sort directions, one per `sort` key and in the same order. Required
+          whenever `sort` is supplied.
+        in: query
+        name: order
+        required: false
+        schema:
+          description: Sort directions, one per `sort` key and in the same order.
+            Required whenever `sort` is supplied.
+          oneOf:
+          - items:
+              enum:
+              - asc
+              - desc
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Opaque cursor from a previous response's `next_cursor`; returns
+          the rows after it under the same `sort` and `order`. Mutually exclusive
+          with `offset`.
+        in: query
+        name: cursor
+        required: false
+        schema:
+          description: Opaque cursor from a previous response's `next_cursor`; returns
+            the rows after it under the same `sort` and `order`. Mutually exclusive
+            with `offset`.
+          oneOf:
+          - type: string
+          - type: 'null'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPage_PipelineRunResponse_'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: ListPipelineRuns
+  /telemetry/v1/workspaces/{workspace_id}/pipeline-runs/{pipeline_run_id}:
+    get:
+      deprecated: false
+      operationId: get_pipeline_run
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: pipeline_run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DetailedPipelineRunResponse'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: GetPipelineRun
+  /telemetry/v1/workspaces/{workspace_id}/pipeline-runs/{pipeline_run_id}/trace:
+    get:
+      deprecated: false
+      operationId: get_pipeline_run_trace
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - deprecated: false
+        in: path
+        name: pipeline_run_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PipelineRunTraceResponse'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: GetPipelineRunTrace
+  /telemetry/v1/workspaces/{workspace_id}/pipelines/-/stats:
+    get:
+      deprecated: false
+      description: '
+
+        One row per pipeline in the time range, with its aggregate metrics.
+
+
+        Search with `q` over the pipeline name, filter on what a row displays, and
+        sort
+
+        with paired `sort` and `order` lists.
+
+        '
+      operationId: list_pipeline_stats
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Maximum number of items to return. At most 1000.
+        in: query
+        name: limit
+        required: false
+        schema:
+          default: 100
+          description: Maximum number of items to return. At most 1000.
+          maximum: 1000.0
+          minimum: 1.0
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Number of items to skip. At most 10000; a list reports its total
+          up to 10001, so narrow with filters instead of paging deeper.
+        in: query
+        name: offset
+        required: false
+        schema:
+          default: 0
+          description: Number of items to skip. At most 10000; a list reports its
+            total up to 10001, so narrow with filters instead of paging deeper.
+          maximum: 10000.0
+          minimum: 0.0
+          type: integer
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Start of period. Naive datetime (no offset), interpreted in `timezone`.
+          E.g. `2026-03-01T00:00:00`. Defaults to 7 days before `end`.
+        in: query
+        name: start
+        required: false
+        schema:
+          description: Start of period. Naive datetime (no offset), interpreted in
+            `timezone`. E.g. `2026-03-01T00:00:00`. Defaults to 7 days before `end`.
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: End of period. Naive datetime (no offset), interpreted in `timezone`.
+          E.g. `2026-03-11T00:00:00`. Defaults to now.
+        in: query
+        name: end
+        required: false
+        schema:
+          description: End of period. Naive datetime (no offset), interpreted in `timezone`.
+            E.g. `2026-03-11T00:00:00`. Defaults to now.
+          oneOf:
+          - format: date-time
+            type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: IANA timezone name (e.g. 'Europe/Berlin', 'America/New_York',
+          'UTC'). Used for bucket alignment and interpreting `start`/`end`.
+        in: query
+        name: timezone
+        required: false
+        schema:
+          default: UTC
+          description: IANA timezone name (e.g. 'Europe/Berlin', 'America/New_York',
+            'UTC'). Used for bucket alignment and interpreting `start`/`end`.
+          type: string
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Case-insensitive substring match on `pipeline_name`.
+        in: query
+        name: q
+        required: false
+        schema:
+          description: Case-insensitive substring match on `pipeline_name`.
+          oneOf:
+          - type: string
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `pipeline_name`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: pipeline_name
+        required: false
+        schema:
+          description: Exact match on `pipeline_name`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `latest_status`. Repeat the parameter to match
+          any of several values.
+        in: query
+        name: latest_status
+        required: false
+        schema:
+          description: Exact match on `latest_status`. Repeat the parameter to match
+            any of several values.
+          oneOf:
+          - items:
+              $ref: '#/components/schemas/PipelineRunStatus'
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Exact match on `latest_destination_name`. Repeat the parameter
+          to match any of several values.
+        in: query
+        name: latest_destination_name
+        required: false
+        schema:
+          description: Exact match on `latest_destination_name`. Repeat the parameter
+            to match any of several values.
+          oneOf:
+          - items:
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Keys to sort by, applied in the order given. Pairs positionally
+          with `order`, which must have the same number of entries.
+        in: query
+        name: sort
+        required: false
+        schema:
+          description: Keys to sort by, applied in the order given. Pairs positionally
+            with `order`, which must have the same number of entries.
+          oneOf:
+          - items:
+              enum:
+              - latest_pipeline_run_at
+              - total_pipeline_run_count
+              - success_ratio
+              - average_duration_ms
+              - total_rows_loaded
+              - pipeline_name
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Sort directions, one per `sort` key and in the same order. Required
+          whenever `sort` is supplied.
+        in: query
+        name: order
+        required: false
+        schema:
+          description: Sort directions, one per `sort` key and in the same order.
+            Required whenever `sort` is supplied.
+          oneOf:
+          - items:
+              enum:
+              - asc
+              - desc
+              type: string
+            type: array
+          - type: 'null'
+      - allowEmptyValue: false
+        allowReserved: false
+        deprecated: false
+        description: Opaque cursor from a previous response's `next_cursor`; returns
+          the rows after it under the same `sort` and `order`. Mutually exclusive
+          with `offset`.
+        in: query
+        name: cursor
+        required: false
+        schema:
+          description: Opaque cursor from a previous response's `next_cursor`; returns
+            the rows after it under the same `sort` and `order`. Mutually exclusive
+            with `offset`.
+          oneOf:
+          - type: string
+          - type: 'null'
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ListPage_PipelineStatsResponse_'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: ListPipelineOverview
+  /telemetry/v1/workspaces/{workspace_id}/watermark:
+    get:
+      deprecated: false
+      operationId: get_workspace_watermark
+      parameters:
+      - deprecated: false
+        in: path
+        name: workspace_id
+        required: true
+        schema:
+          format: uuid
+          type: string
+      responses:
+        '200':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TelemetryWatermarkResponse'
+          description: Request fulfilled, document follows
+          headers:
+            cache-control:
+              deprecated: false
+              required: false
+              schema:
+                type: string
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad request syntax or unsupported method
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '403':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Forbidden
+        '500':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Internal Server Error
+      summary: GetTelemetryWatermark
+security:
+- BearerAuth: []
+servers:
+- url: /
