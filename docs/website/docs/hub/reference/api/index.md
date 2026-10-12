@@ -37,7 +37,8 @@ curl https://api.dlthub.com/api/v1/me \
 ```
 
 Create API keys in the [dltHub web app](https://app.dlthub.com). Each key is shown once, when
-you create it. Deleting a key revokes it immediately.
+you create it. Keys expire after 90 days unless another lifetime, up to 365 days, is set when the key is created.
+Deleting a key revokes it immediately.
 
 | Key           | Prefix    | Where to create it | Acts as                                                                |
 | ------------- | --------- | ------------------ | ---------------------------------------------------------------------- |
@@ -45,8 +46,9 @@ you create it. Deleting a key revokes it immediately.
 | Workspace key | `dlt_sa_` | Workspace settings | A service account of one workspace with a fixed role                   |
 
 A workspace key has the DEVELOPER role, which can deploy and run jobs, or the VIEWER role,
-which is read-only. Use workspace keys for CI and other automation, so access does not depend
-on a person.
+which can read and run jobs that use the read-only `access` profile, such as interactive jobs.
+Use workspace keys for CI and other automation, so access does not depend on a person.
+Workspace keys cannot call `GET /api/v1/me`, which answers only for people.
 
 ## Calling the data plane
 
@@ -72,8 +74,7 @@ plane token, then call the workspace's data plane with it:
    ```
 
    The response contains `token` and `expires_at`, a Unix timestamp. The token is valid for
-   this workspace only, currently for 10 minutes, and allows what your workspace role allows.
-   Request a new one before it expires.
+   this workspace only, currently for 10 minutes. Request a new one before it expires.
 
 3. Call a data plane service with the token, for example the logs of a job run:
 
@@ -91,6 +92,14 @@ The data planes today:
 
 Read `dataplane_url` from the workspace instead of hard-coding a region, as new regions can be
 added.
+
+Every workspace member can read logs, telemetry and file lists. Only workspace owners can read
+or change [variables](dataplane-api.md), so workspace API keys, which are DEVELOPER or VIEWER,
+cannot.
+
+Uploading a deployment or configuration takes its own token: the `-issue-upload` operations of
+the [Runtime API](runtime-api.md) return an `upload_token` and the `upload_url` to send the
+files to, both valid for one upload and 10 minutes.
 
 ## Lists and pagination
 
@@ -128,4 +137,4 @@ any other error of its status. 5xx errors carry no code.
 
 The API version is part of the path. Endpoints under `/v1` are stable: breaking changes ship
 only under a new version prefix. New endpoints, optional parameters and response fields can be
-added to `/v1` at any time, so ignore fields you do not know.
+added to `/v1` at any time, so ignore fields and enum values you do not know.
