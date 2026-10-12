@@ -1,5 +1,5 @@
 import pytest
-from datetime import datetime, timezone  # noqa: I251
+from datetime import date, datetime, time, timezone  # noqa: I251
 from zoneinfo import ZoneInfo
 from typing import Any
 
@@ -8,6 +8,7 @@ from dlt.common.time import set_context_timezone
 from dlt.common.typing import AnyFun
 
 from dlt.common.data_writers.escape import (
+    escape_ansi_literal,
     escape_redshift_identifier,
     escape_snowflake_identifier,
     escape_snowflake_literal,
@@ -29,6 +30,7 @@ ALL_LITERAL_ESCAPE = [
     escape_postgres_literal,
     escape_duckdb_literal,
     escape_bigquery_literal,
+    escape_ansi_literal,
 ]
 
 _TZ_FORMS = {
@@ -182,6 +184,29 @@ def test_escape_snowflake_literal() -> None:
     assert escape_snowflake_literal("end\\") == "'end\\\\'"
     # json (list/dict) literals escape backslashes too
     assert escape_snowflake_literal({"k": "a\\b"}) == '\'{"k":"a\\\\\\\\b"}\''
+
+
+@pytest.mark.parametrize(
+    "value,expected",
+    [
+        ("it's", "'it''s'"),
+        (True, "TRUE"),
+        (None, "NULL"),
+        (1.5, "1.5"),
+        (date(2024, 1, 2), "DATE '2024-01-02'"),
+        (time(3, 4, 5), "TIME '03:04:05'"),
+        (
+            datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
+            "TIMESTAMP '2024-01-02 03:04:05+00:00'",
+        ),
+        ({"k": "o'hara"}, "'{\"k\":\"o''hara\"}'"),
+        ([1, "a"], "'[1,\"a\"]'"),
+        (b"\x00\xff", "X'00ff'"),
+    ],
+    ids=["string", "bool", "null", "float", "date", "time", "datetime", "dict", "list", "bytes"],
+)
+def test_escape_ansi_literal(value: Any, expected: str) -> None:
+    assert escape_ansi_literal(value) == expected
 
 
 def test_escape_hive_identifier() -> None:

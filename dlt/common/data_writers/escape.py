@@ -190,6 +190,12 @@ def escape_ansi_literal(v: Any) -> Any:
         return f"TIMESTAMP '{v.isoformat(sep=' ')}'"
     if isinstance(v, date):
         return f"DATE '{v.isoformat()}'"
+    if isinstance(v, time):
+        return f"TIME '{v.isoformat()}'"
+    if isinstance(v, (list, dict)):
+        return escape_ansi_literal(json.dumps(v))
+    if isinstance(v, bytes):
+        return f"X'{v.hex()}'"
     return "NULL" if v is None else str(v)
 
 
