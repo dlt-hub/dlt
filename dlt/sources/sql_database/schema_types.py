@@ -165,6 +165,8 @@ def sqla_col_to_column_schema(
         col["data_type"] = "timestamp"
         # special handling for MSSQL
         col["timezone"] = sql_t.timezone or sql_t.__visit_name__ in ("DATETIMEOFFSET",)
+        if add_precision and getattr(sql_t, "precision", None) is not None:
+            col["precision"] = sql_t.precision
     elif isinstance(sql_t, sqltypes.Date):
         col["data_type"] = "date"
     elif isinstance(sql_t, sqltypes.Time):
