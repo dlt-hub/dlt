@@ -123,7 +123,7 @@ class AiCommand(SupportsCliCommand):
         # toolkit command group — verb-first form: `ai toolkit <verb> <name>`
         toolkit_cmd = ai_subparsers.add_parser(
             "toolkit",
-            help="Manage AI toolkit plugins (list, info, install)",
+            help="Manage AI toolkit plugins (list, info, install, update)",
         )
         toolkit_sub = toolkit_cmd.add_subparsers(dest="toolkit_operation", required=False)
 
@@ -177,6 +177,21 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help="Fail on validation warnings (invalid frontmatter, etc.).",
+        )
+
+        update_cmd = toolkit_sub.add_parser(
+            "update",
+            help="Update installed toolkits, preserving local edits",
+            parents=[toolkit_common],
+        )
+        update_cmd.add_argument("name", nargs="?", help="Installed toolkit name (default: all)")
+        update_cmd.add_argument(
+            "--overwrite",
+            action="store_true",
+            help="Replace or remove locally modified toolkit files.",
+        )
+        update_cmd.add_argument(
+            "--strict", action="store_true", help="Fail on source validation warnings."
         )
 
         # shared run flags — used by both `dlt ai mcp [flags]` and `dlt ai mcp run [flags]`
@@ -233,6 +248,7 @@ class AiCommand(SupportsCliCommand):
             ai_secrets_view_redacted_command,
             ai_secrets_update_fragment_command,
             ai_toolkit_install_command,
+            ai_toolkit_update_command,
             ai_toolkit_list_command,
             ai_toolkit_info_command,
         )
@@ -278,6 +294,14 @@ class AiCommand(SupportsCliCommand):
                 ai_toolkit_install_command(
                     name=args.name,
                     agent=args.agent,
+                    location=args.location,
+                    branch=args.branch,
+                    overwrite=args.overwrite,
+                    strict=args.strict,
+                )
+            elif tk_op == "update":
+                ai_toolkit_update_command(
+                    name=args.name,
                     location=args.location,
                     branch=args.branch,
                     overwrite=args.overwrite,
