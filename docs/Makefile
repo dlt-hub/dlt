@@ -39,6 +39,7 @@ preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	# generators that write into it must run afterwards.
 	uv run --script tools/preprocess_docs.py
 	uv run --script tools/generate_api_reference.py
+	$(MAKE) cli-generate-hub
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -53,6 +54,16 @@ cli-generate: ## Regenerates CLI reference docs
 
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
+
+# the newest stable dlthub and dlthub-client from PyPI, outside the docs lockfile.
+# runs in tools/dlthub_cli because workspace commands need a workspace context
+cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_processed`
+	cd tools/dlthub_cli && RUNTIME__LICENSE="" uv --quiet run \
+		--isolated --no-project --prerelease disallow \
+		--refresh-package dlthub --refresh-package dlthub-client \
+		--with "../../..[hub,cli]" \
+		python ../generate_cli_docs.py ../../website/docs_processed/hub/command-line-interface.md \
+		--executable-name dlthub --title "CLI reference" --sort-commands
 
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
