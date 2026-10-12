@@ -159,6 +159,26 @@ def test_normalize_single_user_event_insert(
     assert "(7005479104644416710," in event_text
 
 
+@pytest.mark.parametrize("caps", [INSERT_CAPS[0]], indirect=True)
+def test_normalize_loader_file_format_config_overrides_destination_preference(
+    caps: DestinationCapabilitiesContext, raw_normalize: Normalize
+) -> None:
+    assert caps.preferred_loader_file_format == "insert_values"
+    raw_normalize.config.loader_file_format = "jsonl"
+
+    load_id = extract_and_normalize_cases(raw_normalize, ["event.event.user_load_1"])
+
+    _, load_files = expect_load_package(
+        raw_normalize.load_storage,
+        "jsonl",
+        load_id,
+        EXPECTED_USER_TABLES,
+    )
+    event_text, lines = get_line_from_file(raw_normalize.load_storage, load_files["event"], 0)
+    assert lines == 1
+    assert json.loads(event_text)["event"] == "user"
+
+
 @pytest.mark.parametrize("caps", JSONL_CAPS, indirect=True)
 def test_normalize_filter_user_event(
     caps: DestinationCapabilitiesContext, rasa_normalize: Normalize

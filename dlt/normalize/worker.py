@@ -77,7 +77,8 @@ def w_normalize_files(
     item_normalizers: Dict[str, ItemsNormalizer] = {}
 
     preferred_file_format = (
-        destination_caps.preferred_loader_file_format
+        config.loader_file_format
+        or destination_caps.preferred_loader_file_format
         or destination_caps.preferred_staging_file_format
     )
     # TODO: capabilities.supported_*_formats can be None, it should have defaults
