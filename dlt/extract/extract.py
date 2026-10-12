@@ -522,6 +522,14 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                 ) as pipes:
                     left_gens = total_gens = len(pipes._sources)
                     collector.update("Resources", 0, total_gens)
+                    # register per resource progress counters before iterating so their
+                    # start_time includes the wait for the first item. without this a slow
+                    # or non paginated request reports an astronomical rate because the
+                    # counter is only created when the first rows arrive (#3518). the
+                    # collector is shared by all extractors and table name normalization is
+                    # identical across them, so any extractor registers the same counter key
+                    for resource in source.resources.selected.values():
+                        extractors["object"].start_resource(resource)
                     for pipe_item in pipes:
                         curr_gens = len(pipes._sources)
                         if left_gens > curr_gens:

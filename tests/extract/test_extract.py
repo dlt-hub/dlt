@@ -14,6 +14,7 @@ from dlt.common.storages import (
     NormalizeStorageConfiguration,
 )
 from dlt.common.storages.schema_storage import SchemaStorage
+from dlt.common.runtime.collector import LogCollector
 from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
 from dlt.common.typing import TTableNames, TDataItems
 from dlt.common.utils import uniq_id
@@ -2102,3 +2103,104 @@ def test_resource_inputs_reject_invalid_location() -> None:
     with pytest.raises(TypeErrorWithKnownTypes):
         resource.add_input("not a location", replace=True)  # type: ignore[arg-type]
     assert len(resource.inputs) == 1
+
+
+def _make_log_collector_extract_step(collector: LogCollector) -> Extract:
+    schema_storage = SchemaStorage(
+        SchemaStorageConfiguration(
+            schema_volume_path=os.path.join(get_test_storage_root(), "schemas")
+        ),
+        makedirs=True,
+    )
+    return Extract(schema_storage, NormalizeStorageConfiguration(), collector=collector)
+
+
+def _collector_capturing_final_state(collector: LogCollector, captured: Dict[str, Any]) -> None:
+    # counters and counter_info are reset to None on _stop, so snapshot them just
+    # before the collector context closes at the end of _extract_single_source
+    original_stop = collector._stop
+
+    def capturing_stop() -> None:
+        captured["counters"] = dict(collector.counters)
+        captured["counter_info"] = dict(collector.counter_info)
+        original_stop()
+
+    collector._stop = capturing_stop  # type: ignore[method-assign]
+
+
+def test_static_resource_progress_timer_started_before_wait() -> None:
+    # a slow single table resource must report a progress rate based on wall clock
+    # time including the wait for the first item, not from when the first row
+    # arrives. the per resource counter start_time is set at pipe loop start (#3518)
+    clean_test_storage(init_normalize=True)
+    clock = [0.0]
+    collector = LogCollector(dump_system_stats=False)
+    collector._clock = lambda: clock[0]  # type: ignore[assignment]
+    captured: Dict[str, Any] = {}
+    _collector_capturing_final_state(collector, captured)
+    extract_step = _make_log_collector_extract_step(collector)
+
+    @dlt.resource(name="slow_resource")
+    def slow_resource():
+        # advance the clock to simulate waiting for the first and only response
+        clock[0] = 100.0
+        yield [{"id": 1}, {"id": 2}, {"id": 3}]
+
+    source = DltSource(dlt.Schema("slow"), "module", [slow_resource])
+    load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+
+    # the counter is keyed on the normalized table name (== resource name here)
+    info = captured["counter_info"]["slow_resource"]
+    # start_time was set at pipe loop start (t=0), before the wait
+    assert info.start_time == 0.0
+    # so elapsed reflects the full wall clock time, not ~0
+    assert clock[0] - info.start_time == 100.0
+    assert captured["counters"]["slow_resource"] == 3
+    # no stray per resource counter keyed on something other than the table name
+    assert set(captured["counters"].keys()) == {"Resources", "slow_resource"}
+
+
+def test_dynamic_resource_progress_not_preregistered() -> None:
+    # resources that redirect items with dlt.mark.with_table_name resolve to their
+    # static default name when pre-registered, but rows go to other tables. the stale
+    # counter must be dropped so no phantom "name: 0" line remains (#3518)
+    clean_test_storage(init_normalize=True)
+    collector = LogCollector(dump_system_stats=False)
+    captured: Dict[str, Any] = {}
+    _collector_capturing_final_state(collector, captured)
+    extract_step = _make_log_collector_extract_step(collector)
+
+    @dlt.resource(name="dyn_resource")
+    def dyn_resource():
+        yield dlt.mark.with_table_name({"id": 1}, "tab_a")
+        yield dlt.mark.with_table_name({"id": 2}, "tab_b")
+
+    source = DltSource(dlt.Schema("dyn"), "module", [dyn_resource])
+    load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+
+    # only the real per table counters exist, plus aggregate Resources
+    assert "dyn_resource" not in captured["counters"]
+    assert set(captured["counters"].keys()) == {"Resources", "tab_a", "tab_b"}
+
+
+def test_dynamic_table_name_callable_not_preregistered() -> None:
+    # resources with a table_name callable have a dynamic table name and must not be
+    # pre-registered at all, since the table is unknown until items arrive (#3518)
+    clean_test_storage(init_normalize=True)
+    collector = LogCollector(dump_system_stats=False)
+    captured: Dict[str, Any] = {}
+    _collector_capturing_final_state(collector, captured)
+    extract_step = _make_log_collector_extract_step(collector)
+
+    @dlt.resource(name="lambda_resource", table_name=lambda i: f"tab_{i['id']}")
+    def lambda_resource():
+        yield [{"id": 1}, {"id": 2}]
+
+    source = DltSource(dlt.Schema("lam"), "module", [lambda_resource])
+    load_id = extract_step.extract_storage.create_load_package(source.discover_schema())
+    extract_step._extract_single_source(load_id, source, max_parallel_items=5, workers=1)
+
+    assert "lambda_resource" not in captured["counters"]
+    assert set(captured["counters"].keys()) == {"Resources", "tab_1", "tab_2"}

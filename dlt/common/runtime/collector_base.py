@@ -60,6 +60,10 @@ class Collector(ABC, SupportsTracking):
         """Stops counting. Should close all counters and release resources ie. screen or push the results to a server."""
         pass
 
+    def discard(self, name: str) -> None:
+        """Removes a counter `name` if it exists. No-op by default."""
+        pass
+
     def __call__(self: TCollector, step: str) -> TCollector:
         """Syntactic sugar for nicer context managers"""
         self.step = step
