@@ -95,7 +95,8 @@ def sql_database(
         include_views (bool): Reflect views as well as tables. Note view names included in `table_names` are always included regardless of this setting.
 
         type_adapter_callback (Optional[TTypeAdapter]): Callable to override type inference when reflecting columns.
-            Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
+            Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type.
+            Return the input type to leave a column unchanged. Returning `None` drops the reflected source type and forces dlt to infer the type from data.
 
         query_adapter_callback (Optional[TQueryAdapter]): Callable to override the SELECT query used to fetch data from the table.
             The callback receives the sqlalchemy `Select` and corresponding `Table`, 'Incremental` and `Engine` objects and should return the modified `Select` or `Text`.
@@ -249,7 +250,8 @@ def sql_table(
         backend_kwargs (Dict[str, Any], optional): kwargs passed to table backend ie. "conn" is used to pass specialized connection string to connectorx.
 
         type_adapter_callback (Optional[TTypeAdapter]): Callable to override type inference when reflecting columns.
-            Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type, or `None` (type will be inferred from data)
+            Argument is a single sqlalchemy data type (`TypeEngine` instance) and it should return another sqlalchemy data type.
+            Return the input type to leave a column unchanged. Returning `None` drops the reflected source type and forces dlt to infer the type from data.
 
         included_columns (Optional[List[str]]): List of column names to select from the table. If not provided, all columns are loaded.
 

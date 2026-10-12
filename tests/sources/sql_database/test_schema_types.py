@@ -105,6 +105,27 @@ def test_datetime_timezone_mapping(sql_type: sa.types.TypeEngine, expected_tz: b
     assert col_schema["timezone"] is expected_tz
 
 
+def test_type_adapter_none_warns_and_keeps_inference(monkeypatch: pytest.MonkeyPatch) -> None:
+    metadata = sa.MetaData()
+    table = sa.Table("t", metadata, sa.Column("amount", sa.Numeric(7, 2)))
+    warnings = []
+
+    def capture_warning(message: str, *args: object) -> None:
+        warnings.append(message % args)
+
+    monkeypatch.setattr("dlt.sources.sql_database.schema_types.logger.warning", capture_warning)
+
+    col_schema = sqla_col_to_column_schema(
+        table.c.amount, "full_with_precision", lambda sql_t: None
+    )
+
+    assert col_schema == {"name": "amount", "nullable": True}
+    assert len(warnings) == 1
+    assert "`type_adapter_callback` returned None for column amount" in warnings[0]
+    assert "forces dlt to infer the type from data" in warnings[0]
+    assert "return the original SQLAlchemy type" in warnings[0]
+
+
 def test_get_table_references() -> None:
     # Test converting foreign keys to reference hints
     metadata = sa.MetaData()
