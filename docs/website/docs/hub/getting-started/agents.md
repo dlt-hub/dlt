@@ -29,7 +29,7 @@ Set up this directory for dltHub background agents. Use `uv run` and pass
 
 1. If there is no `.dlt/.workspace` file, run `uvx dlthub-init@latest`.
 2. Add these dependencies to pyproject.toml and run `uv sync`:
-   "dlt[hub]==1.31.0", "dlthub[mcp]", "dlthub-client>=0.28.7",
+   "dlt[hub]==1.31.0", "dlthub[mcp]", "dlthub-client>=0.28.7a6",
    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0", "aiohttp>=3.14.3"
 3. Run `uv run dlthub ai toolkit install dlthub-platform --overwrite`, then
    `uv run dlthub ai status`, and fix any warnings.
