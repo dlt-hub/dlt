@@ -41,6 +41,7 @@ preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	uv run --script tools/generate_api_reference.py
 	$(MAKE) cli-generate-hub
 	$(MAKE) api-generate-hub
+	$(MAKE) sdk-generate-hub
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -70,7 +71,7 @@ cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_proce
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
+	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude tools/generate_sdk_docs.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
 	uv run flake8 --max-line-length=200 tools website/docs
 	uv run black tools website --check --diff --color
 
@@ -121,10 +122,18 @@ api-generate-hub: ## Generates the runtime REST API reference into `website/docs
 	uv --quiet run --script tools/generate_openapi_docs.py \
 		--spec-dir $(RUNTIME_OPENAPI_DIR) --output-dir $(API_DOCS_DIR)
 
+# the newest stable dlthub-client from PyPI, read with griffe without importing it
+SDK_DOCS ?= website/docs_processed/hub/reference/python-sdk.md
+sdk-generate-hub: ## Generates the Python SDK reference into `website/docs_processed`
+	uv --quiet run --isolated --no-project --prerelease disallow --refresh-package dlthub-client \
+		--with dlthub-client --with "griffe>=1.5" \
+		python tools/generate_sdk_docs.py $(SDK_DOCS)
+
 # links into the generated hub references resolve against fresh, git-ignored copies
 md-check:  ## Check markdown file formatting errors in website/docs
 	$(MAKE) cli-generate-hub HUB_CLI_DOCS=website/docs/hub/command-line-interface.md
 	$(MAKE) api-generate-hub API_DOCS_DIR=website/docs/hub/reference/api
+	$(MAKE) sdk-generate-hub SDK_DOCS=website/docs/hub/reference/python-sdk.md
 	uv run mdsmith check website/docs
 
 md-fix:  ## Fix markdown file formatting errors in website/docs

@@ -598,6 +598,7 @@ const sidebars = {
         "hub/reference/api/telemetry-api",
       ],
     },
+    "hub/reference/python-sdk",
     "hub/license",
   ],
   cookbookSidebar: [
