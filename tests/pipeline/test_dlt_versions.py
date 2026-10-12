@@ -858,7 +858,7 @@ def test_load_filesystem_package_with_date_layout_from_1_25(test_storage: FileSt
             f"items/{created_at:%Y-%m-%d}/{datetime_to_timestamp(created_at)}/"
             f"{old_created_at_ms}/{load_id}."
         )
-        assert expected in output
+        assert expected in output.replace("\\", "/")
 
 
 def _run_datetime_key_case(old_version: str, strategy: str) -> None:
