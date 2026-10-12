@@ -10,6 +10,7 @@ Usage:
 from __future__ import annotations
 
 import argparse
+import html
 import pathlib
 import re
 import textwrap
@@ -51,20 +52,65 @@ installs:
 pip install "dlt[hub]"
 ```
 
-Connect with an API key and work with the objects the client returns:
+## Getting started
 
-```py
+Connect with an API key. The client closes when the `with` block ends:
+
+```python
 import dlthub_sdk
 
-runtime = dlthub_sdk.connect(token="dlt_u_...")
+with dlthub_sdk.connect(token="dlt_u_...") as runtime:
+    for organization in runtime.organizations.list():
+        for workspace in organization.workspaces.list():
+            print(organization.name, workspace.id, workspace.name)
 ```
 
-[`connect()`](#connect) gives a blocking client and [`connect_async()`](#connect_async) an
-awaited one. Both have the same objects and methods; in an awaited client every method that
-calls the platform returns an awaitable of the type shown here. Every entity also has
-`to_dict()`, which returns its fields as a plain dict.
+Every object leads to the objects that belong to it, so you go from the client to a workspace,
+from the workspace to a job, and from the job to its runs and their logs:
 
-API keys, base URLs and the data plane are explained in the
+```python
+with dlthub_sdk.connect(token="dlt_u_...") as runtime:
+    workspace = runtime.workspaces.get("<workspace id>")
+    job = workspace.jobs.get_by_ref("jobs.load")
+
+    run = job.start_run()
+    for line in run.stream_logs():
+        print(line.content)
+    run = run.wait()
+    print(run.status)
+
+    for past_run in job.runs.list(limit=5):
+        print(past_run.number, past_run.status, past_run.duration_seconds)
+```
+
+A workspace also reaches its variables, deployments, configurations and pipeline telemetry:
+
+```python
+with dlthub_sdk.connect(token="dlt_u_...") as runtime:
+    workspace = runtime.workspaces.get("<workspace id>")
+
+    workspace.variables.set(
+        "SOURCES__API__TOKEN", "...", profile=dlthub_sdk.WORKSPACE_PROFILE, secret=True
+    )
+    print(workspace.deployments.latest().version)
+    for pipeline in workspace.telemetry.pipelines():
+        print(pipeline.pipeline_name, pipeline.latest_status, pipeline.total_rows_loaded)
+```
+
+[`connect_async()`](#connect_async) gives the same objects for `asyncio`. Methods that call the
+platform return awaitables and lists are async iterables:
+
+```python
+async with dlthub_sdk.connect_async(token="dlt_u_...") as runtime:
+    workspace = await runtime.workspaces.get("<workspace id>")
+    job = await workspace.jobs.get_by_ref("jobs.load")
+    run = await job.start_run()
+    async for line in run.stream_logs():
+        print(line.content)
+```
+
+Types on this page are those of the blocking client. Every entity also has `to_dict()`, which
+returns its fields as a plain dict. API keys, base URLs and the data plane are explained in the
 [REST API reference](api/index.md), which the SDK is built on."""
 
 Object = Union[griffe.Object, griffe.Alias]
@@ -227,6 +273,8 @@ class Renderer:
                 md += "**Fields**\n\n" + self.table(rows, ["Name", "Type", "Description"])
             elif section.kind is kind.returns:
                 parts = [self.cell(r.description) for r in section.value if r.description]
+                if isinstance(obj, griffe.Function) and clean_type(obj.returns):
+                    parts.insert(0, self.type_cell(clean_type(obj.returns)) + " —")
                 md += "**Returns:** " + " ".join(parts) + "\n\n"
             elif section.kind is kind.yields:
                 parts = [self.cell(r.description) for r in section.value if r.description]
@@ -239,7 +287,7 @@ class Renderer:
             elif section.kind is kind.examples:
                 for sub_kind, value in section.value:
                     if sub_kind is kind.examples:
-                        md += f"```py\n{value}\n```\n\n"
+                        md += f"```python\n{value}\n```\n\n"
                     else:
                         md += self.prose(value) + "\n\n"
             elif section.kind is kind.admonition:
@@ -248,13 +296,21 @@ class Renderer:
         return md
 
     def type_cell(self, annotation: Optional[str]) -> str:
+        """Renders a type as one code element whose exported names link to their anchors."""
         if not annotation:
             return ""
-        return "`" + annotation.replace("|", "\\|") + "`"
+        parts = []
+        for token in re.split(r"([A-Za-z_]\w*)", annotation):
+            if anchor(token) in self.anchors:
+                parts.append(f'<a href="#{anchor(token)}">{token}</a>')
+            else:
+                # the pipe would end the table cell
+                parts.append(html.escape(token).replace("|", "&#124;"))
+        return "<code>" + "".join(parts) + "</code>"
 
     def function(self, func: griffe.Function, name: str, heading: str) -> str:
         md = f"{heading} `{name}()` {{#{anchor(name)}}}\n\n"
-        md += f"```py\n{self.signature(func, name.split('.')[-1])}\n```\n\n"
+        md += f"```python\n{self.signature(func, name.split('.')[-1])}\n```\n\n"
         return md + self.docstring(func)
 
     def enum_values(self, cls: griffe.Class) -> Dict[str, str]:
@@ -299,7 +355,7 @@ class Renderer:
     def attribute(self, attr: griffe.Attribute, name: str) -> str:
         md = f"### `{name}` {{#{anchor(name)}}}\n\n"
         if attr.value is not None:
-            md += f"```py\n{name} = {attr.value}\n```\n\n"
+            md += f"```python\n{name} = {attr.value}\n```\n\n"
         return md + (self.prose(attr.docstring.value) + "\n\n" if attr.docstring else "")
 
     def render(self, obj: griffe.Object, name: str) -> str:
