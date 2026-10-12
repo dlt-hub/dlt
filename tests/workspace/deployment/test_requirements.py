@@ -523,9 +523,7 @@ def test_contains_package_name_normalization(spec: str, needle: str, expected: b
         ("", {"s3fs"}, True),
         ("# comment", {"s3fs"}, True),
         ("dlt[hub]", {"dlt"}, True),
-        ("dlt[hub]", {"dlt", "dlthub"}, True),
         ("dlt[hub]", {"dlt", "dlt[hub]"}, False),
-        ("dlt[hub]", {"dlthub", "dlthub-client"}, False),
     ],
     ids=[
         "bare-name",
@@ -539,9 +537,7 @@ def test_contains_package_name_normalization(spec: str, needle: str, expected: b
         "empty-line",
         "comment-line",
         "dlt-extra-kept-by-plain-dlt",
-        "dlt-extra-kept-by-part-of-its-packages",
         "dlt-extra-pruned-by-its-token",
-        "dlt-extra-pruned-by-all-its-packages",
     ],
 )
 def test_prune_specs_normalization(spec: str, names: Set[str], kept: bool) -> None:
@@ -672,29 +668,50 @@ def _added_key(spec: str) -> str:
         (["requests>=2.0"], set(), True),
         (["dlt>=1.0"], set(), False),
         (["dlt[hub]>=1.0"], {_HUB}, False),
-        (["dlthub"], set(), True),
+        (["dlthub"], {_HUB}, True),
+        (["dlthub-client"], set(), True),
         (["dlthub", "dlthub-client"], {_HUB}, True),
         (["dlt[s3]>=1.0"], {"botocore", "s3fs"}, False),
         (["dlt[filesystem]>=1.0"], {"botocore", "s3fs"}, False),
+        (["dlt[parquet]>=1.0"], {"pyarrow"}, False),
+        (["botocore>=1.28"], {"botocore"}, True),
         (["s3fs>=2024.1"], {"botocore", "s3fs"}, True),
         (["dlt[hub,s3]>=1.0"], {_HUB, "botocore", "s3fs"}, False),
         (["pydantic-ai>=2.33.0"], {"pydantic-ai-slim"}, True),
         (["pydantic-ai==1.0.0"], {"pydantic-ai-slim"}, True),
         (["marimo>=0.14.5"], {"marimo", "uvicorn"}, True),
+        (["fastmcp>=3.1.0"], {"fastmcp", "uvicorn"}, True),
+        (["dlt==1.25.0"], set(), False),
+        (
+            [
+                "ibis-framework>=12.0.0",
+                "streamlit>=1.50.0",
+                "claude-agent-sdk>=0.2.126",
+                "pydantic-ai-slim>=2.33.0",
+            ],
+            {"ibis-framework", "streamlit", "claude-agent-sdk", "pydantic-ai-slim"},
+            True,
+        ),
     ],
     ids=[
         "unrelated",
         "plain-dlt",
         "dlt-hub-extra",
         "dlthub-alone",
+        "dlthub-client-alone",
         "dlthub-and-client",
         "dlt-s3-extra",
         "dlt-filesystem-extra",
+        "dlt-parquet-extra",
+        "botocore-alone",
         "s3fs-pulls-botocore",
         "dlt-hub-and-s3-extras",
         "pydantic-ai-meta-package",
         "pydantic-ai-pinned-below-floor",
         "marimo-pulls-uvicorn",
+        "fastmcp-pulls-uvicorn",
+        "old-dlt-pinned",
+        "floored-packages-direct",
     ],
 )
 def test_export_adds_only_what_the_default_group_lacks(
@@ -735,9 +752,22 @@ def test_export_adds_only_what_the_default_group_lacks(
         ({"dlt", "dlt[not-an-extra]"}, set()),
         ({"s3fs"}, {"botocore"}),
         ({"pydantic-ai"}, {"pydantic-ai-slim"}),
+        ({"dlthub"}, {_HUB}),
+        ({"marimo"}, {"uvicorn"}),
+        ({"fastmcp"}, {"uvicorn"}),
         ({"dlt"}, set()),
     ],
-    ids=["dlt-hub-extra", "dlt-s3-extra", "unknown-dlt-extra", "s3fs", "pydantic-ai", "plain-dlt"],
+    ids=[
+        "dlt-hub-extra",
+        "dlt-s3-extra",
+        "unknown-dlt-extra",
+        "s3fs",
+        "pydantic-ai",
+        "dlthub",
+        "marimo",
+        "fastmcp",
+        "plain-dlt",
+    ],
 )
 def test_expand_implied_names_adds_what_installed_packages_pull_in(
     names: Set[str], implied: Set[str]
@@ -823,6 +853,75 @@ def test_every_added_group_resolves_with_dlt(group: str, tmp_path: Path) -> None
     """Floors that contradict each other, or dlt, fail here rather than in a user's deploy."""
     result = _uv_compile(_ADDED_GROUPS[group] + [_DLT_CHECKOUT_SPEC], tmp_path)
     assert result.returncode == 0, result.stderr
+
+
+def _resolve_with_what_we_add(
+    main_specs: List[str], tmp_path: Path
+) -> subprocess.CompletedProcess[str]:
+    """Resolves a workspace's main group with every spec we add, this checkout standing in for dlt.
+
+    The union is a superset of what any one run installs, so it resolving covers each run.
+    """
+    result = _export_declaring(main_specs, "requirements-txt-verbatim")
+    dlt_spec = get_dlt_requirement_spec()
+    added = {
+        s
+        for specs in [
+            *result["launcher_requirements"].values(),
+            result["groups"][DASHBOARD_JOB_REF],
+            *(result["groups"][g] for g in build_agent_loop_groups()),
+        ]
+        for s in specs
+        if s != dlt_spec
+    }
+    return _uv_compile(
+        [*result["groups"][MAIN_GROUP], *sorted(added), _DLT_CHECKOUT_SPEC], tmp_path
+    )
+
+
+@pytest.mark.parametrize(
+    "main_specs",
+    [
+        [_DLT_CHECKOUT_SPEC, "dlthub==0.29.0"],
+        ["dlthub==0.29.0"],
+        [_DLT_CHECKOUT_SPEC, "s3fs==2023.6.0"],
+        [_DLT_CHECKOUT_SPEC, "marimo==0.10.0"],
+        [_DLT_CHECKOUT_SPEC, "pydantic-ai-slim==2.20.0"],
+        [_DLT_CHECKOUT_SPEC, "pydantic-ai==1.0.0"],
+    ],
+    ids=[
+        "old-dlthub",
+        "old-dlthub-dlt-injected",
+        "old-s3fs",
+        "old-marimo",
+        "old-pydantic-ai-slim",
+        "old-pydantic-ai",
+    ],
+)
+def test_a_workspace_pin_wins_over_what_we_add(main_specs: List[str], tmp_path: Path) -> None:
+    """A package the workspace pins, at any version, resolves at that version beside our specs."""
+    result = _resolve_with_what_we_add(main_specs, tmp_path)
+    assert result.returncode == 0, result.stderr
+    resolved = {line.strip() for line in result.stdout.splitlines()}
+    assert {s for s in main_specs if "==" in s} <= resolved
+
+
+@pytest.mark.parametrize(
+    "main_specs, needs",
+    [
+        ([_DLT_CHECKOUT_SPEC, "anthropic==0.75.0"], "pydantic-ai-slim"),
+        ([_DLT_CHECKOUT_SPEC, "botocore==1.27.0"], "s3fs"),
+        ([_DLT_CHECKOUT_SPEC, "dlthub-client==0.28.0"], "dlthub-client"),
+    ],
+    ids=["anthropic-before-1", "botocore-before-1.28", "dlthub-client-before-0.28.3"],
+)
+def test_a_pin_below_what_our_specs_need_fails_loudly(
+    main_specs: List[str], needs: str, tmp_path: Path
+) -> None:
+    """A pinned dependency our floors exclude stops the resolve instead of walking a package back."""
+    result = _resolve_with_what_we_add(main_specs, tmp_path)
+    assert result.returncode != 0
+    assert needs in result.stderr
 
 
 def test_pydantic_loop_refuses_an_anthropic_before_1(tmp_path: Path) -> None:

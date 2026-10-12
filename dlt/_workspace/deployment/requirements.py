@@ -642,12 +642,14 @@ def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
 
 
 _IMPLIED_NAMES: Dict[str, List[str]] = {
+    # the launchers add dlt[hub] for dlthub; a workspace's own dlthub, at any version, wins
+    DLTHUB_PKG_NAME: [f"{DLT_PKG_NAME}[hub]"],
     "s3fs": ["botocore"],
     "pydantic-ai": ["pydantic-ai-slim"],
     "marimo": ["uvicorn"],
     "fastmcp": ["uvicorn"],
 }
-"""Launcher specs pulled in transitively when the key package is installed."""
+"""Launcher specs pulled in transitively, or made redundant, when the key package is installed."""
 
 
 def _collect_package_names(specs: Sequence[str]) -> Set[str]:
@@ -683,19 +685,11 @@ def _expand_implied_names(names: Set[str]) -> None:
             names.update(implied)
 
 
-def _dlt_extra_installed(extra: str, names: Set[str]) -> bool:
-    """Whether `names` holds dlt's `extra`, as its own token or as every package in it."""
-    if f"{DLT_PKG_NAME}[{extra}]" in names:
-        return True
-    packages = {_normalize_name(req.name) for req in _dlt_extra_requirements(extra)}
-    return bool(packages) and packages <= names
-
-
 def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
     """Drop specs whose PEP 503 normalized name is in `names`, preserving order.
 
-    A dlt extra is dropped only once each of its extras is installed: a plain dlt brings none of
-    their packages, and a resolved export lists them flattened rather than as `dlt[extra]`.
+    A dlt extra is dropped only when each of its `dlt[extra]` tokens is in `names`, since a plain
+    dlt brings none of their packages; `_expand_implied_names` adds the tokens a workspace covers.
     """
     pruned: List[str] = []
     for s in specs:
@@ -706,7 +700,7 @@ def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
         name = _normalize_name(m.group(1))
         extras = [_normalize_name(e.strip()) for e in (m.group(2) or "").split(",") if e.strip()]
         if name == DLT_PKG_NAME and extras:
-            installed = all(_dlt_extra_installed(extra, names) for extra in extras)
+            installed = all(f"{DLT_PKG_NAME}[{extra}]" in names for extra in extras)
         else:
             installed = name in names
         if not installed:
