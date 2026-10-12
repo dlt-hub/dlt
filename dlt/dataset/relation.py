@@ -924,7 +924,7 @@ class Relation(WithSqlClient):
         This is identical to `Relation.filter()`.
 
         Args:
-            column_name (str): The column to filter on.
+            column_or_expr (SqlglotExprOrStr): The column or SQL expression to filter on.
             operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
             value (Any): The value to filter on.
 
@@ -1004,7 +1004,7 @@ class Relation(WithSqlClient):
         This is identical to `Relation.where()`.
 
         Args:
-            column_name (str): The column to filter on.
+            column_or_expr (SqlglotExprOrStr): The column or SQL expression to filter on.
             operator (TFilterOperation): The operator to use. Available operations are: eq, ne, gt, lt, gte, lte, in, not_in
             value (Any): The value to filter on.
 
