@@ -3095,6 +3095,9 @@ def test_destination_scope_load_date(destination_config: DestinationTestConfigur
     """Replaces the partition of the load day with `{curr_date}` and keeps older partitions."""
     if destination_config.table_format == "iceberg":
         pytest.skip("Iceberg does not support merge conditions.")
+    if destination_config.destination_type == "sqlalchemy":
+        # sqlalchemy 1.4 can't render date literals
+        pytest.importorskip("sqlalchemy", minversion="2.0")
     p = destination_config.setup_pipeline("scope_load_date", dev_mode=True)
     strategy: TLoaderMergeStrategy = (
         "cdc" if destination_config.table_format == "delta" else "delete-insert"
