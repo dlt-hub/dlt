@@ -73,8 +73,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Overwrite existing files instead of skipping them and remove files the"
-                " installed version shipped but the new one does not."
+                "Replace shipped files and remove unmodified files dropped upstream."
+                " Co-owned files stay protected."
             ),
         )
 
@@ -168,8 +168,8 @@ class AiCommand(SupportsCliCommand):
             default=False,
             action="store_true",
             help=(
-                "Overwrite existing files instead of skipping them and remove files the"
-                " installed version shipped but the new one does not."
+                "Replace shipped files and remove unmodified files dropped upstream."
+                " Co-owned files stay protected."
             ),
         )
         install_cmd.add_argument(
@@ -188,10 +188,12 @@ class AiCommand(SupportsCliCommand):
         update_cmd.add_argument(
             "--overwrite",
             action="store_true",
-            help="Replace or remove locally modified toolkit files.",
+            help="Replace locally modified or deleted files still shipped upstream.",
         )
         update_cmd.add_argument(
-            "--strict", action="store_true", help="Fail on source validation warnings."
+            "--strict",
+            action="store_true",
+            help="Fail when a toolkit is skipped or has missing dependencies.",
         )
 
         # shared run flags — used by both `dlt ai mcp [flags]` and `dlt ai mcp run [flags]`
