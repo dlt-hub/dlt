@@ -6,7 +6,7 @@ keywords: [postgres, destination, data warehouse]
 # Postgres
 
 :::tip
-To load changes out of a Postgres database (change data capture), use the [Postgres replication](../verified-sources/pg_replication.md) source.
+To load data from Postgres, use the [SQL database](../verified-sources/sql_database/index.md) source. To load changes (change data capture), use the [Postgres replication](../verified-sources/pg_replication.md) source.
 :::
 
 ## Install dlt with PostgreSQL

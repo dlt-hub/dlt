@@ -33,7 +33,7 @@ For Microsoft SQL Server change tracking support, see the [MS SQL replication](.
 
 We support all [SQLAlchemy dialects](https://docs.sqlalchemy.org/en/20/dialects/), which include, but are not limited to, the following database engines:
 
-* [PostgreSQL](./troubleshooting.md#postgres--mssql)
+* [PostgreSQL](./troubleshooting.md#postgres--mssql) ([change data capture](../pg_replication.md))
 * [MySQL](./troubleshooting.md#mysql)
 * SQLite
 * [Oracle](./troubleshooting.md#oracle)
