@@ -76,7 +76,7 @@ from the workspace to a job, and from the job to its runs and their logs:
 
 ```python
 with dlthub_sdk.connect(token="dlt_u_...") as runtime:
-    workspace = runtime.workspaces.get("<workspace id>")
+    workspace = runtime.workspaces.get(id="<workspace id>")
     job = workspace.jobs.get_by_ref("jobs.load")
 
     run = job.start_run()
@@ -93,7 +93,7 @@ A workspace also reaches its variables, deployments, configurations and pipeline
 
 ```python
 with dlthub_sdk.connect(token="dlt_u_...") as runtime:
-    workspace = runtime.workspaces.get("<workspace id>")
+    workspace = runtime.workspaces.get(id="<workspace id>")
 
     workspace.variables.set(
         "SOURCES__API__TOKEN", "...", profile=dlthub_sdk.WORKSPACE_PROFILE, secret=True
@@ -108,7 +108,7 @@ platform return awaitables and lists are async iterables:
 
 ```python
 async with dlthub_sdk.connect_async(token="dlt_u_...") as runtime:
-    workspace = await runtime.workspaces.get("<workspace id>")
+    workspace = await runtime.workspaces.get(id="<workspace id>")
     job = await workspace.jobs.get_by_ref("jobs.load")
     run = await job.start_run()
     async for line in run.stream_logs():
@@ -180,7 +180,7 @@ class Renderer:
     def prose(self, text: Optional[str]) -> str:
         text = textwrap.dedent(text or "").strip()
         text = re.sub(r":(\w+):`([^`]+)`", self.link, text)
-        text = text.replace("``", "`")
+        text = re.sub(r"(?<!`)``(?!`)", "`", text)
         return escape_mdx(text)
 
     def cell(self, text: Optional[str]) -> str:
