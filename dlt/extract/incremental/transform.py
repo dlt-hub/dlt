@@ -309,10 +309,8 @@ class JsonIncremental(IncrementalTransform):
                         )
                         # if unique value exists then use it to deduplicate
                         if unique_value in self.start_unique_hashes:
-                            # drop the row but do not stop extraction: with a closed
-                            # range more rows may share the cursor value on later
-                            # pages. extraction stops on the first row below
-                            # start_value instead.
+                            # drop the deduped row but keep extracting: more rows may
+                            # share the cursor value on later pages.
                             return None, False, False
                 else:
                     # "smaller" than start value: gets out

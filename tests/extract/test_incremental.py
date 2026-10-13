@@ -2649,7 +2649,8 @@ def test_start_out_of_range_open_equals_start_value(item_type: TestDataItemForma
     assert data_item_length(data) == 2
 
 
-def test_descending_boundary_dedup_keeps_extracting() -> None:
+@pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
+def test_descending_boundary_dedup_keeps_extracting(item_type: TestDataItemFormat) -> None:
     """A deduplicated boundary row must not stop extraction: with row_order="desc"
     and a closed range, new rows sharing the cursor value may sit on later pages.
     Regression test for #4523.
@@ -2659,7 +2660,7 @@ def test_descending_boundary_dedup_keeps_extracting() -> None:
     @dlt.resource(primary_key="id")
     def events(v=dlt.sources.incremental("v", row_order="desc")):
         for page in pages:
-            yield page
+            yield data_to_item_format(item_type, page)
 
     with Container().injectable_context(StateInjectableContext(state={})):
         r = events()
@@ -2671,7 +2672,14 @@ def test_descending_boundary_dedup_keeps_extracting() -> None:
             [{"id": 2, "v": 100}, {"id": 4, "v": 99}],
         ]
         r = events()
-        ids = [row["id"] for row in list(r)]
+        ids = []
+        for row in list(r):
+            if item_type == "object":
+                ids.append(row["id"])
+            elif item_type == "pandas":
+                ids.extend(row["id"].tolist())
+            else:  # arrow-table, arrow-batch
+                ids.extend(row.column("id").to_pylist())
         assert 3 in ids  # new row above the boundary
         assert 2 in ids  # new row with the same cursor value, on the next page
         assert 1 not in ids  # already loaded row stays deduplicated
