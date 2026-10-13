@@ -24,10 +24,13 @@ from dlt.common.destination.client import (
 )
 from dlt.common.destination.exceptions import DestinationUndefinedEntity
 
-from dlt.common.storages import FileStorage
+from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 
 from dlt.destinations.job_client_impl import StorageSchemaInfo, StateInfo
-from dlt.destinations.utils import get_pipeline_state_query_columns
+from dlt.destinations.utils import (
+    get_pipeline_state_query_columns,
+    verify_unsupported_merge_options,
+)
 from dlt.destinations.impl.qdrant.configuration import QdrantClientConfiguration
 from dlt.destinations.impl.qdrant.qdrant_adapter import VECTORIZE_HINT
 
@@ -284,6 +287,23 @@ class QdrantClient(JobClientBase, WithStateSync):
     def _delete_sentinel_collection(self) -> None:
         """Delete the sentinel collection."""
         self.db_client.delete_collection(self.sentinel_collection)
+
+    def verify_schema(
+        self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
+    ) -> List[PreparedTableSchema]:
+        loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
+        return loaded_tables
 
     def update_stored_schema(
         self,

@@ -5,7 +5,7 @@ keywords: [dlthub, background agents, job inspector, ai harness, dlthub-platform
 ---
 # Getting started with agents
 
-:::warning
+:::info
 Background agents are in public preview.
 :::
 
@@ -68,7 +68,7 @@ in a command, or write them to a file.
 
 ## Set the model credentials
 
-The key is yours. dltHub operates no model endpoint and supplies no key, so every agent run bills your provider account. Agents are tested on Anthropic and Azure OpenAI.
+Bring a key of your own and every agent run bills your provider account. Agents are tested on Anthropic and Azure OpenAI. See [Bring your own model key](../agents/index.md#bring-your-own-model-key) for what the platform runtime supplies when you set no key.
 
 Add the model and the endpoint URL to `.dlt/config.toml`. Every agent job in the workspace uses them:
 

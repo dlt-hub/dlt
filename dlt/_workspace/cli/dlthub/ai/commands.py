@@ -1,4 +1,4 @@
-import shutil
+import os
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 import tomlkit
@@ -6,17 +6,25 @@ import tomlkit.exceptions
 import yaml
 
 from dlt.common.runtime import run_context
+from dlt._workspace.access import FULL_ACCESS, format_access, parse_access
 from dlt._workspace.cli import echo as fmt, utils
-from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES
+from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES, mcp_stdio_args, resolve_features
 from dlt._workspace.cli.formatters import parse_frontmatter
 from dlt._workspace.cli.exceptions import (
     CliCommandException,
 )
-from dlt._workspace.cli.dlthub.ai.agents import AI_AGENTS, TComponentType, _AIAgent, InstallAction
+from dlt._workspace.cli.dlthub.ai.agents import (
+    AI_AGENTS,
+    COMPONENT_MARKERS,
+    TComponentType,
+    _AIAgent,
+    InstallAction,
+)
 from dlt._workspace.cli.dlthub.ai.typing import TAiStatusInfo, TToolkitInfo
 from dlt._workspace.cli.dlthub.ai.utils import (
+    DLTHUB_AGENTS_DIR,
     build_toolkits_dependency_map,
-    compute_file_hash,
+    compute_content_hash,
     extract_toolkit_info,
     fetch_ai_status,
     fetch_secrets_list,
@@ -29,7 +37,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     read_workbench_toolkit_mcp_servers,
     read_workbench_toolkit_combined_info,
     resolve_toolkit_dependencies,
-    safe_write_text,
+    safe_write_bytes,
     save_toolkit_entry,
     fetch_workbench_toolkits,
     _INIT_TOOLKIT,
@@ -78,6 +86,8 @@ def ai_mcp_run_command(
     stdio: bool = False,
     sse: bool = False,
     features: Optional[List[str]] = None,
+    no_default_features: bool = False,
+    access: Optional[str] = None,
 ) -> None:
     """Start the dlt MCP server for pipeline data inspection."""
     from dlt._workspace.mcp import WorkspaceMCP
@@ -88,15 +98,17 @@ def ai_mcp_run_command(
         transport = "sse"
     else:
         transport = "streamable-http"
-    from dlt._workspace.mcp.server import resolve_features
-
-    resolved = resolve_features(features)
+    resolved = resolve_features(features, set() if no_default_features else None)
     fmt.echo(
         "Starting dlt MCP server with features: %s" % ", ".join(sorted(resolved)),
         err=True,
     )
-    mcp_server = WorkspaceMCP("dlt", port=port, features=resolved)
-    mcp_server.run(transport=transport)
+    # a person at a terminal passes no --access and gets every tool
+    granted = FULL_ACCESS if access is None else parse_access(access)
+    fmt.echo("Access granted to the caller: %s" % format_access(granted), err=True)
+    mcp_server = WorkspaceMCP("dlt", port=port, features=resolved, access=granted)
+    # a stdio server has no console of its own: its banner would land in the client's terminal
+    mcp_server.run(transport=transport, show_banner=not stdio)
 
 
 @utils.track_command("ai", track_before=True, operation="mcp.install")
@@ -107,15 +119,10 @@ def ai_mcp_install_command(
     overwrite: bool = False,
 ) -> None:
     """Install dlt MCP server config into the agent's config file."""
-    from dlt._workspace.mcp.server import resolve_features
-
     project_root = Path(run_context.active().run_dir)
     variant = _resolve_agent(agent, project_root)
 
-    resolved = resolve_features(features)
-    args = ["uv", "run", fmt.get_cli_host_name(), "ai", "mcp", "run", "--stdio"]
-    if resolved != DEFAULT_MCP_FEATURES:
-        args.extend(["--features"] + sorted(resolved))
+    args = ["uv", "run", fmt.get_cli_host_name(), *mcp_stdio_args(features)]
 
     server_config: Dict[str, Any] = {"command": args[0], "args": args[1:], "type": "stdio"}
     new_servers = {name: server_config}
@@ -171,9 +178,14 @@ def _plan_toolkit_install(
     project_root: Path,
     toolkit_name: str,
     overwrite: bool = False,
+    previous_files: Optional[Dict[str, Any]] = None,
 ) -> Tuple[List["InstallAction"], List[str]]:
     """Scan toolkit directory and build install actions. Reads source files but does not
-    write to project_root. Returns (actions, validation_warnings)."""
+    write to project_root. Returns (actions, validation_warnings).
+
+    Files in `previous_files` (index paths of an earlier install) that the toolkit no longer
+    ships get a `remove` action.
+    """
     actions: List[InstallAction] = []
     warnings: List[str] = []
 
@@ -181,7 +193,7 @@ def _plan_toolkit_install(
     skills_dir = toolkit_dir / "skills"
     if skills_dir.is_dir():
         for skill_path in sorted(skills_dir.iterdir()):
-            if not skill_path.is_dir() or not (skill_path / "SKILL.md").exists():
+            if not skill_path.is_dir() or not (skill_path / COMPONENT_MARKERS["skill"]).exists():
                 continue
             errors = _validate_skill_dir(skill_path)
             if errors:
@@ -191,6 +203,23 @@ def _plan_toolkit_install(
             actions.extend(
                 agent.install_actions(
                     "skill", skill_path, skill_path.name, toolkit_name, project_root, overwrite
+                )
+            )
+
+    # agents (directory-based, each with AGENT.md + optional files), copied verbatim
+    agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
+    if agents_dir.is_dir():
+        for agent_path in sorted(agents_dir.iterdir()):
+            if not agent_path.is_dir() or not (agent_path / COMPONENT_MARKERS["agent"]).exists():
+                continue
+            errors = _validate_skill_dir(agent_path)
+            if errors:
+                for err in errors:
+                    warnings.append("Skipping agent %s: %s" % (agent_path.name, err))
+                continue
+            actions.extend(
+                agent.install_actions(
+                    "agent", agent_path, agent_path.name, toolkit_name, project_root, overwrite
                 )
             )
 
@@ -254,57 +283,106 @@ def _plan_toolkit_install(
             )
 
     actions = agent.finalize_actions(actions, project_root, workbench_base=toolkit_dir.parent)
+    if previous_files:
+        actions.extend(_stale_file_actions(agent, project_root, previous_files, actions))
     return actions, warnings
+
+
+def _stale_file_actions(
+    agent: "_AIAgent",
+    project_root: Path,
+    previous_files: Dict[str, Any],
+    actions: List["InstallAction"],
+) -> List["InstallAction"]:
+    """Remove actions for files a previous install recorded that no planned action writes."""
+    planned = {a.dest_path for a in actions if a.kind != "mcp"}
+    component_dirs = sorted(
+        ((kind, agent.component_dir(kind, project_root)) for kind in agent._DIRS),
+        key=lambda kind_dir: len(kind_dir[1].parts),
+        reverse=True,
+    )
+    removals: List[InstallAction] = []
+    for rel_path in sorted(previous_files):
+        path = project_root / rel_path
+        if path in planned:
+            continue
+        kind, base = next(
+            ((kind, base) for kind, base in component_dirs if base in path.parents),
+            ("ignore", project_root),
+        )
+        removals.append(
+            InstallAction(
+                kind=kind,
+                source_name=str(path.relative_to(base)),
+                dest_path=path,
+                op="remove",
+                content_or_path="",
+                conflict=False,
+                component_dir=base,
+            )
+        )
+    return removals
+
+
+def _remove_installed_file(path: Path, component_dir: Path) -> None:
+    """Removes `path` and the folders it leaves empty below `component_dir`."""
+    path.unlink(missing_ok=True)
+    parent = path.parent
+    while component_dir in parent.parents and parent.is_dir() and not any(parent.iterdir()):
+        parent.rmdir()
+        parent = parent.parent
+
+
+def _action_bytes(action: "InstallAction") -> bytes:
+    if action.op == "copy":
+        return Path(action.content_or_path).read_bytes()
+    return str(action.content_or_path).encode("utf-8")
 
 
 def _execute_install(
     actions: List["InstallAction"],
-    overwrite: bool = False,
-    toolkit_meta: Optional[TToolkitInfo] = None,
+    toolkit_info: Optional[TToolkitInfo] = None,
     agent_name: Optional[str] = None,
     project_root: Optional[Path] = None,
 ) -> int:
-    """Write non-conflicting actions to disk. Returns count of items installed."""
-    installed = 0
-    written_paths: List[Tuple[Path, str]] = []  # (dest_path, kind)
-    mcp_server_names: List[str] = []
-    for action in actions:
-        if action.conflict:
-            continue
-        action.dest_path.parent.mkdir(parents=True, exist_ok=True)
-        if action.op == "copytree":
-            shutil.copytree(
-                action.content_or_path,
-                action.dest_path,
-                dirs_exist_ok=overwrite,
-            )
-        else:
-            safe_write_text(action.dest_path, action.content_or_path)  # type: ignore[arg-type]
-        if action.kind == "mcp":
-            # source_name is ", ".join(sorted(new_servers))
-            mcp_server_names.extend(s.strip() for s in action.source_name.split(",") if s.strip())
-        elif action.skip_index:
-            # shared merge targets (e.g. AGENTS.md) — don't track per-toolkit
-            pass
-        else:
-            written_paths.append((action.dest_path, action.op))
-        installed += 1
+    """Commits non-conflicting actions and the toolkit index. Returns count of items installed.
 
-    if installed > 0 and toolkit_meta is not None:
+    All content is read before anything is written, so a missing source changes nothing on disk.
+    """
+    pending = [action for action in actions if not action.conflict]
+    writes = [(action, _action_bytes(action)) for action in pending if action.op != "remove"]
+    removals = [action for action in pending if action.op == "remove"]
+
+    for action, data in writes:
+        action.dest_path.parent.mkdir(parents=True, exist_ok=True)
+        safe_write_bytes(action.dest_path, data)
+    for action in removals:
+        assert action.component_dir is not None
+        _remove_installed_file(action.dest_path, action.component_dir)
+
+    # write toolkit index
+    installed = len({(a.kind, a.source_name, a.source_kind) for a, _ in writes})
+    if (installed > 0 or removals) and toolkit_info is not None:
         tracked_files: Optional[Dict[str, Any]] = None
         if project_root is not None:
-            tracked_files = {}
-            for dest_path, op in written_paths:
-                if op == "copytree":
-                    for f in sorted(dest_path.rglob("*")):
-                        if f.is_file():
-                            rel = str(f.relative_to(project_root))
-                            tracked_files[rel] = {"sha3_256": compute_file_hash(f)}
-                else:
-                    rel = str(dest_path.relative_to(project_root))
-                    tracked_files[rel] = {"sha3_256": compute_file_hash(dest_path)}
+            tracked_files = {
+                str(action.dest_path.relative_to(project_root)): {
+                    "sha3_256": compute_content_hash(data)
+                }
+                for action, data in writes
+                # shared merge targets (e.g. AGENTS.md) are not tracked per toolkit
+                if action.kind != "mcp" and not action.skip_index
+            }
+        mcp_server_names = [
+            name.strip()
+            for action, _ in writes
+            if action.kind == "mcp"
+            # source_name is ", ".join(sorted(new_servers))
+            for name in action.source_name.split(",")
+            if name.strip()
+        ]
         save_toolkit_entry(
-            toolkit_meta,
+            toolkit_info,
             agent=agent_name,
             files=tracked_files,
             mcp_servers=sorted(mcp_server_names) if mcp_server_names else None,
@@ -346,7 +424,6 @@ def _resolve_agent(agent: Optional[str], project_root: Path) -> "_AIAgent":
 def _report_and_execute(
     actions: List["InstallAction"],
     validation_warnings: List[str],
-    overwrite: bool = False,
     strict: bool = False,
     toolkit_meta: Optional[TToolkitInfo] = None,
     agent_name: Optional[str] = None,
@@ -364,17 +441,30 @@ def _report_and_execute(
             % len(validation_warnings)
         )
         raise CliCommandException()
+    # a skill or agent folder is one component made of many file actions
+    components: Dict[Tuple[str, str, Optional[str]], List[InstallAction]] = {}
     for a in actions:
-        if a.conflict:
-            fmt.warning(
-                "  Skipping %s %s (already exists at %s)" % (a.kind, a.source_name, a.dest_path)
+        if a.op == "remove":
+            fmt.echo("  - %s %s (%s)" % (a.kind, fmt.bold(a.source_name), a.dest_path))
+        else:
+            components.setdefault((a.kind, a.source_name, a.source_kind), []).append(a)
+    for (kind, source_name, _), component_actions in components.items():
+        dest_paths = [str(a.dest_path) for a in component_actions]
+        if any(a.op == "copy" for a in component_actions):
+            dest = (
+                os.path.commonpath(dest_paths)
+                if len(dest_paths) > 1
+                else str(component_actions[0].dest_path.parent)
             )
         else:
-            fmt.echo("  + %s %s -> %s" % (a.kind, fmt.bold(a.source_name), a.dest_path))
+            dest = dest_paths[0]
+        if component_actions[0].conflict:
+            fmt.warning("  Skipping %s %s (already exists at %s)" % (kind, source_name, dest))
+        else:
+            fmt.echo("  + %s %s -> %s" % (kind, fmt.bold(source_name), dest))
     installed = _execute_install(
         actions,
-        overwrite=overwrite,
-        toolkit_meta=toolkit_meta,
+        toolkit_info=toolkit_meta,
         agent_name=agent_name,
         project_root=project_root,
     )
@@ -424,8 +514,25 @@ def _install_toolkit(
             fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
         return
 
+    # a file another toolkit also installed (e.g. the ignore file) is not ours to remove
+    files_of_others = {
+        path
+        for other_name, entry in installed_index.items()
+        if other_name != toolkit_name
+        for path in entry.get("files", {})
+    }
+    previous_files = {
+        path: entry
+        for path, entry in (local.get("files", {}) if local else {}).items()
+        if path not in files_of_others
+    }
     actions, warnings = _plan_toolkit_install(
-        toolkit_dir, agent, project_root, toolkit_name, overwrite=overwrite
+        toolkit_dir,
+        agent,
+        project_root,
+        toolkit_name,
+        overwrite=overwrite,
+        previous_files=previous_files,
     )
     if not actions and not warnings:
         fmt.echo("No components found in toolkit %s." % fmt.bold(name))
@@ -434,7 +541,6 @@ def _install_toolkit(
     _report_and_execute(
         actions,
         warnings,
-        overwrite=overwrite,
         strict=strict,
         toolkit_meta=toolkit_meta,
         agent_name=agent.name,
@@ -645,6 +751,7 @@ def ai_toolkit_info_command(
         ("Skills", info["skills"]),
         ("Commands", info["commands"]),
         ("Rules", info["rules"]),
+        ("Agents", info["agents"]),
     ]:
         if items:
             fmt.echo("\n%s:" % label)

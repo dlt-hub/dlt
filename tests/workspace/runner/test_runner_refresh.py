@@ -267,19 +267,18 @@ def test_cascade_skips_interval_store_seed(
 
 
 @pytest.mark.parametrize(
-    "jd_patch,expected_allow,expected_mode",
+    "jd_patch,expected_mode",
     [
-        ({}, None, None),  # not set in manifest → entry_point gets neither key
-        ({"incremental_mode": "interval"}, True, "interval"),
-        ({"incremental_mode": "pipeline"}, False, "pipeline"),
-        ({"auto_refresh_pipeline_mode": "drop_sources"}, None, None),
+        ({}, None),  # not set in manifest → entry_point gets no mode key
+        ({"incremental_mode": "interval"}, "interval"),
+        ({"incremental_mode": "pipeline"}, "pipeline"),
+        ({"auto_refresh_pipeline_mode": "drop_sources"}, None),
     ],
     ids=["unset", "mode-interval", "mode-pipeline", "auto-refresh-mode"],
 )
 def test_incremental_mode_propagates_to_entry_point(
     runner_state: Dict[str, TJobDefinition],
     jd_patch: Dict[str, Any],
-    expected_allow: bool,
     expected_mode: Any,
 ) -> None:
     """`_start_job` propagates incremental mode into the entry_point."""
@@ -322,8 +321,9 @@ def test_incremental_mode_propagates_to_entry_point(
     import json as _json
 
     ep = _json.loads(cmd[ep_idx])
-    assert ep.get("allow_external_schedulers") is expected_allow
     assert ep.get("incremental_mode") == expected_mode
+    # the runner launches on the installed dlt, which reads the mode and not the old flag
+    assert "allow_external_schedulers" not in ep
     # auto_refresh_pipeline_mode passes through verbatim when present
     assert ep.get("auto_refresh_pipeline_mode") == jd_patch.get("auto_refresh_pipeline_mode")
     # interval should be set since this is a non-interval job dispatched manually

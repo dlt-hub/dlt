@@ -379,6 +379,8 @@ The `az` [scheme](./filesystem.md#supported-schemes) is not supported when using
 
 The [`upsert`](../../general-usage/merge-loading.md#upsert-strategy) and [`insert-only`](../../general-usage/merge-loading.md#insert-only-strategy) merge strategies are supported for `iceberg`. These strategies require that the input data contains no duplicate rows based on the key columns, and that the target table also does not contain duplicates on those keys.
 
+`upsert` does not support [`skip_unchanged_rows`](../../general-usage/merge-loading.md#skip-unchanged-records) or `source_filter`. With either option, dlt stops before the load starts. _pyiceberg_ compares all columns, including `_dlt_load_id`. As a result, `upsert` updates every record whose key exists.
+
 :::warning
 Until _pyiceberg_ > 0.9.1 is released, upsert is executed in chunks of **1000** rows.
 :::

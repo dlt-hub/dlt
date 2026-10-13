@@ -1,5 +1,6 @@
 import contextlib
-from typing import Dict, Iterable, List, Optional, Set
+import string
+from typing import Callable, Dict, Iterable, List, Optional, Sequence, Set
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -16,6 +17,7 @@ from dlt.common.schema.exceptions import (
     TableNotFound,
 )
 from dlt.common.schema.typing import (
+    C_DLT_LOAD_ID,
     TColumnSchema,
     TColumnType,
     TLoaderMergeStrategy,
@@ -25,12 +27,83 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.schema.utils import (
     fill_hints_from_parent_and_clone_table,
+    get_first_column_name_with_prop,
     get_merge_strategy,
     is_complete_column,
     find_incomplete_columns,
 )
 from dlt.common.storages import ParsedLoadJobFileName
 from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
+
+MERGE_CONDITION_PLACEHOLDERS = ("table", "staging_table")
+
+
+def validate_merge_condition(
+    hint_name: str, filter_: str, placeholders: Sequence[str] = MERGE_CONDITION_PLACEHOLDERS
+) -> None:
+    """Raises `ValueError` if the merge condition `filter_` is malformed or uses a placeholder
+    not in `placeholders`.
+    """
+    try:
+        used = {name for _, name, _, _ in string.Formatter().parse(filter_) if name is not None}
+    except ValueError as format_ex:
+        raise ValueError(
+            f"dlt cannot parse `{hint_name}` `{filter_}`: {format_ex}. To write a literal brace,"
+            " use `{{` or `}}`."
+        ) from format_ex
+    if unknown := sorted(used.difference(placeholders)):
+        if placeholders:
+            available = ", ".join("`{" + name + "}`" for name in placeholders)
+            allowed = f"It accepts only these placeholders: {available}."
+        else:
+            allowed = "It accepts no placeholders."
+        raise ValueError(
+            f"`{hint_name}` `{filter_}` uses unknown placeholders"
+            f" {', '.join('`{' + name + '}`' for name in unknown)}. {allowed} To write a literal"
+            " brace, use `{{` or `}}`."
+        )
+
+
+def get_merge_compare_columns(table: TTableSchema) -> List[str]:
+    """Returns names of columns whose values decide whether a merged row changed.
+
+    Returns only the row version column when the table has one. Otherwise excludes the key
+    columns, the `hard_delete` column and `_dlt_load_id`.
+    """
+    if row_version := get_first_column_name_with_prop(table, "x-row-version"):
+        return [row_version]
+    key_props = ("primary_key", "row_key", "parent_key", "root_key", "hard_delete")
+    # the load id changes on every load. The comparison ignores case, since a naming convention can
+    # case-fold it
+    return [
+        name
+        for name, column in table["columns"].items()
+        # TODO: pass the naming convention here to compare the names correctly
+        if name.lower() != C_DLT_LOAD_ID and not any(column.get(prop) for prop in key_props)
+    ]
+
+
+def get_merge_changed_cond(
+    table: TTableSchema,
+    source_alias: str,
+    target_alias: str,
+    escape_id: Callable[[str], str] = str,
+) -> Optional[str]:
+    """Returns a SQL condition that holds when a source row differs from its target row.
+
+    Returns `None` when the table has no columns to compare.
+    """
+    compare_columns = get_merge_compare_columns(table)
+    if not compare_columns:
+        return None
+    if get_first_column_name_with_prop(table, "x-row-version"):
+        # the row version is not nullable, so a direct comparison is exact
+        column = escape_id(compare_columns[0])
+        return f"{source_alias}.{column} <> {target_alias}.{column}"
+    return " OR ".join(
+        f"({source_alias}.{c} IS DISTINCT FROM {target_alias}.{c})"
+        for c in map(escape_id, compare_columns)
+    )
 
 
 def verify_schema_capabilities(

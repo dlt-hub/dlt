@@ -10,6 +10,7 @@ import pyarrow as pa
 import pytest
 
 import dlt
+from dlt.common import Decimal
 from dlt.common.storages import (
     SchemaStorage,
     SchemaStorageConfiguration,
@@ -80,13 +81,21 @@ def test_arrow_columns_merge_with_resource_hints(extract_step: Extract) -> None:
     with matching columns, the resulting schema should have only normalized column names
     and preserve the hint properties (like data_type).
     """
-    table = pa.table({"Numbers": [1, 2, 3], "Strings": ["a", "b", "c"]})
+    table = pa.table(
+        {
+            "Numbers": [1, 2, 3],
+            "Strings": ["a", "b", "c"],
+            "Amount": pa.array([Decimal("1.25")] * 3, type=pa.decimal128(10, 2)),
+        }
+    )
 
     @dlt.resource(
         name="with_hints",
         columns={
             "Numbers": {"data_type": "bigint"},
             "Strings": {"data_type": "text"},
+            # hint changes the arrow data type so arrow precision and scale must not survive
+            "Amount": {"data_type": "text", "precision": 50},
             # nullable hint-only column not present in arrow data
             "ExtraCol": {"data_type": "double", "nullable": True},
         },
@@ -113,6 +122,12 @@ def test_arrow_columns_merge_with_resource_hints(extract_step: Extract) -> None:
     # hint properties preserved through normalization
     assert schema_table["columns"]["numbers"]["data_type"] == "bigint"
     assert schema_table["columns"]["strings"]["data_type"] == "text"
+    assert schema_table["columns"]["amount"] == {
+        "name": "amount",
+        "nullable": True,
+        "data_type": "text",
+        "precision": 50,
+    }
     # hint-only column not in arrow data is still in the schema with normalized name
     assert "extra_col" in col_names
     assert schema_table["columns"]["extra_col"]["data_type"] == "double"

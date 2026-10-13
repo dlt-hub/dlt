@@ -175,7 +175,9 @@ Skip this step when the code path is fully internal and you can reason about cor
 make format && make lint
 ```
 
-Both must pass cleanly. Fix any issues before reporting.
+If you changed pages under `docs/website/docs`, also run `make md-fix && make md-check` in `docs/`.
+
+All must pass cleanly. Fix any issues before reporting.
 
 ### 8. Report
 

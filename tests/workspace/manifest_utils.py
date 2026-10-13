@@ -38,6 +38,7 @@ def make_job(
         "launcher": launcher,
     }
     job: TJobDefinition = {
+        "engine_version": MANIFEST_ENGINE_VERSION,
         "job_ref": TJobRef(job_ref),
         "entry_point": entry_point,
         "triggers": [TTrigger(t) for t in triggers or []],

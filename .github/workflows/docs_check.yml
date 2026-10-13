@@ -33,6 +33,9 @@ jobs:
             uv-${{ runner.os }}-${{ hashFiles('docs/uv.lock') }}
             uv-${{ runner.os }}
 
+      - name: Check uv lockfile
+        run: uv --directory docs lock --check
+
       - name: Install dependencies
         run: cd docs && make dev
 

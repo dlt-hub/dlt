@@ -22,7 +22,7 @@ Each prompt maps to a toolkit, whose skills guide the agent through the workflow
 
 ## Toolkit components
 
-The AI Harness bundles four kinds of artifacts into installable units called [**toolkits**](toolkits.md):
+The AI Harness bundles five kinds of artifacts into installable units called [**toolkits**](toolkits.md):
 
 | Artifact   | What it is                                                                                                 | Example                                                                                  |
 | ---------- | ---------------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------- |

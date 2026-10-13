@@ -1,15 +1,21 @@
 from datetime import datetime  # noqa: I251
-from typing import Any, Dict, List, Literal, Mapping, NamedTuple, NewType, Optional, Union
+from typing import Any, Dict, Final, List, Literal, Mapping, NamedTuple, NewType, Optional, Union
 
 from dlt.common.pipeline import TRefreshMode
 from dlt.common.typing import Annotated, NotRequired, TypedDict
 from dlt.common.warnings import Deprecated
+
+from dlt._workspace.typing import TWorkspaceAccess
 
 
 MANIFEST_ENGINE_VERSION = 2
 WORKSPACE_DEPRECATED_SINCE = "1.29.0"
 """dlt version the job-definition field renames were introduced in."""
 REQUIREMENTS_ENGINE_VERSION = 2
+AGENT_DEFINITION_ENGINE_VERSION = 1
+JOB_RESULT_ENGINE_VERSION = 1
+JOB_RESULT_PAYLOAD_TYPE = "job_result"
+"""Beacon payload type for job results, at most 16 characters."""
 MAIN_GROUP = "main"
 """Conventional group name for top-level workspace dependencies."""
 DEFAULT_DEPLOYMENT_MODULE = "__deployment__"
@@ -79,10 +85,21 @@ TJobType = Literal["batch", "interactive", "stream"]
 """Execution model: batch (run to completion), interactive (long-running HTTP), stream (consumer loop)."""
 
 TInterfaceType = Literal["gui", "rest_api", "mcp"]
-"""What an interactive job exposes: web UI, programmatic API, or MCP tool server."""
+"""What a job exposes: web UI, programmatic API, or MCP tool server."""
 
-TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook"]
+TJobExposeCategory = Literal["pipeline", "mcp", "dashboard", "notebook", "background_agent"]
 """UI category for grouping jobs in the runtime interface."""
+
+TJobResultCategory = Literal["job", "background_agent"]
+"""Kind of result: `background_agent` for agent jobs, `job` for all others. See `TJobResult.type`."""
+
+JOB_RESULT_CATEGORY: Final = "job"
+BACKGROUND_AGENT_CATEGORY: Final = "background_agent"
+
+THubEntityType = Literal["job-runs", "job", "workspace", "pipeline", "dataset"]
+"""Kinds of workspace entity a job can act on. Hyphenated: the values are URI path segments."""
+TLegacyHubEntityType = Literal["job-run"]
+"""Deprecated spelling of `job-runs`, kept for older backends."""
 
 
 class TJobExposeSpec(TypedDict, total=False):
@@ -98,13 +115,23 @@ class TJobExposeSpec(TypedDict, total=False):
     """When `True` (default), runner creates a `manual:` trigger for this job."""
 
 
+class TJobObjectInput(TypedDict):
+    """The input a UI fills with the entity a job is started from."""
+
+    entity_type: Union[THubEntityType, TLegacyHubEntityType]
+    input: str  # noqa: A003
+    """Full config key of the input: `jobs.<section>.<job>.<input>`."""
+
+
 class TExposeSpec(TJobExposeSpec):
     """Extends TJobExposeSpec will elements not directly set by users."""
 
     interface: NotRequired[TInterfaceType]
-    """What an interactive job exposes: `"gui"`, `"rest_api"`, or `"mcp"`."""
+    """What the job exposes: `"gui"`, `"rest_api"` or `"mcp"`."""
     category: NotRequired[TJobExposeCategory]
     """UI grouping category (e.g. `"pipeline"`, `"notebook"`)."""
+    object_input: NotRequired[TJobObjectInput]
+    """First entity-typed input of the job; a UI fills it with the entity id to run the job for."""
 
 
 class TRequireSpec(TypedDict, total=False):
@@ -182,6 +209,10 @@ class TIntervalSpec(TypedDict):
     """Interval scheduling mode. Defaults to `sequential` when not set."""
 
 
+RUN_CONTEXT_INPUT = "run_context"
+"""Job argument the launcher fills with `TJobRunContext`; never resolved from config."""
+
+
 class TJobRunContext(TypedDict):
     """Job run context injected into job functions that declare a `run_context` argument."""
 
@@ -197,6 +228,8 @@ class TJobRunContext(TypedDict):
     """End of the interval being processed."""
     refresh: bool
     """Refresh signal with request to refresh (reload) the data"""
+    ai_loop: NotRequired[Any]  # `SupportsAgentLoop`, untyped to keep this module import free
+    """Agent loop created by the agent launcher."""
 
 
 class TRuntimeEntryPoint(TEntryPoint):
@@ -211,10 +244,9 @@ class TRuntimeEntryPoint(TEntryPoint):
     interval_timezone: NotRequired[str]
     """IANA timezone name (from `require.timezone`); applied to the interval by the launcher."""
     incremental_mode: NotRequired[TIncrementalSource]
-    """Incremental mode of the job, takes precedence over `allow_external_schedulers`."""
+    """Incremental mode of the job, read by launchers from dlt 1.30.1 on."""
     allow_external_schedulers: NotRequired[bool]
-    """Always written alongside `incremental_mode` so launchers of older dlt versions,
-    which do not know the newer field, still see the join decision."""
+    """Legacy form of `incremental_mode`, written only for launchers before dlt 1.30.1."""
     profile: NotRequired[str]
     """Active workspace profile, resolved from require.profile."""
     config: NotRequired[Dict[str, Any]]
@@ -237,14 +269,19 @@ class TTimeoutSpec(TypedDict):
     """Seconds for graceful shutdown after sending termination signal."""
 
 
-class TExecuteSpec(TypedDict):
-    """Runtime execution constraints for a job."""
+class TExecuteLimits(TypedDict):
+    """How long a job's run may take and how many of them run at once."""
 
     timeout: NotRequired[Optional[TTimeoutSpec]]
     concurrency: NotRequired[Optional[int]]
     """Max concurrent runs. Default `1` for both batch and interactive jobs.
     Pass any positive integer to allow that many concurrent instances, or
     explicitly `None` to remove the limit."""
+
+
+class TExecuteSpec(TExecuteLimits):
+    """Runtime execution constraints for a job."""
+
     intercept_signals: NotRequired[bool]
     """Intercept SIGINT/SIGTERM around the whole job. Default `True`."""
 
@@ -260,9 +297,27 @@ class TDeliverSpec(TypedDict, total=False):
     """Human-readable delivery deadline, e.g. `"8am on Mondays"`."""
 
 
+class TAgentDefinition(TypedDict):
+    """Agent declaration carried in the job manifest."""
+
+    engine_version: int
+    agent_file: NotRequired[str]
+    """Source of the definition: an `AGENT.md` path or `<module>.py:<name>`; absent when inline."""
+    name: str
+    description: NotRequired[str]
+    tools: NotRequired[List[str]]
+    """MCP feature groups requested from the dlthub MCP server."""
+    skills: NotRequired[List[str]]
+    rules: NotRequired[List[str]]
+    instructions: NotRequired[str]
+    """User prompt from the decorator; configuration may replace it at run time."""
+    model: NotRequired[str]
+
+
 class TJobDefinition(TypedDict):
     """A single job in the deployment manifest."""
 
+    engine_version: int
     job_ref: TJobRef
     """Unique job identity: `"jobs.<section>.<name>"` or `"jobs.<name>"` for module-level jobs."""
     description: NotRequired[str]
@@ -274,6 +329,10 @@ class TJobDefinition(TypedDict):
     execute: TExecuteSpec
     config_keys: NotRequired[List[str]]
     """Config keys discovered from function signature (`dlt.config.value` defaults)."""
+    inputs: NotRequired[Dict[str, Any]]
+    """JSON Schema of the job's `config_keys`."""
+    output: NotRequired[Dict[str, Any]]
+    """JSON Schema of the job's result. Present when the job returns a `TJobResult`."""
     deliver: NotRequired[TDeliverSpec]
     interval: NotRequired[TIntervalSpec]
     """Overall time range for interval-based scheduling."""
@@ -283,12 +342,37 @@ class TJobDefinition(TypedDict):
     """How incrementals obtain their range during a run. Unset falls back to `jobs` configuration."""
     require: NotRequired[TRequireSpec]
     """Runtime resource requirements."""
+    access: NotRequired[TWorkspaceAccess]
+    """Workspace access the job requires. Declared by agent jobs."""
     default_trigger: NotRequired[TTrigger]
     """Primary trigger, computed during manifest generation. Prefers schedule/every triggers."""
     refresh_propagation: NotRequired[TRefreshPolicy]
     """How a refresh signal cascades through the job graph. Defaults to `auto`."""
     auto_refresh_pipeline_mode: NotRequired[TRefreshMode]
     """Refresh mode applied to every pipeline in the job when a refresh run is requested."""
+    agent: NotRequired[TAgentDefinition]
+
+
+class THubEntity(TypedDict):
+    """A workspace entity, addressed relative to its workspace."""
+
+    type: Union[THubEntityType, TLegacyHubEntityType]  # noqa: A003
+    id: str  # noqa: A003
+    """`{type}/{unique id}`: `job-runs/9ac2…`, `dataset/duckdb_prod/github_events`."""
+
+
+class TJobResult(TypedDict):
+    """Structured result of a job run, delivered to the dlthub beacon. The launcher builds it."""
+
+    type: str  # noqa: A003
+    """`job.{name}` or `job.background_agent.{name}`; name from `run.result(type=)` or the job."""
+    engine_version: int
+    result: NotRequired[Any]
+    """JSON-serializable payload produced by the job."""
+    object: NotRequired[List[THubEntity]]  # noqa: A003
+    """Entities the run acted on: its entity-typed inputs, overwritten by same-named outputs."""
+    job_ref: NotRequired[TJobRef]
+    """Job that produced the result. The beacon dedups on it."""
 
 
 class TDeploymentFileItem(TypedDict):

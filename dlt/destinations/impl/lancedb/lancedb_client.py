@@ -53,6 +53,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
 )
 from dlt.common.storages import FileStorage, LoadJobInfo, ParsedLoadJobFileName
+from dlt.destinations.utils import verify_unsupported_merge_options
 from dlt.destinations.impl.lancedb.configuration import (
     LanceDBClientConfiguration,
 )
@@ -295,6 +296,17 @@ class LanceDBClient(JobClientBase, WithStateSync, WithSqlClient):
         self, only_tables: Iterable[str] = None, new_jobs: Iterable[ParsedLoadJobFileName] = None
     ) -> List[PreparedTableSchema]:
         loaded_tables = super().verify_schema(only_tables, new_jobs)
+        # the merge updates every matched record and applies no SQL condition
+        if exceptions := verify_unsupported_merge_options(
+            self.schema,
+            loaded_tables,
+            self.capabilities,
+            self.config.destination_type,
+            ("skip_unchanged_rows", "source_filter"),
+        ):
+            for exception in exceptions:
+                logger.error(str(exception))
+            raise exceptions[0]
 
         # Verify LanceDB-specific requirements for root tables
         for load_table in loaded_tables:

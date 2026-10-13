@@ -5,7 +5,7 @@ keywords: [dlthub platform, agents, background agents, agent job, AGENT.md, run.
 ---
 # Background agents
 
-:::warning
+:::info
 This feature is in public preview
 :::
 
@@ -24,7 +24,7 @@ This page covers how to declare an agent job and how to run it locally and on th
 | Agent job        | Definition plus the settings for your workspace: model, limits, trigger, instructions, loop                                                                                         | `run.agent(...)` in `__deployment__.py`                               |
 | Agent run        | Execution of the agent job. It receives inputs and returns an agent output and an agent trace                                                                                       | Started by a trigger, `dlthub local run`, `dlthub run`, or the Web UI |
 | Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
-| Verb             | What the agent can do on an axis. `local` takes `read`, `write`, `execute`, `network`, or `all`. `data` takes `read`, `write`, or `all`. `context` takes `read`                     | Listed under the axis in `access`                                     |
+| Verb             | What the agent can do on an axis: `local` takes `read`, `write`, `execute`, `network`; `data` takes `read`, `write`; `context` takes `read`. `all` grants every verb of its axis    | Listed under the axis in `access`                                     |
 
 `access` and `tools` both have a `context`, and they mean different things. The axis in `access` says the agent may read platform records. The group in `tools` names a set of MCP tools. See [Access declaration](agent-definitions.md#access-declaration).
 
@@ -84,25 +84,26 @@ The job is named after the agent definition (`job-inspector` becomes `job_inspec
 
 You can call the agent job in process, for example in a script or a test. An agent job without a function returns a coroutine, so await it: `await inspector(failed_run_id="...")`. It takes its inputs as keyword arguments only. An `async def` decorated function also returns a coroutine, and a sync decorated function returns its value directly. The call returns the agent output, not the job result, and sends nothing to the platform. See [Test agent jobs](#test-agent-jobs).
 
-`access`, `tools`, `skills`, and `rules` aren't `defaults`. An agent job without a function keeps the lists that its agent definition declares, and `run.agent` ignores the arguments for them without a warning. A decorated function that drives an agent definition (`agent=`) works the other way. Its argument replaces the list of the agent definition, so `access={"local": ["read"]}` on such a function removes `context: read`. Pass every access axis the agent needs, or leave the block to the agent definition.
+`access`, `tools`, `skills`, and `rules` aren't `defaults`. An agent job without a function keeps the lists that its agent definition declares, and `run.agent` refuses the arguments for them with a `TypeError`. A decorated function that drives an agent definition (`agent=`) works the other way. Its argument replaces the list of the agent definition, so `access={"local": ["read"]}` on such a function removes `context: read`. Pass every access axis the agent needs, or leave the block to the agent definition.
 
 The inputs of such a function merge with the agent definition instead. The parameters of the function decide which inputs exist. For each parameter, what the signature says wins, and the agent definition fills what it leaves out: the description, `entity_type`, other attributes, and the type when the parameter has no annotation. The inputs that the function doesn't take are dropped.
 
-Don't give the production profile to an agent job. An agent job takes the read-only `access` profile by default, and the example pins it. See [Profile of an agent job](#profile-of-an-agent-job).
+Don't give the production profile to an agent job. On the platform, an agent job takes the read-only `access` profile by default, and the example pins it. See [Profile of an agent job](#profile-of-an-agent-job).
 
-| Argument                                          | Meaning                                                                                                                                                                                                                    |
-| ------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `instructions`                                    | First user message of each run. Use it for the task at hand. The system prompt describes the agent                                                                                                                         |
-| `model`                                           | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials)                                                                                                  |
-| `limits`                                          | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted                                                                                                                                       |
-| `loop`                                            | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                                                                         |
-| `loop_run_args`                                   | Arguments passed to the framework, merged over the definition's defaults. On `pydantic-ai`, `retries` sets how often the model retries a failing tool call, 0 by default. After that, the call fails and the run continues |
-| `verbosity`                                       | How much of the run is printed: `0` the outcome and tool names, `1` (default) adds the agent's thoughts and tool arguments, `2` adds the rendered system prompt                                                            |
-| `emojis`                                          | Marks tool calls, results and the outcome in the printed run with emojis. `true` by default, `false` prints plain words                                                                                                    |
-| `inputs_validator`                                | Called with the resolved inputs, `run_context` included, before the run. Its return value replaces the inputs and `None` keeps them. Use it to derive an input such as a run id from a job ref                             |
-| `outputs_validator`                               | Called with the agent output after the run. Its return value replaces the output and `None` keeps it                                                                                                                       |
-| `name`, `section`                                 | Job name and configuration section, as on every job                                                                                                                                                                        |
-| `trigger`, `execute`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md)                                                               |
+| Argument                               | Meaning                                                                                                                                                                                                                    |
+| -------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `instructions`                         | First user message of each run. Use it for the task at hand. The system prompt describes the agent                                                                                                                         |
+| `model`                                | `provider:model` id such as `anthropic:claude-sonnet-5`, or an alias. See [Model and credentials](#model-and-credentials)                                                                                                  |
+| `limits`                               | `max_turns` and `max_tokens` per run. The loop ends the run when either is exhausted. Without a limit, `pydantic-ai` stops at 50 turns and `claude-agent-sdk` at 30, with no token limit                                   |
+| `loop`                                 | `"pydantic-ai"` (default) or `"claude-agent-sdk"`. See [Agent loops](#agent-loops)                                                                                                                                         |
+| `loop_run_args`                        | Arguments passed to the framework, merged over the definition's defaults. On `pydantic-ai`, `retries` sets how often the model retries a failing tool call, 0 by default. After that, the call fails and the run continues |
+| `verbosity`                            | How much of the run is printed, `0` to `2`, `1` by default. See [Read the agent run result](#read-the-agent-run-result)                                                                                                    |
+| `emojis`                               | Marks tool calls, results and the outcome in the printed run with emojis. `true` by default, `false` prints labels and arrows                                                                                              |
+| `inputs_validator`                     | Called with the resolved inputs, `run_context` included, before the run. Its return value replaces the inputs and `None` keeps them. Use it to derive an input such as a run id from a job ref                             |
+| `outputs_validator`                    | Called with the agent output after the run. Its return value replaces the output and `None` keeps it                                                                                                                       |
+| `name`, `section`                      | Job name and configuration section, as on every job                                                                                                                                                                        |
+| `execute`                              | `timeout` and `concurrency`. Keys you leave out come from `defaults.execute` of the agent definition. An agent job runs up to 5 runs at once (other jobs 1). `concurrency: None` removes the limit                         |
+| `trigger`, `expose`, `require`, `spec` | Standard job options. See [Triggers and scheduling](../pipeline-operations/triggers.md) and [Job configuration](../pipeline-operations/job-configuration.md)                                                               |
 
 Only an agent job without a function takes the two validators. On a decorated function, `run.agent` raises `TypeError`. A decorated function runs the loop itself and gives the inputs to `loop.run()`. When the agent definition has its own `agent.py`, its functions run first and the job's validators run on their result. See [Agent code in `agent.py`](agent-definitions.md#agent-code-in-agentpy).
 
@@ -165,9 +166,9 @@ A [profile](../pipeline-operations/profiles.md) names the set of credentials a j
 
 The profile covers profile-scoped configuration: `prod.secrets.toml`, `prod.config.toml`, and a variable set with `dlthub variable set --profile prod`. A variable set with `--workspace` has no profile, and it reaches the job on every profile. A secret that an agent must not get belongs in a profile scope. `dlthub variable list` prints the scope of each one.
 
-Which profile an agent job runs on is decided for you unless you say otherwise. An agent job that declares none runs on the read-only `access` profile, so the production credentials stay out of its environment. Other batch jobs use `prod` by default. The agent job is the exception.
+On the platform, an agent job that declares no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Other batch jobs use `prod` by default. The agent job is the exception. dlt itself doesn't set the profile: `dlthub local run` uses the active profile, and warns when the workspace has no `access` profile.
 
-Every workspace has an `access` profile, so the default applies wherever you deploy. Pin it on the job anyway, to state the intent in the code:
+Pin the profile on the job, to state the intent in the code:
 
 ```py notype
 inspector = run.agent(
@@ -214,7 +215,11 @@ max_turns = 20
 verbosity = 0
 ```
 
-Each source overrides the ones before it: the loop default, the definition's `defaults`, the `run.agent` argument, the run's configuration.
+Each source overrides the ones before it: the loop default, the definition's `defaults`, the `run.agent` argument, the run's configuration. `limits` and `loop_run_args` merge key by key, so setting `max_turns` keeps the `max_tokens` of the source below.
+
+`dlthub -v local run <job>` sets `agent.verbosity` to `2` for that run, unless `-c agent.verbosity=...` sets it.
+
+Ctrl-C on a local run, or a stop on the platform, ends the run at the next turn.
 
 ### Model and credentials
 
@@ -265,11 +270,9 @@ The limits follow the same order, with `max_turns: 50` as the loop default and n
 
 #### Bring your own model key
 
-The key is yours. dltHub operates no model endpoint and supplies no key, so every agent run bills your provider account and a workspace with no key reachable fails each run where the loop builds the provider. Nothing about a run is metered or capped on the dltHub side, so the limits in [`limits`](#declare-the-agent-job) are what bounds a run's cost.
+`model`, `api_key`, `api_url`, and `api_version` are one set, and where you put them differs locally and on the platform. Bring a key of your own and every agent run bills your provider account. Nothing about the run is metered or capped on the dltHub side, so the limits in [`limits`](#declare-the-agent-job) are what bounds its cost.
 
-`model`, `api_key`, `api_url`, and `api_version` are one set. Setting any of them makes the run read all four from your configuration, and the ones you left unset fall back to their own defaults, so `api_key` and `api_url` without `model` send `anthropic:claude-sonnet-5` to your endpoint and fail with `401 API key is invalid`. Name the model whenever you name a url. The run logs which endpoint it resolved to.
-
-Locally, the four go under the job's `agent` section in `secrets.toml`, or in the environment. Without `api_key` the provider's own environment variable is used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on), which keeps the key out of the workspace:
+Locally there is no endpoint to fall back to, so a workspace with no key reachable fails each run where the loop builds the provider. The four go under the job's `agent` section in `secrets.toml`, or in the environment. Without `api_key` the provider's own environment variable is used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on), which keeps the key out of the workspace:
 
 ```toml
 # .dlt/secrets.toml
@@ -289,7 +292,11 @@ api_url = "https://my-resource.openai.azure.com"
 api_version = "2024-12-01-preview"           # the api-version your deployment serves
 ```
 
-On the platform the runner reads no local file, so set the four as workspace variables. They arrive on the runner as environment and override `secrets.toml`:
+Azure is the only provider pydantic-ai gives `api_version`. Other providers ignore it and log a warning.
+
+On the platform the runtime can supply a model endpoint of its own. `model`, `api_key`, `api_url`, and `api_version` are one set. If you set one of them, the run takes all four from your configuration and ignores the endpoint of the runtime. If you set only `api_key`, the run uses the model of the job, of the agent definition, or the loop default, not the model of the runtime. It sends the request to the public endpoint of the provider, so a key issued for the runtime's endpoint fails with `401 API key is invalid`. The run logs which endpoint it used.
+
+On the platform, set the four as workspace variables rather than in `secrets.toml`. They arrive on the runner as environment and override the file:
 
 ```sh
 printf '%s' 'anthropic:claude-sonnet-5' | dlthub variable set AGENT__MODEL --plain --workspace
@@ -304,8 +311,6 @@ printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
 | `AGENT__API_VERSION` | unset                       | the api-version your deployment serves |
 
 Set with `--workspace` these carry no profile and reach every agent job in the workspace, which is what you want for a key and what to watch for with the model. See [Which model a run uses](#which-model-a-run-uses).
-
-Azure is the only provider pydantic-ai gives `api_version`. Elsewhere it's ignored with a warning, so leave it unset.
 
 ### Deploy the agent job
 
@@ -325,21 +330,21 @@ Check what a wide selector matched before you deploy a second agent job. `job.fa
 
 An agent run leaves three things behind, and they answer different questions:
 
-| What        | Where                                                                                  | Holds                                                                                                                                                                             |
-| ----------- | -------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| Run log     | Your terminal on a local run, the run's **Logs** in the Web UI, `dlthub job runs logs` | Everything the run printed as it went: the model's reasoning, its messages, each tool call and what it returned, and a closing line listing the tools, skills, and MCP tools used |
-| Agent trace | The run's **Trace** in the Web UI, and `trace` in the result below                     | The structured record of the same run: model, limits, resolved inputs, the tools that were wired, turn and token counts, per-turn tool calls                                      |
-| Job result  | The run's **Summary** in the Web UI, `dlthub job runs info`                            | What the agent returned: `status`, `summary`, and the fields its `output` schema declares                                                                                         |
+| What        | Where                                                                                  | Holds                                                                                                                                                                                                              |
+| ----------- | -------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| Run log     | Your terminal on a local run, the run's **Logs** in the Web UI, `dlthub job runs logs` | Everything the run printed as it went: the model's reasoning, its messages, each tool call and what it returned, and a closing line listing the tools, skills, and MCP tools used. `agent.verbosity` sets how much |
+| Agent trace | The run's **Trace** in the Web UI, and `trace` in the result below                     | The structured record of the same run: model, limits, resolved inputs, the tools that were wired, turn and token counts, per-turn tool calls                                                                       |
+| Job result  | The run's **Summary** in the Web UI, `dlthub job runs info`                            | What the agent returned: `status`, `summary`, and the fields its `output` schema declares                                                                                                                          |
 
 The log is what the run printed, so you read it to follow what the agent did and why. The agent trace is queryable, so you read it to count turns and tokens or to see which tools a run got.
 
 `agent.verbosity` controls how much reaches the log:
 
-- `0`: the outcome and the tool names
-- `1` (default): adds the agent's thoughts and the tool arguments
-- `2`: adds the rendered system prompt
+- `0`: the prompt, the agent's messages, the tool names, tool results cut to 80 characters, and the outcome
+- `1` (default): adds the agent's thoughts and the tool arguments, each on one line and cut to 200 characters, and tool results cut to 200 characters
+- `2`: prints thoughts, arguments, and results in full, and adds the rendered system prompt
 
-The log is plain text. Emojis mark its parts: 🔧 a tool call, 🌐 an MCP tool call, ✅ and ❌ a tool result and the outcome, ❗ an abort, 💭 the agent's thoughts, 💬 the agent speaking. Set `agent.emojis` to `false` to print plain words instead.
+The log is plain text. Emojis mark its parts: 📝 the prompt, 📜 the system prompt, 🔧 a tool call, 🌐 an MCP tool call, ✅ and ❌ a tool result and the outcome, ❗ an abort, 🏁 a finish without a status, 💭 the agent's thoughts, 💬 the agent speaking, 🎁 the job result. Set `agent.emojis` to `false` to print labels and arrows instead.
 
 When the run ends, the launcher prints and delivers the job result:
 
@@ -402,19 +407,19 @@ A loop is the framework that runs the agent. dltHub ships two agent loops and ad
 | Skills          | Inlined into the system prompt                                                                                 | Listed by name and loaded on demand, as in Claude Code |
 | Install locally | `uv add "pydantic-ai-slim[anthropic,openai,google,mcp,spec]"`                                                  | `uv add claude-agent-sdk`                              |
 
-Both loops read the same declarations. `access` selects the local tools and `tools` selects the MCP feature groups. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn, so the limit means the same on both loops.
+Both loops read the same declarations. `access` selects the local tools and `tools` selects the MCP feature groups. The rendered body becomes the system prompt, `instructions` becomes the user turn, and `output` becomes the structured output schema. dlt counts `limits.max_tokens` after each turn, so the limit means the same on both loops. A turn is one model response, and its input tokens include the tokens read from and written to the prompt cache. The run stops after the turn that passes the limit.
 
-Select the loop on the job with `loop="claude-agent-sdk"`, or for a single run with `-c agent.loop=claude-agent-sdk`. On `claude-agent-sdk` the workspace's `CLAUDE.md` loads as in any Claude Code session. The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives the rules and the MCP server it declares.
+Select the loop on the job with `loop="claude-agent-sdk"`, or for a single local run with `-c agent.loop=claude-agent-sdk`. The dependency group the job declares follows `loop=`, so on the platform switch the loop with `loop=` and deploy. On `claude-agent-sdk` the workspace's `CLAUDE.md` loads as in any Claude Code session. The project's `.claude/rules` and `.mcp.json` aren't loaded. The agent receives the rules and the MCP server it declares.
 
 ## Guardrails
 
 - Tools follow the `access` declaration. An agent without `access` receives no file tools and no shell. MCP tools declare the access they require, and the model isn't offered a tool that the declared access doesn't cover.
 - An agent runs no code on the runner unless its agent definition declares `local: execute`. Without that verb, the agent has no `Bash` and no `RunPython`. The agent definitions that the dltHub AI Harness ships don't declare it. Model providers can give a model server-side capabilities on any loop or model, and `access` doesn't control them. For example, pydantic-ai with recent Anthropic models and `network` gets web tools that run code in Anthropic's sandbox. See [Access declaration](agent-definitions.md#access-declaration).
-- Credential files are never readable by a file tool: `*secrets.toml`, `.env`, and `.env.*`, on both loops, whatever `local` grants.
+- Credential files are never readable by a file tool: `*secrets.toml`, `.env`, `.env.*`, on both loops, whatever `local` grants.
 - SQL through the MCP server is limited to a single `SELECT` statement per call.
 - `execute` runs in the job's own process. A shell runs in the same process tree and virtual environment as the job, with the job's credentials on the runner. It also reaches around the file tools' credential rules. Declare it only in agent definitions that need it. If an agent definition declares `execute` and `data`, give it a rule that forbids writing data.
 - `data` is an access axis that you declare deliberately: it opens the workspace data to a model-driven process. The agent definitions that the dltHub AI Harness ships declare `local: read` and `context: read` and no `data`. They build a diagnosis from run records, logs, job definitions, telemetry, and workspace source.
-- An agent job declaring no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
+- On the platform, an agent job declaring no profile runs on the read-only `access` profile, so the production credentials stay out of its environment. Pin `require={"profile": "access"}` to state it in the code. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Test agent jobs
 
@@ -449,7 +454,7 @@ In the test above:
 
 1. Pass the inputs as keyword arguments, and a run context with the `run_id` and the `trigger` that you want to test. If you leave out `run_context`, a local run context with the trigger `manual:` is used.
 2. The call returns the agent output, and you test it as any return value.
-3. `last_job_result` on the agent job holds the job result of the call: `type`, `job_ref`, `status`, `summary`, `result`, the agent trace with the tools and tokens used, and `object`. dlt sends nothing to the platform.
+3. `last_job_result` on the agent job holds the job result of the call: `type`, `job_ref`, `status`, `summary`, `result`, the agent trace with the tools and tokens used, and `object`. dlt sends nothing to the platform. When you run several calls of the same agent job at once, for example with `asyncio.gather`, each call keeps its own job result while it runs, and `last_job_result` holds the one of the call that finished last.
 4. When your agent code calls a REST API, in `agent.py` or in the decorated function, mock it as in any other Python test.
 5. Unstructured fields such as `summary` can still be scored, by asking a cheap model to judge the text against the criteria you care about.
 

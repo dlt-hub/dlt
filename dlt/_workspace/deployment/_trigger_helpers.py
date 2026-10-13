@@ -1,6 +1,6 @@
 from datetime import timezone
-from fnmatch import fnmatch
-from typing import Callable, Dict, List, Optional, Sequence, Tuple, Union
+from fnmatch import fnmatchcase
+from typing import Any, Callable, Dict, List, Mapping, Optional, Sequence, Tuple, Union, cast
 from urllib.parse import urlparse
 
 from croniter import croniter
@@ -8,10 +8,15 @@ from croniter import croniter
 from dlt.common.interval import is_cron_expression
 from dlt.common.time import ensure_datetime_in_tz, parse_period_seconds
 from dlt.common.typing import TAnyDateTime
-from dlt._workspace.deployment._job_ref import resolve_job_ref, short_name as _job_short_name
-from dlt._workspace.deployment.exceptions import InvalidTrigger
+from dlt._workspace.deployment._job_ref import (
+    JOB_REF_PREFIX,
+    resolve_job_ref,
+    short_name as _job_short_name,
+)
+from dlt._workspace.deployment.exceptions import InvalidJobRef, InvalidTrigger
 from dlt._workspace.deployment.typing import (
     HttpTriggerInfo,
+    TExecuteSpec,
     TJobDefinition,
     TTimeoutSpec,
     TParsedTrigger,
@@ -27,6 +32,14 @@ def normalize_timeout(value: Union[int, float, str, TTimeoutSpec]) -> TTimeoutSp
     if isinstance(value, str):
         return {"timeout": parse_period_seconds(value)}
     return {"timeout": float(value)}
+
+
+def normalize_execute(execute: Optional[Mapping[str, Any]]) -> TExecuteSpec:
+    """A copy of `execute` with its timeout as the manifest stores it."""
+    normalized = cast(TExecuteSpec, dict(execute or {}))
+    if normalized.get("timeout") is not None:
+        normalized["timeout"] = normalize_timeout(normalized["timeout"])
+    return normalized
 
 
 def _parse_schedule(expr: str) -> TParsedTrigger:
@@ -115,20 +128,23 @@ def _parse_manual(expr: str) -> TParsedTrigger:
     return TParsedTrigger(type="manual", expr=expr or None, raw=TTrigger(f"manual:{expr}"))
 
 
-def _parse_job_success(expr: str) -> TParsedTrigger:
+def _parse_job_event(event: TTriggerType, expr: str) -> TParsedTrigger:
+    """Parses `job.success:` / `job.fail:`, which take a `jobs.` ref or a selector."""
     if not expr:
-        raise InvalidTrigger("job.success:", "requires a job_ref")
-    if not expr.startswith("jobs."):
-        raise InvalidTrigger(f"job.success:{expr}", "expression must start with 'jobs.'")
-    return TParsedTrigger(type="job.success", expr=expr, raw=TTrigger(f"job.success:{expr}"))
+        raise InvalidTrigger(f"{event}:", "requires a job_ref or selector")
+    if not expr.startswith("jobs.") and not is_selector(expr):
+        raise InvalidTrigger(
+            f"{event}:{expr}", "expression must start with 'jobs.' or be a selector"
+        )
+    return TParsedTrigger(type=event, expr=expr, raw=TTrigger(f"{event}:{expr}"))
+
+
+def _parse_job_success(expr: str) -> TParsedTrigger:
+    return _parse_job_event("job.success", expr)
 
 
 def _parse_job_fail(expr: str) -> TParsedTrigger:
-    if not expr:
-        raise InvalidTrigger("job.fail:", "requires a job_ref")
-    if not expr.startswith("jobs."):
-        raise InvalidTrigger(f"job.fail:{expr}", "expression must start with 'jobs.'")
-    return TParsedTrigger(type="job.fail", expr=expr, raw=TTrigger(f"job.fail:{expr}"))
+    return _parse_job_event("job.fail", expr)
 
 
 def _parse_pipeline_name(expr: str) -> TParsedTrigger:
@@ -150,6 +166,35 @@ PARSERS: Dict[str, Callable[[str], TParsedTrigger]] = {
     "job.fail": _parse_job_fail,
     "pipeline_name": _parse_pipeline_name,
 }
+
+
+_JOB_EVENT_TYPES = ("job.success", "job.fail")
+_GLOB_CHARS = "*?["
+
+
+def job_event_expr(expr: str) -> str:
+    """Expression of a job event trigger: a selector as written, a ref or a glob of refs in
+    `jobs.` form.
+
+    Raises:
+        InvalidJobRef: `expr` is neither a selector nor a valid job ref.
+    """
+    if not is_selector(expr):
+        return resolve_job_ref(expr)
+    # a glob of refs is matched against job refs, which all start with `jobs.`
+    is_ref_glob = ":" not in expr and any(c in expr for c in _GLOB_CHARS)
+    if is_ref_glob and expr != "*" and not expr.startswith(JOB_REF_PREFIX):
+        return JOB_REF_PREFIX + expr
+    return expr
+
+
+def _normalize_job_event_ref(trigger: str, expr: str) -> str:
+    if not expr:
+        raise InvalidTrigger(trigger, "requires a job_ref or selector")
+    try:
+        return job_event_expr(expr)
+    except InvalidJobRef as e:
+        raise InvalidTrigger(trigger, str(e)) from e
 
 
 def parse_trigger(trigger: TTrigger) -> TParsedTrigger:
@@ -180,6 +225,11 @@ def normalize_trigger(trigger: Union[str, TTrigger]) -> TTrigger:
         trigger_type = s.split(":", 1)[0]
         if trigger_type in _SYNTHETIC_TYPES:
             raise InvalidTrigger(s, f"{trigger_type}: triggers are added automatically")
+        if trigger_type in _JOB_EVENT_TYPES:
+            expr = s.split(":", 1)[1]
+            return parse_trigger(
+                TTrigger(f"{trigger_type}:{_normalize_job_event_ref(s, expr)}")
+            ).raw
         if trigger_type in PARSERS:
             return parse_trigger(TTrigger(s)).raw
         raise InvalidTrigger(s, f"unknown type {trigger_type!r}")
@@ -225,7 +275,8 @@ _SELECTOR_KEYWORDS = _JOB_TYPE_SELECTORS | set(PARSERS.keys())
 
 def is_selector(s: str) -> bool:
     """Check if string looks like a trigger selector vs a bare job ref."""
-    if ":" in s:
+    if ":" in s or any(c in s for c in _GLOB_CHARS):
+        # a job ref never contains glob characters, so a globbed expression selects
         return True
     return s in _SELECTOR_KEYWORDS
 
@@ -243,22 +294,27 @@ def match_triggers_with_selectors(
     job_type: str,
     triggers: List[TTrigger],
     selectors: List[str],
+    job_ref: Optional[str] = None,
 ) -> List[TTrigger]:
     """Return triggers that match any selector.
 
-    Job-type selectors (batch, interactive, stream, job) match ALL triggers.
+    A job-type selector (`batch`, `interactive`, `stream`, `job`, optionally with a trailing colon)
+    or one matching `job_ref` matches all triggers.
     """
     matched: List[TTrigger] = []
 
     for selector in selectors:
-        if selector in _JOB_TYPE_SELECTORS:
-            if (selector == "job" and job_type == "batch") or job_type == selector:
+        if selector.rstrip(":") in _JOB_TYPE_SELECTORS:
+            job_selector = selector.rstrip(":")
+            if (job_selector == "job" and job_type == "batch") or job_type == job_selector:
                 return list(triggers)
             continue
 
         pattern = _normalize_selector(selector)
+        if job_ref and fnmatchcase(job_ref, pattern):
+            return list(triggers)
         for t in triggers:
-            if t not in matched and fnmatch(t, pattern):
+            if t not in matched and fnmatchcase(t, pattern):
                 matched.append(t)
 
     return matched

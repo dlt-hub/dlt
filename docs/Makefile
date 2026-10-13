@@ -6,12 +6,19 @@ help: ## Shows this help message
 	@grep -E '^[a-zA-Z0-9_-]+:.*##' $(MAKEFILE_LIST) | awk -F ':.*## ' '{printf "  %-28s %s\n", $$1, $$2}'
 
 dev: ## Set up development environment
-	uv sync --all-extras --all-groups --all-packages --quiet --locked
+	uv sync --all-extras --all-groups --all-packages --quiet
 	uv run prek install --hook-type pre-commit --hook-type pre-push
 
 start: ## Generate docs and start the docusaurus dev server
 	$(MAKE) preprocess-docs
 	cd website && npx docusaurus start
+
+# Pagefind indexes rendered HTML, so this needs a production build. The dev server
+# (`make start`) serves this index as is via `website/plugins/pagefind-dev.js`:
+# run it at least once to populate search, and again to refresh it.
+search-index: ## Build the docs and the search index used by the dev server
+	cd website && npx docusaurus build --out-dir build/docs
+	cd website && npm run search-index
 
 build: ## Full production build of the docs website into `website/build/docs`
 	cd website && uv run npm run update-versions
@@ -19,6 +26,7 @@ build: ## Full production build of the docs website into `website/build/docs`
 	$(MAKE) check-orphan-docs
 	$(MAKE) preprocess-docs
 	cd website && npx docusaurus build --out-dir build/docs
+	cd website && npm run search-index
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
 

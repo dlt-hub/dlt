@@ -144,6 +144,8 @@ Data type information:
 5. `nullable` tells if the column is nullable or not.
 6. `is_variant` indicates that the column was generated as a variant of another column.
 
+When a column hint changes `data_type`, the `precision`, `scale`, `timezone`, and `x-nested-type` of the previous type are dropped. Changing between `decimal` and `wei` keeps `precision` and `scale`. Set them again in the same hint if the new type needs them.
+
 A column schema contains the following basic hints:
 
 1. `primary_key` marks a column as part of the primary key.
@@ -637,7 +639,7 @@ When `dlt` normalizes nested data into a relational schema, it automatically cre
 
 `row_key` is created as follows:
 
-1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy), [`insert-only`](merge-loading.md#insert-only-strategy), and
+1. A random string on **root** tables, except for [`upsert`](merge-loading.md#upsert-strategy), [`insert-only`](merge-loading.md#insert-only-strategy), [`cdc`](merge-loading.md#cdc-strategy), and
 [`scd2`](merge-loading.md#scd2-strategy) merge strategies, where it is a deterministic hash of the `primary_key` (or whole row, so-called `content_hash`, if PK is not defined).
 2. A deterministic hash of `parent_key`, `parent` table name, and position in the list (`_dlt_list_idx`)
 for **nested** tables.

@@ -40,8 +40,12 @@ def filesystem_merge_strategies_selector(
     *,
     table_schema: TTableSchema,
 ) -> Sequence[TLoaderMergeStrategy]:
-    if table_schema.get("table_format") in ["delta", "iceberg"]:
+    table_format = table_schema.get("table_format")
+    if table_format == "delta":
         return supported_merge_strategies
+    elif table_format == "iceberg":
+        # pyiceberg `upsert` cannot delete rows absent from the loaded data
+        return [s for s in supported_merge_strategies if s != "cdc"]
     else:
         return []
 
@@ -98,7 +102,7 @@ class filesystem(Destination[FilesystemDestinationClientConfiguration, Filesyste
             preferred_loader_file_format="jsonl",
             loader_file_format_selector=filesystem_loader_file_format_selector,
             supported_table_formats=["delta", "iceberg"],
-            supported_merge_strategies=["upsert", "insert-only"],
+            supported_merge_strategies=["upsert", "insert-only", "cdc"],
             merge_strategies_selector=filesystem_merge_strategies_selector,
         )
         caps.supported_loader_file_formats = list(caps.supported_loader_file_formats) + [

@@ -58,6 +58,36 @@ def transform(run_context: TJobRunContext):
 
 `TJobRunContext` is a dict injected by the launcher with: `run_id`, `trigger`, `refresh`, and the scheduler-supplied `interval_start` / `interval_end` (see [Scheduler-driven intervals](#scheduler-driven-intervals) below).
 
+A list of triggers means "any of these": the job runs whenever one of them fires, and each one starts its own run. With `trigger=[job_a.success, job_b.success, job_c.success]`, the job runs once after each upstream job succeeds, so up to three times.
+
+### Wait for several upstream jobs
+
+To run a job once, after all of its upstream jobs have finished, combine a [follow-up trigger](#follow-up-triggers) and a [freshness check](#freshness-checks) for each upstream job:
+
+```py notype
+@run.job(
+    trigger=[job_a.success, job_b.success, job_c.success],
+    freshness=[job_a.is_fresh, job_b.is_fresh, job_c.is_fresh],
+)
+def job_d(run_context: TJobRunContext):
+    ...
+```
+
+Each upstream success tries to start `job_d`, but the freshness check skips the run while any upstream job's latest run is still running or failed. `job_d` runs once, right after the last upstream job finishes.
+
+To run the job at a fixed time instead, keep the freshness check and give it a schedule:
+
+```py notype
+@run.job(
+    trigger=trigger.schedule("0 8 * * *"),
+    freshness=[job_a.is_fresh, job_b.is_fresh, job_c.is_fresh],
+)
+def job_d(run_context: TJobRunContext):
+    ...
+```
+
+At each scheduled time, `job_d` runs only if the latest run of every upstream job completed. Otherwise that run is skipped, and `job_d` tries again at its next scheduled time.
+
 ## Follow-up triggers
 
 Every decorated job exposes `.success`, `.fail`, and `.completed` trigger properties. Use them to chain jobs into a dependency graph.

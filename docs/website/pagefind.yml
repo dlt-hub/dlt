@@ -1,0 +1,11 @@
+# Pagefind indexing config, run after `docusaurus build` (see Makefile `build`).
+# Which pages are indexed and how they are tagged lives in
+# src/theme/DocItem/Layout (attributes) and src/theme/SearchBar/sections.js (rules).
+site: build/docs
+exclude_selectors:
+  # exclude heading anchor "#" links
+  - ".hash-link"
+  # exclude "View source on GitHub" links found in the API reference
+  - "a[href*='github.com/dlt-hub/dlt/blob/']"
+  # exclude all code blocks
+  - "pre"
