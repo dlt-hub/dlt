@@ -54,7 +54,9 @@ DLT_MARKER = "@@@DLT"
 TUBA_MARKER = f"{DLT_MARKER}_TUBA"
 CAPABILITIES_MARKER = f"{DLT_MARKER}_DESTINATION_CAPABILITIES"
 
-# tuba links
+# tuba links. The list is maintained in dlt-hub/website
+# (next/public/docs/pipelines/links.json) and served as a static file there; each
+# public_url points at the guide's current page, so moved guides link directly.
 TUBA_CONFIG_URL = "https://dlthub.com/docs/pipelines/links.json"
 NUM_TUBA_LINKS = 10
 
