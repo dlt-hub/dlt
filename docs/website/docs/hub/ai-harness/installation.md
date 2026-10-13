@@ -1,5 +1,6 @@
 ---
-title: Installation
+title: Install the AI harness
+sidebar_label: Installation
 description: Install the dltHub AI Harness in a new or existing workspace, and add feature toolkits by intent or by command.
 keywords: [ai harness, install, dlthub-init, dlthub-start, dlthub ai init, toolkit install]
 ---

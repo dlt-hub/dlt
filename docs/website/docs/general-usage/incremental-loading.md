@@ -1,5 +1,6 @@
 ---
-title: Incremental loading
+title: Incremental loading in Python with dlt
+sidebar_label: Incremental loading
 description: Introduction to incremental loading with dlt
 keywords: [incremental loading, loading methods]
 ---

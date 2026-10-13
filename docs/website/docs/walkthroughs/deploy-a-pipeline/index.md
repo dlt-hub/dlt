@@ -1,5 +1,6 @@
 ---
-title: Overview
+title: Deploy a dlt pipeline
+sidebar_label: Overview
 description: Deployment patterns for `dlt`
 keywords: [deploy, orchestrator, scheduler, ci/cd, production]
 ---
