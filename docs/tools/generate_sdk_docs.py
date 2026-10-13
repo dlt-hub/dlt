@@ -45,6 +45,12 @@ SECTIONS = {
 }
 
 INTRO = """\
+:::caution Beta release
+The Python SDK is in beta. Its API is stable and will only be extended, but its packaging may
+change: it can move to another PyPI package and another top-level package name than
+`{package}`.
+:::
+
 The Python SDK is the `{package}` package. It ships with `{distribution}`, which `dlt[hub]`
 installs:
 
