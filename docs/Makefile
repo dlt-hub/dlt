@@ -71,7 +71,7 @@ cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_proce
 	cd tools/dlthub_cli && RUNTIME__LICENSE="" $(HUB_RUN) \
 		--with "../../..[cli]" --with "$(HUB_DLTHUB_REQ)" \
 		python ../generate_cli_docs.py ../../$(HUB_CLI_DOCS) \
-		--executable-name dlthub --title "CLI reference" --sort-commands
+		--executable-name dlthub --title "CLI reference" --sort-commands --show-versions dlthub dlthub-client
 
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks

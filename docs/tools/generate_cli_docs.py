@@ -31,6 +31,7 @@ import os
 import re
 import sys
 import textwrap
+from importlib.metadata import version
 from typing import List, Optional
 
 DEFAULT_TITLE = "dlt CLI reference"
@@ -349,7 +350,19 @@ def main() -> None:
         action="store_true",
         help="Sort subcommands by name instead of registration order, which depends on plugins",
     )
+    parser.add_argument(
+        "--show-versions",
+        nargs="+",
+        default=None,
+        metavar="DISTRIBUTION",
+        help="State the installed versions of these packages on the page",
+    )
     args = parser.parse_args()
+
+    header = HEADER_TEMPLATE.format(title=args.title)
+    if args.show_versions:
+        versions = " and ".join(f"`{name}` {version(name)}" for name in args.show_versions)
+        header += f"This page is generated from {versions}.\n\n"
 
     from dlt._workspace.cli._dlt import _create_parser
 
@@ -357,7 +370,7 @@ def main() -> None:
     result = render_argparse_markdown(
         args.executable_name,
         cli_parser,
-        header=HEADER_TEMPLATE.format(title=args.title),
+        header=header,
         commands=args.commands,
         sort_commands=args.sort_commands,
     )
