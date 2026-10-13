@@ -3,8 +3,9 @@ import hashlib
 import json
 import os
 import shutil
+from contextlib import contextmanager
 from pathlib import Path
-from typing import Any, Callable, Dict, Set, Type
+from typing import Any, Callable, Dict, Iterator, Set, Type
 from unittest.mock import patch
 
 import pytest
@@ -16,9 +17,8 @@ from dlt.common.storages import FileStorage
 from dlt._workspace.cli.dlthub.ai.commands import (
     _execute_install,
     _select_install_requests,
-    _apply_toolkit,
+    _install_toolkit,
     _plan_toolkit_install,
-    _report_changes,
     _resolve_agent,
     ai_secrets_update_fragment_command,
     ai_secrets_view_redacted_command,
@@ -38,6 +38,7 @@ from dlt._workspace.cli.dlthub.ai.utils import (
     build_toolkits_dependency_map,
     fetch_workbench_base,
     load_toolkits_index,
+    save_toolkits_index,
     resolve_toolkit_dependencies,
     fetch_workbench_toolkit_info,
     fetch_workbench_toolkits,
@@ -52,6 +53,21 @@ from tests.workspace.cli.dlthub.ai.utils import (
     make_mock_workbench,
     make_versioned_workbench,
 )
+
+
+@contextmanager
+def project_index(project_root: Path) -> Iterator[None]:
+    with patch(
+        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
+        return_value=str(project_root / ".dlt" / ".toolkits"),
+    ):
+        yield
+
+
+def install(
+    name: str, base: Path, agent: _AIAgent, project_root: Path, overwrite: bool = False
+) -> None:
+    _install_toolkit(name, base, agent, project_root, load_toolkits_index(), overwrite=overwrite)
 
 
 @pytest.mark.parametrize(
@@ -106,7 +122,6 @@ def test_toolkit_install_all_variants(
     actions = changes.ordinary + changes.shared
 
     assert {a.kind for a in actions} == expected_kinds
-    assert all(not a.conflict for a in actions)
 
     assert _execute_install(changes.ordinary, changes.shared).error is None
 
@@ -202,7 +217,7 @@ def test_toolkit_install_strict_fails_on_bad_frontmatter(
     assert len(warn_list) > 0
 
     with pytest.raises(CliCommandException):
-        _report_changes(changes, strict=True)
+        _install_toolkit("test-toolkit", toolkit_dir.parent, variant, project_root, {}, strict=True)
 
 
 def test_toolkit_install_skip_existing() -> None:
@@ -220,8 +235,8 @@ def test_toolkit_install_skip_existing() -> None:
     changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     actions = changes.ordinary + changes.shared
 
-    skill_action = next(a for a in actions if a.source_name == "find-source")
-    assert skill_action.conflict is True
+    assert not any(a.source_name == "find-source" for a in actions)
+    assert existing_skill / "SKILL.md" in changes.kept
 
     installed = _execute_install(changes.ordinary, changes.shared).installed
     # agent, command, rule and ignore file; the conflicting skill is skipped
@@ -252,15 +267,7 @@ def test_codex_install_caps_long_descriptions() -> None:
         encoding="utf-8",
     )
 
-    _apply_toolkit(
-        "test-toolkit",
-        toolkit_dir.parent,
-        _CodexAgent(),
-        project_root,
-        load_toolkits_index(),
-        mode="install",
-        overwrite=False,
-    )
+    install("test-toolkit", toolkit_dir.parent, _CodexAgent(), project_root)
 
     # every installed SKILL.md description fits the limit and is marked truncated
     for rel in (
@@ -305,7 +312,6 @@ def test_toolkit_install_mcp_all_variants(
 
     mcp_actions = [a for a in actions if a.kind == "mcp"]
     assert len(mcp_actions) == 1
-    assert not mcp_actions[0].conflict
     assert isinstance(mcp_actions[0].content_or_path, str)
 
     assert _execute_install(changes.ordinary, changes.shared).error is None
@@ -442,15 +448,14 @@ def test_toolkit_install_overwrite() -> None:
 
     changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
     actions = changes.ordinary + changes.shared
-    rule_action = next(a for a in actions if a.source_name == "coding")
-    assert rule_action.conflict is True
+    assert not any(a.source_name == "coding" for a in actions)
+    assert rule_dest / "test-toolkit-coding.md" in changes.kept
 
     changes = _plan_toolkit_install(
         toolkit_dir, variant, project_root, "test-toolkit", overwrite=True
     )
     actions = changes.ordinary + changes.shared
-    rule_action = next(a for a in actions if a.source_name == "coding")
-    assert rule_action.conflict is False
+    assert any(a.source_name == "coding" for a in actions)
 
     installed = _execute_install(changes.ordinary, changes.shared).installed
     # overwrite clears the conflict: skill, agent, command, rule and ignore file are installed
@@ -504,8 +509,7 @@ def test_toolkit_install_overwrite_skill() -> None:
         toolkit_dir, variant, project_root, "test-toolkit", overwrite=True
     )
     actions = changes.ordinary + changes.shared
-    skill_action = next(a for a in actions if a.source_name == "find-source")
-    assert skill_action.conflict is False
+    assert any(a.source_name == "find-source" for a in actions)
 
     assert _execute_install(changes.ordinary, changes.shared).error is None
 
@@ -538,19 +542,8 @@ def test_install_tracks_files_in_index() -> None:
     actions = changes.ordinary + changes.shared
     assert not any(a.kind == "mcp" for a in actions)
 
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
-        _apply_toolkit(
-            "test-toolkit",
-            toolkit_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=False,
-        )
+    with project_index(project_root):
+        install("test-toolkit", toolkit_dir.parent, variant, project_root)
         idx = load_toolkits_index()
 
     entry = idx["test-toolkit"]
@@ -588,19 +581,8 @@ def test_install_tracks_mcp_server_names() -> None:
     mcp_actions = [a for a in actions if a.kind == "mcp"]
     assert len(mcp_actions) == 1
 
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
-        _apply_toolkit(
-            "test-toolkit",
-            toolkit_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=False,
-        )
+    with project_index(project_root):
+        install("test-toolkit", toolkit_dir.parent, variant, project_root)
         idx = load_toolkits_index()
 
     entry = idx["test-toolkit"]
@@ -616,19 +598,8 @@ def test_overwrite_replaces_file_index() -> None:
     project_root.mkdir()
     variant = _ClaudeAgent()
 
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
-        _apply_toolkit(
-            "test-toolkit",
-            toolkit_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=False,
-        )
+    with project_index(project_root):
+        install("test-toolkit", toolkit_dir.parent, variant, project_root)
         idx = load_toolkits_index()
         original_files = dict(idx["test-toolkit"]["files"])
 
@@ -643,15 +614,7 @@ def test_overwrite_replaces_file_index() -> None:
             encoding="utf-8",
         )
 
-        _apply_toolkit(
-            "test-toolkit",
-            toolkit_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=True,
-        )
+        install("test-toolkit", toolkit_dir.parent, variant, project_root, overwrite=True)
         idx2 = load_toolkits_index()
 
     new_files = idx2["test-toolkit"]["files"]
@@ -679,21 +642,10 @@ def test_overwrite_removes_files_the_new_version_does_not_ship() -> None:
     (toolkit_dir / "skills" / "find-source" / "refs").mkdir()
     (toolkit_dir / "skills" / "find-source" / "refs" / "old.md").write_text("old", encoding="utf-8")
 
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
+    with project_index(project_root):
         changes = _plan_toolkit_install(toolkit_dir, variant, project_root, "test-toolkit")
         actions = changes.ordinary + changes.shared
-        _apply_toolkit(
-            "test-toolkit",
-            toolkit_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=False,
-        )
+        install("test-toolkit", toolkit_dir.parent, variant, project_root)
         previous_files = load_toolkits_index()["test-toolkit"]["files"]
         assert skill_dest / "refs" / "old.md" in {project_root / p for p in previous_files}
 
@@ -718,31 +670,23 @@ def test_overwrite_removes_files_the_new_version_does_not_ship() -> None:
         assert set(removals) == {
             skill_dest / "refs" / "old.md",
             agent_dest / "crash_helper.py",
-            rule_dest,
         }
         assert removals[agent_dest / "crash_helper.py"].kind == "agent"
-        assert removals[rule_dest].kind == "rule"
-        _apply_toolkit(
-            "test-toolkit",
-            toolkit_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=True,
-        )
+        assert rule_dest in changes.kept
+        install("test-toolkit", toolkit_dir.parent, variant, project_root, overwrite=True)
         new_files = load_toolkits_index()["test-toolkit"]["files"]
 
-    # stale files are removed, a modified one too, and the folder they emptied
+    # unmodified stale files are removed, modified ones keep their baseline
     assert not (skill_dest / "refs").exists()
     assert not (agent_dest / "crash_helper.py").exists()
-    assert not rule_dest.exists()
+    assert rule_dest.read_text() == "edited by the user"
     # the coding agent's folders stay, even when the last rule was removed
     assert rule_dest.parent.is_dir()
     assert (agent_dest / "AGENT.md").is_file()
     # a file the toolkit never installed stays and is not tracked
     assert (skill_dest / "mine.txt").read_text(encoding="utf-8") == "user file"
     assert {project_root / p for p in new_files} == {
+        rule_dest,
         skill_dest / "SKILL.md",
         skill_dest / "helper.py",
         agent_dest / "AGENT.md",
@@ -773,45 +717,20 @@ def test_overlapping_toolkits(overwrite: bool) -> None:
         "---\ndescription: Style rule\n---\n# Style\nBe consistent.", encoding="utf-8"
     )
 
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
-        _apply_toolkit(
-            "toolkit-a",
-            toolkit_a.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=False,
-        )
+    with project_index(project_root):
+        install("toolkit-a", toolkit_a.parent, variant, project_root)
         idx = load_toolkits_index()
         a_ignore_hash = idx["toolkit-a"]["files"][".claudeignore"]["sha3_256"]
 
-        _apply_toolkit(
-            "toolkit-b",
-            toolkit_b_dir.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=overwrite,
-        )
+        install("toolkit-b", toolkit_b_dir.parent, variant, project_root, overwrite=overwrite)
         idx = load_toolkits_index()
 
     assert idx["toolkit-a"]["files"][".claudeignore"]["sha3_256"] == a_ignore_hash
     disk_hash = hashlib.sha3_256((project_root / ".claudeignore").read_bytes()).hexdigest()
 
-    if overwrite:
-        b_ignore_hash = idx["toolkit-b"]["files"][".claudeignore"]["sha3_256"]
-        assert disk_hash == b_ignore_hash
-        assert b_ignore_hash != a_ignore_hash
-        assert idx["toolkit-b"]["installed_at"] > idx["toolkit-a"]["installed_at"]
-    else:
-        assert disk_hash == a_ignore_hash
-        assert ".claudeignore" not in idx["toolkit-b"]["files"]
-        assert any("style" in p for p in idx["toolkit-b"]["files"])
+    assert disk_hash == a_ignore_hash
+    assert ".claudeignore" not in idx["toolkit-b"]["files"]
+    assert any("style" in p for p in idx["toolkit-b"]["files"])
 
 
 def test_update_keeps_files_another_toolkit_installed() -> None:
@@ -821,43 +740,48 @@ def test_update_keeps_files_another_toolkit_installed() -> None:
     toolkit_a = make_mock_toolkit(toolkit_name="toolkit-a")
     make_mock_toolkit(toolkit_name="toolkit-b")
 
-    with patch(
-        "dlt._workspace.cli.dlthub.ai.utils._toolkits_index_path",
-        return_value=str(project_root / ".dlt" / ".toolkits"),
-    ):
-        _apply_toolkit(
-            "toolkit-a",
-            toolkit_a.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-        )
-        _apply_toolkit(
-            "toolkit-b",
-            toolkit_a.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=True,
-        )
+    with project_index(project_root):
+        install("toolkit-a", toolkit_a.parent, variant, project_root)
+        install("toolkit-b", toolkit_a.parent, variant, project_root, overwrite=True)
+        # legacy co-ownership: dropping one claim must preserve the other
+        records = load_toolkits_index()
+        records["toolkit-b"]["files"][".claudeignore"] = records["toolkit-a"]["files"][
+            ".claudeignore"
+        ]
+        save_toolkits_index(records)
         # the new version of toolkit-a drops the ignore file toolkit-b also installed
         (toolkit_a / ".claudeignore").unlink()
-        _apply_toolkit(
-            "toolkit-a",
-            toolkit_a.parent,
-            variant,
-            project_root,
-            load_toolkits_index(),
-            mode="install",
-            overwrite=True,
-        )
+        install("toolkit-a", toolkit_a.parent, variant, project_root, overwrite=True)
         idx = load_toolkits_index()
 
     assert (project_root / ".claudeignore").is_file()
-    assert ".claudeignore" in idx["toolkit-a"]["files"]
+    assert ".claudeignore" not in idx["toolkit-a"]["files"]
     assert ".claudeignore" in idx["toolkit-b"]["files"]
+
+
+def test_reinstall_blocks_on_recorded_shared_document() -> None:
+    project_root = Path("project")
+    project_root.mkdir()
+    variant = _ClaudeAgent()
+    toolkit = make_mock_toolkit()
+    agents_md = project_root / "AGENTS.md"
+
+    with project_index(project_root):
+        install("test-toolkit", toolkit.parent, variant, project_root)
+        # a record with a matching hash would otherwise make AGENTS.md a removable orphan
+        agents_md.write_text("# shared instructions\n", encoding="utf-8")
+        records = load_toolkits_index()
+        records["test-toolkit"]["files"]["AGENTS.md"] = {
+            "sha3_256": hashlib.sha3_256(agents_md.read_bytes()).hexdigest()
+        }
+        save_toolkits_index(records)
+
+        with pytest.raises(CliCommandException):
+            install("test-toolkit", toolkit.parent, variant, project_root, overwrite=True)
+        idx = load_toolkits_index()
+
+    assert agents_md.read_text(encoding="utf-8") == "# shared instructions\n"
+    assert "AGENTS.md" in idx["test-toolkit"]["files"]
 
 
 def test_resolve_agent_from_init_index(capsys: pytest.CaptureFixture[str]) -> None:
@@ -1152,8 +1076,6 @@ def test_toolkit_index_lifecycle(capsys: pytest.CaptureFixture[str]) -> None:
         overwrite_date = idx["my-toolkit"]["installed_at"]
         variant = _ClaudeAgent()
         changes = _plan_toolkit_install(base2 / "my-toolkit", variant, project_root, "my-toolkit")
-        actions = changes.ordinary + changes.shared
-        assert all(not a.conflict for a in actions)
         installed = _execute_install(changes.ordinary, changes.shared).installed
         assert installed == 0
         idx = load_toolkits_index()

@@ -1,13 +1,13 @@
 import os
 from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Literal, NamedTuple, Optional, Set, Tuple
+from typing import Any, Dict, List, NamedTuple, Optional, Set, Tuple
 import tomlkit
 import tomlkit.exceptions
 import yaml
 
 from dlt.common.runtime import run_context
-from dlt.common.pendulum import pendulum
 from dlt._workspace.access import FULL_ACCESS, format_access, parse_access
 from dlt._workspace.cli import echo as fmt, utils
 from dlt._workspace.cli.utils import DEFAULT_MCP_FEATURES, mcp_stdio_args, resolve_features
@@ -133,11 +133,12 @@ def ai_mcp_install_command(
     if config_path.is_file():
         existing_content = config_path.read_text(encoding="utf-8")
 
-    if not overwrite:
-        existing_servers = variant.parse_mcp_servers(existing_content)
-        if name in existing_servers:
-            fmt.echo("MCP server %s already configured in %s" % (fmt.bold(name), config_path))
-            return
+    new_servers = _select_mcp_servers(
+        new_servers, variant.parse_mcp_servers(existing_content), overwrite
+    )
+    if not new_servers:
+        fmt.echo("MCP server %s already configured in %s" % (fmt.bold(name), config_path))
+        return
 
     merged = variant.merge_mcp_servers(existing_content, new_servers)
     config_path.parent.mkdir(parents=True, exist_ok=True)
@@ -173,102 +174,110 @@ def _validate_skill_dir(skill_path: Path) -> List[str]:
     return errors
 
 
+class ToolkitCandidates(NamedTuple):
+    ordinary: List[InstallAction]
+    mcp_servers: Dict[str, Any]
+    warnings: List[str]
+
+
 class ToolkitChanges(NamedTuple):
     ordinary: List[InstallAction]
     shared: List[InstallAction]
     warnings: List[str]
-    retained: Dict[Path, str]
+    kept: Dict[Path, str]
+    blocked: Dict[Path, str]
+    released: List[Path]
     mcp_servers: List[str]
     """Declared server names, including servers that need no configuration change."""
+    mcp_path: Path
+
+    @property
+    def is_empty(self) -> bool:
+        return not (
+            self.ordinary
+            or self.mcp_servers
+            or self.shared
+            or self.warnings
+            or self.kept
+            or self.blocked
+            or self.released
+        )
+
+
+class Refusal(NamedTuple):
+    """Why an action must not run; `fatal` blocks the toolkit, otherwise the path is kept."""
+
+    reason: str
+    fatal: bool
 
 
 class ExecutionResult(NamedTuple):
-    written: List[Tuple[InstallAction, str]]
+    written: List[Tuple[InstallAction, Optional[str]]]
+    """Completed writes; shared-document outcomes have no ownership hash."""
     removed: List[Path]
     error: Optional[OSError]
-    unchanged: List[Tuple[InstallAction, str]]
+    unchanged: List[Tuple[InstallAction, Optional[str]]]
 
     @property
     def installed(self) -> int:
         return len({(a.kind, a.source_name, a.source_kind) for a, _ in self.written})
 
 
-def _plan_toolkit_install(
-    toolkit_dir: Path,
+def _collect_toolkit_candidates(
+    workbench_dir: Path,
     agent: "_AIAgent",
     project_root: Path,
     toolkit_name: str,
-    overwrite: bool = False,
-    previous_files: Optional[Dict[str, Any]] = None,
-    other_claims: Optional[Set[str]] = None,
-) -> ToolkitChanges:
-    """Plan which toolkit files to write, keep, or remove, then merge shared configuration.
-
-    Invalid components prevent cleanup because their files may still belong to the toolkit.
-    """
+) -> ToolkitCandidates:
+    """Collect transformed source files and validation warnings, without replacement policy."""
     actions: List[InstallAction] = []
     warnings: List[str] = []
 
-    # skills (directory-based, each with SKILL.md + optional files)
-    skills_dir = toolkit_dir / "skills"
-    if skills_dir.is_dir():
-        for skill_path in sorted(skills_dir.iterdir()):
-            if not skill_path.is_dir():
+    # skills and agents are directories with a marker file, copied verbatim
+    folder_types: List[Tuple[TComponentType, str]] = [
+        ("skill", "skills"),
+        ("agent", DLTHUB_AGENTS_DIR),
+    ]
+    for component_type, dir_name in folder_types:
+        src_dir = workbench_dir / dir_name
+        if not src_dir.is_dir():
+            continue
+        for component_path in sorted(src_dir.iterdir()):
+            if not component_path.is_dir():
                 continue
-            if not (skill_path / COMPONENT_MARKERS["skill"]).is_file():
+            if not (component_path / COMPONENT_MARKERS[component_type]).is_file():
                 continue
-            errors = _validate_skill_dir(skill_path)
+            errors = _validate_skill_dir(component_path)
             if errors:
                 for err in errors:
-                    warnings.append("Skipping skill %s: %s" % (skill_path.name, err))
+                    warnings.append(
+                        "Skipping %s %s: %s" % (component_type, component_path.name, err)
+                    )
                 continue
             actions.extend(
                 agent.install_actions(
-                    "skill",
-                    skill_path,
-                    skill_path.name,
+                    component_type,
+                    component_path,
+                    component_path.name,
                     toolkit_name,
                     project_root,
-                    # Existing files may still be safe to update, so bypass the adapter's
-                    # existence-only conflicts. This plans content without writing it;
-                    # _reconcile_toolkit_files below enforces the user's overwrite flag.
-                    overwrite=True,
-                )
-            )
-
-    # agents (directory-based, each with AGENT.md + optional files), copied verbatim
-    agents_dir = toolkit_dir / DLTHUB_AGENTS_DIR
-    if agents_dir.is_dir():
-        for agent_path in sorted(agents_dir.iterdir()):
-            if not agent_path.is_dir():
-                continue
-            if not (agent_path / COMPONENT_MARKERS["agent"]).is_file():
-                continue
-            errors = _validate_skill_dir(agent_path)
-            if errors:
-                for err in errors:
-                    warnings.append("Skipping agent %s: %s" % (agent_path.name, err))
-                continue
-            actions.extend(
-                agent.install_actions(
-                    "agent", agent_path, agent_path.name, toolkit_name, project_root, overwrite=True
                 )
             )
 
     # ignore file (.claudeignore → agent-specific name)
-    ignore_file = toolkit_dir / ".claudeignore"
+    ignore_file = workbench_dir / ".claudeignore"
     if ignore_file.is_file():
         raw_content = ignore_file.read_text(encoding="utf-8")
         actions.extend(
             agent.install_actions(
-                "ignore", raw_content, ".claudeignore", toolkit_name, project_root, overwrite=True
+                "ignore", raw_content, ".claudeignore", toolkit_name, project_root
             )
         )
 
     # commands and rules (markdown files with frontmatter)
     component_types: List[Tuple[TComponentType, str]] = [("command", "commands"), ("rule", "rules")]
     for component_type, dir_name in component_types:
-        src_dir = toolkit_dir / dir_name
+        src_dir = workbench_dir / dir_name
         if not src_dir.is_dir():
             continue
         for md_file in sorted(src_dir.glob("*.md")):
@@ -285,180 +294,218 @@ def _plan_toolkit_install(
                     source_name,
                     toolkit_name,
                     project_root,
-                    overwrite=True,
                 )
             )
 
-    # Compare shipped files with the saved hashes and disk contents before choosing
-    # writes and removals, so local edits stay protected unless overwrite is requested.
-    ordinary, retained = _reconcile_toolkit_files(
-        actions,
+    return ToolkitCandidates(actions, read_workbench_toolkit_mcp_servers(workbench_dir), warnings)
+
+
+def _select_mcp_servers(
+    desired: Dict[str, Any], existing: Dict[str, Any], overwrite: bool
+) -> Dict[str, Any]:
+    """Select shared keys to merge; unrelated keys always remain with their owner."""
+    return {name: config for name, config in desired.items() if overwrite or name not in existing}
+
+
+def _materialize_mcp(
+    desired: Dict[str, Any], agent: "_AIAgent", project_root: Path, overwrite: bool
+) -> List[InstallAction]:
+    config_path = agent.mcp_config_path(project_root)
+    existing = config_path.read_bytes().decode("utf-8") if config_path.is_file() else ""
+    selected = _select_mcp_servers(desired, agent.parse_mcp_servers(existing), overwrite)
+    if not selected:
+        return []
+    merged = agent.merge_mcp_servers(existing, selected)
+    if merged == existing:
+        return []
+    return [InstallAction("mcp", ", ".join(sorted(selected)), config_path, "save", merged)]
+
+
+def _plan_toolkit_install(
+    workbench_dir: Path,
+    agent: "_AIAgent",
+    project_root: Path,
+    toolkit_name: str,
+    overwrite: bool = False,
+    previous_files: Optional[Dict[str, Any]] = None,
+    other_claims: Optional[Dict[str, Set[str]]] = None,
+    *,
+    update: bool = False,
+) -> ToolkitChanges:
+    """Resolve candidates before materializing shared documents; no disk mutations."""
+    candidates = _collect_toolkit_candidates(workbench_dir, agent, project_root, toolkit_name)
+    ordinary, kept, blocked, released = _reconcile_toolkit_files(
+        candidates.ordinary,
         previous_files or {},
-        other_claims or set(),
+        other_claims or {},
         agent,
         project_root,
         overwrite=overwrite,
-        complete=not warnings,
+        complete=not candidates.warnings,
+        update=update,
     )
-    # Don't add AGENTS.md registrations for skipped or removed rules.
     finalized = agent.finalize_actions(
         [a for a in ordinary if a.op != "remove"],
         project_root,
-        workbench_base=toolkit_dir.parent,
+        workbench_base=workbench_dir.parent,
     )
     shared = [a for a in finalized if a.skip_index or a.kind == "mcp"]
-
-    # mcp server definitions (merge into agent config)
-    mcp_servers = read_workbench_toolkit_mcp_servers(toolkit_dir)
-    if mcp_servers:
-        config_path = agent.mcp_config_path(project_root)
-        existing_content = ""
-        existing_servers: Dict[str, Any] = {}
-        if config_path.is_file():
-            existing_content = config_path.read_bytes().decode("utf-8")
-            existing_servers = agent.parse_mcp_servers(existing_content)
-
-        new_servers = (
-            dict(mcp_servers)
-            if overwrite
-            else {
-                name: config for name, config in mcp_servers.items() if name not in existing_servers
-            }
-        )
-        if new_servers:
-            merged = agent.merge_mcp_servers(existing_content, new_servers)
-            if merged.encode("utf-8") != existing_content.encode("utf-8"):
-                shared.append(
-                    InstallAction(
-                        kind="mcp",
-                        source_name=", ".join(sorted(new_servers)),
-                        dest_path=config_path,
-                        op="save",
-                        content_or_path=merged,
-                        conflict=False,
-                    )
-                )
-    return ToolkitChanges(ordinary, shared, warnings, retained, sorted(mcp_servers))
+    if candidates.mcp_servers:
+        shared.extend(_materialize_mcp(candidates.mcp_servers, agent, project_root, overwrite))
+    return ToolkitChanges(
+        ordinary,
+        shared,
+        candidates.warnings,
+        kept,
+        blocked,
+        released,
+        sorted(candidates.mcp_servers),
+        agent.mcp_config_path(project_root),
+    )
 
 
 def _reconcile_toolkit_files(
     shipped: List[InstallAction],
     previous_files: Dict[str, Any],
-    other_claims: Set[str],
+    other_claims: Dict[str, Set[str]],
     agent: "_AIAgent",
     project_root: Path,
     *,
     overwrite: bool,
     complete: bool,
-) -> Tuple[List[InstallAction], Dict[Path, str]]:
-    """Reconcile shipped paths, this toolkit's record and disk contents.
+    update: bool = False,
+) -> Tuple[List[InstallAction], Dict[Path, str], Dict[Path, str], List[Path]]:
+    """Own ordinary-file replacement, deletion and ownership policy.
 
-    Claims by other toolkits protect deletion only. Shared documents never enter
-    this calculation. Paths are checked lexically; symlinked ancestor folders work.
+    Updates preflight the whole toolkit. Foreign-owned components are skipped
+    in full, even with overwrite. Ambiguous ownership blocks the operation.
+    Fresh installs may also skip untracked collisions.
+    A forced replacement never removes a local edit without a replacement or
+    changes a file claimed by another toolkit.
     """
-    actions = list(shipped)
-    retained: Dict[Path, str] = {}
+    accepted: List[InstallAction] = []
+    kept: Dict[Path, str] = {}
+    blocked: Dict[Path, str] = {}
+    released: List[Path] = []
+    recorded: Dict[str, Any] = {}
+    for rel, record in previous_files.items():
+        if Path(rel).is_absolute() or ".." in Path(rel).parts:
+            blocked[project_root / rel] = "toolkit record points outside the project"
+        else:
+            recorded[rel] = record
+
     counts = Counter(a.dest_path for a in shipped)
-    tracked = {
-        project_root / p
-        for p in previous_files
-        if not Path(p).is_absolute() and ".." not in Path(p).parts
-    }
+    actions = list(shipped)
+    for rel in sorted(recorded):
+        path = project_root / rel
+        if path in counts:
+            continue
+        if not complete:
+            kept[path] = "source inventory is incomplete; keeping tracked orphan"
+        elif rel in other_claims:
+            released.append(path)
+        else:
+            actions.append(_removal_action(agent, project_root, rel))
+
+    tracked = {project_root / rel for rel in recorded}
     shared_paths = {project_root / "AGENTS.md"} | {
         host().mcp_config_path(project_root) for host in AI_AGENTS.values()
     }
+    fatal = update or bool(previous_files)
+    for action in actions:
+        path = action.dest_path
+        if action.op != "remove":
+            # ownership is decided for the whole component, before any per-file check
+            component = action.component_dir or path
+            refusal = _ownership_refusal(component, other_claims, tracked, project_root)
+            if refusal:
+                (blocked if refusal.fatal else kept)[component] = refusal.reason
+                continue
+        rel = _project_relpath(path, project_root)
+        if path in shared_paths:
+            refusal = Refusal("shared document is not an ordinary toolkit file", fatal)
+        elif counts[path] > 1:
+            refusal = Refusal("multiple components ship this destination", fatal)
+        elif rel is None:
+            refusal = Refusal("path is outside the project", fatal)
+        else:
+            refusal = _disk_refusal(action, rel, recorded, tracked, overwrite, fatal)
+        if refusal:
+            (blocked if refusal.fatal else kept)[path] = refusal.reason
+        else:
+            accepted.append(action)
+    return accepted, kept, blocked, released
+
+
+def _ownership_refusal(
+    component: Path, other_claims: Dict[str, Set[str]], tracked: Set[Path], project_root: Path
+) -> Optional[Refusal]:
+    """Refuses a component other toolkits claim: skipped for one owner, fatal when ambiguous."""
+    owners = {
+        owner
+        for rel, names in other_claims.items()
+        if project_root / rel == component or component in (project_root / rel).parents
+        for owner in names
+    }
+    if not owners:
+        return None
+    if len(owners) > 1 or any(p == component or component in p.parents for p in tracked):
+        return Refusal("ambiguous ownership with %s" % ", ".join(sorted(owners)), True)
+    return Refusal("owned by %s; skipping this component" % next(iter(owners)), False)
+
+
+def _removal_action(agent: "_AIAgent", project_root: Path, rel: str) -> InstallAction:
+    """Remove action for a recorded file, pruning up to its innermost component folder."""
+    path = project_root / rel
     component_dirs = sorted(
         ((kind, agent.component_dir(kind, project_root)) for kind in agent._DIRS),
         key=lambda item: len(item[1].parts),
         reverse=True,
     )
-    for rel in sorted(previous_files):
-        path = project_root / rel
-        if path in counts or path in shared_paths:
-            continue
-        if not complete:
-            retained[path] = "source inventory is incomplete; keeping tracked orphan"
-            continue
-        if rel in other_claims:
-            retained[path] = "also tracked by another toolkit"
-            continue
-        kind, base = next(
-            ((kind, base) for kind, base in component_dirs if base in path.parents),
-            ("ignore", project_root),
-        )
-        actions.append(
-            InstallAction(
-                kind=kind,
-                source_name=rel,
-                dest_path=path,
-                op="remove",
-                content_or_path="",
-                conflict=False,
-                component_dir=base,
+    kind, base = next(
+        ((kind, base) for kind, base in component_dirs if base in path.parents),
+        ("ignore", project_root),
+    )
+    return InstallAction(kind, rel, path, "remove", "", component_dir=base)
+
+
+def _project_relpath(path: Path, project_root: Path) -> Optional[str]:
+    try:
+        rel = path.relative_to(project_root)
+    except ValueError:
+        return None
+    return None if ".." in rel.parts else str(rel)
+
+
+def _disk_refusal(
+    action: InstallAction,
+    rel: str,
+    recorded: Dict[str, Any],
+    tracked: Set[Path],
+    overwrite: bool,
+    fatal: bool,
+) -> Optional[Refusal]:
+    """Refuses replacing or removing the file on disk, or returns None when the action may run."""
+    path = action.dest_path
+    writes = action.op != "remove"
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        return Refusal("destination is not a regular file", fatal)
+    if writes and not path.exists() and rel in recorded and not overwrite:
+        return Refusal("tracked file was deleted locally", True)
+    # check the recorded baseline even when disk already matches upstream
+    if path.is_file() and (not overwrite or not writes):
+        baseline = recorded.get(rel, {}).get("sha3_256")
+        if not baseline or compute_file_hash(path) != baseline:
+            # an overwrite has no upstream replacement for an edited orphan
+            return Refusal(
+                "file is modified or has no recorded hash", fatal and (writes or not overwrite)
             )
-        )
-
-    components: Dict[Optional[Path], List[InstallAction]] = {}
-    for action in actions:
-        components.setdefault(action.component_dir, []).append(action)
-
-    for folder, component in components.items():
-        untracked_folder = (
-            folder is not None
-            and folder.exists()
-            and not overwrite
-            and not any(folder in path.parents for path in tracked)
-        )
-        for action in component:
-            path = action.dest_path
-            reason = None
-            try:
-                rel = str(path.relative_to(project_root))
-            except ValueError:
-                rel = str(path)
-                reason = "path is outside the project"
-            if ".." in Path(rel).parts or Path(rel).is_absolute():
-                reason = "path is outside the project"
-            # An absolute index key must not be accepted even if it points inside the project.
-            if str(path) in previous_files and Path(str(path)).is_absolute():
-                reason = "absolute path in toolkit record"
-            if path in shared_paths:
-                reason = "shared document is not an ordinary toolkit file"
-            elif counts[path] > 1:
-                reason = "multiple components ship this destination"
-            if reason is None:
-                if path.is_symlink() or (path.exists() and not path.is_file()):
-                    reason = "destination is not a regular file"
-                elif not overwrite:
-                    if not path.exists():
-                        if untracked_folder:
-                            reason = "component has a missing file"
-                    else:
-                        # Failure to read a user-owned file means we cannot adopt it.
-                        # Source-read failures still propagate before any changes.
-                        try:
-                            disk_bytes = path.read_bytes()
-                        except OSError:
-                            if not untracked_folder:
-                                raise
-                            reason = "component has an unreadable file"
-                        else:
-                            if action.op == "remove" or disk_bytes != _action_bytes(action):
-                                baseline = previous_files.get(rel, {}).get("sha3_256")
-                                if not baseline or compute_file_hash(path) != baseline:
-                                    reason = "file is modified or has no recorded hash"
-            if reason:
-                retained[path] = reason
-
-        # Adopt a user-owned component only if every shipped file already matches.
-        # A matching marker alone must not allow helpers to be added on the next run.
-        if untracked_folder and any(a.dest_path in retained for a in component):
-            for action in component:
-                retained[action.dest_path] = (
-                    "component folder exists and is not tracked by this toolkit"
-                )
-
-    return [a._replace(conflict=a.dest_path in retained) for a in actions], retained
+    if overwrite or not writes:
+        return None
+    folder = action.component_dir
+    if folder is not None and folder.exists() and not any(folder in p.parents for p in tracked):
+        return Refusal("component folder exists and is not tracked by this toolkit", fatal)
+    return None
 
 
 def _remove_installed_file(path: Path, component_dir: Path) -> None:
@@ -468,6 +515,23 @@ def _remove_installed_file(path: Path, component_dir: Path) -> None:
     while component_dir in parent.parents and parent.is_dir() and not any(parent.iterdir()):
         parent.rmdir()
         parent = parent.parent
+
+
+def _remove_confirmed(action: InstallAction, removed: List[Path]) -> None:
+    """Removes the action's file, appending it to `removed` once it is gone, even on error."""
+    assert action.component_dir is not None
+    try:
+        _remove_installed_file(action.dest_path, action.component_dir)
+    except OSError:
+        # unlink may have succeeded before pruning failed
+        try:
+            action.dest_path.lstat()
+        except FileNotFoundError:
+            removed.append(action.dest_path)
+        except OSError:
+            pass
+        raise
+    removed.append(action.dest_path)
 
 
 def _action_bytes(action: "InstallAction") -> bytes:
@@ -482,12 +546,17 @@ def _execute_install(ordinary: List[InstallAction], shared: List[InstallAction])
     Preparation errors propagate before mutation. Disk errors stop execution and
     travel with completed outcomes so the caller can persist them before raising.
     """
-    pending = [a for a in ordinary + shared if not a.conflict]
+    pending = ordinary + shared
+    tracked_paths = {a.dest_path for a in ordinary}
     writes = [(a, _action_bytes(a)) for a in pending if a.op != "remove"]
     removals = [a for a in pending if a.op == "remove"]
-    written: List[Tuple[InstallAction, str]] = []
+    written: List[Tuple[InstallAction, Optional[str]]] = []
     removed: List[Path] = []
-    unchanged: List[Tuple[InstallAction, str]] = []
+    unchanged: List[Tuple[InstallAction, Optional[str]]] = []
+
+    def tracked_hash(path: Path) -> Optional[str]:
+        return compute_file_hash(path) if path in tracked_paths else None
+
     try:
         for action, data in writes:
             try:
@@ -497,39 +566,27 @@ def _execute_install(ordinary: List[InstallAction], shared: List[InstallAction])
                 # prevent replacing it; the new file must still be readable afterward.
                 matches = False
             if matches:
-                unchanged.append((action, compute_file_hash(action.dest_path)))
+                unchanged.append((action, tracked_hash(action.dest_path)))
                 continue
             action.dest_path.parent.mkdir(parents=True, exist_ok=True)
             safe_write_bytes(action.dest_path, data)
             try:
-                disk_hash = compute_file_hash(action.dest_path)
+                disk_hash = tracked_hash(action.dest_path)
             except OSError as ex:
                 raise OSError(
-                    "Wrote %s but could not record its disk hash; rerun update to recover: %s"
-                    % (action.dest_path, ex)
+                    "Wrote %s but could not record its disk hash; rerun update --overwrite to"
+                    " recover: %s" % (action.dest_path, ex)
                 ) from ex
             written.append((action, disk_hash))
         for action in removals:
-            assert action.component_dir is not None
-            try:
-                _remove_installed_file(action.dest_path, action.component_dir)
-            except OSError:
-                # Unlink may have succeeded before pruning failed. Confirm absence.
-                try:
-                    action.dest_path.lstat()
-                except FileNotFoundError:
-                    removed.append(action.dest_path)
-                except OSError:
-                    pass
-                raise
-            removed.append(action.dest_path)
+            _remove_confirmed(action, removed)
     except OSError as ex:
         return ExecutionResult(written, removed, ex, unchanged)
     return ExecutionResult(written, removed, None, unchanged)
 
 
 def _resolve_agent(
-    agent: Optional[str], project_root: Path, records: Dict[str, TToolkitIndexEntry]
+    agent: Optional[str], project_root: Path, installed_toolkits: Dict[str, TToolkitIndexEntry]
 ) -> "_AIAgent":
     """Resolve an explicit agent name or auto-detect. Raises on failure."""
     if agent is not None:
@@ -539,7 +596,7 @@ def _resolve_agent(
         return AI_AGENTS[agent]()
 
     # check init toolkit in .toolkits index for a previously recorded agent
-    init_entry = records.get(_INIT_TOOLKIT)
+    init_entry = installed_toolkits.get(_INIT_TOOLKIT)
     if isinstance(init_entry, dict):
         recorded = init_entry.get("agent")
         if recorded and recorded in AI_AGENTS:
@@ -560,41 +617,18 @@ def _resolve_agent(
     return best_agent
 
 
-def _report_changes(changes: ToolkitChanges, strict: bool = False) -> None:
-    """Report validation and protected files before any writes, enforcing strict mode."""
+def _report_changes(changes: ToolkitChanges) -> None:
+    """Describe preflight outcomes without deciding whether execution is allowed."""
     for warning in changes.warnings:
         fmt.warning(warning)
-    if strict and changes.warnings:
-        fmt.error(
-            "%d validation error(s). Fix the issues above or run without --strict."
-            % len(changes.warnings)
-        )
-        raise CliCommandException()
-    folder_conflicts = {
-        a.dest_path: a.component_dir
-        for a in changes.ordinary
-        if a.conflict and a.component_dir is not None
-    }
-    reported = set()
-    for path, reason in changes.retained.items():
-        display_path = (
-            folder_conflicts.get(path, path) if reason.startswith("component folder") else path
-        )
-        if (display_path, reason) not in reported:
-            fmt.warning("Keeping %s: %s" % (display_path, reason))
-            reported.add((display_path, reason))
+    for path, reason in changes.kept.items():
+        fmt.warning("Keeping %s: %s" % (path, reason))
+    for path, reason in changes.blocked.items():
+        fmt.warning("Cannot update %s: %s" % (path, reason))
 
 
-def _report_result(changes: ToolkitChanges, result: ExecutionResult) -> None:
+def _report_result(result: ExecutionResult) -> None:
     """Show completed changes, excluding files that already matched."""
-    protected_folders = {
-        a.component_dir for a in changes.ordinary if a.conflict and a.component_dir is not None
-    }
-    changed_paths = [a.dest_path for a, _ in result.written] + result.removed
-    for folder in sorted(protected_folders):
-        if not any(folder in path.parents for path in changed_paths):
-            continue
-        fmt.warning("Partially updated %s; locally protected files were kept." % folder)
     components: Set[Tuple[str, str, Optional[str]]] = set()
     for action, _ in result.written:
         key = (action.kind, action.source_name, action.source_kind)
@@ -612,172 +646,270 @@ def _report_result(changes: ToolkitChanges, result: ExecutionResult) -> None:
         fmt.echo("  - %s" % path)
 
 
-def _apply_toolkit(
+def _read_workbench_info(workbench_dir: Path, name: str) -> Optional[Dict[str, Any]]:
+    """Read a toolkit's metadata from the workbench, warning when it has none."""
+    meta = read_workbench_toolkit_combined_info(workbench_dir)
+    if meta is None:
+        fmt.warning(
+            "Toolkit %s not found in the workbench (missing .claude-plugin/plugin.json)"
+            % fmt.bold(name)
+        )
+    return meta
+
+
+def _skip_or_fail(name: str, reason: str, strict: bool) -> None:
+    if strict:
+        fmt.error("Cannot update toolkit %s: %s" % (name, reason))
+        raise CliCommandException()
+    fmt.warning("Skipping toolkit %s: %s" % (name, reason))
+
+
+def _toolkit_needs_update(installed_version: str, available_version: str) -> bool:
+    return installed_version != available_version
+
+
+def _install_toolkit(
     name: str,
     base: Path,
     agent: "_AIAgent",
     project_root: Path,
-    records: Dict[str, TToolkitIndexEntry],
+    installed_toolkits: Dict[str, TToolkitIndexEntry],
     *,
-    mode: Literal["install", "update"],
     overwrite: bool = False,
     strict: bool = False,
 ) -> Dict[str, TToolkitIndexEntry]:
-    """Apply one toolkit and save completed outcomes, including after a disk error."""
-    toolkit_dir = base / name
-    meta = read_workbench_toolkit_combined_info(toolkit_dir)
+    """Install one toolkit unless it is already recorded.
+
+    Raises:
+        ValueError: If the toolkit metadata is invalid, before any write.
+        CliCommandException: If preflight blocks the operation, before any write.
+        OSError: If a write or removal fails, after completed changes are recorded.
+    """
+    workbench_dir = base / name
+    meta = _read_workbench_info(workbench_dir, name)
     if meta is None:
-        fmt.warning("Toolkit %s not found (missing .claude-plugin/plugin.json)" % fmt.bold(name))
-        return records
-    try:
-        toolkit_meta = extract_toolkit_info(meta, name)
-    except ValueError as ex:
-        if mode != "update":
-            raise
-        fmt.warning("Skipping toolkit %s: %s" % (name, ex))
-        return records
-    toolkit_name = toolkit_meta["name"]
-    if mode == "update" and toolkit_name != name:
-        fmt.warning(
-            "Skipping toolkit %s: metadata names a different toolkit (%s)" % (name, toolkit_name)
-        )
-        return records
-    local = records.get(toolkit_name)
-    if mode == "install" and local and not overwrite:
-        local_version = local.get("version", "?")
-        if local_version == toolkit_meta["version"]:
-            fmt.echo("Toolkit %s %s is already installed." % (toolkit_name, local_version))
+        return installed_toolkits
+    workbench_info = extract_toolkit_info(meta, name)
+    toolkit_name = workbench_info["name"]
+    installed_toolkit_info = installed_toolkits.get(toolkit_name)
+    if installed_toolkit_info and not overwrite:
+        installed_version = installed_toolkit_info.get("version", "?")
+        if not _toolkit_needs_update(installed_version, workbench_info["version"]):
+            fmt.echo("Toolkit %s %s is already installed." % (toolkit_name, installed_version))
         else:
             fmt.echo(
                 "Toolkit %s %s is installed, version %s available. Use `ai toolkit update` to"
-                " update." % (toolkit_name, local_version, toolkit_meta["version"])
+                " update." % (toolkit_name, installed_version, workbench_info["version"])
             )
-        if workflow_entry_skill := toolkit_meta.get("workflow_entry_skill"):
+        if workflow_entry_skill := workbench_info.get("workflow_entry_skill"):
             fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
-        return records
-
-    if mode == "update":
-        missing = [dep for dep in toolkit_meta.get("dependencies", []) if dep not in records]
-        if missing:
-            fmt.warning(
-                "Toolkit %s has missing dependencies: %s. Install them explicitly."
-                % (toolkit_name, ", ".join(missing))
-            )
+        return installed_toolkits
     return _apply_contents(
-        toolkit_dir,
-        toolkit_meta,
+        workbench_dir,
+        workbench_info,
         agent,
         project_root,
-        records,
-        mode=mode,
+        installed_toolkits,
         overwrite=overwrite,
         strict=strict,
     )
 
 
-def _apply_contents(
-    toolkit_dir: Path,
-    toolkit_meta: TToolkitInfo,
+def _update_toolkit(
+    name: str,
+    base: Path,
     agent: "_AIAgent",
     project_root: Path,
-    records: Dict[str, TToolkitIndexEntry],
+    installed_toolkits: Dict[str, TToolkitIndexEntry],
     *,
-    mode: Literal["install", "update"],
     overwrite: bool = False,
     strict: bool = False,
 ) -> Dict[str, TToolkitIndexEntry]:
-    """Apply contents and persist completed disk observations, including on failure."""
-    toolkit_name = toolkit_meta["name"]
-    local = records.get(toolkit_name)
-    other_claims = {
-        path
-        for other_name, entry in records.items()
-        if other_name != toolkit_name
-        for path in entry.get("files", {})
-    }
+    """Update one recorded toolkit. Missing, invalid or renamed sources are skipped.
+
+    Raises:
+        CliCommandException: If preflight blocks the operation, before any write, or
+            with `strict` when the source is skipped or dependencies are missing.
+        OSError: If a write or removal fails, after completed changes are recorded.
+    """
+    workbench_dir = base / name
+    meta = read_workbench_toolkit_combined_info(workbench_dir)
+    if meta is None:
+        _skip_or_fail(
+            name, "not found in the workbench (missing .claude-plugin/plugin.json)", strict
+        )
+        return installed_toolkits
+    try:
+        workbench_info = extract_toolkit_info(meta, name)
+    except ValueError as ex:
+        _skip_or_fail(name, str(ex), strict)
+        return installed_toolkits
+    if workbench_info["name"] != name:
+        _skip_or_fail(
+            name, "metadata names a different toolkit (%s)" % workbench_info["name"], strict
+        )
+        return installed_toolkits
+    missing = [
+        dep for dep in workbench_info.get("dependencies", []) if dep not in installed_toolkits
+    ]
+    if missing:
+        message = "Toolkit %s has missing dependencies: %s. Install them explicitly." % (
+            name,
+            ", ".join(missing),
+        )
+        if strict:
+            fmt.error(message)
+            raise CliCommandException()
+        fmt.warning(message)
+    return _apply_contents(
+        workbench_dir,
+        workbench_info,
+        agent,
+        project_root,
+        installed_toolkits,
+        overwrite=overwrite,
+        strict=strict,
+        update=True,
+    )
+
+
+def _apply_contents(
+    workbench_dir: Path,
+    workbench_info: TToolkitInfo,
+    agent: "_AIAgent",
+    project_root: Path,
+    installed_toolkits: Dict[str, TToolkitIndexEntry],
+    *,
+    overwrite: bool = False,
+    strict: bool = False,
+    update: bool = False,
+) -> Dict[str, TToolkitIndexEntry]:
+    """Plan, write and record one toolkit's files.
+
+    Raises:
+        CliCommandException: If preflight blocks the operation, before any write.
+        OSError: If a write or removal fails, after completed changes are recorded.
+    """
+    toolkit_name = workbench_info["name"]
+    installed_toolkit_info = installed_toolkits.get(toolkit_name)
     changes = _plan_toolkit_install(
-        toolkit_dir,
+        workbench_dir,
         agent,
         project_root,
         toolkit_name,
         overwrite=overwrite,
-        previous_files=local.get("files", {}) if local else {},
-        other_claims=other_claims,
+        previous_files=installed_toolkit_info.get("files", {}) if installed_toolkit_info else {},
+        other_claims=_paths_claimed_by_others(installed_toolkits, toolkit_name),
+        update=update,
     )
-    if mode == "install" and not (
-        changes.ordinary
-        or changes.mcp_servers
-        or changes.shared
-        or changes.warnings
-        or changes.retained
-    ):
+    if installed_toolkit_info is None and changes.is_empty:
         fmt.echo("No components found in toolkit %s." % fmt.bold(toolkit_name))
-        return records
-    _report_changes(changes, strict)
+        return installed_toolkits
+    _report_changes(changes)
+    if changes.blocked or (changes.warnings and (strict or update)):
+        fmt.error(
+            "Toolkit %s was not changed. Resolve the warnings above and retry." % toolkit_name
+        )
+        raise CliCommandException()
     result = _execute_install(changes.ordinary, changes.shared)
+    entry = _next_index_entry(
+        installed_toolkit_info, workbench_info, agent.name, project_root, changes, result
+    )
+    if entry is not None:
+        installed_toolkits = {**installed_toolkits, toolkit_name: entry}
+        _save_completed_changes(installed_toolkits, toolkit_name, result.error)
+    _report_result(result)
+    if result.error is not None:
+        fmt.warning("Could not finish toolkit %s: %s" % (toolkit_name, result.error))
+        raise result.error
+    if installed_toolkit_info is not None and changes.kept:
+        fmt.echo("Toolkit %s checked with %d kept path(s)." % (toolkit_name, len(changes.kept)))
+    fmt.echo("%s item(s) installed." % fmt.bold(str(result.installed)))
+    if result.installed or result.removed:
+        fmt.echo("Please restart your %s session for changes to take effect" % fmt.bold(agent.name))
+    if result.installed and (workflow_entry_skill := workbench_info.get("workflow_entry_skill")):
+        fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
+    return installed_toolkits
 
-    if (
-        mode == "update"
-        or result.written
+
+def _paths_claimed_by_others(
+    installed_toolkits: Dict[str, TToolkitIndexEntry], toolkit_name: str
+) -> Dict[str, Set[str]]:
+    """Maps each path recorded by another toolkit to the toolkits recording it."""
+    claims: Dict[str, Set[str]] = {}
+    for other_name, entry in installed_toolkits.items():
+        if other_name != toolkit_name:
+            for path in entry.get("files", {}):
+                claims.setdefault(path, set()).add(other_name)
+    return claims
+
+
+def _save_completed_changes(
+    installed_toolkits: Dict[str, TToolkitIndexEntry],
+    toolkit_name: str,
+    execution_error: Optional[OSError],
+) -> None:
+    """Saves the index; when execution also failed, its error is raised instead of the save's."""
+    try:
+        save_toolkits_index(installed_toolkits)
+    except (OSError, yaml.YAMLError) as save_error:
+        if execution_error is None:
+            raise
+        fmt.error(
+            "Toolkit %s failed: %s. Could not save completed changes: %s"
+            % (toolkit_name, execution_error, save_error)
+        )
+        raise execution_error from save_error
+
+
+def _next_index_entry(
+    installed_toolkit_info: Optional[TToolkitIndexEntry],
+    workbench_info: TToolkitInfo,
+    agent_name: str,
+    project_root: Path,
+    changes: ToolkitChanges,
+    result: ExecutionResult,
+) -> Optional[TToolkitIndexEntry]:
+    """Index entry for the files `result` left on disk, or None when the record is unchanged.
+
+    A toolkit that is not installed gets an entry only when something was written, removed,
+    matched or configured.
+    """
+    if installed_toolkit_info is None and not (
+        result.written
         or result.removed
         or result.unchanged
         or (changes.mcp_servers and result.error is None)
     ):
-        # Protection is an intentional outcome, not a failed update. Keep prior
-        # metadata only when validation or execution could not finish.
-        partial = changes.warnings or result.error
-        entry: TToolkitIndexEntry = dict(local if local and partial else toolkit_meta)  # type: ignore[assignment]
-        entry["agent"] = agent.name
-        files = dict(local.get("files", {}) if local else {})
-        shared_files = dict(local.get("shared_files", {}) if local else {})
-        servers = set(local.get("mcp_servers", []) if local else [])
-        if result.error is None:
-            # Already configured servers satisfy the toolkit even without a merge.
+        return None
+    # protection is an intentional outcome, not a failed update. keep prior
+    # metadata only when validation or execution could not finish
+    partial = changes.warnings or result.error
+    entry: TToolkitIndexEntry = dict(installed_toolkit_info if installed_toolkit_info and partial else workbench_info)  # type: ignore[assignment]
+    entry["agent"] = agent_name
+    files = dict(installed_toolkit_info.get("files", {}) if installed_toolkit_info else {})
+    servers = set(installed_toolkit_info.get("mcp_servers", []) if installed_toolkit_info else [])
+    if result.error is None:
+        # already configured servers satisfy the toolkit even without a merge
+        servers.update(changes.mcp_servers)
+    for action, disk_hash in result.written + result.unchanged:
+        rel = str(action.dest_path.relative_to(project_root))
+        if disk_hash is not None:
+            files[rel] = {"sha3_256": disk_hash}
+        if action.dest_path == changes.mcp_path:
             servers.update(changes.mcp_servers)
-        for action, disk_hash in result.written + result.unchanged:
-            rel = str(action.dest_path.relative_to(project_root))
-            file_map = shared_files if action.kind == "mcp" or action.skip_index else files
-            file_map[rel] = {"sha3_256": disk_hash}
-            if action.kind == "mcp":
-                servers.update(n.strip() for n in action.source_name.split(",") if n.strip())
-        for path in result.removed:
-            files.pop(str(path.relative_to(project_root)), None)
-        entry["files"] = files
-        if shared_files:
-            entry["shared_files"] = shared_files
-        if servers:
-            entry["mcp_servers"] = sorted(servers)
-        previous = {
-            k: v for k, v in (local.items() if local is not None else []) if k != "installed_at"
-        }
-        entry.pop("installed_at", None)
-        if entry != previous:
-            entry["installed_at"] = pendulum.now("UTC").isoformat()
-            records = {**records, toolkit_name: entry}
-            try:
-                save_toolkits_index(records)
-            except (OSError, yaml.YAMLError) as save_error:
-                if result.error is not None:
-                    fmt.error(
-                        "Toolkit %s failed: %s. Could not save completed changes: %s"
-                        % (toolkit_name, result.error, save_error)
-                    )
-                    raise result.error from save_error
-                raise
-    _report_result(changes, result)
-    if result.error is not None:
-        fmt.warning("Could not finish toolkit %s: %s" % (toolkit_name, result.error))
-        raise result.error
-    if mode == "update" and changes.retained:
-        fmt.echo(
-            "Toolkit %s checked with %d protected path(s)." % (toolkit_name, len(changes.retained))
-        )
-    fmt.echo("%s item(s) installed." % fmt.bold(str(result.installed)))
-    if result.installed or result.removed:
-        fmt.echo("Please restart your %s session for changes to take effect" % fmt.bold(agent.name))
-    if result.installed and (workflow_entry_skill := toolkit_meta.get("workflow_entry_skill")):
-        fmt.echo("Use %s skill to start!" % fmt.bold(workflow_entry_skill))
-    return records
+    for path in result.removed + changes.released:
+        files.pop(str(path.relative_to(project_root)), None)
+    entry["files"] = files
+    if servers:
+        entry["mcp_servers"] = sorted(servers)
+    entry.pop("installed_at", None)
+    previous: Dict[str, Any] = dict(installed_toolkit_info) if installed_toolkit_info else {}
+    previous.pop("installed_at", None)
+    if entry == previous:
+        return None
+    entry["installed_at"] = datetime.now(timezone.utc).isoformat()
+    return entry
 
 
 def _select_install_requests(
@@ -846,8 +978,8 @@ def ai_init_command(
 ) -> None:
     """Install the init toolkit into the current project."""
     project_root = Path(run_context.active().run_dir)
-    records = load_toolkits_index()
-    var = _resolve_agent(agent, project_root, records)
+    installed_toolkits = load_toolkits_index()
+    var = _resolve_agent(agent, project_root, installed_toolkits)
 
     fmt.echo("Initializing AI rules for %s from %s..." % (fmt.bold(var.name), fmt.bold(location)))
 
@@ -855,11 +987,11 @@ def ai_init_command(
     if base is None:
         return
 
-    records = _apply_toolkit(
-        _INIT_TOOLKIT, base, var, project_root, records, mode="install", overwrite=overwrite
+    installed_toolkits = _install_toolkit(
+        _INIT_TOOLKIT, base, var, project_root, installed_toolkits, overwrite=overwrite
     )
 
-    status = fetch_ai_status(project_root, records)
+    status = fetch_ai_status(project_root, installed_toolkits)
     if "mcp_unavailable" in status["warnings"]:
         fmt.warning(f"MCP server cannot be started. Run `{fmt.cli_cmd('ai status')}` for details.")
     if var.name == "cursor":
@@ -868,7 +1000,7 @@ def ai_init_command(
             " Open Cursor Settings > MCP and enable the servers installed by dlt."
         )
 
-    if len(records) == 1:
+    if len(installed_toolkits) == 1:
         fmt.echo()
         fmt.echo(
             f"Now you can install your first toolkit. Use `{fmt.cli_cmd('ai toolkit list')}` for"
@@ -887,8 +1019,8 @@ def ai_toolkit_install_command(
 ) -> None:
     """Install toolkit components into the current project."""
     project_root = Path(run_context.active().run_dir)
-    records = load_toolkits_index()
-    var = _resolve_agent(agent, project_root, records)
+    installed_toolkits = load_toolkits_index()
+    var = _resolve_agent(agent, project_root, installed_toolkits)
 
     fmt.echo(
         "Installing toolkit %s for %s from %s..."
@@ -905,15 +1037,14 @@ def ai_toolkit_install_command(
     for request_name, dependency, forced, strict_request in _select_install_requests(
         name, toolkits, overwrite, strict
     ):
-        if dependency and request_name in records:
+        if dependency and request_name in installed_toolkits:
             continue
-        records = _apply_toolkit(
+        installed_toolkits = _install_toolkit(
             request_name,
             base,
             var,
             project_root,
-            records,
-            mode="install",
+            installed_toolkits,
             overwrite=forced,
             strict=strict_request,
         )
@@ -927,13 +1058,13 @@ def ai_toolkit_update_command(
     overwrite: bool = False,
     strict: bool = False,
 ) -> None:
-    """Update one installed toolkit, or all, preserving locally modified ordinary files."""
+    """Update installed toolkits after preflighting local edits and deletions."""
     project_root = Path(run_context.active().run_dir)
-    records = load_toolkits_index()
-    if name is not None and name not in records:
+    installed_toolkits = load_toolkits_index()
+    if name is not None and name not in installed_toolkits:
         fmt.error("Toolkit %s is not installed." % name)
         raise CliCommandException()
-    names = [name] if name is not None else list(records)
+    names = [name] if name is not None else list(installed_toolkits)
     if not names:
         fmt.echo("No installed toolkits to update.")
         return
@@ -941,18 +1072,19 @@ def ai_toolkit_update_command(
     if base is None:
         return
     for toolkit_name in names:
-        recorded_agent = records[toolkit_name].get("agent")
+        recorded_agent = installed_toolkits[toolkit_name].get("agent")
         agent = _resolve_agent(
-            recorded_agent if recorded_agent in AI_AGENTS else None, project_root, records
+            recorded_agent if recorded_agent in AI_AGENTS else None,
+            project_root,
+            installed_toolkits,
         )
         fmt.echo("Updating toolkit %s for %s..." % (fmt.bold(toolkit_name), fmt.bold(agent.name)))
-        records = _apply_toolkit(
+        installed_toolkits = _update_toolkit(
             toolkit_name,
             base,
             agent,
             project_root,
-            records,
-            mode="update",
+            installed_toolkits,
             overwrite=overwrite,
             strict=strict,
         )
@@ -974,36 +1106,36 @@ def ai_toolkit_list_command(
         fmt.echo("No toolkits found.")
         return
 
-    installed = load_toolkits_index()
-    installed_tks: List[TToolkitInfo] = []
-    available_tks: List[TToolkitInfo] = []
+    installed_toolkits = load_toolkits_index()
+    listed_installed: List[TToolkitInfo] = []
+    listed_available: List[TToolkitInfo] = []
     for tk in toolkits.values():
-        if tk["name"] in installed:
-            installed_tks.append(tk)
+        if tk["name"] in installed_toolkits:
+            listed_installed.append(tk)
         else:
-            available_tks.append(tk)
+            listed_available.append(tk)
 
-    if installed_tks:
+    if listed_installed:
         fmt.echo("Installed toolkits:")
-        for tk in installed_tks:
+        for tk in listed_installed:
             tk_name = tk["name"]
             description = tk["description"]
             remote_version = tk["version"]
-            local_version = installed[tk_name].get("version", "?")
-            if remote_version != local_version:
+            installed_version = installed_toolkits[tk_name].get("version", "?")
+            if _toolkit_needs_update(installed_version, remote_version):
                 ver = "%s, %s available" % (
-                    fmt.bold(local_version),
+                    fmt.bold(installed_version),
                     fmt.style(remote_version, fg="yellow"),
                 )
             else:
-                ver = fmt.bold(local_version)
+                ver = fmt.bold(installed_version)
             fmt.echo("  %-20s %s (%s)" % (fmt.bold(tk_name), description, ver))
 
-    if available_tks:
-        if installed_tks:
+    if listed_available:
+        if listed_installed:
             fmt.echo("")
         fmt.echo("Available toolkits:")
-        for tk in available_tks:
+        for tk in listed_available:
             tk_name = tk["name"]
             description = tk["description"]
             ver = " (%s)" % fmt.bold(tk["version"])
@@ -1020,7 +1152,8 @@ def ai_toolkit_info_command(
     info = fetch_workbench_toolkit_info(name, location, branch)
     if info is None:
         fmt.warning(
-            "Toolkit %s not found (missing %s)" % (fmt.bold(name), ".claude-plugin/plugin.json")
+            "Toolkit %s not found in the workbench (missing %s)"
+            % (fmt.bold(name), ".claude-plugin/plugin.json")
         )
         return
 

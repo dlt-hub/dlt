@@ -2666,7 +2666,7 @@ Inherits arguments from [`dlthub`](#dlthub).
 * [`status`](#dlthub-ai-status) - Show ai setup status: dlt version, agent, toolkits, readiness checks
 * [`init`](#dlthub-ai-init) - Install initial ai rules and skills for your ai coding agent
 * [`secrets`](#dlthub-ai-secrets) - Manage secrets files used by dlt
-* [`toolkit`](#dlthub-ai-toolkit) - Manage ai toolkit plugins (list, info, install)
+* [`toolkit`](#dlthub-ai-toolkit) - Manage ai toolkit plugins (list, info, install, update)
 * [`mcp`](#dlthub-ai-mcp) - Run or install the dlt mcp server
 
 </details>
@@ -2724,7 +2724,7 @@ Inherits arguments from [`dlthub ai`](#dlthub-ai).
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
 * `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
 * `--branch BRANCH` - Advanced. git branch to fetch from.
-* `--overwrite` - Overwrite existing files instead of skipping them and remove files the installed version shipped but the new one does not.
+* `--overwrite` - Replace shipped files and remove unmodified files dropped upstream. co-owned files stay protected.
 
 </details>
 
@@ -2846,17 +2846,17 @@ Inherits arguments from [`dlthub ai secrets`](#dlthub-ai-secrets).
 
 ### `dlthub ai toolkit`
 
-Manage AI toolkit plugins (list, info, install).
+Manage AI toolkit plugins (list, info, install, update).
 
 **Usage**
 
 ```sh
-dlthub ai toolkit [-h] {list,info,install} ...
+dlthub ai toolkit [-h] {list,info,install,update} ...
 ```
 
 **Description**
 
-Manage AI toolkit plugins (list, info, install).
+Manage AI toolkit plugins (list, info, install, update).
 
 <details>
 
@@ -2869,6 +2869,7 @@ Inherits arguments from [`dlthub ai`](#dlthub-ai).
 * `list` - List available toolkits
 * `info` - Show toolkit contents and components
 * `install` - Install toolkit components into project
+* `update` - Update installed toolkits, preserving local edits
 
 **Options**
 
@@ -2967,8 +2968,43 @@ Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
 * `--location LOCATION` - Advanced. git url or local path to toolkit repository.
 * `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
-* `--overwrite` - Overwrite existing files instead of skipping them and remove files the installed version shipped but the new one does not.
+* `--overwrite` - Replace shipped files and remove unmodified files dropped upstream. co-owned files stay protected.
 * `--strict` - Fail on validation warnings (invalid frontmatter, etc.).
+
+</details>
+
+### `dlthub ai toolkit update`
+
+Update installed toolkits, preserving local edits.
+
+**Usage**
+
+```sh
+dlthub ai toolkit update [-h] [--location LOCATION] [--branch BRANCH]
+    [--overwrite] [--strict] [name]
+```
+
+**Description**
+
+Update installed toolkits, preserving local edits.
+
+<details>
+
+<summary>Show Arguments and Options</summary>
+
+Inherits arguments from [`dlthub ai toolkit`](#dlthub-ai-toolkit).
+
+**Positional arguments**
+
+* `name` - Installed toolkit name (default: all)
+
+**Options**
+
+* `-h, --help` - Show this help message and exit
+* `--location LOCATION` - Advanced. git url or local path to toolkit repository.
+* `--branch BRANCH` - Advanced. git branch to fetch toolkit from.
+* `--overwrite` - Replace locally modified or deleted files still shipped upstream.
+* `--strict` - Fail when a toolkit is skipped or has missing dependencies.
 
 </details>
 

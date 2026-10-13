@@ -65,5 +65,4 @@ class TToolkitIndexEntry(TToolkitInfo, total=False):
     installed_at: str
     agent: str
     files: Dict[str, Any]
-    shared_files: Dict[str, Any]
     mcp_servers: List[str]

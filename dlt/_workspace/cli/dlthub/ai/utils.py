@@ -601,13 +601,13 @@ def read_agents_md_template(workbench_base: Optional[Path]) -> str:
 
 
 def fetch_ai_status(
-    project_root: Path, installed_index: Optional[Dict[str, TToolkitIndexEntry]] = None
+    project_root: Path, installed_toolkits: Optional[Dict[str, TToolkitIndexEntry]] = None
 ) -> TAiStatusInfo:
     """Collect AI setup status for the current workspace.
 
     Args:
         project_root: Path to the project root for agent detection.
-        installed_index: Current records, or None to read the index.
+        installed_toolkits: Current installed toolkits, or None to read the index.
 
     Returns:
         Status info including dlt version, detected agent, installed toolkits,
@@ -615,7 +615,7 @@ def fetch_ai_status(
     """
     from dlt._workspace.cli.dlthub.ai.agents import _AIAgent  # circular
 
-    index = load_toolkits_index() if installed_index is None else installed_index
+    index = load_toolkits_index() if installed_toolkits is None else installed_toolkits
     warnings: List[TAiStatusWarning] = []
 
     # detect agent
