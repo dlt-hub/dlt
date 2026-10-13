@@ -2,7 +2,7 @@ import argparse
 import json
 import shutil
 from pathlib import Path
-from typing import Dict, Optional
+from typing import Dict, List, Optional
 from unittest.mock import patch
 
 import pytest
@@ -712,7 +712,7 @@ def test_overwrite_can_replace_unreadable_old_file(source: Path) -> None:
     (toolkit / "commands/a.md").write_text("new contents")
     dest = Path(".claude/commands/a.md").absolute()
     original_read = Path.read_bytes
-    reads = []
+    reads: List[Path] = []
 
     def read(path: Path) -> bytes:
         if path == dest and not reads:

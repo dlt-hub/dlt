@@ -26,7 +26,7 @@ from dlt._workspace.cli.commands import (
 class AiCommand(SupportsCliCommand):
     command = "ai"
     help_string = "Use AI-powered development tools and utilities"
-    # docs_url =
+    docs_url: Optional[str] = None
     description = "Configure your LLM-enabled IDE and MCP server."
 
     def configure_parser(self, ai_cmd: argparse.ArgumentParser) -> None:
