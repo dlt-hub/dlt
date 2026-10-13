@@ -247,15 +247,13 @@ def bundled_spec_dir() -> pathlib.Path:
     spec = importlib.util.find_spec("dlthub_sdk")
     if spec is None or not spec.submodule_search_locations:
         raise SystemExit("dlthub-client is not installed; pass --spec-dir")
-    package_dir = pathlib.Path(spec.submodule_search_locations[0])
-    # 0.28.8a1 shipped them as `openapi`
-    for name in ("_specs", "openapi"):
-        if (package_dir / name).is_dir():
-            return package_dir / name
-    raise SystemExit(
-        f"dlthub-client {version('dlthub-client')} bundles no OpenAPI specs; "
-        "0.28.8a1 is the first version that does"
-    )
+    spec_dir = pathlib.Path(spec.submodule_search_locations[0]) / "_specs"
+    if not spec_dir.is_dir():
+        raise SystemExit(
+            f"dlthub-client {version('dlthub-client')} bundles no OpenAPI specs; "
+            "0.28.8a2 is the first version that does"
+        )
+    return spec_dir
 
 
 def main() -> None:
