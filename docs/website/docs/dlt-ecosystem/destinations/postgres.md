@@ -5,6 +5,10 @@ keywords: [postgres, destination, data warehouse]
 ---
 # Postgres
 
+:::tip
+To load data from Postgres, use the [SQL database](../verified-sources/sql_database/index.md) source. To load changes (change data capture), use the [Postgres replication](../verified-sources/pg_replication.md) source.
+:::
+
 ## Install dlt with PostgreSQL
 
 To install the dlt library with PostgreSQL dependencies, run:
