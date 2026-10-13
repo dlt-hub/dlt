@@ -265,7 +265,7 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} dltHub, Inc.`,
       },
       prism: {
-        theme: prismThemes.nightOwlLight,
+        theme: prismThemes.synthwave84,
         darkTheme: prismThemes.synthwave84,
         additionalLanguages: ["powershell", "bash", "python", "toml", "yaml", "log"],
       },
