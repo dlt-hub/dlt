@@ -3,9 +3,7 @@
 const fs = require("node:fs");
 require("dotenv").config();
 
-// const lightCodeTheme = require('prism-react-renderer/themes/dracula');
-const lightCodeTheme = require("prism-react-renderer/themes/github");
-const darkCodeTheme = require("prism-react-renderer/themes/dracula");
+const { themes: prismThemes } = require("prism-react-renderer");
 
 // create versions config
 const versions = {
@@ -267,8 +265,8 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} dltHub, Inc.`,
       },
       prism: {
-        theme: lightCodeTheme,
-        darkTheme: darkCodeTheme,
+        theme: prismThemes.nightOwlLight,
+        darkTheme: prismThemes.synthwave84,
         additionalLanguages: ["powershell", "bash", "python", "toml", "yaml", "log"],
       },
       metadata: [
