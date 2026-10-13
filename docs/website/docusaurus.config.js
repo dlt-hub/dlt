@@ -3,7 +3,7 @@
 const fs = require("node:fs");
 require("dotenv").config();
 
-const { themes: prismThemes } = require("prism-react-renderer");
+const codeTheme = require("prism-react-renderer/themes/synthwave84");
 
 // create versions config
 const versions = {
@@ -265,8 +265,8 @@ const config = {
         copyright: `Copyright © ${new Date().getFullYear()} dltHub, Inc.`,
       },
       prism: {
-        theme: prismThemes.synthwave84,
-        darkTheme: prismThemes.synthwave84,
+        theme: codeTheme,
+        darkTheme: codeTheme,
         additionalLanguages: ["powershell", "bash", "python", "toml", "yaml", "log"],
       },
       metadata: [
