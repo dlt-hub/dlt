@@ -248,7 +248,8 @@ class Renderer:
         values = self.enum_values(obj) if isinstance(obj, griffe.Class) else {}
         kind = griffe.DocstringSectionKind
         md = ""
-        for section in obj.docstring.parse("google"):
+        sections = obj.docstring.parse("google")
+        for section in sections:
             if section.kind is kind.text:
                 md += self.prose(section.value) + "\n\n"
             elif section.kind in (kind.parameters, kind.other_parameters):
@@ -299,7 +300,31 @@ class Renderer:
             elif section.kind is kind.admonition:
                 admonition = section.value
                 md += f":::note[{admonition.annotation}]\n{self.prose(admonition.description)}\n:::\n\n"
+        if isinstance(obj, griffe.Class) and not any(s.kind is kind.attributes for s in sections):
+            md += self.inline_attributes(obj, annotations, values)
         return md
+
+    def inline_attributes(
+        self, cls: griffe.Class, annotations: Dict[str, str], values: Dict[str, str]
+    ) -> str:
+        """Renders fields or enum members documented by a docstring under each attribute."""
+        documented = []
+        for name, member in cls.members.items():
+            member = target(member)
+            if (
+                not name.startswith("_")
+                and isinstance(member, griffe.Attribute)
+                and "property" not in member.labels
+                and member.docstring
+            ):
+                documented.append((name, member.docstring.value))
+        if not documented:
+            return ""
+        if values:
+            rows = [[f"`{n}`", f"`{values.get(n, '')}`", self.cell(d)] for n, d in documented]
+            return "**Members**\n\n" + self.table(rows, ["Member", "Value", "Description"])
+        rows = [[f"`{n}`", self.type_cell(annotations.get(n)), self.cell(d)] for n, d in documented]
+        return "**Fields**\n\n" + self.table(rows, ["Name", "Type", "Description"])
 
     def type_cell(self, annotation: Optional[str]) -> str:
         """Renders a type as one code element whose exported names link to their anchors."""
