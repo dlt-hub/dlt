@@ -272,8 +272,8 @@ def escape_dialect_literal(
                 dialect=dialect_class(), compile_kwargs={"literal_binds": True}
             )
         )
-    except sa.exc.CompileError:
-        # some dialects cannot render dates, the database casts the ISO string instead
+    except (sa.exc.CompileError, NotImplementedError):
+        # some dialects cannot render dates, 1.4.0 raises the latter. the database casts the string
         return escape_dialect_literal(
             dialect_class, value.isoformat() if hasattr(value, "isoformat") else str(value)
         )
