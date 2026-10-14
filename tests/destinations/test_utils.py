@@ -5,6 +5,8 @@ from zoneinfo import ZoneInfo
 import dlt
 import pytest
 
+from dlt.common.configuration.container import Container
+from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.data_writers.escape import escape_snowflake_literal
 from dlt.common.destination import Destination
 from dlt.common.destination import utils as destination_utils
@@ -147,16 +149,29 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
     [
         ("{table}.id = {tenant}", "\"t\".id = 'O''B'"),
         ("day = {day} AND n > {n}", "day = '2024-01-01' AND n > 3"),
+        ("ts >= {since}", "ts >= '2024-01-01T12:00:00+00:00'"),
         ("name LIKE '{{x}}%'", "name LIKE '{x}%'"),
     ],
-    ids=["identifier_and_string", "date_and_int", "literal_brace"],
+    ids=["identifier_and_string", "date_and_int", "naive_datetime_in_context_tz", "literal_brace"],
 )
 def test_expand_merge_condition(condition: str, expected: str) -> None:
-    values = {"tenant": "O'B", "day": date(2024, 1, 1), "n": 3}
+    values = {"tenant": "O'B", "day": date(2024, 1, 1), "n": 3, "since": datetime(2024, 1, 1, 12)}
     expanded = expand_merge_condition(
         "destination_scope", condition, {"table": '"t"'}, values, escape_snowflake_literal
     )
     assert expanded == expected
+
+
+def test_expand_merge_condition_naive_datetime_in_context_timezone() -> None:
+    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+        expanded = expand_merge_condition(
+            "source_filter",
+            "ts >= {since}",
+            {},
+            {"since": datetime(2024, 1, 1, 12)},
+            escape_snowflake_literal,
+        )
+    assert expanded == "ts >= '2024-01-01T12:00:00+01:00'"
 
 
 def test_expand_merge_condition_missing_value() -> None:

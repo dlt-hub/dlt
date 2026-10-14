@@ -21,6 +21,7 @@ from dlt.common.data_writers.escape import (
     escape_bigquery_literal,
     escape_bigquery_identifier,
     format_datetime_literal,
+    format_bigquery_datetime_literal,
     format_clickhouse_datetime_literal,
     format_datetime_value,
 )
@@ -195,10 +196,7 @@ def test_escape_snowflake_literal() -> None:
         (1.5, "1.5"),
         (date(2024, 1, 2), "DATE '2024-01-02'"),
         (time(3, 4, 5), "TIME '03:04:05'"),
-        (
-            datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc),
-            "TIMESTAMP '2024-01-02 03:04:05+00:00'",
-        ),
+        (datetime(2024, 1, 2, 3, 4, 5, tzinfo=timezone.utc), "'2024-01-02 03:04:05.000000+00:00'"),
         ({"k": "o'hara"}, "'{\"k\":\"o''hara\"}'"),
         ([1, "a"], "'[1,\"a\"]'"),
         (b"\x00\xff", "X'00ff'"),
@@ -207,6 +205,17 @@ def test_escape_snowflake_literal() -> None:
 )
 def test_escape_ansi_literal(value: Any, expected: str) -> None:
     assert escape_ansi_literal(value) == expected
+
+
+def test_escape_ansi_literal_datetime_flavors() -> None:
+    # 04:04 in Berlin is 03:04 UTC, the context timezone
+    berlin = datetime(2024, 1, 2, 4, 4, 5, 123456, tzinfo=ZoneInfo("Europe/Berlin"))
+    assert escape_ansi_literal(berlin, precision=3, no_tz=True) == "'2024-01-02 03:04:05.123'"
+    # trino compares timestamps only to typed literals
+    assert (
+        escape_ansi_literal(berlin, format_bigquery_datetime_literal, 3, True)
+        == "TIMESTAMP '2024-01-02 03:04:05.123'"
+    )
 
 
 def test_escape_hive_identifier() -> None:
@@ -255,7 +264,10 @@ def test_string_literal_escape_unicode() -> None:
         ("path\\to\\file", "'path\\\\to\\\\file'"),
         (b"hello", "FROM_BASE64('aGVsbG8=')"),
         (b"\x00\x01\x02", "FROM_BASE64('AAEC')"),
-        (pendulum.datetime(2023, 1, 15, 12, 30, 45), "'2023-01-15T12:30:45+00:00'"),
+        (
+            pendulum.datetime(2023, 1, 15, 12, 30, 45),
+            "TIMESTAMP '2023-01-15 12:30:45.000000+00:00'",
+        ),
         (pendulum.date(2023, 1, 15), "'2023-01-15'"),
         (
             {"key": "value", "nested": {"inner": "data"}},

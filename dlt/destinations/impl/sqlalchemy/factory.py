@@ -83,9 +83,6 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
             escape_dialect_literal,
         )
 
-        # the class, an instance does not pickle into the normalize process pool
-        caps.escape_literal = partial(escape_dialect_literal, dialect_class)
-
         dialect_caps = (
             get_dialect_capabilities(backend_name)
             or get_dialect_capabilities(dialect.name)
@@ -96,6 +93,14 @@ class sqlalchemy(Destination[SqlalchemyClientConfiguration, "SqlalchemyJobClient
         caps.type_mapper = dialect_caps.type_mapper_class()
         caps.dialect_capabilities = dialect_caps
         dialect_caps.adjust_capabilities(caps, dialect)
+        # the class, an instance does not pickle into the normalize process pool
+        caps.escape_literal = partial(
+            escape_dialect_literal,
+            dialect_class,
+            datetime_literal=caps.format_datetime_literal,
+            precision=caps.timestamp_precision,
+            no_tz=not caps.supports_tz_aware_datetime,
+        )
 
         if dialect.requires_name_normalize:  # type: ignore[attr-defined]
             caps.has_case_sensitive_identifiers = False

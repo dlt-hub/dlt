@@ -1,6 +1,6 @@
 import contextlib
 import string
-from datetime import timezone
+from datetime import datetime, timezone
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set
 
 from dlt.common import logger
@@ -120,15 +120,20 @@ def expand_merge_condition(
     escape_literal: Callable[[Any], Any],
 ) -> str:
     """Expands identifier placeholders as they are and value placeholders as escaped literals.
+    A naive `datetime` value is in the context timezone, like a naive value in the data.
 
     Raises `ValueError` if `filter_` uses a placeholder that has no identifier or value.
     """
     validate_merge_condition(hint_name, filter_, [*identifiers, *values])
-    literals = {
-        name: escape_literal(values[name])
-        for name in _get_condition_placeholders(hint_name, filter_)
-        if name not in identifiers
-    }
+    literals: Dict[str, Any] = {}
+    for name in _get_condition_placeholders(hint_name, filter_):
+        if name in identifiers:
+            continue
+        value = values[name]
+        # the destination session may run in another timezone, so the literal carries its own
+        if isinstance(value, datetime) and value.tzinfo is None:
+            value = ensure_datetime_in_tz(value)
+        literals[name] = escape_literal(value)
     return filter_.format(**identifiers, **literals)
 
 

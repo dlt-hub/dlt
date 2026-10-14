@@ -1,4 +1,5 @@
-from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING, Sequence, Tuple
+from functools import partial
+from typing import Any, Optional, Type, Union, Dict, TYPE_CHECKING
 
 from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION, DEFAULT_NUMERIC_SCALE
@@ -91,7 +92,6 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.preferred_staging_file_format = "parquet"
         caps.supported_staging_file_formats = ["jsonl", "parquet", "model"]
         caps.escape_identifier = escape_dremio_identifier
-        caps.escape_literal = escape_ansi_literal
         caps.type_mapper = DremioTypeMapper
         # all identifiers are case insensitive but are stored as is
         # https://docs.dremio.com/current/sonar/data-sources
@@ -116,6 +116,9 @@ class dremio(Destination[DremioClientConfiguration, "DremioClient"]):
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "dremio"
         caps.supports_tz_aware_datetime = False
+        caps.escape_literal = partial(
+            escape_ansi_literal, precision=caps.timestamp_precision, no_tz=True
+        )
 
         return caps
 

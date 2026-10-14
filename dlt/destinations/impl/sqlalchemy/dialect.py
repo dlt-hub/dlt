@@ -4,10 +4,12 @@ Users can register custom DialectCapabilities subclasses to adapt the destinatio
 for dialects that are not built-in. See register_dialect_capabilities.
 """
 
-from typing import Any, Dict, Optional, Type
+from datetime import datetime
+from typing import Any, Callable, Dict, Optional, Type
 
 import sqlalchemy as sa  # noqa
 
+from dlt.common.data_writers.escape import format_datetime_literal
 from dlt.common.destination.capabilities import DataTypeMapper, DestinationCapabilitiesContext
 from dlt.common.destination.typing import PreparedTableSchema
 
@@ -250,13 +252,20 @@ class DuckdbDialectCapabilities(DialectCapabilities):
 
 
 def _format_mysql_datetime_literal(v: Any, precision: int = 6, no_tz: bool = False) -> str:
-    from dlt.common.data_writers.escape import format_datetime_literal
-
     return format_datetime_literal(v, precision, no_tz=True)
 
 
-def escape_dialect_literal(dialect_class: Type[sa.engine.Dialect], value: Any) -> str:
-    """Renders `value` as a SQL literal of the dialect."""
+def escape_dialect_literal(
+    dialect_class: Type[sa.engine.Dialect],
+    value: Any,
+    datetime_literal: Callable[..., str] = format_datetime_literal,
+    precision: int = 6,
+    no_tz: bool = False,
+) -> str:
+    """Renders `value` as a SQL literal of the dialect. A `datetime` renders with
+    `datetime_literal` at `precision`, naive in the context timezone with `no_tz`."""
+    if isinstance(value, datetime):
+        return datetime_literal(value, precision, no_tz=no_tz)
     try:
         return str(
             sa.literal(value).compile(

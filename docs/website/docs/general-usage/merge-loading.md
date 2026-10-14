@@ -1138,7 +1138,7 @@ The `delta` table format does not support `delete-insert`. With `cdc`, write the
 
 ### Fill placeholders with values from the load
 
-dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it.
+dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision and timezone support of the destination. A naive `datetime` is read in the [context timezone](schema.md#context-timezone), UTC by default, like a naive timestamp in the data.
 
 dlt fills these value placeholders from the load package:
 

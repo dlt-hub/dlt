@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Dict, Type, Union, TYPE_CHECKING, Optional, Sequence
 
 from dlt.common.data_types.typing import TDataType
@@ -147,7 +148,6 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         # it also uses lower case in all the queries
         # https://docs.aws.amazon.com/athena/latest/ug/tables-databases-columns-names.html
         caps.escape_identifier = escape_athena_identifier
-        caps.escape_literal = escape_ansi_literal
         caps.casefold_identifier = str.lower
         caps.has_case_sensitive_identifiers = False
         caps.format_datetime_literal = format_bigquery_datetime_literal
@@ -173,6 +173,12 @@ class athena(Destination[AthenaClientConfiguration, "AthenaClient"]):
         caps.enforces_nulls_on_alter = False
         caps.sqlglot_dialect = "athena"
         caps.supports_tz_aware_datetime = False
+        caps.escape_literal = partial(
+            escape_ansi_literal,
+            datetime_literal=caps.format_datetime_literal,
+            precision=caps.timestamp_precision,
+            no_tz=True,
+        )
 
         return caps
 
