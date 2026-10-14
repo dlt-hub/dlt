@@ -2,21 +2,16 @@ from functools import partial
 from typing import Any, Dict, Sequence, Tuple, Optional, List, cast
 from dlt.common.libs.sql_alchemy import sa
 
-from dlt.common.typing import TAnyDateTime
 from dlt.common.utils import uniq_id
-from dlt.common.destination import PreparedTableSchema, DestinationCapabilitiesContext
+from dlt.common.destination import PreparedTableSchema
+from dlt.common.destination.utils import get_scd2_timestamps
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_dedup_sort_tuple,
     get_first_column_name_with_prop,
     is_nested_table,
     get_validity_column_names,
-    get_active_record_timestamp,
 )
-from datetime import timezone
-
-from dlt.common.time import ensure_datetime_in_tz
-from dlt.common.storages.load_package import load_package_state as current_load_package
 
 from dlt.destinations.impl.sqlalchemy.db_api_client import SqlalchemyClient
 from dlt.destinations.sql_jobs import SqlMergeFollowupJob
@@ -466,27 +461,8 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         hash_ = get_first_column_name_with_prop(root_table, "x-row-version")
 
         caps = sql_client.capabilities
-
-        format_datetime_literal = caps.format_datetime_literal
-        if format_datetime_literal is None:
-            format_datetime_literal = (
-                DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
-            )
-        _boundary_ts = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
-        boundary_ts: TAnyDateTime = (
-            _boundary_ts
-            if _boundary_ts is not None
-            else current_load_package()["state"]["created_at"]
-        )
-        # UTC, never the context timezone: a moved boundary stops merges retiring existing rows
-        boundary_ts = ensure_datetime_in_tz(boundary_ts, timezone.utc)
-
-        # a destination without tz support holds the context wall clock, so the literal must too
-        boundary_literal = format_datetime_literal(
-            boundary_ts, caps.timestamp_precision, no_tz=not caps.supports_tz_aware_datetime
-        )
-
-        active_record_timestamp = get_active_record_timestamp(root_table)
+        boundary_ts, active_record_ts = get_scd2_timestamps(root_table, caps)
+        boundary_literal = caps.escape_literal(boundary_ts)
 
         source_filter, destination_scope = cls.get_merge_conditions(root_table, sql_client)
         # only rows of the merge source count as present
@@ -499,13 +475,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             .where(root_table_obj.c[hash_].notin_(present_hashes))
         )
 
-        if active_record_timestamp is None:
+        if active_record_ts is None:
             active_record_literal = None
             root_is_active_clause = root_table_obj.c[to].is_(None)
         else:
-            active_record_literal = format_datetime_literal(
-                active_record_timestamp, caps.timestamp_precision
-            )
+            active_record_literal = caps.escape_literal(active_record_ts)
             root_is_active_clause = root_table_obj.c[to] == sa.text(active_record_literal)
 
         update_statement = update_statement.where(root_is_active_clause)
@@ -524,13 +498,13 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
         select_cols = []
         for col in root_table_obj.columns:
             if col.name == from_:
-                select_cols.append(sa.literal(boundary_literal.strip("'")).label(from_))
+                select_cols.append(sa.literal_column(boundary_literal).label(from_))
             elif col.name == to:
                 select_cols.append(
-                    sa.literal(
-                        active_record_literal.strip("'")
-                        if active_record_literal is not None
-                        else None
+                    (
+                        sa.literal(None)
+                        if active_record_literal is None
+                        else sa.literal_column(active_record_literal)
                     ).label(to)
                 )
             else:

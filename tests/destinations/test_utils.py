@@ -1,4 +1,4 @@
-from datetime import date, datetime
+from datetime import date, datetime, timezone
 from typing import Any, Optional
 from zoneinfo import ZoneInfo
 
@@ -8,9 +8,13 @@ import pytest
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
 from dlt.common.data_writers.escape import escape_snowflake_literal
-from dlt.common.destination import Destination
+from dlt.common.destination import Destination, DestinationCapabilitiesContext
 from dlt.common.destination import utils as destination_utils
-from dlt.common.destination.utils import expand_merge_condition, prepare_load_table
+from dlt.common.destination.utils import (
+    expand_merge_condition,
+    get_scd2_timestamps,
+    prepare_load_table,
+)
 from dlt.common.schema import Schema
 from dlt.common.schema.typing import TTableFormat
 from dlt.destinations.utils import (
@@ -178,6 +182,33 @@ def test_expand_merge_condition_missing_value() -> None:
     with pytest.raises(ValueError) as py_ex:
         expand_merge_condition("source_filter", "day = {day}", {}, {}, escape_snowflake_literal)
     assert "unknown placeholders `{day}`" in str(py_ex.value)
+
+
+def test_scd2_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
+    caps = DestinationCapabilitiesContext.generic_capabilities()
+    caps.timestamp_precision = 3
+    created_at = datetime(2024, 3, 1, 23, 30, 0, 123456, tzinfo=ZoneInfo("Asia/Kolkata"))
+    package = {"load_id": "1.2", "state": {"created_at": created_at}}
+    monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
+    valid_to: Any = {
+        "name": "_dlt_valid_to",
+        "data_type": "timestamp",
+        "x-active-record-timestamp": None,
+    }
+    table: Any = {"name": "items", "columns": {"_dlt_valid_to": valid_to}}
+
+    # the boundary defaults to the package creation time at the precision of the destination
+    boundary, active_record = get_scd2_timestamps(table, caps)
+    assert boundary == created_at.replace(microsecond=123000)
+    assert active_record is None
+
+    # naive values are in the context timezone, aware values keep their instant
+    table["x-boundary-timestamp"] = datetime(2024, 1, 1, 12)
+    valid_to["x-active-record-timestamp"] = "9999-12-31T00:00:00+01:00"
+    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+        boundary, active_record = get_scd2_timestamps(table, caps)
+    assert boundary == datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin"))
+    assert active_record == datetime(9999, 12, 30, 23, tzinfo=timezone.utc)
 
 
 def test_merge_placeholder_values_of_load_date(monkeypatch: pytest.MonkeyPatch) -> None:

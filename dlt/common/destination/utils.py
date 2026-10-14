@@ -1,7 +1,7 @@
 import contextlib
 import string
 from datetime import datetime, timezone
-from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set
+from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple, cast
 
 from dlt.common import logger
 from dlt.common.configuration.inject import with_config
@@ -42,8 +42,9 @@ from dlt.common.time import (
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
     ensure_datetime_in_tz,
+    reduce_pendulum_datetime_precision,
 )
-from dlt.common.typing import ConfigValue, DictStrStr, TLoaderFileFormat
+from dlt.common.typing import ConfigValue, DictStrStr, TAnyDateTime, TLoaderFileFormat
 
 MERGE_CONDITION_PLACEHOLDERS = ("table", "staging_table")
 """Placeholders that expand to table identifiers."""
@@ -110,6 +111,31 @@ def get_merge_placeholder_values(table_name: str) -> Dict[str, Any]:
                 # a SQL condition compares numbers to numbers, `{MM}` is 1, not '01'
                 values[name] = int(rendered) if rendered.isdigit() else rendered
     return values
+
+
+def get_scd2_timestamps(
+    root_table: TTableSchema, caps: DestinationCapabilitiesContext
+) -> Tuple[datetime, Optional[datetime]]:
+    """Returns the boundary and active record timestamps of an `scd2` table at the precision of
+    the destination. A naive value is in the context timezone."""
+    boundary = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
+    if boundary is None:
+        boundary = load_package_state()["state"]["created_at"]
+    to_column = get_first_column_name_with_prop(root_table, "x-active-record-timestamp")
+    active_record = root_table["columns"][to_column]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
+    # the literal is written to and compared with the validity columns, so it must not be finer
+    return (
+        reduce_pendulum_datetime_precision(
+            ensure_datetime_in_tz(boundary), caps.timestamp_precision
+        ),
+        (
+            None
+            if active_record is None
+            else reduce_pendulum_datetime_precision(
+                ensure_datetime_in_tz(active_record), caps.timestamp_precision
+            )
+        ),
+    )
 
 
 def expand_merge_condition(

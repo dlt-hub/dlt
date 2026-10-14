@@ -1,12 +1,10 @@
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
-from datetime import timezone
 
-from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
-from dlt.common.typing import TAnyDateTime, TypedDict
+from dlt.common.typing import TypedDict
 
 from dlt.common.schema.typing import (
     UPSERT_MERGE_STRATEGIES,
@@ -18,16 +16,15 @@ from dlt.common.schema.utils import (
     get_first_column_name_with_prop,
     get_dedup_sort_tuple,
     get_validity_column_names,
-    get_active_record_timestamp,
     is_nested_table,
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
-from dlt.common.storages.load_package import load_package_state as current_load_package
 from dlt.common.utils import uniq_id
 from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.utils import (
     expand_merge_condition,
     get_merge_changed_cond,
+    get_scd2_timestamps,
     get_merge_placeholder_values,
 )
 from dlt.destinations.exceptions import MergeDispositionException
@@ -1418,36 +1415,16 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )  # row hash column
 
         # define values for validity columns
-        format_datetime_literal = caps.format_datetime_literal
-        if format_datetime_literal is None:
-            format_datetime_literal = (
-                DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
-            )
-
-        _boundary_ts = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
-        boundary_ts: TAnyDateTime = (
-            _boundary_ts
-            if _boundary_ts is not None
-            else current_load_package()["state"]["created_at"]
-        )
-        # UTC, never the context timezone: a moved boundary stops merges retiring existing rows
-        boundary_ts = ensure_datetime_in_tz(boundary_ts, timezone.utc)
-
-        # a destination without tz support holds the context wall clock, so the literal must too
-        boundary_literal = format_datetime_literal(
-            boundary_ts,
-            caps.timestamp_precision,
-            no_tz=not caps.supports_tz_aware_datetime,
-        )
-
-        active_record_timestamp = get_active_record_timestamp(root_table)
-        if active_record_timestamp is None:
+        escape_lit = caps.escape_literal
+        if escape_lit is None:
+            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+        boundary_ts, active_record_ts = get_scd2_timestamps(root_table, caps)
+        boundary_literal = escape_lit(boundary_ts)
+        if active_record_ts is None:
             active_record_literal = "NULL"
             is_active = f"{to} IS NULL"
-        else:  # it's a datetime
-            active_record_literal = format_datetime_literal(
-                active_record_timestamp, caps.timestamp_precision
-            )
+        else:
+            active_record_literal = escape_lit(active_record_ts)
             is_active = f"{to} = {active_record_literal}"
 
         source_filter, destination_scope = cls.get_merge_conditions(root_table, sql_client)

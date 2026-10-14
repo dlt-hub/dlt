@@ -149,8 +149,8 @@ def strip_timezone(ts: TAnyDateTime) -> datetime:
 
 
 def boundary_wall_clock(ts: TAnyDateTime) -> datetime:
-    """A boundary timestamp is a UTC instant, stored as the context wall clock."""
-    return normalize_timezone(ensure_datetime_in_tz(ts, timezone.utc), False)
+    """A boundary timestamp, naive in the context timezone, stored as the context wall clock."""
+    return normalize_timezone(ensure_datetime_in_tz(ts), False)
 
 
 def get_table(

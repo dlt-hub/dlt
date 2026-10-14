@@ -606,7 +606,7 @@ def dim_customer():
 
 ### Example: configure boundary timestamp
 
-You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted.
+You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted. A naive `boundary_timestamp` or `active_record_timestamp` is read in the [context timezone](schema.md#context-timezone), UTC by default.
 
 ```py
 @dlt.resource(
