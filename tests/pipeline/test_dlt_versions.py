@@ -1,4 +1,5 @@
 import os
+import re
 from datetime import datetime, timezone  # noqa: I251
 from typing import Any, List, Optional, Dict
 import sys
@@ -19,7 +20,6 @@ from dlt.common.runners import Venv
 from dlt.common.storages.exceptions import StorageMigrationError
 from dlt.common.utils import custom_environ, set_working_dir
 from dlt.common.storages import FileStorage
-from dlt.common.time import datetime_to_timestamp, datetime_to_timestamp_ms, ensure_datetime_in_tz
 from dlt.common.schema.typing import (
     LOADS_TABLE_NAME,
     PIPELINE_STATE_TABLE_NAME,
@@ -34,6 +34,9 @@ from dlt.destinations.impl.duckdb.configuration import DuckDbClientConfiguration
 from dlt.destinations.impl.duckdb.sql_client import DuckDbSqlClient
 from dlt.destinations.impl.filesystem.filesystem import FilesystemClient
 from dlt.destinations.impl.filesystem.sql_client import FilesystemSqlClient
+from dlt.destinations.path_utils import prepare_datetime_params
+
+from tests.pipeline.cases.github_pipeline.filesystem_layout_pipeline import LAYOUT, PIPELINES
 
 from tests.pipeline.utils import airtable_emojis, load_table_counts, assert_load_info
 from tests.utils import get_test_storage_root
@@ -844,21 +847,40 @@ def test_load_filesystem_package_with_date_layout_from_1_25(test_storage: FileSt
             print(f"script output: {cpe.output}")
             raise
 
-        # the package state written by the old dlt has no placeholders
-        pipeline = dlt.attach("filesystem_layout")
-        load_id = pipeline.list_completed_load_packages()[-1]
-        package_state = pipeline.get_load_package_state(load_id)
-        assert "placeholders" not in package_state
-        # the current dlt reads the creation time that the old dlt wrote to the package state
-        created_at = ensure_datetime_in_tz(package_state["created_at"], timezone.utc)
-        old_created_at_ms = int(old_output.split("CREATED_AT_MS:")[1].split()[0])
-        assert datetime_to_timestamp_ms(created_at) == old_created_at_ms
-        # the path renders the creation time of the package, not the time of the load, in UTC
-        expected = (
-            f"items/{created_at:%Y-%m-%d}/{datetime_to_timestamp(created_at)}/"
-            f"{old_created_at_ms}/{load_id}."
-        )
-        assert expected in output.replace("\\", "/")
+        def layout_paths(script_output: str, pipeline_name: str, load_id: str) -> List[str]:
+            prefix = f"FILE:{pipeline_name}:"
+            return [
+                line[len(prefix) :].replace("\\", "/")
+                for line in script_output.splitlines()
+                if line.startswith(prefix) and load_id in line
+            ]
+
+        layout_prefix = LAYOUT.split("{load_id}")[0]
+        for pipeline_name, current_datetime in PIPELINES.items():
+            pipeline = dlt.attach(pipeline_name)
+            old_load_id, new_load_id = sorted(pipeline.list_completed_load_packages())
+            # the old dlt rendered the first package, the current dlt the second one
+            for load_id, rendered in ((old_load_id, old_output), (new_load_id, output)):
+                package_state = pipeline.get_load_package_state(load_id)
+                assert "placeholders" not in package_state
+                # both versions render the creation time that the old dlt wrote to the package
+                # state, in UTC. a naive `current_datetime` from the config is UTC
+                params = prepare_datetime_params(
+                    datetime.fromisoformat(current_datetime) if current_datetime else None,
+                    package_state["created_at"],
+                )
+                expected = layout_prefix.format(table_name="items", **params) + load_id + "."
+                pattern = re.escape(expected)
+                if current_datetime and rendered is old_output:
+                    # dlt 1.25 rendered `{timestamp}` of the naive config string in the system
+                    # timezone, the current dlt renders it in UTC. the date placeholders are
+                    # the wall clock of the string in both
+                    pattern = pattern.replace(
+                        re.escape(f"{params['timestamp']}-{params['timestamp_ms']}"), r"\d+-\d+"
+                    )
+                paths = layout_paths(rendered, pipeline_name, load_id)
+                assert len(paths) == 1, paths
+                assert re.search(pattern, paths[0]), paths[0]
 
 
 def _run_datetime_key_case(old_version: str, strategy: str) -> None:
