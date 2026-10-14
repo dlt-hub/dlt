@@ -1360,62 +1360,47 @@ def get_columns_and_row_all_types(destination_config: DestinationClientConfigura
     )
 
 
-@sql_client_configs
-def test_schema_update_alter_existing_table_without_data(
+@pytest.mark.parametrize(
+    "client",
+    destinations_configs(
+        default_sql_configs=True, default_vector_configs=True, exclude=["weaviate", "qdrant"]
+    ),
+    indirect=True,
+    ids=lambda x: x.name,
+)
+def test_schema_update_include_existing_tables(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
 ) -> None:
-    # issue #4535: a new schema version adds a column to a table that receives no
-    # data in that load. the version hash is stored as if fully migrated, so the
-    # alter is skipped and later loads fail on the missing column.
     schema = client.schema
     item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
     col_id = item_normalizer._infer_column("id", 1)
-    table_a = "table_a_" + uniq_id()
-    table_b = "table_b_" + uniq_id()
+    table_a, table_b, table_c = (f"table_{n}_{uniq_id()}" for n in "abc")
+    only_tables = {table_b, schema.version_table_name}
 
-    # load 1: both tables created
+    # a and b exist in the destination
     schema.update_table(new_table(table_a, columns=[col_id]))
     schema.update_table(new_table(table_b, columns=[col_id]))
     schema._bump_version()
     client.update_stored_schema()
 
-    # load 2: table_a gains a column in the schema, but only table_b has data,
-    # so only table_b is in only_tables. the new hash gets stored regardless.
-    col_x = item_normalizer._infer_column("x", 1)
-    schema.update_table(new_table(table_a, columns=[col_x]))
+    # a gains x, c is added, only b is migrated: only means only but the hash is stored anyway
+    schema.update_table(new_table(table_a, columns=[item_normalizer._infer_column("x", 1)]))
+    schema.update_table(new_table(table_c, columns=[col_id]))
     schema._bump_version()
-    client.update_stored_schema(only_tables={table_b})
-
-    # load 3: the stored hash is found and the update is skipped. table_a must
-    # still have its column, or an insert carrying x will fail.
-    client.update_stored_schema()
+    client.update_stored_schema(only_tables=only_tables)
+    assert client.get_stored_schema_by_hash(schema.stored_version_hash) is not None
     _, storage_cols = client.get_storage_table(table_a)
-    storage_cols = normalize_storage_table_cols(table_a, storage_cols, schema)
-    assert "x" in storage_cols
+    assert "x" not in normalize_storage_table_cols(table_a, storage_cols, schema)
+    assert client.get_storage_table(table_c)[0] is False
 
-
-@sql_client_configs
-def test_schema_update_does_not_create_table_without_data(
-    client: SqlJobClientBaseWithDestinationTestConfiguration,
-) -> None:
-    # issue #4535: when a new schema version is stored, tables outside of only_tables
-    # are altered if they already exist. a table that does not exist yet must not be
-    # created by that pass, it is created when it receives data.
-    schema = client.schema
-    item_normalizer = JsonLItemsNormalizer(None, None, None, schema, "load_id", None)
-    col_id = item_normalizer._infer_column("id", 1)
-    table_a = "table_a_" + uniq_id()
-    table_b = "table_b_" + uniq_id()
-
-    # load 1: table_a created
-    schema.update_table(new_table(table_a, columns=[col_id]))
+    # a gains y: existing a gets x (skipped before) and y, c is still not created
+    schema.update_table(new_table(table_a, columns=[item_normalizer._infer_column("y", 1)]))
     schema._bump_version()
-    client.update_stored_schema()
-
-    # load 2: table_b is added to the schema, but only table_a has data
-    schema.update_table(new_table(table_b, columns=[col_id]))
-    schema._bump_version()
-    client.update_stored_schema(only_tables={table_a})
-
-    exists, _ = client.get_storage_table(table_b)
-    assert exists is False
+    applied_update = client.update_stored_schema(
+        only_tables=only_tables, include_existing_tables=True
+    )
+    assert set(applied_update.keys()) == {table_a}
+    assert set(applied_update[table_a]["columns"].keys()) == {"x", "y"}
+    _, storage_cols = client.get_storage_table(table_a)
+    assert {"x", "y"} <= normalize_storage_table_cols(table_a, storage_cols, schema).keys()
+    assert client.get_storage_table(table_c)[0] is False

@@ -50,8 +50,11 @@ class DestinationClient(JobClientBase):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        return super().update_stored_schema(only_tables, expected_update, force)
+        return super().update_stored_schema(
+            only_tables, expected_update, force, include_existing_tables
+        )
 
     def create_load_job(
         self, table: PreparedTableSchema, file_path: str, load_id: str, restore: bool = False

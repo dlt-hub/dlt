@@ -397,9 +397,13 @@ class AthenaClient(SqlJobClientWithStagingDataset, SupportsStagingDestination):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
         applied_update = super().update_stored_schema(
-            only_tables, expected_update=expected_update, force=force
+            only_tables,
+            expected_update=expected_update,
+            force=force,
+            include_existing_tables=include_existing_tables,
         )
         # here we could apply tags only if any migration happened, right now we do it on each run
         # NOTE: tags are applied before any data is loaded

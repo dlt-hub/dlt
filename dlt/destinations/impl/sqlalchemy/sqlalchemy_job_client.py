@@ -204,9 +204,11 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        # super().update_stored_schema(only_tables, expected_update)
-        JobClientBase.update_stored_schema(self, only_tables, expected_update, force)
+        JobClientBase.update_stored_schema(
+            self, only_tables, expected_update, force, include_existing_tables
+        )
 
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is not None and not force:
@@ -222,15 +224,8 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
                 self.schema.stored_version_hash,
             )
 
-        # `only_tables` are created or altered, or all tables if None
-        table_names = list(only_tables or self.schema.tables)
-        may_create = set(table_names)
-        if schema_info is None:
-            # The version hash stored below says that the destination matches the whole schema,
-            # so tables outside of `only_tables` cannot be skipped. Those that already exist get
-            # the columns they miss. Those that do not exist are not created here: tables are
-            # created when they receive data and are passed in `only_tables`.
-            table_names.extend(t for t in self.schema.tables if t not in may_create)
+        only_tables = set(only_tables or self.schema.tables)
+        table_names = self.schema.tables.keys() if include_existing_tables else only_tables
 
         # Create all schema tables in metadata
         for table_name in table_names:
@@ -243,10 +238,9 @@ class SqlalchemyJobClient(SqlJobClientWithStagingDataset):
         for table_name in table_names:
             table = self.schema.tables[table_name]
             table_obj, new_columns, exists = self.sql_client.compare_storage_table(table["name"])
-            if not new_columns:  # Nothing to do, don't create table without columns
+            # tables outside only_tables get new columns but are not created
+            if not new_columns or (not exists and table_name not in only_tables):
                 continue
-            if not exists and table_name not in may_create:
-                continue  # created when the table receives data
             if not exists:
                 logger.debug(f"Will create table {table_name} with new columns {len(new_columns)}")
                 tables_to_create.append(table_obj)

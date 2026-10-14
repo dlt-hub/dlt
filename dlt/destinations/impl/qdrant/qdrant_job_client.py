@@ -310,8 +310,11 @@ class QdrantClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update, force)
+        applied_update = super().update_stored_schema(
+            only_tables, expected_update, force, include_existing_tables
+        )
         schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
         if schema_info is None or force:
             logger.info(
