@@ -15,7 +15,15 @@
     },
     "observability": {
       "enabled": true,
-      "head_sampling_rate": 1
+      "head_sampling_rate": 1,
+      // native log export to the `traffic-logs` Axiom dataset, same as the website
+      // and workspace workers. `axiom-traffic-logs` is an account-level destination
+      // defined in the Cloudflare dashboard (Observability -> Destinations)
+      "logs": {
+        "enabled": true,
+        "destinations": ["axiom-traffic-logs"],
+        "head_sampling_rate": 1
+      }
     },
   	"vars": {
       "AXIOM_DATASET": "vibes",
