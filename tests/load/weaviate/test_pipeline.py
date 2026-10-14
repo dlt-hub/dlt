@@ -335,9 +335,14 @@ def test_pipeline_with_schema_evolution(vectorized: bool):
 
     assert_class(pipeline, "SomeData", items=aggregated_data)
 
-    # a column declared without rows is added to the existing class before rows arrive
+    # a column declared without rows is added to the existing class when another class gets data
     hints = dlt.mark.make_hints(columns=[{"name": "hint_column", "data_type": "text"}])
-    pipeline.run(dlt.resource([dlt.mark.with_hints([], hints)], name="some_data"))
+    pipeline.run(
+        [
+            dlt.resource([dlt.mark.with_hints([], hints)], name="some_data"),
+            dlt.resource([{"doc_id": 1, "content": "1"}], name="other_data"),
+        ]
+    )
     with pipeline.destination_client() as client:
         assert "hint_column" in client.get_storage_table("SomeData")[1]  # type: ignore[attr-defined]
     data = [{"doc_id": 5, "content": "5", "hint_column": "hinted"}]
