@@ -72,12 +72,7 @@ def build_iceberg_partition_spec(
     Turn a dlt PartitionSpec list into a PyIceberg PartitionSpec.
     Returns the PartitionSpec and the IcebergSchema derived from the Arrow schema.
     """
-    name_mapping = NameMapping(
-        [
-            MappedField(field_id=i + 1, names=[name])  # type: ignore[call-arg]
-            for i, name in enumerate(arrow_schema.names)
-        ]
-    )
+    name_mapping = _build_name_mapping(arrow_schema)
     iceberg_schema: IcebergSchema = pyarrow_to_schema(arrow_schema, name_mapping)
 
     fields: list[PartitionField] = []
@@ -94,6 +89,37 @@ def build_iceberg_partition_spec(
         )
 
     return IcebergPartitionSpec(*fields), iceberg_schema
+
+
+def _build_name_mapping(arrow_schema: pa.Schema) -> NameMapping:
+    """Builds a name mapping with ids for every field of the schema, nested ones included.
+
+    The mapping is applied to the schema converted from Arrow, which fails on any field
+    without a mapped id. Struct, list and map members are mapped under the names Iceberg
+    uses for them (`element`, `key` and `value` for the last two).
+    """
+    next_id = 0
+
+    def map_field(name: str, arrow_type: pa.DataType) -> MappedField:
+        nonlocal next_id
+        next_id += 1
+        field_id = next_id
+        children: list[MappedField] = []
+        if pa.types.is_struct(arrow_type):
+            for child in arrow_type:
+                children.append(map_field(child.name, child.type))
+        elif (
+            pa.types.is_list(arrow_type)
+            or pa.types.is_large_list(arrow_type)
+            or pa.types.is_fixed_size_list(arrow_type)
+        ):
+            children.append(map_field("element", arrow_type.value_type))
+        elif pa.types.is_map(arrow_type):
+            children.append(map_field("key", arrow_type.key_type))
+            children.append(map_field("value", arrow_type.item_type))
+        return MappedField(field_id=field_id, names=[name], fields=children)  # type: ignore[call-arg]
+
+    return NameMapping([map_field(field.name, field.type) for field in arrow_schema])
 
 
 def _default_field_name(spec: PartitionSpec) -> str:

@@ -331,6 +331,71 @@ def test_build_iceberg_partition_spec() -> None:
     assert isinstance(region_field.field_type, StringType)
 
 
+def test_build_iceberg_partition_spec_with_nested_columns() -> None:
+    from pyiceberg.types import ListType, MapType, StructType
+
+    arrow_schema = pa.schema(
+        [
+            pa.field("id", pa.int64()),
+            pa.field("tags", pa.list_(pa.string())),
+            pa.field("owner", pa.struct([("name", pa.string()), ("age", pa.int32())])),
+            pa.field("refs", pa.list_(pa.struct([("n", pa.int64())]))),
+            pa.field("attrs", pa.map_(pa.string(), pa.int64())),
+            pa.field("created_at", pa.timestamp("us")),
+        ]
+    )
+
+    iceberg_partition_spec, iceberg_schema = build_iceberg_partition_spec(
+        arrow_schema,
+        [iceberg_partition.identity("id"), iceberg_partition.day("created_at")],
+    )
+
+    assert isinstance(iceberg_schema.find_field("tags").field_type, ListType)
+    assert isinstance(iceberg_schema.find_field("owner").field_type, StructType)
+    assert isinstance(iceberg_schema.find_field("attrs").field_type, MapType)
+    assert (
+        iceberg_schema.find_field("owner.age").field_id != iceberg_schema.find_field("id").field_id
+    )
+    assert iceberg_schema.find_field("refs.element.n").name == "n"
+    assert iceberg_schema.find_field("attrs.value").name == "value"
+
+    # field ids are unique across the whole schema, nested fields included
+    field_ids = [iceberg_schema.find_field(name).field_id for name in iceberg_schema.column_names]
+    assert len(field_ids) == len(set(field_ids))
+
+    # partition fields point at the requested top level columns
+    id_field, day_field = iceberg_partition_spec.fields
+    assert id_field.source_id == iceberg_schema.find_field("id").field_id
+    assert day_field.source_id == iceberg_schema.find_field("created_at").field_id
+    assert day_field.name == "created_at_day"
+
+
+def test_iceberg_partition_with_nested_column_creates_table(tmp_path) -> None:
+    from dlt.common.libs.pyiceberg import get_iceberg_tables
+
+    @dlt.resource(name="events", table_format="iceberg")
+    def events():
+        yield pa.table(
+            {
+                "id": ["a", "b"],
+                "tags": [["x", "y"], ["z"]],
+                "owner": [{"name": "n1"}, {"name": "n2"}],
+            }
+        )
+
+    pipeline = dlt.pipeline(
+        pipeline_name="iceberg_nested_partition",
+        destination=dlt.destinations.filesystem(bucket_url=str(tmp_path)),
+        dataset_name="nested_partition_ds",
+        dev_mode=True,
+    )
+    pipeline.run(iceberg_adapter(events(), partition=iceberg_partition.identity("id")))
+
+    table = get_iceberg_tables(pipeline, "events")["events"]
+    assert [f.name for f in table.metadata.specs_struct().fields] == ["id"]
+    assert table.scan().to_arrow().num_rows == 2
+
+
 @pytest.mark.parametrize(
     "source_column,transform,partition_field,param_value",
     [
