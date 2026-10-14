@@ -1,6 +1,7 @@
 from copy import copy
 from datetime import date, datetime, timezone  # noqa: I251
 from decimal import Decimal
+from zoneinfo import ZoneInfo
 import os
 import pytest
 import random
@@ -3029,147 +3030,88 @@ def test_delete_insert_destination_scope_nested_tables(
     ),
     ids=lambda x: x.name,
 )
-def test_delete_insert_destination_scope_placeholders(
-    destination_config: DestinationTestConfiguration,
-) -> None:
-    """Replaces one partition per load with a destination scope that takes the partition from
-    `extra_placeholders`. Checks that the schema does not change between loads and that a load
-    uses the values stored at extract."""
+def test_merge_condition_placeholders(destination_config: DestinationTestConfiguration) -> None:
+    """Replaces one partition per load with a destination scope on a `str` placeholder from
+    `extra_placeholders`, a `datetime` placeholder and `{curr_date}`. A source filter on
+    `{load_id}` limits the merge to the current load while the staging tables keep earlier loads.
+    Checks the literal of each value, that the schema does not change between loads and that a
+    load uses the values stored at extract."""
     if destination_config.table_format == "iceberg":
         pytest.skip("Iceberg does not support merge conditions.")
-    p = destination_config.setup_pipeline("di_scope_placeholders", dev_mode=True)
-    scope = merge_condition("part = {part}", destination_config, "table")
+    os.environ["LOAD__TRUNCATE_STAGING_MERGE_TABLES_BEFORE_LOAD"] = "false"
+    p = destination_config.setup_pipeline("merge_placeholders", dev_mode=True)
     # delta has no `delete-insert`. `cdc` deletes the absent records of the partition the same way
     strategy: TLoaderMergeStrategy = (
         "cdc" if destination_config.table_format == "delta" else "delete-insert"
     )
+    # delta merge predicates name the merged tables by alias
+    t = "{table}." if destination_config.table_format == "delta" else ""
+    scope = f"{t}part = {{part}} AND {t}ts >= {{since}} AND {t}load_day = {{curr_date}}"
+    source_filter = merge_condition("_dlt_load_id = {load_id}", destination_config, "staging_table")
+    today = datetime.now(timezone.utc).date()
 
-    def items(data: Sequence[StrAny], part: Any, part_arg: str = None) -> DltSource:
+    def row(id_: int, part: str, hour: int, minute: int, day: date = today, seq: int = 1) -> StrAny:
+        ts = datetime(2024, 1, 1, hour, minute, tzinfo=timezone.utc)
+        return {"id": id_, "part": part, "ts": ts, "load_day": day, "seq": seq}
+
+    def items(
+        data: Sequence[StrAny], part: Any = None, since: datetime = None, part_arg: str = None
+    ) -> DltSource:
         return merge_resource(
             data,
             strategy,
+            # the stale copy of a key in staging must not win the dedup
+            columns={"seq": {"dedup_sort": "asc"}},
             table_format=destination_config.table_format,
+            append=part is None,
             destination_scope=scope,
-            extra_placeholders={"part": part},
+            source_filter=source_filter,
+            extra_placeholders={"part": part, "since": since},
             part=part_arg,
         )
 
-    assert_load_info(
-        p.run(
-            items([{"id": 1, "part": "A"}, {"id": 2, "part": "A"}], "A"),
-            **destination_config.run_kwargs,
-        )
-    )
-    assert_load_info(p.run(items([{"id": 3, "part": "B"}], "B"), **destination_config.run_kwargs))
-    version_hash = p.default_schema.version_hash
+    def stored() -> List[Tuple[int, int]]:
+        return sorted((r["id"], r["seq"]) for r in load_tables_to_dicts(p, "items")["items"])
 
-    # a callable reads the partition from the resource argument. 2 is absent from A and is deleted
+    # 1 is before noon UTC, 3 is in part B and 4 in an old partition. only 2 is in the scope
+    seed = [row(1, "A", 11, 30), row(2, "A", 12, 30), row(3, "B", 12, 30)]
+    seed.append(row(4, "A", 12, 30, date(2000, 1, 1)))
+    assert_load_info(p.run(items(seed), **destination_config.run_kwargs))
+
+    # a callable reads the part from the resource argument, a naive `since` is noon UTC. the scope
+    # deletes 2 and `{curr_date}` is the date of the load, so 4 stays
     info = p.run(
-        items([{"id": 1, "part": "A"}], PARTITION_PLACEHOLDERS["part"], "A"),
+        items([row(5, "A", 12, 30)], PARTITION_PLACEHOLDERS["part"], datetime(2024, 1, 1, 12), "A"),
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
-    assert p.get_load_package_state(info.loads_ids[0])["placeholders"] == {"items": {"part": "A"}}
-    assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 3]
+    assert stored() == [(1, 1), (3, 1), (4, 1), (5, 1)]
+    # `{curr_date}` is computed at load and not stored
+    assert p.get_load_package_state(info.loads_ids[0])["placeholders"] == {
+        "items": {"part": "A", "since": datetime(2024, 1, 1, 12)}
+    }
+    version_hash = p.default_schema.version_hash
+
+    # 13:00 in Berlin is noon UTC. the scope deletes 3. the staging table still holds 5, which the
+    # source filter leaves out
+    since = datetime(2024, 1, 1, 13, tzinfo=ZoneInfo("Europe/Berlin"))
+    info = p.run(items([row(6, "B", 12, 30)], "B", since), **destination_config.run_kwargs)
+    assert_load_info(info)
+    assert stored() == [(1, 1), (4, 1), (5, 1), (6, 1)]
+    assert p.get_load_package_state(info.loads_ids[0])["placeholders"]["items"]["since"] == since
     assert p.default_schema.version_hash == version_hash
 
-    # the load uses the value stored at extract, not the current hint of the resource
-    source = items([{"id": 4, "part": "B"}], "B")
+    # the load uses the values stored at extract, not the current hint of the resource. the stale
+    # copy of 5 in staging sorts first, so a dedup over the whole staging table would discard 5
+    source = items([row(7, "A", 12, 30), row(5, "A", 12, 30, seq=2)], "A", datetime(2024, 1, 1, 12))
     p.extract(source, **destination_config.run_kwargs)
-    source.resources["items"].write_disposition["extra_placeholders"]["part"] = "A"  # type: ignore[index,typeddict-item]
+    source.resources["items"].write_disposition["extra_placeholders"]["part"] = "B"  # type: ignore[index,typeddict-item]
     p.normalize()
     load_id = p.list_normalized_load_packages()[0]
-    assert p.get_load_package_state(load_id)["placeholders"] == {"items": {"part": "B"}}
+    assert p.get_load_package_state(load_id)["placeholders"]["items"]["part"] == "A"
     assert_load_info(p.load())
-    assert sorted(r["id"] for r in load_tables_to_dicts(p, "items")["items"]) == [1, 4]
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(
-        default_sql_configs=True, table_format_local_configs=True, supports_merge=True
-    ),
-    ids=lambda x: x.name,
-)
-def test_destination_scope_load_date(destination_config: DestinationTestConfiguration) -> None:
-    """Replaces the partition of the load day with `{curr_date}` and keeps older partitions."""
-    if destination_config.table_format == "iceberg":
-        pytest.skip("Iceberg does not support merge conditions.")
-    if destination_config.destination_type == "sqlalchemy":
-        # sqlalchemy 1.4 can't render date literals
-        pytest.importorskip("sqlalchemy", minversion="2.0")
-    p = destination_config.setup_pipeline("scope_load_date", dev_mode=True)
-    strategy: TLoaderMergeStrategy = (
-        "cdc" if destination_config.table_format == "delta" else "delete-insert"
-    )
-
-    def items(ids: Sequence[int], append: bool = False) -> DltSource:
-        disposition: Any = "append"
-        if not append:
-            disposition = {
-                "disposition": "merge",
-                "strategy": strategy,
-                "destination_scope": merge_condition(
-                    "load_day = {curr_date}", destination_config, "table"
-                ),
-            }
-
-        @dlt.source(root_key=True)
-        def source():
-            @dlt.resource(
-                name="items",
-                primary_key="id",
-                table_format=destination_config.table_format,
-                write_disposition=disposition,
-            )
-            def items_():
-                # the records of a load carry its UTC date, the date that `{curr_date}` expands to
-                created_at = dlt.current.load_package_state()["state"]["created_at"]
-                day = created_at.astimezone(timezone.utc).date()
-                # `day` is a reserved word in dremio
-                yield [{"id": i, "load_day": date(2000, 1, 1) if append else day} for i in ids]
-
-            return items_
-
-        return source()
-
-    assert_load_info(p.run(items([1], append=True), **destination_config.run_kwargs))
-    assert_load_info(p.run(items([2, 3]), **destination_config.run_kwargs))
-    # 3 is absent from the partition of the load day. the old partition keeps 1
-    info = p.run(items([2]), **destination_config.run_kwargs)
-    assert_load_info(info)
-    rows = load_tables_to_dicts(p, "items")["items"]
-    assert sorted(r["id"] for r in rows) == [1, 2]
-    # dlt computes `{curr_date}` from the package state at load time and does not store it
-    package_state = p.get_load_package_state(info.loads_ids[0])
-    assert "placeholders" not in package_state
-    load_date = ensure_datetime_in_tz(package_state["created_at"], timezone.utc).date()
-    assert [str(r["load_day"])[:10] for r in rows if r["id"] == 2] == [load_date.isoformat()]
-
-
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, supports_merge=True),
-    ids=lambda x: x.name,
-)
-def test_source_filter_scoped_to_load_id(
-    destination_config: DestinationTestConfiguration,
-) -> None:
-    """Keeps the staging tables between loads and merges only the records of the current load
-    with `source_filter` on `{load_id}`."""
-    os.environ["LOAD__TRUNCATE_STAGING_DATASET_BEFORE_LOAD"] = "false"
-    p = destination_config.setup_pipeline("source_filter_load_id", dev_mode=True)
-
-    def load(data: Sequence[StrAny]) -> None:
-        resource = merge_resource(data, "delete-insert", source_filter="_dlt_load_id = {load_id}")
-        assert_load_info(p.run(resource, **destination_config.run_kwargs))
-
-    load([{"id": 1, "val": "a"}])
-    load([{"id": 1, "val": "b"}])
-    # the staging table still holds both versions of 1. only the current load is merged
-    load([{"id": 2, "val": "c"}])
-    rows = sorted((r["id"], r["val"]) for r in load_tables_to_dicts(p, "items")["items"])
-    assert rows == [(1, "b"), (2, "c")]
+    assert stored() == [(1, 1), (4, 1), (5, 2), (6, 1), (7, 1)]
+    assert p.default_schema.version_hash == version_hash
 
 
 @pytest.mark.parametrize(
