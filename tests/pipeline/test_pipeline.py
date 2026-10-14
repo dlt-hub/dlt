@@ -46,7 +46,7 @@ from dlt.common.destination.exceptions import (
 )
 from dlt.common.exceptions import PipelineStateNotAvailable, SignalReceivedException
 from dlt.common.normalizers.typing import TNormalizersConfig
-from dlt.common.pipeline import ExtractInfo, LoadInfo, PipelineContext, SupportsPipeline
+from dlt.common.pipeline import LoadInfo, PipelineContext, SupportsPipeline
 from dlt.common.runtime import signals
 from dlt.common.runtime.collector import DictCollector, LogCollector
 from dlt.common.schema.exceptions import TableIdentifiersFrozen
@@ -6020,28 +6020,12 @@ def test_ignore_signals_in_load() -> None:
     p = DummyProcess(target=_thread)
     p.start()
 
-    # should raise on KeyboardInterrupt - delayed signals disabled
+    # KeyboardInterrupt must propagate unwrapped: a user interrupt is not a
+    # pipeline error and must never be mistaken for one (dlt-hub/dlt#4470).
     # NOTE: any failing assert below locks the pytest. remove
     # @pytest.mark.forked to debug
-    with pytest.raises(PipelineStepFailed) as pip_ex:
+    with pytest.raises(KeyboardInterrupt):
         pipeline.run(dlt.resource([1, 2, 3], name="digits"))
-    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
-    # must have metrics and package
-    assert pip_ex.value.step == "load"
-    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
-    assert len(load_info.load_packages) == 1
-    load_id = load_info.loads_ids[0]
-    assert load_info.load_packages[0].load_id == load_id
-    assert load_info.started_at is not None
-    assert load_info.finished_at is None
-    metrics = load_info.metrics[load_id][0]["job_metrics"]
-    assert len(metrics) == 1
-    for metric in metrics.values():
-        assert metric.started_at is not None
-        assert metric.finished_at is None
-        # killed in the middle
-        assert metric.state == "running"
-        assert metric.retry_count == 0
     # stop destination
     signals.set_received_signal(signals.signal.SIGINT)
 
@@ -6129,27 +6113,12 @@ def test_signal_force_load_step_shutdown(sig: int) -> None:
     p = DummyProcess(target=_thread)
     p.start()
 
-    # should raise regular pipeline exception
+    # KeyboardInterrupt must propagate unwrapped: a user interrupt is not a
+    # pipeline error and must never be mistaken for one (dlt-hub/dlt#4470).
     # NOTE: any failing assert below locks the pytest. remove
     # @pytest.mark.forked to debug
-    with pytest.raises(PipelineStepFailed) as pip_ex:
+    with pytest.raises(KeyboardInterrupt):
         pipeline.run([1, 2, 3], table_name="digits")
-    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
-    # check load info
-    load_info: LoadInfo = pip_ex.value.step_info  # type: ignore
-    assert len(load_info.load_packages) == 1
-    load_id = load_info.loads_ids[0]
-    assert load_info.load_packages[0].load_id == load_id
-    assert load_info.started_at is not None
-    assert load_info.finished_at is None
-    metrics = load_info.metrics[load_id][0]["job_metrics"]
-    assert len(metrics) == 1
-    for metric in metrics.values():
-        assert metric.started_at is not None
-        assert metric.finished_at is None
-        # killed in the middle
-        assert metric.state == "running"
-        assert metric.retry_count == 0
 
     # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
     _done = True
@@ -6191,22 +6160,10 @@ def test_signal_extract_step_shutdown(sig: int) -> None:
     p = DummyProcess(target=_thread)
     p.start()
 
-    # should raise regular pipeline exception
-    with pytest.raises(PipelineStepFailed) as pip_ex:
+    # KeyboardInterrupt must propagate unwrapped: a user interrupt is not a
+    # pipeline error and must never be mistaken for one (dlt-hub/dlt#4470).
+    with pytest.raises(KeyboardInterrupt):
         pipeline.run(wait_forever())
-    assert pip_ex.value.step == "extract"
-    assert isinstance(pip_ex.value.__cause__, KeyboardInterrupt)
-    # check extract info
-    extract_info: ExtractInfo = pip_ex.value.step_info  # type: ignore
-    assert len(extract_info.load_packages) == 1
-    load_id = extract_info.loads_ids[0]
-    assert extract_info.load_packages[0].load_id == load_id
-    # package is always completed
-    assert extract_info.started_at is not None
-    assert extract_info.finished_at is not None
-    # no jobs got collected. running jobs are not included
-    metrics = extract_info.metrics[load_id][0]["job_metrics"]
-    assert len(metrics) == 0
 
     # now we have hanging `wait_forever` in job pool. load step exited after short wait & warning
     _done = True
@@ -6275,16 +6232,10 @@ def test_pending_package_exception_warning() -> None:
     )
     pipeline.config.restore_from_destination = False
 
-    # fail in extract should not generate any warnings: nothing is pending in the pipeline
-    with pytest.raises(PipelineStepFailed) as pip_ex:
+    # a KeyboardInterrupt in extract propagates unwrapped: a user interrupt must
+    # not be mistaken for a pipeline error (dlt-hub/dlt#4470)
+    with pytest.raises(KeyboardInterrupt):
         pipeline.run(fail_extract())
-
-    assert pip_ex.value.step == "extract"
-    assert "Pending packages" not in str(pip_ex.value)
-    assert "partially loaded" not in str(pip_ex.value)
-    assert pip_ex.value.load_id is not None
-    assert pip_ex.value.is_package_partially_loaded is False
-    assert pip_ex.value.has_pending_data is False
 
     with pytest.raises(PipelineStepFailed) as pip_ex:
         pipeline.run(
