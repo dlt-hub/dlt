@@ -255,6 +255,8 @@ def _init_dataset_and_update_schema(
             expected_update=expected_update,
             # force schema update if tables dropped or truncated via refresh
             force=bool(drop_tables or initial_truncate_tables),
+            # the stored hash covers the whole schema so tables without jobs need their new columns
+            include_existing_tables=True,
         )
     if truncate_tables or initial_truncate_tables:
         if initial_truncate_tables:
