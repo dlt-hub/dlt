@@ -4773,28 +4773,57 @@ def test_staging_dataset_truncate(truncate) -> None:
 
 
 @pytest.mark.parametrize("truncate", (True, False), ids=("truncate", "keep"))
-def test_staging_dataset_truncate_before_load(truncate: bool) -> None:
-    dlt.config["truncate_staging_dataset_before_load"] = truncate
+def test_staging_merge_tables_truncate_before_load(truncate: bool) -> None:
+    dlt.config["truncate_staging_merge_tables_before_load"] = truncate
+    # replace loads through the staging dataset as well
+    os.environ["DESTINATION__REPLACE_STRATEGY"] = "insert-from-staging"
 
     @dlt.resource(write_disposition="merge", primary_key="id")
-    def test_data(ids: List[int]):
+    def merged(ids: List[int]):
         yield [{"field": i, "id": i} for i in ids]
+
+    @dlt.resource(write_disposition="replace")
+    def replaced(ids: List[int]):
+        yield [{"id": i} for i in ids]
 
     pipeline = dlt.pipeline(
         pipeline_name="test_staging_kept",
         destination="duckdb",
         dev_mode=True,
     )
-    assert_load_info(pipeline.run(test_data([1, 2, 3]), table_name="staging_kept"))
-    assert_load_info(pipeline.run(test_data([4, 5]), table_name="staging_kept"))
+    assert_load_info(pipeline.run([merged([1, 2, 3]), replaced([1, 2, 3])]))
+    assert_load_info(pipeline.run([merged([4, 5]), replaced([4, 5])]))
+
+    def ids_in(table_name: str, staging: bool = False) -> List[int]:
+        dataset_name = pipeline.dataset_name + ("_staging" if staging else "")
+        with pipeline.sql_client() as client:
+            rows = client.execute_sql(f"SELECT id FROM {dataset_name}.{table_name} ORDER BY id")
+        return [r[0] for r in rows]
+
+    # without truncation, the merge staging table keeps the records of the first load
+    assert ids_in("merged", staging=True) == ([4, 5] if truncate else [1, 2, 3, 4, 5])
+    assert ids_in("merged") == [1, 2, 3, 4, 5]
+    # replace copies the whole staging table, so dlt truncates it regardless of the setting
+    assert ids_in("replaced", staging=True) == [4, 5]
+    assert ids_in("replaced") == [4, 5]
+
+
+@pytest.mark.parametrize("truncate", (True, False), ids=("truncate", "keep"))
+def test_staging_dataset_not_created_without_staging_tables(truncate: bool) -> None:
+    dlt.config["truncate_staging_merge_tables_before_load"] = truncate
+
+    @dlt.resource(write_disposition="append")
+    def appended(ids: List[int]):
+        yield [{"id": i} for i in ids]
+
+    pipeline = dlt.pipeline(pipeline_name="test_no_staging", destination="duckdb", dev_mode=True)
+    assert_load_info(pipeline.run(appended([1, 2])))
+    assert_load_info(pipeline.run(appended([3])))
 
     with pipeline.sql_client() as client:
-        staging_ids = client.execute_sql(
-            f"SELECT id FROM {pipeline.dataset_name}_staging.staging_kept ORDER BY id"
-        )
-        # without truncation, the staging table keeps the records of the first load
-        assert [r[0] for r in staging_ids] == ([4, 5] if truncate else [1, 2, 3, 4, 5])
-        assert len(client.execute_sql(f"SELECT * FROM {pipeline.dataset_name}.staging_kept")) == 5
+        assert client.has_dataset()
+        with client.with_staging_dataset():
+            assert not client.has_dataset()
 
 
 def test_merge_extra_placeholders_stored_in_load_package() -> None:

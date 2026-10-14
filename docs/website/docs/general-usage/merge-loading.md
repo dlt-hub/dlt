@@ -1178,6 +1178,6 @@ def items():
     ...
 ```
 
-This source filter is useful when the staging tables keep the records of earlier loads, for example with [`truncate_staging_dataset_before_load`](../dlt-ecosystem/staging.md#keep-the-staging-tables-when-the-load-begins).
+This source filter is useful when the staging tables keep the records of earlier loads, for example with [`truncate_staging_merge_tables_before_load`](../dlt-ecosystem/staging.md#keep-the-staging-tables-when-the-load-begins).
 
 The names of `extra_placeholders` cannot be `table`, `staging_table` or the name of a value placeholder that dlt fills. dlt reads `extra_placeholders` only from a write disposition dict, not from a function that returns the write disposition.
