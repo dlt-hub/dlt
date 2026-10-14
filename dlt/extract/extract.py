@@ -499,13 +499,16 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         """Stores the values of `extra_placeholders` of the merge write disposition in the load
         package, by table. Callable values receive the resource and the table name.
         """
-        tables_with_items = set().union(*[e.tables_with_items for e in extractors.values()])
-        for table_name in tables_with_items:
-            table = source.schema.tables[table_name]
-            if utils.is_nested_table(table):
+        # an empty materialized table also gets a job, so its merge needs the values too
+        tables_with_jobs = set().union(
+            *[e.tables_with_items | e.tables_with_empty for e in extractors.values()]
+        )
+        for table_name in tables_with_jobs:
+            table = source.schema.tables.get(table_name)
+            if table is None or utils.is_nested_table(table):
                 continue
-            resource = source.resources[table["resource"]]
-            write_disposition = resource.write_disposition
+            resource = source.resources.get(table.get("resource"))
+            write_disposition = resource.write_disposition if resource else None
             # dynamic write dispositions can't be handled here
             if not isinstance(write_disposition, dict):
                 continue

@@ -4804,20 +4804,24 @@ def test_merge_extra_placeholders_stored_in_load_package() -> None:
         calls.append((resource.name, table_name))
         return resource.incremental.incremental.last_value
 
-    @dlt.resource(
-        primary_key="id",
-        write_disposition={
-            "disposition": "merge",
-            "strategy": "delete-insert",
-            "destination_scope": "day = {day}",
-            "extra_placeholders": {"day": last_day, "tenant": "acme"},
-        },
-    )
-    def events(day=dlt.sources.incremental("day")):
-        yield [{"id": 1, "day": 1}, {"id": 2, "day": 3}]
+    def events(rows: List[Dict[str, Any]]) -> DltResource:
+        @dlt.resource(
+            name="events",
+            primary_key="id",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "delete-insert",
+                "destination_scope": "day = {day}",
+                "extra_placeholders": {"day": last_day, "tenant": "acme"},
+            },
+        )
+        def events_(day=dlt.sources.incremental("day")):
+            yield rows or dlt.mark.materialize_table_schema()
+
+        return events_()
 
     pipeline = dlt.pipeline(pipeline_name="merge_placeholders_" + uniq_id(), destination="duckdb")
-    pipeline.extract(events())
+    pipeline.extract(events([{"id": 1, "day": 1}, {"id": 2, "day": 3}]))
     pipeline.normalize()
     load_id = pipeline.list_normalized_load_packages()[0]
 
@@ -4829,6 +4833,17 @@ def test_merge_extra_placeholders_stored_in_load_package() -> None:
     table = pipeline.default_schema.tables["events"]
     assert table["x-merge-destination-scope"] == "day = {day}"  # type: ignore[typeddict-item]
     assert "extra_placeholders" not in json.dumps(pipeline.default_schema.to_dict())
+    assert_load_info(pipeline.load())
+
+    # an empty materialized table has a merge job, so the values are stored for it too
+    calls.clear()
+    info = pipeline.run(events([]))
+    assert_load_info(info)
+    assert calls == [("events", "events")]
+    state = pipeline.get_load_package_state(info.loads_ids[0])
+    assert state["placeholders"] == {"events": {"day": 3, "tenant": "acme"}}
+    # the merge replaced the partition of day 3 with nothing
+    assert load_table_counts(pipeline, "events") == {"events": 1}
 
 
 def test_change_naming_convention_name_collision() -> None:
