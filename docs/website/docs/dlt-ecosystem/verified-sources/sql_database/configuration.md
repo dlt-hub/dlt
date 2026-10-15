@@ -3,23 +3,22 @@ title: Configuration
 description: configuring the pipeline script, connection, and backend settings in the sql_database source
 keywords: [sql connector, sql database pipeline, sql database]
 ---
+# Configuration
 
 import Header from '../_source-info-header.md';
-
-# Configuration
 
 <Header/>
 
 ## Select tables to load
 
 `dlt` sources are Python scripts made up of source and resource functions that can be easily customized. The SQL Database verified source has the following built-in source and resource:
+
 1. `sql_database`: a `dlt` source that can be used to load multiple tables and views from a SQL database.
 2. `sql_table`: a `dlt` resource that loads a single table from the SQL database.
 
 Read more about sources and resources here: [General usage: source](../../../general-usage/source.md) and [General usage: resource](../../../general-usage/resource.md).
 
-
-### Example usage:
+### Example usage
 
 :::tip
 We intend our sources to be fully hackable. `dlt init` command allows you to eject the source code of the core source and modify it
@@ -117,6 +116,7 @@ will create `sql_database` folder with the source code that you can import and u
         print(info)
 
     ```
+
 4. **Prefix table names using `apply_hints`**
 
    You can rename tables before loading them into the destination by applying the `apply_hints` method to each resource. This is useful for avoiding naming collisions or organizing data.
@@ -147,13 +147,15 @@ will create `sql_database` folder with the source code that you can import and u
        print(load_info)
 
    ```
+
    This renames the tables before insertion. For example, the table "family" will be loaded as "prefix__family".
-   
+
 5. **Configuring table and column selection in `config.toml`**
 
    To manage table and column selections outside of your Python scripts, you can configure them directly in the `config.toml` file. This approach is especially beneficial when dealing with multiple tables or when you prefer to keep configuration separate from code.
 
    Below is an example of how to define table and column selections in the `config.toml` file:
+
    ```toml
    # to select tables names
    [sources.sql_database]
@@ -168,19 +170,22 @@ will create `sql_database` folder with the source code that you can import and u
        "Column_Name_2"
    ]
    ```
+
    :::note
-   *Case-Sensitivity:* 
-   
+   *Case-Sensitivity:*
+
    Table and column names specified in `config.toml` must exactly match their counterparts in the SQL database, as they are case-sensitive.
    :::
 
 ## Incremental loading
+
 Incremental loading uses a cursor column (e.g., timestamp or auto-incrementing ID) to load only new or updated data. In essence, arguments that you pass
-to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need. 
+to [dlt.sources.incremental](../../../general-usage/incremental/cursor) are used by `dlt` to generate SQL query that will select the rows that you need.
 
 Read [step by step guide on how to use incremental with sql_database](../../../walkthroughs/sql-incremental-configuration).
 
 ### How to configure
+
 1. **Choose a cursor column**: Identify a column in your SQL table that can serve as a reliable indicator of new or updated rows. Common choices include timestamp columns or auto-incrementing IDs.
 2. **Set an initial value(optional)**: Choose an initial value for the cursor to begin loading data. This could be a specific timestamp or ID from which you wish to start loading. After first run it will be replaced with the maximum cursor value from the selected rows.
 3. **Set the comparison direction in the query**. By default greater than or equal op (**>=**) is used to compare initial/previous value with row column value. You can change it with `last_value_func` argument (**max**/**min**).
@@ -197,12 +202,12 @@ If you hit ``KeyError: 'Cursor column `...` does not exist in table `...`'``, yo
 :::
 
 ### Configure timezone-aware and naive timestamp cursors
+
 If your cursor is on a timestamp/datetime column, make sure you set up your initial and end values correctly. This will help you avoid implicit type conversions, invalid datetime literals, or column comparisons in database queries. Note that implicit conversions may result in data loss, for example if a naive datetime has a different local timezone on the machine where Python is executing versus your DBMS.
 
 * If your datetime column is naive, use naive Python datetime. Note that `pendulum` datetime is timezone-aware by default while standard `datetime` is naive.
 * Use `full` reflection level or above to reflect the `timezone` (awareness hint) on datetime columns.
 * Read about [timestamp handling](../../../general-usage/schema.md#handling-of-timestamp-and-time-zones) in `dlt`
-
 
 ### Examples
 
@@ -230,9 +235,11 @@ If your cursor is on a timestamp/datetime column, make sure you set up your init
   ```
 
   Behind the scene, the loader generates a SQL query filtering rows with `last_modified` values greater or equal to the incremental value. In the first run, this is the initial value (midnight (00:00:00) January 1, 2024).
+
   ```sql
   SELECT * FROM family WHERE last_modified >= '2024-01-01T00:00:00Z'
   ```
+
   In subsequent runs, it is the latest value of `last_modified` that `dlt` stores in [state](../../../general-usage/state).
 
 2. **Incremental loading with the source `sql_database`**.
@@ -254,7 +261,9 @@ If your cursor is on a timestamp/datetime column, make sure you set up your init
   load_info = pipeline.run(source, write_disposition="merge")
   print(load_info)
   ```
+
 Which generates the following query:
+
   ```sql
   -- mind the exclusive comparison with > due to range being open
   SELECT * FROM family WHERE last_modified > '2024-01-01T00:00:00Z'
@@ -266,7 +275,8 @@ Which generates the following query:
   :::
 
 ## Limit number of items returned by the query
-If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded 
+
+If you specified a limit on `sql_table` resource with [add_limit](../../../general-usage/resource.md#sample-from-large-data), this limit will be forwarded
 to the query. Note that limit works in the multiples of `chunk_size`. For example if the `chunk_size` is 1000 and you set `max_items` in `add_limit` to
 2, your query will return 2000 rows.
 
@@ -282,6 +292,7 @@ to the query. Note that limit works in the multiples of `chunk_size`. For exampl
 ```
 
 For example, to connect to a MySQL database using the `pymysql` dialect, you can use the following connection string:
+
 ```py
 "mysql+pymysql://rfamro:PWD@mysql-rfam-public.ebi.ac.uk:4497/Rfam"
 ```
@@ -344,6 +355,7 @@ These settings are passed directly to `sqlalchemy.create_engine` and affect:
 - Data extraction, if SQLAlchemy backend chosen (default)
 
 Example that waits maximum 5 seconds for acquiring a lock:
+
 ```py
 from dlt.sources.sql_database import sql_database
 
@@ -381,6 +393,7 @@ username = "ssh_user_name"
 private_key_path = "/path/to/private_key_file"
 private_key_password = "optional_key_password" # Leave empty if not needed
 ```
+
 **Step 2: Set up the SSH tunnel and create the SQLAlchemy engine**
 
 The following script demonstrates the process of establishing an SSH tunnel, creating a SQLAlchemy engine, and utilizing it to configure and run a data pipeline:
@@ -419,6 +432,7 @@ with SSHTunnelForwarder(
 
     print(pipeline.run(table_resource))
 ```
+
 Establishing an SSH tunnel and using a SQLAlchemy engine allows secure access to remote databases, ensuring compatibility with dlt pipelines. Always secure credentials and close the tunnel after use.
 
 ## Configuring the backend
@@ -440,6 +454,7 @@ The library `numpy` is a required dependency of `pandas` and `pyarrow<18.0.0`. T
 ```sh
 pip install dlt[sql_database] pyarrow numpy pandas
 ```
+
 :::
 
 ```py
@@ -468,6 +483,7 @@ sql_alchemy_source = sql_database(
 info = pipeline.run(sql_alchemy_source)
 print(info)
 ```
+
 For more information on the `tz` parameter within `backend_kwargs` supported by PyArrow, please refer to the
 [official documentation.](https://arrow.apache.org/docs/python/generated/pyarrow.timestamp.html)
 
@@ -476,6 +492,7 @@ For more information on the `tz` parameter within `backend_kwargs` supported by 
 The `pandas` backend yields data as DataFrames using the `pandas.io.sql` module. `dlt` uses `PyArrow` dtypes by default as they generate more stable typing.
 
 With the default settings, several data types will be coerced to dtypes in the yielded data frame:
+
 * **decimal** is mapped to double, so it is possible to lose precision
 * **date** and **time** are mapped to strings
 * all types are nullable
@@ -523,7 +540,7 @@ There are certain limitations when using this backend:
 * Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`. We also observe that timestamps are not properly returned: tz-aware timestamps are passed without timezone, naive timestamps are passed as date64 which we internally cast back to naive timestamps.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
 * For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
-    * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
+  * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
 * Nullability of the columns is ignored (always true).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
 * JSON fields (at least those coming from PostgreSQL) are double-wrapped in strings. To unwrap this, you can pass the in-built transformation function `unwrap_json_connector_x` (for example, with `add_map`):
@@ -571,6 +588,7 @@ info = pipeline.run(
 )
 print(info)
 ```
+
 With the dataset above and a local PostgreSQL instance, the `ConnectorX` backend is 2x faster than the `PyArrow` backend.
 
 ### Custom backends

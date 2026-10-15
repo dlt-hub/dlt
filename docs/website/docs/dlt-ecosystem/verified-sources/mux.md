@@ -3,12 +3,11 @@ title: Mux
 description: dlt verified source for Mux
 keywords: [mux api, mux verified source, mux]
 ---
-import Header from './_source-info-header.md';
-
 # Mux
 
-<Header/>
+import Header from './_source-info-header.md';
 
+<Header/>
 
 [Mux.com](http://mux.com/) is a video technology platform that provides infrastructure and tools for developers to build and stream high-quality video content.
 
@@ -16,11 +15,10 @@ This Mux `dlt` verified source and
 [pipeline example](https://github.com/dlt-hub/verified-sources/blob/master/sources/mux_pipeline.py)
 loads data using the “Mux API” to the destination of your choice.
 
-
-| Name        | Description                                                                                         |
-|-------------|-----------------------------------------------------------------------------------------------------|
-| asset       | Refers to the video content that you want to upload, encode, store, and stream using their platform |
-| video view  | Represents a single instance of a video being watched or streamed                                   |
+| Name       | Description                                                                                         |
+| ---------- | --------------------------------------------------------------------------------------------------- |
+| asset      | Refers to the video content that you want to upload, encode, store, and stream using their platform |
+| video view | Represents a single instance of a video being watched or streamed                                   |
 
 > Note: The source `mux_source` loads all video assets, but each video view is for yesterday only!
 
@@ -88,18 +86,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 2. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python mux_pipeline.py
    ```
+
 3. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is
    `mux`, you may also use any custom name instead.
 
@@ -110,12 +114,11 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-
 ### Source `mux_source`
 
 This function yields resources "asset_resource" and "views_resource" to load video assets and views.
 
-```py
+```py notype
 @dlt.source
 def mux_source() -> Iterable[DltResource]:
     yield assets_resource
@@ -127,6 +130,9 @@ def mux_source() -> Iterable[DltResource]:
 The assets_resource function fetches metadata about video assets from the Mux API's "assets" endpoint.
 
 ```py
+from typing import Iterable
+from dlt.common.typing import TDataItem
+
 DEFAULT_LIMIT = 100
 
 @dlt.resource(write_disposition="merge")
@@ -148,7 +154,7 @@ def assets_resource(
 
 This function yields data about every video view from yesterday to be loaded.
 
-```py
+```py notype
 @dlt.resource(write_disposition="append")
 def views_resource(
     mux_api_access_token: str = dlt.secrets.value,
@@ -160,8 +166,8 @@ def views_resource(
 
 The arguments `mux_api_access_token`, `mux_api_secret_key`, and `limit` are the same as described [above](#resource-assets_resource) in "asset_resource".
 
-
 ## Customization
+
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this
@@ -179,21 +185,21 @@ verified source.
 
 2. To load metadata about every asset to be loaded:
 
-    ```py
+    ```py notype
     load_info = pipeline.run(mux_source().with_resources("assets_resource"))
     print(load_info)
     ```
 
 3. To load data for each video view from yesterday:
 
-    ```py
+    ```py notype
     load_info = pipeline.run(mux_source().with_resources("views_resource"))
     print(load_info)
     ```
 
 4. To load both metadata about assets and video views from yesterday:
 
-    ```py
+    ```py notype
     load_info = pipeline.run(mux_source())
     print(load_info)
     ```

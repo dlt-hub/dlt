@@ -11,6 +11,8 @@ from dlt.common.schema import Schema
 from dlt.common.schema.exceptions import SchemaCorruptedException
 from dlt.common.schema.typing import (
     MERGE_STRATEGIES,
+    MERGE_STRATEGY_OPTIONS,
+    MERGE_DISPOSITION_HINTS,
     TColumnType,
     TLoaderReplaceStrategy,
     TTableSchema,
@@ -22,6 +24,7 @@ from dlt.common.schema.utils import (
     is_nested_table,
     pipeline_state_table,
 )
+from dlt.common.destination.utils import MERGE_CONDITION_PLACEHOLDERS, validate_merge_condition
 
 from dlt.destinations.exceptions import DatabaseTransientException
 from dlt.extract import DltResource, resource as make_resource, DltSource
@@ -127,12 +130,54 @@ def verify_schema_replace_disposition(
     return exception_log
 
 
+def _get_merge_options(table: PreparedTableSchema) -> Dict[str, Any]:
+    """Returns the merge disposition keys that `table` stores as hints, by key name."""
+    options: Dict[str, Any] = {
+        key: table.get(hint) for key, hint in MERGE_DISPOSITION_HINTS.items()
+    }
+    options["row_version_column_name"] = get_first_column_name_with_prop(table, "x-row-version")
+    return options
+
+
+def verify_unsupported_merge_options(
+    schema: Schema,
+    load_tables: Sequence[PreparedTableSchema],
+    capabilities: DestinationCapabilitiesContext,
+    target: str,
+    options: Sequence[str],
+) -> List[Exception]:
+    """Returns an exception for each merge table in `load_tables` that sets one of the merge
+    `options` that `target` (a destination type or table format) cannot apply."""
+    exception_log: List[Exception] = []
+    for table in load_tables:
+        merge_strategy = resolve_merge_strategy(schema.tables, table, capabilities)
+        if merge_strategy is None:
+            continue
+        set_options = _get_merge_options(table)
+        for option in options:
+            # `verify_schema_merge_disposition` warns about options that the strategy ignores
+            if set_options[option] and merge_strategy in MERGE_STRATEGY_OPTIONS[option]:
+                message = (
+                    f"dlt does not support `{option}` with the `{merge_strategy}` merge strategy"
+                    f" on `{target}` table `{table['name']}`."
+                )
+                if option == "source_filter":
+                    message += " Filter the yielded items with `resource.add_filter()` instead."
+                exception_log.append(SchemaCorruptedException(schema.name, message))
+    return exception_log
+
+
 def verify_schema_merge_disposition(
     schema: Schema,
     load_tables: Sequence[PreparedTableSchema],
     capabilities: DestinationCapabilitiesContext,
     warnings: bool = True,
+    source_filter_placeholders: Sequence[str] = (),
+    destination_scope_placeholders: Sequence[str] = MERGE_CONDITION_PLACEHOLDERS,
 ) -> List[Exception]:
+    """Verifies the merge hints of `load_tables`. Verifies `source_filter` and `destination_scope`
+    against the placeholders that the destination expands. Returns exceptions for errors and
+    logs warnings."""
     log = logger.warning if warnings else logger.info
     # collect all exceptions to show all problems in the schema
     exception_log: List[Exception] = []
@@ -171,16 +216,33 @@ def verify_schema_merge_disposition(
                     )
                 )
                 continue
+            has_destination_scope = "x-merge-destination-scope" in table
+            for hint_name, x_hint, placeholders in (
+                ("source_filter", "x-merge-source-filter", source_filter_placeholders),
+                ("destination_scope", "x-merge-destination-scope", destination_scope_placeholders),
+            ):
+                if filter_ := table.get(x_hint):
+                    try:
+                        validate_merge_condition(hint_name, cast(str, filter_), placeholders)
+                    except ValueError as filter_ex:
+                        exception_log.append(
+                            SchemaCorruptedException(
+                                schema.name, f"Table `{table_name}`: {filter_ex}"
+                            )
+                        )
             if merge_strategy == "delete-insert":
-                if not has_column_with_prop(table, "primary_key") and not has_column_with_prop(
-                    table, "merge_key"
+                if (
+                    not has_column_with_prop(table, "primary_key")
+                    and not has_column_with_prop(table, "merge_key")
+                    # without keys, the destination scope selects the rows that this load replaces
+                    and not has_destination_scope
                 ):
                     log(
                         f"Table {table_name} has `write_disposition` set to `merge`"
                         " and `merge_strategy` set to `delete-insert`, but no primary or"
                         " merge keys defined."
                     )
-            elif merge_strategy in ("upsert", "insert-only"):
+            elif merge_strategy in ("upsert", "insert-only", "cdc"):
                 if not has_column_with_prop(table, "primary_key"):
                     exception_log.append(
                         SchemaCorruptedException(
@@ -190,12 +252,33 @@ def verify_schema_merge_disposition(
                             " merge strategy.",
                         )
                     )
-                if has_column_with_prop(table, "merge_key"):
+                if merge_strategy != "cdc" and has_column_with_prop(table, "merge_key"):
                     log(
                         f"Found `merge_key` for table `{table['name']}` with"
                         f" `{merge_strategy}` merge strategy. Merge key is not supported"
                         " for this strategy and will be ignored."
                     )
+            # the resource rejects these options for an explicit strategy. Only the destination
+            # knows the default strategy
+            set_options = _get_merge_options(table)
+            for option, strategies in MERGE_STRATEGY_OPTIONS.items():
+                if set_options[option] and merge_strategy not in strategies:
+                    supported = ", ".join(f"`{s}`" for s in strategies)
+                    log(
+                        f"Table `{table_name}` sets `{option}` with the `{merge_strategy}` merge"
+                        f" strategy. dlt ignores this option, because only the {supported} merge"
+                        " strategies support it. Use one of these strategies or remove the option."
+                    )
+            if (
+                has_destination_scope
+                and merge_strategy in MERGE_STRATEGY_OPTIONS["destination_scope"]
+                and has_column_with_prop(table, "merge_key")
+            ):
+                log(
+                    f"Table `{table_name}` has `merge_key` and `destination_scope`. The"
+                    " destination scope selects the destination records to delete or retire, so"
+                    " dlt ignores `merge_key`."
+                )
         if has_column_with_prop(table, "hard_delete"):
             if len(get_columns_names_with_prop(table, "hard_delete")) > 1:
                 exception_log.append(

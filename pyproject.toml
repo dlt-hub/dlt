@@ -1,6 +1,6 @@
 [project]
 name = "dlt"
-version = "1.30.0"
+version = "1.31.0"
 description = "dlt is an open-source python-first scalable data loading library that does not require any backend to run."
 authors = [{ name = "dltHub Inc.", email = "services@dlthub.com" }]
 requires-python = ">=3.10, <3.15"
@@ -30,8 +30,7 @@ classifiers = [
 ]
 dependencies = [
     "requests>=2.26.0",
-    "pendulum>=2.1.2",
-    "pendulum>=3.0.0 ; python_version > '3.13'",
+    "pendulum>=3.0.0",
     "simplejson>=3.17.5",
     "PyYAML>=5.4.1",
     "semver>=3.0.0",
@@ -49,7 +48,7 @@ dependencies = [
     "orjson>=3.6.7,<4,!=3.9.11,!=3.9.12,!=3.9.13,!=3.9.14,!=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     # enables pyodide install, mind that 3.10.1 is a buggy version and should be yanked
     "orjson>=3.10.1 ; platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
-    "orjson>=3.11.0 ; python_version > '3.13'",
+    "orjson>=3.11.0 ; python_version > '3.13' and platform_python_implementation != 'PyPy' and sys_platform != 'emscripten'",
     "tenacity>=8.0.2",
     "jsonpath-ng>=1.8.0",
     "fsspec>=2022.4.0",
@@ -59,12 +58,13 @@ dependencies = [
     "sqlglot>=26.32.0",
     "pywin32>=306 ; sys_platform == 'win32'",
     "rich-argparse>=1.6.0",
+    "croniter>=6.0.0",
 ]
 
 [project.optional-dependencies]
 hub = [
-    "dlthub>=0.30.0a1, <0.31",
-    "dlthub-client>=0.28.1",
+    "dlthub>=0.30.0a1, <0.32",
+    "dlthub-client>=0.28.3",
 ]
 gcp = [
     "grpcio>=1.50.0",
@@ -228,6 +228,14 @@ dlt = "dlt._workspace.cli._dlt:_main"
 dlthub = "dlt._workspace.cli._dlt:_main_dlthub"
 
 [dependency-groups]
+agent = [
+    "pydantic-ai-slim[anthropic,openai,google,mcp,spec]>=2.35.0",
+    "aiohttp>=3.14.3",
+    "pathspec>=0.11.2",
+]
+agent-claude = [
+    "claude-agent-sdk>=0.2.144",
+]
 # NOTE: add only dependencies used for linting, type checking etc. anything else goes to pipeline group
 # we use those deps in common tests to make sure they work without extra dependencies so if you add them
 # here you'll break everything
@@ -322,12 +330,11 @@ providers = ["google-api-python-client>=2.86.0,<3"]
 sentry-sdk = ["sentry-sdk>=2.0.0,<3"]
 streamlit = ["streamlit>1.50"]
 dbt = [
-    "dbt-core>=1.7.0",
+    "dbt-core>=1.12.0",
     "dbt-redshift>=1.7.0; python_version < '3.14'",
     "dbt-bigquery>=1.7.0",
     "dbt-duckdb>=1.7.0",
-    "dbt-snowflake>=1.7.0",
-    "dbt-athena-community>=1.7.0; python_version < '3.14'",
+    "dbt-snowflake>=1.7.0",    
     "dbt-sqlserver>=1.7.0 ; python_version < '3.13'",
     "dbt-fabric>=1.7.0 ; python_version < '3.13'",
 ]
@@ -341,11 +348,10 @@ workspace-deps = [
     "ibis-framework>=12.0.0",
     "pyarrow>=16.0.0",
     "marimo>=0.14.5",
-    "fastmcp>=3.0.0",
+    "fastmcp>=3.1.0",
     "mowidgets>=0.2.1 ; python_version >= '3.11'",
     "pathspec>=0.11.2",
     "pydbml>=1.2.0",
-    "croniter>=6.0.0",
     "s3fs>=2022.4.0",
 ]
 
@@ -454,6 +460,8 @@ exclude = [
     "tests/workspace/deployment/cases/local_workspace/*",
     "tests/workspace/cases/workspaces/launcher_flat/*",
     "tests/workspace/cases/workspaces/launcher_package/*",
+    "tests/workspace/cases/workspaces/agent_workspace/*",
+    "tests/workspace/cases/workspaces/agent_e2e_workspace/*",
 ]
 
 [[tool.mypy.overrides]]
@@ -512,6 +520,7 @@ module = [
     "pyiceberg.*",
     "airflow.*",
     "dlthub.*",
+    "dlt_runtime.*",
     "ibis.*",
     "adbc_driver_postgresql.*",
     "adbc_driver_manager.*",
@@ -526,6 +535,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = [
     "databricks.*",
+    "claude_agent_sdk",
+    "claude_agent_sdk.*",
+    "pydantic_ai",
+    "pydantic_ai.*",
     "mcp.*",
     "pymongo.*",
     "fastmcp.*",

@@ -432,16 +432,12 @@ def test_dependency_map_workbench(workbench_repo: str) -> None:
     for name in dep_map:
         resolve_toolkit_dependencies(name, dep_map)
 
-    # marketplace index and every plugin.json must link to the license
-    marketplace = json.loads(
-        (repo_root / ".claude-plugin" / "marketplace.json").read_text(encoding="utf-8")
-    )
-    assert marketplace["metadata"]["license"] == DEFAULT_AI_WORKBENCH_LICENSE_URL
-    for entry in marketplace["plugins"]:
-        plugin_json_path = base / entry["name"] / ".claude-plugin" / "plugin.json"
+    # every plugin.json must link to the license; only `workbench/` is checked out
+    for name in toolkits:
+        plugin_json_path = base / name / ".claude-plugin" / "plugin.json"
         plugin = json.loads(plugin_json_path.read_text(encoding="utf-8"))
         assert plugin["license"] == DEFAULT_AI_WORKBENCH_LICENSE_URL, (
-            "%s plugin.json license mismatch" % entry["name"]
+            "%s plugin.json license mismatch" % name
         )
 
 

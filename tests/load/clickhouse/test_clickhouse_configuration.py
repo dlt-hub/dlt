@@ -188,7 +188,7 @@ def test_client_table_name_and_paths(client: ClickHouseClient) -> None:
     assert parts[1] == f"{dataset_name}###test_table"
 
 
-@pytest.mark.parametrize("engine", ["Atomic", "Shared"])
+@pytest.mark.parametrize("engine", ["Atomic", "Replicated", "Shared"])
 def test_staging_optimized_accepts_supported_engines(
     client: ClickHouseClient, mocker: MockerFixture, engine: str
 ) -> None:
@@ -196,12 +196,12 @@ def test_staging_optimized_accepts_supported_engines(
     client._verify_database_supports_exchange()
 
 
-@pytest.mark.parametrize("engine", ["Ordinary", "Replicated", "Lazy"])
+@pytest.mark.parametrize("engine", ["Ordinary", "Lazy", "Memory"])
 def test_staging_optimized_rejects_unsupported_engines(
     client: ClickHouseClient, mocker: MockerFixture, engine: str
 ) -> None:
     mocker.patch.object(client.sql_client, "execute_sql", return_value=[(engine,)])
-    with pytest.raises(DestinationTerminalException, match="Atomic or Shared"):
+    with pytest.raises(DestinationTerminalException, match="Atomic or Replicated or Shared"):
         client._verify_database_supports_exchange()
 
 

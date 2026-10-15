@@ -1,14 +1,17 @@
 """Tests for Microsoft Fabric Warehouse destination configuration"""
 
 import os
-from typing import Optional
+from typing import Optional, cast
 
 import pytest
 
 from dlt.common.configuration import resolve_configuration
+from dlt.common.destination import DestinationCapabilitiesContext
+from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.schema import Schema
+from dlt.common.schema.typing import TColumnSchema, TDataType
 from dlt.common.utils import digest128
-from dlt.destinations.impl.fabric.factory import fabric
+from dlt.destinations.impl.fabric.factory import fabric, FabricTypeMapper
 from dlt.destinations.impl.fabric.configuration import (
     FabricCredentials,
     FabricClientConfiguration,
@@ -117,12 +120,6 @@ def test_fabric_configuration_custom_collation() -> None:
 
 def test_fabric_type_mapper() -> None:
     """Test Fabric type mapper converts nvarchar to varchar and datetimeoffset to datetime2"""
-    from dlt.destinations.impl.fabric.factory import FabricTypeMapper
-    from dlt.common.destination import DestinationCapabilitiesContext
-    from dlt.common.schema.typing import TColumnSchema
-    from dlt.common.destination.typing import PreparedTableSchema
-    from typing import cast
-
     # Create a mock table for testing
     table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
 
@@ -221,3 +218,38 @@ def test_fabric_credentials_authentication_method() -> None:
     # Verify ActiveDirectoryServicePrincipal is set
     dsn_dict = creds.get_odbc_dsn_dict()
     assert dsn_dict["AUTHENTICATION"] == "ActiveDirectoryServicePrincipal"
+
+
+@pytest.mark.parametrize("data_type", ["text", "json"])
+def test_fabric_type_mapper_scales_varchar_precision(data_type: TDataType) -> None:
+    """Fabric varchar uses UTF-8 byte semantics; character precision must be scaled."""
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {}})
+    caps = DestinationCapabilitiesContext.generic_capabilities("parquet")
+    mapper = FabricTypeMapper(caps)
+
+    col = cast(
+        TColumnSchema, {"name": "c", "data_type": data_type, "precision": 100, "nullable": True}
+    )
+    assert mapper.to_destination_type(col, table) == "varchar(400)"
+
+    # 2000*4=8000 is the longest length Fabric accepts
+    col = cast(
+        TColumnSchema,
+        {"name": "c", "data_type": data_type, "precision": 2000, "nullable": True},
+    )
+    assert mapper.to_destination_type(col, table) == "varchar(8000)"
+
+    # 2001*4=8004 > 8000 → varchar(max)
+    col = cast(
+        TColumnSchema,
+        {"name": "c", "data_type": data_type, "precision": 2001, "nullable": True},
+    )
+    assert mapper.to_destination_type(col, table) == "varchar(max)"
+
+    col = cast(TColumnSchema, {"name": "c", "data_type": data_type, "nullable": True})
+    assert mapper.to_destination_type(col, table) == "varchar(max)"
+
+    col = cast(
+        TColumnSchema, {"name": "c", "data_type": data_type, "precision": 10, "nullable": True}
+    )
+    assert mapper.to_destination_type(col, table) == "varchar(40)"

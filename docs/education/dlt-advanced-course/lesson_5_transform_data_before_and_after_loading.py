@@ -1,9 +1,10 @@
 # /// script
 # dependencies = [
-#     "dlt[sql_database,duckdb]",
+#     "dlt[sql_database,duckdb,parquet]",
 #     "ibis-framework[duckdb]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "pymysql",
 #     "sqlalchemy",
 # ]

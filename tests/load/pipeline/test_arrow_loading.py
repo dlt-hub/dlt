@@ -18,7 +18,7 @@ from dlt.common.libs.pyarrow import (
     row_tuples_to_arrow,
 )
 from dlt.common.time import (
-    ensure_pendulum_datetime_utc,
+    ensure_pendulum_datetime,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
     ensure_pendulum_date,
@@ -30,7 +30,7 @@ from tests.load.utils import (
     DestinationTestConfiguration,
     table_update_and_row_for_destination,
 )
-from tests.pipeline.utils import assert_load_info, select_data
+from tests.pipeline.utils import assert_load_info, load_extracted_parquet, select_data
 from tests.utils import (
     TestDataItemFormat,
     arrow_item_from_pandas,
@@ -166,7 +166,7 @@ def test_load_arrow_item(
             if isinstance(expected_row[i], datetime):
                 # use UTC conversion here because timezone is not specified and Athena
                 # returns naive datetimes
-                row[i] = ensure_pendulum_datetime_utc(row[i])
+                row[i] = ensure_pendulum_datetime(row[i])
             # clickhouse produces rounding errors on double with jsonl, so we round the result coming from there
             elif (
                 destination_config.destination_type == "clickhouse"
@@ -266,7 +266,7 @@ def test_all_types_tuples_to_arrow(
     result_table = rel.arrow()
 
     # here we cast result to the rel schema,
-    result_table = cast_arrow_as_columns_schema(result_table, rel_schema, caps, "utc")
+    result_table = cast_arrow_as_columns_schema(result_table, rel_schema, caps, "UTC")
 
     # compare schemas
     result_columns_schema = py_arrow_to_table_schema_columns(result_table.schema)
@@ -332,13 +332,6 @@ def test_parquet_column_names_are_normalized(
     pipeline = destination_config.setup_pipeline("arrow_" + uniq_id())
     pipeline.extract(some_data())
 
-    # Find the extracted file
-    norm_storage = pipeline._get_normalize_storage()
-    extract_files = [
-        fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
-    ]
-    assert len(extract_files) == 1
-
     # Normalized column names according to schema naming convention
     expected_column_names = [
         pipeline.default_schema.naming.normalize_path(col) for col in df.columns
@@ -349,11 +342,9 @@ def test_parquet_column_names_are_normalized(
     # Schema columns are normalized
     assert [c["name"] for c in schema_columns.values()] == expected_column_names
 
-    with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
-        result_tbl = pa.parquet.read_table(f)
-
-        # Parquet schema is written with normalized column names
-        assert result_tbl.schema.names == expected_column_names
+    result_tbl = load_extracted_parquet(pipeline)
+    # Parquet schema is written with normalized column names
+    assert result_tbl.schema.names == expected_column_names
 
 
 @pytest.mark.essential
@@ -389,19 +380,12 @@ def test_load_arrow_with_not_null_columns(
         loader_file_format=destination_config.file_format,
     )
 
-    norm_storage = pipeline._get_normalize_storage()
-    extract_files = [
-        fn for fn in norm_storage.list_files_to_normalize_sorted() if fn.endswith(".parquet")
-    ]
-    assert len(extract_files) == 1
-
-    # Check the extracted parquet file. It should have the respective non-nullable column in schema
-    with norm_storage.extracted_packages.storage.open_file(extract_files[0], "rb") as f:
-        result_tbl = pa.parquet.read_table(f)
-        assert result_tbl.schema.field("string").nullable is False
-        assert result_tbl.schema.field("string").type == pa.string()
-        assert result_tbl.schema.field("int").nullable is False
-        assert result_tbl.schema.field("int").type == pa.int64()
+    # the extracted parquet file carries the non-nullable column in its schema
+    result_tbl = load_extracted_parquet(pipeline)
+    assert result_tbl.schema.field("string").nullable is False
+    assert result_tbl.schema.field("string").type == pa.string()
+    assert result_tbl.schema.field("int").nullable is False
+    assert result_tbl.schema.field("int").type == pa.int64()
 
     pipeline.normalize()
     # Load is successful

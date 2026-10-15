@@ -1,9 +1,9 @@
 ---
-title: Introduction
+title: Platform introduction
+sidebar_label: Introduction
 description: Introduction to dltHub
 keywords: [dlthub, introduction, capabilities, platform, workspace]
 ---
-
 # Introduction
 
 :::info
@@ -122,5 +122,3 @@ Foundations that the rest of the platform builds on.
 ## Pricing and licensing
 
 For current plan details and pricing, see the [dltHub pricing page](https://dlthub.com/pricing). Use of the dltHub platform and toolkits is governed by the [dltHub License](../license.md).
-
-

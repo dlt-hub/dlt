@@ -103,6 +103,7 @@ def filesystem(  # noqa DOC
     kwargs: Optional[Dict[str, Any]] = None,
     client_kwargs: Optional[Dict[str, Any]] = None,
     incremental: Optional[dlt.sources.incremental[Any]] = None,
+    fetch_file_info: bool = False,
 ) -> Iterator[List[FileItem]]:
     """This resource lists files in `bucket_url` using `file_glob` pattern. The files are yielded as FileItem which also
     provide methods to open and read file data. It should be combined with transformers that further process (ie. load files)
@@ -118,6 +119,8 @@ def filesystem(  # noqa DOC
         client_kwargs (Optional[Dict[str, Any]]): Additional arguments passed to underlying fsspec native client ie. dict(verify="public.crt) for botocore
         incremental (Optional[dlt.sources.incremental[Any]]): Defines incremental cursor on listed files, with `modification_date`
             being the most common choice that returns only files created from the previous run.
+        fetch_file_info (bool, optional): If true, `dlt` gets missing `size_in_bytes` and `modification_date` from file details. This
+            requires a server call per file. Currently needed by `http` filesystem only. Defaults to False.
 
     Yields:
         List[FileItem]: The list of files.
@@ -133,7 +136,7 @@ def filesystem(  # noqa DOC
 
     files_chunk: List[FileItem] = []
 
-    iter_ = glob_files(fs_client, bucket_url, file_glob)
+    iter_ = glob_files(fs_client, bucket_url, file_glob, fetch_file_info)
 
     # if incremental is set with row order, use it to order the results
     # NOTE: fsspec glob for buckets reads all files before running iterator
@@ -144,7 +147,7 @@ def filesystem(  # noqa DOC
         )
         iter_ = iter(
             sorted(
-                list(glob_files(fs_client, bucket_url, file_glob)),
+                list(glob_files(fs_client, bucket_url, file_glob, fetch_file_info)),
                 key=lambda f_: f_[incremental.cursor_path],  # type: ignore[literal-required]
                 reverse=reverse,
             )

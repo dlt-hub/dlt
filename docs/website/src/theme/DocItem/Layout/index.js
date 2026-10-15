@@ -4,7 +4,11 @@
 import React from 'react';
 import clsx from 'clsx';
 import {useWindowSize} from '@docusaurus/theme-common';
-import {useDoc} from '@docusaurus/plugin-content-docs/client';
+import {
+  useDoc,
+  useDocsVersion,
+} from '@docusaurus/plugin-content-docs/client';
+import {getSearchSection, SearchWeightContext} from '../../SearchBar/sections';
 import DocItemPaginator from '@theme/DocItem/Paginator';
 import DocVersionBanner from '@theme/DocVersionBanner';
 import DocVersionBadge from '@theme/DocVersionBadge';
@@ -34,6 +38,31 @@ function useDocTOC() {
   return {hidden, mobile, desktop};
 }
 
+// Pagefind attributes: only the latest version is indexed (no devel/old
+// duplicates) and only the doc content (no navbar, sidebar, footer).
+function SearchContent({children}) {
+  const {metadata} = useDoc();
+  const version = useDocsVersion();
+  if (!version.isLast) {
+    return children;
+  }
+  const {section, weight} = getSearchSection(metadata.id);
+  // an explicit weight overrides Pagefind's heading weights for all descendants,
+  // so set it only when needed and let @theme/Heading scale the headings
+  const weighted = weight !== 1;
+  return (
+    <div
+      data-pagefind-body=""
+      data-pagefind-weight={weighted ? String(weight) : undefined}
+    >
+      <meta data-pagefind-filter="section[content]" content={section} />
+      <SearchWeightContext.Provider value={weighted ? weight : null}>
+        {children}
+      </SearchWeightContext.Provider>
+    </div>
+  );
+}
+
 export default function DocItemLayout({children}) {
   const docTOC = useDocTOC();
   const {metadata} = useDoc();
@@ -48,7 +77,9 @@ export default function DocItemLayout({children}) {
             <DocVersionBadge />
             <DocMarkdownLink />
             {docTOC.mobile}
-            <DocItemContent>{children}</DocItemContent>
+            <SearchContent>
+              <DocItemContent>{children}</DocItemContent>
+            </SearchContent>
             <DocItemFooter />
           </article>
           <DocItemPaginator />

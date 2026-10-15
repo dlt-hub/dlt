@@ -3,9 +3,9 @@ title: Shopify
 description: dlt pipeline for Shopify API
 keywords: [shopify api, shopify pipeline, shopify]
 ---
-import Header from './_source-info-header.md';
-
 # Shopify
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -21,7 +21,7 @@ loads data using the 'Shopify API' or 'Shopify Partner API' to the destination o
 The resources that this verified source supports are:
 
 | Name                  | Description                                                                         |
-|-----------------------|-------------------------------------------------------------------------------------|
+| --------------------- | ----------------------------------------------------------------------------------- |
 | customers             | Individuals or entities who have created accounts on a Shopify-powered online store |
 | orders                | Transactions made by customers on an online store                                   |
 | products              | The individual items or goods that are available for sale                           |
@@ -32,6 +32,7 @@ The resources that this verified source supports are:
 ### Grab credentials
 
 #### Grab Admin API access token
+
 To load data using the Shopify API, you need an Admin API access token. This token can be obtained by following
 these steps:
 
@@ -47,6 +48,7 @@ these steps:
 1. Reveal and copy the Admin API token. Store it safely; it's shown only once.
 
 #### Grab Partner API access token
+
 To load data using the Shopify Partner API, you need a Partner API access token. This token can be obtained by following
 these steps:
 
@@ -108,9 +110,9 @@ To get started with your data pipeline, follow these steps:
    organization_id = "Please set me up!"
    ```
 
-1. Update `shop_url` with the URL of your Shopify store. For example, "https://shop-123.myshopify.com/".
+1. Update `shop_url` with the URL of your Shopify store. For example, "[https://shop-123.myshopify.com/](https://shop-123.myshopify.com/)".
 
-1. Update `organization_id` with a code from your Shopify partner URL. For example, in "https://partners.shopify.com/1234567", the code '1234567' is the organization ID.
+1. Update `organization_id` with a code from your Shopify partner URL. For example, in "[https://partners.shopify.com/1234567](https://partners.shopify.com/1234567)", the code '1234567' is the organization ID.
 
 1. Next, follow the [destination documentation](../../dlt-ecosystem/destinations) instructions to add credentials for your chosen destination, ensuring proper routing of your data to the final destination.
 
@@ -119,17 +121,23 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 ## Run the pipeline
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python shopify_dlt_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `shopify_data`, you may also use any custom name instead.
 
 For more information, read the guide on [how to run a pipeline](../../walkthroughs/run-a-pipeline).
@@ -138,11 +146,11 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 
 `dlt` works on the principle of [sources](../../general-usage/source) and [resources](../../general-usage/resource).
 
-### Source `shopify_source`:
+### Source `shopify_source`
 
 This function returns a list of resources to load products, orders, and customers data from the Shopify API.
 
-```py
+```py notype
 @dlt.source()
 def shopify_source(
     private_app_password: str = dlt.secrets.value,
@@ -161,7 +169,7 @@ def shopify_source(
 
 `api_version`: API version (e.g., 2023-01).
 
-`shop_url`: Your shop's URL (e.g., https://my-shop.myshopify.com).
+`shop_url`: Your shop's URL (e.g., [https://my-shop.myshopify.com](https://my-shop.myshopify.com)).
 
 `items_per_page`: Max items fetched per page (Default: 250).
 
@@ -173,11 +181,11 @@ def shopify_source(
 
 `order_status`: Filter for order status: 'open', 'closed', 'cancelled', 'any' (Default: 'any').
 
-### Resource `products`:
+### Resource `products`
 
 This resource loads products from your Shopify shop into the destination. It supports incremental loading and pagination.
 
-```py
+```py notype
 @dlt.resource(primary_key="id", write_disposition="merge")
 def products(
     updated_at: dlt.sources.incremental[
@@ -198,17 +206,18 @@ def products(
 
 Similar to the mentioned resource, there are two more resources "orders" and "customers", both support incremental loading and pagination.
 
-### Resource `shopify_partner_query`:
+### Resource `shopify_partner_query`
+
 This resource can be used to run custom GraphQL queries to load paginated data.
 
-```py
+```py notype
 @dlt.resource
 def shopify_partner_query(
     query: str,
     data_items_path: jp.TJsonPath,
     pagination_cursor_path: jp.TJsonPath,
     pagination_variable_name: str = "after",
-    variables: Optional[Dict[str, Any]] = None,
+    variables: Optional[dict[str, Any]] = None,
     access_token: str = dlt.secrets.value,
     organization_id: str = dlt.config.value,
     api_version: str = API_VERSION,
@@ -234,8 +243,6 @@ def shopify_partner_query(
 
 ## Customization
 
-
-
 ### Create your own pipeline
 
 If you wish to create your own pipelines, you can leverage source and resource methods from this verified source.
@@ -254,7 +261,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load data from "products", "orders", and "customers" from January 1, 2023:
 
-   ```py
+   ```py notype
    # Add your desired resources to the list...
    resources = ["products", "orders", "customers"]
 
@@ -265,12 +272,12 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load past Shopify orders in weekly chunks using start_date and end_date parameters. This minimizes potential failure during large data loads. Running chunks and incremental loads in parallel accelerates the initial load.
 
-   ```py
+   ```py notype
    # Load all orders from 2023-01-01 to now
    min_start_date = current_start_date = pendulum.DateTime(2023, 1, 1)
    max_end_date = pendulum.now()
    # Create a list of time ranges of 1 week each, we'll use this to load the data in chunks
-   ranges: List[Tuple[pendulum.DateTime, pendulum.DateTime]] = []
+   ranges: list[tuple[pendulum.DateTime, pendulum.DateTime]] = []
    while current_start_date < max_end_date:
         end_date = min(current_start_date.add(weeks=1), max_end_date)
         ranges.append((current_start_date, end_date))
@@ -296,8 +303,10 @@ If you wish to create your own pipelines, you can leverage source and resource m
    )
    print(load_info)
    ```
+
 1. To load the first 10 transactions via a GraphQL query from the Shopify Partner API.
-   ```py
+
+   ```py notype
     # Construct query to load transactions 100 per page, the `$after` variable is used to paginate
     query = """query Transactions($after: String) {
     transactions(after: $after, first: 10) {

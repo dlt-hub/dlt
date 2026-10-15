@@ -67,13 +67,11 @@ from dlt.destinations.sql_client import (
 from dlt.destinations.queries import build_select_expr
 from dlt.common.destination.dataset import SupportsDataAccess
 from dlt.dataset._incremental import (
+    apply_incremental,
     _build_incremental_aggregate,
-    _build_incremental_condition,
-    _maybe_warn_on_cursor_missing_raise,
-    _parse_incremental_cursor_path,
-    _raise_incomplete_cursor_column,
+    parse_incremental_cursor_path,
+    raise_incomplete_cursor_column,
     _RelationIncrementalContext,
-    _sqlglot_type_for_column,
 )
 from dlt.dataset._join import (
     _apply_join,
@@ -134,6 +132,16 @@ class _ForeignDataset(NamedTuple):
     `alias` is `None`."""
 
 
+class _RelationLineage(NamedTuple):
+    """Lineage of a relation, computed against one version of the schemas of its datasets."""
+
+    schemas_key: tuple[str, ...]
+    """Version hashes of the schemas the lineage was computed against."""
+    sqlglot_schema: SQLGlotSchema
+    columns: TTableSchemaColumns
+    qualified_query: sge.Query
+
+
 class Relation(WithSqlClient):
     @overload
     def __init__(
@@ -143,6 +151,7 @@ class Relation(WithSqlClient):
         query: Union[str, sge.Query],
         query_dialect: Optional[str] = None,
         _execute_raw_query: bool = False,
+        _allow_partial_lineage: bool = False,
     ) -> None: ...
 
     @overload
@@ -161,6 +170,7 @@ class Relation(WithSqlClient):
         query_dialect: Optional[str] = None,
         table_name: Optional[str] = None,
         _execute_raw_query: bool = False,
+        _allow_partial_lineage: bool = False,
     ) -> None:
         """Create a lazy evaluated relation for the dataset of a destination"""
         if table_name is None and query is None:
@@ -174,10 +184,13 @@ class Relation(WithSqlClient):
         self._query_dialect = query_dialect
         self._table_name = table_name
         self._execute_raw_query: bool = _execute_raw_query
+        # a raw query never executes the qualified query so its lineage may be partial
+        self._allow_partial_lineage: bool = _allow_partial_lineage or _execute_raw_query
 
         self._opened_sql_client: SqlClientBase[Any] = None
         self._sqlglot_expression: sge.Query = None
-        self._schema: Optional[TTableSchemaColumns] = None
+        # first element (list of schema version hashes) is a cache key
+        self._lineage_cache: Optional[_RelationLineage] = None
         self._incremental_ctx: Optional[_RelationIncrementalContext] = None
         self._foreign_datasets: Dict[str, _ForeignDataset] = {}
         """Datasets outside the dataset of this relation, keyed by the logical dataset name."""
@@ -227,19 +240,13 @@ class Relation(WithSqlClient):
         This infers the schema from the relation's content. It's likely to include less
         information than retrieving the schema from the pipeline or the dataset if the table
         already exists.
-        """
-        if self._schema is None:
-            schema, _ = _get_relation_output_columns_schema(
-                self,
-                infer_sqlglot_schema=True,
-                allow_anonymous_columns=True,
-                allow_partial=True,
-            )
-            self._schema = schema
 
-        assert self._schema is not None
+        Raises:
+            LineageFailedException: If the relation is not a SELECT statement or, unless lineage
+                may be partial, a column cannot be resolved against the schemas of its datasets.
+        """
         # TODO use lineage features to propagate table-level dlt annotations
-        return {"columns": self._schema}
+        return {"columns": self._lineage().columns}
 
     @schema.setter
     def schema(self, new_value: Any) -> None:
@@ -298,13 +305,8 @@ class Relation(WithSqlClient):
         """Gets a DBApiCursor for the current relation"""
         try:
             client = self._opened_sql_client = self.sql_client
-
-            # we only compute the columns schema if we are not executing the raw query
-            if self._execute_raw_query:
-                columns_schema = None
-            else:
-                columns_schema = self.columns_schema
-
+            # a raw query executes without lineage
+            columns_schema = None if self._execute_raw_query else self.columns_schema
             # the columns schema and the SQL need no open connection, so both run before this
             # relation borrows a connection
             query = self.to_sql()
@@ -335,14 +337,16 @@ class Relation(WithSqlClient):
         if self._execute_raw_query or _raw_query:
             query = self.sqlglot_expression
         else:
-            _, _qualified_query = _get_relation_output_columns_schema(self)
+            relation_lineage = self._lineage()
+            _qualified_query = relation_lineage.qualified_query
             if pretty:
-                # optimize only for readable output; executed SQL stays as constructed
-                _qualified_query = _optimize_query(_qualified_query)
+                # optimize only for readable output; executed SQL stays as constructed.
+                # the optimizer works in place and the qualified query is cached
+                _qualified_query = _optimize_query(_qualified_query.copy())
             bindings, default_binding = self._compute_identifier_bindings()
             query = bind_query(
                 qualified_query=_qualified_query,
-                sqlglot_schema=self._relation_sqlglot_schema(),
+                sqlglot_schema=relation_lineage.sqlglot_schema,
                 bindings=bindings,
                 default_binding=default_binding,
             )
@@ -721,10 +725,10 @@ class Relation(WithSqlClient):
             f"`other` must be a table name or a `dlt.Relation`, got `{type(other).__name__}`."
         )
 
-    def incremental(self, incremental: Incremental[Any]) -> Self:
+    def incremental(self, incremental: Incremental[Any], *, advance: bool = True) -> Self:
         """Filter this relation to a cursor range using an Incremental.
 
-        Translates the `Incremental` bounds (`initial_value`/`end_value`, `range_start`/
+        Translates the `Incremental` range (`initial_value`/`end_value`, `range_start`/
         `range_end`, `last_value_func`) into a SQL `WHERE` clause. When the cursor
         path is `table.column`, joins the referenced table via the dataset schema
         without adding its columns to the projection, then filters on the joined
@@ -733,29 +737,27 @@ class Relation(WithSqlClient):
         Args:
             incremental (Incremental[Any]): The incremental whose cursor path and
                 range define the filter. `last_value_func` must be `min` or `max`.
+            advance (bool): Advance the cursor state of a bound `incremental` and pin the
+                range end to `end_value`, or to `MAX`/`MIN(cursor)` when it is unset.
+                No effect on an unbound `incremental`.
 
         Returns:
             Self: A new relation with the incremental filter applied.
         """
-        if self._incremental_ctx is not None:
-            raise ValueError(
-                "`.incremental()` has already been applied to this relation with "
-                f"cursor `{self._incremental_ctx.incremental.cursor_path}`."
-            )
-
-        table_name, column_name = _parse_incremental_cursor_path(incremental.cursor_path)
+        table_name, column_name = parse_incremental_cursor_path(incremental.cursor_path)
         naming = self._dataset.schema.naming
         column_name = naming.normalize_identifier(column_name)
 
         if table_name is None:
             relation_columns = self.columns_schema
             if column_name not in relation_columns:
-                _raise_incomplete_cursor_column(incremental.cursor_path, "this relation")
+                raise_incomplete_cursor_column(incremental.cursor_path, "this relation")
             return self._apply_incremental(
                 incremental=incremental,
                 target_query=self.sqlglot_expression,
                 column_ref=sge.Column(this=sge.to_identifier(column_name, quoted=True)),
                 column_lookup_columns=relation_columns,
+                advance=advance,
             )
 
         if not self._table_name:
@@ -771,7 +773,7 @@ class Relation(WithSqlClient):
             )
         target_columns = self._dataset.schema.get_table_columns(table_name)
         if column_name not in target_columns:
-            _raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
+            raise_incomplete_cursor_column(incremental.cursor_path, f"table `{table_name}`")
         if self._table_name not in _extract_joined_table_aliases(
             self.sqlglot_expression, self._dataset.dataset_name
         ):
@@ -805,6 +807,7 @@ class Relation(WithSqlClient):
                 table=sge.to_identifier(target_qualifier, quoted=False),
             ),
             column_lookup_columns=target_columns,
+            advance=advance,
         )
 
     def _apply_incremental(
@@ -814,26 +817,26 @@ class Relation(WithSqlClient):
         target_query: sge.Query,
         column_ref: sge.Column,
         column_lookup_columns: TTableSchemaColumns,
+        advance: bool = False,
     ) -> Self:
-        """Build the WHERE for `incremental`."""
-        column_name = column_ref.name
-        sqlglot_type = _sqlglot_type_for_column(column_lookup_columns, column_name)
-        _maybe_warn_on_cursor_missing_raise(incremental, column_lookup_columns, column_name)
-        condition = _build_incremental_condition(
-            incremental,
-            column_ref,
-            sqlglot_type,
-            destination_capabilities=self.sql_client.capabilities,
-        )
+        def _fetch_agg(agg_query: sge.Query) -> Any:
+            agg_rel = self.__copy__()
+            agg_rel._sqlglot_expression = agg_query
+            agg_rel._incremental_ctx = None
+            return agg_rel.fetchscalar()
 
-        rel = self.__copy__()
-        rel._sqlglot_expression = (
-            target_query.where(condition) if condition is not None else target_query
-        )
-        rel._incremental_ctx = _RelationIncrementalContext(
+        final_query, ctx = apply_incremental(
             incremental=incremental,
-            cursor_column=column_ref.copy(),
+            target_query=target_query,
+            column_ref=column_ref,
+            column_lookup_columns=column_lookup_columns,
+            destination_capabilities=self.sql_client.capabilities,
+            advance=advance,
+            fetch_aggregate_scalar=_fetch_agg,
         )
+        rel = self.__copy__()
+        rel._sqlglot_expression = final_query
+        rel._incremental_ctx = ctx
         return rel
 
     @property
@@ -841,15 +844,23 @@ class Relation(WithSqlClient):
         """True if any clause on this relation was produced by `.incremental()`."""
         return self._incremental_ctx is not None
 
-    def _incremental_aggregate_relation(self) -> Optional[Self]:
-        """Return a relation computing `<last_value_func>(cursor)` over this relation
-        or `None` if this relation is not incremental.
-        """
+    def _incremental_aggregate_relation(
+        self, incremental: Optional[Incremental[Any]] = None
+    ) -> Optional[Self]:
+        """Return a relation computing `<last_value_func>(cursor)` for `incremental`
+        or this relation's incremental ctx. When `incremental` is given, the cursor
+        is applied first (adding the join + filter) so the aggregate runs over the
+        filtered relation."""
+        if incremental is not None:
+            # apply the incremental — adds join for qualified cursors, WHERE for the range.
+            # existing joins/ctx are reused via _extract_joined_table_aliases.
+            return self.incremental(incremental, advance=False)._incremental_aggregate_relation()
         if self._incremental_ctx is None:
             return None
         agg_query = _build_incremental_aggregate(
             self.sqlglot_expression,
-            self._incremental_ctx,
+            self._incremental_ctx.incremental,
+            self._incremental_ctx.cursor_column,
             destination_capabilities=self.sql_client.capabilities,
         )
         rel = self.__copy__()
@@ -1141,7 +1152,12 @@ class Relation(WithSqlClient):
         return simple_repr("dlt.Relation", **without_none(kwargs))
 
     def __copy__(self) -> Self:
-        rel = self.__class__(dataset=self._dataset, query=self.sqlglot_expression)
+        rel = self.__class__(
+            dataset=self._dataset,
+            query=self.sqlglot_expression,
+            _execute_raw_query=self._execute_raw_query,
+            _allow_partial_lineage=self._allow_partial_lineage,
+        )
         rel._table_name = self._table_name
         rel._incremental_ctx = self._incremental_ctx
         rel._foreign_datasets = dict(self._foreign_datasets)
@@ -1160,8 +1176,24 @@ class Relation(WithSqlClient):
             },
         }
 
-    def _relation_sqlglot_schema(self) -> SQLGlotSchema:
-        return lineage.create_sqlglot_schema(self._all_schemas(), dialect=self.destination_dialect)
+    def _lineage(self) -> _RelationLineage:
+        """Returns the lineage of the relation against the current schemas of its datasets."""
+        all_schemas = self._all_schemas()
+        # the dataset schemas may evolve while the relation lives
+        key = tuple(schema.version_hash for schemas in all_schemas.values() for schema in schemas)
+        if self._lineage_cache is None or self._lineage_cache.schemas_key != key:
+            sqlglot_schema = lineage.create_sqlglot_schema(
+                all_schemas, dialect=self.destination_dialect
+            )
+            columns, qualified_query = lineage.compute_columns_schema(
+                # use dlt schema compliant query so lineage works on non case folded identifiers
+                self.sqlglot_expression,
+                sqlglot_schema,
+                dialect=self.destination_dialect,
+                allow_partial=self._allow_partial_lineage,
+            )
+            self._lineage_cache = _RelationLineage(key, sqlglot_schema, columns, qualified_query)
+        return self._lineage_cache
 
     def _compute_identifier_bindings(
         self,
@@ -1246,25 +1278,6 @@ class Relation(WithSqlClient):
         """Serializes this relation to a `SqlModel`. The model holds the query and the context
         that the destination needs to run it"""
         return SqlModel(self.to_sql(), self.query_dialect, self._attach_infos())
-
-
-def _get_relation_output_columns_schema(
-    relation: dlt.Relation,
-    *,
-    infer_sqlglot_schema: bool = False,
-    allow_anonymous_columns: bool = True,
-    allow_partial: bool = False,
-) -> tuple[TTableSchemaColumns, sge.Query]:
-    columns_schema, normalized_query = lineage.compute_columns_schema(
-        # use dlt schema compliant query so lineage will work correctly on non case folded identifiers
-        relation.sqlglot_expression,
-        relation._relation_sqlglot_schema(),
-        dialect=relation.destination_dialect,
-        infer_sqlglot_schema=infer_sqlglot_schema,
-        allow_anonymous_columns=allow_anonymous_columns,
-        allow_partial=allow_partial,
-    )
-    return columns_schema, normalized_query
 
 
 def _find_table_columns(schemas: Sequence[dlt.Schema], table_name: str) -> TTableSchemaColumns:

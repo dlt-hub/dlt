@@ -3,7 +3,7 @@ from typing import Any, Optional, Literal, Dict, Union, Sequence
 from dateutil import parser
 
 from dlt.common.destination import PreparedTableSchema
-from dlt.common.pendulum import timezone
+from datetime import timezone
 from dlt.common.schema.typing import TTableSchemaColumns
 from dlt.common.typing import TColumnNames
 from dlt.destinations.utils import get_resource_for_adapter

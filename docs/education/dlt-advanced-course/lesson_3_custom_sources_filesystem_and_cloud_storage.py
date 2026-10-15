@@ -1,8 +1,9 @@
 # /// script
 # dependencies = [
-#     "dlt[duckdb]",
+#     "dlt[duckdb,parquet]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///

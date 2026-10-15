@@ -3,16 +3,13 @@ title: Transform data in Python with Arrow tables or DataFrames
 description: Transforming data loaded by a dlt pipeline with Pandas or Polars DataFrames and Arrow tables
 keywords: [transform, pandas, polars, arrow]
 ---
-
 # Transform data in Python with Arrow tables or DataFrames
 
 You can transform your data in Python using Pandas DataFrames, Arrow tables, or Polars DataFrames. To get started, please read the [dataset docs](../../general-usage/dataset-access/dataset).
 
-
 ## Interactively transforming your data in Python
 
 Using the methods explained in the [dataset docs](../../general-usage/dataset-access/dataset), you can fetch data from your destination into a DataFrame or Arrow table in your local Python process and work with it interactively. This even works for filesystem destinations:
-
 
 The example below reads GitHub reactions data from the `issues` table and
 counts the reaction types.
@@ -32,7 +29,7 @@ reactions = github_issues.select(
 ).df()
 
 # calculate and print out the sum of all reactions
-counts = reactions.sum(0).sort_values(0, ascending=False)
+counts = reactions.sum(0).sort_values(0, ascending=False)  # ty: ignore
 print(counts)
 
 # alternatively, you can fetch the data as an arrow table
@@ -89,7 +86,6 @@ print(table.limit(10).execute())
 
 Since dlt supports Arrow tables, Pandas or Polars DataFrames from resources directly, you can use the same pipeline to load the transformed data back into the destination.
 
-
 ### A simple example
 
 A simple example that creates a new table from an existing user table but only with columns that do not contain private information. Note that we use the `iter_arrow()` method on the relation to iterate over the arrow table instead of fetching it all at once.
@@ -113,7 +109,7 @@ pipeline.run(users.iter_arrow(chunk_size=1000), table_name="users_clean")
 
 The example above could easily be done in SQL. Let's assume you'd like to actually do in Python some Arrow transformations. For this we will create a resource from which we can yield the modified Arrow tables. The same is possibly with DataFrames.
 
-```py
+```py notype
 import pyarrow.compute as pc
 
 pipeline = dlt.pipeline(

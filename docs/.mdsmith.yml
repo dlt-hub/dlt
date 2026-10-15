@@ -1,0 +1,53 @@
+files:
+  - '**/website/docs*.md'
+  - '**/website/docs*.markdown'
+categories:
+  # categories are defined here: https://mdsmith.dev/rules/
+  accessibility: true
+  code: true
+  directive: true
+  heading: true
+  line: false
+  link: true
+  list: true
+  prose: false
+  structural: true
+  table: true
+  whitespace: true
+
+# completely ignore files
+ignore: [
+  "website/docs/reference/command-line-interface.md",  # dynamically generated
+  "website/docs/_book-onboarding-call.md",  # actually an mdx files
+  "website/docs/dlt-ecosystem/verified-sources/_source-info-header.md",  # actually an mdx files
+]
+
+# enable / disable rules per file
+overrides:
+  - glob: [
+      "website/docs/dlt-ecosystem/verified-sources/arrow-pandas.md",
+      "website/docs/dlt-ecosystem/verified-sources/rest_api/basic.md",
+      "website/docs/hub/getting-started/oss-and-dlthub.md",
+    ]
+    rules:
+      table-readability: false
+
+  - glob: [
+      # ignoring because it has so many duplicate headings.
+      # Should probably be split into multiple pages.
+      "website/docs/general-usage/credentials/complex_types.md",
+    ]
+    rules:
+      no-duplicate-headings: false
+
+# enable / disable or configure individual rules
+rules:
+  link-validity: true
+  max-file-length: false  # could enable
+  no-emphasis-as-heading: false  # temp disable
+  # `same-file-anchor` is disabled because it diverges from Docusaurus
+  # slug resolution (github-slugger). mdsmith will fail to resolve slugs
+  # with snake case such as `#using-the-iceberg_adapter` while Docusaurus can.
+  same-file-anchor: false
+  table-readability:
+    max-words-per-cell: 35

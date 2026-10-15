@@ -14,9 +14,10 @@ from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.schema.utils import new_column
 from dlt.common.typing import StrAny, TDataItems
 from dlt.common.wei import Wei
+from dlt.common.pendulum import ensure_pendulum_dt
 from dlt.common.time import (
-    ensure_pendulum_datetime_utc,
-    ensure_pendulum_datetime_non_utc,
+    ensure_pendulum_datetime,
+    ensure_datetime,
     reduce_pendulum_datetime_precision,
     ensure_pendulum_time,
     ensure_pendulum_date,
@@ -149,12 +150,12 @@ TABLE_ROW_ALL_DATA_TYPES = {
 
 
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES = deepcopy(TABLE_ROW_ALL_DATA_TYPES)
-TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4"] = ensure_pendulum_datetime_utc(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4"] = ensure_pendulum_datetime(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col10"] = ensure_pendulum_date(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col10"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11"])  # type: ignore[arg-type]
-TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"] = ensure_pendulum_datetime_utc(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"])  # type: ignore[arg-type]
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"] = ensure_pendulum_datetime(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col4_precision"])  # type: ignore[arg-type]
 TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"] = pendulum.Time.fromisoformat(TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col11_precision"])  # type: ignore[arg-type]
-TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col12"] = ensure_pendulum_datetime_non_utc(
+TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col12"] = ensure_datetime(
     TABLE_ROW_ALL_DATA_TYPES_DATETIMES["col12"]  # type: ignore[arg-type]
 )
 
@@ -225,28 +226,28 @@ def assert_all_data_types_row(
     expected_rows = {key: value for key, value in expected_row.items() if key in schema}
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
     if "col4" in expected_rows:
-        parsed_date = ensure_pendulum_datetime_utc((db_mapping["col4"]))
+        parsed_date = ensure_pendulum_datetime((db_mapping["col4"]))
         db_mapping["col4"] = reduce_pendulum_datetime_precision(
             parsed_date, caps.timestamp_precision
         )
         expected_rows["col4"] = reduce_pendulum_datetime_precision(
-            ensure_pendulum_datetime_utc(expected_rows["col4"]),  # type: ignore[arg-type]
+            ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
             caps.timestamp_precision,
         )
     if "col12" in expected_rows:
-        parsed_date = ensure_pendulum_datetime_non_utc((db_mapping["col12"]))
+        parsed_date = ensure_pendulum_dt(ensure_datetime((db_mapping["col12"])))
         db_mapping["col12"] = reduce_pendulum_datetime_precision(
             parsed_date, caps.timestamp_precision
         )
         expected_rows["col12"] = reduce_pendulum_datetime_precision(
-            ensure_pendulum_datetime_non_utc(expected_rows["col12"]),  # type: ignore[arg-type]
+            ensure_datetime(expected_rows["col12"]),  # type: ignore[arg-type]
             caps.timestamp_precision,
         )
     if "col4_precision" in expected_rows:
-        parsed_date = ensure_pendulum_datetime_utc((db_mapping["col4_precision"]))
+        parsed_date = ensure_pendulum_datetime((db_mapping["col4_precision"]))
         db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(parsed_date, 3)
         expected_rows["col4_precision"] = reduce_pendulum_datetime_precision(
-            ensure_pendulum_datetime_utc(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
+            ensure_pendulum_datetime(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
         )
 
     # sqlalchemy sends floats not decimals

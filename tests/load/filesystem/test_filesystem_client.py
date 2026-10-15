@@ -1,8 +1,7 @@
-from typing import Dict, List, Optional, Union
+from typing import Dict, List, Optional, Type, Union
 import posixpath
 import os
 import json
-import orjson
 from unittest import mock
 from pathlib import Path
 from unittest.mock import patch
@@ -10,7 +9,6 @@ from urllib.parse import urlparse
 
 import pytest
 
-from dlt.common.configuration.specs.azure_credentials import AzureCredentials
 from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
@@ -20,7 +18,7 @@ from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
 from dlt.common.storages.configuration import FilesystemConfiguration
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_pendulum_datetime
 from dlt.common.utils import custom_environ, digest128, uniq_id
 from dlt.common.storages import FileStorage, ParsedLoadJobFileName
 from dlt.common.storages.exceptions import UnsupportedStorageVersionException
@@ -234,7 +232,7 @@ def test_successful_load(write_disposition: str, layout: str, default_buckets_en
         os.environ.pop("DESTINATION__FILESYSTEM__LAYOUT", None)
 
     dataset_name = "test_" + uniq_id()
-    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -291,7 +289,7 @@ def test_replace_write_disposition(layout: str, default_buckets_env: str) -> Non
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # state is typed now
-    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -411,7 +409,7 @@ def test_append_write_disposition(layout: str, default_buckets_env: str) -> None
     dataset_name = "test_" + uniq_id()
     # NOTE: context manager will delete the dataset at the end so keep it open until the end
     # also we would like to have reliable timestamp for this test so we patch it
-    timestamp = ensure_pendulum_datetime_utc("2024-04-05T09:16:59.942779Z")
+    timestamp = ensure_pendulum_datetime("2024-04-05T09:16:59.942779Z")
     mocked_timestamp = {"state": {"created_at": timestamp}}
     with (
         mock.patch(
@@ -509,16 +507,35 @@ def test_get_storage_version_valid(version_info: Union[str, Dict[str, int]]) -> 
 
 
 @pytest.mark.parametrize(
-    "invalid_version_info",
+    "invalid_version_info,expected_exception,match",
     [
-        "random",
-        {"unexpected": 2, "current_version": 2},
-        {"initial_version": 1},
-        {"current_version": 2},
-        {"initial_version": 2, "current_version": 3},
+        # not json at all
+        ("random", ValueError, "Invalid content"),
+        # valid json, but not an object so the version keys cannot be looked up
+        ("5", ValueError, "Invalid content"),
+        ('"2"', ValueError, "Invalid content"),
+        ("[1, 2]", ValueError, "Invalid content"),
+        ("null", ValueError, "Invalid content"),
+        # object with an unexpected or a missing key
+        ({"unexpected": 2, "current_version": 2}, ValueError, "Invalid content"),
+        ({"initial_version": 1}, ValueError, "Invalid content"),
+        ({"current_version": 2}, ValueError, "Invalid content"),
+        # both keys present but the version is not supported
+        (
+            {
+                "initial_version": min(SUPPORTED_VERSIONS),
+                "current_version": max(SUPPORTED_VERSIONS) + 1,
+            },
+            UnsupportedStorageVersionException,
+            "Expected storage",
+        ),
     ],
 )
-def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, int]]) -> None:
+def test_get_storage_version_invalid(
+    invalid_version_info: Union[str, Dict[str, int]],
+    expected_exception: Type[Exception],
+    match: str,
+) -> None:
     filesystem_ = filesystem("random_location")
     client = _client_factory(filesystem_)
     init_file = client.pathlib.join(client.dataset_path, INIT_FILE_NAME)
@@ -534,21 +551,9 @@ def test_get_storage_version_invalid(invalid_version_info: Union[str, Dict[str, 
         encoding="utf-8",
     )
 
-    # If random text
-    if invalid_version_info == "random":
-        with pytest.raises(ValueError):
-            client.get_storage_versions()
-    # If unexpected key
-    elif invalid_version_info == {"unexpected": 2, "current_version": 2}:
-        with pytest.raises(ValueError):
-            client.get_storage_versions()
-    # If one key is missing
-    elif invalid_version_info in [{"initial_version": 1}, {"current_version": 2}]:
-        with pytest.raises(ValueError):
-            client.get_storage_versions()
-    else:
-        with pytest.raises(UnsupportedStorageVersionException):
-            client.get_storage_versions()
+    # match pins the curated message: a decode error leaking from the json backend must fail here
+    with pytest.raises(expected_exception, match=match):
+        client.get_storage_versions()
 
 
 @pytest.mark.parametrize(

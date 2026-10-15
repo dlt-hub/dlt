@@ -592,6 +592,14 @@ def test_save_load_trace() -> None:
     assert pipeline.last_trace.last_normalize_info is None
 
 
+def test_last_trace_none_when_no_run() -> None:
+    """`last_trace` returns None (not raises) when the pipeline has never produced a trace."""
+    pipeline = dlt.pipeline(pipeline_name="never_run_" + uniq_id(), destination="dummy")
+    assert pipeline._last_trace is None
+    assert pipeline.last_trace is None
+    assert load_trace(pipeline.working_dir) is None
+
+
 def test_run_step_with_exception_not_filtered_in_asdict() -> None:
     """Run step carrying an exception from sync_destination must survive asdict()."""
     pipeline = dlt.pipeline(destination="dummy")

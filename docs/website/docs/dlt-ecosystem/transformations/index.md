@@ -1,8 +1,10 @@
 ---
-title: Overview
+title: Transform data with dlt
+sidebar_label: Overview
 description: dlt supports both ETL and ELT transformation patterns
 keywords: [elt, etl, transformer, transformations]
 ---
+# Overview
 
 `dlt` supports both Extract, Transform, Load (ETL) and Extract, Load, Transform (ELT) patterns.
 

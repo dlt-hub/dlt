@@ -3,9 +3,9 @@ title: MongoDB
 description: dlt verified source for MongoDB
 keywords: [mongodb, verified source, mongo database]
 ---
-import Header from './_source-info-header.md';
-
 # MongoDB
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -19,7 +19,7 @@ loads data using the "MongoDB" source to the destination of your choice.
 Sources and resources that can be loaded using this verified source are:
 
 | Name               | Description                                |
-|--------------------|--------------------------------------------|
+| ------------------ | ------------------------------------------ |
 | mongodb            | Loads a specific MongoDB database          |
 | mongodb_collection | Loads a collection from a MongoDB database |
 
@@ -41,7 +41,7 @@ For details on connecting to MongoDB and obtaining the connection URL, see
 Here are the typical ways to configure MongoDB and their connection URLs:
 
 | Name                | Description                                                                           | Connection URL Example                            |
-|---------------------|---------------------------------------------------------------------------------------|---------------------------------------------------|
+| ------------------- | ------------------------------------------------------------------------------------- | ------------------------------------------------- |
 | Local installation  | Install on Windows, macOS, Linux using official packages.                             | "mongodb://dbuser:passwd@host.or.ip:27017"        |
 | Docker              | Deploy using the MongoDB Docker image.                                                | "mongodb://dbuser:passwd@docker.host:27017"       |
 | MongoDB Atlas       | MongoDB’s managed service on AWS, Azure, and Google Cloud.                            | "mongodb+srv://dbuser:passwd@cluster.mongodb.net" |
@@ -75,11 +75,14 @@ Here are the typical ways to configure MongoDB and their connection URLs:
 
 1. View collections in a database:
 
-   1. Switch to the database:
+  1. Switch to the database:
+
       ```sh
       use your_database_name
       ```
-   1. Display its collections:
+
+  1. Display its collections:
+
       ```sh
       show collections
       ```
@@ -169,18 +172,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python mongodb_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `local_mongo`, you may also
    use any custom name instead.
 
@@ -196,13 +205,16 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 This function loads data from a MongoDB database, yielding one or multiple collections to be retrieved.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source
 def mongodb(
     connection_url: str = dlt.secrets.value,
-    database: Optional[str] = dlt.config.value,
-    collection_names: Optional[List[str]] = dlt.config.value,
-    incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
-    write_disposition: Optional[str] = dlt.config.value,
+    database: str | None = dlt.config.value,
+    collection_names: list[str] | None = dlt.config.value,
+    incremental: dlt.sources.incremental | None = None,  # type: ignore[type-arg]
+    write_disposition: str | None = dlt.config.value,
 ) -> Iterable[DltResource]:
    ...
 ```
@@ -217,25 +229,25 @@ def mongodb(
 
 `write_disposition`: Writing mode: "replace", "append", or "merge".
 
-
 ### Source `mongo_collection`
 
 This function fetches a single collection from a MongoDB database using PyMongo.
 
 ```py
+from dlt.common.data_writers import TDataItemFormat
+
 def mongodb_collection(
     connection_url: str = dlt.secrets.value,
-    database: Optional[str] = dlt.config.value,
+    database: str | None = dlt.config.value,
     collection: str = dlt.config.value,
-    incremental: Optional[dlt.sources.incremental] = None,  # type: ignore[type-arg]
-    write_disposition: Optional[str] = dlt.config.value,
-    data_item_format: Optional[TDataItemFormat] = "object",
+    incremental: dlt.sources.incremental | None = None,  # type: ignore[type-arg]
+    write_disposition: str | None = dlt.config.value,
+    data_item_format: TDataItemFormat | None = "object",
 ) -> Any:
    ...
 ```
 
 `collection`: Name of the collection to load.
-
 
 ## Customization
 
@@ -255,7 +267,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load all the collections in a database:
 
-   ```py
+   ```py notype
    load_data = mongodb()
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
@@ -263,7 +275,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load specific collections from the database:
 
-   ```py
+   ```py notype
    load_data = mongodb().with_resources("collection_1", "collection_2")
    load_info = pipeline.run(load_data, write_disposition="replace")
    print(load_info)
@@ -271,16 +283,17 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load specific collections from the source incrementally:
 
-   ```py
+   ```py notype
    load_data = mongodb(incremental=dlt.sources.incremental("date")).with_resources("collection_1")
    load_info = pipeline.run(load_data, write_disposition="merge")
    print(load_info)
    ```
+
    > Data is loaded incrementally based on the "date" field.
 
 1. To load data from a particular collection, say "movies," incrementally:
 
-   ```py
+   ```py notype
    load_data = mongodb_collection(
        collection="movies",
        incremental=dlt.sources.incremental(
@@ -298,7 +311,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To incrementally load a table with an append-only disposition using hints:
 
-   ```py
+   ```py notype
    # Suitable for tables where new rows are added, but existing rows aren't updated.
    # Load data from the 'listingsAndReviews' collection in MongoDB, using 'last_scraped' for incremental addition.
    airbnb = mongodb().with_resources("listingsAndReviews")
@@ -315,7 +328,7 @@ If you wish to create your own pipelines, you can leverage source and resource m
 
 1. To load a selected collection and rename it in the destination:
 
-   ```py
+   ```py notype
    # Create the MongoDB source and select the "collection_1" collection
    source = mongodb().with_resources("collection_1")
 
@@ -328,7 +341,8 @@ If you wish to create your own pipelines, you can leverage source and resource m
    ```
 
 1. To load a selected collection, using Apache Arrow for data conversion:
-   ```py
+
+   ```py notype
    # Load collection "movies", using Apache Arrow for conversion
    movies = mongodb_collection(
       collection="movies",

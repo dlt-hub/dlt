@@ -5,7 +5,8 @@ import tempfile  # noqa: 251
 from typing import TYPE_CHECKING, Callable, Dict, Generic, Iterable, List, Optional
 
 
-from dlt.common import pendulum
+from datetime import datetime, timezone
+
 from dlt.common.destination.client import (
     HasFollowupJobs,
     TLoadJobState,
@@ -44,8 +45,8 @@ class FinalizedLoadJob(LoadJob):
         file_path: str,
         /,
         *,
-        started_at: pendulum.DateTime = None,
-        finished_at: pendulum.DateTime = None,
+        started_at: datetime = None,
+        finished_at: datetime = None,
         status: TLoadJobState = "completed",
         failed_message: str = None,
         exception: BaseException = None,
@@ -54,9 +55,9 @@ class FinalizedLoadJob(LoadJob):
         self._status = status
         self._failed_message = failed_message
         self._exception = exception
-        self._started_at = started_at or pendulum.now()
+        self._started_at = started_at or datetime.now(timezone.utc)
         self._finished_at = finished_at or (
-            pendulum.now() if self._status in ("completed", "failed") else None
+            datetime.now(timezone.utc) if self._status in ("completed", "failed") else None
         )
         assert self._status in ("completed", "failed", "retry")
 
@@ -66,8 +67,8 @@ class FinalizedLoadJob(LoadJob):
         file_path: str,
         /,
         *,
-        started_at: pendulum.DateTime = None,
-        finished_at: pendulum.DateTime = None,
+        started_at: datetime = None,
+        finished_at: datetime = None,
         status: TLoadJobState = "completed",
         message: str = None,
         exception: BaseException = None,
@@ -96,7 +97,7 @@ class FinalizedLoadJob(LoadJob):
         self._failed_message = failed_message
         if failed_message:
             self._exception = DestinationTerminalException(failed_message)
-        self._finished_at = pendulum.now()
+        self._finished_at = datetime.now(timezone.utc)
 
 
 class FinalizedLoadJobWithFollowupJobs(FinalizedLoadJob, HasFollowupJobs):

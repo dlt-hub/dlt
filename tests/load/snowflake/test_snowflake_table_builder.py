@@ -3,12 +3,13 @@ from tests.utils import skip_if_not_active
 skip_if_not_active("snowflake")
 
 from copy import deepcopy
-from typing import cast
+from typing import Optional, cast
 
 import pytest
 import sqlfluff
 
-from dlt.common.utils import uniq_id
+from dlt.common.exceptions import TerminalValueError
+from dlt.common.utils import uniq_id, without_none
 from dlt.common.schema import Schema
 from dlt.common.schema.utils import new_table
 from dlt.common.destination.typing import PreparedTableSchema
@@ -49,14 +50,24 @@ def snowflake_client(empty_schema: Schema) -> SnowflakeClient:
 
 
 def create_client(
-    schema: Schema, use_decfloat: bool = False, use_nested_types: bool = False
+    schema: Schema,
+    use_decfloat: bool = False,
+    use_nested_types: bool = False,
+    use_timestamp_tz: bool = False,
 ) -> SnowflakeClient:
     # return client without opening connection
     creds = SnowflakeCredentials()
-    return snowflake(use_decfloat=use_decfloat, use_nested_types=use_nested_types).client(
+    return snowflake(
+        use_decfloat=use_decfloat,
+        use_nested_types=use_nested_types,
+        use_timestamp_tz=use_timestamp_tz,
+    ).client(
         schema,
         SnowflakeClientConfiguration(
-            credentials=creds, use_decfloat=use_decfloat, use_nested_types=use_nested_types
+            credentials=creds,
+            use_decfloat=use_decfloat,
+            use_nested_types=use_nested_types,
+            use_timestamp_tz=use_timestamp_tz,
         )._bind_dataset_name(dataset_name="test_" + uniq_id()),
     )
 
@@ -88,7 +99,7 @@ def test_create_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
     assert '"COL2" FLOAT  NOT NULL' in sql
     assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_LTZ  NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
     assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
     assert '"COL7" BINARY' in sql
@@ -191,7 +202,7 @@ def test_create_table_with_hints(snowflake_client: SnowflakeClient) -> None:
     assert '"COL1" NUMBER(19,0)  NOT NULL' in sql
     assert '"COL2" FLOAT UNIQUE NOT NULL' in sql
     assert '"COL3" BOOLEAN  NOT NULL' in sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+    assert '"COL4" TIMESTAMP_LTZ  NOT NULL' in sql
     assert '"COL5" VARCHAR' in sql
     assert '"COL6" NUMBER(38,9)  NOT NULL' in sql
     assert '"COL7" BINARY' in sql
@@ -221,7 +232,7 @@ def test_alter_table(snowflake_client: SnowflakeClient) -> None:
     assert '"COL1"' not in add_column_sql
     assert '"COL2" FLOAT  NOT NULL' in add_column_sql
     assert '"COL3" BOOLEAN  NOT NULL' in add_column_sql
-    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in add_column_sql
+    assert '"COL4" TIMESTAMP_LTZ  NOT NULL' in add_column_sql
     assert '"COL5" VARCHAR' in add_column_sql
     assert '"COL6" NUMBER(38,9)  NOT NULL' in add_column_sql
     assert '"COL7" BINARY' in add_column_sql
@@ -461,3 +472,84 @@ def test_decfloat_type_mapper_from_destination() -> None:
 
     result = mapper.from_destination_type("DECFLOAT")
     assert result == {"data_type": "decimal"}
+
+
+@pytest.mark.parametrize(
+    "use_timestamp_tz,timezone,precision,expected",
+    [
+        (False, None, None, "TIMESTAMP_LTZ"),
+        (False, None, 3, "TIMESTAMP_LTZ(3)"),
+        (False, True, None, "TIMESTAMP_LTZ"),
+        (False, False, None, "TIMESTAMP_NTZ"),
+        (False, False, 0, "TIMESTAMP_NTZ(0)"),
+        (True, None, None, "TIMESTAMP_TZ"),
+        (True, None, 3, "TIMESTAMP_TZ(3)"),
+        (True, True, None, "TIMESTAMP_TZ"),
+        (True, False, None, "TIMESTAMP_NTZ"),
+    ],
+    ids=[
+        "ltz-unset",
+        "ltz-precision",
+        "ltz-timezone-on",
+        "ltz-timezone-off",
+        "ltz-timezone-off-precision",
+        "tz-unset",
+        "tz-precision",
+        "tz-timezone-on",
+        "tz-timezone-off",
+    ],
+)
+def test_timestamp_type_mapper(
+    use_timestamp_tz: bool, timezone: Optional[bool], precision: Optional[int], expected: str
+) -> None:
+    caps = snowflake()._raw_capabilities()
+    mapper = SnowflakeTypeMapper(caps, use_timestamp_tz=use_timestamp_tz)
+
+    col = cast(
+        TColumnSchema,
+        without_none(
+            {
+                "name": "test_col",
+                "data_type": "timestamp",
+                "timezone": timezone,
+                "precision": precision,
+            }
+        ),
+    )
+    table = cast(PreparedTableSchema, {"name": "test_table", "columns": {"test_col": col}})
+    assert mapper.to_destination_type(col, table) == expected
+
+    # precision above the Snowflake maximum is still rejected
+    col["precision"] = caps.max_timestamp_precision + 1
+    with pytest.raises(TerminalValueError):
+        mapper.to_destination_type(col, table)
+
+
+def test_timestamp_type_mapper_from_destination() -> None:
+    """All three Snowflake timestamp types reflect back to `timestamp`. Only NTZ drops the timezone."""
+    mapper = SnowflakeTypeMapper(snowflake()._raw_capabilities())
+
+    assert mapper.from_destination_type("TIMESTAMP_LTZ", 6) == {
+        "data_type": "timestamp",
+        "precision": 6,
+    }
+    # tables created before LTZ became the default
+    assert mapper.from_destination_type("TIMESTAMP_TZ", 6) == {
+        "data_type": "timestamp",
+        "precision": 6,
+    }
+    assert mapper.from_destination_type("TIMESTAMP_NTZ", 6)["timezone"] is False
+
+
+def test_create_and_alter_table_timestamp_tz(empty_schema: Schema) -> None:
+    """`use_timestamp_tz` keeps `TIMESTAMP_TZ` in both CREATE and ALTER."""
+    client = create_client(empty_schema, use_timestamp_tz=True)
+
+    sql = client._get_table_update_sql("event_test_table", TABLE_UPDATE, False)[0]
+    sqlfluff.parse(sql, dialect="snowflake")
+    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in sql
+
+    add_column_sql = client._get_table_update_sql(
+        "event_test_table", deepcopy(TABLE_UPDATE[3:5]), True
+    )[0]
+    assert '"COL4" TIMESTAMP_TZ  NOT NULL' in add_column_sql

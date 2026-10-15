@@ -3,6 +3,7 @@
 #     "dlt[duckdb]",
 #     "numpy",
 #     "pandas",
+#     "pyarrow",
 #     "sqlalchemy",
 # ]
 # ///
@@ -234,16 +235,16 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    The events endpoint doesn’t contain as much data, especially compared to the stargazers endpoint of the dlt repository.
+    The events endpoint doesn’t contain as much data, especially compared to the issue comments endpoint of the dlt repository.
 
-    If you run the pipeline for the stargazers endpoint, there's a high chance that you'll face a **rate limit error**.
+    If you run the pipeline for the issue comments endpoint, there's a high chance that you'll face a **rate limit error**.
     """)
     return
 
 
 @app.cell
 def _(client_1):
-    for _page in client_1.paginate("repos/dlt-hub/dlt/stargazers"):
+    for _page in client_1.paginate("repos/dlt-hub/dlt/issues/comments"):
         print(_page)
     return
 
@@ -322,7 +323,7 @@ def _(RESTClient, access_token):
     client_2 = RESTClient(
         base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
     )
-    for _page in client_2.paginate("repos/dlt-hub/dlt/stargazers"):
+    for _page in client_2.paginate("repos/dlt-hub/dlt/issues/comments"):
         print(_page)
         break
     return (BearerTokenAuth,)
@@ -339,24 +340,26 @@ def _(mo):
 @app.cell
 def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
     @dlt.resource
-    def github_stargazers() -> TDataItems:
+    def github_issue_comments() -> TDataItems:
         client = RESTClient(
             base_url="https://api.github.com", auth=BearerTokenAuth(token=access_token)
         )
-        for _page in client.paginate("repos/dlt-hub/dlt/stargazers"):
+        for _page in client.paginate(
+            "repos/dlt-hub/dlt/issues/comments", params={"per_page": 100}
+        ):
             yield _page
 
     _pipeline = dlt.pipeline(destination="duckdb")
-    _load_info = _pipeline.run(github_stargazers)
+    _load_info = _pipeline.run(github_issue_comments)
     print(_load_info)
-    _pipeline.dataset().github_stargazers.df()
+    _pipeline.dataset().github_issue_comments.df()
     return
 
 
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(
-        r"""You can see that all dlt [stargazers](https://github.com/dlt-hub/dlt/stargazers) were loaded into the DuckDB destination."""
+        r"""You can see that all dlt [issue comments](https://github.com/dlt-hub/dlt/issues) were loaded into the DuckDB destination."""
     )
     return
 
@@ -387,7 +390,7 @@ def _(mo):
 @app.cell(hide_code=True)
 def _(mo):
     mo.md(r"""
-    Let's create a dlt pipeline for both endpoints: `repos/dlt-hub/dlt/stargazers` and `orgs/dlt-hub/events`.
+    Let's create a dlt pipeline for both endpoints: `repos/dlt-hub/dlt/issues/comments` and `orgs/dlt-hub/events`.
 
     We'll use `@dlt.source` to group both resources.
     """)
@@ -411,11 +414,13 @@ def _(BearerTokenAuth, RESTClient, TDataItems, access_token, dlt):
                 yield _page
 
         @dlt.resource
-        def github_stargazers() -> TDataItems:
-            for _page in client.paginate("repos/dlt-hub/dlt/stargazers"):
+        def github_issue_comments() -> TDataItems:
+            for _page in client.paginate(
+                "repos/dlt-hub/dlt/issues/comments", params={"per_page": 100}
+            ):
                 yield _page
 
-        return (github_events, github_stargazers)
+        return (github_events, github_issue_comments)
     return DltResource, Iterable
 
 
@@ -447,11 +452,13 @@ def _(BearerTokenAuth, DltResource, Iterable, RESTClient, TDataItems, dlt):
                 yield _page
 
         @dlt.resource
-        def github_stargazers() -> TDataItems:
-            for _page in client.paginate("repos/dlt-hub/dlt/stargazers"):
+        def github_issue_comments() -> TDataItems:
+            for _page in client.paginate(
+                "repos/dlt-hub/dlt/issues/comments", params={"per_page": 100}
+            ):
                 yield _page
 
-        return (github_events, github_stargazers)
+        return (github_events, github_issue_comments)
     return (github_source_1,)
 
 
@@ -589,7 +596,7 @@ def _(mo):
 
     #### Question
 
-    Who has id=`17202864` in the `stargazers` table? Use `sql_client`.
+    Who wrote the comment with id=`1162734897` in the `github_issue_comments` table? Use `sql_client`.
     """)
     return
 

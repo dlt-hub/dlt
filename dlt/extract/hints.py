@@ -20,13 +20,13 @@ from dlt.common.schema.typing import (
     TTableSchema,
     TTableSchemaColumns,
     TWriteDispositionConfig,
-    TMergeDispositionDict,
-    TScd2StrategyDict,
     TAnySchemaColumns,
     TTableFormat,
     TSchemaContract,
     DEFAULT_VALIDITY_COLUMN_NAMES,
     MERGE_STRATEGIES,
+    MERGE_STRATEGY_OPTIONS,
+    MERGE_DISPOSITION_HINTS,
     TTableReferenceParam,
 )
 from dlt.common.exceptions import ValueErrorWithKnownValues
@@ -43,8 +43,9 @@ from dlt.common.schema.utils import (
     normalize_table_identifiers,
     remove_compound_props,
 )
+from dlt.common.destination.utils import validate_merge_condition
 from dlt.common.typing import TAny, TDataItem, TColumnNames
-from dlt.common.time import ensure_pendulum_datetime_utc
+from dlt.common.time import ensure_datetime
 from dlt.common.utils import clone_dict_nested
 from dlt.common.normalizers.naming import NamingConvention
 from dlt.common.validation import validate_dict_ignoring_xkeys
@@ -468,7 +469,7 @@ class DltResourceHints:
         Args:
             table_name (TTableHintTemplate[str]): name of the table which resource will generate
 
-            parent_table_parent (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
+            parent_table_name (str, optional): A name of parent table if you want the resource to generate nested table. Please note that if you use merge, you must define `root_key` columns explicitly
 
             incremental (Incremental, optional): Enables the incremental loading for a resource.
 
@@ -714,15 +715,24 @@ class DltResourceHints:
     def _merge_merge_disposition_dict(dict_: Dict[str, Any]) -> None:
         """Merges merge disposition dict into x-hints in place."""
 
-        md_dict: TMergeDispositionDict = dict_.pop("write_disposition")
-        if merge_strategy := md_dict.get("strategy"):
-            dict_["x-merge-strategy"] = merge_strategy
-
-        if deduplicated := md_dict.get("deduplicated"):
-            dict_["x-stage-data-deduplicated"] = deduplicated
+        # the keys depend on the strategy, as `TWriteDispositionConfig` defines
+        md_dict: Dict[str, Any] = dict_.pop("write_disposition")
+        for key, hint in MERGE_DISPOSITION_HINTS.items():
+            if value := md_dict.get(key):
+                dict_[hint] = value
+        merge_strategy = md_dict.get("strategy")
+        # the merge compares the row version only if `skip_unchanged_rows` is `True`
+        row_version = md_dict.get("row_version_column_name")
+        if merge_strategy != "scd2" and row_version and md_dict.get("skip_unchanged_rows"):
+            # unlike scd2, upsert and cdc identify records by primary key and keep `_dlt_id`
+            dict_["columns"][row_version] = {
+                **dict_["columns"].get(row_version, {}),
+                "name": row_version,
+                "nullable": False,
+                "x-row-version": True,
+            }
 
         if merge_strategy == "scd2":
-            md_dict = cast(TScd2StrategyDict, md_dict)
             if "boundary_timestamp" in md_dict:
                 dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
             if md_dict.get("validity_column_names") is None:
@@ -816,27 +826,53 @@ class DltResourceHints:
     def validate_write_disposition_hint(template: TResourceHints) -> None:
         wd = template.get("write_disposition")
         if isinstance(wd, dict) and wd["disposition"] == "merge":
-            wd = cast(TMergeDispositionDict, wd)
-            if "strategy" in wd and wd["strategy"] not in MERGE_STRATEGIES:
+            # the keys depend on the strategy, as `TWriteDispositionConfig` defines
+            md = cast(Dict[str, Any], wd)
+            strategy = md.get("strategy")
+            if "strategy" in md and strategy not in MERGE_STRATEGIES:
                 raise ValueErrorWithKnownValues(
-                    "write_disposition['strategy']", wd["strategy"], MERGE_STRATEGIES
+                    "write_disposition['strategy']", strategy, MERGE_STRATEGIES
                 )
 
-            if wd.get("strategy") == "scd2":
-                wd = cast(TScd2StrategyDict, wd)
+            for hint_name in ("source_filter", "destination_scope"):
+                if filter_ := md.get(hint_name):
+                    validate_merge_condition(hint_name, cast(str, filter_))
+            # the default strategy depends on the destination, which checks its options
+            if strategy:
+                for option, strategies in MERGE_STRATEGY_OPTIONS.items():
+                    if md.get(option) and strategy not in strategies:
+                        supported = ", ".join(f"`{s}`" for s in strategies)
+                        raise ValueError(
+                            f"dlt supports `{option}` only with the {supported} merge strategies,"
+                            f" not with `{strategy}`. Use one of these strategies or remove"
+                            f" `{option}`."
+                        )
+            # scd2 identifies records by the row version, the other strategies only compare it
+            if (
+                strategy != "scd2"
+                and md.get("row_version_column_name")
+                and not md.get("skip_unchanged_rows")
+            ):
+                logger.warning(
+                    f"dlt ignores `row_version_column_name` with the `{strategy or 'default'}`"
+                    " merge strategy, because `skip_unchanged_rows` is not `True`. To compare the"
+                    " row version, set `skip_unchanged_rows` to `True`."
+                )
+
+            if strategy == "scd2":
                 for ts in ("active_record_timestamp", "boundary_timestamp"):
                     if (
                         ts == "active_record_timestamp"
-                        and wd.get("active_record_timestamp") is None
+                        and md.get("active_record_timestamp") is None
                     ):
                         continue  # None is allowed for active_record_timestamp
-                    if ts in wd:
-                        if wd[ts] is None:
+                    if ts in md:
+                        if md[ts] is None:
                             continue
                         try:
-                            ensure_pendulum_datetime_utc(wd[ts])
+                            ensure_datetime(md[ts])
                         except Exception:
-                            raise ValueError(f"could not parse `{ts}` value `{wd[ts]}`")
+                            raise ValueError(f"could not parse `{ts}` value `{md[ts]}`")
 
     @staticmethod
     def validate_reference_hint(template: TResourceHints) -> None:

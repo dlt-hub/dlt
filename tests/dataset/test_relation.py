@@ -1,6 +1,7 @@
 import pathlib
 import sys
 from typing import Any
+from unittest.mock import ANY
 
 import pytest
 from sqlglot import expressions as sge
@@ -10,6 +11,7 @@ from dlt.common.utils import uniq_id
 from dlt.common.schema.schema import Schema
 from dlt.common.schema.typing import C_DLT_LOAD_ID, LOADS_TABLE_NAME, VERSION_TABLE_NAME
 from dlt.common.schema.utils import new_table
+from dlt.dataset import lineage
 from dlt.dataset.dataset import _get_load_ids, _get_latest_load_id
 from dlt.dataset.exceptions import LineageFailedException
 from tests.dataset.utils import TLoadsFixture, crm
@@ -126,6 +128,144 @@ def test_relation_with_load_id_rejects_non_table_relations(
 
     with pytest.raises(ValueError, match=r"only works on relations created via \.table\(\)"):
         dataset.table("users__orders").where("order_id", "gt", 1).with_load_id_col()
+
+
+@pytest.mark.parametrize(
+    "query,expected_columns",
+    [
+        ("SELECT item_id, name FROM items", ["item_id", "name"]),
+        # an unqualified column is not attributed to the only unknown table
+        ("SELECT col_unknown FROM table_unknown", None),
+        ("SELECT * FROM table_unknown", None),
+    ],
+    ids=["known_table", "unknown_table_unqualified_column", "unknown_table_star"],
+)
+def test_relation_columns_match_execution(
+    multi_schema_dataset: dlt.Dataset, query: str, expected_columns: Any
+) -> None:
+    """The columns of a relation are the columns that its execution returns, or both fail."""
+    relation = multi_schema_dataset(query)
+    if expected_columns is None:
+        with pytest.raises(LineageFailedException):
+            relation.columns
+        with pytest.raises(LineageFailedException):
+            relation.arrow()
+    else:
+        assert relation.columns == expected_columns
+        assert relation.arrow().schema.names == expected_columns
+
+
+@pytest.mark.parametrize(
+    "query,expected_columns",
+    [
+        ("SELECT item_id, name FROM items", ["item_id", "name"]),
+        ("SELECT col_unknown FROM table_unknown", ["col_unknown"]),
+        # a `*` over an unknown table cannot be expanded
+        ("SELECT * FROM table_unknown", []),
+    ],
+    ids=["known_table", "unknown_table_unqualified_column", "unknown_table_star"],
+)
+@pytest.mark.parametrize("execute_raw_query", [True, False], ids=["raw", "partial"])
+def test_relation_partial_lineage(
+    multi_schema_dataset: dlt.Dataset,
+    query: str,
+    expected_columns: Any,
+    execute_raw_query: bool,
+) -> None:
+    # a raw query implies partial lineage
+    relation = multi_schema_dataset(
+        query,
+        _execute_raw_query=execute_raw_query,
+        _allow_partial_lineage=not execute_raw_query,
+    )
+    assert relation.columns == expected_columns
+
+    # relations derived from the relation keep both modes
+    derived = relation.limit(1)
+    assert derived._allow_partial_lineage is True
+    assert derived._execute_raw_query is execute_raw_query
+    assert derived.columns == expected_columns
+    if execute_raw_query:
+        assert derived.to_sql() == derived.sqlglot_expression.sql(
+            dialect=derived.destination_dialect
+        )
+
+
+def test_relation_lineage_computed_once(tmp_path: pathlib.Path, mocker: Any) -> None:
+    pipeline = dlt.pipeline(
+        "relation_lineage",
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(tmp_path / "relation_lineage.db")),
+        dev_mode=True,
+    )
+    pipeline.run([{"id": 1}], table_name="items")
+    dataset = pipeline.dataset()
+    lineage_spy = mocker.spy(lineage, "compute_columns_schema")
+    sqlglot_schema_spy = mocker.spy(lineage, "create_sqlglot_schema")
+
+    relation = dataset("SELECT * FROM items")
+    assert "value" not in relation.columns
+    relation.fetchall()
+    assert lineage_spy.call_count == 1
+    # the query binding reuses the sqlglot schema of the lineage
+    assert sqlglot_schema_spy.call_count == 1
+
+    # a change of the dataset schema computes the lineage again
+    dataset.schema.update_table(
+        new_table("items", columns=[{"name": "value", "data_type": "text", "nullable": True}])
+    )
+    assert "value" in relation.columns
+    assert lineage_spy.call_count == 2
+    assert sqlglot_schema_spy.call_count == 2
+
+    # a raw query executes without lineage, its columns compute it on request
+    raw_relation = dataset("SELECT * FROM items", _execute_raw_query=True)
+    raw_relation.fetchall()
+    assert lineage_spy.call_count == 2
+    assert raw_relation.columns == ["id", "_dlt_load_id", "_dlt_id", "value"]
+    assert lineage_spy.call_count == 3
+
+
+def test_cross_dataset_relation_lineage_follows_foreign_schema(
+    tmp_path: pathlib.Path, mocker: Any
+) -> None:
+    db_path = str(tmp_path / "cross_dataset_lineage.db")
+    pipeline_users = dlt.pipeline(
+        "lineage_users",
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="users_data",
+    )
+    pipeline_users.run([{"id": 1, "name": "alice"}], table_name="users")
+    pipeline_purchases = dlt.pipeline(
+        "lineage_purchases",
+        pipelines_dir=str(tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(db_path),
+        dataset_name="purchases_data",
+    )
+    pipeline_purchases.run([{"user_id": 1, "amount": 10}], table_name="purchases")
+    ds_users, ds_purchases = pipeline_users.dataset(), pipeline_purchases.dataset()
+    lineage_spy = mocker.spy(lineage, "compute_columns_schema")
+
+    joined = ds_users.table("users").join(
+        ds_purchases.table("purchases"), on="users.id = purchases.user_id"
+    )
+    assert "x-annotation-pii" not in joined.columns_schema["purchases__amount"]
+    assert joined.fetchall() == [(1, "alice", ANY, ANY, 1, 10, ANY, ANY)]
+    assert lineage_spy.call_count == 1
+
+    # a hint added to the schema of the foreign dataset computes the lineage again
+    ds_purchases.schema.update_table(
+        new_table(
+            "purchases",
+            columns=[{"name": "amount", "data_type": "bigint", "x-annotation-pii": True}],  # type: ignore[typeddict-unknown-key]
+        )
+    )
+    assert joined.columns_schema["purchases__amount"].get("x-annotation-pii") is True
+    assert joined.fetchall() == [(1, "alice", ANY, ANY, 1, 10, ANY, ANY)]
+    assert lineage_spy.call_count == 2
+    # the schema of the primary dataset did not change
+    assert "x-annotation-pii" not in ds_users.schema.get_table_columns("users")["id"]
 
 
 def test_dataset_load_ids(dataset_with_loads: TLoadsFixture):
@@ -429,6 +569,40 @@ def test_multi_schema_row_counts(multi_schema_dataset: dlt.Dataset) -> None:
         "warehouses": 1,
     }
     assert counts == expected_counts
+
+
+@pytest.fixture(scope="module")
+def casefolding_dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
+    """Dataset on a duckdb that folds identifiers to upper case, like snowflake."""
+    pipeline = dlt.pipeline(
+        pipeline_name="casefolding",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(
+            str(module_tmp_path / "casefolding.db"),
+            casefold_identifier=str.upper,
+            has_case_sensitive_identifiers=True,
+        ),
+        dev_mode=True,
+    )
+    pipeline.run(inventory())
+    return pipeline.dataset()
+
+
+def test_casefolding_row_counts_output_names(casefolding_dataset: dlt.Dataset) -> None:
+    """`row_counts` names its output columns in the dlt schema namespace, also when the
+    destination folds identifiers."""
+    counts = casefolding_dataset.row_counts()
+    assert counts.columns == ["table_name", "row_count"]
+    rows = counts.arrow().to_pylist()
+    assert {row["table_name"]: row["row_count"] for row in rows} == {
+        "items": len(ITEMS_DATA),
+        "warehouses": len(WAREHOUSES_DATA),
+    }
+
+
+def test_casefolding_literal_projection_output_name(casefolding_dataset: dlt.Dataset) -> None:
+    relation = casefolding_dataset("SELECT 'Widget' AS kind, item_id FROM items ORDER BY item_id")
+    assert relation.arrow().schema.names == ["kind", "item_id"]
 
 
 def test_multi_schema_cross_schema_sql_query(multi_schema_dataset: dlt.Dataset) -> None:

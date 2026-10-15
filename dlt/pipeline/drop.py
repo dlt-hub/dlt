@@ -98,7 +98,7 @@ def prepare_drop_resources(
         state_paths: JSON path(s) relative to the source state to drop.
         drop_all: If True, all resources will be dropped (supersedes `resources`).
         state_only: If True, only modify the pipeline state, not schema
-        sources: Only wipe state for sources matching the name(s) or regex pattern(s) in this list
+        resources: Only wipe state for resources matching the name(s) or regex pattern(s) in this list
             If not set all source states will be modified according to `state_paths` and `resources`
 
     Returns:

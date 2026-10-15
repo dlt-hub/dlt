@@ -3,9 +3,9 @@ title: Asana
 description: dlt verified source for Asana API
 keywords: [asana api, verified source, asana]
 ---
-import Header from './_source-info-header.md';
-
 # Asana
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -73,10 +73,12 @@ To get started with your data pipeline, follow these steps:
 1. Inside the `.dlt` folder, you'll find a file called `secrets.toml`, which is where you can
    securely store your access tokens and other sensitive information. It's important to handle this
    file with care and keep it safe. Here's what the file looks like:
+
    ```toml
    [sources.asana_dlt]
    access_token = "access_token"
    ```
+
 1. Replace the value of `access_token` with the one that [you copied above](asana#grab-credentials).
    This will ensure that your data pipeline can access your Asana resources securely.
 1. Finally, follow the instructions in the
@@ -89,18 +91,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python asana_dlt_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `asana`, you may also use any
    custom name instead.
 
@@ -122,7 +130,7 @@ it is important to note the complete list of the default endpoints given in
 This is a `dlt.source` function, which returns a list of DltResource objects: "workspaces",
 "projects", "sections","tags","tasks","stories", "teams", and "users".
 
-```py
+```py notype
 @dlt.source
 def asana_source(access_token: str = dlt.secrets.value) -> Any:
     return [
@@ -137,7 +145,7 @@ def asana_source(access_token: str = dlt.secrets.value) -> Any:
 
 This is a `dlt.resource` function, which returns collections of tasks and related information.
 
-```py
+```py notype
 @dlt.resource(write_disposition="replace")
 def workspaces(
     access_token: str = dlt.secrets.value,
@@ -163,7 +171,7 @@ In addition to these source and resource functions, there are seven transformer 
 
 The transformer function `projects` processes data from the `workspaces` resource. It fetches and returns a list of projects for a given workspace from Asana.
 
-```py
+```py notype
 @dlt.transformer(
     data_from=workspaces,
     write_disposition="replace",
@@ -189,10 +197,10 @@ It uses the `@dlt.defer` decorator to enable parallel run in a thread pool.
 
 This [incremental](../../general-usage/incremental-loading.md) resource-transformer fetches all tasks for a given project from Asana.
 
-```py
+```py notype
 @dlt.transformer(data_from=projects, write_disposition="merge", primary_key="gid")
 def tasks(
-    project_array: List[TDataItem],
+    project_array: list[TDataItem],
     access_token: str = dlt.secrets.value,
     modified_at: dlt.sources.incremental[str] = dlt.sources.incremental(
         "modified_at", initial_value=START_DATE_STRING
@@ -232,13 +240,13 @@ To create your data pipeline using single loading for the "workspaces" and "proj
 
 1. To load the data from all the fields, you can utilize the `asana_source` method as follows:
 
-   ```py
+   ```py notype
    load_data = asana_source()
    ```
 
 1. Use the method `pipeline.run()` to execute the pipeline.
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data)
    # print the information on data that was loaded
    print(load_info)
@@ -246,9 +254,10 @@ To create your data pipeline using single loading for the "workspaces" and "proj
 
 1. To use the method `pipeline.run()` to load custom endpoints "workspaces" and "projects", the above script may be modified as:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("workspaces", "projects"))
    # print the information on data that was loaded
    print(load_info)
    ```
+
 <!--@@@DLT_TUBA asana_dlt-->

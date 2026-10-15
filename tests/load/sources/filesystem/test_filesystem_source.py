@@ -1,4 +1,5 @@
 import os
+from datetime import datetime  # noqa: I251
 from typing import Any, Dict, List, cast
 
 from fsspec import AbstractFileSystem
@@ -68,7 +69,7 @@ def test_load_content_resources(bucket_url: str, extract_content: bool) -> None:
             assert item["size_in_bytes"] == 14
             assert item["file_url"].endswith("/samples/sample.txt")
             assert item["mime_type"] == "text/plain"
-            assert isinstance(item["modification_date"], pendulum.DateTime)
+            assert isinstance(item["modification_date"], datetime)
 
         yield items
 

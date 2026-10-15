@@ -377,6 +377,15 @@ def test_skip_sync_schema_for_tables_without_columns(
         exists, _ = job_client.get_storage_table("data_table")  # type: ignore[attr-defined]
         assert not exists
 
+        # a table dropped in the destination comes back only with a forced sync
+        job_client.drop_tables(schema.loads_table_name, delete_schema=False)  # type: ignore[attr-defined]
+    assert p.sync_schema() == {}
+    with p._get_destination_clients(schema)[0] as job_client:
+        assert job_client.get_storage_table(schema.loads_table_name)[0] is False  # type: ignore[attr-defined]
+    assert schema.loads_table_name in p.sync_schema(force=True)
+    with p._get_destination_clients(schema)[0] as job_client:
+        assert job_client.get_storage_table(schema.loads_table_name)[0] is True  # type: ignore[attr-defined]
+
 
 @pytest.mark.essential
 @pytest.mark.parametrize(
@@ -681,7 +690,6 @@ def test_parquet_loading(destination_config: DestinationTestConfiguration) -> No
         "synapse",
         "databricks",
         "clickhouse",
-        "fabric",
     ]:
         datetime_data.pop("col11")
         datetime_data.pop("col11_null")
@@ -1097,11 +1105,11 @@ def test_dest_column_hint_timezone(destination_config: DestinationTestConfigurat
                     "timestamp_values": output_values,
                 },
                 "EVENTS_TIMEZONE_ON": {
-                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_type": "TIMESTAMP_LTZ",
                     "timestamp_values": output_values,
                 },
                 "EVENTS_TIMEZONE_UNSET": {
-                    "timestamp_type": "TIMESTAMP_TZ",
+                    "timestamp_type": "TIMESTAMP_LTZ",
                     "timestamp_values": output_values,
                 },
             },

@@ -3,7 +3,6 @@ title: "Destination: Snowflake+ Iceberg / Open Catalog"
 description: Snowflake destination with Iceberg and Open Catalog
 keywords: [Snowflake, Iceberg, destination]
 ---
-
 # Snowflake+ Iceberg / Open Catalog
 
 :::note
@@ -27,11 +26,12 @@ This destination is available starting from dltHub version 0.9.0. It fully suppo
 
 1. The ability to create Iceberg tables in Snowflake by configuring `iceberg_mode` in your `config.toml` file.
 2. Additional configuration for Iceberg tables in Snowflake via:
-   - `external_volume`: The external volume name where Iceberg data is stored.
-   - `catalog`: The catalog name in which Iceberg tables are created. Defaults to `"SNOWFLAKE"`.
-   - `base_location`: A template string for the base path that Snowflake uses for storing the table data in external storage, supporting placeholders.
-   - `extra_placeholders`: Additional values that can be used in the `base_location` template.
-   - `catalog_sync`: The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) configured for [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview). If specified, Snowflake syncs Snowflake-managed Iceberg tables in the database with an external catalog in your Snowflake Open Catalog account.
+
+  - `external_volume`: The external volume name where Iceberg data is stored.
+  - `catalog`: The catalog name in which Iceberg tables are created. Defaults to `"SNOWFLAKE"`.
+  - `base_location`: A template string for the base path that Snowflake uses for storing the table data in external storage, supporting placeholders.
+  - `extra_placeholders`: Additional values that can be used in the `base_location` template.
+  - `catalog_sync`: The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) configured for [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview). If specified, Snowflake syncs Snowflake-managed Iceberg tables in the database with an external catalog in your Snowflake Open Catalog account.
 
 ## Installation
 
@@ -89,7 +89,9 @@ def my_iceberg_table():
 The `snowflake_plus` destination extends the standard Snowflake configuration with additional options:
 
 ### `iceberg_mode`
+
 Controls which tables are created as Iceberg tables.
+
 - Possible values:
   - `"all"`: All tables including dlt system tables are created as Iceberg tables
   - `"data_tables"`: Only data tables (non-dlt system tables) are created as Iceberg tables
@@ -98,27 +100,37 @@ Controls which tables are created as Iceberg tables.
 - Default: `"none"`
 
 ### `external_volume`
+
 The external volume to store Iceberg metadata.
+
 - Required: Yes
 - Default: None
 
 ### `catalog`
+
 The catalog to use for Iceberg tables.
+
 - Required: No
 - Default: `"SNOWFLAKE"`. This will use [Snowflake as the catalog](https://docs.snowflake.com/en/user-guide/tables-iceberg#label-tables-iceberg-snowflake-as-catalog) for the Iceberg tables.
 
 ### `base_location`
+
 Template string for the base location where Iceberg data is stored in the external volume. Supports placeholders like `{dataset_name}` and `{table_name}`.
+
 - Required: No
 - Default: `"{dataset_name}/{table_name}"`
 
 ### `extra_placeholders`
+
 Dictionary of additional values that can be used in the `base_location` template. The values can be static strings or functions that accept the dataset name and table name as arguments and return a string.
+
 - Required: No
 - Default: None
 
 ### `catalog_sync`
+
 The name of a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) for syncing Iceberg tables to an external catalog in [Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/overview).
+
 - Required: No
 - Default: None
 
@@ -138,18 +150,22 @@ For more flexibility, you can also define custom placeholders using the `extra_p
 1. The default pattern `{dataset_name}/{table_name}` creates paths like `my_dataset/customers` in your external volume.
 
 2. Custom static path:
+
    ```toml
    [destination.snowflake]
    base_location = "custom/static/path"
    ```
+
    This creates all tables in the same directory `custom/static/path`.
 
 3. Using custom placeholders:
+
    ```toml
    [destination.snowflake]
    base_location = "{env}/{dataset_name}/{table_name}"
    extra_placeholders = { env = "prod" }
    ```
+
    This creates paths like `prod/my_dataset/customers`.
 
 ### How Snowflake uses the base location
@@ -165,7 +181,9 @@ Where `<randomId>` is a random Snowflake-generated 8-character string appended t
 For more details on how Snowflake organizes Iceberg table files in external storage, see the [Snowflake documentation on data and metadata directories](https://docs.snowflake.com/en/user-guide/tables-iceberg-storage#data-and-metadata-directories).
 
 ## Table format for individual tables
+
 You can specify table format (Iceberg/Native) for individual `dlt` resources. For example:
+
   ```py
   @dlt.resource(
     table_format="native"
@@ -175,6 +193,7 @@ You can specify table format (Iceberg/Native) for individual `dlt` resources. Fo
 
   pipeline = dlt.pipeline("loads_native", destination="snowflake_plus")
   ```
+
   Will create a native (non-iceberg) **my_resource** table, also when you set the [iceberg_mode](#iceberg_mode) to **all** or **data_tables**.
 
 ## Write dispositions
@@ -185,24 +204,24 @@ All standard write dispositions (`append`, `replace`, and `merge`) are supported
 
 The Snowflake Plus destination supports all standard Snowflake destination data types, with additional type mappings for Iceberg tables:
 
-| dlt Type | Iceberg Type |
-|----------|--------------|
-| `text` | `string` |
-| `bigint` | `long`, `int` |
-| `double` | `double` |
-| `bool` | `boolean` |
-| `timestamp` | `timestamp` |
-| `date` | `date` |
-| `time` | `time` |
-| `decimal` | `decimal` |
-| `binary` | `binary` |
-| `json` | `string` |
+| dlt Type    | Iceberg Type  |
+| ----------- | ------------- |
+| `text`      | `string`      |
+| `bigint`    | `long`, `int` |
+| `double`    | `double`      |
+| `bool`      | `boolean`     |
+| `timestamp` | `timestamp`   |
+| `date`      | `date`        |
+| `time`      | `time`        |
+| `decimal`   | `decimal`     |
+| `binary`    | `binary`      |
+| `json`      | `string`      |
 
 ## Syncing Snowflake-managed Iceberg tables to Snowflake Open Catalog
 
 To enable querying of Snowflake-managed Iceberg tables by third-party engines (for example, Apache Spark) via an external catalog (Snowflake Open Catalog), use the `catalog_sync` configuration option. This setting specifies a [catalog integration](https://docs.snowflake.com/en/user-guide/tables-iceberg#catalog-integration) that syncs Iceberg tables to the external catalog.
 
-### Setup
+### Open Catalog Setup
 
 1. Create an [external catalog in Snowflake Open Catalog](https://other-docs.snowflake.com/en/opencatalog/create-catalog).
 

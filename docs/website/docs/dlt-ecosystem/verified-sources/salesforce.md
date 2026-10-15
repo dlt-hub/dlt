@@ -3,9 +3,9 @@ title: Salesforce
 description: dlt pipeline for Salesforce API
 keywords: [salesforce api, salesforce pipeline, salesforce]
 ---
-import Header from './_source-info-header.md';
-
 # Salesforce
+
+import Header from './_source-info-header.md';
 
 <Header/>
 
@@ -18,29 +18,27 @@ loads data using the “Salesforce API” to the destination of your choice.
 
 The resources that this verified source supports are:
 
-| Name           | Mode    | Description                                                                                       |
-|----------------|---------|---------------------------------------------------------------------------------------------------|
-| User           | replace | Refers to an individual who has access to a Salesforce org or instance                            |
-| UserRole       | replace | A standard object that represents a role within the organization's hierarchy                      |
-| Lead           | replace | Prospective customer/individual/org. that has shown interest in a company's products/services     |
-| Contact        | replace | An individual person associated with an account or organization                                   |
-| Campaign       | replace | Marketing initiative or project designed to achieve specific goals, such as generating leads etc. |
-| Product2       | replace | For managing and organizing your product-related data within the Salesforce ecosystem             |
-| Pricebook2     | replace | Used to manage product pricing and create price books                                             |
-| PricebookEntry | replace | An object that represents a specific price for a product in a price book                          |
-| Opportunity            | merge | Represents a sales opportunity for a specific account or contact                                                            |
-| OpportunityLineItem    | merge | Represents individual line items or products associated with an opportunity                                                 |
-| OpportunityContactRole | merge | Represents the association between an Opportunity and a contact                                                             |
-| Account                | merge | Individual or organization that interacts with your business                                                                |
-| CampaignMember         | merge | Association between a contact or lead and a campaign                                                                        |
-| Task                   | merge | Used to track and manage various activities and tasks within the Salesforce platform                                        |
-| Event                  | merge | Used to track and manage calendar-based events, such as meetings, appointments, calls, or any other time-specific activities |
+| Name                   | Mode    | Description                                                                                                                  |
+| ---------------------- | ------- | ---------------------------------------------------------------------------------------------------------------------------- |
+| User                   | replace | Refers to an individual who has access to a Salesforce org or instance                                                       |
+| UserRole               | replace | A standard object that represents a role within the organization's hierarchy                                                 |
+| Lead                   | replace | Prospective customer/individual/org. that has shown interest in a company's products/services                                |
+| Contact                | replace | An individual person associated with an account or organization                                                              |
+| Campaign               | replace | Marketing initiative or project designed to achieve specific goals, such as generating leads etc.                            |
+| Product2               | replace | For managing and organizing your product-related data within the Salesforce ecosystem                                        |
+| Pricebook2             | replace | Used to manage product pricing and create price books                                                                        |
+| PricebookEntry         | replace | An object that represents a specific price for a product in a price book                                                     |
+| Opportunity            | merge   | Represents a sales opportunity for a specific account or contact                                                             |
+| OpportunityLineItem    | merge   | Represents individual line items or products associated with an opportunity                                                  |
+| OpportunityContactRole | merge   | Represents the association between an Opportunity and a contact                                                              |
+| Account                | merge   | Individual or organization that interacts with your business                                                                 |
+| CampaignMember         | merge   | Association between a contact or lead and a campaign                                                                         |
+| Task                   | merge   | Used to track and manage various activities and tasks within the Salesforce platform                                         |
+| Event                  | merge   | Used to track and manage calendar-based events, such as meetings, appointments, calls, or any other time-specific activities |
 
 * Note that formula fields are included - these function like views in Salesforce and will not be back-updated when their definitions change in Salesforce! The recommended handling is to ignore these fields and reproduce yourself any calculations from the base data fields.
 
 ## Setup guide
-
-
 
 ### Grab credentials
 
@@ -115,18 +113,24 @@ For more information, read the [General Usage: Credentials.](../../general-usage
 
 1. Before running the pipeline, ensure that you have installed all the necessary dependencies by
    running the command:
+
    ```sh
    pip install -r requirements.txt
    ```
+
 1. You're now ready to run the pipeline! To get started, run the following command:
+
    ```sh
    python salesforce_pipeline.py
    ```
+
 1. Once the pipeline has finished running, you can verify that everything loaded correctly by using
    the following command:
+
    ```sh
    dlt pipeline <pipeline_name> show
    ```
+
    For example, the `pipeline_name` for the above pipeline example is `salesforce`, you may also use
    any custom name instead.
 
@@ -137,12 +141,15 @@ For more information, read the guide on [how to run a pipeline](../../walkthroug
 `dlt` works on the principle of [sources](../../general-usage/source) and
 [resources](../../general-usage/resource).
 
-### Source `salesforce_source`:
+### Source `salesforce_source`
 
 This function returns a list of resources to load users, user_role, opportunity,
 opportunity_line_item, account, etc., data from the Salesforce API.
 
 ```py
+from typing import Iterable
+from dlt.extract import DltResource
+
 @dlt.source(name="salesforce")
 def salesforce_source(
     user_name: str = dlt.secrets.value,
@@ -158,31 +165,33 @@ def salesforce_source(
 
 - `security_token`: Token for Salesforce API authentication, configured in ".dlt/secrets.toml".
 
-### Resource `sf_user` (replace mode):
+### Resource `sf_user` (replace mode)
 
 This resource function retrieves records from the Salesforce "User" endpoint.
 
 ```py
+from typing import Iterator
+
 @dlt.resource(write_disposition="replace")
-def sf_user() -> Iterator[Dict[str, Any]]:
-    yield from _get_records(client, "User")
+def sf_user() -> Iterator[dict[str, Any]]:
+    yield from _get_records(client, "User")  # ty: ignore[unresolved-reference]
 ```
 
 Besides "sf_user", there are several resources that use replace mode for data writing to the
 destination.
 
 | user_role() | contact() | lead() | campaign() | product_2() | pricebook_2() | pricebook_entry() |
-|-------------|-----------|--------|------------|-------------|---------------|-------------------|
+| ----------- | --------- | ------ | ---------- | ----------- | ------------- | ----------------- |
 
 The described functions fetch records from endpoints based on their names, e.g., user_role() accesses
 the "user_role" endpoint.
 
-### Resource `opportunity` (incremental loading):
+### Resource `opportunity` (incremental loading)
 
 This resource function retrieves records from the Salesforce "Opportunity" endpoint in incremental
 mode.
 
-```py
+```py notype
 @dlt.resource(write_disposition="merge")
 def opportunity(
     last_timestamp: incremental[str] = dlt.sources.incremental(
@@ -203,7 +212,7 @@ Besides "opportunity", there are several resources that use replace mode for dat
 destination.
 
 | opportunity_line_item() | opportunity_contact_role() | account() | campaign_member() | task() | event() |
-|-------------------------|----------------------------|-----------|-------------------|--------|---------|
+| ----------------------- | -------------------------- | --------- | ----------------- | ------ | ------- |
 
 The described functions fetch records from endpoints based on their names, e.g.,
 opportunity_line_item() accesses the "opportunity_line_item" endpoint.
@@ -230,7 +239,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load data from all the endpoints, use the `salesforce_source` method as follows:
 
-   ```py
+   ```py notype
    from dlt.common.schema.typing import TSimpleRegex
 
    load_data = salesforce_source()
@@ -244,7 +253,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To use the method `pipeline.run()` to load custom endpoints “candidates” and “members”:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("opportunity", "contact"))
    # print the information on data that was loaded
    print(load_info)
@@ -256,7 +265,7 @@ To create your data pipeline using single loading and [incremental data loading]
 
 1. To load data from the “contact” in replace mode and “task” incrementally merge mode endpoints:
 
-   ```py
+   ```py notype
    load_info = pipeline.run(load_data.with_resources("contact", "task"))
    # pretty print the information on data that was loaded
    print(load_info)

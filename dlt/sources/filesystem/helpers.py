@@ -29,6 +29,7 @@ class FilesystemConfigurationResource(FilesystemConfigurationWithLocalFiles):
     file_glob: Optional[str] = "*"
     files_per_page: int = DEFAULT_CHUNK_SIZE
     extract_content: bool = False
+    fetch_file_info: bool = False
 
     @resolve_type("credentials")
     def resolve_credentials_type(self) -> Type[CredentialsConfiguration]:

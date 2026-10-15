@@ -174,13 +174,15 @@ def test_version_table_has_column_descriptions() -> None:
         "inserted_at",
         "schema_name",
         "version_hash",
-        "schema"
+        "schema",
     ]
     for col_name in expected_columns:
         assert col_name in table["columns"], f"Column {col_name} missing from version_table"
         col = table["columns"][col_name]
         assert "description" in col, f"Column {col_name} missing description"
-        assert isinstance(col["description"], str), f"Column {col_name} description should be a string"
+        assert isinstance(
+            col["description"], str
+        ), f"Column {col_name} description should be a string"
         assert len(col["description"]) > 0, f"Column {col_name} description should not be empty"
 
 
@@ -193,18 +195,14 @@ def test_loads_table_has_column_descriptions() -> None:
     assert table["description"] == "Created by DLT. Tracks completed loads"
 
     # Verify all columns have descriptions
-    expected_columns = [
-        "load_id",
-        "schema_name",
-        "status",
-        "inserted_at",
-        "schema_version_hash"
-    ]
+    expected_columns = ["load_id", "schema_name", "status", "inserted_at", "schema_version_hash"]
     for col_name in expected_columns:
         assert col_name in table["columns"], f"Column {col_name} missing from loads_table"
         col = table["columns"][col_name]
         assert "description" in col, f"Column {col_name} missing description"
-        assert isinstance(col["description"], str), f"Column {col_name} description should be a string"
+        assert isinstance(
+            col["description"], str
+        ), f"Column {col_name} description should be a string"
         assert len(col["description"]) > 0, f"Column {col_name} description should not be empty"
 
 
@@ -231,7 +229,9 @@ def test_pipeline_state_table_has_column_descriptions() -> None:
         assert col_name in table["columns"], f"Column {col_name} missing from pipeline_state_table"
         col = table["columns"][col_name]
         assert "description" in col, f"Column {col_name} missing description"
-        assert isinstance(col["description"], str), f"Column {col_name} description should be a string"
+        assert isinstance(
+            col["description"], str
+        ), f"Column {col_name} description should be a string"
         assert len(col["description"]) > 0, f"Column {col_name} description should not be empty"
 
 
@@ -257,9 +257,9 @@ def test_internal_tables_column_descriptions_are_not_empty() -> None:
 
     for table_name, table in tables:
         for col_name, col in table["columns"].items():
-            assert "description" in col, (
-                f"Table {table_name}, column {col_name} missing description"
-            )
-            assert col["description"] is not None and col["description"].strip() != "", (
-                f"Table {table_name}, column {col_name} has empty description"
-            )
+            assert (
+                "description" in col
+            ), f"Table {table_name}, column {col_name} missing description"
+            assert (
+                col["description"] is not None and col["description"].strip() != ""
+            ), f"Table {table_name}, column {col_name} has empty description"
