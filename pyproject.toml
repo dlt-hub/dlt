@@ -289,7 +289,7 @@ dev = [
 
 # NOTE: those dependencies are used to test built in sources
 sources = [
-    "connectorx>=0.4.2",
+    "connectorx>=0.4.6",
     "pymysql>=1.1.0,<2",
     "openpyxl>=3,<4",
     "mimesis>=7.0.0,<8",
