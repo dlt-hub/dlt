@@ -76,7 +76,8 @@ for m in models:
         f"Model {m.model_name} materialized" +
         f" in {m.time}" +
         f" with status {m.status}" +
-        f" and message {m.message}"
+        f" and message {m.message}" +
+        f" ({m.rows_affected} rows)"
     )
 ```
 
@@ -92,6 +93,23 @@ for m in models:
 6. If an incremental model fails because its schema is [out of sync](https://docs.getdbt.com/docs/build/incremental-models#what-if-the-columns-of-my-incremental-model-change), it repeats the run with `--full-refresh`. To disable the retry, set `auto_full_refresh_when_out_of_sync=False`.
 
 You can also run the dbt commands separately with `dbt.run()` and `dbt.test()`.
+
+### Run and test results
+
+`run_all`, `run` and `test` return one `DBTNodeResult` for each model, seed or test. Each result has these fields:
+
+- `model_name`, `status`, `message` and `time`: the name, status, message and run time that dbt reports.
+- `load_id`: the [load id](#variables-passed-to-the-dbt-package) of the data produced by the package.
+- `rows_affected`: the number of rows that the last statement of a model changed, as the dbt adapter reports it.
+- `failures`: the number of failing rows of a data test.
+- `adapter_response`: the full response of the dbt adapter, for example `bytes_processed` on BigQuery.
+
+The value of `rows_affected` depends on the dbt adapter and on the materialization:
+
+- Seeds always report the number of loaded rows.
+- A `merge` statement reports one total for inserted and updated rows.
+- A `delete+insert` strategy reports only the inserted rows.
+- Views, duckdb models and microbatch models report no count, so `rows_affected` is `None`.
 
 The runner disables dbt [anonymous usage stats](https://docs.getdbt.com/reference/global-configs/usage-stats). To enable them, set the `send_anonymous_usage_stats` option of the runner:
 

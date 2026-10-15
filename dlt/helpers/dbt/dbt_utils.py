@@ -66,11 +66,24 @@ def parse_dbt_execution_results(results: Any) -> Sequence[DBTNodeResult]:
         logger.warning(f"{type(results)} is unknown and cannot be logged")
         return None
 
-    return [
-        DBTNodeResult(res.node.name, res.message, res.execution_time, str(res.status))
-        for res in results
-        if isinstance(res, dbt_results.NodeResult)
-    ]
+    return [_to_node_result(res) for res in results if isinstance(res, dbt_results.NodeResult)]
+
+
+def _to_node_result(res: dbt_results.NodeResult) -> DBTNodeResult:
+    adapter_response = res.adapter_response or None
+    rows_affected = (adapter_response or {}).get("rows_affected")
+    # DB-API drivers report -1 when the statement does not count rows ie. DDL or views
+    if rows_affected is not None and rows_affected < 0:
+        rows_affected = None
+    return DBTNodeResult(
+        res.node.name,
+        res.message,
+        res.execution_time,
+        str(res.status),
+        rows_affected=rows_affected,
+        failures=res.failures,
+        adapter_response=adapter_response,
+    )
 
 
 def run_dbt_command(

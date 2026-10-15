@@ -156,6 +156,7 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     assert len(results) == 3
     assert results[0].model_name == "raw_customers"
     assert results[0].status == "success"
+    assert results[0].rows_affected == 100
 
     results = run_dbt_command(
         repo_path,
@@ -169,6 +170,7 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     assert len(results) == 5
     assert results[-1].model_name == "orders"
     assert results[-1].status == "success"
+    assert results[-1].rows_affected == 99
 
     results = run_dbt_command(
         repo_path, "test", ".", global_args=global_args, package_vars=dbt_vars
@@ -176,5 +178,6 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     assert isinstance(results, list)
     assert len(results) == 20
     assert results[-1].status == "pass"
+    assert results[-1].failures == 0
     # anonymous usage stats are disabled so dbt does not write its cookie into profiles dir
     assert not os.path.exists(os.path.join(repo_path, ".user.yml"))

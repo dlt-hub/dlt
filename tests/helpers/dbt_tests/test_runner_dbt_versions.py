@@ -402,16 +402,20 @@ def test_run_microbatch_with_interval(
             source_load_id = pipeline.run(events()).loads_ids[0]
             # models write the load id of the data they produce, not the one they process
             load_id = create_load_id()
-            models = dbt_func(pipeline.destination_client().config, None, package_path).run_all(
-                interval=dlt.current.interval(), load_id=load_id
-            )
+            runner = dbt_func(pipeline.destination_client().config, None, package_path)
+            models = runner.run_all(interval=dlt.current.interval(), load_id=load_id)
         assert load_id != source_load_id
-        assert [m.load_id for m in models] == [load_id]
+        assert [m.load_id for m in models] == [load_id, load_id]
         # only batches within the interval were materialized
         assert _select_model() == [(3, load_id), (4, load_id), (5, load_id)]
+        # postgres reports rows of a table model, dbt drops responses of microbatch batches
+        assert find_run_result(models, "events_table").rows_affected == 10
+        assert find_run_result(models, "events_microbatch").rows_affected is None
+        tests = runner.test()
+        assert find_run_result(tests, "events_before_jan_3").status == "pass"
+        assert find_run_result(tests, "events_before_jan_3").failures == 0
 
         # runner generates its own load id and returns it with the results
-        runner = dbt_func(pipeline.destination_client().config, None, package_path)
         models = runner.run_all(interval=(datetime(2024, 1, 1), datetime(2024, 1, 3)))
         # dbt anonymous usage stats are disabled by default, no cookie in profiles dir
         assert not runner.config.send_anonymous_usage_stats
@@ -426,6 +430,10 @@ def test_run_microbatch_with_interval(
             (4, load_id),
             (5, load_id),
         ]
+        # warn test reports the rows from before 01-03 as failures
+        tests = runner.test()
+        assert find_run_result(tests, "events_before_jan_3").status == "warn"
+        assert find_run_result(tests, "events_before_jan_3").failures == 2
     finally:
         with pipeline.sql_client() as client:
             client.drop_dataset()

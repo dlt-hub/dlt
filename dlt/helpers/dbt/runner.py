@@ -228,7 +228,7 @@ with exec_to_stdout(f):
             load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Generated if not provided.
 
         Returns:
-            Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times and the load id
+            Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times, affected rows and the load id
 
         Exceptions:
             DBTProcessingError: `run` command failed. Contains a list of models with their execution statuses and error messages
@@ -262,7 +262,7 @@ with exec_to_stdout(f):
             load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Generated if not provided.
 
         Returns:
-            Sequence[DBTNodeResult]: A list of executed tests with names, statuses, execution messages, execution times and the load id
+            Sequence[DBTNodeResult]: A list of executed tests with names, statuses, execution messages, execution times, failing rows and the load id
 
         Exceptions:
             DBTProcessingError: `test` command failed. Contains a list of models with their execution statuses and error messages
@@ -347,7 +347,7 @@ with exec_to_stdout(f):
             load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable in all steps. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Generated if not provided.
 
         Returns:
-            Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times and the load id
+            Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times, affected rows and the load id
 
         Exceptions:
             DBTProcessingError: any of the dbt commands failed. Contains a list of models with their execution statuses and error messages
