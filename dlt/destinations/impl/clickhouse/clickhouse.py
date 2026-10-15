@@ -320,6 +320,21 @@ class ClickHouseMergeJob(SqlMergeFollowupJob):
         return False
 
 
+def _is_parenthesized(condition: str) -> bool:
+    """True when one pair of outer parentheses already wraps the whole condition."""
+    if not (condition.startswith("(") and condition.endswith(")")):
+        return False
+    depth = 0
+    for i, ch in enumerate(condition):
+        if ch == "(":
+            depth += 1
+        elif ch == ")":
+            depth -= 1
+            if depth == 0 and i < len(condition) - 1:
+                return False
+    return depth == 0
+
+
 class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
     "Merge job that scopes every staging read to the current `_dlt_load_id`."
 
@@ -337,8 +352,11 @@ class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
         primary_keys: Sequence[str],
         merge_keys: Sequence[str],
         for_delete: bool,
+        source_filter: Optional[str] = None,
     ) -> List[str]:
         if for_delete:
+            # a user source_filter narrows the staged rows further, on top of the load id
+            staging_cond = cls._scope_condition(source_filter)
             sql: List[str] = []
             for cols in (primary_keys, merge_keys):
                 if cols:
@@ -346,14 +364,19 @@ class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
                     sql.append(
                         f"FROM {root_table_name} WHERE ({col_tuple}) IN"
                         f" (SELECT {col_tuple} FROM {staging_root_table_name}"
-                        f" WHERE {cls._load_id_predicate()})"
+                        f" WHERE {staging_cond})"
                     )
             return sql
         # non-delete builds "FROM root AS d JOIN staging AS s ON ..."; scope the staging side
         return [
             f"{clause} WHERE {cls._load_id_predicate('s.')}"
             for clause in super().gen_key_table_clauses(
-                root_table_name, staging_root_table_name, primary_keys, merge_keys, for_delete
+                root_table_name,
+                staging_root_table_name,
+                primary_keys,
+                merge_keys,
+                for_delete,
+                source_filter,
             )
         ]
 
@@ -396,7 +419,11 @@ class LoadIdScopedClickHouseMergeJob(ClickHouseMergeJob):
     @classmethod
     def _scope_condition(cls, condition: Optional[str]) -> str:
         predicate = cls._load_id_predicate()
-        return predicate if not condition else f"({condition}) AND {predicate}"
+        if not condition:
+            return predicate
+        if not _is_parenthesized(condition):
+            condition = f"({condition})"
+        return f"{condition} AND {predicate}"
 
     @classmethod
     def gen_insert_temp_table_sql(
