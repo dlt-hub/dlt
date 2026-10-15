@@ -8,6 +8,7 @@ from dlt.common.json import json
 from dlt.common.exceptions import MissingDependencyException
 from dlt.common.typing import StrAny, TypeAlias, AnyType
 
+from dlt.helpers.dbt.configuration import DBT_SEND_ANONYMOUS_USAGE_STATS_ENV
 from dlt.helpers.dbt.exceptions import (
     DBTProcessingError,
     DBTNodeResult,
@@ -94,9 +95,14 @@ def run_dbt_command(
     global_args: Sequence[str] = None,
     command_args: Sequence[str] = None,
     package_vars: StrAny = None,
-    send_anonymous_usage_stats: bool = False,
+    send_anonymous_usage_stats: Optional[bool] = None,
 ) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
     global_args = list(global_args or [])
+    if send_anonymous_usage_stats is None:
+        # the dbt runner passes the option via env so the venv call works with older dlt versions
+        send_anonymous_usage_stats = os.environ.get(
+            DBT_SEND_ANONYMOUS_USAGE_STATS_ENV, ""
+        ).lower() in ("1", "true")
     if not send_anonymous_usage_stats:
         # also prevents dbt from writing `.user.yml` cookie into the profiles dir
         global_args.append("--no-send-anonymous-usage-stats")
@@ -153,7 +159,6 @@ def init_logging_and_run_dbt_command(
     profile_name: Optional[str] = None,
     command_args: Sequence[str] = None,
     package_vars: StrAny = None,
-    send_anonymous_usage_stats: bool = False,
 ) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
     # initialize dbt logging, returns global parameters to dbt command
     dbt_global_args = initialize_dbt_logging(log_level, is_json_logging)
@@ -165,5 +170,4 @@ def init_logging_and_run_dbt_command(
         dbt_global_args,
         command_args,
         package_vars,
-        send_anonymous_usage_stats,
     )

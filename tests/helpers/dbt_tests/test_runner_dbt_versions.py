@@ -322,8 +322,8 @@ def test_run_jaffle_fail_prerequisites(
         assert customers.status == "error"
         assert len(proc_err.run_results) == 20
         assert all(r.status == "error" for r in proc_err.run_results)
-        assert len({r.load_id for r in proc_err.run_results}) == 1
-        assert proc_err.run_results[0].load_id is not None
+        # no load id was passed
+        assert all(r.load_id is None for r in proc_err.run_results)
 
 
 def test_run_jaffle_invalid_run_args(
@@ -415,13 +415,13 @@ def test_run_microbatch_with_interval(
         assert find_run_result(tests, "events_before_jan_3").status == "pass"
         assert find_run_result(tests, "events_before_jan_3").failures == 0
 
-        # runner generates its own load id and returns it with the results
+        # without load id the package macro falls back to the dbt invocation start time
         models = runner.run_all(interval=(datetime(2024, 1, 1), datetime(2024, 1, 3)))
+        assert all(m.load_id is None for m in models)
         # dbt anonymous usage stats are disabled by default, no cookie in profiles dir
         assert not runner.config.send_anonymous_usage_stats
         assert not os.path.exists(os.path.join(runner.config.package_profiles_dir, ".user.yml"))
-        generated_load_id = models[0].load_id
-        assert generated_load_id != load_id
+        generated_load_id = _select_model()[0][1]
         assert float(generated_load_id) > float(load_id)
         assert _select_model() == [
             (1, generated_load_id),

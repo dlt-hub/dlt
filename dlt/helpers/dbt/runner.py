@@ -16,11 +16,13 @@ from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.logger import is_json_logging
 from dlt.common.storages import FileStorage
-from dlt.common.storages.load_package import create_load_id
 from dlt.common.utils import with_custom_environ
 from dlt.extract.incremental.context import TAnyTimeInterval
 
-from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
+from dlt.helpers.dbt.configuration import (
+    DBT_SEND_ANONYMOUS_USAGE_STATS_ENV,
+    DBTRunnerConfiguration,
+)
 from dlt.helpers.dbt.exceptions import (
     IncrementalSchemaOutOfSyncError,
     PrerequisitesException,
@@ -171,6 +173,10 @@ class DBTPackageRunner:
         # write credentials to environ to pass them to dbt, add DLT__ prefix
         if self.credentials:
             add_config_to_env(self.credentials, ("dlt",))
+        # passed via env, not as an arg, so restored venvs with older dlt keep working
+        os.environ[DBT_SEND_ANONYMOUS_USAGE_STATS_ENV] = str(
+            self.config.send_anonymous_usage_stats
+        ).lower()
         args = [
             self.config.runtime.log_level,
             is_json_logging(self.config.runtime.log_format),
@@ -180,7 +186,6 @@ class DBTPackageRunner:
             self.config.package_profile_name,
             command_args,
             package_vars,
-            self.config.send_anonymous_usage_stats,
         ]
         script = f"""
 from functools import partial
@@ -225,7 +230,7 @@ with exec_to_stdout(f):
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
             interval (TAnyTimeInterval, optional): A `[start, end)` time interval ie. `dlt.current.interval()` passed to microbatch models as `--event-time-start` and `--event-time-end`. Defaults to None.
-            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Generated if not provided.
+            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Defaults to None.
 
         Returns:
             Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times, affected rows and the load id
@@ -239,9 +244,7 @@ with exec_to_stdout(f):
         return self._run_dbt_command(
             "run",
             cmd_params,
-            self._get_package_vars(
-                additional_vars, destination_dataset_name, load_id or create_load_id()
-            ),
+            self._get_package_vars(additional_vars, destination_dataset_name, load_id),
         )
 
     def test(
@@ -259,7 +262,7 @@ with exec_to_stdout(f):
             cmd_params (Sequence[str], optional): Additional parameters to `test` command ie. test selectors.
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
-            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Generated if not provided.
+            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Defaults to None.
 
         Returns:
             Sequence[DBTNodeResult]: A list of executed tests with names, statuses, execution messages, execution times, failing rows and the load id
@@ -270,9 +273,7 @@ with exec_to_stdout(f):
         return self._run_dbt_command(
             "test",
             cmd_params,
-            self._get_package_vars(
-                additional_vars, destination_dataset_name, load_id or create_load_id()
-            ),
+            self._get_package_vars(additional_vars, destination_dataset_name, load_id),
         )
 
     def _run_db_steps(
@@ -281,7 +282,7 @@ with exec_to_stdout(f):
         package_vars: StrAny,
         source_tests_selector: str,
         interval: Optional[TAnyTimeInterval],
-        load_id: str,
+        load_id: Optional[str],
     ) -> Sequence[DBTNodeResult]:
         if self.repo_storage:
             # make sure we use package from the remote head
@@ -344,7 +345,7 @@ with exec_to_stdout(f):
             source_tests_selector (str, optional): A source tests selector ie. will execute all tests from `sources` model. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
             interval (TAnyTimeInterval, optional): A `[start, end)` time interval ie. `dlt.current.interval()` passed to microbatch models as `--event-time-start` and `--event-time-end`. Defaults to None.
-            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable in all steps. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Generated if not provided.
+            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable in all steps. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Defaults to None.
 
         Returns:
             Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times, affected rows and the load id
@@ -354,7 +355,6 @@ with exec_to_stdout(f):
             PrerequisitesException: the source tests failed
             IncrementalSchemaOutOfSyncError: `run` failed due to schema being out of sync. the DBTProcessingError with failed model is in `args[0]`
         """
-        load_id = load_id or create_load_id()
         try:
             results = self._run_db_steps(
                 run_params,

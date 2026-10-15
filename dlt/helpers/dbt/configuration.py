@@ -5,6 +5,8 @@ from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.configuration import configspec
 from dlt.common.configuration.specs import BaseConfiguration, RuntimeConfiguration
 
+DBT_SEND_ANONYMOUS_USAGE_STATS_ENV = "DBT_SEND_ANONYMOUS_USAGE_STATS"
+
 
 @configspec
 class DBTRunnerConfiguration(BaseConfiguration):

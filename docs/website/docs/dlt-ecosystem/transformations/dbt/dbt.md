@@ -99,7 +99,7 @@ You can also run the dbt commands separately with `dbt.run()` and `dbt.test()`.
 `run_all`, `run` and `test` return one `DBTNodeResult` for each model, seed or test. Each result has these fields:
 
 - `model_name`, `status`, `message` and `time`: the name, status, message and run time that dbt reports.
-- `load_id`: the [load id](#variables-passed-to-the-dbt-package) of the data produced by the package.
+- `load_id`: the [load id](#load-id-of-the-data-produced-by-dbt) that you passed to the runner, or `None`.
 - `rows_affected`: the number of rows that the last statement of a model changed, as the dbt adapter reports it.
 - `failures`: the number of failing rows of a data test.
 - `adapter_response`: the full response of the dbt adapter, for example `bytes_processed` on BigQuery.
@@ -124,27 +124,33 @@ The runner passes the following [dbt variables](https://docs.getdbt.com/docs/bui
 
 - `source_dataset_name`: the dataset name of the pipeline. Use it in your `sources.yml` as the source schema.
 - `destination_dataset_name`: the dataset in which dbt creates the models, if you pass `destination_dataset_name` to `run_all`. The dbt profiles of `dlt` use it as the target schema. If it is not set, they use `source_dataset_name`.
-- `load_id`: the load id of the data produced by the package. If you do not pass it to `run_all`, the runner generates a new one. All the commands in one `run_all` call use the same load id.
+- `load_id`: the load id of the data produced by the package, only if you pass `load_id` to `run_all`, `run` or `test`. See [below](#load-id-of-the-data-produced-by-dbt).
 - any variables passed in `additional_vars` or in the `package_additional_vars` option. They override the variables above.
 
-Tables loaded by `dlt` have a `_dlt_load_id` column that identifies the load package of each row. Write the `load_id` variable into this column to make the tables created by dbt compatible with `dlt`:
+### Load id of the data produced by dbt
+
+Tables loaded by `dlt` have a `_dlt_load_id` column that identifies the load package of each row. To make the tables created by dbt compatible with `dlt`, generate a load id, pass it to the runner and write the `load_id` variable into this column:
+
+```py
+from dlt.common.storages import create_load_id
+
+dbt = dlt.dbt.package(pipeline, "pipedrive/dbt_pipedrive/pipedrive")
+load_id = create_load_id()
+models = dbt.run_all(load_id=load_id)
+```
 
 ```sql
 select deal_id, value, '{{ var("load_id") }}' as _dlt_load_id
 from {{ source('pipedrive', 'deals') }}
 ```
 
-`load_id` identifies the data that dbt creates, not the data it processes. Do not pass the load id of the package that `dlt` loaded. Every result returned by the runner carries the load id, so you do not need to generate it yourself:
+`load_id` identifies the data that dbt creates, not the data it processes. Do not pass the load id of the package that `dlt` loaded. All the commands in one `run_all` call use the same load id. Every result returned by the runner carries it, including the results attached to `DBTProcessingError`, so you can find the rows written before a failed run.
 
-```py
-dbt = dlt.dbt.package(pipeline, "pipedrive/dbt_pipedrive/pipedrive")
-models = dbt.run_all()
-print(f"dbt created data with load id {models[0].load_id}")
-```
+:::note
+dbt re-parses the whole project when its variables change. A new load id in every run disables dbt [partial parsing](https://docs.getdbt.com/reference/parsing#partial-parsing), which may slow down large projects. Pass `load_id` only if your package uses it.
+:::
 
-Results attached to `DBTProcessingError` carry the load id as well, so you can find the rows written before a failed run.
-
-If you do not want to repeat the expression in every model, add a macro to the `macros` folder of your package. When the package runs without `dlt` (for example, with `dbt run`), the macro uses the start time of the dbt invocation. This value has the same format as a `dlt` load id. All models in one dbt invocation get the same value:
+If you do not want to repeat the expression in every model, add a macro to the `macros` folder of your package. When you do not pass `load_id`, or the package runs without `dlt` (for example, with `dbt run`), the macro uses the start time of the dbt invocation. This value has the same format as a `dlt` load id and does not change dbt variables. All models in one dbt invocation get the same value:
 
 ```sql
 -- macros/dlt_load_id.sql
@@ -186,7 +192,7 @@ sources:
     )
 }}
 
-select deal_id, value, update_time, '{{ var("load_id") }}' as _dlt_load_id
+select deal_id, value, update_time, {{ dlt_load_id() }} as _dlt_load_id
 from {{ source('pipedrive', 'deals') }}
 ```
 
