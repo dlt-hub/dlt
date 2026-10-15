@@ -2,7 +2,8 @@ import sys
 import os
 from subprocess import CalledProcessError
 import giturlparse
-from typing import Optional, Sequence
+from datetime import timedelta, timezone
+from typing import Any, List, Optional, Sequence
 
 import dlt
 from dlt.common import logger
@@ -11,12 +12,17 @@ from dlt.common.configuration.utils import add_config_to_env
 from dlt.common.destination.client import DestinationClientDwhConfiguration
 from dlt.common.runners import Venv
 from dlt.common.runners.stdout import iter_stdout_with_result
+from dlt.common.time import ensure_datetime_in_tz
 from dlt.common.typing import StrAny, TSecretStrValue
 from dlt.common.logger import is_json_logging
 from dlt.common.storages import FileStorage
 from dlt.common.utils import with_custom_environ
+from dlt.extract.incremental.context import TAnyTimeInterval
 
-from dlt.helpers.dbt.configuration import DBTRunnerConfiguration
+from dlt.helpers.dbt.configuration import (
+    DBT_SEND_ANONYMOUS_USAGE_STATS_ENV,
+    DBTRunnerConfiguration,
+)
 from dlt.helpers.dbt.exceptions import (
     IncrementalSchemaOutOfSyncError,
     PrerequisitesException,
@@ -25,6 +31,36 @@ from dlt.helpers.dbt.exceptions import (
 )
 
 from dlt.common.runtime.telemetry import with_telemetry
+
+DBT_EVENT_TIME_FORMAT = "%Y-%m-%dT%H:%M:%S"
+
+
+def _event_time_args(interval: TAnyTimeInterval) -> List[str]:
+    """Converts `[start, end)` interval into dbt `--event-time-start/end` microbatch args in UTC."""
+    start, end = (
+        ensure_datetime_in_tz(bound).astimezone(timezone.utc).replace(tzinfo=None)
+        for bound in interval
+    )
+    # dbt parses whole seconds only, so the range is widened to keep all rows in it
+    start = start.replace(microsecond=0)
+    if end.microsecond:
+        end = end.replace(microsecond=0) + timedelta(seconds=1)
+    return [
+        "--event-time-start",
+        start.strftime(DBT_EVENT_TIME_FORMAT),
+        "--event-time-end",
+        end.strftime(DBT_EVENT_TIME_FORMAT),
+    ]
+
+
+def _set_load_id(results: Any, package_vars: Optional[StrAny]) -> Any:
+    """Sets `load_id` variable passed to the package on parsed node results."""
+    load_id = (package_vars or {}).get("load_id")
+    if not load_id or not isinstance(results, Sequence):
+        return results
+    return [
+        res._replace(load_id=load_id) if isinstance(res, DBTNodeResult) else res for res in results
+    ]
 
 
 class DBTPackageRunner:
@@ -69,13 +105,18 @@ class DBTPackageRunner:
             self.package_path = os.path.join(self.working_dir, self.cloned_package_name)
 
     def _get_package_vars(
-        self, additional_vars: StrAny = None, destination_dataset_name: str = None
+        self,
+        additional_vars: StrAny = None,
+        destination_dataset_name: str = None,
+        load_id: str = None,
     ) -> StrAny:
         if self.config.package_additional_vars:
             package_vars = dict(self.config.package_additional_vars)
         else:
             package_vars = {}
         package_vars["source_dataset_name"] = self.source_dataset_name
+        if load_id:
+            package_vars["load_id"] = load_id
         if destination_dataset_name:
             package_vars["destination_dataset_name"] = destination_dataset_name
         if additional_vars:
@@ -132,6 +173,10 @@ class DBTPackageRunner:
         # write credentials to environ to pass them to dbt, add DLT__ prefix
         if self.credentials:
             add_config_to_env(self.credentials, ("dlt",))
+        # passed via env, not as an arg, so restored venvs with older dlt keep working
+        os.environ[DBT_SEND_ANONYMOUS_USAGE_STATS_ENV] = str(
+            self.config.send_anonymous_usage_stats
+        ).lower()
         args = [
             self.config.runtime.log_level,
             is_json_logging(self.config.runtime.log_format),
@@ -159,7 +204,10 @@ with exec_to_stdout(f):
                 sys.stdout.write("\n")
         except StopIteration as si:
             # return result from generator
-            return si.value  # type: ignore
+            return _set_load_id(si.value, package_vars)  # type: ignore[no-any-return]
+        except DBTProcessingError as err:
+            err.run_results = _set_load_id(err.run_results, package_vars)
+            raise
         except CalledProcessError as cpe:
             sys.stderr.write(cpe.stderr)
             sys.stdout.write("\n")
@@ -170,24 +218,33 @@ with exec_to_stdout(f):
         cmd_params: Sequence[str] = ("--fail-fast",),
         additional_vars: StrAny = None,
         destination_dataset_name: str = None,
+        interval: Optional[TAnyTimeInterval] = None,
+        load_id: Optional[str] = None,
     ) -> Sequence[DBTNodeResult]:
         """Runs `dbt` package
 
         Executes `dbt run` on previously cloned package.
 
         Args:
-            run_params (Sequence[str], optional): Additional parameters to `run` command ie. `full-refresh`. Defaults to ("--fail-fast", ).
+            cmd_params (Sequence[str], optional): Additional parameters to `run` command ie. `--full-refresh`. Defaults to ("--fail-fast", ).
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
+            interval (TAnyTimeInterval, optional): A `[start, end)` time interval ie. `dlt.current.interval()` passed to microbatch models as `--event-time-start` and `--event-time-end`. Defaults to None.
+            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Defaults to None.
 
         Returns:
-            Sequence[DBTNodeResult]: A list of processed model with names, statuses, execution messages and execution times
+            Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times, affected rows and the load id
 
         Exceptions:
             DBTProcessingError: `run` command failed. Contains a list of models with their execution statuses and error messages
         """
+        cmd_params = list(cmd_params or [])
+        if interval is not None:
+            cmd_params += _event_time_args(interval)
         return self._run_dbt_command(
-            "run", cmd_params, self._get_package_vars(additional_vars, destination_dataset_name)
+            "run",
+            cmd_params,
+            self._get_package_vars(additional_vars, destination_dataset_name, load_id),
         )
 
     def test(
@@ -195,28 +252,37 @@ with exec_to_stdout(f):
         cmd_params: Sequence[str] = None,
         additional_vars: StrAny = None,
         destination_dataset_name: str = None,
+        load_id: Optional[str] = None,
     ) -> Sequence[DBTNodeResult]:
         """Tests `dbt` package
 
         Executes `dbt test` on previously cloned package.
 
         Args:
-            run_params (Sequence[str], optional): Additional parameters to `test` command ie. test selectors`.
+            cmd_params (Sequence[str], optional): Additional parameters to `test` command ie. test selectors.
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
+            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable. Defaults to None.
 
         Returns:
-            Sequence[DBTNodeResult]: A list of executed tests with names, statuses, execution messages and execution times
+            Sequence[DBTNodeResult]: A list of executed tests with names, statuses, execution messages, execution times, failing rows and the load id
 
         Exceptions:
             DBTProcessingError: `test` command failed. Contains a list of models with their execution statuses and error messages
         """
         return self._run_dbt_command(
-            "test", cmd_params, self._get_package_vars(additional_vars, destination_dataset_name)
+            "test",
+            cmd_params,
+            self._get_package_vars(additional_vars, destination_dataset_name, load_id),
         )
 
     def _run_db_steps(
-        self, run_params: Sequence[str], package_vars: StrAny, source_tests_selector: str
+        self,
+        run_params: Sequence[str],
+        package_vars: StrAny,
+        source_tests_selector: str,
+        interval: Optional[TAnyTimeInterval],
+        load_id: Optional[str],
     ) -> Sequence[DBTNodeResult]:
         if self.repo_storage:
             # make sure we use package from the remote head
@@ -226,7 +292,7 @@ with exec_to_stdout(f):
         # run the tests on sources if specified, this prevents to execute package for which ie. the source schema does not yet exist
         try:
             if source_tests_selector:
-                self.test(["-s", source_tests_selector], package_vars)
+                self.test(["-s", source_tests_selector], package_vars, load_id=load_id)
         except DBTProcessingError as err:
             raise PrerequisitesException(err) from err
 
@@ -240,11 +306,16 @@ with exec_to_stdout(f):
             # we always expect lists
             run_params = list(run_params)
         try:
-            return self.run(run_params, package_vars)
+            return self.run(run_params, package_vars, interval=interval, load_id=load_id)
         except IncrementalSchemaOutOfSyncError:
             if self.config.auto_full_refresh_when_out_of_sync:
                 logger.warning("Attempting full refresh due to incremental model out of sync")
-                return self.run(run_params + ["--full-refresh"], package_vars)
+                return self.run(
+                    run_params + ["--full-refresh"],
+                    package_vars,
+                    interval=interval,
+                    load_id=load_id,
+                )
             else:
                 raise
 
@@ -254,26 +325,30 @@ with exec_to_stdout(f):
         additional_vars: StrAny = None,
         source_tests_selector: str = None,
         destination_dataset_name: str = None,
+        interval: Optional[TAnyTimeInterval] = None,
+        load_id: Optional[str] = None,
     ) -> Sequence[DBTNodeResult]:
         """Prepares and runs a dbt package.
 
         This method executes typical `dbt` workflow with following steps:
         1. First it clones the package or brings it up to date with the origin. If package location is a local path, it stays intact
         2. It installs the dependencies (`dbt deps`)
-        3. It runs seed (`dbt seed`)
-        4. It runs optional tests on the sources
+        3. It runs optional tests on the sources
+        4. It runs seed (`dbt seed`)
         5. It runs the package (`dbt run`)
         6. If the `dbt` fails with "incremental model out of sync", it will retry with full-refresh on (only when `auto_full_refresh_when_out_of_sync` is set).
            See https://docs.getdbt.com/docs/build/incremental-models#what-if-the-columns-of-my-incremental-model-change
 
         Args:
-            run_params (Sequence[str], optional): Additional parameters to `run` command ie. `full-refresh`. Defaults to ("--fail-fast", ).
+            run_params (Sequence[str], optional): Additional parameters to `run` command ie. `--full-refresh`. Defaults to ("--fail-fast", ).
             additional_vars (StrAny, optional): Additional jinja variables to be passed to the package. Defaults to None.
             source_tests_selector (str, optional): A source tests selector ie. will execute all tests from `sources` model. Defaults to None.
             destination_dataset_name (str, optional): Overwrites the dbt schema where transformed models will be created. Useful for testing or creating several copies of transformed data . Defaults to None.
+            interval (TAnyTimeInterval, optional): A `[start, end)` time interval ie. `dlt.current.interval()` passed to microbatch models as `--event-time-start` and `--event-time-end`. Defaults to None.
+            load_id (str, optional): Load id of the data produced by the package, passed as `load_id` variable in all steps. Models write it to `_dlt_load_id` column to keep their tables compatible with `dlt`. This is not the load id of the processed data. Defaults to None.
 
         Returns:
-            Sequence[DBTNodeResult]: A list of processed model with names, statuses, execution messages and execution times
+            Sequence[DBTNodeResult]: A list of processed models with names, statuses, execution messages, execution times, affected rows and the load id
 
         Exceptions:
             DBTProcessingError: any of the dbt commands failed. Contains a list of models with their execution statuses and error messages
@@ -283,8 +358,10 @@ with exec_to_stdout(f):
         try:
             results = self._run_db_steps(
                 run_params,
-                self._get_package_vars(additional_vars, destination_dataset_name),
+                self._get_package_vars(additional_vars, destination_dataset_name, load_id),
                 source_tests_selector,
+                interval,
+                load_id,
             )
             self._log_dbt_run_results(results)
             return results
