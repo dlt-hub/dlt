@@ -12,6 +12,8 @@ from dlt.common.pendulum import pendulum, timedelta
 from dlt.common.utils import uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
 
+from tests.load.sources.sql_database.utils import cursor_datetime
+
 
 class MSSQLSourceDB:
     def __init__(self, credentials: ConnectionStringCredentials, schema: str = None) -> None:
@@ -112,9 +114,17 @@ class MSSQLSourceDB:
         table = self.metadata.tables[f"{self.schema}.app_user"]
         info = self.table_infos.setdefault(
             "app_user",
-            dict(row_count=0, ids=[], created_at=SQLServerIncrementingDate(), is_view=False),
+            dict(
+                row_count=0,
+                ids=[],
+                created_at=SQLServerIncrementingDate(),
+                is_view=False,
+                rows=[],
+            ),
         )
         dt = info["created_at"]
+        # ids are assigned in insert order starting at 1
+        first_id = info["row_count"] + 1
         all_rows = [
             dict(
                 email=person.email(unique=True),
@@ -128,20 +138,21 @@ class MSSQLSourceDB:
                 some_bit=random.choice([True, False]),
                 some_date=mimesis.Datetime().date(),
                 some_datetime2=mimesis.Datetime().datetime(),
-                # For datetimeoffset, we can just store the same datetime or rely on default
-                some_datetimeoffset=mimesis.Datetime().datetime(timezone="UTC"),
-                some_smalldatetime=mimesis.Datetime().datetime(),
+                some_datetimeoffset=cursor_datetime(id_, zoned=True),
+                # SMALLDATETIME has minute precision
+                some_smalldatetime=cursor_datetime(id_, zoned=False).replace(microsecond=0),
                 some_time=time(12, 0),
                 some_uniqueidentifier=str(uuid.uuid4()),
                 some_xml="<root><element>value</element></root>",
                 some_json_array='["apple","banana"]',
                 some_binary=b"\x00\x01\x02",
             )
-            for _ in range(n)
+            for id_ in range(first_id, first_id + n)
         ]
         with self.engine.begin() as conn:
             conn.execute(table.insert(), all_rows)
         info["row_count"] += n
+        info["rows"] += all_rows
 
 
 class SQLServerIncrementingDate:
@@ -160,3 +171,5 @@ class SQLServerTableInfo(TypedDict):
     ids: List[int]
     created_at: SQLServerIncrementingDate
     is_view: bool
+    rows: List[Dict[str, Any]]
+    """Source rows in insert order."""

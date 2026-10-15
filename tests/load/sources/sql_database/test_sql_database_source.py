@@ -1439,8 +1439,15 @@ def test_sql_table_incremental_datetime_ntz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = postgres_db.table_infos["has_precision"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "datetime_ntz_col", timezone=False, row_count=rc)
+    info = postgres_db.table_infos["has_precision"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "datetime_ntz_col",
+        timezone=False,
+        row_count=info["row_count"],
+        cursor_values=[row["datetime_ntz_col"] for row in info["rows"]],
+    )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
@@ -1466,8 +1473,15 @@ def test_sql_table_incremental_datetime_tz(
     )
 
     pipeline = make_pipeline("duckdb")
-    rc = postgres_db.table_infos["has_precision"]["row_count"]
-    assert_incremental_chunks(pipeline, table, "datetime_tz_col", timezone=True, row_count=rc)
+    info = postgres_db.table_infos["has_precision"]
+    assert_incremental_chunks(
+        pipeline,
+        table,
+        "datetime_tz_col",
+        timezone=True,
+        row_count=info["row_count"],
+        cursor_values=[row["datetime_tz_col"] for row in info["rows"]],
+    )
 
 
 @pytest.mark.parametrize("backend", ["sqlalchemy", "pyarrow", "pandas", "connectorx"])
