@@ -61,7 +61,7 @@ class AiCommand(SupportsCliCommand):
         init_cmd.add_argument(
             "--location",
             default=DEFAULT_AI_WORKBENCH_REPO,
-            help="Advanced. Git URL or local path to AI workbench repository.",
+            help="Advanced. Git URL or local path to dltHub AI Harness repository.",
         )
         init_cmd.add_argument(
             "--branch",

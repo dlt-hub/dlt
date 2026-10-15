@@ -1,21 +1,21 @@
 ---
-title: REST API Source with dlthub AI Harness
+title: REST API Source with dltHub AI Harness
 description: Build any REST API source with dltHub AI Harness toolkits - workflows, skills, rules, and MCP tools
 keywords: [cursor, claude, codex, llm, restapi, ai, workbench, toolkit]
 ---
 # REST API Source with dltHub AI Harness
 
 :::info
-The dltHub AI Harness is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
+The [dltHub AI Harness](../ai-harness/introduction.md) is a part of the dltHub platform. View the license [here](https://github.com/dlt-hub/dlthub-ai-workbench/blob/master/LICENSE).
 :::
 
 ## Overview
 
 Build a custom REST API connector for any of the 11,000+ available sources — often in a single session. Instead of generating ad-hoc code, the AI assistant follows a defined sequence of steps from start to finish to help you build production-grade pipelines following the dltHub best practices.
 
-The **rest-api-pipeline** toolkit is part of the [dltHub AI Harness](../ai-harness/introduction.md) and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
+The **rest-api-pipeline** toolkit is part of the harness and gives your coding assistant a structured, guided workflow — skills, rules, and an MCP server — tied together by a **workflow** that tells the assistant which skill to run at each step. It is designed to support an iterative data pipeline development flow and helps you validate results step by step.
 
-The dltHub AI Harness works with **Claude Code**, **Cursor**, and **Codex**.
+The harness works with **Claude Code**, **Cursor**, and **Codex**.
 
 ## Setup
 
@@ -97,7 +97,7 @@ dlthub ai toolkit install rest-api-pipeline
 This installs the **rest-api-pipeline** toolkit: a workflow that orchestrates the assistant, an entry point skill, and step-by-step skills for each phase.
 
 :::info Claude Code marketplace plugin
-The workbench is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
+The dltHub AI Harness is also available as a **Claude Code marketplace plugin**. You don't need `uv`, Python, or `dlt` installed to get started — the `bootstrap` plugin handles everything from scratch.
 
 > The Claude Code plugin may not yet provide the best linking experience between different toolkits. We recommend using the `dlthub ai` CLI above for the best experience.
 
