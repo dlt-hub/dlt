@@ -66,6 +66,9 @@ from dlt.common.libs.sql_alchemy import (
     ORACLE_NUMBER,
     ORACLE_TIMESTAMP,
     OracleDialect,
+    MSSQL_MONEY,
+    MSSQL_SMALLMONEY,
+    MSDialect,
     sqltypes,
     TypeDecorator,
 )
@@ -790,11 +793,22 @@ def _oracle_column_reflect_listener(
             column_info["type"] = OracleUTCTimestamp(local_timezone=local_timezone)
 
 
+def _mssql_column_reflect_listener(inspector: Any, table: Any, column_info: Dict[str, Any]) -> None:
+    """SQLAlchemy event listener for `column_reflect` that reflects MSSQL MONEY types as decimals."""
+    column_type = column_info.get("type")
+    # fixed-point types with (precision, scale) documented by SQL Server
+    if isinstance(column_type, MSSQL_MONEY):
+        column_info["type"] = sqltypes.Numeric(precision=19, scale=4)
+    elif isinstance(column_type, MSSQL_SMALLMONEY):
+        column_info["type"] = sqltypes.Numeric(precision=10, scale=4)
+
+
 def default_engine_adapter_callback(engine: Engine, metadata: MetaData) -> None:
     """Applies default engine adaptations for known dialects.
 
     For Oracle dialect, registers an event listener on the provided MetaData that adapts
-    NUMBER and zoned TIMESTAMP columns.
+    NUMBER and zoned TIMESTAMP columns. For MSSQL dialect, registers a listener that
+    reflects MONEY and SMALLMONEY columns as decimals.
 
     Args:
         engine: The SQLAlchemy engine to check dialect for.
@@ -802,3 +816,5 @@ def default_engine_adapter_callback(engine: Engine, metadata: MetaData) -> None:
     """
     if isinstance(engine.dialect, OracleDialect):
         sa.event.listen(metadata, "column_reflect", _oracle_column_reflect_listener)
+    elif isinstance(engine.dialect, MSDialect):
+        sa.event.listen(metadata, "column_reflect", _mssql_column_reflect_listener)
