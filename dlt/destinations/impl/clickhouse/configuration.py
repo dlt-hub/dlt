@@ -94,6 +94,12 @@ class ClickHouseClientConfiguration(DestinationClientDwhWithStagingConfiguration
     """Connect to the staging buckets via https"""
     select_sequential_consistency: int = 1
     """Ensures read-after-write consistency on ClickHouse Cloud and clusters"""
+    merge_scope_by_load_id: bool = False
+    """Scope every merge staging read (and cleanup) to the current `_dlt_load_id`."""
+    staging_partition_by_load_id: bool = False
+    """Partition merge staging tables by `_dlt_load_id` and drop that partition after the merge
+    instead of running a `DELETE` mutation. Requires `merge_scope_by_load_id`; staging tables
+    created without the partition must be dropped before enabling it."""
 
     __config_gen_annotations__: ClassVar[List[str]] = [
         "dataset_table_separator",

@@ -143,7 +143,7 @@ class ClickHouseSqlClient(
         )
         sentinel_table_type = self.config.table_engine_type
         self.execute_sql(f"""
-            CREATE TABLE {sentinel_table_name}
+            CREATE TABLE IF NOT EXISTS {sentinel_table_name}
             (_dlt_id String NOT NULL)
             ENGINE={TABLE_ENGINE_TYPE_TO_CLICKHOUSE_ATTR.get(sentinel_table_type)}
             PRIMARY KEY _dlt_id
@@ -212,6 +212,8 @@ class ClickHouseSqlClient(
             user_name=self.credentials.username,
             password=self.credentials.password,
             secure=bool(self.credentials.secure),
+            connect_timeout=self.credentials.connect_timeout,
+            send_receive_timeout=self.credentials.send_receive_timeout,
         ) as clickhouse_connect_client:
             return clk_insert_file(
                 clickhouse_connect_client,
