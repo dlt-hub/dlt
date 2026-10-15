@@ -416,7 +416,10 @@ def arrow_table_all_data_types(
         data["binary"] = [random.choice(ascii_lowercase).encode() for _ in range(num_rows)]
 
     if include_decimal:
-        data["decimal"] = [Decimal(str(round(random.uniform(0, 100), 4))) for _ in range(num_rows)]
+        # fixed 2 integer and 4 fractional digits so every batch infers decimal(6, 4)
+        data["decimal"] = [
+            Decimal(random.randrange(100_000, 1_000_000)).scaleb(-4) for _ in range(num_rows)
+        ]
 
     if include_decimal_default_precision:
         from dlt.common.arithmetics import DEFAULT_NUMERIC_PRECISION
