@@ -715,7 +715,7 @@ A staging dataset contains one table for each table that `dlt` loads through sta
 Make sure that the orchestrator never assigns one slot to two loads at the same time. Two loads that share a slot lose or duplicate records.
 :::
 
-After each load, to free the storage of the staging tables, enable [`truncate_staging_dataset`](../dlt-ecosystem/staging.md#cleanup-staging-dataset-automatically).
+After each load, to free the storage of the staging tables, enable [`truncate_staging_dataset`](../dlt-ecosystem/staging.md#cleanup-staging-dataset-automatically). This is safe because no other load shares the staging dataset.
 
 #### Choose the keys and the write disposition
 
@@ -724,7 +724,7 @@ After each load, to free the storage of the staging tables, enable [`truncate_st
 
 #### Schema changes
 
-Pipelines that load into the same tables also evolve the same tables. When two loads create the same table or add the same column at the same time, one of them can fail. [Retry the load](../running-in-production/running.md#retry-the-load) to resume the pending package. To avoid this failure, run a single pipeline first after a schema change. Then start the other pipelines.
+Pipelines that load into the same tables also evolve the same tables. When two loads create the same table or add the same column at the same time, one of them fails with a `SchemaUpdateError`. Retry it with [`retry_schema_update`](../running-in-production/running.md#retrying-only-the-schema-update-evolution): on the next attempt, `dlt` applies only the changes that are still missing. To avoid this failure, run a single pipeline first after a schema change. Then start the other pipelines.
 
 ### Pitfalls
 
