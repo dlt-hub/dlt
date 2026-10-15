@@ -2650,40 +2650,37 @@ def test_start_out_of_range_open_equals_start_value(item_type: TestDataItemForma
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
-def test_descending_boundary_dedup_keeps_extracting(item_type: TestDataItemFormat) -> None:
+@pytest.mark.parametrize("last_value_func", [max, min], ids=["max", "min"])
+def test_descending_boundary_dedup_keeps_extracting(
+    item_type: TestDataItemFormat, last_value_func: Any
+) -> None:
     """A deduplicated boundary row must not stop extraction: with row_order="desc"
     and a closed range, new rows sharing the cursor value may sit on later pages.
     Regression test for #4523.
     """
-    pages = [[{"id": 1, "v": 100}]]
+    # row_order is relative to last_value_func: "desc" with min is numerically ascending
+    sign = 1 if last_value_func is max else -1
+    pages = [[{"id": 1, "v": 100 * sign}]]
 
     @dlt.resource(primary_key="id")
-    def events(v=dlt.sources.incremental("v", row_order="desc")):
+    def events(v=dlt.sources.incremental("v", row_order="desc", last_value_func=last_value_func)):
         for page in pages:
             yield data_to_item_format(item_type, page)
 
     with Container().injectable_context(StateInjectableContext(state={})):
         r = events()
         assert data_item_length(list(r)) == 1
-        assert r.state["incremental"]["v"]["last_value"] == 100
+        assert r.state["incremental"]["v"]["last_value"] == 100 * sign
 
         pages = [
-            [{"id": 3, "v": 105}, {"id": 1, "v": 100}],
-            [{"id": 2, "v": 100}, {"id": 4, "v": 99}],
+            [{"id": 3, "v": 105 * sign}, {"id": 1, "v": 100 * sign}],
+            [{"id": 2, "v": 100 * sign}, {"id": 4, "v": 99 * sign}],
         ]
         r = events()
-        ids = []
-        for row in list(r):
-            if item_type == "object":
-                ids.append(row["id"])
-            elif item_type == "pandas":
-                ids.extend(row["id"].tolist())
-            else:  # arrow-table, arrow-batch
-                ids.extend(row.column("id").to_pylist())
-        assert 3 in ids  # new row above the boundary
-        assert 2 in ids  # new row with the same cursor value, on the next page
-        assert 1 not in ids  # already loaded row stays deduplicated
-        assert 4 not in ids  # row below the boundary stops extraction
+        ids = [row["id"] for item in r for row in data_item_to_list(item_type, [item])]
+        # 3 is above the boundary, 2 shares the cursor value on the next page,
+        # 1 is already loaded and 4 is below the boundary which stops extraction
+        assert ids == [3, 2]
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)
