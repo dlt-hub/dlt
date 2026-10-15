@@ -539,8 +539,7 @@ The [`ConnectorX`](https://sfu-db.github.io/connector-x/intro.html) backend comp
 There are certain limitations when using this backend:
 * Unless `return_type` is set to `arrow_stream` in `backend_kwargs`, it will ignore `chunk_size`. Please note that certain data types such as arrays and high-precision time types are not supported in streaming mode by `ConnectorX`. We also observe that timestamps are not properly returned: tz-aware timestamps are passed without timezone, naive timestamps are passed as date64 which we internally cast back to naive timestamps.
 * In many cases, it requires a connection string that differs from the `SQLAlchemy` connection string. Use the `conn` argument in `backend_kwargs` to set this.
-* For `connectorx>=0.4.2`, on `reflection_level="minimal"`, `connectorx` can return decimal values. On higher `reflection_level`, dlt will coerce the data type (e.g., modify the decimal `precision` and `scale`, convert to `float`).
-  * For `connectorx<0.4.2`, dlt will convert decimals to doubles, thus losing numerical precision.
+* Decimals may be rounded and MS SQL Server `MONEY` is returned as a float, see [decimals and money types](./troubleshooting.md#decimals-and-money-types-with-connectorx). Use `connectorx>=0.4.6`, older versions return decimals as floats on MS SQL Server and MySQL.
 * Nullability of the columns is ignored (always true).
 * On MS SQL Server, `DATETIMEOFFSET` values are wrong because the offset is applied twice. See the [workaround](./troubleshooting.md#ms-sql-server-datetimeoffset-with-connectorx).
 * It uses different mappings for each data type. (Check [here](https://sfu-db.github.io/connector-x/databases.html) for more details.)
@@ -551,7 +550,7 @@ There are certain limitations when using this backend:
     ```
 
 :::note
-`dlt` will still use the data types reflected from the source database when creating destination tables. It is up to the destination to reconcile/parse type differences. Please note that you'll still lose precision on decimals with default settings.
+`dlt` will still use the data types reflected from the source database when creating destination tables. `dlt` does not modify the Arrow data returned by `ConnectorX`, it is up to the destination to reconcile/parse type differences.
 :::
 
 ```py

@@ -13,12 +13,12 @@ import dlt
 from dlt.common import logger
 from dlt.common import json
 from dlt.common.configuration.exceptions import ConfigFieldMissingException
-from dlt.common.exceptions import DependencyVersionException, MissingDependencyException
+from dlt.common.exceptions import MissingDependencyException
 
 from dlt.common.schema.exceptions import DataValidationError
 from dlt.common.schema.typing import TColumnSchema, TSortOrder, TTableSchemaColumns
 from dlt.common.time import ensure_pendulum_datetime
-from dlt.common.utils import assert_min_pkg_version, uniq_id
+from dlt.common.utils import uniq_id
 
 from dlt.extract.exceptions import ResourceExtractionError
 from dlt.extract.incremental.transform import JsonIncremental, ArrowIncremental
@@ -2035,8 +2035,8 @@ def remove_timestamp_precision(
 
 
 def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema]:
-    """connector x converts decimals to double, otherwise tries to keep data types and precision
-    nullability is not kept, string precision is not kept
+    """connector x returns decimals without precision as decimal(38, 10), otherwise tries to keep
+    data types and precision. nullability is not kept, string precision is not kept
     """
     for column in columns:
         if column["data_type"] == "bigint":
@@ -2047,11 +2047,7 @@ def convert_connectorx_types(columns: List[TColumnSchema]) -> List[TColumnSchema
         if column["data_type"] == "text" and column.get("precision"):
             del column["precision"]
         if column["data_type"] == "decimal" and column["name"] == "numeric_default_col":
-            try:
-                assert_min_pkg_version(pkg_name="connectorx", version="0.4.4")
-                add_default_arrow_decimal_precision([column], is_connectorx=True)
-            except DependencyVersionException:
-                pass
+            add_default_arrow_decimal_precision([column], is_connectorx=True)
     return columns
 
 

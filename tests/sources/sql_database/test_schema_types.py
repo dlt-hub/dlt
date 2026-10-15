@@ -3,7 +3,7 @@ from typing import Any, Dict
 
 import pytest
 import sqlalchemy as sa
-from sqlalchemy.dialects.mssql import DATETIMEOFFSET, UNIQUEIDENTIFIER
+from sqlalchemy.dialects.mssql import DATETIMEOFFSET, MONEY, SMALLMONEY, UNIQUEIDENTIFIER
 from sqlalchemy.dialects.oracle import DATE as OracleDATE
 from sqlalchemy.dialects.oracle.base import OracleDialect
 from sqlalchemy.dialects.postgresql import UUID
@@ -211,6 +211,29 @@ def test_oracle_reflect_listener_swaps_only_zoned_timestamps(
     assert isinstance(column_info["type"], OracleUTCTimestamp) is swapped
     if not swapped:
         assert column_info["type"] is sql_type
+
+
+@pytest.mark.parametrize(
+    "sql_type,expected_precision",
+    [
+        (MONEY(), (19, 4)),
+        (SMALLMONEY(), (10, 4)),
+        (sa.Numeric(12, 2), (12, 2)),
+    ],
+    ids=["money", "smallmoney", "numeric"],
+)
+def test_mssql_reflect_listener_maps_money_to_decimal(
+    sql_type: sa.types.TypeEngine, expected_precision: Any
+) -> None:
+    from dlt.sources.sql_database.helpers import _mssql_column_reflect_listener
+
+    column_info: Dict[str, Any] = {"name": "col", "type": sql_type}
+    _mssql_column_reflect_listener(None, None, column_info)
+
+    table = sa.Table("t", sa.MetaData(), sa.Column("col", column_info["type"]))
+    col_schema = sqla_col_to_column_schema(table.c.col, "full")
+    assert col_schema["data_type"] == "decimal"
+    assert (col_schema["precision"], col_schema["scale"]) == expected_precision
 
 
 def test_get_table_references() -> None:
