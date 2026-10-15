@@ -141,6 +141,7 @@ class DBTPackageRunner:
             self.config.package_profile_name,
             command_args,
             package_vars,
+            self.config.send_anonymous_usage_stats,
         ]
         script = f"""
 from functools import partial

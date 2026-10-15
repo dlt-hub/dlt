@@ -131,3 +131,5 @@ def test_dbt_commands(test_storage: FileStorage) -> None:
     assert isinstance(results, list)
     assert len(results) == 20
     assert results[-1].status == "pass"
+    # anonymous usage stats are disabled so dbt does not write its cookie into profiles dir
+    assert not os.path.exists(os.path.join(repo_path, ".user.yml"))

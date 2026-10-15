@@ -15,6 +15,8 @@ class DBTRunnerConfiguration(BaseConfiguration):
     package_profiles_dir: Optional[str] = None
     package_profile_name: Optional[str] = None
     auto_full_refresh_when_out_of_sync: bool = True
+    send_anonymous_usage_stats: bool = False
+    """Allows dbt to send anonymous usage stats to dbt Labs. Disabled by default"""
 
     package_additional_vars: Optional[StrAny] = None
 

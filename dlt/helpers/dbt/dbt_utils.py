@@ -81,7 +81,12 @@ def run_dbt_command(
     global_args: Sequence[str] = None,
     command_args: Sequence[str] = None,
     package_vars: StrAny = None,
+    send_anonymous_usage_stats: bool = False,
 ) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
+    global_args = list(global_args or [])
+    if not send_anonymous_usage_stats:
+        # also prevents dbt from writing `.user.yml` cookie into the profiles dir
+        global_args.append("--no-send-anonymous-usage-stats")
     args = ["--profiles-dir", profiles_dir]
     # add profile name if provided
     if profile_name:
@@ -100,7 +105,7 @@ def run_dbt_command(
         success: bool = None
         # dbt uses logbook which does not run on python 10. below is a hack that allows that
         warnings.filterwarnings("ignore", category=DeprecationWarning, module="logbook")
-        runner_args = (global_args or []) + [command] + args  # type: ignore
+        runner_args = global_args + [command] + args
 
         runner = dbtRunner()
         run_result = runner.invoke(runner_args)
@@ -135,6 +140,7 @@ def init_logging_and_run_dbt_command(
     profile_name: Optional[str] = None,
     command_args: Sequence[str] = None,
     package_vars: StrAny = None,
+    send_anonymous_usage_stats: bool = False,
 ) -> Union[Sequence[DBTNodeResult], dbt_results.ExecutionResult]:
     # initialize dbt logging, returns global parameters to dbt command
     dbt_global_args = initialize_dbt_logging(log_level, is_json_logging)
@@ -146,4 +152,5 @@ def init_logging_and_run_dbt_command(
         dbt_global_args,
         command_args,
         package_vars,
+        send_anonymous_usage_stats,
     )
