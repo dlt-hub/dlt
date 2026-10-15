@@ -1,4 +1,4 @@
-from typing import Any, Sequence, NamedTuple
+from typing import Any, Optional, Sequence, NamedTuple
 
 from dlt.common.exceptions import DltException
 
@@ -20,6 +20,8 @@ class DBTNodeResult(NamedTuple):
     message: str
     time: float
     status: str
+    load_id: Optional[str] = None
+    """Load id passed to the package as `load_id` variable"""
 
 
 class DBTProcessingError(DBTRunnerException):
