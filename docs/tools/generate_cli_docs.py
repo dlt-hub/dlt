@@ -205,7 +205,11 @@ def render_argparse_markdown(
             # remove first line with header and empty lines
             header = section_lines[0].replace(":", "")
 
-            if header.lower() not in ["available subcommands", "positional arguments", "options"]:
+            if header.lower() not in [
+                "available subcommands",
+                "positional arguments",
+                "options",
+            ]:
                 print(
                     f"WARNING: Skipping unknown section {header} of {cmd}.",
                     file=sys.stderr,
@@ -214,7 +218,9 @@ def render_argparse_markdown(
 
             section_lines = section_lines[1:]
             section_lines = [line for line in section_lines if line]
-            section_lines = [line for line in section_lines if not line.strip().startswith("{")]
+            section_lines = [
+                line for line in section_lines if not line.strip().startswith("{")
+            ]
             section = textwrap.dedent(os.linesep.join(section_lines))
 
             # NOTE: this is based on convention to name the subcommands section
@@ -247,9 +253,13 @@ def render_argparse_markdown(
                 else:
                     quoted_title = f"`{arg_title}`"
                 if quoted_title:
-                    section += f"* {quoted_title} - {_escape_mdx(arg_help.capitalize())}\n"
+                    section += (
+                        f"* {quoted_title} - {_escape_mdx(arg_help.capitalize())}\n"
+                    )
 
-            extracted_sections.append({"header": header.capitalize(), "section": section})
+            extracted_sections.append(
+                {"header": header.capitalize(), "section": section}
+            )
 
         heading = "##" if nesting < 2 else "###"
         markdown += f"{heading} `{cmd}`\n\n"
@@ -313,7 +323,9 @@ def render_argparse_markdown(
 
 # TODO we can probably remove the `file_name` argument for the output and set a constant
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Generate or check CLI reference docs.")
+    parser = argparse.ArgumentParser(
+        description="Generate or check CLI reference docs."
+    )
     parser.add_argument("file_name", help="Output file name")
     parser.add_argument(
         "--commands",

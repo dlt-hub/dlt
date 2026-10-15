@@ -388,6 +388,37 @@ chunk_size=1000
 cursor_path="updated_at"
 ```
 
+## Query the source database as a dataset
+
+`sql_database_dataset` creates a read-only [dataset](../../../general-usage/dataset-access/dataset.md) over the tables of a `sql_database` source or a `sql_table` resource, without loading any data. The dataset schema comes from table reflection. Queries run directly on the source database using the source's backend, so `connectorx` reads Arrow tables natively:
+
+```py
+import dlt
+from dlt.sources.sql_database import sql_database
+from dlt.sources.sql_database.dataset import sql_database_dataset
+
+source = sql_database(
+    "postgresql://loader:loader@localhost:5432/dlt_data",
+    schema="sales",
+    backend="connectorx",
+)
+dataset = sql_database_dataset(source.with_resources("customers", "orders"))
+
+customers = dataset.table("customers").arrow()
+totals = dataset(
+    "SELECT c.name, sum(o.amount) AS total FROM orders o"
+    " JOIN customers c ON o.customer_id = c.id GROUP BY c.name"
+).df()
+```
+
+Keep in mind:
+
+- Table and column names are kept as they appear in the database (`direct` naming convention), for example `dataset.table("CustomerOrders")`.
+- The dataset name is the database schema of the tables, or the default schema of the database (ie. `main` for sqlite).
+- Data types are the same as in extracted data and depend on the backend. For example, `connectorx` returns all decimals as `decimal128(38, 10)` and `pandas` returns decimals as floats.
+- Tables must be reflected when the source is created: `defer_table_reflect` is not supported.
+- Custom table loaders must implement `load_query` (see below).
+
 ## Custom table loaders
 
 For advanced use cases — custom pagination, retry logic, or entirely different database drivers — you can provide your own table loader class.
@@ -399,6 +430,8 @@ The sql_database source uses a two-level class hierarchy for loading data:
 - **`BaseTableLoader`** — abstract base class that provides query building (including incremental filtering and ordering). Subclass this for entirely different backends that don't use a SQLAlchemy connection.
 - **`TableLoader(BaseTableLoader)`** — default loader using a SQLAlchemy connection. Override `_load_rows()` to change execution strategy (e.g. add pagination) while reusing `_convert_result()` for backend format conversion.
 - **`ConnectorXTableLoader(BaseTableLoader)`** — loader using ConnectorX for fast Arrow table retrieval.
+
+Built-in loaders also implement `load_query(query, backend_kwargs, columns)`, which runs any SELECT or `text()` query and yields data in the format of the backend. `load_rows()` uses it to read the table, and [`sql_database_dataset`](#query-the-source-database-as-a-dataset) uses it to run dataset queries. Implement `load_query` in your loader to use it with datasets.
 
 ### Using `table_loader_class` parameter
 
@@ -479,18 +512,22 @@ table = sql_table(
 ### Example: ADBC Arrow backend
 
 Subclass `BaseTableLoader` to bypass SQLAlchemy row iteration entirely and read data as Arrow tables via ADBC.
-The base class provides `compile_query()` and `get_connection_url()` helpers that convert the SQLAlchemy query/engine into plain strings suitable for non-SQLAlchemy backends. Override `get_connection_url()` when a backend requires a different connection string format:
+The base class provides `compile_query()` and `get_connection_url()` helpers that convert the SQLAlchemy query/engine into plain strings suitable for non-SQLAlchemy backends. Override `get_connection_url()` when a backend requires a different connection string format.
+
+Implement `load_query()` to run any query, and make `load_rows()` call it with the table query. The same loader then serves both extraction and [datasets](#query-the-source-database-as-a-dataset):
 
 ```py
 from dlt.sources.sql_database import sql_table, BaseTableLoader
 
 class AdbcArrowLoader(BaseTableLoader):
     def load_rows(self, backend_kwargs=None):
+        yield from self.load_query(self.make_query(), backend_kwargs)
+
+    def load_query(self, query, backend_kwargs=None, columns=None):
         from adbc_driver_manager import dbapi
         from adbc_driver_postgresql import _driver_path
         import pyarrow as pa
 
-        query = self.make_query()
         query_str = self.compile_query(query)
         conn_url = self.get_connection_url()
 
@@ -510,3 +547,55 @@ table = sql_table(
 The ADBC example requires `adbc-driver-manager` and `adbc-driver-postgresql` packages.
 The loader inherits incremental query building and `get_connection_url()` from `BaseTableLoader`, so incremental loading and connection string handling work automatically. Override `get_connection_url()` for databases that need special connection string formats (e.g. MSSQL ODBC → go-mssqldb conversion).
 :::
+
+### Example: Oracle with the Columnar ADBC driver
+
+The [Oracle ADBC driver](https://docs.columnar.tech/drivers/oracle/) by [Columnar](https://columnar.tech/) reads Oracle tables directly into Arrow. It handles `TIMESTAMP WITH TIME ZONE` and `TIMESTAMP WITH LOCAL TIME ZONE` correctly, which `oracledb` and `connectorx` do not.
+
+The driver is commercial and is installed with `dbc`, Columnar's driver manager. Log in to the driver registry with your Columnar account (and add a license file if you have one), then install the driver:
+
+```sh
+pip install adbc-driver-manager
+uv tool run dbc auth login
+uv tool run dbc install oracle
+```
+
+The driver also needs [Oracle Instant Client](https://www.oracle.com/database/technologies/instant-client.html). Use the latest release and make it discoverable, for example with `LD_LIBRARY_PATH` on Linux. On Linux, Instant Client needs `libaio`.
+
+Pass `driver="oracle"` to ADBC and a URI in the `oracle://user:password@host:port/service_name` format. Columnar recommends `timezone=UTC` and `stmtCacheSize=-1`:
+
+```py
+from dlt.sources.sql_database import sql_database, BaseTableLoader
+
+ORACLE_URI = "oracle://loader:loader@localhost:1521/FREEPDB1?timezone=UTC&stmtCacheSize=-1"
+
+class AdbcOracleLoader(BaseTableLoader):
+    def load_rows(self, backend_kwargs=None):
+        yield from self.load_query(self.make_query(), backend_kwargs)
+
+    def load_query(self, query, backend_kwargs=None, columns=None):
+        from adbc_driver_manager import dbapi
+        import pyarrow as pa
+
+        with dbapi.connect(driver="oracle", db_kwargs={"uri": ORACLE_URI}) as conn:
+            with conn.cursor() as cur:
+                cur.execute(self.compile_query(query))
+                for batch in cur.fetch_record_batch():
+                    yield pa.Table.from_batches([batch], schema=batch.schema)
+
+# sqlalchemy is still used to reflect the tables
+source = sql_database(
+    "oracle+oracledb://loader:loader@localhost:1521/?service_name=FREEPDB1",
+    schema="LOADER",
+    table_loader_class=AdbcOracleLoader,
+)
+```
+
+Keep in mind the following when reading Oracle with this driver:
+
+- **Session time zone:** `TIMESTAMP WITH LOCAL TIME ZONE` is read correctly only while the session time zone equals the time zone of the client process. That is the default, so do not run `ALTER SESSION SET TIME_ZONE`. Run the process with `TZ=UTC` to also get a UTC session.
+- **`timezone` URI parameter:** keep it at `UTC`. A named zone, such as `timezone=Europe/Warsaw`, shifts the values of plain `TIMESTAMP` columns by that zone's offset.
+- **Named time zones:** a `TIMESTAMP WITH TIME ZONE` value stored with a region name, such as `Europe/Warsaw`, fails the whole read with `ORA-01805` when the time zone files of Instant Client and the database differ. Values stored with offsets, such as `+02:00`, work.
+- **`DATE` columns:** they come back as Arrow `date32`, which drops the time of day. Select them with `CAST(col AS TIMESTAMP)`, for example in a [`query_adapter_callback`](#filtering-rows), to keep the time.
+- **Numbers:** `NUMBER(38,0)` comes back as `decimal128(38, 0)`, not `int64`. Unbounded `NUMBER` values, including `COUNT(*)` and `SUM()`, come back as `float64` and may lose precision. Set the `redo.query.unbounded_number_type` statement option to `string` to keep them exact.
+- **Incremental loading:** `compile_query()` renders the incremental cursor as an SQL literal. For `TIMESTAMP` cursors on Oracle, SQLAlchemy renders a timezone-aware cursor value that Oracle rejects with `ORA-01830`. A naive cursor value is interpreted in the session time zone, so the filter is only correct in a UTC session.

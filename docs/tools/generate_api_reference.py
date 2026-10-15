@@ -74,7 +74,8 @@ sub = partial(re.sub, flags=re.M)
 def is_private_module(module_name: str) -> bool:
     """Tells if any part of a dotted module name is private, e.g. `dlt._workspace.helpers`."""
     return any(
-        part.startswith("_") and not part.startswith("__") for part in module_name.split(".")
+        part.startswith("_") and not part.startswith("__")
+        for part in module_name.split(".")
     )
 
 
@@ -86,7 +87,9 @@ def is_noindex_module(module_name: str) -> bool:
 def plain_text(markdown: str) -> str:
     """Reduces a docstring fragment to a single line of plain text."""
     text = re.sub(r"\[([^\]]*)\]\([^)]*\)", r"\1", markdown)  # links keep their label
-    text = re.sub(r"[`*_]{1,2}([^`*_]+)[`*_]{1,2}", r"\1", text)  # inline code and emphasis
+    text = re.sub(
+        r"[`*_]{1,2}([^`*_]+)[`*_]{1,2}", r"\1", text
+    )  # inline code and emphasis
     return re.sub(r"\s+", " ", text).strip()
 
 
@@ -221,7 +224,11 @@ def render_api_reference(output_dir: pathlib.Path) -> dict[str, str]:
     session.processors.append(DltProcessor())
 
     # private modules are not part of the public API, so they get no pages at all
-    modules = [module for module in session.load_modules() if not is_private_module(module.name)]
+    modules = [
+        module
+        for module in session.load_modules()
+        if not is_private_module(module.name)
+    ]
     # described before processing, which escapes docstrings for MDX
     descriptions = {module.name: describe_module(module) for module in modules}
     session.process(modules)
@@ -237,7 +244,9 @@ def module_name_from_path(api_reference_dir: pathlib.Path, page: pathlib.Path) -
     return ".".join(parts)
 
 
-def add_page_metadata(api_reference_dir: pathlib.Path, descriptions: dict[str, str]) -> None:
+def add_page_metadata(
+    api_reference_dir: pathlib.Path, descriptions: dict[str, str]
+) -> None:
     """Sets the page description and marks implementation-detail pages `noindex`.
 
     Without a description Docusaurus uses the first heading, e.g. "BigQueryClient Objects".
@@ -250,7 +259,9 @@ def add_page_metadata(api_reference_dir: pathlib.Path, descriptions: dict[str, s
         description = descriptions.get(module_name)
         if description:
             # a JSON string is a valid YAML scalar and escapes quotes and colons
-            front_matter += f"description: {json.dumps(description, ensure_ascii=False)}\n"
+            front_matter += (
+                f"description: {json.dumps(description, ensure_ascii=False)}\n"
+            )
         # the head block goes right after the front matter
         head = f"\n{NOINDEX_HEAD}" if is_noindex_module(module_name) else ""
         page.write_text(f"---\n{front_matter}---\n{head}{body}", encoding="utf-8")
