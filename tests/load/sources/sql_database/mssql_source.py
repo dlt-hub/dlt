@@ -1,6 +1,7 @@
 import uuid
 import random
 from datetime import datetime, date, time
+from decimal import Decimal
 from typing import Any, Dict, List, TypedDict, cast
 from sqlalchemy import Column, DateTime, Integer, MetaData, String, Table, create_engine, func
 from sqlalchemy import schema as sqla_schema
@@ -13,6 +14,15 @@ from dlt.common.utils import uniq_id
 from dlt.sources.credentials import ConnectionStringCredentials
 
 from tests.load.sources.sql_database.utils import cursor_datetime
+
+# `amount` does not fit a float, `rate` has a scale above the 10 that connectorx returns
+DECIMALS_ROW: Dict[str, Any] = dict(
+    id=1,
+    amount=Decimal("123456789012345678.0123456789"),
+    rate=Decimal("1.123456789059"),
+    big_amount=Decimal("12.34"),
+    balance=Decimal("922337203685477.5807"),
+)
 
 
 class MSSQLSourceDB:
@@ -59,9 +69,9 @@ class MSSQLSourceDB:
         with self.engine.begin() as conn:
             conn.execute(text(query))
 
-    def update_row(self, updates: Dict[str, Any], conditions: str) -> None:
+    def update_row(self, updates: Dict[str, Any], conditions: str, table: str = "app_user") -> None:
         set_clause = ", ".join([f"{column} = :{column}" for column in updates.keys()])
-        query = f"UPDATE {self.schema}.app_user SET {set_clause} WHERE {conditions}"
+        query = f"UPDATE {self.schema}.{table} SET {set_clause} WHERE {conditions}"
         with self.engine.begin() as conn:
             conn.execute(text(query), updates)
 
@@ -108,6 +118,24 @@ class MSSQLSourceDB:
             Column("some_binary", VARBINARY(None), nullable=nullable),
         )
         self.metadata.create_all(bind=self.engine)
+
+    def create_decimals_table(self) -> None:
+        """Creates `decimals` table with `DECIMALS_ROW`, kept out of the tables created upfront."""
+        from sqlalchemy import Numeric
+        from sqlalchemy.dialects.mssql import MONEY
+
+        table = Table(
+            "decimals",
+            self.metadata,
+            Column("id", Integer(), primary_key=True, autoincrement=False),
+            Column("amount", Numeric(28, 10)),
+            Column("rate", Numeric(20, 12)),
+            Column("big_amount", Numeric(35, 2)),
+            Column("balance", MONEY()),
+        )
+        table.create(bind=self.engine)
+        with self.engine.begin() as conn:
+            conn.execute(table.insert(), [DECIMALS_ROW])
 
     def generate_users(self, n: int = 50) -> None:
         person = mimesis.Person()

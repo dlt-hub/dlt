@@ -395,11 +395,14 @@ class ConnectorXTableLoader(BaseTableLoader):
 
         if is_streaming:
             record_reader = cx.read_sql(conn, query_str, **backend_kwargs)
+            self._warn_on_decimal_precision_loss(record_reader.schema)
             for record_batch in record_reader:
                 table = pa.Table.from_batches((record_batch,), schema=record_batch.schema)
                 yield cast_connectorx_temporal_columns(_maybe_fix_0000_timezone(table))
         else:
             df = cx.read_sql(conn, query_str, **backend_kwargs)
+            if isinstance(df, pa.Table):
+                self._warn_on_decimal_precision_loss(df.schema)
             if len(df) > self.chunk_size:
                 logger.info(
                     f"The size of the dataset being loaded is more than {self.chunk_size},"
@@ -408,6 +411,32 @@ class ConnectorXTableLoader(BaseTableLoader):
                     "/configuration#connectorx)"
                 )
             yield _maybe_fix_0000_timezone(df)
+
+    def _warn_on_decimal_precision_loss(self, arrow_schema: Any) -> None:
+        """Warns when reflected decimal columns are returned as floats or with a smaller scale."""
+        from dlt.common.libs.pyarrow import pyarrow as pa
+
+        lossy_columns = []
+        for field in arrow_schema:
+            column = self.columns.get(field.name)
+            if not column or column.get("data_type") != "decimal":
+                continue
+            if pa.types.is_floating(field.type) or (
+                pa.types.is_decimal(field.type) and column.get("scale", 0) > field.type.scale
+            ):
+                lossy_columns.append(
+                    f"`{field.name}` decimal({column.get('precision')},{column.get('scale')}) ->"
+                    f" {field.type}"
+                )
+        if lossy_columns:
+            logger.warning(
+                f"ConnectorX returned decimal columns of table `{self.table.name}` with lower"
+                f" precision than reflected from the source database: {', '.join(lossy_columns)}."
+                " Values are rounded to the returned scale or converted to floating point. Use the"
+                " `pyarrow` backend for this table or read it from a view that casts the columns."
+                " See https://dlthub.com/docs/dlt-ecosystem/verified-sources/sql_database"
+                "/troubleshooting#decimals-and-money-types-with-connectorx"
+            )
 
 
 # populate built-in backends

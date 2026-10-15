@@ -202,6 +202,13 @@ def utc_offsets(query, table):
 orders = sql_table(table="orders", backend="connectorx", query_adapter_callback=utc_offsets)
 ```
 
+#### Decimals and money types with ConnectorX
+
+`ConnectorX` returns decimals with 10 decimal places: values with more are rounded, and values with
+more than ~18 integer digits fail to load. MS SQL Server `MONEY` and `SMALLMONEY` are returned as
+floats. `dlt` warns when a column is rounded or returned as a float. Use the `pyarrow` backend for
+such tables.
+
 #### JSON
 
 In the `SQLAlchemy` backend, the JSON data type is represented as a Python object, and in the `PyArrow` backend, it is represented as a JSON string. At present, it does not work correctly with `pandas` and `ConnectorX`, which cast Python objects to `str`, generating invalid JSON strings that cannot be loaded into the destination.
@@ -215,6 +222,10 @@ casing across initial and incremental loads regardless of the backend used.
 You can switch this behavior by using `table_adapter_callback` to modify properties of the UUID type
 for a particular column. (See the code example [here](./configuration#pyarrow) for how to modify the
 data type properties of a particular column.)
+
+#### MS SQL Server MONEY
+
+`MONEY` and `SMALLMONEY` columns are loaded as `decimal(19, 4)` and `decimal(10, 4)`.
 
 ### Notes on data loading
 
