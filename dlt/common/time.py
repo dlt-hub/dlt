@@ -668,12 +668,15 @@ def to_seconds(td: Optional[TimedeltaSeconds]) -> Optional[float]:
 TTimeWithPrecision = TypeVar("TTimeWithPrecision", bound=Union[datetime.datetime, datetime.time])
 
 
-def reduce_pendulum_datetime_precision(
-    value: TTimeWithPrecision, precision: int
-) -> TTimeWithPrecision:
+def reduce_datetime_precision(value: TTimeWithPrecision, precision: int) -> TTimeWithPrecision:
+    """Truncates the fractional seconds of a `datetime` or `time` to `precision` digits."""
     if precision >= 6:
         return value
     return value.replace(microsecond=value.microsecond // 10 ** (6 - precision) * 10 ** (6 - precision))  # type: ignore
+
+
+reduce_pendulum_datetime_precision = reduce_datetime_precision
+"""Deprecated name of `reduce_datetime_precision`."""
 
 
 def get_precision_from_datetime_unit(unit: str) -> int:

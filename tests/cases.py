@@ -18,7 +18,7 @@ from dlt.common.pendulum import ensure_pendulum_dt
 from dlt.common.time import (
     ensure_pendulum_datetime,
     ensure_datetime,
-    reduce_pendulum_datetime_precision,
+    reduce_datetime_precision,
     ensure_pendulum_time,
     ensure_pendulum_date,
 )
@@ -227,26 +227,22 @@ def assert_all_data_types_row(
     # prepare date to be compared: convert into pendulum instance, adjust microsecond precision
     if "col4" in expected_rows:
         parsed_date = ensure_pendulum_datetime((db_mapping["col4"]))
-        db_mapping["col4"] = reduce_pendulum_datetime_precision(
-            parsed_date, caps.timestamp_precision
-        )
-        expected_rows["col4"] = reduce_pendulum_datetime_precision(
+        db_mapping["col4"] = reduce_datetime_precision(parsed_date, caps.timestamp_precision)
+        expected_rows["col4"] = reduce_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4"]),  # type: ignore[arg-type]
             caps.timestamp_precision,
         )
     if "col12" in expected_rows:
         parsed_date = ensure_pendulum_dt(ensure_datetime((db_mapping["col12"])))
-        db_mapping["col12"] = reduce_pendulum_datetime_precision(
-            parsed_date, caps.timestamp_precision
-        )
-        expected_rows["col12"] = reduce_pendulum_datetime_precision(
+        db_mapping["col12"] = reduce_datetime_precision(parsed_date, caps.timestamp_precision)
+        expected_rows["col12"] = reduce_datetime_precision(
             ensure_datetime(expected_rows["col12"]),  # type: ignore[arg-type]
             caps.timestamp_precision,
         )
     if "col4_precision" in expected_rows:
         parsed_date = ensure_pendulum_datetime((db_mapping["col4_precision"]))
-        db_mapping["col4_precision"] = reduce_pendulum_datetime_precision(parsed_date, 3)
-        expected_rows["col4_precision"] = reduce_pendulum_datetime_precision(
+        db_mapping["col4_precision"] = reduce_datetime_precision(parsed_date, 3)
+        expected_rows["col4_precision"] = reduce_datetime_precision(
             ensure_pendulum_datetime(expected_rows["col4_precision"]), 3  # type: ignore[arg-type]
         )
 
@@ -263,14 +259,14 @@ def assert_all_data_types_row(
         db_mapping["col10"] = ensure_pendulum_date(db_mapping["col10"])
 
     if "col11" in expected_rows:
-        expected_rows["col11"] = reduce_pendulum_datetime_precision(
+        expected_rows["col11"] = reduce_datetime_precision(
             ensure_pendulum_time(expected_rows["col11"]), caps.timestamp_precision  # type: ignore[arg-type]
         ).isoformat()
 
     if "col11_precision" in expected_rows:
         parsed_time = ensure_pendulum_time(db_mapping["col11_precision"])
-        db_mapping["col11_precision"] = reduce_pendulum_datetime_precision(parsed_time, 3)
-        expected_rows["col11_precision"] = reduce_pendulum_datetime_precision(
+        db_mapping["col11_precision"] = reduce_datetime_precision(parsed_time, 3)
+        expected_rows["col11_precision"] = reduce_datetime_precision(
             ensure_pendulum_time(expected_rows["col11_precision"]), 3  # type: ignore[arg-type]
         )
 

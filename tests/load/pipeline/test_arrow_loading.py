@@ -19,7 +19,7 @@ from dlt.common.libs.pyarrow import (
 )
 from dlt.common.time import (
     ensure_pendulum_datetime,
-    reduce_pendulum_datetime_precision,
+    reduce_datetime_precision,
     ensure_pendulum_time,
     ensure_pendulum_date,
 )
@@ -184,7 +184,7 @@ def test_load_arrow_item(
     for row in expected:
         for i in range(len(row)):
             if isinstance(row[i], (datetime, dt_time)):
-                row[i] = reduce_pendulum_datetime_precision(
+                row[i] = reduce_datetime_precision(
                     row[i], pipeline.destination.capabilities().timestamp_precision
                 )
 
