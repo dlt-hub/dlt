@@ -846,6 +846,15 @@ def test_where(populated_pipeline: Pipeline) -> None:
 
     assert total_records - 3 == len(not_in_rows)
 
+    # filters bind the output columns of an aggregating query and of an alias that shadows a column
+    dataset = populated_pipeline.dataset()
+    max_rows = dataset("SELECT MAX(id) AS max_id FROM items").where("max_id", "gt", 0).fetchall()
+    assert [tuple(row) for row in max_rows] == [(total_records - 1,)]
+    shadow_rows = (
+        dataset("SELECT id AS src_id, id * 10 AS id FROM items").where("id", "eq", 10).fetchall()
+    )
+    assert [tuple(row) for row in shadow_rows] == [(1, 10)]
+
 
 @pytest.mark.no_load
 @pytest.mark.essential
