@@ -26,9 +26,15 @@ This page covers how to declare an agent job and how to run it locally and on th
 | Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
 | Verb             | What the agent can do on an axis: `local` takes `read`, `write`, `execute`, `network`; `data` takes `read`, `write`; `context` takes `read`. `all` grants every verb of its axis    | Listed under the axis in `access`                                     |
 
+`access` and `tools` both have a `context`, and they mean different things. The axis in `access` says the agent may read platform records. The group in `tools` names a set of MCP tools. See [Access declaration](agent-definitions.md#access-declaration).
+
 The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
+For an agent of your own, the base `init` toolkit ships the `create-background-agent` skill, which writes the `AGENT.md` and the declaration. See [Write it with your coding agent](agent-definitions.md#write-it-with-your-coding-agent).
+
 ## Prerequisites
+
+A coding agent can do this setup for you. Paste the prompt in [Set up with your coding agent](../getting-started/agents.md#set-up-with-your-coding-agent), which initializes the workspace, installs the toolkit, and declares the inspector job.
 
 1. A dltHub workspace with `dlt[hub]` installed and connected to the platform. See [Workspace setup](../pipeline-operations/workspace-setup.md).
 2. An agent loop installed locally. dltHub ships two agent loops, `pydantic-ai` (default) and `claude-agent-sdk`:
@@ -43,6 +49,15 @@ The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent defi
    `claude-agent-sdk` runs on the platform even when your machine has only `pydantic-ai`. See
    [Agent loops](#agent-loops).
 3. Credentials for a model provider. Locally, the provider's default environment variables work (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on). See [Model and credentials](#model-and-credentials) for the configuration keys.
+4. No production secret in the workspace scope. An agent job runs on the read-only `access` profile unless it declares otherwise, which is what keeps the production credentials out of its environment. A variable set with `--workspace` carries no profile and defeats that, because it reaches the job on every profile, `access` included. Check the scopes before the first agent run, and move anything an agent must not hold into the `prod` scope:
+
+   ```sh
+   dlthub variable list                                   # the scope of each variable
+   printf '%s' '<value>' | dlthub variable set DB_PASSWORD --secret --profile prod
+   dlthub variable delete DB_PASSWORD --workspace
+   ```
+
+   A value stored with `--secret` is never shown again, so you need the original to move it. The same holds for files: a credential in `secrets.toml` reaches every profile, and one in `prod.secrets.toml` reaches only `prod`. See [Profile of an agent job](#profile-of-an-agent-job).
 
 ## Declare the agent job
 
@@ -177,7 +192,7 @@ Each trigger of the agent job produces an agent run. You can also start a run ma
 
 ```sh
 dlthub local run job_inspector -c failed_run_id=<run-id>     # locally
-dlthub run job_inspector -f                                  # on the platform
+dlthub run job_inspector -f                                  # on the platform, -f tails the logs
 ```
 
 `-c` is a local flag. `dlthub run` does not take it, and a workspace variable holding an input key does not reach a remote run either. A remote run takes its inputs from the trigger that started it, or from the job's `config.toml` as deployed. To point a remote agent run at one specific run id today, put the value in `config.toml` and deploy, or run it locally.
@@ -217,11 +232,47 @@ Ctrl-C on a local run, or a stop on the platform, ends the run at the next turn.
 | OpenAI       | `openai:gpt-5.5`, `openai:gpt-5.4-mini`, `openai:gpt-5.4-nano`                     | `gpt`, `gpt-mini`, `gpt-nano`      |
 | Google       | `google:gemini-3.5-flash`, `google:gemini-3.1-pro-preview`                         | `gemini`, `gemini-pro`             |
 
-If the job, the agent definition, and the configuration name no model, the loop uses `sonnet`. The agent definitions that a toolkit ships name no model, so the workspace that deploys the agent job selects the model for its provider.
+Background agents are tested on Anthropic and Azure OpenAI. The agents the harness ships are written and graded against those two. The other providers pydantic-ai supports are wired and reachable, with no test coverage of ours behind them.
 
-Azure OpenAI addresses a deployment on your own endpoint, not a shared model. It has no alias, and it needs `api_url` and `api_version` together with the model and the key. The `claude-agent-sdk` loop runs Anthropic models only, so naming it in a workspace whose key is Azure or Google breaks the run.
+A definition a toolkit ships names no model, so the same definition works whatever provider you have. The workspace deploying it picks one.
 
-Credentials for the provider go under the job's `agent` section, in `secrets.toml` or the environment. Without them, the provider's default environment variables are used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on):
+Azure OpenAI addresses a deployment on your own endpoint rather than a shared model, so it has no alias and needs `api_url` and `api_version` alongside the model and the key.
+
+The `claude-agent-sdk` loop runs Anthropic models only, so naming it in a workspace whose key is Azure or Google breaks the run.
+
+#### Which model a run uses
+
+Four places can name a model. The lowest row that names one wins:
+
+| Where             | Key or argument                                         | Set in                                                                                                    |
+| ----------------- | ------------------------------------------------------- | --------------------------------------------------------------------------------------------------------- |
+| Loop default      | `sonnet`, which resolves to `anthropic:claude-sonnet-5` | The `pydantic-ai` loop. It applies when nothing else names a model                                        |
+| Agent definition  | `defaults.model`                                        | `AGENT.md`, or `model=` on a decorated function's definition                                              |
+| Agent job         | `model=`                                                | `run.agent(...)` in `__deployment__.py`                                                                   |
+| Run configuration | `agent.model`                                           | `jobs.<section>.<job>.agent.model`, the workspace-wide `[agent]` block, `AGENT__MODEL`, `-c agent.model=` |
+
+Configuration beats the job, with no warning that it did. A workspace-wide `[agent] model` in `config.toml` or an `AGENT__MODEL` workspace variable therefore overrides `model=` on every agent job in the workspace, including a job that pins a model on purpose. To pin a model for one job and leave the rest on the workspace default, set it under that job's section:
+
+```toml
+# .dlt/config.toml
+[agent]
+model = "azure:my-gpt-deployment"      # every agent job in the workspace
+
+[jobs.__deployment__.job_inspector.agent]
+model = "anthropic:claude-sonnet-5"    # this one job
+```
+
+The loop logs the model and the endpoint it resolved to when the run starts: `Agent job-inspector runs anthropic:claude-sonnet-5 on the user endpoint`. Read that line, or `trace.model` in the job result, to see what a run actually used. A model name no provider recognizes fails the run with `UnsupportedAgentModel` rather than falling back.
+
+A decorated function driving the loop itself overrides all four for one run by passing `model=` to `loop.run()`.
+
+The limits follow the same order, with `max_turns: 50` as the loop default and no loop default for `max_tokens`.
+
+#### Bring your own model key
+
+`model`, `api_key`, `api_url`, and `api_version` are one set, and where you put them differs locally and on the platform. Bring a key of your own and every agent run bills your provider account. Nothing about the run is metered or capped on the dltHub side, so the limits in [`limits`](#declare-the-agent-job) are what bounds its cost.
+
+Locally there is no endpoint to fall back to, so a workspace with no key reachable fails each run where the loop builds the provider. The four go under the job's `agent` section in `secrets.toml`, or in the environment. Without `api_key` the provider's own environment variable is used (`ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, and so on), which keeps the key out of the workspace:
 
 ```toml
 # .dlt/secrets.toml
@@ -238,7 +289,7 @@ Azure OpenAI takes all four:
 model = "azure:my-gpt-deployment"
 api_key = "..."
 api_url = "https://my-resource.openai.azure.com"
-api_version = "2024-10-21"                   # the api-version your deployment serves
+api_version = "2024-12-01-preview"           # the api-version your deployment serves
 ```
 
 Azure is the only provider pydantic-ai gives `api_version`. Other providers ignore it and log a warning.
@@ -248,8 +299,18 @@ On the platform the runtime can supply a model endpoint of its own. `model`, `ap
 On the platform, set the four as workspace variables rather than in `secrets.toml`. They arrive on the runner as environment and override the file:
 
 ```sh
+printf '%s' 'anthropic:claude-sonnet-5' | dlthub variable set AGENT__MODEL --plain --workspace
 printf '%s' '<key>' | dlthub variable set AGENT__API_KEY --secret --workspace
 ```
+
+| Variable             | Anthropic                   | Azure OpenAI                           |
+| -------------------- | --------------------------- | -------------------------------------- |
+| `AGENT__MODEL`       | `anthropic:claude-sonnet-5` | `azure:<deployment name>`              |
+| `AGENT__API_KEY`     | your Anthropic key          | your Azure key                         |
+| `AGENT__API_URL`     | unset                       | `https://<resource>.openai.azure.com`  |
+| `AGENT__API_VERSION` | unset                       | the api-version your deployment serves |
+
+Set with `--workspace` these carry no profile and reach every agent job in the workspace, which is what you want for a key and what to watch for with the model. See [Which model a run uses](#which-model-a-run-uses).
 
 ### Deploy the agent job
 
@@ -321,6 +382,7 @@ When the run ends, the launcher prints and delivers the job result:
   "trace": {
     "loop_type": "pydantic-ai",
     "model": "anthropic:claude-sonnet-5",
+    "tools_used": ["Read", "Grep", "dlthub_job_runs_info", "dlthub_job_runs_logs"],
     "turn_count": 3,
     "total_tokens": 13215
   }
@@ -394,7 +456,7 @@ In the test above:
 2. The call returns the agent output, and you test it as any return value.
 3. `last_job_result` on the agent job holds the job result of the call: `type`, `job_ref`, `status`, `summary`, `result`, the agent trace with the tools and tokens used, and `object`. dlt sends nothing to the platform. When you run several calls of the same agent job at once, for example with `asyncio.gather`, each call keeps its own job result while it runs, and `last_job_result` holds the one of the call that finished last.
 4. When your agent code calls a REST API, in `agent.py` or in the decorated function, mock it as in any other Python test.
-5. Unstructured fields such as `summary` can still be scored, with `jev` or a similar cheap scoring model.
+5. Unstructured fields such as `summary` can still be scored, by asking a cheap model to judge the text against the criteria you care about.
 
 ## Next steps
 

@@ -15,6 +15,16 @@ An agent definition consists of a system prompt and a declaration of the agent's
 
 An `AGENT.md` is better for three cases: an agent definition that is only a system prompt plus declarations, a definition that a toolkit ships, and a definition that people who don't write Python maintain. A Python function is better when the schemas come from Python types. It is also better when code runs around the loop: to derive an input, inspect the agent trace, run the loop twice, or not run it. A function can also drive an installed `AGENT.md` through `agent=`, so a toolkit definition keeps the system prompt while your code handles the rest.
 
+## Write it with your coding agent
+
+The `create-background-agent` skill ships with the base `init` toolkit, so every dltHub workspace has it without an install. Describe the agent you want:
+
+> Write a background agent that checks each morning which of my jobs failed overnight and reports what they have in common.
+
+The skill covers the frontmatter fields, the `access` decision, the output contract, and the system prompt body. It shows you the deployment plan before it writes the `run.agent(...)` call. It routes you elsewhere in three cases: the work is deterministic and belongs in a plain job, a single failure needs diagnosing right now, or what you want is a subagent of your coding agent in `.claude/agents/`, which runs inside a conversation.
+
+The rest of this page is the reference behind that skill. Read it to review what the skill wrote, or to write a definition by hand.
+
 ## Agent definition in an `AGENT.md` file
 
 `dlthub ai toolkit install` copies a toolkit's agent definitions to `.claude/dlthub/agents/<toolkit>/<name>/AGENT.md` (`.cursor/dlthub/agents/` or `.agents/dlthub/agents/` for the other hosts), so two toolkits can ship an agent with the same name. Coding agents don't scan this folder for their own subagents. You can also keep an `AGENT.md` in any folder of the workspace and refer to it by its path.
@@ -25,9 +35,10 @@ The YAML frontmatter holds the declarations and the Markdown body is the system 
 ---
 name: job-inspector
 description: Inspects a failed job run and reports a diagnosis with a proposed fix. Read-only.
-tools: [jobs, logs, telemetry]              # feature groups of the dltHub MCP server
+# feature groups of the dltHub MCP server, not the same names as the access axes
+tools:  [jobs, logs, telemetry, workspace, secrets, config]
 skills: [dlthub-platform:debug-deployment]  # loaded on demand or inlined
-rules:  [dlthub-platform:job-resources]     # always inlined into the prompt
+rules:  [init:dlthub-workspace, dlthub-platform:job-resources, dlthub-platform:profiles]
 
 access:                                     # what the agent may read, write, or run
   local:   [read]                           # read | write | execute | network
@@ -51,6 +62,7 @@ output:
   type: object
   properties:
     status:
+      type: string
       enum: [succeeded, failed, aborted]
       description: Outcome of your task, as defined in your system prompt
     summary:
@@ -60,9 +72,11 @@ output:
       type: string
       entity_type: job-runs
     classification:
+      type: string
       enum: [config, credentials, upstream_data, code, resources, transient, unknown]
       description: The kind of failure, as defined in the "Classification" section of your system prompt
     confidence:
+      type: string
       enum: [high, medium, low]
       description: How well the evidence supports the classification. `low` whenever the classification is `unknown`
     evidence:
@@ -73,7 +87,8 @@ output:
           source: { type: string }          # with the line the excerpt sits on
           excerpt: { type: string }
           provenance:
-            enum: [run_log, run_record, trace, job_definition, workspace_file, inference]
+            type: string
+            enum: [run_log, run_record, trace, job_definition, workspace_file, secrets_redacted, inference]
     proposed_fix:
       type: string
       description: What a human should do next, naming the target and the change. You never apply it
@@ -125,7 +140,7 @@ The body refers to inputs as `{{ name }}`. It can also refer to the run itself: 
 
 ### Entity-typed inputs and outputs
 
-An input that names a workspace object carries `entity_type`: `job-runs`, `job`, `pipeline`, `dataset`, or `workspace`. The agent receives the bare id (a run id, a [job ref](index.md#job-refs), a pipeline name). Declaring the type does two things:
+An input that names a workspace object carries `entity_type`: `job-runs`, `job`, `pipeline`, `dataset`, or `workspace`. The agent receives the bare id (a run id, a [job ref](index.md#job-refs), a pipeline name). dlt still accepts `job-run`, the old spelling of `job-runs`, and passes it on unchanged. Write `job-runs`: the old spelling is going away. Declaring the type does two things:
 
 1. The job run reports the entity in its job result, so the run shows up on that entity's page in the Web UI.
 2. The first entity-typed input becomes `expose.object_input` in the deployment manifest. The Web UI reads it to link agent jobs to entities. On the row of a job run, it opens the latest agent run that investigated that run.
@@ -151,7 +166,12 @@ dltHub replaces any declaration of `status` or `summary` that differs from the s
 Keep the schema small. A large one can stop a platform run before the container launches, with no error, no logs, and no start time on the run record. Stay under about 8,000 characters of JSON: flatten nested models and drop the fields the `summary` already covers.
 :::
 
-The schema reaches the model as declared, except that `entity_type` moves into `$comment`. Anthropic's structured output rejects `minimum`, `maximum`, and `minLength`, so put numeric bounds in the field description instead.
+The schema reaches the model as declared, with these exceptions:
+
+- `entity_type` moves into `$comment`.
+- Anthropic's structured output rejects `minimum`, `maximum`, and `minLength`. Put numeric bounds in the field description instead.
+- Anthropic also rejects a property that carries an `enum` and no `type`. Declare `type: string` next to every `enum`. dlt fills the type on `status` alone.
+- A bare `type: object` means "any object", which OpenAI's structured output refuses. Name the `properties` of every object, including the ones your Python code fills after the run.
 
 This data-quality agent reports a verdict on the run it checked:
 
@@ -160,6 +180,7 @@ output:
   type: object
   properties:
     verdict:
+      type: string
       enum: [pass, warn, fail]
       description: pass when every check passed, warn when only soft checks failed, fail otherwise
     checked_run_id:
@@ -189,14 +210,16 @@ If your agent reports something else, declare your own headings in the body.
 
 `access` is declared per axis. An axis is an area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry. Each axis takes one verb or a list of verbs, and an axis that you leave out declares no access. With no `access` at all, the agent gets no file tools and no shell. If `tools` starts an MCP server, the server serves only the tools that need no access, such as the toolkit catalog.
 
-| Axis      | Verbs           | Grants                                                                                                                                                                                        |
-| --------- | --------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                                                 |
-|           | `write`         | `Write`, `Edit`                                                                                                                                                                               |
-|           | `execute`       | `Bash` (`PowerShell` on Windows), and on `pydantic-ai` also `RunPython`, in the workspace                                                                                                     |
-|           | `network`       | `WebFetch`, `WebSearch`                                                                                                                                                                       |
-| `data`    | `read`, `write` | Workspace data through the data tools of the MCP server. The data tools need `read`, and no tool needs `write` yet. The SQL tool runs one read-only statement, whatever verbs `data` declares |
-| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. dlt refuses `write`, `execute`, and `deploy` when it reads the agent definition                                            |
+The `context` axis and the `context` feature group of `tools` are different declarations that share a name. The axis says the agent may read platform records. The group names a set of MCP tools, listed under [Tools, skills, and rules](#tools-skills-and-rules). A tool is offered only when both cover it: the group puts it on the server, the axis permits it.
+
+| Axis      | Verbs           | Grants                                                                                                                                                                              |
+| --------- | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `local`   | `read`          | `Read`, `Glob`, `Grep` on the workspace files                                                                                                                                       |
+|           | `write`         | `Write`, `Edit`                                                                                                                                                                     |
+|           | `execute`       | `Bash` (`PowerShell` on Windows), and on `pydantic-ai` also `RunPython`, in the workspace                                                                                           |
+|           | `network`       | `WebFetch`, `WebSearch`. On `pydantic-ai` with an Anthropic model the provider serves these, see below                                                                              |
+| `data`    | `read`, `write` | Workspace data through the data tools of the MCP server. `read` offers the read tools only and holds the SQL tool to a single `SELECT`. Mapping `write` to a dlt profile is planned |
+| `context` | `read`          | Runs, logs, job definitions, and telemetry through the MCP server. `read` is the only verb a runtime serves today, so dlt refuses `write`, `execute`, and `deploy` at manifest time |
 
 `all` is shorthand for every verb on an axis. `local` maps to the same toolset on both loops, under the names Claude Code uses. Credential files (`*secrets.toml`, `.env`, `.env.*`) are never readable by a file tool, whatever verbs `local` declares. The job runner carries no `curl`, so an agent with `execute` makes an HTTP request from Python with `urllib`: through `RunPython` on `pydantic-ai`, through `python` in `Bash` on `claude-agent-sdk`.
 
@@ -210,7 +233,7 @@ Write the policy into the body as well. "You are read-only" in the system prompt
 
 ### Tools, skills, and rules
 
-`tools` lists feature groups of the dltHub MCP server: `workspace`, `pipeline`, `toolkit`, `secrets`, `context`, on the platform `jobs`, `logs`, `telemetry`, plus groups other plugins contribute. The agent receives exactly the groups listed, and within a group only the tools its `access` covers. Without `tools` no server is started.
+`tools` lists feature groups of the dltHub MCP server: `workspace`, `pipeline`, `toolkit`, `secrets`, `config`, `context`, on the platform `jobs`, `logs`, `telemetry`, plus groups other plugins contribute. `secrets` is how an agent sees credentials: it serves the names and a redacted view, and the tool that writes a fragment needs `local: write` and is dropped without it. `config` serves the workspace variables. The agent receives exactly the groups listed, and within a group only the tools its `access` covers. Without `tools` no server is started.
 
 `skills` and `rules` reference components of an installed toolkit as `<toolkit>:<name>`, or a workspace-relative path such as `.claude/skills/my-skill/SKILL.md`. Both loops inline the rules into the system prompt. `claude-agent-sdk` lists the skills by name and loads a skill when the agent calls it, as Claude Code does. `pydantic-ai` inlines the text of the skills. The agent receives only the listed components. Other skills and rules installed in the workspace, including the `.claude/rules` folder, aren't loaded. If a reference doesn't resolve, dlt logs a warning and skips it.
 
@@ -289,7 +312,7 @@ def validate_output(output):
 The agent folder is imported as a package, so `agent.py` can import the files next to it relatively. Two agents can each ship a `checks.py` without a conflict. `agent.py` is imported afresh for every run, so a module variable can carry what `validate_input` found to `validate_output` within one run:
 
 ```py notype nolint
-# agents/job-inspector-eval/agent.py
+# agents/<name>/agent.py
 from .checks import prepare, finalize
 
 _prep = None
@@ -333,7 +356,7 @@ class CrashReport(run.TAgentOutput):
     access={"local": ["read"], "context": ["read"]},
     tools=["telemetry"],
     skills=["dlthub-platform:debug-deployment"],
-    trigger="job.fail:*",
+    trigger="job.fail:tag:ingest",
     require={"profile": "access"},
     limits={"max_turns": 30},
 )

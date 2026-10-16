@@ -129,7 +129,7 @@ The agent definition declares no `execute`, so the agent job runs up to 5 runs a
 
 The agent definition declares no trigger. An agent job without `trigger=` runs only when you start it. To inspect every failed job in the workspace, declare `trigger="job.fail:*"`, and read the warning below first.
 
-The agent definition names no model. The model comes from the agent job or from configuration. If neither sets a model, the loop uses `sonnet`. On the platform, the runtime can supply its own model. See [Model and credentials](index.md#model-and-credentials). Give it one at least as capable as Claude Sonnet 5.
+The agent definition names no model. The model comes from the agent job or from configuration, and the key is yours on the platform as it is locally. If neither sets a model, the loop uses `sonnet`. Give it one at least as capable as Claude Sonnet 5. See [Model and credentials](index.md#model-and-credentials).
 
 :::warning
 Do not give two agent jobs the trigger `job.fail:*`. `job.fail:*` selects every batch job in the workspace, agent jobs included. It never selects the job that declares it, so the inspector never triggers on its own failures. But a failed run of agent job A starts agent job B, and a failed run of B starts A. The loop does not stop. An agent run that ends `aborted` also counts as a failed job run. To limit the inspector to the jobs that it must watch, use a tag or section selector such as `job.fail:tag:ingest`, or `job.fail:pipeline_name:*` to watch every job declared with `@run.pipeline`. Excluding agent jobs from wide selectors is planned.
@@ -158,7 +158,7 @@ dlthub local run job_inspector -c failed_run_id=<run-id> -c agent.model=sonnet
 
 ## Guardrails
 
-- **Reads, never writes.** The agent definition declares `local: [read]` and `context: [read]`. The agent gets `Read`, `Glob`, and `Grep` over workspace files. Through the dltHub MCP server, it reads runs, logs, job definitions, telemetry, and the redacted view of secrets and variables.
+- **Reads, never writes.** The agent definition declares `local: [read]` and `context: [read]`. The agent gets `Read`, `Glob`, and `Grep` over workspace files. It declares the feature groups `jobs`, `logs`, `telemetry`, `workspace`, `secrets`, and `config`, so through the dltHub MCP server it reads runs, logs, job definitions, telemetry, and the names and redacted values of secrets and variables. `secrets` serves no tool that writes, because writing one needs `local: write`.
 - **No shell.** The agent definition declares no `execute` verb. The deny rules for credential files apply only to the file tools. A shell can read those files, and it can run the inspected job again.
 - **No destination access.** The agent definition declares no `data` axis, so the agent can't query your data. A diagnosis uses run records, logs, job definitions, the dlt trace, workspace source, and the redacted view of secrets and variables. When the cause depends on the data in a table, the agent adds this to `open_points`. It names the table or the record that a person must read.
 - **No changes to your workspace.** The system prompt also forbids changes, in addition to the declared access: the agent doesn't edit code, deploy, cancel, or rerun a job. A person applies the proposed fix.
