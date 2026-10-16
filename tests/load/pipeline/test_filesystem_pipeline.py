@@ -4,7 +4,6 @@ import posixpath
 from pathlib import Path
 from typing import Any, Callable, List, Dict, cast
 
-from pytest_mock import MockerFixture
 import dlt
 import pytest
 
@@ -302,7 +301,7 @@ TEST_LAYOUTS = (
 
 @pytest.mark.parametrize("layout", TEST_LAYOUTS)
 def test_filesystem_destination_extended_layout_placeholders(
-    layout: str, default_buckets_env: str, mocker: MockerFixture
+    layout: str, default_buckets_env: str
 ) -> None:
     data = load_json_case("simple_row")
     call_count = 0
@@ -327,12 +326,6 @@ def test_filesystem_destination_extended_layout_placeholders(
     os.environ["DESTINATION__FILESYSTEM__BUCKET_URL"] = get_test_storage_root()
     os.environ["DATA_WRITER__DISABLE_COMPRESSION"] = "TRUE"
 
-    # the reason why we are patching pendulum.from_timestamp is that
-    # we are checking if the load package under a given path exists
-    # so we have to mock this out because there will difference in
-    # calculated timestamps thus will make the test flaky due to
-    # small differences in timestamp calculations
-    mocker.patch("pendulum.from_timestamp", return_value=now)
     fs_destination = filesystem(
         layout=layout,
         extra_placeholders=extra_placeholders,
@@ -364,6 +357,8 @@ def test_filesystem_destination_extended_layout_placeholders(
                 expected_files.add(Path(posixpath.join(basedir, file)))
 
     for load_package in load_info.load_packages:
+        # the destination renders the creation time of the load package
+        created_at = pipeline.get_load_package_state(load_package.load_id)["created_at"]
         for load_info in load_package.jobs["completed_jobs"]:  # type: ignore[assignment]
             job_info = ParsedLoadJobFileName.parse(load_info.file_path)  # type: ignore[attr-defined]
             # state file gets loaded a differentn way
@@ -375,7 +370,7 @@ def test_filesystem_destination_extended_layout_placeholders(
                 schema_name="test_extended_layouts",
                 load_id=load_package.load_id,
                 current_datetime=now,
-                load_package_timestamp=load_info.created_at.to_iso8601_string(),  # type: ignore[attr-defined]
+                load_package_timestamp=created_at,
                 extra_placeholders=extra_placeholders,
             )
             full_path = posixpath.join(client.dataset_path, path)  # type: ignore[attr-defined]
