@@ -1558,6 +1558,42 @@ def test_explicit_on_with_filtered_side(
     assert list(df["orders__amount"]) == expected_amounts
 
 
+@pytest.mark.parametrize(
+    "build_join,name_column",
+    [
+        pytest.param(
+            lambda ds: ds.query("SELECT g.n FROM generate_series(1, 2) AS g(n)").join(
+                ds.table("customers"), on="g.n = customers.customer_id"
+            ),
+            "customers__name",
+            id="table-function-lhs",
+        ),
+        pytest.param(
+            lambda ds: ds.table("customers").join(
+                ds.query("SELECT g.n FROM generate_series(1, 2) AS g(n)"),
+                on="customers.customer_id = g.n",
+            ),
+            "name",
+            id="table-function-rhs",
+        ),
+        pytest.param(
+            lambda ds: ds.query("SELECT v.a FROM (VALUES (1), (2)) AS v(a)").join(
+                ds.table("customers"), on="v.a = customers.customer_id"
+            ),
+            "customers__name",
+            id="values-lhs",
+        ),
+    ],
+)
+def test_explicit_on_with_table_function_source(
+    dataset_with_relational_tables: dlt.Dataset,
+    build_join: Callable[[dlt.Dataset], dlt.Relation],
+    name_column: str,
+) -> None:
+    df = build_join(dataset_with_relational_tables).df()
+    assert sorted(df[name_column]) == ["Alice", "Bob"]
+
+
 def test_explicit_on_does_not_mutate_transformed_rhs(
     dataset_with_relational_tables: dlt.Dataset,
 ) -> None:

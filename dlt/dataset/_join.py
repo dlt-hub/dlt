@@ -424,12 +424,13 @@ def _apply_join(
 def _qualify_unscoped_tables_with_dataset(expression: sge.Expression, dataset_name: str) -> None:
     """Set the logical `dataset_name` qualifier on table references that lack one.
 
-    Skips CTE references; physical (normalized) dataset resolution happens later in `bind_query`.
+    Skips CTE references and table functions; physical (normalized) dataset resolution happens
+    later in `bind_query`.
     """
     cte_names = {cte.alias_or_name for cte in expression.find_all(sge.CTE)}
     db_identifier = sge.to_identifier(dataset_name, quoted=False)
     for table in expression.find_all(sge.Table):
-        if table.name in cte_names:
+        if table.name in cte_names or extract_table_qualifier(table) is None:
             continue
         if table.args.get("db"):
             continue
