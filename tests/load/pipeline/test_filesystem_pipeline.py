@@ -6,6 +6,7 @@ from typing import Any, Callable, List, Dict, cast
 
 from pytest_mock import MockerFixture
 import dlt
+import pyarrow as pa
 import pytest
 
 from dlt.common import json
@@ -14,6 +15,7 @@ from dlt.common.configuration import resolve_configuration
 from dlt.common.configuration.providers import EnvironProvider
 from dlt.common.configuration.specs import AzureServicePrincipalCredentials
 from dlt.common.configuration.specs.aws_credentials import AwsCredentials
+from dlt.common.libs.pyarrow import get_nested_column_type_from_py_arrow
 from dlt.common.normalizers.json.relational import DataItemNormalizer
 from dlt.common.schema.typing import C_DLT_ID, C_DLT_LOAD_ID, TFileFormat, TPartialTableSchema
 from dlt.common.storages.load_package import ParsedLoadJobFileName
@@ -40,6 +42,41 @@ from tests.utils import get_test_storage_root, inject_providers
 
 
 skip_if_not_active("filesystem")
+
+
+def test_pipeline_state_with_native_nested_type(tmp_path: Path) -> None:
+    import pyarrow.parquet as pq
+
+    nested_type = pa.struct([pa.field("amount", pa.float64()), pa.field("currency", pa.string())])
+
+    @dlt.resource(
+        columns={
+            "amount_obj": {
+                "name": "amount_obj",
+                "nullable": True,
+                **get_nested_column_type_from_py_arrow(nested_type),
+            }
+        }
+    )
+    def items():
+        yield {"id": 1, "amount_obj": {"amount": 1.5, "currency": "EUR"}}
+
+    pipeline = dlt.pipeline(
+        pipeline_name="native_nested_type",
+        pipelines_dir=str(tmp_path),
+        destination=filesystem(bucket_url=tmp_path.joinpath("bucket").as_uri()),
+        dataset_name="dataset",
+    )
+
+    pipeline.run(items(), loader_file_format="parquet")
+
+    client: FilesystemClient = pipeline.destination_client()  # type: ignore[assignment]
+    [items_file] = client.list_table_files("items")
+    with open(items_file, "rb") as f:
+        table = pq.read_table(f)
+
+    assert table.schema.field("amount_obj").type == nested_type
+    assert table.column("amount_obj").to_pylist() == [{"amount": 1.5, "currency": "EUR"}]
 
 
 def test_pipeline_merge_write_disposition(default_buckets_env: str) -> None:
