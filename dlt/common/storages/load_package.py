@@ -95,8 +95,8 @@ class TLoadPackageDropTablesState(TypedDict):
 
 
 class TLoadPackageState(TVersionedState, TLoadPackageDropTablesState, total=False):
-    created_at: DateTime
-    """Timestamp when the load package was created"""
+    created_at: datetime.datetime
+    """Timestamp when the load package was created, in UTC"""
     pipeline_state: NotRequired[TPipelineStateDoc]
     """Pipeline state, added at the end of the extraction phase"""
 
@@ -707,7 +707,9 @@ class PackageStorage:
                 created_at = float(load_id)
             except Exception:
                 created_at = precise_time()
-            state["created_at"] = pendulum.from_timestamp(created_at)
+            state["created_at"] = datetime.datetime.fromtimestamp(
+                created_at, tz=datetime.timezone.utc
+            )
         self.save_load_package_state(load_id, state)
         if schema:
             self.save_schema(load_id, schema)

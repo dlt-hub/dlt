@@ -1,3 +1,4 @@
+import datetime  # noqa: I251
 import os
 import pytest
 import semver
@@ -182,6 +183,8 @@ def test_create_package(load_storage: LoadStorage) -> None:
     # get state, created at must be == load_id
     state = package_storage.get_load_package_state(load_id)
     assert state["created_at"] == pendulum.from_timestamp(float(load_id))
+    assert type(state["created_at"]) is datetime.datetime
+    assert state["created_at"].tzinfo is datetime.timezone.utc
     # assume those few lines execute in less than a second
     assert pendulum.now().diff(state["created_at"]).total_seconds() < 1
 
