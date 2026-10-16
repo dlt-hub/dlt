@@ -155,11 +155,33 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
         ("day = {day} AND n > {n}", "day = '2024-01-01' AND n > 3"),
         ("ts >= {since}", "ts >= '2024-01-01T12:00:00'"),
         ("name LIKE '{{x}}%'", "name LIKE '{x}%'"),
+        ("day IN {days}", "day IN ('2024-01-01', '2024-01-02')"),
+        ("tenant IN {tenants}", "tenant IN ('O''B', 'A')"),
+        ("ts IN {stamps}", "ts IN ('2024-01-01T11:00:00+00:00')"),
+        ("day IN {no_days}", "day IN (NULL)"),
     ],
-    ids=["identifier_and_string", "date_and_int", "naive_datetime", "literal_brace"],
+    ids=[
+        "identifier_and_string",
+        "date_and_int",
+        "naive_datetime",
+        "literal_brace",
+        "list_of_dates",
+        "tuple_of_strings",
+        "list_of_aware_datetimes",
+        "empty_list",
+    ],
 )
 def test_expand_merge_condition(condition: str, expected: str) -> None:
-    values = {"tenant": "O'B", "day": date(2024, 1, 1), "n": 3, "since": datetime(2024, 1, 1, 12)}
+    values = {
+        "tenant": "O'B",
+        "day": date(2024, 1, 1),
+        "n": 3,
+        "since": datetime(2024, 1, 1, 12),
+        "days": [date(2024, 1, 1), date(2024, 1, 2)],
+        "tenants": ("O'B", "A"),
+        "stamps": [datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin"))],
+        "no_days": [],
+    }
     expanded = expand_merge_condition(
         "destination_scope", condition, {"table": '"t"'}, values, escape_snowflake_literal
     )

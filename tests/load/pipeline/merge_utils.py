@@ -1,7 +1,8 @@
 """Helpers and data for the merge strategy tests."""
 
-from datetime import datetime, timezone  # noqa: I251
-from typing import Any, Dict, List, Optional, Sequence
+from collections import Counter
+from datetime import date, datetime, timezone  # noqa: I251
+from typing import Any, Dict, List, Optional, Sequence, Set, Tuple
 
 import dlt
 from dlt.common.pipeline import LoadInfo
@@ -16,8 +17,9 @@ from dlt.common.time import (
     normalize_timezone,
     reduce_datetime_precision,
 )
-from dlt.common.typing import TAnyDateTime, TColumnNames
+from dlt.common.typing import DictStrAny, TAnyDateTime, TColumnNames
 from dlt.extract import DltResource, DltSource
+from dlt.sources.helpers.transform import propagate_to_nested
 
 from tests.load.utils import DestinationTestConfiguration
 from tests.pipeline.utils import load_tables_to_dicts
@@ -106,6 +108,112 @@ def merge_resource(
         return items(part=part) if part else items
 
     return merge_source()
+
+
+EVENT_TABLES = (
+    "events",
+    "events__lines",
+    "events__lines__parts",
+    "events__lines__parts__serials",
+)
+EVENTS_PER_DAY = 3
+# `day` is a reserved word on Dremio
+EVENT_DAY_SCOPE = "event_day IN {days}"
+
+
+def day_events(days: Sequence[date], version: str, size: int = 2) -> List[DictStrAny]:
+    """`EVENTS_PER_DAY` events of each day in `days`, each with `size` lines, parts per line
+    and serials per part."""
+    return [
+        {
+            "id": f"{day.isoformat()}-{n}",
+            "event_day": day,
+            "version": version,
+            "lines": [
+                {
+                    "line": line,
+                    "parts": [
+                        {"part": part, "serials": [{"serial": s} for s in range(size)]}
+                        for part in range(size)
+                    ],
+                }
+                for line in range(size)
+            ],
+        }
+        for day in days
+        for n in range(EVENTS_PER_DAY)
+    ]
+
+
+def day_partitioned_events(data: List[DictStrAny], nested_scope: bool) -> DltSource:
+    """A source of `events` with three levels of nested tables. `propagate_to_nested` copies
+    `event_day` into the nested tables, and it is the partition column of all tables. The merge
+    replaces the days that `data` contains. With `nested_scope`, the nested tables select the
+    replaced rows by `event_day` too and have no root key."""
+    days: Set[date] = set()
+
+    def collect_day(item: DictStrAny) -> DictStrAny:
+        days.add(item["event_day"])
+        return item
+
+    def days_of(resource: DltResource, table_name: str) -> List[date]:
+        return sorted(days)
+
+    scope: Any = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": EVENT_DAY_SCOPE,
+    }
+    # ClickHouse rejects nullable partition keys
+    event_day: Any = {
+        "name": "event_day",
+        "data_type": "date",
+        "partition": True,
+        "nullable": False,
+    }
+    nested_hints: Any = {
+        path: dlt.mark.make_nested_hints(
+            columns=[event_day], write_disposition=scope if nested_scope else None
+        )
+        for path in ("lines", ("lines", "parts"), ("lines", "parts", "serials"))
+    }
+    root_disposition: Any = {**scope, "extra_placeholders": {"days": days_of}}
+    events = dlt.resource(
+        data,
+        name="events",
+        write_disposition=root_disposition,
+        columns=[event_day],
+        nested_hints=nested_hints,
+    )
+    events.add_map(collect_day).add_map(propagate_to_nested("event_day"))
+
+    # nested tables that delete by their own scope do not need the root key
+    @dlt.source(root_key=False if nested_scope else None)
+    def events_source() -> DltResource:
+        return events
+
+    return events_source()
+
+
+def assert_day_events(pipeline: dlt.Pipeline, expected: Dict[date, Tuple[str, int]]) -> None:
+    """Checks the version and the number of nested rows of the events of each day in
+    `expected`, and that nested rows have the `event_day` of their parent row."""
+    tables = load_tables_to_dicts(pipeline, *EVENT_TABLES)
+    # some destinations return dates as strings
+    to_day = lambda row: str(row["event_day"])[:10]  # noqa: E731
+    for parent_name, table_name in zip(EVENT_TABLES, EVENT_TABLES[1:]):
+        parent_days = {row["_dlt_id"]: to_day(row) for row in tables[parent_name]}
+        for row in tables[table_name]:
+            assert parent_days.get(row["_dlt_parent_id"]) == to_day(row)
+    counts = [Counter(to_day(row) for row in tables[name]) for name in EVENT_TABLES]
+    versions: Dict[str, Set[str]] = {}
+    for row in tables["events"]:
+        versions.setdefault(to_day(row), set()).add(row["version"])
+    observed = {day: (versions[day], *(count[day] for count in counts)) for day in versions}
+    assert observed == {
+        day.isoformat(): ({version}, *(EVENTS_PER_DAY * size**level for level in range(4)))
+        for day, (version, size) in expected.items()
+    }
 
 
 def merge_condition(

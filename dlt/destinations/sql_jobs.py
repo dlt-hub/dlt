@@ -510,14 +510,18 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
     @classmethod
     def get_merge_conditions(
-        cls, root_table: PreparedTableSchema, sql_client: SqlClientBase[Any]
+        cls,
+        root_table: PreparedTableSchema,
+        sql_client: SqlClientBase[Any],
+        table: Optional[PreparedTableSchema] = None,
     ) -> Tuple[Optional[str], Optional[str]]:
-        """Returns the `source_filter` and `destination_scope` of `root_table` with expanded
-        placeholders.
+        """Returns the `source_filter` and `destination_scope` of `table`, by default
+        `root_table`, with expanded placeholders. Nested tables use the values of `root_table`.
         """
+        table = table or root_table
         # `verify_schema_merge_disposition` verifies the placeholders before loading
-        source_filter = cast(Optional[str], root_table.get("x-merge-source-filter"))
-        destination_scope = cast(Optional[str], root_table.get("x-merge-destination-scope"))
+        source_filter = cast(Optional[str], table.get("x-merge-source-filter"))
+        destination_scope = cast(Optional[str], table.get("x-merge-destination-scope"))
         values = get_merge_placeholder_values(root_table["name"])
         caps = sql_client.capabilities
         expand = partial(
@@ -530,11 +534,11 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         if source_filter:
             source_filter = expand("source_filter", source_filter, {})
         if destination_scope:
-            table, staging_table = sql_client.get_qualified_table_names(root_table["name"])
+            table_name, staging_table_name = sql_client.get_qualified_table_names(table["name"])
             destination_scope = expand(
                 "destination_scope",
                 destination_scope,
-                {"table": table, "staging_table": staging_table},
+                {"table": table_name, "staging_table": staging_table_name},
             )
         return source_filter, destination_scope
 
@@ -850,6 +854,28 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             # only the destination scope selects rows, so the destination can prune partitions
             for table in table_chain[1:]:
                 nested_table_name = sql_client.make_qualified_table_name(table["name"])
+                _, nested_scope = cls.get_merge_conditions(root_table, sql_client, table)
+                if nested_scope is not None:
+                    # the scope of a nested table selects the nested rows of the replaced root
+                    # rows (ie. on a propagated column), so it can prune nested partitions too
+                    nested_row_key_column = escape_column_id(
+                        cls.get_row_key_col(
+                            table_chain,
+                            table,
+                            sql_client.fully_qualified_dataset_name(),
+                            sql_client.fully_qualified_dataset_name(staging=True),
+                        )
+                    )
+                    sql.extend(
+                        cls.gen_delete_where_sql(
+                            nested_table_name,
+                            nested_scope,
+                            [nested_row_key_column],
+                            sql_client,
+                            has_nested_subquery=True,
+                        )
+                    )
+                    continue
                 root_key_column = escape_column_id(
                     cls.get_root_key_col(
                         table_chain,

@@ -77,6 +77,11 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             # only the destination scope selects rows, so the destination can prune partitions
             for table in table_chain[1:]:
                 chain_table_obj = sql_client.get_existing_table(table["name"])
+                _, nested_scope = cls.get_merge_conditions(root_table, sql_client, table)
+                if nested_scope is not None:
+                    # the nested scope selects the nested rows of the replaced root rows
+                    sqla_statements.append(chain_table_obj.delete().where(sa.text(nested_scope)))
+                    continue
                 root_key_name = get_root_key_col_name(table)
                 # the merge selects nested rows by their root rows, so it deletes them first
                 sqla_statements.append(

@@ -158,19 +158,28 @@ def expand_merge_condition(
     timestamp_precision: int = 6,
 ) -> str:
     """Expands identifier placeholders as they are and value placeholders as escaped literals.
-    A `datetime` value is converted with `to_literal_datetime_utc`.
+    A `datetime` value is converted with `to_literal_datetime_utc`. A list or tuple value expands
+    to a list of literals for `IN`, an empty one to `(NULL)`.
 
     Raises `ValueError` if `filter_` uses a placeholder that has no identifier or value.
     """
+
+    def _to_literal(value: Any) -> Any:
+        if isinstance(value, datetime):
+            value = to_literal_datetime_utc(value, supports_tz_aware_datetime, timestamp_precision)
+        return escape_literal(value)
+
     validate_merge_condition(hint_name, filter_, [*identifiers, *values])
     literals: Dict[str, Any] = {}
     for name in _get_condition_placeholders(hint_name, filter_):
         if name in identifiers:
             continue
         value = values[name]
-        if isinstance(value, datetime):
-            value = to_literal_datetime_utc(value, supports_tz_aware_datetime, timestamp_precision)
-        literals[name] = escape_literal(value)
+        if isinstance(value, (list, tuple)):
+            # `IN ()` is not valid SQL, `IN (NULL)` matches no rows
+            literals[name] = f"({', '.join(map(str, map(_to_literal, value))) or 'NULL'})"
+        else:
+            literals[name] = _to_literal(value)
     return filter_.format(**identifiers, **literals)
 
 

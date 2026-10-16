@@ -20,6 +20,7 @@ from dlt.common.schema.typing import (
 from dlt.common.schema.utils import (
     get_columns_names_with_prop,
     get_first_column_name_with_prop,
+    get_root_table,
     has_column_with_prop,
     is_nested_table,
     pipeline_state_table,
@@ -172,6 +173,41 @@ def verify_unsupported_merge_options(
     return exception_log
 
 
+def _verify_nested_destination_scope(
+    schema: Schema,
+    table: PreparedTableSchema,
+    capabilities: DestinationCapabilitiesContext,
+    destination_scope_placeholders: Sequence[str],
+) -> List[Exception]:
+    root_table = get_root_table(schema.tables, table["name"])
+    merge_strategy = resolve_merge_strategy(schema.tables, root_table, capabilities)
+    if merge_strategy is None:
+        # the root table reports that the destination does not merge, ie. a staging filesystem
+        return []
+    if merge_strategy != "delete-insert" or "x-merge-destination-scope" not in root_table:
+        return [
+            SchemaCorruptedException(
+                schema.name,
+                f"Nested table `{table['name']}` has `destination_scope`. dlt uses it only with"
+                " the `delete-insert` merge strategy and when the root table"
+                f" `{root_table['name']}` has `destination_scope`.",
+            )
+        ]
+    try:
+        validate_merge_condition(
+            "destination_scope",
+            cast(str, table["x-merge-destination-scope"]),  # type: ignore[typeddict-item]
+            [
+                *destination_scope_placeholders,
+                *MERGE_CONDITION_VALUE_PLACEHOLDERS,
+                *get_merge_placeholder_values(root_table["name"]),
+            ],
+        )
+    except ValueError as scope_ex:
+        return [SchemaCorruptedException(schema.name, f"Table `{table['name']}`: {scope_ex}")]
+    return []
+
+
 def verify_schema_merge_disposition(
     schema: Schema,
     load_tables: Sequence[PreparedTableSchema],
@@ -189,8 +225,13 @@ def verify_schema_merge_disposition(
 
     # verifies schema settings specific to sql job client
     for table in load_tables:
-        # from now on validate only top level tables
         if is_nested_table(table):
+            if "x-merge-destination-scope" in table:
+                exception_log.extend(
+                    _verify_nested_destination_scope(
+                        schema, table, capabilities, destination_scope_placeholders
+                    )
+                )
             continue
 
         table_name = table["name"]

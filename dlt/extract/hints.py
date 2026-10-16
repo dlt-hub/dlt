@@ -430,6 +430,8 @@ class DltResourceHints:
             elif nested_write_disposition := nested_table_schema.get("write_disposition"):
                 root_table_template, _, _ = self._get_root_table_template(meta)
                 write_disposition = root_table_template.get("write_disposition")
+                if isinstance(write_disposition, dict):
+                    write_disposition = write_disposition["disposition"]
                 # TODO: write_disposition may also be a callable, in that case generate warning as well
                 if nested_write_disposition != write_disposition:
                     logger.warning(
@@ -645,8 +647,17 @@ class DltResourceHints:
         DltResourceHints.validate_write_disposition_hint(hints_template)
         nested_hints = hints_template.get("nested_hints")
         if isinstance(nested_hints, dict):
+            # nested tables use the placeholder values of the root table
+            root_wd = hints_template.get("write_disposition")
+            root_placeholders = (
+                list(cast(Dict[str, Any], root_wd).get("extra_placeholders") or {})
+                if isinstance(root_wd, dict)
+                else []
+            )
             for nested_hint in nested_hints.values():
-                DltResourceHints.validate_write_disposition_hint(cast(TResourceHints, nested_hint))
+                DltResourceHints.validate_write_disposition_hint(
+                    cast(TResourceHints, nested_hint), inherited_placeholders=root_placeholders
+                )
         DltResourceHints.validate_reference_hint(hints_template)
         if create_table_variant:
             # for table variants, table name must be a str
@@ -863,7 +874,11 @@ class DltResourceHints:
             )
 
     @staticmethod
-    def validate_write_disposition_hint(template: TResourceHints) -> None:
+    def validate_write_disposition_hint(
+        template: TResourceHints, *, inherited_placeholders: Sequence[str] = ()
+    ) -> None:
+        """Validates the merge options of `template`. Merge conditions may also use
+        `inherited_placeholders`, ie. the root `extra_placeholders` in nested hints."""
         wd = template.get("write_disposition")
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             # the keys depend on the strategy, as `TWriteDispositionConfig` defines
@@ -898,7 +913,7 @@ class DltResourceHints:
                     f" `upsert`, `cdc` merge strategies, not with `{strategy}`. Use one of these"
                     " strategies or remove `extra_placeholders`."
                 )
-            placeholders = [*reserved, *extra_placeholders]
+            placeholders = [*reserved, *extra_placeholders, *inherited_placeholders]
             for hint_name in ("source_filter", "destination_scope"):
                 if filter_ := md.get(hint_name):
                     validate_merge_condition(hint_name, cast(str, filter_), placeholders)

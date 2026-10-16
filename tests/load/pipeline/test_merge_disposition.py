@@ -43,6 +43,8 @@ from dlt.pipeline.exceptions import PipelineStepFailed
 from dlt.normalize.exceptions import NormalizeJobFailed
 
 from tests.load.pipeline.merge_utils import (
+    EVENT_DAY_SCOPE,
+    EVENT_TABLES,
     LOADED_RECORDS,
     NEW_BUCKET,
     NEW_BUCKET_SUBQUERY,
@@ -52,7 +54,10 @@ from tests.load.pipeline.merge_utils import (
     PARTITIONED_INPUT,
     PARTITIONED_TARGET,
     STORED_RECORDS,
+    assert_day_events,
     assert_nested_rows_have_parents,
+    day_events,
+    day_partitioned_events,
     load_ids_by_key,
     merge_condition,
     merge_resource,
@@ -3021,6 +3026,36 @@ def test_delete_insert_destination_scope_nested_tables(
     # 2 is not reloaded, so the scope deletes it with its nested rows
     load([{"id": 1, "part": "A", "child": [{"val": "c1_final"}]}])
     assert observed() == ([1, 3], ["c1_final", "c3", "c4"])
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize("nested_scope", [True, False], ids=["nested-scope", "root-scope-only"])
+def test_delete_insert_nested_destination_scope(
+    destination_config: DestinationTestConfiguration, nested_scope: bool
+) -> None:
+    """Replaces 2 of 5 days with fewer nested rows in three levels of nested tables. `event_day`
+    propagates to the nested tables, so their own scope deletes the same rows as the root key of
+    the replaced root rows, and they do not need the root key."""
+    p = destination_config.setup_pipeline("di_nested_scope", dev_mode=True)
+    all_days = [date(2026, 10, day) for day in range(1, 6)]
+    reloaded = [all_days[1], all_days[3]]
+
+    events = day_partitioned_events(day_events(all_days, "v1"), nested_scope)
+    assert_load_info(p.run(events, **destination_config.run_kwargs))
+    events = day_partitioned_events(day_events(reloaded, "v2", size=1), nested_scope)
+    assert_load_info(p.run(events, **destination_config.run_kwargs))
+
+    for table_name in EVENT_TABLES[1:]:
+        nested_table = p.default_schema.tables[table_name]
+        assert nested_table.get("x-merge-destination-scope") == (
+            EVENT_DAY_SCOPE if nested_scope else None
+        )
+        assert ("_dlt_root_id" in nested_table["columns"]) is not nested_scope
+    assert_day_events(p, {day: ("v2", 1) if day in reloaded else ("v1", 2) for day in all_days})
 
 
 @pytest.mark.parametrize(

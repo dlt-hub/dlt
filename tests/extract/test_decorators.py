@@ -1291,6 +1291,17 @@ def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str)
         "extra_placeholders": {"day": 1},
     }
     valid_resource.apply_hints(write_disposition=placeholders)
+    # a nested scope uses the placeholders of the root table
+    nested_scope: Any = {"disposition": "merge", "destination_scope": "day = {day}"}
+    valid_resource.apply_hints(
+        nested_hints={"sub": dlt.mark.make_nested_hints(write_disposition=nested_scope)}
+    )
+    unknown_scope: Any = {"disposition": "merge", "destination_scope": "day = {week}"}
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(
+            nested_hints={"sub": dlt.mark.make_nested_hints(write_disposition=unknown_scope)}
+        )
+    assert "unknown placeholders `{week}`" in str(py_ex.value)
 
 
 def test_custom_source_impl() -> None:
