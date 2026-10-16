@@ -614,6 +614,7 @@ const sidebars = {
         "examples/logfire_telemetry_export",
         "examples/nested_data",
         "examples/partial_loading",
+        "examples/partition_pruning",
         "examples/pdf_to_weaviate",
         "examples/postgres_to_postgres",
         "examples/propagate_hints",

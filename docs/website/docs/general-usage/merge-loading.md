@@ -651,6 +651,10 @@ def dim_customer():
 The boundary applies only to the load that declares it. dlt stores it in the load package, not in the schema, so a new boundary does not create a new schema version, and the next load without `boundary_timestamp` uses its own creation time. To set the boundary of a single run, use `apply_hints` before the run:
 
 ```py
+@dlt.resource(write_disposition={"disposition": "merge", "strategy": "scd2"})
+def dim_customer():
+    ...
+
 dim_customer.apply_hints(
     write_disposition={
         "disposition": "merge",
@@ -1129,6 +1133,8 @@ These conditions prevent partition pruning:
 - a subquery in the destination scope, for example `OR id IN (SELECT id FROM {staging_table})`
 - a function on the partition column, for example `DATE(date_col) = {day}` on a timestamp column
 
+To prune partitions based on the loaded data, also in nested tables, see the [partition pruning cookbook](../examples/partition_pruning.md).
+
 ### Use placeholders to match keys in one partition
 
 By default, dlt deletes all records that the destination scope selects. If the primary key is unique only within a partition, match the keys against the staging table. Then dlt deletes only the records that the load replaces:
@@ -1184,6 +1190,8 @@ If the table is partitioned by the load date, a destination scope like `"load_da
 :::caution
 The date placeholders give the date of the **load** in UTC, not the date of the data. A load that runs after midnight, or that carries late records, has a different date from its records. To replace the partitions of the data, set the value in `extra_placeholders`.
 :::
+
+A list or tuple value expands to a list of literals for `IN`. For example, `"event_day IN {days}"` expands to `event_day IN ('2026-10-02', '2026-10-04')`. An empty list expands to `(NULL)`, which matches no records.
 
 Set other values in `extra_placeholders`. A value is a constant or a function. dlt calls the function after the extract step, once for each table of the resource. The function receives the resource and the table name. It can read the arguments of the resource from `resource.explicit_args`, as in [Replacing a partition with `delete-insert`](#replacing-a-partition-with-delete-insert). For an [incremental](incremental-loading.md) resource, it can read `resource.incremental.incremental.last_value`, the highest cursor value of the load.
 
