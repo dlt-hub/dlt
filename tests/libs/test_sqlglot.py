@@ -20,6 +20,7 @@ from dlt.common.libs.sqlglot import (
     reorder_or_adjust_outer_select,
     normalize_query_identifiers,
     has_pure_column_projection,
+    where_on_output,
 )
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
 from dlt.common.schema.typing import TDataType, TColumnType, TTableSchemaColumns
@@ -767,6 +768,85 @@ def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
     sort_key = order.expressions[0].this
     assert isinstance(sort_key, sge.Column)
     assert sort_key.name == "c" and sort_key.table == DLT_SUBQUERY_NAME
+
+
+@pytest.mark.parametrize(
+    "query,predicate,expected",
+    [
+        pytest.param(
+            "SELECT a, b FROM t", "a = 1", "SELECT a, b FROM t WHERE a = 1", id="plain-columns"
+        ),
+        pytest.param(
+            "SELECT a FROM t", "b = 1", "SELECT a FROM t WHERE b = 1", id="column-not-in-output"
+        ),
+        pytest.param(
+            "SELECT a FROM t LIMIT 5",
+            "a > 1",
+            "SELECT a FROM t WHERE a > 1 LIMIT 5",
+            id="limit-applies-after-filter",
+        ),
+        pytest.param(
+            "SELECT a AS src, a * 10 AS a FROM t",
+            "a = 10",
+            "SELECT a AS src, a * 10 AS a FROM t WHERE (a * 10) = 10",
+            id="alias-shadows-source",
+        ),
+        pytest.param(
+            "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id",
+            "u__b = 1",
+            "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id WHERE u.b = 1",
+            id="joined-alias",
+        ),
+        pytest.param(
+            "SELECT a * 10 AS a FROM t",
+            "t.a = 1",
+            "SELECT a * 10 AS a FROM t WHERE t.a = 1",
+            id="qualified-column-binds-source",
+        ),
+        pytest.param(
+            "SELECT MAX(a) AS m FROM t",
+            "m > 1",
+            "SELECT t.* FROM (SELECT MAX(a) AS m FROM t) AS t WHERE m > 1",
+            id="aggregate",
+        ),
+        pytest.param(
+            "SELECT b, COUNT(*) AS n FROM t GROUP BY b",
+            "a > 1",
+            "SELECT b, COUNT(*) AS n FROM t WHERE a > 1 GROUP BY b",
+            id="group-by-filters-source-rows",
+        ),
+        pytest.param(
+            "SELECT a, ROW_NUMBER() OVER (ORDER BY a) AS rn FROM t",
+            "rn = 1",
+            "SELECT t.* FROM (SELECT a, ROW_NUMBER() OVER (ORDER BY a) AS rn FROM t) AS t WHERE"
+            " rn = 1",
+            id="window",
+        ),
+        pytest.param(
+            "SELECT MY_UDAF(a) AS m FROM t",
+            "m > 1",
+            "SELECT t.* FROM (SELECT MY_UDAF(a) AS m FROM t) AS t WHERE m > 1",
+            id="unknown-function",
+        ),
+        pytest.param(
+            "SELECT b, MAX(a) AS m FROM t GROUP BY b ORDER BY m LIMIT 2",
+            "m > 1",
+            "SELECT t.* FROM (SELECT b, MAX(a) AS m FROM t GROUP BY b) AS t WHERE m > 1 ORDER BY m"
+            " LIMIT 2",
+            id="order-and-limit-move-out",
+        ),
+        pytest.param(
+            "SELECT b, MAX(a) AS m FROM t GROUP BY b ORDER BY MIN(c) LIMIT 2",
+            "m > 1",
+            "SELECT b, MAX(a) AS m FROM t WHERE m > 1 GROUP BY b ORDER BY MIN(c) LIMIT 2",
+            id="order-key-not-in-output",
+        ),
+    ],
+)
+def test_where_on_output(query: str, predicate: str, expected: str) -> None:
+    """Unqualified predicate columns bind to the output of the query, other columns to its sources."""
+    filtered = where_on_output(cast(sge.Query, sqlglot.parse_one(query)), sge.condition(predicate))
+    assert filtered.sql() == expected
 
 
 def test_build_typed_literal_bool_produces_boolean_expression() -> None:

@@ -13,6 +13,7 @@ from dlt.common.schema.typing import TTableReference, TTableSchemaColumns
 from dlt.common.libs.sqlglot import (
     TSqlGlotDialect,
     aliased_subquery,
+    defines_rows,
     extract_table_qualifier,
     get_from_source,
     get_left_source_qualifier,
@@ -444,11 +445,7 @@ def _collect_source_qualifiers(query: sge.Query) -> Set[str]:
 
 
 def _is_flat_select(query: sge.Select) -> bool:
-    if any(
-        query.args.get(key) for key in ("group", "having", "qualify", "distinct", "limit", "offset")
-    ):
-        return False
-    return not any(sel.find(sge.AggFunc, sge.Window) for sel in query.selects)
+    return not defines_rows(query) and not any(query.args.get(key) for key in ("limit", "offset"))
 
 
 def _qualify_unscoped_predicate_columns(query: sge.Select, source_qualifier: str) -> None:

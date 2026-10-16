@@ -1336,3 +1336,67 @@ def wrap_as_derived_table(query: sge.Select, qualifier: str) -> sge.Select:
         .select(sge.Column(table=sge.to_identifier(qualifier), this=sge.Star()))
         .from_(aliased_subquery(query, qualifier))
     )
+
+
+def defines_rows(query: sge.Select) -> bool:
+    """True when grouping, DISTINCT, aggregates or windows produce the output rows."""
+    if any(query.args.get(key) for key in ("group", "having", "qualify", "distinct")):
+        return True
+    return any(sel.find(sge.AggFunc, sge.Window) for sel in query.selects)
+
+
+def _where_on_derived_table(query: sge.Select, predicate: sge.Expression) -> sge.Query:
+    """Filter the output of `query` embedded as a derived table."""
+    inner = query.copy()
+    qualifier = get_left_source_qualifier(inner) or DLT_SUBQUERY_NAME
+    outer = wrap_as_derived_table(inner, qualifier)
+    migrate_order_and_limit(inner, outer, qualifier)
+    if any(inner.args.get(key) for key in ("order", "limit", "offset")):
+        # ORDER BY on a column dropped by the projection can't move out of the derived table
+        return query.where(predicate)
+    return outer.where(predicate)
+
+
+def where_on_output(query: sge.Query, predicate: sge.Expression) -> sge.Query:
+    """Filter `query` by `predicate` whose unqualified columns refer to the output of `query`.
+
+    Columns that `query` does not output bind to its sources, as in a plain WHERE.
+    """
+    if not isinstance(query, sge.Select):
+        return query.where(predicate)
+    output_refs = [
+        col for col in predicate.find_all(sge.Column) if not col.table and col.parent_select is None
+    ]
+    if defines_rows(query):
+        # WHERE runs before grouping, aggregates and windows so it can't see their output
+        output_names = {sel.output_name for sel in query.selects}
+        has_star = any(sel.is_star for sel in query.selects)
+        if any(has_star or col.name in output_names for col in output_refs):
+            return _where_on_derived_table(query, predicate)
+        return query.where(predicate)
+
+    # WHERE reads the sources of the projection, so an alias is replaced by its expression
+    aliased = {
+        sel.output_name: sel.this
+        for sel in query.selects
+        if isinstance(sel, sge.Alias)
+        and not (isinstance(sel.this, sge.Column) and sel.this.name == sel.output_name)
+    }
+    if any(aliased[col.name].find(sge.Anonymous) for col in output_refs if col.name in aliased):
+        # an unknown function may be an aggregate
+        return _where_on_derived_table(query, predicate)
+
+    def _expand_alias(node: sge.Expression) -> sge.Expression:
+        if (
+            isinstance(node, sge.Column)
+            and not node.table
+            and node.parent_select is None
+            and node.name in aliased
+        ):
+            expanded = aliased[node.name].copy()
+            if isinstance(expanded, (sge.Column, sge.Literal, sge.Func, sge.Paren)):
+                return expanded
+            return sge.paren(expanded, copy=False)
+        return node
+
+    return query.where(predicate.transform(_expand_alias))

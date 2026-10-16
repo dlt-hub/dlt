@@ -1103,6 +1103,18 @@ def test_where_then_join_produces_correct_data(dataset_with_loads: TLoadsFixture
     assert df["order_id"].iloc[0] == 101
 
 
+def test_where_on_joined_column_then_rejoin(dataset_with_loads: TLoadsFixture) -> None:
+    dataset, _, _ = dataset_with_loads
+    joined = dataset.table("users__orders").join("users")
+    filtered = joined.where("users__name", "eq", "Alice")
+
+    df = filtered.df()
+    assert set(df["users__name"]) == {"Alice"}
+    assert len(df) == (joined.df()["users__name"] == "Alice").sum()
+    # joining the same table again is still a no-op
+    assert filtered.join("users").sqlglot_expression.sql() == filtered.sqlglot_expression.sql()
+
+
 def test_order_by_then_join_produces_correct_data(dataset_with_loads: TLoadsFixture) -> None:
     """order_by before join should preserve join correctness and ordering."""
     dataset, _, _ = dataset_with_loads

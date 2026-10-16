@@ -262,6 +262,8 @@ expr = sge.EQ(
 filtered = customers_relation.where(expr).fetchall()
 ```
 
+Filters refer to the columns of the relation. If the relation aggregates or renames columns, for example `dataset("SELECT city, COUNT(*) AS n FROM customers GROUP BY city")`, then `where("n", "gt", 1)` filters the aggregated rows.
+
 ### Aggregate data
 
 ```py notype

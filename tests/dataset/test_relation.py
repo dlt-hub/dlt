@@ -1,6 +1,6 @@
 import pathlib
 import sys
-from typing import Any
+from typing import Any, List, Tuple
 from unittest.mock import ANY
 
 import pytest
@@ -111,6 +111,38 @@ def test_transformed_relation_to_ibis_(purchases: dlt.Relation) -> None:
     assert isinstance(table, ir.Table)
     out = table.execute()
     assert list(out["name"]) == ["charlie"]
+
+
+@pytest.mark.parametrize(
+    "query,where_args,expected_rows",
+    [
+        pytest.param(
+            "SELECT city, MAX(id) AS max_id FROM purchases GROUP BY city",
+            ("max_id > 1",),
+            [("barcelona", 3), ("paris", 2)],
+            id="aggregate-expr",
+        ),
+        pytest.param(
+            "SELECT id AS src_id, id * 10 AS id FROM purchases",
+            ("id", "eq", 10),
+            [(1, 10)],
+            id="alias-shadows-source-typed",
+        ),
+        pytest.param(
+            "SELECT id, ROW_NUMBER() OVER (ORDER BY id DESC) AS rn FROM purchases",
+            ("rn", "eq", 1),
+            [(3, 1)],
+            id="untyped-window-column-typed",
+        ),
+    ],
+)
+def test_where_filters_relation_output(
+    dataset: dlt.Dataset,
+    query: str,
+    where_args: Tuple[Any, ...],
+    expected_rows: List[Tuple[Any, ...]],
+) -> None:
+    assert sorted(dataset(query).where(*where_args).fetchall()) == expected_rows
 
 
 def test_relation_from_loads_rejects_non_table_relations(dataset: dlt.Dataset) -> None:

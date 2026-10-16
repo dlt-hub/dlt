@@ -45,6 +45,7 @@ from dlt.common.libs.sqlglot import (
     TSqlGlotDialect,
     get_left_source_qualifier,
     has_pure_column_projection,
+    where_on_output,
 )
 from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
@@ -940,9 +941,8 @@ class Relation(WithSqlClient):
             )
 
         if not operator and not value:
-            rel._sqlglot_expression = rel.sqlglot_expression.where(
-                column_or_expr, dialect=self.destination_dialect
-            )
+            predicate = sge.condition(column_or_expr, dialect=self.destination_dialect)
+            rel._sqlglot_expression = where_on_output(rel.sqlglot_expression, predicate)
             return rel
 
         assert isinstance(column_or_expr, str)
@@ -981,7 +981,7 @@ class Relation(WithSqlClient):
         else:
             condition = condition_cls(this=column, expression=value_expr)
 
-        rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
+        rel._sqlglot_expression = where_on_output(rel.sqlglot_expression, condition)
         return rel
 
     @overload
