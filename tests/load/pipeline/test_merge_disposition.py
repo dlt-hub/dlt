@@ -3078,8 +3078,9 @@ def test_merge_condition_placeholders(destination_config: DestinationTestConfigu
     seed.append(row(4, "A", 12, 30, date(2000, 1, 1)))
     assert_load_info(p.run(items(seed), **destination_config.run_kwargs))
 
-    # a callable reads the part from the resource argument, a naive `since` is noon UTC. the scope
-    # deletes 2 and `{curr_date}` is the date of the load, so 4 stays
+    # a callable reads the part from the resource argument, a naive `since` is read in the session
+    # timezone, UTC on test destinations. the scope deletes 2 and `{curr_date}` is the date of the
+    # load, so 4 stays
     info = p.run(
         items([row(5, "A", 12, 30)], PARTITION_PLACEHOLDERS["part"], datetime(2024, 1, 1, 12), "A"),
         **destination_config.run_kwargs,

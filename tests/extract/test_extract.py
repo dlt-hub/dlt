@@ -1,3 +1,4 @@
+from datetime import date  # noqa: I251
 from typing import Dict, List, NamedTuple, Optional, Any, cast
 import pytest
 import os
@@ -13,9 +14,9 @@ from dlt.common.storages import (
     SchemaStorageConfiguration,
     NormalizeStorageConfiguration,
 )
-from dlt.common.storages.load_package import default_load_package_state
+from dlt.common.storages.load_package import TLoadPackageState, default_load_package_state
 from dlt.common.storages.schema_storage import SchemaStorage
-from dlt.common.schema.typing import TColumnSchema, TWriteDisposition
+from dlt.common.schema.typing import TColumnSchema, TWriteDisposition, TWriteDispositionConfig
 from dlt.common.typing import TTableNames, TDataItems
 from dlt.common.utils import uniq_id
 
@@ -1217,7 +1218,10 @@ def _mark_seen_data(schema: dlt.Schema, *table_names: str) -> None:
 
 
 def _extract_resource(
-    extract_step: Extract, schema: dlt.Schema, resource: DltResource
+    extract_step: Extract,
+    schema: dlt.Schema,
+    resource: DltResource,
+    package_state: TLoadPackageState = None,
 ) -> Dict[str, Any]:
     """Extract a single resource into the shared `schema` (mirrors the per-run extraction) and
     return its per-table writer metrics (table name -> DataWriterMetrics)."""
@@ -1228,7 +1232,7 @@ def _extract_resource(
         source,
         max_parallel_items=5,
         workers=1,
-        package_state=default_load_package_state(),
+        package_state=package_state if package_state is not None else default_load_package_state(),
     )
     table_metrics: Dict[str, Any] = extract_step._step_info_metrics(load_id)[0]["table_metrics"]
     extract_step.extract_storage.commit_new_load_package(load_id, schema)
@@ -1367,42 +1371,53 @@ def test_handle_empty_tables_does_not_mutate_disposition(
     assert items_table["x-custom"] == "keep-me"  # type: ignore[typeddict-item]
 
 
+def _items_with_variant_and_pseudo_roots(
+    wd: TWriteDispositionConfig,
+    variant_wd: Optional[TWriteDispositionConfig],
+    nested_wd: TWriteDispositionConfig,
+    data: Any,
+) -> DltResource:
+    """`items` with the variant `OtherItems`. A primary key in the nested hints breaks `SubItems` of
+    both tables out into pseudo-roots with `nested_wd`. A `None` `variant_wd` keeps the resource
+    write disposition."""
+
+    # a column makes the root complete (so it survives the seen_data filter)
+    @dlt.resource(
+        name="items",
+        write_disposition=wd,
+        columns=[{"name": "id", "data_type": "bigint"}],
+        nested_hints={
+            "SubItems": make_nested_hints(
+                primary_key="Id",
+                write_disposition=nested_wd,
+                columns=[{"name": "id", "data_type": "bigint"}],
+            )
+        },
+    )
+    def items() -> Any:
+        yield from data
+
+    # the variant has a non-normalized name; it inherits the nested hints
+    items.apply_hints(
+        table_name="OtherItems", write_disposition=variant_wd, create_table_variant=True
+    )
+    return items
+
+
+def _items_and_variant_data() -> List[Any]:
+    return [
+        {"Id": 1, "SubItems": [{"Id": 101}]},
+        dlt.mark.with_table_name({"Id": 2, "SubItems": [{"Id": 102}]}, "OtherItems"),
+    ]
+
+
 def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extract) -> None:
     """Nested hints that break nesting (a primary key) create a pseudo-root table for both the
     default table and a variant. An empty run does not modify these tables and never recomputes a
     pseudo-root as a root, so no spurious cascade tables are created.
     """
     schema = dlt.Schema("empty_tables")
-
-    def make_resource(
-        wd: TWriteDisposition,
-        variant_wd: TWriteDisposition,
-        nested_wd: TWriteDisposition,
-        data: Any,
-    ) -> DltResource:
-        # a column makes the root complete (so it survives the seen_data filter); the nested hint's
-        # primary key breaks nesting into a pseudo-root that carries its own disposition
-        @dlt.resource(
-            name="items",
-            write_disposition=wd,
-            columns=[{"name": "id", "data_type": "bigint"}],
-            nested_hints={
-                "SubItems": make_nested_hints(
-                    primary_key="Id",
-                    write_disposition=nested_wd,
-                    columns=[{"name": "id", "data_type": "bigint"}],
-                )
-            },
-        )
-        def items() -> Any:
-            yield from data
-
-        # the variant has a non-normalized name and its own write disposition; it inherits the
-        # (nesting-breaking) nested hints
-        items.apply_hints(
-            table_name="OtherItems", write_disposition=variant_wd, create_table_variant=True
-        )
-        return items
+    make_resource = _items_with_variant_and_pseudo_roots
 
     # the four tables exercised below: the default root + its pseudo-root, and the variant root +
     # its pseudo-root
@@ -1412,10 +1427,7 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
 
     # run 1: replace with data for both the default table and the variant creates all four tables
     # (each root plus its broken-out, primary-keyed pseudo-root)
-    seed = [
-        {"Id": 1, "SubItems": [{"Id": 101}]},
-        dlt.mark.with_table_name({"Id": 2, "SubItems": [{"Id": 102}]}, "OtherItems"),
-    ]
+    seed = _items_and_variant_data()
     _extract_resource(extract_step, schema, make_resource("replace", "replace", "replace", seed))
     _mark_seen_data(schema, *all_tables)
     for pseudo in pseudo_roots:
@@ -1456,6 +1468,82 @@ def test_handle_empty_tables_variant_pseudo_root_no_cascade(extract_step: Extrac
     # no pseudo-root is ever recomputed as a root, so no spurious cascade tables are created
     assert "items__sub_items__sub_items" not in schema.tables
     assert "other_items__sub_items__sub_items" not in schema.tables
+
+
+def test_extra_placeholders_of_variants_and_pseudo_roots(extract_step: Extract) -> None:
+    """Each root table and pseudo-root stores the values of `extra_placeholders` from the hints
+    that computed it in this extract."""
+    schema = dlt.Schema("placeholders")
+
+    def day_scope(day: Any) -> TWriteDispositionConfig:
+        return {
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {"day": day},
+        }
+
+    def items(
+        wd: TWriteDispositionConfig,
+        variant_wd: Optional[TWriteDispositionConfig],
+        nested_wd: TWriteDispositionConfig,
+    ) -> DltResource:
+        return _items_with_variant_and_pseudo_roots(
+            wd, variant_wd, nested_wd, _items_and_variant_data()
+        )
+
+    def extract_placeholders(resource: DltResource) -> Any:
+        package_state = default_load_package_state()
+        _extract_resource(extract_step, schema, resource, package_state)
+        return package_state.get("placeholders")
+
+    # the variant overrides the value, a function gets the name of each pseudo-root
+    assert extract_placeholders(
+        items(day_scope(1), day_scope(2), day_scope(lambda resource, table_name: table_name))
+    ) == {
+        "items": {"day": 1},
+        "items__sub_items": {"day": "items__sub_items"},
+        "other_items": {"day": 2},
+        "other_items__sub_items": {"day": "other_items__sub_items"},
+    }
+    # a variant without a write disposition uses the one of the resource
+    assert extract_placeholders(items(day_scope(1), None, "append")) == {
+        "items": {"day": 1},
+        "other_items": {"day": 1},
+    }
+    # only the variant merges
+    assert extract_placeholders(items("append", day_scope(2), "append")) == {
+        "other_items": {"day": 2}
+    }
+    # the variant is gone but the table keeps its `variant_name`
+    assert schema.tables["other_items"]["variant_name"] == "OtherItems"
+    resource = dlt.resource(_items_and_variant_data(), name="items", write_disposition=day_scope(3))
+    assert extract_placeholders(resource) == {"items": {"day": 3}, "other_items": {"day": 3}}
+    # the default normalization keeps the path separator in a root table name
+    resource = dlt.resource(
+        [{"id": 1}], name="orders", table_name="orders__eu", write_disposition=day_scope(4)
+    )
+    assert extract_placeholders(resource) == {"orders__eu": {"day": 4}}
+
+    # an scd2 boundary is stored like a placeholder, never in the schema
+    schema = dlt.Schema("scd2_placeholders")
+
+    def scd2(boundary: Any = None) -> TWriteDispositionConfig:
+        if boundary is None:
+            return {"disposition": "merge", "strategy": "scd2"}
+        return {"disposition": "merge", "strategy": "scd2", "boundary_timestamp": boundary}
+
+    assert extract_placeholders(
+        items(scd2("2024-01-01T00:00:00+00:00"), scd2(date(2024, 1, 2)), scd2("2024-01-03"))
+    ) == {
+        "items": {"boundary_timestamp": "2024-01-01T00:00:00+00:00"},
+        "items__sub_items": {"boundary_timestamp": "2024-01-03"},
+        "other_items": {"boundary_timestamp": date(2024, 1, 2)},
+        "other_items__sub_items": {"boundary_timestamp": "2024-01-03"},
+    }
+    # without a declared boundary the load uses the package creation time
+    assert extract_placeholders(items(scd2(), scd2(), scd2())) is None
+    assert all("x-boundary-timestamp" not in table for table in schema.tables.values())
 
 
 @pytest.mark.parametrize("dispatch", ["marked", "dynamic"])

@@ -1211,6 +1211,10 @@ def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows:
             {"destination_scope": "day = {day}", "extra_placeholders": {"load_id": "1"}},
             "redefines the placeholders `load_id`",
         ),
+        (
+            {"strategy": "scd2", "extra_placeholders": {"boundary_timestamp": "2024-01-01"}},
+            "redefines the placeholders `boundary_timestamp`",
+        ),
         ({"extra_placeholders": ["day"]}, "must be a dict"),
         (
             {"strategy": "insert-only", "extra_placeholders": {"day": 1}},
@@ -1231,6 +1235,7 @@ def test_skip_unchanged_rows_hints(strategy: Optional[str], skip_unchanged_rows:
         "filter_insert_only",
         "row_version_delete_insert",
         "reserved_extra_placeholder",
+        "reserved_boundary_timestamp",
         "extra_placeholders_not_dict",
         "extra_placeholders_insert_only",
         "undeclared_extra_placeholder",
@@ -1253,6 +1258,17 @@ def test_resource_rejects_invalid_merge_options(disposition: Any, expected: str)
 
     with pytest.raises(ValueError) as py_ex:
         valid_resource.apply_hints(write_disposition=write_disposition)
+    assert expected in str(py_ex.value)
+
+    # so do nested hints, a nested table with a key merges on its own
+    with pytest.raises(ValueError) as py_ex:
+        valid_resource.apply_hints(
+            nested_hints={
+                "sub": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition=write_disposition
+                )
+            }
+        )
     assert expected in str(py_ex.value)
 
     # a doubled brace is a literal brace

@@ -67,6 +67,7 @@ from dlt.destinations import filesystem, redshift, dummy, duckdb
 from dlt.destinations.impl.dummy.dummy import DummyClient
 from dlt.destinations.impl.filesystem.filesystem import INIT_FILE_NAME
 from dlt.extract.exceptions import (
+    ExtraPlaceholderError,
     InvalidResourceDataTypeBasic,
     ResourceExtractionError,
     SourceExhausted,
@@ -4873,6 +4874,31 @@ def test_merge_extra_placeholders_stored_in_load_package() -> None:
     assert state["placeholders"] == {"events": {"day": 3, "tenant": "acme"}}
     # the merge replaced the partition of day 3 with nothing
     assert load_table_counts(pipeline, "events") == {"events": 1}
+
+
+def test_merge_extra_placeholder_function_error() -> None:
+    @dlt.resource(
+        name="events",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {
+                "day": lambda resource, table_name: resource.explicit_args["day"]
+            },
+        },
+    )
+    def events():
+        yield {"id": 1}
+
+    pipeline = dlt.pipeline(pipeline_name="merge_placeholders_" + uniq_id(), destination="duckdb")
+    with pytest.raises(PipelineStepFailed) as py_ex:
+        pipeline.extract(events())
+    assert py_ex.value.step == "extract"
+    ex = py_ex.value.__cause__
+    assert isinstance(ex, ExtraPlaceholderError)
+    assert (ex.resource_name, ex.table_name, ex.placeholder) == ("events", "events", "day")
+    assert isinstance(ex.__cause__, KeyError)
 
 
 def test_change_naming_convention_name_collision() -> None:

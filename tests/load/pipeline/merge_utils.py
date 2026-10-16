@@ -13,9 +13,8 @@ from dlt.common.schema.typing import (
 )
 from dlt.common.time import (
     ensure_datetime,
-    ensure_datetime_in_tz,
     normalize_timezone,
-    reduce_pendulum_datetime_precision,
+    reduce_datetime_precision,
 )
 from dlt.common.typing import TAnyDateTime, TColumnNames
 from dlt.extract import DltResource, DltSource
@@ -136,11 +135,12 @@ def assert_nested_rows_have_parents(
 
 
 def get_load_package_created_at(pipeline: dlt.Pipeline, load_info: LoadInfo) -> datetime:
-    """Returns `created_at` property of load package state as the context wall clock."""
+    """Returns `created_at` of the load package as naive UTC at the precision of the destination,
+    like `get_table` returns the validity columns."""
     load_id = load_info.asdict()["loads_ids"][0]
-    created_at = normalize_timezone(pipeline.get_load_package_state(load_id)["created_at"], False)
-    caps = pipeline._get_destination_capabilities()
-    return reduce_pendulum_datetime_precision(created_at, caps.timestamp_precision)
+    created_at = to_naive_utc(pipeline.get_load_package_state(load_id)["created_at"])
+    precision = pipeline._get_destination_capabilities().timestamp_precision
+    return reduce_datetime_precision(created_at, precision)
 
 
 def strip_timezone(ts: TAnyDateTime) -> datetime:
@@ -148,9 +148,9 @@ def strip_timezone(ts: TAnyDateTime) -> datetime:
     return normalize_timezone(ensure_datetime(ts), False)
 
 
-def boundary_wall_clock(ts: TAnyDateTime) -> datetime:
-    """A boundary timestamp, naive in the context timezone, stored as the context wall clock."""
-    return normalize_timezone(ensure_datetime_in_tz(ts), False)
+def to_naive_utc(ts: TAnyDateTime) -> datetime:
+    """Returns an aware value as naive UTC and a naive value as it is."""
+    return normalize_timezone(ensure_datetime(ts), False, timezone.utc)
 
 
 def get_table(
@@ -160,15 +160,16 @@ def get_table(
     include_dlt_id: bool = False,
     ts_columns: Optional[List[str]] = None,
 ) -> List[Dict[str, Any]]:
-    """Returns destination table contents as list of dictionaries."""
+    """Returns destination table contents as list of dictionaries. `ts_columns` are returned as
+    naive UTC, like dlt writes the validity columns, other datetimes on the context wall clock."""
     ts_columns = ts_columns or []
 
     table = [
         {
             k: (
-                strip_timezone(v)
-                if isinstance(v, datetime) or (k in ts_columns and v is not None)
-                else v
+                to_naive_utc(v)
+                if k in ts_columns and v is not None
+                else strip_timezone(v) if isinstance(v, datetime) else v
             )
             for k, v in r.items()
             if not k.startswith("_dlt")

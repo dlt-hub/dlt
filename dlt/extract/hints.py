@@ -359,6 +359,39 @@ class DltResourceHints:
                 hints,
             )
 
+    def get_extra_placeholders(
+        self, root_table_name: str, naming: NamingConvention, meta: Any = None
+    ) -> Dict[str, Dict[str, Any]]:
+        """Returns `extra_placeholders` and the `scd2` `boundary_timestamp` of the merge write
+        dispositions of the root table and its nested tables, by table name as in
+        `compute_nested_table_schemas`. Skips dynamic hints.
+        """
+        root_table_template, _, _ = self._get_root_table_template(meta)
+        if not root_table_template:
+            return {}
+        templates: List[Tuple[str, Any]] = [(root_table_name, root_table_template)]
+        # only static hints were validated when declared
+        if not callable(root_table_template.get("nested_hints")):
+            templates.extend(
+                (table_name, hints)
+                for table_name, _, hints in self.get_nested_hints(
+                    root_table_name, naming, meta=meta
+                )
+            )
+        extra_placeholders: Dict[str, Dict[str, Any]] = {}
+        for table_name, template in templates:
+            write_disposition = template.get("write_disposition")
+            if not isinstance(write_disposition, dict):
+                continue
+            placeholders = dict(write_disposition.get("extra_placeholders") or {})
+            if write_disposition.get("strategy") == "scd2" and (
+                boundary := write_disposition.get("boundary_timestamp")
+            ):
+                placeholders["boundary_timestamp"] = boundary
+            if placeholders:
+                extra_placeholders[table_name] = placeholders
+        return extra_placeholders
+
     def compute_nested_table_schemas(
         self,
         root_table_name: str,
@@ -610,6 +643,10 @@ class DltResourceHints:
     ) -> None:
         DltResourceHints.validate_dynamic_hints(hints_template)
         DltResourceHints.validate_write_disposition_hint(hints_template)
+        nested_hints = hints_template.get("nested_hints")
+        if isinstance(nested_hints, dict):
+            for nested_hint in nested_hints.values():
+                DltResourceHints.validate_write_disposition_hint(cast(TResourceHints, nested_hint))
         DltResourceHints.validate_reference_hint(hints_template)
         if create_table_variant:
             # for table variants, table name must be a str
@@ -737,8 +774,7 @@ class DltResourceHints:
             }
 
         if merge_strategy == "scd2":
-            if "boundary_timestamp" in md_dict:
-                dict_["x-boundary-timestamp"] = md_dict["boundary_timestamp"]
+            # the load package holds `boundary_timestamp`, so the schema does not change per load
             if md_dict.get("validity_column_names") is None:
                 from_, to = DEFAULT_VALIDITY_COLUMN_NAMES
             else:

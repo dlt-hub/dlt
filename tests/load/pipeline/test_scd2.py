@@ -3,7 +3,7 @@
 from unittest import mock
 import pytest
 from typing import Iterator, List, Dict, Any, Optional
-from datetime import date, datetime  # noqa: I251
+from datetime import date, datetime, timezone  # noqa: I251
 from contextlib import nullcontext as does_not_raise
 
 import dlt
@@ -14,14 +14,13 @@ from dlt.common.pendulum import pendulum
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.time import ensure_pendulum_datetime
+from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
 from tests.load.pipeline.merge_utils import (
     FROM,
     TO,
-    boundary_wall_clock,
     get_load_package_created_at,
     get_rows,
     get_table,
@@ -637,7 +636,10 @@ def test_active_record_timestamp(
         actual_active_record_timestamp = ensure_pendulum_datetime(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
-        assert actual_active_record_timestamp == ensure_pendulum_datetime(active_record_timestamp)
+        # a naive value is read in the UTC session of the test database
+        assert actual_active_record_timestamp == ensure_datetime_in_tz(
+            active_record_timestamp, timezone.utc
+        )
 
 
 @pytest.mark.parametrize(
@@ -645,7 +647,7 @@ def test_active_record_timestamp(
 )
 @pytest.mark.parametrize(
     "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["sqlalchemy", "duckdb"]),
+    destinations_configs(default_sql_configs=True, subset=["postgres", "sqlalchemy", "duckdb"]),
     ids=lambda x: x.name,
 )
 def test_boundary_timestamp(
@@ -671,11 +673,12 @@ def test_boundary_timestamp(
     def r(data):
         yield data
 
-    # normalize timestamps once for assertions
-    ts1_dt = boundary_wall_clock(ts1)
-    ts2_dt = boundary_wall_clock(ts2)
-    ts3_dt = boundary_wall_clock(ts3)
-    ts5_dt = boundary_wall_clock(ts5)
+    # an aware boundary is stored in UTC, a naive one as written and read in the UTC session of the
+    # test databases. the context timezone does not change the values
+    ts1_dt = datetime(2024, 8, 21, 12, 15)
+    ts2_dt = datetime(2024, 8, 22)
+    ts3_dt = datetime(2024, 8, 20)
+    ts5_dt = datetime(2025, 8, 21, 12, 15)
 
     # load 1 — initial load
     dim_snap = [
@@ -704,6 +707,9 @@ def test_boundary_timestamp(
             {**{FROM: ts1_dt, TO: None}, **l1_2},
         ]
         assert get_table(p, "dim_test", "nk", ts_columns=[FROM, TO]) == expected
+        # the load package holds the boundary, so a new boundary does not change the schema
+        assert "x-boundary-timestamp" not in p.default_schema.tables["dim_test"]
+        version_hash = p.default_schema.version_hash
 
         # load 2 — different source records, different boundary timestamp
         current_time["ts"] = pendulum.datetime(2024, 8, 22, tz="UTC").timestamp()
@@ -763,18 +769,12 @@ def test_boundary_timestamp(
                 }
             )
 
-        # run 4 — no boundary timestamp (use current precise_time)
+        # run 4 — no boundary timestamp, the earlier one is not kept (use current precise_time)
         current_time["ts"] = ts5
         dim_snap = [
             l3_1 := {"nk": 1, "foo": "foobar"},  # updated
         ]
-        r.apply_hints(
-            write_disposition={
-                "disposition": "merge",
-                "strategy": "scd2",
-                "boundary_timestamp": None,
-            }
-        )
+        r.apply_hints(write_disposition={"disposition": "merge", "strategy": "scd2"})
         info = p.run(r(dim_snap), **destination_config.run_kwargs)
         assert_load_info(info)
         assert load_table_counts(p, "dim_test")["dim_test"] == 5
@@ -792,6 +792,49 @@ def test_boundary_timestamp(
             {**{FROM: ts5_dt, TO: None}, **l3_1},
         ]
         assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
+        assert p.default_schema.version_hash == version_hash
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, subset=["duckdb", "postgres"]),
+    ids=lambda x: x.name,
+)
+def test_naive_timestamps_in_session_timezone(
+    destination_config: DestinationTestConfiguration, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """dlt sends a naive `boundary_timestamp` and `active_record_timestamp` as they are, so the
+    session timezone of the database reads them. The active record still matches between loads
+    in the same session timezone."""
+    env_key = f"DESTINATION__{destination_config.destination_type.upper()}__CREDENTIALS__"
+    monkeypatch.setenv(env_key + "SESSION_TIMEZONE", "Europe/Berlin")
+    p = destination_config.setup_pipeline("abstract", dev_mode=True)
+
+    def dim_test(data: List[Dict[str, Any]], boundary: str) -> DltResource:
+        return dlt.resource(
+            data,
+            name="dim_test",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": boundary,
+                "active_record_timestamp": "9999-12-31",
+            },
+        )
+
+    info = p.run(dim_test([{"nk": 1, "foo": "foo"}], "2024-08-21"), **destination_config.run_kwargs)
+    assert_load_info(info)
+    info = p.run(
+        dim_test([{"nk": 1, "foo": "bar"}], "2024-08-22T12:00:00+00:00"),
+        **destination_config.run_kwargs,
+    )
+    assert_load_info(info)
+    # midnight in Berlin is 22:00 UTC in summer and 23:00 UTC in winter
+    expected = [
+        {FROM: datetime(2024, 8, 20, 22), TO: datetime(2024, 8, 22, 12), "nk": 1, "foo": "foo"},
+        {FROM: datetime(2024, 8, 22, 12), TO: datetime(9999, 12, 30, 23), "nk": 1, "foo": "bar"},
+    ]
+    assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
 
 
 @pytest.mark.essential

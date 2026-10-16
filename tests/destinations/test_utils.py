@@ -153,10 +153,10 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
     [
         ("{table}.id = {tenant}", "\"t\".id = 'O''B'"),
         ("day = {day} AND n > {n}", "day = '2024-01-01' AND n > 3"),
-        ("ts >= {since}", "ts >= '2024-01-01T12:00:00+00:00'"),
+        ("ts >= {since}", "ts >= '2024-01-01T12:00:00'"),
         ("name LIKE '{{x}}%'", "name LIKE '{x}%'"),
     ],
-    ids=["identifier_and_string", "date_and_int", "naive_datetime_in_context_tz", "literal_brace"],
+    ids=["identifier_and_string", "date_and_int", "naive_datetime", "literal_brace"],
 )
 def test_expand_merge_condition(condition: str, expected: str) -> None:
     values = {"tenant": "O'B", "day": date(2024, 1, 1), "n": 3, "since": datetime(2024, 1, 1, 12)}
@@ -166,16 +166,40 @@ def test_expand_merge_condition(condition: str, expected: str) -> None:
     assert expanded == expected
 
 
-def test_expand_merge_condition_naive_datetime_in_context_timezone() -> None:
-    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+@pytest.mark.parametrize("context_tz", ["UTC", "Europe/Berlin"])
+@pytest.mark.parametrize(
+    "supports_tz_aware,since,expected",
+    [
+        (True, datetime(2024, 1, 1, 12), "ts >= '2024-01-01T12:00:00'"),
+        (
+            True,
+            datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin")),
+            "ts >= '2024-01-01T11:00:00+00:00'",
+        ),
+        (False, datetime(2024, 1, 1, 12), "ts >= '2024-01-01T12:00:00'"),
+        (
+            False,
+            datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin")),
+            "ts >= '2024-01-01T11:00:00'",
+        ),
+    ],
+    ids=["tz-naive", "tz-aware", "no_tz-naive", "no_tz-aware"],
+)
+def test_expand_merge_condition_datetime(
+    context_tz: str, supports_tz_aware: bool, since: datetime, expected: str
+) -> None:
+    """A naive value is used as it is, an aware value in UTC, naive without tz support. The
+    context timezone is not used."""
+    with Container().injectable_context(TimezoneContext(context_tz)):
         expanded = expand_merge_condition(
             "source_filter",
             "ts >= {since}",
             {},
-            {"since": datetime(2024, 1, 1, 12)},
+            {"since": since},
             escape_snowflake_literal,
+            supports_tz_aware_datetime=supports_tz_aware,
         )
-    assert expanded == "ts >= '2024-01-01T12:00:00+01:00'"
+    assert expanded == expected
 
 
 def test_expand_merge_condition_missing_value() -> None:
@@ -188,33 +212,49 @@ def test_scd2_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
     caps = DestinationCapabilitiesContext.generic_capabilities()
     caps.timestamp_precision = 3
     created_at = datetime(2024, 3, 1, 23, 30, 0, 123456, tzinfo=ZoneInfo("Asia/Kolkata"))
-    package = {"load_id": "1.2", "state": {"created_at": created_at}}
+    state: Any = {"created_at": created_at}
+    package = {"load_id": "1.2", "state": state}
     monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
     valid_to: Any = {
         "name": "_dlt_valid_to",
         "data_type": "timestamp",
         "x-active-record-timestamp": None,
     }
-    table: Any = {"name": "items", "columns": {"_dlt_valid_to": valid_to}}
+    # a hint left by an older dlt version is a stale value
+    table: Any = {
+        "name": "items",
+        "x-boundary-timestamp": datetime(2020, 1, 1),
+        "columns": {"_dlt_valid_to": valid_to},
+    }
 
-    # the boundary defaults to the package creation time at the precision of the destination
+    # the boundary defaults to the package creation time, in UTC at the precision of the destination
     boundary, active_record = get_scd2_timestamps(table, caps)
     assert boundary == created_at.replace(microsecond=123000)
+    assert boundary.tzinfo is timezone.utc
     assert active_record is None
 
-    # naive values are in the context timezone, aware values keep their instant
-    table["x-boundary-timestamp"] = datetime(2024, 1, 1, 12)
+    # the package holds the declared boundary. naive values are used as they are, aware values in
+    # UTC, whatever the context timezone
+    state["placeholders"] = {"items": {"boundary_timestamp": datetime(2024, 1, 1, 12)}}
     valid_to["x-active-record-timestamp"] = "9999-12-31T00:00:00+01:00"
-    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
-        boundary, active_record = get_scd2_timestamps(table, caps)
-    assert boundary == datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin"))
-    assert active_record == datetime(9999, 12, 30, 23, tzinfo=timezone.utc)
+    for context_tz in ("UTC", "Europe/Berlin"):
+        with Container().injectable_context(TimezoneContext(context_tz)):
+            boundary, active_record = get_scd2_timestamps(table, caps)
+        assert boundary == datetime(2024, 1, 1, 12)
+        assert active_record == datetime(9999, 12, 30, 23, tzinfo=timezone.utc)
+        assert active_record.tzinfo is timezone.utc
+
+    # a destination without tz support gets aware values as naive UTC
+    caps.supports_tz_aware_datetime = False
+    state["placeholders"]["items"]["boundary_timestamp"] = "2024-01-01T12:00:00+01:00"
+    valid_to["x-active-record-timestamp"] = "9999-12-31"
+    assert get_scd2_timestamps(table, caps) == (datetime(2024, 1, 1, 11), datetime(9999, 12, 31))
 
 
 def test_merge_placeholder_values_of_load_date(monkeypatch: pytest.MonkeyPatch) -> None:
     # 23:30 in Kolkata is 18:00 UTC of the same day. the values follow UTC
     created_at = datetime(2024, 3, 1, 23, 30, tzinfo=ZoneInfo("Asia/Kolkata"))
-    package = {"load_id": "1.2", "state": {"created_at": created_at, "placeholders": {}}}
+    package: Any = {"load_id": "1.2", "state": {"created_at": created_at, "placeholders": {}}}
     monkeypatch.setattr(destination_utils, "load_package_state", lambda: package)
 
     values = destination_utils.get_merge_placeholder_values("items")
@@ -222,3 +262,10 @@ def test_merge_placeholder_values_of_load_date(monkeypatch: pytest.MonkeyPatch) 
     assert (values["YYYY"], values["MM"], values["DD"], values["HH"]) == (2024, 3, 1, 18)
     assert (values["MMMM"], values["dddd"]) == ("march", "friday")
     assert values["load_package_timestamp"] == int(created_at.timestamp())
+    assert values["boundary_timestamp"] == created_at
+    assert values["boundary_timestamp"].tzinfo is timezone.utc
+
+    # a declared boundary is stored in the load package
+    package["state"]["placeholders"] = {"items": {"boundary_timestamp": date(2024, 1, 1)}}
+    values = destination_utils.get_merge_placeholder_values("items")
+    assert values["boundary_timestamp"] == date(2024, 1, 1)

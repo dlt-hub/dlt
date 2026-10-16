@@ -196,10 +196,8 @@ def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Option
     """Returns `source_filter` and `destination_scope` as Delta merge predicates."""
     source_filter = cast(Optional[str], schema.get("x-merge-source-filter"))
     destination_scope = cast(Optional[str], schema.get("x-merge-destination-scope"))
-    # `{staging_table}` is the `source` alias and `{table}` the `target` alias. schema verification
-    # rejects any other placeholder before the load
+    # `{staging_table}` is the `source` alias and `{table}` the `target` alias
     values = get_merge_placeholder_values(schema["name"])
-    escape_lit = escape_ansi_literal
     return (
         (
             expand_merge_condition(
@@ -207,14 +205,18 @@ def _delta_merge_predicates(schema: TTableSchema) -> Tuple[Optional[str], Option
                 source_filter,
                 {"staging_table": "source", "table": "target"},
                 values,
-                escape_lit,
+                escape_ansi_literal,
             )
             if source_filter
             else None
         ),
         (
             expand_merge_condition(
-                "destination_scope", destination_scope, {"table": "target"}, values, escape_lit
+                "destination_scope",
+                destination_scope,
+                {"table": "target"},
+                values,
+                escape_ansi_literal,
             )
             if destination_scope
             else None

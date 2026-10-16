@@ -54,7 +54,11 @@ from dlt.extract.decorators import (
     SourceInjectableContext,
     SourceSchemaInjectableContext,
 )
-from dlt.extract.exceptions import DataItemRequiredForDynamicTableHints, UnknownSourceReference
+from dlt.extract.exceptions import (
+    DataItemRequiredForDynamicTableHints,
+    ExtraPlaceholderError,
+    UnknownSourceReference,
+)
 from dlt.extract.incremental import IncrementalResourceWrapper
 from dlt.extract.items import TableNameMeta
 from dlt.extract.items_transform import ItemTransform
@@ -496,30 +500,43 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         extractors: Dict[TDataItemFormat, Extractor],
         state: TLoadPackageState,
     ) -> None:
-        """Stores the values of `extra_placeholders` of the merge write disposition in the load
-        package, by table. Callable values receive the resource and the table name.
+        """Stores the values of `extra_placeholders` and the `scd2` boundary of the merge write
+        dispositions in the load package, by root table and pseudo-root. Callable values receive
+        the resource and the table name.
         """
+        schema = source.schema
         # an empty materialized table also gets a job, so its merge needs the values too
         tables_with_jobs = set().union(
             *[e.tables_with_items | e.tables_with_empty for e in extractors.values()]
         )
-        for table_name in tables_with_jobs:
-            table = source.schema.tables.get(table_name)
-            if table is None or utils.is_nested_table(table):
+        for root_table_name in tables_with_jobs:
+            root_table = schema.tables.get(root_table_name)
+            if root_table is None or utils.is_nested_table(root_table):
                 continue
-            resource = source.resources.get(table.get("resource"))
-            write_disposition = resource.write_disposition if resource else None
-            # dynamic write dispositions can't be handled here
-            if not isinstance(write_disposition, dict):
+            resource = source.resources.get(root_table.get("resource"))
+            if resource is None:
                 continue
-            extra_placeholders = cast(
-                Optional[Dict[str, Any]], write_disposition.get("extra_placeholders")
+            # a variant that is not declared anymore falls back to the resource hints
+            variant_name = root_table.get("variant_name")
+            placeholders = resource.get_extra_placeholders(
+                root_table_name,
+                schema.naming,
+                TableNameMeta(variant_name) if variant_name else None,
             )
-            if extra_placeholders:
-                state.setdefault("placeholders", {})[table_name] = {
-                    name: value(resource, table_name) if callable(value) else value
-                    for name, value in extra_placeholders.items()
-                }
+            for table_name, extra_placeholders in placeholders.items():
+                table = schema.tables.get(table_name)
+                # a pseudo-root (nested table broken out by a key) merges on its own
+                if table is None or utils.is_nested_table(table):
+                    continue
+                values: Dict[str, Any] = {}
+                for name, value in extra_placeholders.items():
+                    if callable(value):
+                        try:
+                            value = value(resource, table_name)
+                        except Exception as ex:
+                            raise ExtraPlaceholderError(resource.name, table_name, name, ex) from ex
+                    values[name] = value
+                state.setdefault("placeholders", {})[table_name] = values
 
     def _extract_single_source(
         self,

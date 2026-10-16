@@ -126,25 +126,20 @@ def test_format_datetime_value_in_context_timezone(
     assert format_datetime_value(_TZ_FORMS[tz_form], no_tz=no_tz) == expected
 
 
+@pytest.mark.parametrize("context_tz", ["UTC", "Europe/Berlin"])
 @pytest.mark.parametrize(
-    "context_tz,tz_form,expected_value",
+    "tz_form,expected",
     [
-        pytest.param("UTC", "naive", "2024-03-04 05:06:07.123456", id="utc-ctx-naive"),
-        pytest.param("UTC", "utc", "2024-03-04 05:06:07.123456", id="utc-ctx-utc"),
-        # 05:06:07+01:00 is 04:06:07 UTC, and the literal must not be shifted twice
-        pytest.param("UTC", "berlin", "2024-03-04 04:06:07.123456", id="utc-ctx-berlin"),
-        # the literal is the context wall clock and the zone argument names the context
-        pytest.param("Europe/Berlin", "naive", "2024-03-04 05:06:07.123456", id="berlin-ctx-naive"),
-        pytest.param("Europe/Berlin", "utc", "2024-03-04 06:06:07.123456", id="berlin-ctx-utc"),
-        pytest.param(
-            "Europe/Berlin", "berlin", "2024-03-04 05:06:07.123456", id="berlin-ctx-berlin"
-        ),
+        # a naive value is read in the session timezone
+        ("naive", "toDateTime64('2024-03-04 05:06:07.123456', 6)"),
+        ("utc", "toDateTime64('2024-03-04 05:06:07.123456', 6, 'UTC')"),
+        # 05:06:07+01:00 is 04:06:07 UTC
+        ("berlin", "toDateTime64('2024-03-04 04:06:07.123456', 6, 'UTC')"),
     ],
+    ids=["naive", "utc", "berlin"],
 )
-def test_format_clickhouse_datetime_literal(
-    context_tz: str, tz_form: str, expected_value: str
-) -> None:
-    """`toDateTime64` reads the literal in the zone named by its third argument."""
+def test_format_clickhouse_datetime_literal(context_tz: str, tz_form: str, expected: str) -> None:
+    """The literal does not depend on the context timezone."""
     set_context_timezone(ZoneInfo(context_tz))
     v = datetime(2024, 3, 4, 5, 6, 7, 123456)
     if tz_form == "utc":
@@ -152,10 +147,7 @@ def test_format_clickhouse_datetime_literal(
     elif tz_form == "berlin":
         v = v.replace(tzinfo=ZoneInfo("Europe/Berlin"))
 
-    assert (
-        format_clickhouse_datetime_literal(v)
-        == f"toDateTime64('{expected_value}', 6, '{context_tz}')"
-    )
+    assert format_clickhouse_datetime_literal(v) == expected
 
 
 def test_identifier_escape() -> None:

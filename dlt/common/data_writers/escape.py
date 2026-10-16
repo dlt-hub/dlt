@@ -1,13 +1,12 @@
 import re
 import base64
 from typing import Any, Callable, Dict, Optional
-from datetime import date, datetime, time  # noqa: I251
+from datetime import date, datetime, time, timezone  # noqa: I251
 
 from dlt.common.json import json
 from dlt.common.time import (
-    get_context_timezone_name,
     normalize_timezone,
-    reduce_pendulum_datetime_precision,
+    reduce_datetime_precision,
 )
 
 # use regex to escape characters in single pass
@@ -324,7 +323,7 @@ def format_datetime_value(v: datetime, precision: int = 6, no_tz: bool = False) 
     if no_tz:
         # same call the loaded value goes through, so literal and stored value agree
         v = normalize_timezone(v, False)
-    v = reduce_pendulum_datetime_precision(v, precision)
+    v = reduce_datetime_precision(v, precision)
     if precision < 3:
         timespec = "seconds"
     elif precision < 6:
@@ -349,7 +348,9 @@ def format_bigquery_datetime_literal(v: datetime, precision: int = 6, no_tz: boo
 
 
 def format_clickhouse_datetime_literal(v: datetime, precision: int = 6, no_tz: bool = False) -> str:
-    """Returns clickhouse compatible function"""
-    # the literal is naive in the context timezone, so `toDateTime64` must read it in that zone
-    datetime = format_datetime_literal(v, precision, True)
-    return f"toDateTime64({datetime}, {precision}, '{get_context_timezone_name()}')"
+    """Returns a `toDateTime64` call: an aware value in UTC, a naive value as written, read in the
+    session timezone."""
+    if v.tzinfo is None:
+        return f"toDateTime64({format_datetime_literal(v, precision)}, {precision})"
+    utc_value = v.astimezone(timezone.utc).replace(tzinfo=None)
+    return f"toDateTime64({format_datetime_literal(utc_value, precision)}, {precision}, 'UTC')"

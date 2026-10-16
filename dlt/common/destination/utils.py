@@ -1,6 +1,7 @@
 import contextlib
 import string
 from datetime import datetime, timezone
+from functools import partial
 from typing import Any, Callable, Dict, Iterable, List, Optional, Sequence, Set, Tuple, cast
 
 from dlt.common import logger
@@ -41,8 +42,9 @@ from dlt.common.time import (
     datetime_to_placeholders,
     datetime_to_timestamp,
     datetime_to_timestamp_ms,
+    ensure_datetime,
     ensure_datetime_in_tz,
-    reduce_pendulum_datetime_precision,
+    reduce_datetime_precision,
 )
 from dlt.common.typing import ConfigValue, DictStrStr, TAnyDateTime, TLoaderFileFormat
 
@@ -53,6 +55,7 @@ MERGE_CONDITION_VALUE_PLACEHOLDERS = (
     "table_name",
     "load_package_timestamp",
     "load_package_timestamp_ms",
+    "boundary_timestamp",
     "curr_date",
     *sorted(DATETIME_PLACEHOLDERS),
 )
@@ -103,6 +106,7 @@ def get_merge_placeholder_values(table_name: str) -> Dict[str, Any]:
     values.update(load_id=package["load_id"], table_name=table_name)
     if state.get("created_at"):
         created_at = ensure_datetime_in_tz(state["created_at"], timezone.utc)
+        values.setdefault("boundary_timestamp", created_at)
         values["load_package_timestamp"] = datetime_to_timestamp(created_at)
         values["load_package_timestamp_ms"] = datetime_to_timestamp_ms(created_at)
         values["curr_date"] = created_at.date()
@@ -113,29 +117,35 @@ def get_merge_placeholder_values(table_name: str) -> Dict[str, Any]:
     return values
 
 
+def to_literal_datetime_utc(
+    value: TAnyDateTime, supports_tz_aware_datetime: bool = True, precision: int = 6
+) -> datetime:
+    """Returns `value` for a SQL literal: an aware value in UTC, naive UTC on a destination without
+    tz support. A naive value is used as it is."""
+    value = ensure_datetime(value)
+    if value.tzinfo is not None:
+        value = value.astimezone(timezone.utc)
+        if not supports_tz_aware_datetime:
+            value = value.replace(tzinfo=None)
+    return reduce_datetime_precision(value, precision)
+
+
 def get_scd2_timestamps(
     root_table: TTableSchema, caps: DestinationCapabilitiesContext
 ) -> Tuple[datetime, Optional[datetime]]:
-    """Returns the boundary and active record timestamps of an `scd2` table at the precision of
-    the destination. A naive value is in the context timezone."""
-    boundary = cast(Optional[TAnyDateTime], root_table.get("x-boundary-timestamp"))
-    if boundary is None:
-        boundary = load_package_state()["state"]["created_at"]
+    """Returns the boundary and active record timestamps of an `scd2` table as literal values of
+    the destination, see `to_literal_datetime_utc`. The boundary comes from the load package."""
+    # `x-boundary-timestamp` of older schemas is a stale value and is never read
+    boundary = get_merge_placeholder_values(root_table["name"])["boundary_timestamp"]
     to_column = get_first_column_name_with_prop(root_table, "x-active-record-timestamp")
     active_record = root_table["columns"][to_column]["x-active-record-timestamp"]  # type: ignore[typeddict-item]
     # the literal is written to and compared with the validity columns, so it must not be finer
-    return (
-        reduce_pendulum_datetime_precision(
-            ensure_datetime_in_tz(boundary), caps.timestamp_precision
-        ),
-        (
-            None
-            if active_record is None
-            else reduce_pendulum_datetime_precision(
-                ensure_datetime_in_tz(active_record), caps.timestamp_precision
-            )
-        ),
+    to_literal = partial(
+        to_literal_datetime_utc,
+        supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
+        precision=caps.timestamp_precision,
     )
+    return to_literal(boundary), None if active_record is None else to_literal(active_record)
 
 
 def expand_merge_condition(
@@ -144,9 +154,11 @@ def expand_merge_condition(
     identifiers: Dict[str, str],
     values: Dict[str, Any],
     escape_literal: Callable[[Any], Any],
+    supports_tz_aware_datetime: bool = True,
+    timestamp_precision: int = 6,
 ) -> str:
     """Expands identifier placeholders as they are and value placeholders as escaped literals.
-    A naive `datetime` value is in the context timezone, like a naive value in the data.
+    A `datetime` value is converted with `to_literal_datetime_utc`.
 
     Raises `ValueError` if `filter_` uses a placeholder that has no identifier or value.
     """
@@ -156,9 +168,8 @@ def expand_merge_condition(
         if name in identifiers:
             continue
         value = values[name]
-        # the destination session may run in another timezone, so the literal carries its own
-        if isinstance(value, datetime) and value.tzinfo is None:
-            value = ensure_datetime_in_tz(value)
+        if isinstance(value, datetime):
+            value = to_literal_datetime_utc(value, supports_tz_aware_datetime, timestamp_precision)
         literals[name] = escape_literal(value)
     return filter_.format(**identifiers, **literals)
 

@@ -597,16 +597,18 @@ You can configure the literal used to indicate an active record with `active_rec
         "disposition": "merge",
         "strategy": "scd2",
         # accepts various types of date/datetime objects
-        "active_record_timestamp": "9999-12-31",
+        "active_record_timestamp": "9999-12-31T00:00:00+00:00",
     }
 )
 def dim_customer():
     ...
 ```
 
+dlt compares this value with the "valid to" column of every load, so it must not change between loads. A naive value is read in the timezone of the database session, see [timezones of the validity columns](#timezones-of-the-validity-columns). Prefer a value with a timezone.
+
 ### Example: configure boundary timestamp
 
-You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. The timestamp at which a load package is created is used if `boundary_timestamp` is omitted. A naive `boundary_timestamp` or `active_record_timestamp` is read in the [context timezone](schema.md#context-timezone), UTC by default.
+You can configure the "boundary timestamp" used for record validity windows with `boundary_timestamp`. The provided date(time) value is used as "valid from" for new records and as "valid to" for retired records. If `boundary_timestamp` is omitted or `None`, dlt uses the time at which the load package was created.
 
 ```py
 @dlt.resource(
@@ -621,35 +623,29 @@ def dim_customer():
     ...
 ```
 
-#### Reset boundary timestamp to the current load time
-
-To stop using a previously set `boundary_timestamp` and revert to the default (the current load package creation time), set `boundary_timestamp` to `None`. You can do this either at definition time or dynamically with `apply_hints` before a run.
-
-Definition-time (always use current load time):
+The boundary applies only to the load that declares it. dlt stores it in the load package, not in the schema, so a new boundary does not create a new schema version, and the next load without `boundary_timestamp` uses its own creation time. To set the boundary of a single run, use `apply_hints` before the run:
 
 ```py
-@dlt.resource(
-    write_disposition={
-        "disposition": "merge",
-        "strategy": "scd2",
-        "boundary_timestamp": None,  # reset to current load time
-    }
-)
-def dim_customer():
-    ...
-
-# Per-run reset (override just for this run):
 dim_customer.apply_hints(
     write_disposition={
         "disposition": "merge",
         "strategy": "scd2",
-        "boundary_timestamp": None,  # reset to current load time for this run
+        "boundary_timestamp": "2024-08-22T00:00:00+00:00",
     }
 )
 pipeline.run(dim_customer())
 ```
 
-When `boundary_timestamp` is `None` (or omitted), `dlt` uses the load package's creation timestamp as the boundary for both retiring existing versions and creating new versions.
+dlt reads `boundary_timestamp` only from a write disposition dict, not from a function that returns the write disposition.
+
+### Timezones of the validity columns
+
+dlt writes `boundary_timestamp`, `active_record_timestamp` and the load package creation time into the validity columns by these rules. The [context timezone](schema.md#context-timezone) is not used.
+
+- A value with a timezone is converted to UTC. A destination without timezone support, like Athena, stores it as a naive UTC timestamp.
+- A naive value is used as it is. A destination with timezone support reads it in the timezone of the database session.
+
+The load package creation time has a timezone, so the default boundary is always UTC.
 
 ### Example: Use your own row hash
 
@@ -1138,18 +1134,19 @@ The `delta` table format does not support `delete-insert`. With `cdc`, write the
 
 ### Fill placeholders with values from the load
 
-dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision and timezone support of the destination. A naive `datetime` is read in the [context timezone](schema.md#context-timezone), UTC by default, like a naive timestamp in the data.
+dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision of the destination, by the same rules as the [validity columns](#timezones-of-the-validity-columns): a value with a timezone in UTC, naive UTC on a destination without timezone support, and a naive value as it is.
 
 dlt fills these value placeholders from the load package:
 
-| placeholder                               | value                                                  |
-| ----------------------------------------- | ------------------------------------------------------ |
-| `{load_id}`                               | the load id, the value of `_dlt_load_id` in this load  |
-| `{table_name}`                            | the name of the root table                             |
-| `{load_package_timestamp}`                | the creation time of the load package, in seconds      |
-| `{load_package_timestamp_ms}`             | the creation time of the load package, in milliseconds |
-| `{curr_date}`                             | the date of the load package, a date literal           |
-| `{YYYY}`, `{MM}`, `{DD}`, `{HH}` and more | parts of the creation time of the load package         |
+| placeholder                               | value                                                                                        |
+| ----------------------------------------- | -------------------------------------------------------------------------------------------- |
+| `{load_id}`                               | the load id, the value of `_dlt_load_id` in this load                                        |
+| `{table_name}`                            | the name of the root table                                                                   |
+| `{load_package_timestamp}`                | the creation time of the load package, in seconds                                            |
+| `{load_package_timestamp_ms}`             | the creation time of the load package, in milliseconds                                       |
+| `{boundary_timestamp}`                    | the `scd2` boundary timestamp, or the creation time of the load package, a timestamp literal |
+| `{curr_date}`                             | the date of the load package, a date literal                                                 |
+| `{YYYY}`, `{MM}`, `{DD}`, `{HH}` and more | parts of the creation time of the load package                                               |
 
 The date and time placeholders are the same as the [date and time placeholders of the filesystem layout](../dlt-ecosystem/destinations/filesystem.md#date-and-time-placeholders). In merge conditions, a number is a number literal, so `{MM}` expands to `3`, not `'03'`. Names like `{MMMM}` expand to string literals.
 
@@ -1181,3 +1178,5 @@ def items():
 This source filter is useful when the staging tables keep the records of earlier loads, for example with [`truncate_staging_merge_tables_before_load`](../dlt-ecosystem/staging.md#keep-the-staging-tables-when-the-load-begins).
 
 The names of `extra_placeholders` cannot be `table`, `staging_table` or the name of a value placeholder that dlt fills. dlt reads `extra_placeholders` only from a write disposition dict, not from a function that returns the write disposition.
+
+A table [variant](resource.md#dispatch-data-to-many-tables) and a nested table with its own `primary_key` or `merge_key` in [`nested_hints`](schema.md#generate-custom-linking-for-nested-tables) merge on their own. dlt takes their values from their own write disposition. A variant without a write disposition uses the one of the resource.

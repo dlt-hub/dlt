@@ -1,3 +1,4 @@
+from functools import partial
 from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, Union
 
 import yaml
@@ -20,7 +21,6 @@ from dlt.common.schema.utils import (
 )
 from dlt.common.storages.load_storage import ParsedLoadJobFileName
 from dlt.common.utils import uniq_id
-from dlt.common.destination.capabilities import DestinationCapabilitiesContext
 from dlt.common.destination.utils import (
     expand_merge_condition,
     get_merge_changed_cond,
@@ -519,21 +519,22 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         source_filter = cast(Optional[str], root_table.get("x-merge-source-filter"))
         destination_scope = cast(Optional[str], root_table.get("x-merge-destination-scope"))
         values = get_merge_placeholder_values(root_table["name"])
-        escape_lit = sql_client.capabilities.escape_literal
-        if escape_lit is None:
-            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
+        caps = sql_client.capabilities
+        expand = partial(
+            expand_merge_condition,
+            values=values,
+            escape_literal=caps.escape_literal,
+            supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
+            timestamp_precision=caps.timestamp_precision,
+        )
         if source_filter:
-            source_filter = expand_merge_condition(
-                "source_filter", source_filter, {}, values, escape_lit
-            )
+            source_filter = expand("source_filter", source_filter, {})
         if destination_scope:
             table, staging_table = sql_client.get_qualified_table_names(root_table["name"])
-            destination_scope = expand_merge_condition(
+            destination_scope = expand(
                 "destination_scope",
                 destination_scope,
                 {"table": table, "staging_table": staging_table},
-                values,
-                escape_lit,
             )
         return source_filter, destination_scope
 
@@ -812,8 +813,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         escape_column_id = sql_client.escape_column_name
         escape_lit = sql_client.capabilities.escape_literal
-        if escape_lit is None:
-            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
         # get top level table full identifiers
         root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
@@ -1222,8 +1221,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )
         escape_column_id = sql_client.escape_column_name
         escape_lit = sql_client.capabilities.escape_literal
-        if escape_lit is None:
-            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
 
         # process table hints
         primary_keys = cls._escape_list(
@@ -1416,8 +1413,6 @@ class SqlMergeFollowupJob(SqlFollowupJob):
 
         # define values for validity columns
         escape_lit = caps.escape_literal
-        if escape_lit is None:
-            escape_lit = DestinationCapabilitiesContext.generic_capabilities().escape_literal
         boundary_ts, active_record_ts = get_scd2_timestamps(root_table, caps)
         boundary_literal = escape_lit(boundary_ts)
         if active_record_ts is None:
