@@ -20,6 +20,7 @@ from dlt.common.libs.sqlglot import (
     reorder_or_adjust_outer_select,
     normalize_query_identifiers,
     has_pure_column_projection,
+    get_left_source_qualifier,
     where_on_output,
 )
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNaming
@@ -687,6 +688,34 @@ def test_normalize_query_identifiers_table_qualified_columns() -> None:
 )
 def test_has_pure_column_projection(query: str, expected: bool) -> None:
     assert has_pure_column_projection(cast(sge.Query, sqlglot.parse_one(query))) is expected
+
+
+@pytest.mark.parametrize(
+    "dialect,query,expected",
+    [
+        pytest.param("duckdb", "SELECT * FROM t", "t", id="table"),
+        pytest.param("duckdb", "SELECT * FROM t AS x", "x", id="aliased-table"),
+        pytest.param("duckdb", "SELECT * FROM (SELECT 1) AS s", "s", id="derived-table"),
+        pytest.param("duckdb", "SELECT * FROM (SELECT 1)", None, id="unaliased-derived-table"),
+        pytest.param(
+            "duckdb", "SELECT * FROM read_parquet('a.parquet') AS x", "x", id="table-function"
+        ),
+        pytest.param(
+            "duckdb", "SELECT * FROM read_parquet('a.parquet')", None, id="unaliased-table-function"
+        ),
+        pytest.param(
+            "duckdb", "SELECT * FROM generate_series(1, 3) AS g(n)", "g", id="aliased-columns"
+        ),
+        pytest.param("snowflake", "SELECT * FROM TABLE(my_udtf(1)) AS x", "x", id="udtf"),
+        pytest.param("snowflake", "SELECT * FROM @my_stage AS s", "s", id="stage"),
+        pytest.param("postgres", "SELECT * FROM (VALUES (1)) AS v(a)", "v", id="values"),
+        # bigquery binds the alias to the unnested element, not to the source
+        pytest.param("bigquery", "SELECT * FROM UNNEST([1, 2]) AS x", None, id="unnest"),
+    ],
+)
+def test_get_left_source_qualifier(dialect: str, query: str, expected: Optional[str]) -> None:
+    query_expr = cast(sge.Query, sqlglot.parse_one(query, read=dialect))
+    assert get_left_source_qualifier(query_expr) == expected
 
 
 def _wrap_and_migrate(query: str, *projection: str) -> Tuple[sge.Select, sge.Query]:

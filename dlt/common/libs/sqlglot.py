@@ -1270,14 +1270,6 @@ def _identifier_name(node: Any) -> Optional[str]:
     return None
 
 
-def _subquery_alias_name(subquery: sge.Subquery) -> Optional[str]:
-    """Return the alias name of a subquery, or `None`."""
-    alias_expr = subquery.args.get("alias")
-    if not isinstance(alias_expr, sge.TableAlias):
-        return None
-    return _identifier_name(alias_expr.this)
-
-
 def extract_table_qualifier(table_expr: sge.Expression) -> Optional[Tuple[str, str]]:
     """Return the table name and the qualifier (alias or table name) of a table expression."""
     if not isinstance(table_expr, sge.Table):
@@ -1308,12 +1300,12 @@ def get_from_source(query: sge.Query) -> Optional[sge.Expression]:
 
 def get_source_qualifier(source: Optional[sge.Expression]) -> Optional[str]:
     """Return the SQL qualifier (alias or table name) of a FROM/JOIN source."""
-    if isinstance(source, sge.Table):
-        result = extract_table_qualifier(source)
-        return result[1] if result else None
-    if isinstance(source, sge.Subquery):
-        return _subquery_alias_name(source)
-    return None
+    if source is None:
+        return None
+    if table_qualifier := extract_table_qualifier(source):
+        return table_qualifier[1]
+    # derived tables, table functions, VALUES and stages are referenced by their alias only
+    return source.alias or None
 
 
 def get_left_source_qualifier(query: sge.Query) -> Optional[str]:
