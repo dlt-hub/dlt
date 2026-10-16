@@ -360,6 +360,7 @@ def sql_table(
 __all__ = [
     "sql_database",
     "sql_table",
+    "Table",
     "BaseTableLoader",
     "TableLoader",
     "register_table_loader_backend",
