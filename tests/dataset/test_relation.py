@@ -42,7 +42,7 @@ def inventory():
 
 
 @pytest.fixture(scope="module")
-def dataset() -> dlt.Dataset:
+def dataset(module_tmp_path: pathlib.Path) -> dlt.Dataset:
     @dlt.resource(name="purchases")
     def purchases_data():
         yield from (
@@ -52,7 +52,10 @@ def dataset() -> dlt.Dataset:
         )
 
     pipeline = dlt.pipeline(
-        "_relation_to_ibis", destination="duckdb", full_refresh=True, dev_mode=True
+        "_relation_to_ibis",
+        pipelines_dir=str(module_tmp_path / "pipelines_dir"),
+        destination=dlt.destinations.duckdb(str(module_tmp_path / "relation_to_ibis.db")),
+        dev_mode=True,
     )
     pipeline.run([purchases_data])
     return pipeline.dataset()
