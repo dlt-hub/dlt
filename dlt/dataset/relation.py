@@ -36,7 +36,6 @@ from dlt.common.destination.client import (
 )
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import (
-    to_sqlglot_type,
     build_typed_literal,
     migrate_order_and_limit,
     bind_query,
@@ -73,6 +72,7 @@ from dlt.dataset._incremental import (
     parse_incremental_cursor_path,
     raise_incomplete_cursor_column,
     _RelationIncrementalContext,
+    _sqlglot_type_for_column,
 )
 from dlt.dataset._join import (
     _apply_join,
@@ -958,14 +958,16 @@ class Relation(WithSqlClient):
                     valid_values=list(_FILTER_OP_MAP.keys()),
                 )
 
-        sqlgot_type = to_sqlglot_type(
-            dlt_type=self.columns_schema[column_name].get("data_type"),
-            precision=self.columns_schema[column_name].get("precision"),
-            timezone=self.columns_schema[column_name].get("timezone"),
-            nullable=self.columns_schema[column_name].get("nullable"),
+        columns_schema = self.columns_schema
+        if column_name not in columns_schema:
+            raise KeyError(
+                f"Column `{column_name}` not found on relation. Available columns:"
+                f" {list(columns_schema)}"
+            )
+        # a column without data type (ie. unknown function result) compares to an uncast literal
+        value_expr = build_typed_literal(
+            value, _sqlglot_type_for_column(columns_schema, column_name)
         )
-
-        value_expr = build_typed_literal(value, sqlgot_type)
 
         column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
