@@ -252,21 +252,19 @@ If you plan for some of resources to do merges but your initial backfill is appe
 1. [Enable root key propagation right away](#forcing-root-key-propagation)
 2. or, if you are sure that nested tables are max 1 level deep: [Explicitly disable root key propagation](#disable-root-key-propagation)
 
-If you try to switch to merge after nested tables were already created you'll get a warning and NULL column violation from your
-destination. You can fix your pipeline by:
+If you switch to merge, or set `root_key=True`, after nested tables were already created, dlt logs a warning and adds `_dlt_root_id`
+to the nested tables as a NOT NULL column. Your destination rejects it if the tables contain data. You can fix your pipeline by:
 
 1. Drop affected resources using `dlt pipeline ... drop` command or by using `refresh` argument on the pipeline. This will drop
 data from related resources and reset the schema so NOT NULL columns can be created.
 2. If you have nested tables up to 1 nesting level you may [Explicitly disable root key propagation](#disable-root-key-propagation)
-3. You can fix your nested tables in both staging and final datasets. Add `_dlt_root_id` to all nested tables and copy data
-from related [root (top level) tables](../general-usage/schema.md#nested-references-root-and-nested-tables) `_dlt_id` (`row_key`).
-In that case `dlt` will update pipeline schema but will skip database migration.
+3. [Add the root key to existing tables](#add-the-root-key-to-existing-tables) yourself. This keeps your data.
 
 #### Forcing root key propagation
 
-`Root key` propagation is automatically enabled for all tables that have the `merge` write disposition set from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
+`Root key` propagation is automatically enabled for tables that use the `delete-insert`, `upsert`, `insert-only` or `cdc` merge strategy from the beginning. We do not always enable it by default because it takes up additional storage space. Nevertheless, in some cases, you may want to permanently enable `root key` propagation.
 
-To enable `root key` propagation on an existing source or resource, you must drop and recreate its tables, since the `_dlt_root_id` column cannot be added to tables that already contain data.
+dlt cannot add the `_dlt_root_id` column to tables that already contain data. To enable `root key` propagation on an existing source or resource, drop and recreate its tables as shown below, or [add the root key to existing tables](#add-the-root-key-to-existing-tables) yourself.
 
 For example, suppose you used the [Facebook Ads](../dlt-ecosystem/verified-sources/facebook_ads.md) verified source, where the `merge` write disposition and `root key` are not enabled by default, to load the `ads` resource:
 
@@ -315,10 +313,37 @@ If your source generates single level of nested table (nested tables do not have
 by setting `root_key` to `False` on the source level. In that case `dlt` will use `parent_key` which is identical to `root_key` for level 1 nested tables. Note that currently you cannot disable propagation on the resource level.
 
 :::tip
-If you switched from `append` to `merge` and you forgot to set `root_key` on your source, it is too late to set it to `True` if you already have data in
+If you switched from `append` to `merge` and you forgot to set `root_key` on your source, setting it to `True` fails if you already have data in
 the destination. However, if you are sure that you do not have nested tables in nested tables (nesting level = 1), you can set it to `False` so the
 existing `parent_key` will be used.
 :::
+
+#### Add the root key to existing tables
+
+You can add `_dlt_root_id` to nested tables that already contain data yourself. dlt finds the column in the destination and skips the migration.
+
+1. Add `_dlt_root_id` as a nullable text column to every nested table of the resource.
+2. Copy the `_dlt_id` of the root table into it. In nested tables of level 1, `_dlt_parent_id` already holds this value. Deeper nested tables take `_dlt_root_id` from their parent table, one level at a time.
+3. Drop the nested tables of the resource in the [staging dataset](../dlt-ecosystem/staging.md#staging-dataset), if they exist. They keep the rows of the last load, so dlt cannot add the column there either. dlt creates them again in the next load.
+4. Run the pipeline with the new settings. If a load already failed, run the pipeline again: dlt loads the pending load package.
+
+For example, the `parent` resource in the `my_data` dataset has the nested tables `parent__children` and `parent__children__grand`:
+
+```sql
+ALTER TABLE my_data.parent__children ADD COLUMN _dlt_root_id VARCHAR;
+UPDATE my_data.parent__children SET _dlt_root_id = _dlt_parent_id;
+
+ALTER TABLE my_data.parent__children__grand ADD COLUMN _dlt_root_id VARCHAR;
+UPDATE my_data.parent__children__grand AS g
+SET _dlt_root_id = c._dlt_root_id
+FROM my_data.parent__children AS c
+WHERE g._dlt_parent_id = c._dlt_id;
+
+DROP TABLE IF EXISTS my_data_staging.parent__children__grand;
+DROP TABLE IF EXISTS my_data_staging.parent__children;
+```
+
+The example uses DuckDB and PostgreSQL syntax. Adjust the data type and the `UPDATE` statement to your destination.
 
 ## `scd2` strategy
 
@@ -703,6 +728,10 @@ adding the transform with `add_map`.
 
 Nested tables, if any, do not contain validity columns. Validity columns are only added to the root table. To get the validity columns for a nested record, join the nested table to its parent on `_dlt_parent_id`. By default, `_dlt_id` in the root table is the row hash of the record version. Deeper nested tables join through each parent level. If you set `root_key=True` on the source, nested tables also get `_dlt_root_id`, and you can join the root table directly.
 
+:::caution
+`scd2` does not need the root key, so dlt does not propagate it by default. If you want `_dlt_root_id` in nested tables, set `root_key=True` before the first load. dlt cannot add `_dlt_root_id` to tables that already contain data, but you can [add it yourself](#add-the-root-key-to-existing-tables).
+:::
+
 ### Limitations
 
 * You cannot use columns like `updated_at` or integer `version` of a record that are unique within a `primary_key` (even if it is defined). The hash column
@@ -858,7 +887,7 @@ def events_source():
 ```
 
 :::caution
-`upsert` and `cdc` delete nested records by the root key. If you may switch the resource to one of these strategies later, keep the root key. dlt cannot add `_dlt_root_id` to tables that already contain data.
+`upsert` and `cdc` delete nested records by the root key. If you may switch the resource to one of these strategies later, keep the root key. dlt cannot add `_dlt_root_id` to tables that already contain data, but you can [add it yourself](#add-the-root-key-to-existing-tables).
 :::
 
 ## `cdc` strategy
