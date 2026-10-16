@@ -145,7 +145,7 @@ def ai_mcp_install_command(
 
 
 def _fetch_workbench_base_cli(location: str, branch: Optional[str]) -> Optional[Path]:
-    """Fetch AI workbench repo, warn on failure. CLI wrapper around fetch_workbench_base."""
+    """Fetch dltHub AI Harness repo, warn on failure. CLI wrapper around fetch_workbench_base."""
     try:
         return fetch_workbench_base(location, branch)
     except FileNotFoundError as ex:

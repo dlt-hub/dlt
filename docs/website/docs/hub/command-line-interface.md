@@ -2723,7 +2723,7 @@ Inherits arguments from [`dlthub ai`](#dlthub-ai).
 
 * `-h, --help` - Show this help message and exit
 * `--agent {claude,cursor,codex}` - Ai coding agent to install for. auto-detected if omitted.
-* `--location LOCATION` - Advanced. git url or local path to ai workbench repository.
+* `--location LOCATION` - Advanced. git url or local path to dlthub ai harness repository.
 * `--branch BRANCH` - Advanced. git branch to fetch from.
 * `--overwrite` - Overwrite existing files instead of skipping them and remove files the installed version shipped but the new one does not.
 

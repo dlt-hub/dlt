@@ -257,7 +257,7 @@ class _AIAgent(ABC):
         """Post-process the full action list. Default is identity.
 
         Subclasses override to coalesce shared targets (e.g. AGENTS.md).
-        *workbench_base* is the root of the fetched workbench repo.
+        *workbench_base* is the root of the fetched dltHub AI Harness repo.
         """
         return actions
 
