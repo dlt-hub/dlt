@@ -44,6 +44,7 @@ from dlt.common.libs.sqlglot import (
     TPhysicalDatasetRef,
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
+    get_left_source_qualifier,
     has_pure_column_projection,
 )
 from dlt.common.libs import is_instance_lib
@@ -78,7 +79,6 @@ from dlt.dataset._join import (
     _apply_explicit_join,
     _extract_joined_table_aliases,
     _JoinTarget,
-    _left_source_qualifier,
     _qualify_unscoped_tables_with_dataset,
 )
 
@@ -418,7 +418,7 @@ class Relation(WithSqlClient):
             rel._sqlglot_expression = expr
             return rel
         # a defining projection (aliases, expressions, distinct, group) must become a derived table
-        qualifier = _left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
+        qualifier = get_left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
         subquery = self.sqlglot_expression.subquery(qualifier)
         new_expr = sge.select(*proj).from_(subquery)
         migrate_order_and_limit(subquery.this, new_expr, qualifier)
@@ -687,7 +687,7 @@ class Relation(WithSqlClient):
                 # no base table at all (e.g., from .query())
                 if on is None:
                     raise ValueError(f"Relation `{other}` has no base table to resolve references.")
-                target_table = _left_source_qualifier(other.sqlglot_expression) or "subquery"
+                target_table = get_left_source_qualifier(other.sqlglot_expression) or "subquery"
                 target_columns = other.columns_schema
             return _JoinTarget(
                 dataset_name=foreign_dataset.dataset_name,

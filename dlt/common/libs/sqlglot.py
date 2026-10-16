@@ -1259,3 +1259,80 @@ def migrate_order_and_limit(inner: sge.Query, outer: sge.Select, qualifier: str)
         if (value := inner.args.get(clause)) is not None:
             outer.set(clause, value)
             inner.set(clause, None)
+
+
+def _identifier_name(node: Any) -> Optional[str]:
+    """Return the string name of an sqlglot identifier-or-string node."""
+    if isinstance(node, sge.Identifier):
+        return node.name
+    if isinstance(node, str):
+        return node
+    return None
+
+
+def _subquery_alias_name(subquery: sge.Subquery) -> Optional[str]:
+    """Return the alias name of a subquery, or `None`."""
+    alias_expr = subquery.args.get("alias")
+    if not isinstance(alias_expr, sge.TableAlias):
+        return None
+    return _identifier_name(alias_expr.this)
+
+
+def extract_table_qualifier(table_expr: sge.Expression) -> Optional[Tuple[str, str]]:
+    """Return the table name and the qualifier (alias or table name) of a table expression."""
+    if not isinstance(table_expr, sge.Table):
+        return None
+
+    table_name = _identifier_name(table_expr.args.get("this"))
+    if table_name is None:
+        return None
+
+    alias_expr = table_expr.args.get("alias")
+    if isinstance(alias_expr, sge.TableAlias):
+        alias_name = _identifier_name(alias_expr.this)
+        if alias_name is not None:
+            return table_name, alias_name
+
+    return table_name, table_name
+
+
+def get_from_source(query: sge.Query) -> Optional[sge.Expression]:
+    """Return the FROM source expression (table or subquery), or `None`."""
+    # sqlglot >= 28 renamed `from` to `from_` internally
+    from_expr = query.args.get("from_") or query.args.get("from")
+    if not isinstance(from_expr, sge.From):
+        return None
+    source: Optional[sge.Expression] = from_expr.this
+    return source
+
+
+def get_source_qualifier(source: Optional[sge.Expression]) -> Optional[str]:
+    """Return the SQL qualifier (alias or table name) of a FROM/JOIN source."""
+    if isinstance(source, sge.Table):
+        result = extract_table_qualifier(source)
+        return result[1] if result else None
+    if isinstance(source, sge.Subquery):
+        return _subquery_alias_name(source)
+    return None
+
+
+def get_left_source_qualifier(query: sge.Query) -> Optional[str]:
+    """Return the qualifier used to reference the FROM source (alias or table name)."""
+    return get_source_qualifier(get_from_source(query))
+
+
+def aliased_subquery(query: sge.Query, qualifier: str) -> sge.Subquery:
+    """Wrap `query` as a derived table exposed under `qualifier`."""
+    return sge.Subquery(
+        this=query,
+        alias=sge.TableAlias(this=sge.to_identifier(qualifier, quoted=False)),
+    )
+
+
+def wrap_as_derived_table(query: sge.Select, qualifier: str) -> sge.Select:
+    """Re-select all of `query`'s columns from it embedded as a derived table."""
+    return (
+        sge.Select()
+        .select(sge.Column(table=sge.to_identifier(qualifier), this=sge.Star()))
+        .from_(aliased_subquery(query, qualifier))
+    )
