@@ -964,6 +964,110 @@ def test_trace_custom_metrics_schema() -> None:
     assert "trace__steps__extract_info__resource_metrics__list_metric" in inferred_schema.tables
 
 
+def _tenant_of(resource: DltResource, table_name: str) -> str:
+    return "acme"
+
+
+def _region_of(resource: DltResource, table_name: str) -> str:
+    return "eu"
+
+
+@pytest.mark.parametrize("fail", [False, True], ids=["extracted", "extract-fails"])
+def test_trace_replaces_callables_in_hints(fail: bool) -> None:
+    """Callables in hint dicts, ie. `extra_placeholders` of root and nested write dispositions,
+    are replaced by their names in the trace, also when they never ran. So the trace is saved
+    and can be serialized."""
+
+    root_disposition: Any = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "day = {day} AND tenant = {tenant}",
+        "extra_placeholders": {
+            "day": lambda resource, table_name: datetime.date(2026, 10, 1),
+            "tenant": _tenant_of,
+        },
+    }
+    children_disposition: Any = {"disposition": "merge", "destination_scope": "day = {day}"}
+    subs_disposition: Any = {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "part = {part} AND region = {region}",
+        "extra_placeholders": {"part": lambda resource, table_name: "a", "region": _region_of},
+    }
+
+    @dlt.source
+    def merge_source():
+        @dlt.resource(
+            write_disposition=root_disposition,
+            nested_hints={
+                # a nested table uses the placeholders of the root table
+                "children": dlt.mark.make_nested_hints(write_disposition=children_disposition),
+                # a pseudo-root merges with its own placeholders
+                "subs": dlt.mark.make_nested_hints(
+                    primary_key="id", write_disposition=subs_disposition
+                ),
+            },
+        )
+        def items():
+            if fail:
+                raise NotImplementedError()
+            yield {
+                "day": datetime.date(2026, 10, 1),
+                "tenant": "acme",
+                "children": [{"v": 1}],
+                "subs": [{"id": 1, "part": "a", "region": "eu"}],
+            }
+
+        return items
+
+    source = merge_source()
+    pipeline = dlt.pipeline(
+        pipeline_name="trace_callables_" + uniq_id(),
+        destination=dummy(completed_prob=1.0, supported_merge_strategies=["delete-insert"]),
+    )
+    if fail:
+        with pytest.raises(PipelineStepFailed):
+            pipeline.run(source)
+    else:
+        pipeline.run(source)
+
+    # the trace was pickled
+    trace = load_trace(pipeline.working_dir)
+    assert trace is not None
+    assert (trace.steps[0].step_exception is not None) is fail
+    extract_info = trace.last_extract_info
+    hints = extract_info.metrics[extract_info.loads_ids[0]][0]["hints"]["items"]
+    assert hints["write_disposition"] == {
+        "disposition": "merge",
+        "strategy": "delete-insert",
+        "destination_scope": "day = {day} AND tenant = {tenant}",
+        "extra_placeholders": {"day": "<lambda>", "tenant": "_tenant_of"},
+    }
+    assert hints["nested_hints"]["children"] == {
+        "columns": {},
+        "write_disposition": {"disposition": "merge", "destination_scope": "day = {day}"},
+    }
+    assert hints["nested_hints"]["subs"] == {
+        "columns": {},
+        "primary_key": "id",
+        "write_disposition": {
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "part = {part} AND region = {region}",
+            "extra_placeholders": {"part": "<lambda>", "region": "_region_of"},
+        },
+    }
+    _assert_no_callables(hints)
+
+    # the resource keeps its callables
+    resource_hints: Any = source.resources["items"]._hints
+    assert callable(resource_hints["write_disposition"]["extra_placeholders"]["day"])
+    nested_hints = resource_hints["nested_hints"]
+    assert callable(nested_hints["subs"]["write_disposition"]["extra_placeholders"]["part"])
+
+    assert_trace_serializable(trace)
+
+
 @pytest.mark.skipif(
     int(pendulum.__version__.split(".")[0]) < 3,
     reason="Skipping backward compatibility test for pendulum version < 3",
@@ -1009,6 +1113,17 @@ def test_ignore_load_broken_trace() -> None:
 
         # can't fail but must be None
         assert load_trace(trace_dir) is None
+
+
+def _assert_no_callables(value: Any) -> None:
+    if isinstance(value, dict):
+        for v in value.values():
+            _assert_no_callables(v)
+    elif isinstance(value, list):
+        for v in value:
+            _assert_no_callables(v)
+    else:
+        assert not callable(value)
 
 
 def _find_resolved_value(

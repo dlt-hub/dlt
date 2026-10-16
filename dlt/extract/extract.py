@@ -308,6 +308,18 @@ def get_fresh_write_disposition(
     return wd_config
 
 
+def _replace_callables_with_names(value: Any) -> Any:
+    """Returns a copy of nested dicts and lists of `value` with callables replaced by their
+    names, so the trace can be pickled and serialized."""
+    if callable(value):
+        return get_callable_name(value)
+    if isinstance(value, dict):
+        return {k: _replace_callables_with_names(v) for k, v in value.items()}
+    if isinstance(value, list):
+        return [_replace_callables_with_names(v) for v in value]
+    return value
+
+
 class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
     original_data: Any
     """Original data from which the extracted DltSource was created. Will be used to describe in extract info"""
@@ -403,7 +415,8 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                             hint, allow_unicode=True, default_flow_style=False, sort_keys=False
                         )
                     continue
-                hints[name] = hint
+                # ie. `extra_placeholders` in write dispositions, also of `nested_hints`
+                hints[name] = _replace_callables_with_names(hint)
 
         inputs: List[TDataLocation] = []
         for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():
