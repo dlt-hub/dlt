@@ -4,6 +4,7 @@ import pytest
 import sqlglot
 import sqlglot.expressions as sge
 from sqlglot.optimizer.annotate_types import annotate_types
+from sqlglot.optimizer.qualify import qualify
 
 from dlt.common.libs.sqlglot import (
     DLT_SUBQUERY_NAME,
@@ -815,10 +816,22 @@ def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
             id="limit-applies-after-filter",
         ),
         pytest.param(
+            "SELECT b * 10 AS a FROM t",
+            "a = 10",
+            "SELECT b * 10 AS a FROM t WHERE (b * 10) = 10",
+            id="computed-alias",
+        ),
+        pytest.param(
             "SELECT a AS src, a * 10 AS a FROM t",
             "a = 10",
-            "SELECT a AS src, a * 10 AS a FROM t WHERE (a * 10) = 10",
+            "SELECT t.* FROM (SELECT a AS src, a * 10 AS a FROM t) AS t WHERE a = 10",
             id="alias-shadows-source",
+        ),
+        pytest.param(
+            "SELECT a AS b, b AS a FROM t",
+            "a = 1",
+            "SELECT t.* FROM (SELECT a AS b, b AS a FROM t) AS t WHERE a = 1",
+            id="swapped-renames",
         ),
         pytest.param(
             "SELECT t.a, u.b AS u__b FROM t JOIN u ON t.id = u.id",
@@ -874,8 +887,20 @@ def test_migrate_order_and_limit_rewrites_computed_key_to_output_name() -> None:
 )
 def test_where_on_output(query: str, predicate: str, expected: str) -> None:
     """Unqualified predicate columns bind to the output of the query, other columns to its sources."""
-    filtered = where_on_output(cast(sge.Query, sqlglot.parse_one(query)), sge.condition(predicate))
+    source = cast(sge.Query, sqlglot.parse_one(query))
+    filtered = where_on_output(source, sge.condition(predicate))
     assert filtered.sql() == expected
+
+    def _qualified(expression: sge.Expression, dialect: str) -> str:
+        schema = {
+            "t": {"a": "INT", "b": "INT", "c": "INT", "id": "INT"},
+            "u": {"b": "INT", "id": "INT"},
+        }
+        return qualify(expression.copy(), schema=schema, dialect=dialect).sql("duckdb")
+
+    # clickhouse binds WHERE names to select aliases first, the filter must mean the same there
+    if _qualified(source, "clickhouse") == _qualified(source, "duckdb"):
+        assert _qualified(filtered, "clickhouse") == _qualified(filtered, "duckdb")
 
 
 def test_build_typed_literal_bool_produces_boolean_expression() -> None:

@@ -1374,9 +1374,20 @@ def where_on_output(query: sge.Query, predicate: sge.Expression) -> sge.Query:
         if isinstance(sel, sge.Alias)
         and not (isinstance(sel.this, sge.Column) and sel.this.name == sel.output_name)
     }
-    if any(aliased[col.name].find(sge.Anonymous) for col in output_refs if col.name in aliased):
+    for col in output_refs:
+        if col.name not in aliased:
+            continue
+        expression = aliased[col.name]
         # an unknown function may be an aggregate
-        return _where_on_derived_table(query, predicate)
+        if expression.find(sge.Anonymous):
+            return _where_on_derived_table(query, predicate)
+        # dialects that resolve WHERE names to aliases first (ie. clickhouse) would capture
+        # a source column shadowed by an alias and expand it again
+        if any(
+            not source_col.table and source_col.name in aliased
+            for source_col in expression.find_all(sge.Column)
+        ):
+            return _where_on_derived_table(query, predicate)
 
     def _expand_alias(node: sge.Expression) -> sge.Expression:
         if (
