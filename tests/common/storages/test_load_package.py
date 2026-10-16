@@ -1,4 +1,4 @@
-import datetime  # noqa: I251
+import datetime
 import os
 import pytest
 import semver
@@ -225,8 +225,8 @@ def test_create_and_update_load_package_state(load_storage: LoadStorage) -> None
 
     # check timestamp
     created_at = state["created_at"]
-    now = pendulum.now()
-    assert (now - created_at).in_seconds() < 2
+    now = datetime.datetime.now(datetime.timezone.utc)
+    assert (now - created_at).total_seconds() < 2
 
 
 def test_create_load_id() -> None:

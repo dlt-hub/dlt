@@ -36,7 +36,6 @@ from dlt.common.destination.client import (
 )
 from dlt.common.destination.dataset import TFilterOperation
 from dlt.common.libs.sqlglot import (
-    to_sqlglot_type,
     build_typed_literal,
     migrate_order_and_limit,
     bind_query,
@@ -44,7 +43,9 @@ from dlt.common.libs.sqlglot import (
     TPhysicalDatasetRef,
     DLT_SUBQUERY_NAME,
     TSqlGlotDialect,
+    get_left_source_qualifier,
     has_pure_column_projection,
+    where_on_output,
 )
 from dlt.common.libs import is_instance_lib
 from dlt.common.schema.typing import (
@@ -72,13 +73,13 @@ from dlt.dataset._incremental import (
     parse_incremental_cursor_path,
     raise_incomplete_cursor_column,
     _RelationIncrementalContext,
+    _sqlglot_type_for_column,
 )
 from dlt.dataset._join import (
     _apply_join,
     _apply_explicit_join,
     _extract_joined_table_aliases,
     _JoinTarget,
-    _left_source_qualifier,
     _qualify_unscoped_tables_with_dataset,
 )
 
@@ -418,7 +419,7 @@ class Relation(WithSqlClient):
             rel._sqlglot_expression = expr
             return rel
         # a defining projection (aliases, expressions, distinct, group) must become a derived table
-        qualifier = _left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
+        qualifier = get_left_source_qualifier(self.sqlglot_expression) or DLT_SUBQUERY_NAME
         subquery = self.sqlglot_expression.subquery(qualifier)
         new_expr = sge.select(*proj).from_(subquery)
         migrate_order_and_limit(subquery.this, new_expr, qualifier)
@@ -687,7 +688,7 @@ class Relation(WithSqlClient):
                 # no base table at all (e.g., from .query())
                 if on is None:
                     raise ValueError(f"Relation `{other}` has no base table to resolve references.")
-                target_table = _left_source_qualifier(other.sqlglot_expression) or "subquery"
+                target_table = get_left_source_qualifier(other.sqlglot_expression) or "subquery"
                 target_columns = other.columns_schema
             return _JoinTarget(
                 dataset_name=foreign_dataset.dataset_name,
@@ -940,9 +941,8 @@ class Relation(WithSqlClient):
             )
 
         if not operator and not value:
-            rel._sqlglot_expression = rel.sqlglot_expression.where(
-                column_or_expr, dialect=self.destination_dialect
-            )
+            predicate = sge.condition(column_or_expr, dialect=self.destination_dialect)
+            rel._sqlglot_expression = where_on_output(rel.sqlglot_expression, predicate)
             return rel
 
         assert isinstance(column_or_expr, str)
@@ -958,14 +958,16 @@ class Relation(WithSqlClient):
                     valid_values=list(_FILTER_OP_MAP.keys()),
                 )
 
-        sqlgot_type = to_sqlglot_type(
-            dlt_type=self.columns_schema[column_name].get("data_type"),
-            precision=self.columns_schema[column_name].get("precision"),
-            timezone=self.columns_schema[column_name].get("timezone"),
-            nullable=self.columns_schema[column_name].get("nullable"),
+        columns_schema = self.columns_schema
+        if column_name not in columns_schema:
+            raise KeyError(
+                f"Column `{column_name}` not found on relation. Available columns:"
+                f" {list(columns_schema)}"
+            )
+        # a column without data type (ie. unknown function result) compares to an uncast literal
+        value_expr = build_typed_literal(
+            value, _sqlglot_type_for_column(columns_schema, column_name)
         )
-
-        value_expr = build_typed_literal(value, sqlgot_type)
 
         column = sge.Column(this=sge.to_identifier(column_name, quoted=True))
 
@@ -979,7 +981,7 @@ class Relation(WithSqlClient):
         else:
             condition = condition_cls(this=column, expression=value_expr)
 
-        rel._sqlglot_expression = rel.sqlglot_expression.where(condition)
+        rel._sqlglot_expression = where_on_output(rel.sqlglot_expression, condition)
         return rel
 
     @overload

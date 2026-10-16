@@ -1,5 +1,6 @@
 ---
-title: Command Line Interface
+title: dlt CLI reference
+sidebar_label: Command Line Interface
 description: Command line interface (CLI) full reference of dlt
 keywords: [command line interface, cli, dlt init]
 ---

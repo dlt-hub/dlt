@@ -13,12 +13,20 @@ start: ## Generate docs and start the docusaurus dev server
 	$(MAKE) preprocess-docs
 	cd website && npx docusaurus start
 
+# Pagefind indexes rendered HTML, so this needs a production build. The dev server
+# (`make start`) serves this index as is via `website/plugins/pagefind-dev.js`:
+# run it at least once to populate search, and again to refresh it.
+search-index: ## Build the docs and the search index used by the dev server
+	cd website && npx docusaurus build --out-dir build/docs
+	cd website && npm run search-index
+
 build: ## Full production build of the docs website into `website/build/docs`
 	cd website && uv run npm run update-versions
 	cd website && npm run compile-redirects
 	$(MAKE) check-orphan-docs
 	$(MAKE) preprocess-docs
 	cd website && npx docusaurus build --out-dir build/docs
+	cd website && npm run search-index
 	cd website && npm run verify-redirects
 	cd website && node scripts/verify-llms-txt.js
 

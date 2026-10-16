@@ -262,6 +262,8 @@ expr = sge.EQ(
 filtered = customers_relation.where(expr).fetchall()
 ```
 
+Filters refer to the columns of the relation. If the relation aggregates or renames columns, for example `dataset("SELECT city, COUNT(*) AS n FROM customers GROUP BY city")`, then `where("n", "gt", 1)` filters the aggregated rows.
+
 ### Aggregate data
 
 ```py notype
@@ -1059,7 +1061,7 @@ Ibis is a portable Python dataframe library. The [official documentation](https:
 `dlt` hands your loaded dataset over to an Ibis backend connection.
 
 :::tip
-Not every destination that `dlt` supports has an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), Postgres (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, Clickhouse, MSSQL (including Synapse), and BigQuery. The filesystem destination works through the [Filesystem SQL client](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client). It needs the DuckDB backend for Ibis. Ibis cannot change the persisted files on the filesystem.
+Not every destination that `dlt` supports has an equivalent Ibis backend. Natively supported destinations include DuckDB (including Motherduck), [Postgres](../../dlt-ecosystem/destinations/postgres.md) (Redshift is supported via the Postgres backend for Ibis versions lower than 10.4.0), Snowflake, [Clickhouse](../../dlt-ecosystem/destinations/clickhouse.md), [MSSQL](../../dlt-ecosystem/destinations/mssql.md) (including Synapse), and BigQuery. The filesystem destination works through the [Filesystem SQL client](../../dlt-ecosystem/transformations/sql.md#the-filesystem-sql-client). It needs the DuckDB backend for Ibis. Ibis cannot change the persisted files on the filesystem.
 :::
 
 ### Prerequisites

@@ -1,5 +1,6 @@
 ---
-title: Installation
+title: Install the AI harness
+sidebar_label: Installation
 description: Install the dltHub AI Harness in a new or existing workspace, and add feature toolkits by intent or by command.
 keywords: [ai harness, install, dlthub-init, dlthub-start, dlthub ai init, toolkit install]
 ---
@@ -98,4 +99,4 @@ Output includes the dlt version, the configured agent, the installed toolkits, a
 ## What's next
 
 - [Toolkits](toolkits.md) walks through the full catalog and where each fits in the development cycle.
-- [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) shows how to use the `dlthub-platform` toolkit end-to-end.
+- [Deploy with the dltHub AI Harness](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness) shows how to use the `dlthub-platform` toolkit end-to-end.

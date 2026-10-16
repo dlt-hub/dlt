@@ -997,8 +997,11 @@ class FilesystemClient(
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> TSchemaTables:
-        applied_update = super().update_stored_schema(only_tables, expected_update, force)
+        applied_update = super().update_stored_schema(
+            only_tables, expected_update, force, include_existing_tables
+        )
 
         # don't store schema when used as staging
         if not self.config.as_staging_destination:

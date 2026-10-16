@@ -319,6 +319,15 @@ def test_apply_hints_columns() -> None:
         "nullable": False,
     }
 
+    # changing data type drops precision and scale of the previous type
+    users.apply_hints(columns={"price": {"data_type": "decimal", "precision": 10, "scale": 2}})
+    users.apply_hints(columns={"price": {"data_type": "text", "precision": 50}})
+    assert cast(TTableSchemaColumns, users.columns)["price"] == {
+        "data_type": "text",
+        "name": "price",
+        "precision": 50,
+    }
+
     # delete columns by passing empty
     users.apply_hints(columns={})
     assert users.columns == {}

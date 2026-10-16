@@ -719,8 +719,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
         only_tables: Iterable[str] = None,
         expected_update: TSchemaTables = None,
         force: bool = False,
+        include_existing_tables: bool = False,
     ) -> Optional[TSchemaTables]:
-        applied_update = super().update_stored_schema(only_tables, expected_update, force)
+        applied_update = super().update_stored_schema(
+            only_tables, expected_update, force, include_existing_tables
+        )
         # Retrieve the schema from Weaviate
         try:
             schema_info = self.get_stored_schema_by_hash(self.schema.stored_version_hash)
@@ -732,7 +735,11 @@ class WeaviateClient(JobClientBase, WithStateSync):
                 "not found in the storage (or update enforced). upgrading"
             )
             # TODO: return a real updated table schema (like in SQL job client)
-            self._execute_schema_update(only_tables, store_schema=schema_info is None)
+            self._execute_schema_update(
+                only_tables,
+                store_schema=schema_info is None,
+                include_existing_tables=include_existing_tables,
+            )
         else:
             logger.info(
                 f"Schema with hash {self.schema.stored_version_hash} "
@@ -742,9 +749,18 @@ class WeaviateClient(JobClientBase, WithStateSync):
 
         return applied_update
 
-    def _execute_schema_update(self, only_tables: Iterable[str], store_schema: bool = True) -> None:
-        for table_name in only_tables or self.schema.tables.keys():
+    def _execute_schema_update(
+        self,
+        only_tables: Iterable[str],
+        store_schema: bool = True,
+        include_existing_tables: bool = False,
+    ) -> None:
+        only_tables = set(only_tables or self.schema.tables.keys())
+        for table_name in self.schema.tables.keys() if include_existing_tables else only_tables:
             exists, existing_columns = self.get_storage_table(table_name)
+            # tables outside only_tables get new columns but are not created
+            if not exists and table_name not in only_tables:
+                continue
             # TODO: detect columns where vectorization was added or removed and modify it. currently we ignore change of hints
             new_columns = self.schema.get_new_table_columns(
                 table_name,

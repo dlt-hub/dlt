@@ -11,13 +11,13 @@ A toolkit is a versioned bundle of skills, rules, an MCP server, and in some too
 
 Toolkits map onto a five-stage pipeline lifecycle. Each toolkit owns one stage and guides the agent through it end to end, starting from an **entry skill** and running the rest in sequence.
 
-| Stage                   | Purpose                                                                      | Step-by-step guide                                                                     |
-| ----------------------- | ---------------------------------------------------------------------------- | -------------------------------------------------------------------------------------- |
-| [Ingest](#ingest)       | Load data from sources (REST APIs, SQL databases, files) into a destination. | [REST API source with AI Harness](../ingestion/rest-api-source.md)                     |
-| [Validate](#validate)   | Define column-level checks and load metrics to catch bad data early.         | —                                                                                      |
-| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use.           | [Explore and transform your data](../transformations/explore-and-transform.md)         |
-| [Deploy](#deploy)       | Ship pipelines and notebooks to the dltHub platform on a schedule.           | [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) |
-| [Observe](#observe)     | Explore loaded data and diagnose performance issues.                         | [Explore and transform your data](../transformations/explore-and-transform.md)         |
+| Stage                   | Purpose                                                                      | Step-by-step guide                                                                                           |
+| ----------------------- | ---------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------ |
+| [Ingest](#ingest)       | Load data from sources (REST APIs, SQL databases, files) into a destination. | [REST API source with dltHub AI Harness](../ingestion/rest-api-source.md)                                    |
+| [Validate](#validate)   | Define column-level checks and load metrics to catch bad data early.         | —                                                                                                            |
+| [Transform](#transform) | Reshape raw pipeline data into a curated model for downstream use.           | [Explore and transform your data](../transformations/explore-and-transform.md)                               |
+| [Deploy](#deploy)       | Ship pipelines and notebooks to the dltHub platform on a schedule.           | [Deploy with the dltHub AI Harness](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness) |
+| [Observe](#observe)     | Explore loaded data and diagnose performance issues.                         | [Explore and transform your data](../transformations/explore-and-transform.md)                               |
 
 ## Ingest
 
@@ -118,7 +118,7 @@ Transform raw dlt pipeline data into a Canonical Data Model using Kimball dimens
 
 ### `dlthub-platform`
 
-Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked example](../pipeline-operations/deployments.md#deploy-with-ai-harness).
+Deploy dltHub workspaces and pipelines to the dltHub Platform. See the [worked example](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness).
 
 <div class="plain-details">
 <details>
@@ -165,4 +165,4 @@ Diagnose the bottleneck stage (extract, normalize, load) and apply parallelism, 
 
 ## What's next
 
-- [Deploy with AI Harness](../pipeline-operations/deployments.md#deploy-with-ai-harness) walks through the `dlthub-platform` toolkit end-to-end.
+- [Deploy with the dltHub AI Harness](../pipeline-operations/deployments.md#deploy-with-the-dlthub-ai-harness) walks through the `dlthub-platform` toolkit end-to-end.

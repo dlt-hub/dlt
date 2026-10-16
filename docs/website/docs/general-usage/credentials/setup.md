@@ -1,5 +1,6 @@
 ---
-title: Overview
+title: "Configure credentials: secrets.toml and config.toml"
+sidebar_label: Overview
 description: Learn where configs are stored and how to write them
 keywords: [credentials, secrets.toml, secrets, config, configuration, environment variables, provider]
 ---

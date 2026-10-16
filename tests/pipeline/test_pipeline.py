@@ -6644,6 +6644,41 @@ def test_staging_tables_created_after_schema_change_without_data() -> None:
         assert [r[0] for r in rows] == ["b1", "b2"]
 
 
+@pytest.mark.parametrize("nested", [False, True], ids=["root_table", "nested_table"])
+def test_column_added_to_table_without_data(nested: bool) -> None:
+    """Regression test for #4535: a column added in a load where its table has no rows must be
+    added to the destination table before rows carrying it arrive.
+    """
+    new_column: List[TColumnSchema] = [{"name": "x", "data_type": "bigint"}]
+    hints = (
+        dlt.mark.make_hints(nested_hints={"items": dlt.mark.make_nested_hints(columns=new_column)})
+        if nested
+        else dlt.mark.make_hints(columns=new_column)
+    )
+    table_name = "a__items" if nested else "a"
+
+    @dlt.resource(name="a")
+    def a(rows: List[Any], hint: bool = False):
+        if hint:
+            yield dlt.mark.with_hints([], hints)
+        yield from rows
+
+    @dlt.resource(name="b")
+    def b():
+        yield [{"id": 1}]
+
+    p = dlt.pipeline("test_column_added_to_table_without_data", destination="duckdb", dev_mode=True)
+    # a, a__items and b are created
+    assert_load_info(p.run([a([{"id": 1, "items": [{"k": 1}]}]), b()]))
+    # schema gets the new column but its table has no rows: only b is loaded, the hash is stored
+    assert_load_info(p.run([a([], hint=True), b()]))
+    assert "x" in p.default_schema.tables[table_name]["columns"]
+    # the hash is found so the schema update is skipped and rows with the column must load
+    row = {"id": 2, "items": [{"k": 2, "x": 5}]} if nested else {"id": 2, "x": 5}
+    assert_load_info(p.run([a([row])]))
+    assert {r["x"] for r in load_tables_to_dicts(p, table_name)[table_name]} == {None, 5}
+
+
 def test_staging_tables_recreated_after_staging_dataset_dropped() -> None:
     """Regression test for #2862: staging tables recreated after staging dataset loss.
 

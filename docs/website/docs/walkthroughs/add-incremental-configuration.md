@@ -1,5 +1,6 @@
 ---
-title: Incremental loading
+title: Incremental loading from SQL databases
+sidebar_label: Incremental loading
 description: Incremental SQL data loading strategies
 keywords: [how to, load data incrementally from SQL]
 slug: sql-incremental-configuration

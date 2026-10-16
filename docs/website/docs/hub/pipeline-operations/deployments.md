@@ -234,9 +234,9 @@ dlthub workspace configuration info [version]
 
 See the [CLI reference](../command-line-interface.md) for the full set of deployment and job commands.
 
-## Deploy with AI Harness
+## Deploy with the dltHub AI Harness
 
-The [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit is the AI Harness's answer to "I've got a pipeline running locally, now how do I run it on dltHub?" It guides your coding agent through preparing `__deployment__.py`, running `dlthub deploy`, wiring up schedules, and debugging failures.
+The [`dlthub-platform`](../ai-harness/toolkits.md#dlthub-platform) toolkit is how the [dltHub AI Harness](../ai-harness/introduction.md) answers "I've got a pipeline running locally, now how do I run it on dltHub?" It guides your coding agent through preparing `__deployment__.py`, running `dlthub deploy`, wiring up schedules, and debugging failures.
 
 Install the toolkit when you have a pipeline that runs locally with `dlthub local run` and you want to:
 

@@ -379,12 +379,12 @@ def resolve_toolkit_dependencies(name: str, dep_map: Dict[str, List[str]]) -> Li
 
 
 def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
-    """Fetch AI workbench repo and return base Path.
+    """Fetch the dltHub AI Harness repo and return its base path.
 
     Thread-safe: git operations on the shared repo directory are serialized.
 
     Raises:
-        FileNotFoundError: When the workbench directory is missing from the repo.
+        FileNotFoundError: When the `workbench` directory is missing from the repo.
     """
     from dlt.common.libs import git
 
@@ -395,7 +395,8 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
         )
     if not src_storage.has_folder(AI_WORKBENCH_BASE_DIR):
         raise FileNotFoundError(
-            "Workbench directory '%s' not found in repo %s" % (AI_WORKBENCH_BASE_DIR, location)
+            "dltHub AI Harness directory '%s' not found in repo %s"
+            % (AI_WORKBENCH_BASE_DIR, location)
         )
     return Path(src_storage.make_full_path(AI_WORKBENCH_BASE_DIR))
 
@@ -403,10 +404,10 @@ def fetch_workbench_base(location: str, branch: Optional[str]) -> Path:
 def fetch_workbench_toolkits(
     base: Path, listed_only: bool = False, strict: bool = False
 ) -> Tuple[Dict[str, TToolkitInfo], List[str]]:
-    """Scan workbench directory and return mapping of toolkit name -> TToolkitInfo.
+    """Scan dltHub AI Harness `workbench` directory and return mapping of toolkit name -> TToolkitInfo.
 
     Args:
-        base: Root directory of the workbench repo.
+        base: Root directory of the harness repo.
         listed_only: When True, skip toolkits with `listed: false` in metadata.
         strict: When True, raise on invalid toolkit metadata instead of warning.
 
@@ -472,12 +473,12 @@ def extract_toolkit_info(meta: Dict[str, Any], fallback_name: str) -> TToolkitIn
 def fetch_workbench_toolkit_info(
     name: str, location: str, branch: Optional[str] = None
 ) -> Optional[TWorkbenchToolkitInfo]:
-    """Return detailed toolkit info from the workbench repo.
+    """Return detailed toolkit info from the dltHub AI Harness repo.
 
     Args:
         name: Toolkit name to look up.
-        location: Workbench git repo URL or local path.
-        branch: Git branch to fetch. Uses default workbench branch when None.
+        location: Harness git repo URL or local path.
+        branch: Git branch to fetch. Uses default harness branch when None.
 
     Returns:
         Toolkit info with skills, commands, rules, and agents, or None if not found.
@@ -613,7 +614,7 @@ _INIT_TOOLKIT = "init"
 
 
 def read_agents_md_template(workbench_base: Optional[Path]) -> str:
-    """Read AGENTS.md template from init toolkit in workbench.
+    """Read AGENTS.md template from init toolkit in the dltHub AI Harness.
 
     Raises `FileNotFoundError` when `workbench_base` is `None`
     or the template file is missing.

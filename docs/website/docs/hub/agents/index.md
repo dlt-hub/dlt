@@ -26,7 +26,7 @@ This page covers how to declare an agent job and how to run it locally and on th
 | Access axis      | Area of the workspace that `access` covers: `local` for the files and the shell, `data` for the data in your destinations, `context` for runs, logs, job definitions, and telemetry | Key of `access` in the agent definition                               |
 | Verb             | What the agent can do on an axis: `local` takes `read`, `write`, `execute`, `network`; `data` takes `read`, `write`; `context` takes `read`. `all` grants every verb of its axis    | Listed under the axis in `access`                                     |
 
-The [dltHub AI harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
+The [dltHub AI Harness](../ai-harness/introduction.md) ships verified agent definitions in its toolkits. Installing a toolkit copies the `AGENT.md` into your workspace, where you can adapt it. Your `__deployment__.py` declares the agent jobs built on these definitions, and `dlthub deploy` ships the definitions with the rest of the workspace.
 
 ## Prerequisites
 

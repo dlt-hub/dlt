@@ -62,6 +62,7 @@ const sidebars = {
             keywords: ["release notes", "release highlights"],
           },
           items: [
+            { type: "doc", id: "release-notes/1.31", label: "1.31" },
             { type: "doc", id: "release-notes/1.30", label: "1.30" },
             { type: "doc", id: "release-notes/1.29", label: "1.29" },
             { type: "doc", id: "release-notes/1.28", label: "1.28" },
@@ -112,9 +113,9 @@ const sidebars = {
       items: [
         {
           type: "link",
-          label: "10k+ AI Context assets",
+          label: "11,000+ AI Context assets",
           description: "Build a custom dlt REST API source with your agent",
-          href: "https://dlthub.com/workspace",
+          href: "https://dlthub.com/context",
         },
         {
           type: "category",
