@@ -363,6 +363,16 @@ def test_incremental_aggregate_on_query_with_group_by(incremental_dataset: dlt.D
     )
 
 
+def test_incremental_filters_aggregated_query_output(incremental_dataset: dlt.Dataset) -> None:
+    incremental = dlt.sources.incremental("max_id", initial_value=5, end_value=END_VALUE_ID)
+    relation = incremental_dataset(
+        "SELECT id % 2 AS parity, MAX(id) AS max_id FROM events GROUP BY id % 2"
+    ).incremental(incremental)
+
+    assert relation.fetchall() == [(1, 5)]
+    assert relation._incremental_aggregate_relation().fetchscalar() == 5
+
+
 def test_incremental_aggregate_on_query_relation_bare_cursor(
     incremental_dataset: dlt.Dataset,
 ) -> None:
