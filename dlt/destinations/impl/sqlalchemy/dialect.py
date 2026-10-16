@@ -47,6 +47,9 @@ GENERIC_TERMINAL_PATTERNS = [
 ]
 """Terminal patterns for exceptions that don't match undefined-relation but are still non-transient."""
 
+SQLITE_TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%f"
+"""`strftime` format that renders a sqlite timestamp in UTC with milliseconds."""
+
 
 class DialectCapabilities:
     """Base class defining dialect-specific behavior for the SqlAlchemy destination.
@@ -60,6 +63,7 @@ class DialectCapabilities:
     * adapt_table -- modify an sa.Table object before it is materialized
       (e.g. reorder columns for StarRocks)
     * is_undefined_relation -- detect "table/schema not found" errors for the dialect
+    * timestamp_equals -- compare a timestamp column with a timestamp literal
 
     The sqlglot_dialect property maps backend names to sqlglot dialect names. Override
     it in subclasses or add entries to SQLGLOT_DIALECTS for non-obvious mappings.
@@ -111,6 +115,10 @@ class DialectCapabilities:
         Return the (possibly modified) table. The default implementation is a no-op.
         """
         return table
+
+    def timestamp_equals(self, column: "sa.sql.expression.ColumnElement[Any]", literal: str) -> Any:
+        """Returns a clause that compares the timestamp `column` with the timestamp `literal`."""
+        return column == sa.text(literal)
 
     def is_undefined_relation(self, e: Exception) -> Optional[bool]:
         """Classify an exception as an undefined-relation error (or not).
@@ -201,6 +209,13 @@ class SqliteDialectCapabilities(DialectCapabilities):
     ) -> None:
         # sqlite stores `DATETIME` as text and the sqlalchemy bind drops the offset
         caps.supports_tz_aware_datetime = False
+
+    def timestamp_equals(self, column: "sa.sql.expression.ColumnElement[Any]", literal: str) -> Any:
+        # text compare fails on the same instant in another form, ie. with the UTC offset that
+        # dlt 1.31 wrote, so both sides are normalized to UTC
+        return sa.func.strftime(SQLITE_TIMESTAMP_FORMAT, column) == sa.func.strftime(
+            SQLITE_TIMESTAMP_FORMAT, sa.text(literal)
+        )
 
 
 class TrinoDialectCapabilities(DialectCapabilities):

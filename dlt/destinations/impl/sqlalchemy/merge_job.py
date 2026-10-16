@@ -480,7 +480,9 @@ class SqlalchemyMergeFollowupJob(SqlMergeFollowupJob):
             root_is_active_clause = root_table_obj.c[to].is_(None)
         else:
             active_record_literal = caps.escape_literal(active_record_ts)
-            root_is_active_clause = root_table_obj.c[to] == sa.text(active_record_literal)
+            root_is_active_clause = caps.dialect_capabilities.timestamp_equals(
+                root_table_obj.c[to], active_record_literal
+            )
 
         update_statement = update_statement.where(root_is_active_clause)
 
