@@ -164,11 +164,11 @@ A backfill job with `refresh_propagation="always"` originates a refresh signal t
 
 Refresh policies:
 
-| Policy     | Behaviour                                                        |
-| ---------- | ---------------------------------------------------------------- |
-| `"always"` | Originate a refresh signal on every run                          |
-| `"auto"`   | Pass through any refresh signal received from upstream (default) |
-| `"block"`  | Stop refresh propagation here                                    |
+| Policy     | Behaviour                                                                     |
+| ---------- | ----------------------------------------------------------------------------- |
+| `"always"` | Originate a refresh signal on every run                                       |
+| `"auto"`   | Pass through any refresh signal received from upstream (default)              |
+| `"block"`  | Stop refresh propagation here; an explicit `--refresh` of this job is ignored |
 
 ```py
 from dlt.hub import run

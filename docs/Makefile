@@ -39,6 +39,9 @@ preprocess-docs: ## Dynamically generate pages under `website/docs_processed`
 	# generators that write into it must run afterwards.
 	uv run --script tools/preprocess_docs.py
 	uv run --script tools/generate_api_reference.py
+	$(MAKE) cli-generate-hub
+	$(MAKE) api-generate-hub
+	$(MAKE) sdk-generate-hub
 
 lint: lint-core lint-notebooks lint-website check-orphan-docs ## Runs all linters
 
@@ -54,10 +57,26 @@ cli-generate: ## Regenerates CLI reference docs
 cli-check: ## Checks CLI reference docs are up to date (CI)
 	uv --quiet run --script tools/generate_cli_docs.py website/docs/reference/command-line-interface.md --compare
 
+# the CLI, SDK and REST API references describe the newest dlthub-client on PyPI, alphas
+# included; 0.28.8a2 is the first that bundles the API specs. A prerelease specifier enables
+# alphas for that package only, so dlthub stays on stable releases in the range of dlt's `hub` extra
+HUB_CLIENT_REQ ?= dlthub-client>=0.28.8a2
+HUB_DLTHUB_REQ := dlthub>=0.30,<0.32
+HUB_RUN = uv --quiet run --isolated --no-project --prerelease explicit \
+	--refresh-package dlthub --refresh-package dlthub-client --with "$(HUB_CLIENT_REQ)"
+
+# runs in tools/dlthub_cli because workspace commands need a workspace context
+HUB_CLI_DOCS ?= website/docs_processed/hub/command-line-interface.md
+cli-generate-hub: ## Generates the dlthub CLI reference into `website/docs_processed`
+	cd tools/dlthub_cli && RUNTIME__LICENSE="" $(HUB_RUN) \
+		--with "../../..[cli]" --with "$(HUB_DLTHUB_REQ)" \
+		python ../generate_cli_docs.py ../../$(HUB_CLI_DOCS) \
+		--executable-name dlthub --title "CLI reference" --sort-commands --show-versions dlthub dlthub-client
+
 # TODO consolidate the flake8, black, mypy tooling to be the same as root `pyproject.toml`
 lint-core: ## Lints the docs tooling, non-embedded snippets, examples and notebooks
 	uv run ruff check
-	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
+	uv run mypy --config-file ../pyproject.toml tools website --exclude tools/generate_api_reference.py --exclude tools/generate_sdk_docs.py --exclude website/docs_processed --exclude website/versioned_docs/ --exclude 'examples/[^/]+/test_.*\.py'
 	uv run flake8 --max-line-length=200 tools website/docs
 	uv run black tools website --check --diff --color
 
@@ -97,7 +116,23 @@ snippets-typecheck:
 snippets-test:
 	uv run pytest test_snippets.py::test_run_snippets
 
+# set to a folder of specs, e.g. a runtime checkout's clients/cli/tools/runtime_clients
+RUNTIME_OPENAPI_DIR ?=
+API_DOCS_DIR ?= website/docs_processed/hub/reference/api
+api-generate-hub: ## Generates the runtime REST API reference into `website/docs_processed`
+	$(HUB_RUN) --with pyyaml python tools/generate_openapi_docs.py --output-dir $(API_DOCS_DIR) \
+		$(if $(RUNTIME_OPENAPI_DIR),--spec-dir $(RUNTIME_OPENAPI_DIR))
+
+# read with griffe, without importing the package
+SDK_DOCS ?= website/docs_processed/hub/reference/python-sdk.md
+sdk-generate-hub: ## Generates the Python SDK reference into `website/docs_processed`
+	$(HUB_RUN) --with "griffe>=1.5" python tools/generate_sdk_docs.py $(SDK_DOCS)
+
+# links into the generated hub references resolve against fresh, git-ignored copies
 md-check:  ## Check markdown file formatting errors in website/docs
+	$(MAKE) cli-generate-hub HUB_CLI_DOCS=website/docs/hub/command-line-interface.md
+	$(MAKE) api-generate-hub API_DOCS_DIR=website/docs/hub/reference/api
+	$(MAKE) sdk-generate-hub SDK_DOCS=website/docs/hub/reference/python-sdk.md
 	uv run mdsmith check website/docs
 
 md-fix:  ## Fix markdown file formatting errors in website/docs

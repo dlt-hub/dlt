@@ -31,6 +31,7 @@ import os
 import re
 import sys
 import textwrap
+from importlib.metadata import version
 from typing import List, Optional
 
 DEFAULT_TITLE = "dlt CLI reference"
@@ -127,6 +128,7 @@ def render_argparse_markdown(
     *,
     header: str = HEADER,
     commands: Optional[List[str]] = None,
+    sort_commands: bool = False,
 ) -> str:
     def get_parser_help_recursive(
         parser: argparse.ArgumentParser,
@@ -223,6 +225,8 @@ def render_argparse_markdown(
 
             # split section and remove lines starting with {
             section_lines = section.splitlines()
+            if is_subcommands_list and sort_commands:
+                section_lines.sort(key=lambda line: line.strip())
             # make markdown list of args
             section = ""
             for line in section_lines:
@@ -280,7 +284,10 @@ def render_argparse_markdown(
         commands_found = []
         for action in parser._actions:
             if isinstance(action, argparse._SubParsersAction):
-                for subaction in action._get_subactions():
+                subactions = action._get_subactions()
+                if sort_commands:
+                    subactions = sorted(subactions, key=lambda a: a.dest)
+                for subaction in subactions:
                     subparser = action._name_parser_map[subaction.dest]
                     # skip unwanted commands
                     if commands and subaction.dest not in commands:
@@ -337,7 +344,25 @@ def main() -> None:
         default=DEFAULT_TITLE,
         help=f"Page title of the generated docs (default: {DEFAULT_TITLE})",
     )
+    parser.add_argument(
+        "--sort-commands",
+        default=False,
+        action="store_true",
+        help="Sort subcommands by name instead of registration order, which depends on plugins",
+    )
+    parser.add_argument(
+        "--show-versions",
+        nargs="+",
+        default=None,
+        metavar="DISTRIBUTION",
+        help="State the installed versions of these packages on the page",
+    )
     args = parser.parse_args()
+
+    header = HEADER_TEMPLATE.format(title=args.title)
+    if args.show_versions:
+        versions = " and ".join(f"`{name}` {version(name)}" for name in args.show_versions)
+        header += f"This page is generated from {versions}.\n\n"
 
     from dlt._workspace.cli._dlt import _create_parser
 
@@ -345,8 +370,9 @@ def main() -> None:
     result = render_argparse_markdown(
         args.executable_name,
         cli_parser,
-        header=HEADER_TEMPLATE.format(title=args.title),
+        header=header,
         commands=args.commands,
+        sort_commands=args.sort_commands,
     )
 
     if args.compare:

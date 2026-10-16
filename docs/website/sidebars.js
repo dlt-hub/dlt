@@ -587,6 +587,18 @@ const sidebars = {
       ],
     },
     "hub/command-line-interface",
+    {
+      type: "category",
+      label: "REST API reference",
+      link: { type: "doc", id: "hub/reference/api/index" },
+      items: [
+        "hub/reference/api/runtime-api",
+        "hub/reference/api/dataplane-api",
+        "hub/reference/api/logs-api",
+        "hub/reference/api/telemetry-api",
+      ],
+    },
+    "hub/reference/python-sdk",
     "hub/license",
   ],
   cookbookSidebar: [
