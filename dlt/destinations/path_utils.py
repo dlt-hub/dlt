@@ -70,6 +70,8 @@ def prepare_datetime_params(
     current_datetime: Optional[datetime] = None,
     load_package_timestamp: Optional[TAnyDateTime] = None,
 ) -> Dict[str, str]:
+    """Renders the date and time placeholders of the filesystem layout. `current_datetime`
+    defaults to the load package timestamp, then to now. A naive value is UTC."""
     params: Dict[str, str] = {}
     current_timestamp: datetime = None
     if load_package_timestamp:
