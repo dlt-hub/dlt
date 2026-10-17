@@ -9,7 +9,7 @@ import shutil
 import subprocess
 import sys
 from pathlib import Path
-from typing import Any, BinaryIO, Dict, Final, List, Mapping, Optional, Sequence, Set
+from typing import Any, BinaryIO, Dict, Final, List, Optional, Sequence, Set
 
 import tomlkit
 from packaging.requirements import Requirement
@@ -18,7 +18,7 @@ from dlt.common import json
 from dlt.common.exceptions import DictValidationException
 from dlt.common.typing import DictStrAny
 from dlt.common.validation import validate_dict
-from dlt.version import DLT_PKG_NAME
+from dlt.version import DLT_PKG_NAME, get_extra_requirements
 
 DLTHUB_PKG_NAME = "dlthub"
 DLTHUB_CLIENT_PKG_NAME = "dlthub-client"
@@ -40,8 +40,6 @@ from dlt._workspace.deployment.typing import (
     DASHBOARD_JOB_REF,
     MAIN_GROUP,
     REQUIREMENTS_ENGINE_VERSION,
-    TDltExtra,
-    TFlooredPackage,
     TInstallMode,
     TInstallSpec,
     TWorkspaceRequirementsManifest,
@@ -65,7 +63,6 @@ __all__ = [
     "build_dashboard_group",
     "build_launcher_requirements",
     "default_requirements_manifest",
-    "dlt_extra_spec",
     "dlt_extra_specs",
     "export_workspace_requirements",
     "floored_spec",
@@ -246,59 +243,24 @@ def python_version() -> str:
     return f"{sys.version_info.major}.{sys.version_info.minor}"
 
 
-def _dlt_extra_requirements(extra: str) -> List[Requirement]:
-    """Requirements the installed dlt declares under `extra`, markers dropped; empty if none."""
-    reqs: List[Requirement] = []
-    for raw in importlib.metadata.requires(DLT_PKG_NAME) or []:
-        req = Requirement(raw)
-        # core deps evaluate true without the extra; a marker false here is for another python or platform
-        if (
-            req.marker is None
-            or req.marker.evaluate({"extra": ""})
-            or not req.marker.evaluate({"extra": extra})
-        ):
-            continue
-        req.marker = None
-        reqs.append(req)
-    return reqs
-
-
-def dlt_extra_specs(extra: TDltExtra) -> List[str]:
-    """Specs of the installed dlt's `extra`, with dlt's own bounds and no markers.
+def dlt_extra_specs(extra: str) -> Dict[str, str]:
+    """Specs of the installed dlt's `extra` by package name, with dlt's own bounds.
 
     Raises:
         WorkspaceRequirementsError: The installed dlt declares nothing under `extra`.
     """
-    specs = [str(req) for req in _dlt_extra_requirements(extra)]
+    specs = {name: str(req) for name, req in get_extra_requirements(extra).items()}
     if not specs:
         raise WorkspaceRequirementsError(f"installed {DLT_PKG_NAME} declares no `{extra}` extra")
     return specs
 
 
-def dlt_extra_spec(extra: TDltExtra, package: str) -> str:
-    """Spec of `package` from the installed dlt's `extra`, with dlt's own bounds.
-
-    Raises:
-        WorkspaceRequirementsError: The installed dlt's `extra` does not declare `package`.
-    """
-    name = _normalize_name(package)
-    for spec in dlt_extra_specs(extra):
-        if _normalize_name(Requirement(spec).name) == name:
-            return spec
-    raise WorkspaceRequirementsError(
-        f"installed {DLT_PKG_NAME} declares no `{package}` in its `{extra}` extra"
-    )
-
-
+# every launcher gets dlthub through dlt's hub extra, so it follows whichever dlt resolves. as a
+# direct spec dlt's `dlthub>=0.30.0a1` floor would make uv install dlthub prereleases
 _HUB_SPEC = f"{DLT_PKG_NAME}[hub]"
-"""Added to every launcher; dlthub gets the bounds of whichever dlt resolves.
-
-Its floor names a prerelease, which as a direct spec would opt the launchers into dlthub alphas.
-"""
-
 
 # relaxed floors: rarely conflicting with a workspace's pins, never resolving ancient releases
-_FLOORS: Final[Mapping[TFlooredPackage, str]] = {
+_FLOORS: Final[Dict[str, str]] = {
     # 0.2.126 is the first release whose ResultMessage carries terminal_reason
     "claude-agent-sdk": ">=0.2.126",
     "fastmcp": ">=3.1.0",
@@ -311,7 +273,7 @@ _FLOORS: Final[Mapping[TFlooredPackage, str]] = {
 }
 
 
-def floored_spec(name: TFlooredPackage, *, extras: Sequence[str] = ()) -> str:
+def floored_spec(name: str, *, extras: Sequence[str] = ()) -> str:
     """PEP 508 spec for `name` with its relaxed floor."""
     extras_part = f"[{','.join(extras)}]" if extras else ""
     return f"{name}{extras_part}{_FLOORS[name]}"
@@ -319,7 +281,7 @@ def floored_spec(name: TFlooredPackage, *, extras: Sequence[str] = ()) -> str:
 
 def build_launcher_requirements() -> Dict[str, List[str]]:
     """Per-launcher mandatory specs. dlt is injected separately at build time."""
-    s3 = dlt_extra_specs("s3")
+    s3 = list(dlt_extra_specs("s3").values())
     per_launcher: Dict[str, List[str]] = {
         LAUNCHER_JOB: s3,
         LAUNCHER_MODULE: s3,
@@ -336,13 +298,13 @@ def build_launcher_requirements() -> Dict[str, List[str]]:
 def build_dashboard_group() -> List[str]:
     """Specs for the `DASHBOARD_JOB_REF` group.
 
-    Matches the dashboard runner's dependency gate plus dlt's `s3` extra for artifact
+    Matches the packages the dashboard runner requires plus dlt's `s3` extra for artifact
     access; the launcher baseline (dlthub, dlt) comes from `launcher_requirements`.
     """
     return sorted(
         [floored_spec("ibis-framework"), floored_spec("marimo")]
-        + dlt_extra_specs("parquet")
-        + dlt_extra_specs("s3")
+        + list(dlt_extra_specs("parquet").values())
+        + list(dlt_extra_specs("s3").values())
     )
 
 
@@ -428,7 +390,7 @@ def export_workspace_requirements(
     default_names: Set[str] = set()
     for name in resolved_default_groups:
         default_names.update(_collect_package_names(groups.get(name, [])))
-    _expand_implied_names(default_names)
+    _add_transitive_names(default_names)
 
     groups[DASHBOARD_JOB_REF] = _prune_specs(build_dashboard_group(), default_names)
     _add_agent_loop_groups(groups, default_names)
@@ -621,8 +583,11 @@ def _parse_uv_output(text: str) -> List[str]:
     )
 
 
-# PEP 508 leading identifier: first letter/digit then letters/digits/_/-/., optional extras
-_LEADING_NAME_RE = re.compile(r"^\s*([A-Za-z0-9][A-Za-z0-9_.\-]*)\s*(?:\[([^\]]*)\])?")
+# PEP 508 leading identifier with optional extras. a regex rather than Requirement() because a
+# resolved export carries hundreds of specs and full parsing is ~45x slower
+_LEADING_NAME_RE = re.compile(
+    r"^\s*(?P<name>[A-Za-z0-9][A-Za-z0-9_.\-]*)\s*(?:\[(?P<extras>[^\]]*)\])?"
+)
 # PEP 503 normalization: lowercase, runs of `-_.` collapsed to single `-`
 _PEP503_SEP_RE = re.compile(r"[-_.]+")
 
@@ -631,79 +596,52 @@ def _normalize_name(name: str) -> str:
     return _PEP503_SEP_RE.sub("-", name.lower())
 
 
-def _contains_package(specs: Sequence[str], pkg_name: str) -> bool:
-    """Check whether any PEP 508 spec in `specs` names `pkg_name` (PEP 503 normalized)."""
-    target = _normalize_name(pkg_name)
-    for s in specs:
-        m = _LEADING_NAME_RE.match(s)
-        if m and _normalize_name(m.group(1)) == target:
-            return True
-    return False
-
-
-_IMPLIED_NAMES: Dict[str, List[str]] = {
-    # the launchers add dlt[hub] for dlthub; a workspace's own dlthub, at any version, wins
-    DLTHUB_PKG_NAME: [f"{DLT_PKG_NAME}[hub]"],
+# packages a workspace dependency installs on its own, which make our spec for them redundant
+_TRANSITIVE_DEPENDENCIES: Dict[str, List[str]] = {
     "s3fs": ["botocore"],
     "pydantic-ai": ["pydantic-ai-slim"],
     "marimo": ["uvicorn"],
     "fastmcp": ["uvicorn"],
 }
-"""Launcher specs pulled in transitively, or made redundant, when the key package is installed."""
 
 
 def _collect_package_names(specs: Sequence[str]) -> Set[str]:
-    """PEP 503 normalized names of `specs`; extras add one `name[extra]` token each."""
+    """PEP 503 normalized names of `specs`, plus a `name[extra]` entry per declared extra."""
     names: Set[str] = set()
     for s in specs:
         m = _LEADING_NAME_RE.match(s)
         if not m:
             continue
-        name = _normalize_name(m.group(1))
+        name = _normalize_name(m.group("name"))
         names.add(name)
-        extras = m.group(2)
-        if extras:
-            for extra in extras.split(","):
-                extra = extra.strip()
-                if extra:
-                    names.add(f"{name}[{_normalize_name(extra)}]")
+        for extra in (m.group("extras") or "").split(","):
+            if extra.strip():
+                names.add(f"{name}[{_normalize_name(extra.strip())}]")
     return names
 
 
-def _expand_implied_names(names: Set[str]) -> None:
-    """Add names pulled in transitively by meta-packages and dlt extras in `names`.
-
-    A resolved export already lists an extra's packages; a verbatim one keeps only the
-    `dlt[extra]` token, so its packages are added from the installed dlt's metadata.
-    """
+def _add_transitive_names(names: Set[str]) -> None:
+    """Adds the names that packages in `names` install on their own."""
+    # a resolved export already lists the packages of a dlt extra, a declared `dlt[extra]` does not
     extra_prefix = f"{DLT_PKG_NAME}["
-    for token in [n for n in names if n.startswith(extra_prefix)]:
-        extra = token[len(extra_prefix) : -1]
-        names.update(_normalize_name(req.name) for req in _dlt_extra_requirements(extra))
-    for implying, implied in _IMPLIED_NAMES.items():
-        if implying in names:
-            names.update(implied)
+    for entry in [n for n in names if n.startswith(extra_prefix)]:
+        names.update(get_extra_requirements(entry[len(extra_prefix) : -1]))
+    for name, transitive in _TRANSITIVE_DEPENDENCIES.items():
+        if name in names:
+            names.update(transitive)
 
 
 def _prune_specs(specs: List[str], names: Set[str]) -> List[str]:
-    """Drop specs whose PEP 503 normalized name is in `names`, preserving order.
-
-    A dlt extra is dropped only when each of its `dlt[extra]` tokens is in `names`, since a plain
-    dlt brings none of their packages; `_expand_implied_names` adds the tokens a workspace covers.
-    """
+    """Drop specs whose PEP 503 normalized name is in `names`, preserving order."""
     pruned: List[str] = []
     for s in specs:
-        m = _LEADING_NAME_RE.match(s)
-        if not m:
-            pruned.append(s)
+        if s == _HUB_SPEC:
+            # a workspace dlthub at any version wins, dlt[hub] would walk dlt back to match it
+            if DLTHUB_PKG_NAME not in names:
+                pruned.append(s)
             continue
-        name = _normalize_name(m.group(1))
-        extras = [_normalize_name(e.strip()) for e in (m.group(2) or "").split(",") if e.strip()]
-        if name == DLT_PKG_NAME and extras:
-            installed = all(f"{DLT_PKG_NAME}[{extra}]" in names for extra in extras)
-        else:
-            installed = name in names
-        if not installed:
+        m = _LEADING_NAME_RE.match(s)
+        if m is None or _normalize_name(m.group("name")) not in names:
             pruned.append(s)
     return pruned
 

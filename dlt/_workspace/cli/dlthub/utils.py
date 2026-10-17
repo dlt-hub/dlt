@@ -46,7 +46,7 @@ from dlt._workspace.deployment._trigger_helpers import parse_trigger
 from dlt._workspace.deployment.exceptions import InvalidTrigger
 from dlt._workspace.deployment.manifest import expand_triggers
 from dlt._workspace.deployment.requirements import (
-    dlt_extra_spec,
+    dlt_extra_specs,
     floored_spec,
     get_workspace_install_specs,
     render_pep508,
@@ -58,21 +58,18 @@ from dlt._workspace.typing import TLocationInfo, TProviderInfo
 
 
 def workspace_deps() -> List[str]:
-    """Deps `dlthub init` seeds into the scaffolded project, mirrored in `[dependency-groups] workspace-deps`.
-
-    Packages the launchers also add take their bounds from the launcher floors and dlt's extras,
-    so both stay in step; the scaffold-only packages carry their bounds here.
-    """
+    """Deps `dlthub init` seeds into the scaffolded project, mirrored in `[dependency-groups] workspace-deps`."""
+    # packages the launchers also add carry the launcher floors and dlt's extra bounds
     return [
         "duckdb>=0.9",
         floored_spec("ibis-framework"),
-        dlt_extra_spec("parquet", "pyarrow"),
+        dlt_extra_specs("parquet")["pyarrow"],
         floored_spec("marimo"),
         floored_spec("fastmcp"),
         "mowidgets>=0.2.1 ; python_version >= '3.11'",
         "pathspec>=0.11.2",
         "pydbml>=1.2.0",
-        dlt_extra_spec("s3", "s3fs"),
+        dlt_extra_specs("s3")["s3fs"],
     ]
 
 
