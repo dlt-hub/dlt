@@ -857,24 +857,9 @@ class SqlMergeFollowupJob(SqlFollowupJob):
                 _, nested_scope = cls.get_merge_conditions(root_table, sql_client, table)
                 if nested_scope is not None:
                     # the scope of a nested table selects the nested rows of the replaced root
-                    # rows (ie. on a propagated column), so it can prune nested partitions too
-                    nested_row_key_column = escape_column_id(
-                        cls.get_row_key_col(
-                            table_chain,
-                            table,
-                            sql_client.fully_qualified_dataset_name(),
-                            sql_client.fully_qualified_dataset_name(staging=True),
-                        )
-                    )
-                    sql.extend(
-                        cls.gen_delete_where_sql(
-                            nested_table_name,
-                            nested_scope,
-                            [nested_row_key_column],
-                            sql_client,
-                            has_nested_subquery=True,
-                        )
-                    )
+                    # rows (ie. on a propagated column). a plain delete, like the root one below,
+                    # so the destination can prune nested partitions too
+                    sql.append(f"DELETE FROM {nested_table_name} WHERE {nested_scope};")
                     continue
                 root_key_column = escape_column_id(
                     cls.get_root_key_col(
