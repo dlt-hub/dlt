@@ -14,7 +14,6 @@ from dlt.common.time import (
     datetime_to_timestamp_ms,
     ensure_datetime_in_tz,
 )
-from dlt.common.typing import TAnyDateTime
 from dlt.destinations.exceptions import (
     CantExtractTablePrefix,
     InvalidFilesystemLayout,
@@ -68,7 +67,7 @@ def get_unused_placeholders(
 
 def prepare_datetime_params(
     current_datetime: Optional[datetime] = None,
-    load_package_timestamp: Optional[TAnyDateTime] = None,
+    load_package_timestamp: Optional[datetime] = None,
 ) -> Dict[str, str]:
     """Renders the date and time placeholders of the filesystem layout. `current_datetime`
     defaults to the load package timestamp, then to now. A naive value is UTC."""
@@ -247,7 +246,7 @@ def create_path(
     file_name: str,
     schema_name: str,
     load_id: str,
-    load_package_timestamp: Optional[TAnyDateTime] = None,
+    load_package_timestamp: Optional[datetime] = None,
     current_datetime: Optional[TCurrentDateTime] = None,
     extra_placeholders: Optional[Dict[str, Any]] = None,
 ) -> str:
