@@ -3,6 +3,7 @@ from typing import Any, Dict, List, Sequence, Tuple, cast, Optional, Callable, U
 
 import yaml
 
+from dlt.common.data_writers.escape import escape_ansi_literal
 from dlt.common.destination import PreparedTableSchema
 from dlt.common.destination.utils import resolve_merge_strategy
 from dlt.common.typing import TypedDict
@@ -527,7 +528,8 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         expand = partial(
             expand_merge_condition,
             values=values,
-            escape_literal=caps.escape_literal,
+            # a destination that does not set `escape_literal` gets standard SQL literals
+            escape_literal=caps.escape_literal or escape_ansi_literal,
             supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
             timestamp_precision=caps.timestamp_precision,
         )
@@ -816,7 +818,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         root_table = table_chain[0]
 
         escape_column_id = sql_client.escape_column_name
-        escape_lit = sql_client.capabilities.escape_literal
+        escape_lit = sql_client.capabilities.escape_literal or escape_ansi_literal
 
         # get top level table full identifiers
         root_table_name, staging_root_table_name = sql_client.get_qualified_table_names(
@@ -1231,7 +1233,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
             root_table["name"]
         )
         escape_column_id = sql_client.escape_column_name
-        escape_lit = sql_client.capabilities.escape_literal
+        escape_lit = sql_client.capabilities.escape_literal or escape_ansi_literal
 
         # process table hints
         primary_keys = cls._escape_list(
@@ -1423,7 +1425,7 @@ class SqlMergeFollowupJob(SqlFollowupJob):
         )  # row hash column
 
         # define values for validity columns
-        escape_lit = caps.escape_literal
+        escape_lit = caps.escape_literal or escape_ansi_literal
         boundary_ts, active_record_ts = get_scd2_timestamps(root_table, caps)
         boundary_literal = escape_lit(boundary_ts)
         if active_record_ts is None:
