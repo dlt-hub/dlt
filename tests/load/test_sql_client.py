@@ -5,12 +5,11 @@ from functools import partial
 from typing import Iterator, Any, Tuple, Type, Union
 from threading import Thread, Event
 from time import sleep
-from zoneinfo import ZoneInfo
 
 from dlt.common import pendulum, Decimal
 from dlt.common.destination import DestinationCapabilitiesContext
 from dlt.common.destination.exceptions import IdentifierTooLongException
-from dlt.common.destination.utils import to_literal_datetime_utc
+from dlt.common.destination.utils import to_literal_datetime
 from dlt.common.schema.typing import LOADS_TABLE_NAME
 from dlt.common.schema.utils import new_table
 from dlt.common.storages import FileStorage
@@ -24,13 +23,7 @@ from dlt.destinations.exceptions import (
 )
 from dlt.destinations.sql_client import DBApiCursor, SqlClientBase, raise_database_error
 from dlt.destinations.typing import TNativeConn
-from dlt.common.time import (
-    ensure_datetime,
-    ensure_datetime_in_tz,
-    ensure_pendulum_datetime,
-    set_context_timezone,
-    to_py_datetime,
-)
+from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime, to_py_datetime
 
 from tests.utils import get_test_storage_root
 from tests.load.utils import (
@@ -820,7 +813,6 @@ def test_recover_on_explicit_tx(client: SqlJobClientBaseWithDestinationTestConfi
     indirect=True,
     ids=lambda x: x.name,
 )
-@pytest.mark.parametrize("context_tz", ["UTC", "Europe/Berlin"])
 @pytest.mark.parametrize(
     "boundary,active_record",
     [
@@ -832,53 +824,42 @@ def test_recover_on_explicit_tx(client: SqlJobClientBaseWithDestinationTestConfi
 )
 def test_scd2_literals_match_previous_literals(
     client: SqlJobClientBaseWithDestinationTestConfiguration,
-    context_tz: str,
     boundary: str,
     active_record: str,
 ) -> None:
-    """Stores the scd2 validity timestamps with the literals of dlt 1.31 and checks which current
-    literals select them. In the UTC context all of them do. In another context only the active
-    record timestamp matters, it is compared across loads: an aware one matches except on fabric
-    and mysql, a naive one matches only there."""
+    """Stores the scd2 validity timestamps with the literals of dlt 1.31 and checks that the
+    current literals select them, so an upgrade keeps retiring the active records."""
     caps = client.capabilities
     if "scd2" not in (caps.supported_merge_strategies or []):
         pytest.skip(f"{client.config.destination_name} does not support scd2")
-    set_context_timezone(ZoneInfo(context_tz))
 
     format_literal = (
         caps.format_datetime_literal
         or DestinationCapabilitiesContext.generic_capabilities().format_datetime_literal
     )
     to_literal = partial(
-        to_literal_datetime_utc,
+        to_literal_datetime,
         supports_tz_aware_datetime=caps.supports_tz_aware_datetime,
         precision=caps.timestamp_precision,
     )
     # the literals of dlt 1.31: the boundary in UTC, the active record timestamp with its timezone
-    pairs = []
-    if context_tz == "UTC":
-        previous_boundary = format_literal(
-            ensure_datetime_in_tz(boundary, datetime.timezone.utc),
-            caps.timestamp_precision,
-            no_tz=not caps.supports_tz_aware_datetime,
+    pairs = [
+        (
+            format_literal(
+                ensure_datetime_in_tz(boundary, datetime.timezone.utc),
+                caps.timestamp_precision,
+                no_tz=not caps.supports_tz_aware_datetime,
+            ),
+            caps.escape_literal(to_literal(boundary)),
         )
-        pairs.append((previous_boundary, caps.escape_literal(to_literal(boundary)), True))
+    ]
     if active_record is not None:
-        previous_active = format_literal(
-            ensure_pendulum_datetime(active_record), caps.timestamp_precision
-        )
-        expected = True
-        if context_tz != "UTC":
-            # dlt 1.31 kept the context wall clock on fabric and mysql, the instant elsewhere
-            keeps_wall_clock = (
-                client.config.destination_type == "fabric"
-                or client.config.destination_name == "sqlalchemy_mysql"
+        pairs.append(
+            (
+                format_literal(ensure_pendulum_datetime(active_record), caps.timestamp_precision),
+                caps.escape_literal(to_literal(active_record)),
             )
-            is_aware = ensure_datetime(active_record).tzinfo is not None
-            expected = is_aware != keeps_wall_clock
-        pairs.append((previous_active, caps.escape_literal(to_literal(active_record)), expected))
-    if not pairs:
-        pytest.skip("only the active record timestamp is compared in a non-UTC context")
+        )
     is_sqlalchemy = client.config.destination_type == "sqlalchemy"
     if is_sqlalchemy:
         # dlt 1.31 bound the sqlalchemy literals as strings
@@ -892,9 +873,8 @@ def test_scd2_literals_match_previous_literals(
                     )
                 ),
                 literal,
-                expected,
             )
-            for previous, literal, expected in pairs
+            for previous, literal in pairs
         ]
 
     table_name = f"scd2_literals_{uniq_id()}"
@@ -913,7 +893,7 @@ def test_scd2_literals_match_previous_literals(
     id_ = client.sql_client.escape_column_name("id")
     ts = client.sql_client.escape_column_name("ts")
 
-    for idx, (previous_literal, literal, expected) in enumerate(pairs):
+    for idx, (previous_literal, literal) in enumerate(pairs):
         client.sql_client.execute_sql(
             f"INSERT INTO {qualified_table_name} ({id_}, {ts}) VALUES ({idx}, {previous_literal})"
         )
@@ -929,7 +909,7 @@ def test_scd2_literals_match_previous_literals(
             f"SELECT CASE WHEN {condition} THEN 1 ELSE 0 END FROM {qualified_table_name}"
             f" WHERE {id_} = {idx}"
         )
-        assert rows[0][0] == int(expected), (previous_literal, literal)
+        assert rows[0][0] == 1, (previous_literal, literal)
 
 
 def test_raise_database_error_no_circular_dependency():

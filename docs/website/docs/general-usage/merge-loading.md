@@ -629,7 +629,7 @@ def dim_customer():
     ...
 ```
 
-dlt compares this value with the "valid to" column of every load, so it must not change between loads. A naive value is read in the timezone of the database session, see [timezones of the validity columns](#timezones-of-the-validity-columns). Prefer a value with a timezone.
+dlt compares this value with the "valid to" column of every load, so it must not change between loads. dlt stores it like a loaded timestamp, see [timezones of the validity columns](#timezones-of-the-validity-columns).
 
 ### Example: configure boundary timestamp
 
@@ -669,12 +669,13 @@ dlt reads `boundary_timestamp` only from a write disposition dict, not from a fu
 
 ### Timezones of the validity columns
 
-dlt writes `boundary_timestamp`, `active_record_timestamp` and the load package creation time into the validity columns by these rules. The [context timezone](schema.md#context-timezone) is not used.
+dlt writes `boundary_timestamp`, `active_record_timestamp` and the load package creation time into the validity columns by the rules for [loaded timestamps](schema.md#handling-of-timestamp-and-time-zones), so they are in the same timezone as the data:
 
-- A value with a timezone is converted to UTC. A destination without timezone support, like Athena, stores it as a naive UTC timestamp.
-- A naive value is used as it is. A destination with timezone support reads it in the timezone of the database session.
+- A value with a timezone is converted to the [context timezone](schema.md#context-timezone), UTC by default.
+- A naive value is read in the context timezone.
+- A destination without timezone support, like Athena, stores the wall clock of the context timezone.
 
-The load package creation time has a timezone, so the default boundary is always UTC.
+The load package creation time is UTC, so the default boundary is the instant of the load.
 
 ### Example: Use your own row hash
 
@@ -1169,7 +1170,7 @@ The `delta` table format does not support `delete-insert`. With `cdc`, write the
 
 ### Fill placeholders with values from the load
 
-dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision of the destination, by the same rules as the [validity columns](#timezones-of-the-validity-columns): a value with a timezone in UTC, naive UTC on a destination without timezone support, and a naive value as it is.
+dlt stores the merge conditions in the schema. A literal that changes with every load, such as the date of a partition, creates a new schema version with every load. Write a value placeholder instead. dlt expands each value placeholder to an escaped SQL literal, so do not put quotes around it. A `datetime` value expands to a timestamp literal of the destination, with the timestamp precision of the destination, by the same rules as the [validity columns](#timezones-of-the-validity-columns), so it compares to the loaded timestamps.
 
 dlt fills these value placeholders from the load package:
 

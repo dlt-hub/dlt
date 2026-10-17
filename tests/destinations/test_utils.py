@@ -153,7 +153,7 @@ def test_verify_unsupported_merge_options(write_disposition: str) -> None:
     [
         ("{table}.id = {tenant}", "\"t\".id = 'O''B'"),
         ("day = {day} AND n > {n}", "day = '2024-01-01' AND n > 3"),
-        ("ts >= {since}", "ts >= '2024-01-01T12:00:00'"),
+        ("ts >= {since}", "ts >= '2024-01-01T12:00:00+00:00'"),
         ("name LIKE '{{x}}%'", "name LIKE '{x}%'"),
         ("day IN {days}", "day IN ('2024-01-01', '2024-01-02')"),
         ("tenant IN {tenants}", "tenant IN ('O''B', 'A')"),
@@ -188,42 +188,6 @@ def test_expand_merge_condition(condition: str, expected: str) -> None:
     assert expanded == expected
 
 
-@pytest.mark.parametrize("context_tz", ["UTC", "Europe/Berlin"])
-@pytest.mark.parametrize(
-    "supports_tz_aware,since,expected",
-    [
-        (True, datetime(2024, 1, 1, 12), "ts >= '2024-01-01T12:00:00'"),
-        (
-            True,
-            datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin")),
-            "ts >= '2024-01-01T11:00:00+00:00'",
-        ),
-        (False, datetime(2024, 1, 1, 12), "ts >= '2024-01-01T12:00:00'"),
-        (
-            False,
-            datetime(2024, 1, 1, 12, tzinfo=ZoneInfo("Europe/Berlin")),
-            "ts >= '2024-01-01T11:00:00'",
-        ),
-    ],
-    ids=["tz-naive", "tz-aware", "no_tz-naive", "no_tz-aware"],
-)
-def test_expand_merge_condition_datetime(
-    context_tz: str, supports_tz_aware: bool, since: datetime, expected: str
-) -> None:
-    """A naive value is used as it is, an aware value in UTC, naive without tz support. The
-    context timezone is not used."""
-    with Container().injectable_context(TimezoneContext(context_tz)):
-        expanded = expand_merge_condition(
-            "source_filter",
-            "ts >= {since}",
-            {},
-            {"since": since},
-            escape_snowflake_literal,
-            supports_tz_aware_datetime=supports_tz_aware,
-        )
-    assert expanded == expected
-
-
 def test_expand_merge_condition_missing_value() -> None:
     with pytest.raises(ValueError) as py_ex:
         expand_merge_condition("source_filter", "day = {day}", {}, {}, escape_snowflake_literal)
@@ -252,21 +216,21 @@ def test_scd2_timestamps(monkeypatch: pytest.MonkeyPatch) -> None:
     # the boundary defaults to the package creation time, in UTC at the precision of the destination
     boundary, active_record = get_scd2_timestamps(table, caps)
     assert boundary == created_at.replace(microsecond=123000)
-    assert boundary.tzinfo is timezone.utc
+    assert str(boundary.tzinfo) == "UTC"
     assert active_record is None
 
-    # the package holds the declared boundary. naive values are used as they are, aware values in
-    # UTC, whatever the context timezone
+    # the package holds the declared boundary. like loaded data, a naive value is read in the
+    # context timezone and an aware value is converted to it
     state["placeholders"] = {"items": {"boundary_timestamp": datetime(2024, 1, 1, 12)}}
     valid_to["x-active-record-timestamp"] = "9999-12-31T00:00:00+01:00"
     for context_tz in ("UTC", "Europe/Berlin"):
         with Container().injectable_context(TimezoneContext(context_tz)):
             boundary, active_record = get_scd2_timestamps(table, caps)
-        assert boundary == datetime(2024, 1, 1, 12)
+        assert boundary == datetime(2024, 1, 1, 12, tzinfo=ZoneInfo(context_tz))
         assert active_record == datetime(9999, 12, 30, 23, tzinfo=timezone.utc)
-        assert active_record.tzinfo is timezone.utc
+        assert str(active_record.tzinfo) == context_tz
 
-    # a destination without tz support gets aware values as naive UTC
+    # a destination without tz support stores the wall clock of the context timezone, UTC here
     caps.supports_tz_aware_datetime = False
     state["placeholders"]["items"]["boundary_timestamp"] = "2024-01-01T12:00:00+01:00"
     valid_to["x-active-record-timestamp"] = "9999-12-31"

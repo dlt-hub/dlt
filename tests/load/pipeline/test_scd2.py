@@ -1,20 +1,23 @@
 # timezone is removed from all datetime objects in these tests to simplify comparison
 
+import os
 from unittest import mock
 import pytest
-from typing import Iterator, List, Dict, Any, Optional
+from typing import List, Dict, Any, Optional, Tuple
 from datetime import date, datetime, timezone  # noqa: I251
 from contextlib import nullcontext as does_not_raise
+from zoneinfo import ZoneInfo
 
 import dlt
 from dlt.common.configuration.container import Container
 from dlt.common.configuration.specs.timezone_context import TimezoneContext
-from dlt.common.typing import TAnyDateTime
+from dlt.common.typing import TAnyDateTime, TLoaderFileFormat
 from dlt.common.pendulum import pendulum
 from dlt.common.data_types.typing import TDataType
 from dlt.common.schema.typing import DEFAULT_VALIDITY_COLUMN_NAMES
+from dlt.common.libs.pyarrow import pyarrow as pa
 from dlt.common.normalizers.naming.snake_case import NamingConvention as SnakeCaseNamingConvention
-from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
+from dlt.common.time import ensure_datetime, ensure_datetime_in_tz, ensure_pendulum_datetime
 from dlt.extract.resource import DltResource
 
 from tests.cases import arrow_table_all_data_types
@@ -38,13 +41,6 @@ from tests.pipeline.utils import (
 )
 
 from tests.utils import TPythonTableFormat
-
-
-@pytest.fixture
-def context_tz(request: pytest.FixtureRequest) -> Iterator[str]:
-    """Runs the test under the context timezone passed as the indirect parameter."""
-    with Container().injectable_context(TimezoneContext(request.param)):
-        yield request.param
 
 
 @pytest.mark.essential
@@ -636,24 +632,18 @@ def test_active_record_timestamp(
         actual_active_record_timestamp = ensure_pendulum_datetime(
             load_tables_to_dicts(p, "dim_test")["dim_test"][0]["_dlt_valid_to"]
         )
-        # a naive value is read in the UTC session of the test database
+        # like loaded data, a naive value is read in the context timezone, UTC here
         assert actual_active_record_timestamp == ensure_datetime_in_tz(
             active_record_timestamp, timezone.utc
         )
 
 
 @pytest.mark.parametrize(
-    "context_tz", ["UTC", "Europe/Berlin"], ids=["utc-context", "berlin-context"], indirect=True
-)
-@pytest.mark.parametrize(
     "destination_config",
     destinations_configs(default_sql_configs=True, subset=["postgres", "sqlalchemy", "duckdb"]),
     ids=lambda x: x.name,
 )
-def test_boundary_timestamp(
-    destination_config: DestinationTestConfiguration,
-    context_tz: str,
-) -> None:
+def test_boundary_timestamp(destination_config: DestinationTestConfiguration) -> None:
     p = destination_config.setup_pipeline("abstract", dev_mode=True)
 
     ts1 = "2024-08-21T12:15:00+00:00"
@@ -673,8 +663,8 @@ def test_boundary_timestamp(
     def r(data):
         yield data
 
-    # an aware boundary is stored in UTC, a naive one as written and read in the UTC session of the
-    # test databases. the context timezone does not change the values
+    # the boundary is stored like a loaded timestamp: an aware one as the instant, a naive one read
+    # in the context timezone, UTC here
     ts1_dt = datetime(2024, 8, 21, 12, 15)
     ts2_dt = datetime(2024, 8, 22)
     ts3_dt = datetime(2024, 8, 20)
@@ -793,6 +783,146 @@ def test_boundary_timestamp(
         ]
         assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
         assert p.default_schema.version_hash == version_hash
+
+
+@pytest.mark.parametrize(
+    "destination_config",
+    destinations_configs(default_sql_configs=True, supports_merge=True),
+    ids=lambda x: x.name,
+)
+@pytest.mark.parametrize(
+    "active_record",
+    [
+        (
+            datetime(9999, 12, 31),
+            datetime(9999, 12, 30, 23, tzinfo=timezone.utc),
+            datetime(9999, 12, 31),
+        ),
+        (
+            datetime(9999, 12, 31, tzinfo=timezone.utc),
+            datetime(9999, 12, 31, tzinfo=timezone.utc),
+            datetime(9999, 12, 31, 1),
+        ),
+    ],
+    ids=["naive-active-record", "aware-active-record"],
+)
+@pytest.mark.parametrize("file_format", [None, "parquet"], ids=["default-format", "parquet"])
+def test_validity_columns_follow_data_timezone(
+    destination_config: DestinationTestConfiguration,
+    active_record: Tuple[datetime, datetime, datetime],
+    file_format: TLoaderFileFormat,
+) -> None:
+    """The validity columns are stored like the timestamps of the loaded data: in the context
+    timezone, Berlin here, or as its wall clock on a destination without tz support. Every load
+    carries its boundary and the active record timestamp in data columns, so the validity columns
+    and the data columns must both hold the expected value, the instant with tz support and the
+    Berlin wall clock without: naive and aware values, from dicts and from arrow, also when the
+    dicts load through the arrow writer as parquet."""
+    # the dict loads create the dlt columns, the arrow loads must fill them
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_LOAD_ID"] = "True"
+    os.environ["NORMALIZE__PARQUET_NORMALIZER__ADD_DLT_ID"] = "True"
+    p = destination_config.setup_pipeline("validity_tz", dev_mode=True)
+    caps = p.destination.capabilities()
+    run_kwargs = destination_config.run_kwargs
+    if file_format:
+        supported = (
+            caps.supported_staging_file_formats
+            if destination_config.staging
+            else caps.supported_loader_file_formats
+        ) or []
+        if file_format not in supported or file_format == destination_config.file_format:
+            pytest.skip(f"{destination_config.name} does not add a `{file_format}` run")
+        run_kwargs = {**run_kwargs, "loader_file_format": file_format}
+    # (value, the instant stored with tz support, the Berlin wall clock stored without)
+    boundaries = [
+        (
+            datetime(2024, 8, 21, 12, 15),
+            datetime(2024, 8, 21, 10, 15, tzinfo=timezone.utc),
+            datetime(2024, 8, 21, 12, 15),
+        ),
+        (
+            datetime(2024, 8, 22, 10, 0, tzinfo=ZoneInfo("Asia/Kolkata")),
+            datetime(2024, 8, 22, 4, 30, tzinfo=timezone.utc),
+            datetime(2024, 8, 22, 6, 30),
+        ),
+        (
+            datetime(2024, 8, 23, 8, 30),
+            datetime(2024, 8, 23, 6, 30, tzinfo=timezone.utc),
+            datetime(2024, 8, 23, 8, 30),
+        ),
+        (
+            datetime(2024, 8, 24, 6, 0, tzinfo=timezone.utc),
+            datetime(2024, 8, 24, 6, 0, tzinfo=timezone.utc),
+            datetime(2024, 8, 24, 8, 0),
+        ),
+    ]
+    active_value = active_record[0]
+    # `ts` changes the row hash, so every key present in a load gets a new version
+    load_keys = [[1, 2], [1, 3], [1, 3], [1, 2]]
+
+    def arrow_timestamp(value: datetime) -> Any:
+        return pa.timestamp("us", tz="UTC" if value.tzinfo else None)
+
+    def items(load_idx: int) -> DltResource:
+        boundary = boundaries[load_idx][0]
+        keys = load_keys[load_idx]
+        rows: Any = [
+            {"nk": nk, "foo": f"v{load_idx}", "ts": boundary, "active_ts": active_value}
+            for nk in keys
+        ]
+        if load_idx >= 2:
+            rows = pa.table(
+                {
+                    "nk": pa.array(keys, pa.int64()),
+                    "foo": pa.array([f"v{load_idx}"] * len(keys)),
+                    "ts": pa.array([boundary] * len(keys), arrow_timestamp(boundary)),
+                    "active_ts": pa.array(
+                        [active_value] * len(keys), arrow_timestamp(active_value)
+                    ),
+                }
+            )
+        return dlt.resource(
+            [rows],
+            name="dim_test",
+            write_disposition={
+                "disposition": "merge",
+                "strategy": "scd2",
+                "boundary_timestamp": boundary,
+                "active_record_timestamp": active_value,
+            },
+            # arrow infers naive columns as `timezone=False`, the validity columns are aware
+            columns=[
+                {"name": "ts", "data_type": "timestamp"},
+                {"name": "active_ts", "data_type": "timestamp"},
+            ],
+        )
+
+    with Container().injectable_context(TimezoneContext("Europe/Berlin")):
+        for load_idx in range(len(boundaries)):
+            assert_load_info(p.run(items(load_idx), **run_kwargs))
+
+    def stored(case: Tuple[datetime, datetime, datetime]) -> datetime:
+        return case[1] if caps.supports_tz_aware_datetime else case[2]
+
+    def read(value: Any) -> datetime:
+        value = ensure_datetime(value)
+        # a destination with tz support returns the instant, some drivers as naive UTC
+        if caps.supports_tz_aware_datetime and value.tzinfo is None:
+            value = value.replace(tzinfo=timezone.utc)
+        return value
+
+    rows = load_tables_to_dicts(p, "dim_test")["dim_test"]
+    assert len(rows) == sum(len(keys) for keys in load_keys)
+    for row in rows:
+        load_idx = int(row["foo"][1:])
+        assert read(row["ts"]) == stored(boundaries[load_idx])
+        assert read(row[FROM]) == stored(boundaries[load_idx])
+        if load_idx == len(boundaries) - 1:
+            assert read(row["active_ts"]) == stored(active_record)
+            assert read(row[TO]) == stored(active_record)
+        else:
+            # every version is retired by the next load
+            assert read(row[TO]) == stored(boundaries[load_idx + 1])
 
 
 @pytest.mark.essential

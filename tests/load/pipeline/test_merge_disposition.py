@@ -3139,8 +3139,7 @@ def test_merge_condition_placeholders(destination_config: DestinationTestConfigu
 
     # load 2: replace part A with 5
     # - `part` is a callable that reads the resource argument "A"
-    # - `since` is a naive noon, which the database reads in its session timezone, UTC on test
-    #   destinations
+    # - `since` is a naive noon, which dlt reads in the context timezone, UTC here
     # the scope deletes only 2: 1 is before `since` and 4 is not in the `{curr_date}` partition
     info = p.run(
         items([row(5, "A", 12, 30)], PARTITION_PLACEHOLDERS["part"], datetime(2024, 1, 1, 12), "A"),
