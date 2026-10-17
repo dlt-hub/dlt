@@ -109,6 +109,20 @@ def test_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint:
     assert config.fingerprint() == expected_fingerprint
 
 
+@pytest.mark.parametrize(
+    "bucket_url,expected_fingerprint",
+    [
+        pytest.param(None, "", id="empty"),
+        pytest.param("hf://datasets/org-a", digest128("hf://datasets/org-a"), id="namespace"),
+        pytest.param("hf://datasets/org-b", digest128("hf://datasets/org-b"), id="other_namespace"),
+    ],
+)
+def test_hf_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint: str) -> None:
+    config = HfFilesystemDestinationClientConfiguration(bucket_url=bucket_url)
+
+    assert config.fingerprint() == expected_fingerprint
+
+
 def test_filesystem_factory_buckets(with_gdrive_buckets_env: str) -> None:
     proto = urlparse(with_gdrive_buckets_env).scheme
     credentials_type = extract_inner_hint(
