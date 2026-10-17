@@ -14,6 +14,8 @@ from .helpers import (
     _execute_table_adapter,
     default_engine_adapter_callback,
     record_table_input,
+    record_table_reader,
+    SqlTableReader,
     table_rows,
     engine_from_credentials,
     remove_nullability_adapter,
@@ -354,6 +356,13 @@ def sql_table(
         table_loader_class=table_loader_class,
     )
     record_table_input(resource, credentials, schema, str(table))
+    if table_obj is not None:
+        record_table_reader(
+            resource,
+            SqlTableReader(
+                engine, backend, table_obj, chunk_size, backend_kwargs, table_loader_class
+            ),
+        )
     return resource
 
 

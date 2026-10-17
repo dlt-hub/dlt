@@ -1,5 +1,6 @@
 """SQL database source helpers"""
 
+import copy
 import warnings
 from typing import (
     Callable,
@@ -7,10 +8,12 @@ from typing import (
     Dict,
     List,
     Literal,
+    NamedTuple,
     Optional,
     Iterator,
     Type,
     Union,
+    cast,
 )
 import operator
 from abc import ABC, abstractmethod
@@ -123,7 +126,7 @@ class BaseTableLoader(ABC):
         self,
         engine: Engine,
         backend: TableBackend,
-        table: Table,
+        table: Optional[Table],
         columns: TTableSchemaColumns,
         chunk_size: int = 1000,
         incremental: Optional[Incremental[Any]] = None,
@@ -250,8 +253,9 @@ class BaseTableLoader(ABC):
         try:
             return str(query.compile(self.engine, compile_kwargs={"literal_binds": True}))
         except CompileError as ex:
+            table_name = self.table.name if self.table is not None else None
             raise NotImplementedError(
-                f"Query for table `{self.table.name}` could not be compiled to string."
+                f"Query for table `{table_name}` could not be compiled to string."
                 f" If you are on SQLAlchemy 1.4.x, upgrade to 2.x: `{ex}`"
             ) from ex
 
@@ -281,6 +285,36 @@ class BaseTableLoader(ABC):
         """
         ...
 
+    def load_query(
+        self,
+        query: SelectClause,
+        backend_kwargs: Dict[str, Any] = None,
+        columns: Optional[TTableSchemaColumns] = None,
+    ) -> Iterator[TDataItem]:
+        """Executes an arbitrary `query` and yields data items in the format of this loader.
+
+        Used to read data from datasets created with `sql_database_dataset`.
+
+        Args:
+            query: SELECT or text clause to execute.
+            backend_kwargs: Backend-specific keyword arguments.
+            columns: Column hints for the query result. Loader columns are used if not provided.
+
+        Yields:
+            Data items in the same format as `load_rows`.
+        """
+        raise NotImplementedError(
+            f"Table loader `{self.__class__.__name__}` does not implement `load_query`"
+        )
+
+    def _with_columns(self, columns: Optional[TTableSchemaColumns]) -> "BaseTableLoader":
+        """Returns a shallow copy of this loader with `columns` hints, or self if not provided"""
+        if columns is None:
+            return self
+        loader = copy.copy(self)
+        loader.columns = dict(columns)
+        return loader
+
 
 class TableLoader(BaseTableLoader):
     """Default table loader using a SQLAlchemy connection.
@@ -291,10 +325,16 @@ class TableLoader(BaseTableLoader):
     """
 
     def load_rows(self, backend_kwargs: Dict[str, Any] = None) -> Iterator[TDataItem]:
-        # make copy of kwargs
-        backend_kwargs = dict(backend_kwargs or {})
-        query = self.make_query()
-        yield from self._load_rows(query, backend_kwargs)
+        yield from self.load_query(self.make_query(), backend_kwargs)
+
+    def load_query(
+        self,
+        query: SelectClause,
+        backend_kwargs: Dict[str, Any] = None,
+        columns: Optional[TTableSchemaColumns] = None,
+    ) -> Iterator[TDataItem]:
+        loader = cast(TableLoader, self._with_columns(columns))
+        yield from loader._load_rows(query, dict(backend_kwargs or {}))
 
     def _load_rows(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
@@ -359,10 +399,16 @@ class ConnectorXTableLoader(BaseTableLoader):
     """Table loader using ConnectorX for data retrieval. Yields Arrow tables."""
 
     def load_rows(self, backend_kwargs: Dict[str, Any] = None) -> Iterator[TDataItem]:
-        # make copy of kwargs
-        backend_kwargs = dict(backend_kwargs or {})
-        query = self.make_query()
-        yield from self._load_rows_connectorx(query, backend_kwargs)
+        yield from self.load_query(self.make_query(), backend_kwargs)
+
+    def load_query(
+        self,
+        query: SelectClause,
+        backend_kwargs: Dict[str, Any] = None,
+        columns: Optional[TTableSchemaColumns] = None,
+    ) -> Iterator[TDataItem]:
+        # connectorx infers arrow types itself so column hints are not used
+        yield from self._load_rows_connectorx(query, dict(backend_kwargs or {}))
 
     def _load_rows_connectorx(
         self, query: SelectClause, backend_kwargs: Dict[str, Any]
@@ -522,6 +568,34 @@ def record_table_input(
         )
     except Exception as ex:
         logger.debug(f"Could not record input location for table `{table_name}`: {ex}")
+
+
+class SqlTableReader(NamedTuple):
+    """Settings of a `sql_table` resource used to read its database outside of extraction."""
+
+    engine: Engine
+    backend: TableBackend
+    table: Table
+    chunk_size: int
+    backend_kwargs: Optional[Dict[str, Any]]
+    table_loader_class: Optional[Type[BaseTableLoader]]
+
+    def create_table_loader(self) -> BaseTableLoader:
+        """Creates a table loader that reads arbitrary queries with `load_query`."""
+        loader_class = self.table_loader_class or get_table_loader_class(self.backend)
+        return loader_class(self.engine, self.backend, None, {}, chunk_size=self.chunk_size)
+
+
+_SQL_TABLE_READER_ATTR = "_sql_table_reader"
+
+
+def record_table_reader(resource: DltResource, reader: SqlTableReader) -> None:
+    setattr(resource, _SQL_TABLE_READER_ATTR, reader)
+
+
+def get_table_reader(resource: DltResource) -> Optional[SqlTableReader]:
+    """Returns reader settings recorded by `sql_table`, None for other resources."""
+    return cast(Optional[SqlTableReader], getattr(resource, _SQL_TABLE_READER_ATTR, None))
 
 
 def table_rows(
