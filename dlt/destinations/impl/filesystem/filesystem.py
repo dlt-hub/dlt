@@ -118,9 +118,10 @@ SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
 
 INIT_FILE_NAME = "init"
 FILENAME_SEPARATOR = "__"
-# sftp, gdrive and memory are not listed: their shared clients are not thread-safe
+# s3 matches the botocore connection pool, sftp, gdrive and memory clients are not thread-safe
 DEFAULT_DELETE_WORKERS: Dict[str, int] = {
-    **{p: 32 for p in S3_PROTOCOLS + GCS_PROTOCOLS},
+    **{p: 10 for p in S3_PROTOCOLS},
+    **{p: 32 for p in GCS_PROTOCOLS},
     **{p: 16 for p in AZURE_BLOB_STORAGE_PROTOCOLS},
     "file": 8,
 }
