@@ -102,6 +102,10 @@ from dlt.destinations.impl.filesystem.configuration import (
     FilesystemDestinationClientConfiguration,
     HfFilesystemDestinationClientConfiguration,
 )
+from dlt.destinations.impl.filesystem.iceberg_adapter import (
+    TABLE_PROPERTIES_HINT,
+    get_partition_specs,
+)
 from dlt.destinations import path_utils
 from dlt.destinations.fs_client import FSClientBase
 from dlt.destinations.utils import (
@@ -109,9 +113,6 @@ from dlt.destinations.utils import (
     verify_schema_replace_disposition,
     verify_unsupported_merge_options,
 )
-
-if TYPE_CHECKING:
-    from dlt.destinations.impl.filesystem.iceberg_adapter import PartitionSpec
 
 CURRENT_VERSION: int = 2
 SUPPORTED_VERSIONS: set[int] = {1, CURRENT_VERSION}
@@ -285,9 +286,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             merge_iceberg_table,
             create_table,
         )
-        from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
-            build_iceberg_partition_spec,
-        )
 
         try:
             table = self._job_client.load_open_table(
@@ -296,12 +294,9 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 schema=self.arrow_dataset.schema,
             )
         except DestinationUndefinedEntity:
-            from dlt.destinations.impl.filesystem.iceberg_adapter import TABLE_PROPERTIES_HINT
-
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
-            spec_list = self._get_partition_spec_list()
             # merge config-level defaults with per-table adapter overrides
             config_properties = self._job_client.config.iceberg_table_properties
             adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
@@ -312,26 +307,17 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             else:
                 properties = None
 
-            if spec_list:
-                partition_spec, iceberg_schema = build_iceberg_partition_spec(
-                    self.arrow_dataset.schema, spec_list
-                )
-                create_table(
-                    self._job_client.get_open_table_catalog("iceberg"),
-                    table_id,
-                    table_location=location,
-                    schema=iceberg_schema,
-                    partition_spec=partition_spec,
-                    properties=properties,
-                )
-            else:
-                create_table(
-                    self._job_client.get_open_table_catalog("iceberg"),
-                    table_id,
-                    table_location=location,
-                    schema=self.arrow_dataset.schema,
-                    properties=properties,
-                )
+            create_table(
+                self._job_client.get_open_table_catalog("iceberg"),
+                table_id,
+                table_location=location,
+                schema=self.arrow_dataset.schema,
+                properties=properties,
+                partition_fields=[
+                    (spec.source_column, spec.get_transform(), spec.partition_field)
+                    for spec in get_partition_specs(self._load_table, self._schema.name)
+                ],
+            )
             # run again with created table
             self.run()
             return
@@ -349,30 +335,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
                 data=self.arrow_dataset.to_table(),
                 write_disposition=self._load_table["write_disposition"],
             )
-
-    def _get_partition_spec_list(self) -> List["PartitionSpec"]:
-        """Resolve partition specs. Combines legacy partition columns (identity transform)
-        with partition hints. Validates that identity partitions are not duplicated.
-        """
-        from dlt.destinations.impl.filesystem.iceberg_adapter import (
-            parse_partition_hints,
-            create_identity_specs,
-        )
-
-        legacy_columns = self._partition_columns
-
-        hint_specs = parse_partition_hints(self._load_table)
-
-        for spec in hint_specs:
-            if spec.transform == "identity" and spec.source_column in legacy_columns:
-                raise SchemaCorruptedException(
-                    self._schema.name,
-                    f"Column '{spec.source_column}' is defined both as a partition column "
-                    "and in partition hints.",
-                )
-
-        identity_specs = create_identity_specs(legacy_columns)
-        return identity_specs + hint_specs
 
 
 class HfFilesystemUploadJob(HasFollowupJobs, FilesystemLoadJob):
