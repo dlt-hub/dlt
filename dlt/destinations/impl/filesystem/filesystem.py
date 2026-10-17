@@ -273,7 +273,7 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             create_table,
         )
         from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
-            build_iceberg_partition_spec,
+            get_partition_transform,
         )
 
         try:
@@ -288,7 +288,6 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             location = self._job_client.get_open_table_location("iceberg", self.load_table_name)
             table_id = f"{self._job_client.dataset_name}.{self.load_table_name}"
 
-            spec_list = self._get_partition_spec_list()
             # merge config-level defaults with per-table adapter overrides
             config_properties = self._job_client.config.iceberg_table_properties
             adapter_properties: Optional[Dict[str, str]] = self._load_table.get(
@@ -299,26 +298,17 @@ class IcebergLoadFilesystemJob(TableFormatLoadFilesystemJob):
             else:
                 properties = None
 
-            if spec_list:
-                partition_spec, iceberg_schema = build_iceberg_partition_spec(
-                    self.arrow_dataset.schema, spec_list
-                )
-                create_table(
-                    self._job_client.get_open_table_catalog("iceberg"),
-                    table_id,
-                    table_location=location,
-                    schema=iceberg_schema,
-                    partition_spec=partition_spec,
-                    properties=properties,
-                )
-            else:
-                create_table(
-                    self._job_client.get_open_table_catalog("iceberg"),
-                    table_id,
-                    table_location=location,
-                    schema=self.arrow_dataset.schema,
-                    properties=properties,
-                )
+            create_table(
+                self._job_client.get_open_table_catalog("iceberg"),
+                table_id,
+                table_location=location,
+                schema=self.arrow_dataset.schema,
+                properties=properties,
+                partition_fields=[
+                    (spec.source_column, get_partition_transform(spec), spec.partition_field)
+                    for spec in self._get_partition_spec_list()
+                ],
+            )
             # run again with created table
             self.run()
             return

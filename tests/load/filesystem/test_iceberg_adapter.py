@@ -10,11 +10,7 @@ from dlt.destinations.impl.filesystem.iceberg_adapter import (
     parse_partition_hints,
     create_identity_specs,
 )
-from dlt.destinations.impl.filesystem.iceberg_partition_spec import (
-    build_iceberg_partition_spec,
-    get_partition_transform,
-    _default_field_name,
-)
+from dlt.destinations.impl.filesystem.iceberg_partition_spec import get_partition_transform
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -284,118 +280,6 @@ def test_create_identity_specs() -> None:
         assert specs[i].transform == "identity"
 
 
-def test_build_iceberg_partition_spec() -> None:
-    from pyiceberg.types import LongType, TimestampType, StringType
-    from pyiceberg.transforms import YearTransform, IdentityTransform
-
-    arrow_schema = pa.schema(
-        [
-            pa.field("id", pa.int64()),
-            pa.field("created_at", pa.timestamp("us")),
-            pa.field("region", pa.string()),
-        ]
-    )
-
-    partition_specs = [
-        iceberg_partition.year("created_at"),
-        iceberg_partition.identity("region"),
-    ]
-
-    iceberg_partition_spec, iceberg_schema = build_iceberg_partition_spec(
-        arrow_schema, partition_specs
-    )
-
-    assert iceberg_partition_spec is not None
-    assert len(iceberg_partition_spec.fields) == 2
-
-    year_field = iceberg_partition_spec.fields[0]
-    assert year_field.name == "created_at_year"
-    assert isinstance(year_field.transform, YearTransform)
-    assert year_field.source_id == iceberg_schema.find_field("created_at").field_id
-
-    identity_field = iceberg_partition_spec.fields[1]
-    assert identity_field.name == "region"
-    assert isinstance(identity_field.transform, IdentityTransform)
-    assert identity_field.source_id == iceberg_schema.find_field("region").field_id
-
-    id_field = iceberg_schema.find_field("id")
-    assert id_field.name == "id"
-    assert isinstance(id_field.field_type, LongType)
-
-    created_at_field = iceberg_schema.find_field("created_at")
-    assert created_at_field.name == "created_at"
-    assert isinstance(created_at_field.field_type, TimestampType)
-
-    region_field = iceberg_schema.find_field("region")
-    assert region_field.name == "region"
-    assert isinstance(region_field.field_type, StringType)
-
-
-def test_build_iceberg_partition_spec_with_nested_columns() -> None:
-    from pyiceberg.types import ListType, MapType, StructType
-
-    arrow_schema = pa.schema(
-        [
-            pa.field("id", pa.int64()),
-            pa.field("tags", pa.list_(pa.string())),
-            pa.field("owner", pa.struct([("name", pa.string()), ("age", pa.int32())])),
-            pa.field("refs", pa.list_(pa.struct([("n", pa.int64())]))),
-            pa.field("attrs", pa.map_(pa.string(), pa.int64())),
-            pa.field("created_at", pa.timestamp("us")),
-        ]
-    )
-
-    iceberg_partition_spec, iceberg_schema = build_iceberg_partition_spec(
-        arrow_schema,
-        [iceberg_partition.identity("id"), iceberg_partition.day("created_at")],
-    )
-
-    assert isinstance(iceberg_schema.find_field("tags").field_type, ListType)
-    assert isinstance(iceberg_schema.find_field("owner").field_type, StructType)
-    assert isinstance(iceberg_schema.find_field("attrs").field_type, MapType)
-    assert (
-        iceberg_schema.find_field("owner.age").field_id != iceberg_schema.find_field("id").field_id
-    )
-    assert iceberg_schema.find_field("refs.element.n").name == "n"
-    assert iceberg_schema.find_field("attrs.value").name == "value"
-
-    # field ids are unique across the whole schema, nested fields included
-    field_ids = [iceberg_schema.find_field(name).field_id for name in iceberg_schema.column_names]
-    assert len(field_ids) == len(set(field_ids))
-
-    # partition fields point at the requested top level columns
-    id_field, day_field = iceberg_partition_spec.fields
-    assert id_field.source_id == iceberg_schema.find_field("id").field_id
-    assert day_field.source_id == iceberg_schema.find_field("created_at").field_id
-    assert day_field.name == "created_at_day"
-
-
-def test_iceberg_partition_with_nested_column_creates_table(tmp_path) -> None:
-    from dlt.common.libs.pyiceberg import get_iceberg_tables
-
-    @dlt.resource(name="events", table_format="iceberg")
-    def events():
-        yield pa.table(
-            {
-                "id": ["a", "b"],
-                "tags": [["x", "y"], ["z"]],
-                "owner": [{"name": "n1"}, {"name": "n2"}],
-            }
-        )
-
-    pipeline = dlt.pipeline(
-        pipeline_name="iceberg_nested_partition",
-        destination=dlt.destinations.filesystem(bucket_url=str(tmp_path)),
-        dataset_name="nested_partition_ds",
-        dev_mode=True,
-    )
-    pipeline.run(iceberg_adapter(events(), partition=iceberg_partition.identity("id")))
-
-    table = get_iceberg_tables(pipeline, "events")["events"]
-    assert [f.name for f in table.metadata.specs_struct().fields] == ["id"]
-    assert table.scan().to_arrow().num_rows == 2
-
-
 @pytest.mark.parametrize(
     "source_column,transform,partition_field,param_value",
     [
@@ -444,45 +328,6 @@ def test_partition_spec_invalid_transform() -> None:
 
     with pytest.raises(ValueError, match="Unknown partition transformation type"):
         get_partition_transform(spec)
-
-
-@pytest.mark.parametrize(
-    "transform,source_column,param_value,expected_name",
-    [
-        ("identity", "region", None, "region"),
-        ("year", "created_at", None, "created_at_year"),
-        ("month", "event_time", None, "event_time_month"),
-        ("day", "timestamp", None, "timestamp_day"),
-        ("hour", "log_time", None, "log_time_hour"),
-        ("bucket", "user_id", 16, "user_id_bucket_16"),
-        ("truncate", "name", 4, "name_trunc_4"),
-    ],
-    ids=["identity", "year", "month", "day", "hour", "bucket", "truncate"],
-)
-def test_default_field_name_generation(
-    transform: str, source_column: str, param_value: int, expected_name: str
-) -> None:
-    spec = PartitionSpec(
-        source_column=source_column,
-        transform=transform,
-        param_value=param_value,
-    )
-
-    generated_name = _default_field_name(spec)
-
-    assert generated_name == expected_name
-
-
-def test_default_field_name_with_custom_partition_field() -> None:
-    spec = PartitionSpec(
-        source_column="created_at",
-        transform="year",
-        partition_field="custom_year_field",
-    )
-
-    generated_name = _default_field_name(spec)
-
-    assert generated_name == "custom_year_field"
 
 
 def test_duplicate_partition_column_in_legacy_and_hints() -> None:

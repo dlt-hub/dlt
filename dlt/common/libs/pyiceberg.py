@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, List, Optional, Union
+from typing import Dict, Any, List, Optional, Sequence, Tuple, Union
 from pathlib import Path
 import warnings
 import time
@@ -34,6 +34,7 @@ try:
         UNPARTITIONED_PARTITION_SPEC,
         PartitionSpec as IcebergPartitionSpec,
     )
+    from pyiceberg.transforms import Transform, IdentityTransform
     import pyarrow as pa
     from pydantic import BaseModel, ConfigDict, Field
 except ModuleNotFoundError:
@@ -42,6 +43,9 @@ except ModuleNotFoundError:
         [f"{version.DLT_PKG_NAME}[pyiceberg]"],
         "Install `pyiceberg` so dlt can create Iceberg tables in the `filesystem` destination.",
     )
+
+TPartitionField = Tuple[str, Transform[Any, Any], Optional[str]]
+"""Source column, transform and partition field name (`None` for the default name)"""
 
 pyiceberg_semver = Version(pyiceberg.__version__)
 
@@ -455,26 +459,34 @@ def create_table(
     partition_columns: Optional[List[str]] = None,
     partition_spec: Optional[IcebergPartitionSpec] = UNPARTITIONED_PARTITION_SPEC,
     properties: Optional[Dict[str, str]] = None,
+    partition_fields: Optional[Sequence[TPartitionField]] = None,
 ) -> None:
+    """Creates an Iceberg table, `partition_fields` are resolved by column name after
+    the field ids are assigned.
+    """
     if isinstance(schema, pa.Schema):
         schema = ensure_iceberg_compatible_arrow_schema(schema)
 
+    fields: List[TPartitionField] = []
     if partition_columns:
         warnings.warn(
-            "partition_columns is deprecated. Use partition_spec instead.",
+            "partition_columns is deprecated. Use partition_fields instead.",
             DeprecationWarning,
             stacklevel=2,
         )
+        fields = [(col, IdentityTransform(), None) for col in partition_columns]
+    fields.extend(partition_fields or [])
+
+    if fields:
         with catalog.create_table_transaction(
             table_id,
             schema=schema,
             location=table_location,
             properties=properties or {},
         ) as txn:
-            # add partitioning
             with txn.update_spec() as update_spec:
-                for col in partition_columns:
-                    update_spec.add_identity(col)
+                for source_column, transform, partition_field in fields:
+                    update_spec.add_field(source_column, transform, partition_field)
     else:
         catalog.create_table(
             identifier=table_id,
