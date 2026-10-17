@@ -2,7 +2,6 @@ import posixpath
 import os
 import time as _time
 import base64
-from concurrent.futures import ThreadPoolExecutor
 from contextlib import contextmanager
 from types import TracebackType
 from typing import (
@@ -53,6 +52,7 @@ from dlt.common.storages.fsspec_filesystem import (
 )
 from datetime import datetime, timezone
 
+from dlt.common.runners import create_thread_pool
 from dlt.common.time import ensure_datetime_in_tz, ensure_pendulum_datetime
 from dlt.common.typing import ConfigValue, DictStrAny
 from dlt.common.schema import Schema, TSchemaTables
@@ -848,11 +848,7 @@ class FilesystemClient(
         workers = self.config.max_delete_workers or DEFAULT_DELETE_WORKERS.get(
             self.config.protocol, 1
         )
-        if workers <= 1 or len(files) <= 1:
-            for file in files:
-                self._delete_file(file)
-            return
-        with ThreadPoolExecutor(max_workers=min(workers, len(files))) as pool:
+        with create_thread_pool(min(workers, len(files))) as pool:
             # the list call consumes the iterator and raises the first error
             list(pool.map(self._delete_file, files))
 
