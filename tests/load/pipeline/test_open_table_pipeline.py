@@ -1052,6 +1052,7 @@ def test_parquet_to_delta_upgrade(destination_config: DestinationTestConfigurati
 def test_iceberg_adapter_partitioning(
     destination_config: DestinationTestConfiguration,
 ) -> None:
+    from dlt.common.libs.pyarrow import pyarrow as pa
     from dlt.common.libs.pyiceberg import get_iceberg_tables
     from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
     from pyiceberg.transforms import (
@@ -1139,6 +1140,35 @@ def test_iceberg_adapter_partitioning(
     it = get_iceberg_tables(pipeline, "truncate_partitioned")["truncate_partitioned"]
     assert it.metadata.specs_struct().fields[0].name == "category_trunc_4"
     assert isinstance(it.spec().fields[0].transform, TruncateTransform)
+
+    # Test partitioning with nested columns and types that iceberg needs converted
+    arrow_table = arrow_table_all_data_types(
+        "arrow-table",
+        include_decimal_arrow_max_precision=True,
+        include_not_normalized_name=False,
+        include_null=False,
+        num_rows=2,
+    )[0]
+    arrow_table = arrow_table.append_column(
+        "tags", pa.array([["x", "y"], []], type=pa.list_(pa.string()))
+    ).append_column(
+        "attrs", pa.array([[("k", 1)], [("j", 2)]], type=pa.map_(pa.string(), pa.int64()))
+    )
+
+    @dlt.resource(table_format="iceberg")
+    def nested_partitioned():
+        yield arrow_table
+
+    resource = iceberg_adapter(nested_partitioned, partition=iceberg_partition.day("datetime"))
+    # second load goes to the existing table
+    for _ in range(2):
+        assert_load_info(pipeline.run(resource))
+
+    it = get_iceberg_tables(pipeline, "nested_partitioned")["nested_partitioned"]
+    assert [it.schema().find_column_name(f.source_id) for f in it.spec().fields] == ["datetime"]
+    assert load_table_counts(pipeline, "nested_partitioned")["nested_partitioned"] == 4
+    loaded_tags = sorted(row["tags"] for row in it.scan().to_arrow().to_pylist())
+    assert loaded_tags == sorted(arrow_table["tags"].to_pylist() * 2)
 
 
 @pytest.mark.parametrize(
