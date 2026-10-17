@@ -32,6 +32,28 @@ All tables that belong to a `replace` resource are truncated on each load, inclu
 Note that a table does not need to receive any data to get truncated.
 :::
 
+## Replace with incremental loading
+
+The shorthand and the dictionary form of the `replace` write disposition handle the resource state differently:
+
+- The shorthand `write_disposition="replace"` **resets** the resource state on each run. An [incremental](incremental-loading.md) on such a resource starts from its `initial_value` again, and dlt reloads the table from scratch.
+- The dictionary form `write_disposition={"disposition": "replace"}` **keeps** the resource state by default. The incremental continues from the last saved cursor and extracts only the new or changed records. The table holds only these records, which is useful when a downstream tool merges them.
+
+The `exclude_resource_state` option of the dictionary form defaults to `True`, so these two resources behave the same:
+
+```py
+@dlt.resource(write_disposition={"disposition": "replace"})
+def clients(updated_at=dlt.sources.incremental("updated_at")):
+    ...
+
+
+@dlt.resource(write_disposition={"disposition": "replace", "exclude_resource_state": True})
+def clients_explicit(updated_at=dlt.sources.incremental("updated_at")):
+    ...
+```
+
+Set `exclude_resource_state` to `False` to reset the state like the shorthand does. A run that yields no records truncates the table, so the table can be empty. For an explicit full refresh, use the [`refresh`](pipeline.md#refresh-pipeline-data-and-state) option instead.
+
 ## Choosing the correct replace strategy for your full load
 
 dlt implements three different strategies for doing a full load on your table: `truncate-and-insert`, `insert-from-staging`, and `staging-optimized`. The exact behavior of these strategies can also vary between the available destinations.

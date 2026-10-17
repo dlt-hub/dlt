@@ -1520,6 +1520,15 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     assert len(info.loads_ids) == 0
     info = p.run(standalone_some_data(item_type, now), write_disposition="replace")
     assert len(info.loads_ids) == 1
+    # the dict form keeps the state: dlt extracts nothing new, the empty load truncates the table
+    info = p.run(standalone_some_data(item_type, now), write_disposition={"disposition": "replace"})
+    assert len(info.loads_ids) == 1
+    assert p.last_trace.last_normalize_info.row_counts["standalone_some_data"] == 0
+    info = p.run(
+        standalone_some_data(item_type, now),
+        write_disposition={"disposition": "replace", "exclude_resource_state": False},
+    )
+    assert p.last_trace.last_normalize_info.row_counts["standalone_some_data"] == 20
 
     parent_r = standalone_some_data(item_type, now)
 
@@ -1584,6 +1593,47 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     assert extracted[child.name].write_disposition == "replace"
     # now parent exists separately and has its own write disposition - because we search by name to identify matching resource
     assert extracted[child._pipe.parent.name].write_disposition == "append"
+
+
+@pytest.mark.parametrize("hint_location", ("decorator", "apply_hints", "run"))
+def test_replace_dict_keeps_incremental_state(hint_location: str) -> None:
+    """The dict form of `replace` keeps the incremental state so each run replaces the table with
+    the newly extracted rows only. A run without new rows leaves the table empty."""
+    rows = [
+        {"id": i, "updated_at": datetime(2026, 10, 1 + i, tzinfo=timezone.utc)} for i in range(3)
+    ]
+    replace_dict: Any = {"disposition": "replace", "exclude_resource_state": True}
+
+    @dlt.resource(write_disposition=replace_dict if hint_location == "decorator" else "append")
+    def items(updated_at=dlt.sources.incremental("updated_at")):
+        yield rows
+
+    if hint_location == "apply_hints":
+        items.apply_hints(write_disposition=replace_dict)
+    run_kwargs: Dict[str, Any] = (
+        {"write_disposition": replace_dict} if hint_location == "run" else {}
+    )
+
+    p = dlt.pipeline(pipeline_name="p" + uniq_id(), destination="duckdb")
+    p.run(items(), **run_kwargs)
+    assert p.last_trace.last_normalize_info.row_counts["items"] == 3
+    assert load_table_counts(p, "items")["items"] == 3
+
+    rows.extend(
+        {"id": i, "updated_at": datetime(2026, 10, 1 + i, tzinfo=timezone.utc)} for i in (3, 4)
+    )
+    p.run(items(), **run_kwargs)
+    assert p.last_trace.last_normalize_info.row_counts["items"] == 2
+    assert_query_column(p, "SELECT id FROM items ORDER BY id", [3, 4])
+    cursor_state = p.state["sources"][p.default_schema_name]["resources"]["items"]["incremental"][
+        "updated_at"
+    ]
+    assert cursor_state["last_value"] == datetime(2026, 10, 5, tzinfo=timezone.utc)
+    assert cursor_state["start_value"] == datetime(2026, 10, 3, tzinfo=timezone.utc)
+
+    # nothing new: an empty load truncates the table
+    p.run(items(), **run_kwargs)
+    assert load_table_counts(p, "items")["items"] == 0
 
 
 @pytest.mark.parametrize("item_type", ALL_TEST_DATA_ITEM_FORMATS)

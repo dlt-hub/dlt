@@ -412,6 +412,29 @@ filesystem_pipe = filesystem(
 We advise that you give each resource a [specific name](../../../general-usage/resource.md#duplicate-and-rename-resources) before loading with `pipeline.run`. This will ensure that data goes to a table with the name you want and that each pipeline uses a [separate state for incremental loading.](../../../general-usage/state.md#read-and-write-pipeline-state-in-a-resource)
 :::
 
+:::tip
+The table gets its hints, such as `write_disposition`, from the reader after `|`, not from the `filesystem` resource. Set the `incremental` on `filesystem` to pick new files and the write disposition on the piped resource. A `replace` set on `filesystem` does not reach the table, and its shorthand form resets the `filesystem` incremental on each run, so dlt reads all files again.
+
+To replace the table with the records from new files only, use the dictionary form of `replace`. Unlike the shorthand, it keeps the incremental state. See [Replace with incremental loading](../../../general-usage/full-loading.md#replace-with-incremental-loading):
+
+```py
+import dlt
+from dlt.sources.filesystem import filesystem, read_jsonl
+
+new_files = filesystem(
+  bucket_url="s3://bucket_name",
+  file_glob="directory/*.jsonl",
+  incremental=dlt.sources.incremental("modification_date"),
+)
+filesystem_pipe = new_files | read_jsonl()
+filesystem_pipe.apply_hints(write_disposition={"disposition": "replace"})
+
+pipeline = dlt.pipeline(pipeline_name="my_pipeline", destination="duckdb")
+pipeline.run(filesystem_pipe.with_name("new_records"))
+```
+
+:::
+
 ### 3. Create and run a pipeline
 
 ```py

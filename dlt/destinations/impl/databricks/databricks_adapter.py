@@ -211,7 +211,7 @@ def databricks_adapter(
         additional_table_hints[TABLE_PROPERTIES_HINT] = table_properties
 
     if insert_api:
-        if insert_api == "zerobus" and resource.write_disposition != "append":
+        if insert_api == "zerobus" and resource.write_disposition_shorthand != "append":
             raise ValueError(
                 f"Cannot use `zerobus` insert API with `{resource.write_disposition}` write"
                 " disposition. `zerobus` insert API only supports `append` write disposition."

@@ -13,7 +13,7 @@ from dlt.common.configuration.specs.base_configuration import (
     CredentialsConfiguration,
     extract_inner_hint,
 )
-from dlt.common.destination.exceptions import TableFormatNotSupported
+from dlt.common.destination.exceptions import DestinationUndefinedEntity, TableFormatNotSupported
 from dlt.common.destination.typing import PreparedTableSchema
 from dlt.common.known_env import DLT_LOCAL_DIR
 from dlt.common.schema.schema import Schema
@@ -65,7 +65,7 @@ NORMALIZED_FILES = [
 ]
 
 
-def _client_factory(fs: filesystem) -> FilesystemClient:
+def _client_factory(fs: filesystem, dataset_name: str = "test") -> FilesystemClient:
     config_class = (
         HfFilesystemDestinationClientConfiguration
         if fs.is_hf
@@ -73,7 +73,7 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
     )
     client = fs.client(
         Schema("test"),
-        initial_config=config_class()._bind_dataset_name("test"),
+        initial_config=config_class()._bind_dataset_name(dataset_name),
     )
     return client
 
@@ -373,6 +373,50 @@ def test_replace_does_not_truncate_sibling_tables() -> None:
 
     assert not client.fs_client.isfile(event_file)
     assert client.fs_client.isfile(events_file)
+
+
+def test_truncate_tables_deletes_many_files(default_buckets_env: str) -> None:
+    """Deletes more files than there are workers on every bucket. Sibling table files stay."""
+    if default_buckets_env.startswith("hf://"):
+        pytest.skip("hf creates a commit per file. test_hf_truncate_tables covers truncation")
+    client = _client_factory(filesystem(), dataset_name="test_" + uniq_id())
+    client.initialize_storage()
+    try:
+        event_dir, events_dir = client.get_table_dir("event"), client.get_table_dir("events")
+        client.fs_client.makedirs(event_dir, exist_ok=True)
+        client.fs_client.makedirs(events_dir, exist_ok=True)
+        event_files = [client.pathlib.join(event_dir, f"{i}.jsonl") for i in range(100)]
+        events_files = [client.pathlib.join(events_dir, f"{i}.jsonl") for i in range(3)]
+        client.fs_client.pipe({file: b"{}" for file in event_files + events_files})
+        assert len(client.list_table_files("event")) == 100
+
+        client.truncate_tables(["event"])
+
+        # the table folder vanishes on buckets without real directories
+        try:
+            remaining = client.list_table_files("event")
+        except DestinationUndefinedEntity:
+            remaining = []
+        assert remaining == []
+        assert len(client.list_table_files("events")) == 3
+    finally:
+        client.drop_dataset()
+    assert not client.fs_client.exists(client.dataset_path)
+
+
+@pytest.mark.parametrize("max_delete_workers", ("1", "4"), ids=("sequential", "pool"))
+def test_truncate_tables_raises_on_delete_error(max_delete_workers: str) -> None:
+    os.environ["DESTINATION__FILESYSTEM__MAX_DELETE_WORKERS"] = max_delete_workers
+    client = _client_factory(filesystem("random_location"))
+    assert client.config.max_delete_workers == int(max_delete_workers)
+    client.initialize_storage()
+    event_dir = client.get_table_dir("event")
+    client.fs_client.makedirs(event_dir, exist_ok=True)
+    client.fs_client.pipe({client.pathlib.join(event_dir, f"{i}.jsonl"): b"{}" for i in range(3)})
+
+    with mock.patch.object(client.fs_client, "rm_file", side_effect=PermissionError("denied")):
+        with pytest.raises(PermissionError):
+            client.truncate_tables(["event"])
 
 
 def test_unsafe_layout_separator_warning(mocker) -> None:

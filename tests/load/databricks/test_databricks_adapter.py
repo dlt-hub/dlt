@@ -715,9 +715,12 @@ def test_databricks_adapter_preserves_existing_columns() -> None:
 def test_databricks_adapter_insert_api() -> None:
     default_res = dlt.resource([{"id": 1}], name="default", write_disposition="append")
     zerobus_res = dlt.resource([{"id": 1}], name="zerobus", write_disposition="append")
+    dict_res = dlt.resource([{"id": 1}], name="dict", write_disposition={"disposition": "append"})
 
     databricks_adapter(default_res, insert_api=None)
     databricks_adapter(zerobus_res, insert_api="zerobus")
+    # dlt accepts the dict form of append as well
+    databricks_adapter(dict_res, insert_api="zerobus")
 
     default_table_schema = default_res.compute_table_schema()
     zerobus_table_schema = zerobus_res.compute_table_schema()

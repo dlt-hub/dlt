@@ -632,6 +632,7 @@ def resource(
         write_disposition (TTableHintTemplate[TWriteDispositionConfig], optional): Controls how to write data to a table. Accepts a shorthand string literal or configuration dictionary.
             Allowed shorthand string literals: `append` will always add new data at the end of the table. `replace` will replace existing data with new data. `skip` will prevent data from loading. "merge" will deduplicate and merge data based on "primary_key" and "merge_key" hints. Defaults to "append".
             Write behaviour can be further customized through a configuration dictionary. For example, to obtain an SCD2 table provide `write_disposition={"disposition": "merge", "strategy": "scd2"}`.
+            The `replace` shorthand resets the resource state, including incremental cursors, so dlt reloads the table from scratch. The dictionary form `{"disposition": "replace"}` keeps the state by default and loads only the newly extracted rows. Set `exclude_resource_state` to `False` to reset the state. See `TReplaceDispositionDict`.
             This argument also accepts a callable that is used to dynamically create tables for stream-like resources yielding many datatypes.
 
         columns (TTableHintTemplate[TAnySchemaColumns], optional): A list, dict, pydantic model or pyarrow schema of column schemas.
