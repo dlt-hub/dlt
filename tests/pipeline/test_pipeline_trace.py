@@ -15,6 +15,7 @@ from dlt.common import json, pendulum
 from dlt.common.configuration.specs import CredentialsConfiguration, RuntimeConfiguration
 from dlt.common.configuration.specs.config_providers_context import ConfigProvidersContainer
 from dlt.common.configuration.utils import get_resolved_traces
+from dlt.common.exceptions import MissingDependencyException
 from dlt.common.metrics import TDataLocation, TDatasetDataLocation
 from dlt.common.pipeline import ExtractInfo, NormalizeInfo, LoadInfo
 from dlt.common.schema import Schema
@@ -341,7 +342,50 @@ def test_trace_schema() -> None:
         def scd2_data():
             yield [{"id": 1, "val": "x"}, {"id": 2, "val": "y"}]
 
-        return data(), merge_data(), replace_data(), scd2_data()
+        # merge conditions with a placeholder function and nested hints with a tuple path
+        day_scope: Any = {
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "source_filter": "id > 0",
+            "destination_scope": "day = {day}",
+        }
+        root_disposition: Any = {
+            **day_scope,
+            "extra_placeholders": {"day": lambda resource, table_name: "2026-10-01"},
+        }
+        parts_disposition: Any = {**day_scope, "extra_placeholders": {"day": "2026-10-01"}}
+
+        @dlt.resource(
+            write_disposition=root_disposition,
+            nested_hints={
+                "lines": dlt.mark.make_nested_hints(
+                    columns=[{"name": "day", "data_type": "date"}],
+                    parent_table_name="partition_data",
+                    schema_contract={
+                        "tables": "evolve",
+                        "columns": "evolve",
+                        "data_type": "evolve",
+                    },
+                    file_format="jsonl",
+                ),
+                ("lines", "parts"): dlt.mark.make_nested_hints(write_disposition=parts_disposition),
+                # a nested table with its own keys merges on its own
+                "items": dlt.mark.make_nested_hints(
+                    primary_key="id", merge_key="id", write_disposition="merge"
+                ),
+            },
+        )
+        def partition_data():
+            yield [
+                {
+                    "id": 1,
+                    "day": "2026-10-01",
+                    "lines": [{"day": "2026-10-01", "parts": []}],
+                    "items": [{"id": 1}],
+                }
+            ]
+
+        return data(), merge_data(), replace_data(), scd2_data(), partition_data()
 
     @dlt.source
     def github():
@@ -440,6 +484,12 @@ def test_trace_schema() -> None:
     # trace shapes
     # TODO: create a proper schema for dlt trace and tables/columns
     pipeline._schema_storage.storage.save("trace.schema.yaml", inferred_contract_str)
+    # a diagram of the trace tables next to the contract. pydbml is an optional dependency
+    try:
+        inferred_dbml = inferred_trace_contract.to_dbml(remove_processing_hints=True)
+        pipeline._schema_storage.storage.save("trace.schema.dbml", inferred_dbml)
+    except MissingDependencyException:
+        pass
     # print(pipeline._schema_storage.storage.storage_path)
 
     # reload the original contract and use it with freeze to verify no breaking changes
@@ -1045,24 +1095,31 @@ def test_trace_replaces_callables_in_hints(fail: bool) -> None:
         "disposition": "merge",
         "strategy": "delete-insert",
         "destination_scope": "day = {day} AND tenant = {tenant}",
-        "extra_placeholders": {"day": "<lambda>", "tenant": "_tenant_of"},
+        # placeholders are listed, so their names do not become columns of the trace
+        "extra_placeholders": [
+            {"name": "day", "value": "<lambda>"},
+            {"name": "tenant", "value": "_tenant_of"},
+        ],
     }
-    assert hints["nested_hints"]["children"] == {
-        "columns": {},
-        "write_disposition": {"disposition": "merge", "destination_scope": "day = {day}"},
-    }
-    assert hints["nested_hints"]["subs"] == {
-        "columns": {},
-        "primary_key": "id",
-        "write_disposition": {
-            "disposition": "merge",
-            "strategy": "delete-insert",
-            "destination_scope": "part = {part} AND region = {region}",
-            "extra_placeholders": {"part": "<lambda>", "region": "_region_of"},
+    # JSON keys are strings, so the trace lists the nested hints with their paths
+    children_disposition_hint = {"disposition": "merge", "destination_scope": "day = {day}"}
+    assert hints["nested_hints"] == [
+        {"path": ["children"], "write_disposition": children_disposition_hint},
+        {
+            "path": ["subs"],
+            "primary_key": "id",
+            "write_disposition": {
+                "disposition": "merge",
+                "strategy": "delete-insert",
+                "destination_scope": "part = {part} AND region = {region}",
+                "extra_placeholders": [
+                    {"name": "part", "value": "<lambda>"},
+                    {"name": "region", "value": "_region_of"},
+                ],
+            },
         },
-    }
-    # JSON keys are strings, so a tuple path is joined
-    assert hints["nested_hints"]["children__toys"] == hints["nested_hints"]["children"]
+        {"path": ["children", "toys"], "write_disposition": children_disposition_hint},
+    ]
     _assert_no_callables(hints)
 
     # the resource keeps its callables

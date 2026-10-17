@@ -241,12 +241,13 @@ class ExtractInfo(StepInfo[ExtractMetrics], _ExtractInfo):
                         for edge in metrics["dag"]
                     ]
                 )
-                load_metrics["hints"].extend(
-                    [
-                        {**extend, "resource_name": name, **hints}
-                        for name, hints in metrics["hints"].items()
-                    ]
-                )
+                for name, hints in metrics["hints"].items():
+                    hints_row = {**extend, "resource_name": name, **hints}
+                    if nested_hints := hints.get("nested_hints"):
+                        hints_row["nested_hints"] = [
+                            {**extend, "resource_name": name, **nested} for nested in nested_hints
+                        ]
+                    load_metrics["hints"].append(hints_row)
                 # traces restored from an older dlt have no inputs
                 load_metrics["inputs"].extend(
                     [{**extend, **location} for location in metrics.get("inputs", [])]

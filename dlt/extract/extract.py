@@ -1,7 +1,7 @@
 import contextlib
 from collections.abc import Sequence as C_Sequence
 from copy import copy
-from typing import Iterator, List, Dict, Any, Optional, cast
+from typing import Iterator, List, Dict, Any, Mapping, Optional, cast
 import yaml
 
 from dlt.common import logger
@@ -308,20 +308,59 @@ def get_fresh_write_disposition(
     return wd_config
 
 
-def _make_hint_serializable(value: Any) -> Any:
-    """Returns a copy of nested dicts and lists of `value` that the trace can pickle and dump to
-    JSON: callables become their names, tuple keys (ie. `nested_hints` paths) become their
-    elements joined with `__`."""
+def _replace_callables_with_names(value: Any) -> Any:
+    """Returns a copy of nested dicts and lists of `value` with callables replaced by their
+    names."""
     if callable(value):
         return get_callable_name(value)
     if isinstance(value, dict):
-        return {
-            "__".join(k) if isinstance(k, tuple) else k: _make_hint_serializable(v)
-            for k, v in value.items()
-        }
+        return {k: _replace_callables_with_names(v) for k, v in value.items()}
     if isinstance(value, list):
-        return [_make_hint_serializable(v) for v in value]
+        return [_replace_callables_with_names(v) for v in value]
     return value
+
+
+def _hints_for_trace(hints: Mapping[str, Any]) -> Dict[str, Any]:
+    """Returns `hints` of a resource or a nested table in a form that the trace can pickle and
+    dump to JSON."""
+    trace_hints: Dict[str, Any] = {}
+    for name, hint in hints.items():
+        if hint is None or name == "validator":
+            continue
+        if name == "incremental":
+            # represent incremental as dictionary (it derives from BaseConfiguration)
+            if isinstance(hint, IncrementalResourceWrapper):
+                hint = hint.incremental
+            # sometimes internal incremental is not bound
+            if hint:
+                trace_hints[name] = dict(hint)
+        elif name == "original_columns":
+            # this is original type of the columns ie. Pydantic model
+            trace_hints[name] = get_full_obj_class_name(hint)
+        elif callable(hint):
+            trace_hints[name] = get_callable_name(hint)
+        elif name == "columns":
+            if hint:
+                trace_hints[name] = yaml.dump(
+                    hint, allow_unicode=True, default_flow_style=False, sort_keys=False
+                )
+        elif name == "write_disposition" and isinstance(hint, dict):
+            trace_hints[name] = _replace_callables_with_names(hint)
+            # a user named placeholder would add a trace column, an entry adds a row
+            if placeholders := trace_hints[name].get("extra_placeholders"):
+                trace_hints[name]["extra_placeholders"] = [
+                    {"name": k, "value": v} for k, v in placeholders.items()
+                ]
+        elif name == "nested_hints":
+            # a path is a tuple of identifiers and JSON keys are strings, so the trace lists them
+            trace_hints[name] = [
+                {"path": [path] if isinstance(path, str) else list(path), **_hints_for_trace(h)}
+                for path, h in hint.items()
+            ]
+        else:
+            # ie. `extra_placeholders` in write dispositions
+            trace_hints[name] = _replace_callables_with_names(hint)
+    return trace_hints
 
 
 class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
@@ -389,38 +428,10 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
         # collect resource hints
         clean_hints: Dict[str, Dict[str, Any]] = {}
         for resource in source.selected_resources.values():
-            # cleanup the hints
-            hints = clean_hints[resource.name] = {}
             resource_hints = copy(resource._hints) or resource.compute_table_schema()
             if resource.incremental and "incremental" not in resource_hints:
                 resource_hints["incremental"] = resource.incremental  # type: ignore
-
-            for name, hint in resource_hints.items():
-                if hint is None or name in ["validator"]:
-                    continue
-                if name == "incremental":
-                    # represent incremental as dictionary (it derives from BaseConfiguration)
-                    if isinstance(hint, IncrementalResourceWrapper):
-                        hint = hint.incremental
-                    # sometimes internal incremental is not bound
-                    if hint:
-                        hints[name] = dict(hint)  # type: ignore[call-overload]
-                    continue
-                if name == "original_columns":
-                    # this is original type of the columns ie. Pydantic model
-                    hints[name] = get_full_obj_class_name(hint)
-                    continue
-                if callable(hint):
-                    hints[name] = get_callable_name(hint)
-                    continue
-                if name == "columns":
-                    if hint:
-                        hints[name] = yaml.dump(
-                            hint, allow_unicode=True, default_flow_style=False, sort_keys=False
-                        )
-                    continue
-                # ie. `extra_placeholders` in write dispositions, also of `nested_hints`
-                hints[name] = _make_hint_serializable(hint)
+            clean_hints[resource.name] = _hints_for_trace(resource_hints)
 
         inputs: List[TDataLocation] = []
         for resource in {r._pipe.instance_id: r for r in source.resources.extracted}.values():
