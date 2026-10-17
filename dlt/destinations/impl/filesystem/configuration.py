@@ -18,6 +18,7 @@ from dlt.common.destination.client import (
     WithAttachableEngine,
 )
 from dlt.common.storages import FilesystemConfigurationWithLocalFiles
+from dlt.common.utils import digest128
 
 from dlt.destinations.impl.filesystem.typing import TCurrentDateTime, TExtraPlaceholders
 from dlt.destinations.path_utils import check_layout, get_unused_placeholders
@@ -109,3 +110,9 @@ class HfFilesystemDestinationClientConfiguration(FilesystemDestinationClientConf
     @property
     def hf_namespace(self) -> str:
         return os.path.basename(self.bucket_url)
+
+    def fingerprint(self) -> str:
+        """Returns a fingerprint of the Hugging Face namespace that holds the dataset repos."""
+        if not self.bucket_url:
+            return ""
+        return digest128(f"hf://datasets/{self.hf_namespace}")
