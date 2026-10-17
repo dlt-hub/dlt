@@ -1526,7 +1526,7 @@ def test_replace_resets_state(item_type: TestDataItemFormat) -> None:
     assert p.last_trace.last_normalize_info.row_counts["standalone_some_data"] == 0
     info = p.run(
         standalone_some_data(item_type, now),
-        write_disposition={"disposition": "replace", "exclude_pipeline_state": False},
+        write_disposition={"disposition": "replace", "exclude_resource_state": False},
     )
     assert p.last_trace.last_normalize_info.row_counts["standalone_some_data"] == 20
 
@@ -1602,7 +1602,7 @@ def test_replace_dict_keeps_incremental_state(hint_location: str) -> None:
     rows = [
         {"id": i, "updated_at": datetime(2026, 10, 1 + i, tzinfo=timezone.utc)} for i in range(3)
     ]
-    replace_dict: Any = {"disposition": "replace", "exclude_pipeline_state": True}
+    replace_dict: Any = {"disposition": "replace", "exclude_resource_state": True}
 
     @dlt.resource(write_disposition=replace_dict if hint_location == "decorator" else "append")
     def items(updated_at=dlt.sources.incremental("updated_at")):

@@ -598,9 +598,9 @@ class Extract(WithStepInfo[ExtractMetrics, ExtractInfo]):
                     if resource.write_disposition_shorthand != "replace":
                         continue
                     write_disposition = resource.write_disposition
-                    # the dict form keeps the state unless exclude_pipeline_state is False
+                    # the dict form keeps the state unless exclude_resource_state is False
                     if isinstance(write_disposition, dict) and write_disposition.get(
-                        "exclude_pipeline_state", True
+                        "exclude_resource_state", True
                     ):
                         continue
                     reset_resource_state(resource.name)

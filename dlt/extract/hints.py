@@ -845,11 +845,11 @@ class DltResourceHints:
         wd = template.get("write_disposition")
         if (
             isinstance(wd, dict)
-            and "exclude_pipeline_state" in wd
+            and "exclude_resource_state" in wd
             and wd["disposition"] != "replace"
         ):
             raise ValueError(
-                "dlt supports `exclude_pipeline_state` only with the `replace` write disposition."
+                "dlt supports `exclude_resource_state` only with the `replace` write disposition."
             )
         if isinstance(wd, dict) and wd["disposition"] == "merge":
             # the keys depend on the strategy, as `TWriteDispositionConfig` defines

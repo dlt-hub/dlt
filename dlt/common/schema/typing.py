@@ -292,9 +292,9 @@ class TMergeDispositionDict(TWriteDispositionDict):
 
 
 class TReplaceDispositionDict(TWriteDispositionDict):
-    exclude_pipeline_state: NotRequired[bool]
-    """If `True` (default), dlt keeps the resource state when it replaces the table allowing
-    incremental cursor to continue from last saved state."""
+    exclude_resource_state: NotRequired[bool]
+    """If `True`, dlt keeps the resource state, including incremental cursors, when it replaces
+    the table. Defaults to `True`, unlike the `replace` shorthand that resets the state."""
 
 
 class TSourceFilterDict(TypedDict):

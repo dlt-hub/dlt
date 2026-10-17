@@ -92,7 +92,7 @@ This method was recommended before the `refresh` option was available; **there i
 persists until the next, unmodified run. There may be a small performance improvement, since the refresh load is a replace that can be optimized with a table swap.
 
 1. In the case of a `merge`, the data in the destination is truncated and loaded fresh. Currently, we do not deduplicate data during the full refresh.
-2. In the case of `dlt.sources.incremental`, the data is truncated and loaded from scratch. The state of the incremental is reset to the initial value. This applies to the `replace` shorthand only. The dictionary form `{"disposition": "replace", "exclude_pipeline_state": True}` keeps the state. See [Replace with incremental loading](full-loading.md#replace-with-incremental-loading).
+2. In the case of `dlt.sources.incremental`, the data is truncated and loaded from scratch. The state of the incremental is reset to the initial value. This applies to the `replace` shorthand only. The dictionary form `{"disposition": "replace"}` keeps the state by default. See [Replace with incremental loading](full-loading.md#replace-with-incremental-loading).
 
 Example:
 

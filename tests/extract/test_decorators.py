@@ -1170,7 +1170,7 @@ def test_resource_sets_invalid_write_disposition() -> None:
 
 def test_replace_disposition_dict_hints() -> None:
     """The table schema gets the shorthand of the replace dict. The resource keeps the dict."""
-    replace_dict: Any = {"disposition": "replace", "exclude_pipeline_state": True}
+    replace_dict: Any = {"disposition": "replace", "exclude_resource_state": True}
 
     @dlt.resource(write_disposition=replace_dict)
     def items():
@@ -1180,7 +1180,7 @@ def test_replace_disposition_dict_hints() -> None:
     assert items.write_disposition_shorthand == "replace"
     table = items.compute_table_schema()
     assert table["write_disposition"] == "replace"
-    assert "exclude_pipeline_state" not in table
+    assert "exclude_resource_state" not in table
 
     # a nested table with the same disposition is consistent with the dict root
     items.apply_hints(nested_hints={"children": {"write_disposition": "replace"}})
@@ -1189,7 +1189,7 @@ def test_replace_disposition_dict_hints() -> None:
     warning_mock.assert_not_called()
 
     # the flag is only valid with replace
-    append_dict: Any = {"disposition": "append", "exclude_pipeline_state": True}
+    append_dict: Any = {"disposition": "append", "exclude_resource_state": True}
     with pytest.raises(ValueError):
         dlt.resource([1, 2, 3], name="invalid", write_disposition=append_dict)
     with pytest.raises(ValueError):
