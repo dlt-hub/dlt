@@ -82,15 +82,25 @@ def _client_factory(fs: filesystem) -> FilesystemClient:
     "bucket_url,expected_fingerprint",
     [
         pytest.param(None, "", id="empty"),
-        pytest.param("/path/path2", digest128(""), id="local_absolute_path"),
-        pytest.param("lake", digest128(""), id="local_relative_path"),
+        pytest.param("/path/path2", digest128("file://"), id="local_absolute_path"),
+        pytest.param("lake", digest128("file://"), id="local_relative_path"),
         pytest.param("file:///home/ducklake.d", digest128("file://"), id="file_scheme"),
+        pytest.param("FILE:///home/ducklake.d", digest128("file://"), id="file_scheme_upper"),
+        pytest.param("file://server/share/lake", digest128("file://server"), id="file_scheme_host"),
         pytest.param("s3://cool", digest128("s3://cool"), id="remote_bucket"),
         pytest.param(
             "s3://cool.domain/path/path2",
             digest128("s3://cool.domain"),
             id="remote_bucket_path_ignored",
         ),
+        pytest.param("s3://cool/", digest128("s3://cool"), id="remote_bucket_trailing_slash"),
+        pytest.param("s3://data/data", digest128("s3://data"), id="path_repeats_bucket_name"),
+        pytest.param(
+            "s3://data-lake/data", digest128("s3://data-lake"), id="path_inside_bucket_name"
+        ),
+        pytest.param("S3://Cool/path", digest128("s3://Cool"), id="scheme_lowercased"),
+        pytest.param("memory:///tmp/path", digest128("memory://"), id="empty_netloc"),
+        pytest.param("https://host/path?token=abc", digest128("https://host"), id="query_ignored"),
     ],
 )
 def test_filesystem_fingerprint(bucket_url: Optional[str], expected_fingerprint: str) -> None:
