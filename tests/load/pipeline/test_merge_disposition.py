@@ -65,6 +65,7 @@ from tests.load.pipeline.merge_utils import (
 from tests.load.pipeline.utils import LOCAL_DESTINATIONS, skip_if_unsupported_merge_strategy
 from tests.pipeline.utils import (
     assert_load_info,
+    assert_trace_restored,
     load_table_counts,
     select_data,
     load_tables_to_dicts,
@@ -2892,6 +2893,7 @@ def test_delete_insert_partition_local_primary_key(
             **destination_config.run_kwargs,
         )
     )
+    assert_trace_restored(p)
 
     # the parametrization explains which copies survive per strategy and scope
     rows = load_tables_to_dicts(p, "items", exclude_system_cols=True)["items"]
@@ -3048,6 +3050,8 @@ def test_delete_insert_nested_destination_scope(
     assert_load_info(p.run(events, **destination_config.run_kwargs))
     events = day_partitioned_events(day_events(reloaded, "v2", size=1), nested_scope)
     assert_load_info(p.run(events, **destination_config.run_kwargs))
+    # the placeholder function is a closure, the trace keeps its name
+    assert_trace_restored(p)
 
     for table_name in EVENT_TABLES[1:]:
         nested_table = p.default_schema.tables[table_name]
@@ -3066,13 +3070,22 @@ def test_delete_insert_nested_destination_scope(
     ids=lambda x: x.name,
 )
 def test_merge_condition_placeholders(destination_config: DestinationTestConfiguration) -> None:
-    """Replaces one partition per load with a destination scope on a `str` placeholder from
-    `extra_placeholders`, a `datetime` placeholder and `{curr_date}`. A source filter on
-    `{load_id}` limits the merge to the current load while the staging tables keep earlier loads.
-    Checks the literal of each value, that the schema does not change between loads and that a
-    load uses the values stored at extract."""
+    """Runs four loads of `items` that each replace one partition. The partition is selected by
+    the destination scope `part = {part} AND ts >= {since} AND load_day = {curr_date}`:
+
+    - `{part}` is a `str` from `extra_placeholders`, a callable or a constant
+    - `{since}` is a `datetime` from `extra_placeholders`, naive or with a timezone
+    - `{curr_date}` is the date of the load package, filled by dlt
+
+    The staging tables keep the records of earlier loads, so the source filter
+    `_dlt_load_id = {load_id}` is what limits the merge source to the current load.
+
+    Checks the stored records after each load, the values stored in the load package, that the
+    schema does not change between loads and that a load uses the values of its extract step.
+    """
     if destination_config.table_format == "iceberg":
         pytest.skip("Iceberg does not support merge conditions.")
+    # keep the records of earlier loads in staging, only the source filter excludes them
     os.environ["LOAD__TRUNCATE_STAGING_MERGE_TABLES_BEFORE_LOAD"] = "false"
     p = destination_config.setup_pipeline("merge_placeholders", dev_mode=True)
     # delta has no `delete-insert`. `cdc` deletes the absent records of the partition the same way
@@ -3085,18 +3098,27 @@ def test_merge_condition_placeholders(destination_config: DestinationTestConfigu
     source_filter = merge_condition("_dlt_load_id = {load_id}", destination_config, "staging_table")
     today = datetime.now(timezone.utc).date()
 
-    def row(id_: int, part: str, hour: int, minute: int, day: date = today, seq: int = 1) -> StrAny:
+    def row(
+        id_: int, part: str, hour: int, minute: int, day: date = today, version: int = 1
+    ) -> StrAny:
+        """A record of `part` with `ts` at hour:minute UTC on 2024-01-01. `load_day` defaults to
+        the date of the load, so the record is in the `{curr_date}` partition. The dedup keeps
+        the lowest `version` of a record."""
         ts = datetime(2024, 1, 1, hour, minute, tzinfo=timezone.utc)
-        return {"id": id_, "part": part, "ts": ts, "load_day": day, "seq": seq}
+        return {"id": id_, "part": part, "ts": ts, "load_day": day, "version": version}
 
     def items(
         data: Sequence[StrAny], part: Any = None, since: datetime = None, part_arg: str = None
     ) -> DltSource:
+        """A merge of `data` with the placeholders `part` and `since`. Without `part`, an
+        append that seeds the table. `part_arg` is the argument of the resource that a callable
+        `part` reads."""
         return merge_resource(
             data,
             strategy,
-            # the stale copy of a key in staging must not win the dedup
-            columns={"seq": {"dedup_sort": "asc"}},
+            # the dedup keeps the lowest `version`. the stale copy of a key in staging has
+            # `version=1`
+            columns={"version": {"dedup_sort": "asc"}},
             table_format=destination_config.table_format,
             append=part is None,
             destination_scope=scope,
@@ -3106,40 +3128,55 @@ def test_merge_condition_placeholders(destination_config: DestinationTestConfigu
         )
 
     def stored() -> List[Tuple[int, int]]:
-        return sorted((r["id"], r["seq"]) for r in load_tables_to_dicts(p, "items")["items"])
+        """(id, version) of the records in the destination."""
+        return sorted((r["id"], r["version"]) for r in load_tables_to_dicts(p, "items")["items"])
 
-    # 1 is before noon UTC, 3 is in part B and 4 in an old partition. only 2 is in the scope
+    # load 1: seed part A and part B. in part A, 1 is before noon UTC and 4 has an old
+    # `load_day`, so a scope with `since` = noon UTC and `{curr_date}` selects only 2 of part A
     seed = [row(1, "A", 11, 30), row(2, "A", 12, 30), row(3, "B", 12, 30)]
     seed.append(row(4, "A", 12, 30, date(2000, 1, 1)))
     assert_load_info(p.run(items(seed), **destination_config.run_kwargs))
 
-    # a callable reads the part from the resource argument, a naive `since` is read in the session
-    # timezone, UTC on test destinations. the scope deletes 2 and `{curr_date}` is the date of the
-    # load, so 4 stays
+    # load 2: replace part A with 5
+    # - `part` is a callable that reads the resource argument "A"
+    # - `since` is a naive noon, which the database reads in its session timezone, UTC on test
+    #   destinations
+    # the scope deletes only 2: 1 is before `since` and 4 is not in the `{curr_date}` partition
     info = p.run(
         items([row(5, "A", 12, 30)], PARTITION_PLACEHOLDERS["part"], datetime(2024, 1, 1, 12), "A"),
         **destination_config.run_kwargs,
     )
     assert_load_info(info)
+    assert_trace_restored(p)
     assert stored() == [(1, 1), (3, 1), (4, 1), (5, 1)]
-    # `{curr_date}` is computed at load and not stored
+    # the package stores the values of `extra_placeholders`. dlt computes `{curr_date}` at load
     assert p.get_load_package_state(info.loads_ids[0])["placeholders"] == {
         "items": {"part": "A", "since": datetime(2024, 1, 1, 12)}
     }
     version_hash = p.default_schema.version_hash
 
-    # 13:00 in Berlin is noon UTC. the scope deletes 3. the staging table still holds 5, which the
-    # source filter leaves out
+    # load 3: replace part B with 6
+    # - `part` is the constant "B"
+    # - `since` is 13:00 in Berlin, which is noon UTC
+    # the scope deletes 3. staging still holds 5 from load 2, the source filter leaves it out, so
+    # the merge does not insert 5 again
     since = datetime(2024, 1, 1, 13, tzinfo=ZoneInfo("Europe/Berlin"))
     info = p.run(items([row(6, "B", 12, 30)], "B", since), **destination_config.run_kwargs)
     assert_load_info(info)
     assert stored() == [(1, 1), (4, 1), (5, 1), (6, 1)]
     assert p.get_load_package_state(info.loads_ids[0])["placeholders"]["items"]["since"] == since
+    # new placeholder values do not change the schema
     assert p.default_schema.version_hash == version_hash
 
-    # the load uses the values stored at extract, not the current hint of the resource. the stale
-    # copy of 5 in staging sorts first, so a dedup over the whole staging table would discard 5
-    source = items([row(7, "A", 12, 30), row(5, "A", 12, 30, seq=2)], "A", datetime(2024, 1, 1, 12))
+    # load 4: replace part A with 7 and a new version of 5 (`version=2`), in separate steps
+    # - after extract, the hint of the resource changes `part` to "B". the load must use "A",
+    #   the value stored at extract
+    # - staging still holds the stale copy of 5 from load 2 (`version=1`), which the dedup sorts
+    #   first. the dedup must rank only the merge source, otherwise it keeps the stale copy and
+    #   the source filter then drops it, so 5 would be missing
+    source = items(
+        [row(7, "A", 12, 30), row(5, "A", 12, 30, version=2)], "A", datetime(2024, 1, 1, 12)
+    )
     p.extract(source, **destination_config.run_kwargs)
     source.resources["items"].write_disposition["extra_placeholders"]["part"] = "B"  # type: ignore[index,typeddict-item]
     p.normalize()

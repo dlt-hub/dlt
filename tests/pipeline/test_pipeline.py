@@ -97,6 +97,7 @@ from tests.pipeline.utils import (
     PIPELINE_TEST_CASES_PATH,
     assert_table_counts,
     assert_load_info,
+    assert_trace_restored,
     airtable_emojis,
     assert_only_table_columns,
     load_table_counts,
@@ -4827,55 +4828,6 @@ def test_staging_dataset_not_created_without_staging_tables(truncate: bool) -> N
             assert not client.has_dataset()
 
 
-def test_merge_extra_placeholders_stored_in_load_package() -> None:
-    calls: List[Tuple[str, str]] = []
-
-    def last_day(resource: DltResource, table_name: str) -> Any:
-        calls.append((resource.name, table_name))
-        return resource.incremental.incremental.last_value
-
-    def events(rows: List[Dict[str, Any]]) -> DltResource:
-        @dlt.resource(
-            name="events",
-            primary_key="id",
-            write_disposition={
-                "disposition": "merge",
-                "strategy": "delete-insert",
-                "destination_scope": "day = {day}",
-                "extra_placeholders": {"day": last_day, "tenant": "acme"},
-            },
-        )
-        def events_(day=dlt.sources.incremental("day")):
-            yield rows or dlt.mark.materialize_table_schema()
-
-        return events_()
-
-    pipeline = dlt.pipeline(pipeline_name="merge_placeholders_" + uniq_id(), destination="duckdb")
-    pipeline.extract(events([{"id": 1, "day": 1}, {"id": 2, "day": 3}]))
-    pipeline.normalize()
-    load_id = pipeline.list_normalized_load_packages()[0]
-
-    # the callable runs once per table after extract and sees the final incremental state
-    assert calls == [("events", "events")]
-    state = pipeline.get_load_package_state(load_id)
-    assert state["placeholders"] == {"events": {"day": 3, "tenant": "acme"}}
-    # the schema keeps only the template
-    table = pipeline.default_schema.tables["events"]
-    assert table["x-merge-destination-scope"] == "day = {day}"  # type: ignore[typeddict-item]
-    assert "extra_placeholders" not in json.dumps(pipeline.default_schema.to_dict())
-    assert_load_info(pipeline.load())
-
-    # an empty materialized table has a merge job, so the values are stored for it too
-    calls.clear()
-    info = pipeline.run(events([]))
-    assert_load_info(info)
-    assert calls == [("events", "events")]
-    state = pipeline.get_load_package_state(info.loads_ids[0])
-    assert state["placeholders"] == {"events": {"day": 3, "tenant": "acme"}}
-    # the merge replaced the partition of day 3 with nothing
-    assert load_table_counts(pipeline, "events") == {"events": 1}
-
-
 def test_merge_extra_placeholder_function_error() -> None:
     @dlt.resource(
         name="events",
@@ -4899,6 +4851,8 @@ def test_merge_extra_placeholder_function_error() -> None:
     assert isinstance(ex, ExtraPlaceholderError)
     assert (ex.resource_name, ex.table_name, ex.placeholder) == ("events", "events", "day")
     assert isinstance(ex.__cause__, KeyError)
+    # the trace keeps the name of the lambda that never returned a value
+    assert_trace_restored(pipeline)
 
 
 def test_change_naming_convention_name_collision() -> None:

@@ -1,13 +1,15 @@
 from datetime import date  # noqa: I251
-from typing import Dict, List, NamedTuple, Optional, Any, cast
+from typing import Dict, List, NamedTuple, Optional, Any, Tuple, cast
 import pytest
 import os
 
 import dlt
 from dlt.common import json
+from dlt.common.configuration.container import Container
 from dlt.common.data_types.typing import TDataType
 from dlt.common.exceptions import TypeErrorWithKnownTypes
 from dlt.common.metrics import TDataLocation
+from dlt.common.pipeline import StateInjectableContext, TPipelineState
 from dlt.common.schema.utils import is_nested_table, may_be_nested
 from dlt.common.storages import (
     SchemaStorage,
@@ -1544,6 +1546,52 @@ def test_extra_placeholders_of_variants_and_pseudo_roots(extract_step: Extract) 
     # without a declared boundary the load uses the package creation time
     assert extract_placeholders(items(scd2(), scd2(), scd2())) is None
     assert all("x-boundary-timestamp" not in table for table in schema.tables.values())
+
+
+def test_extra_placeholders_resolved_after_extract(extract_step: Extract) -> None:
+    """A function in `extra_placeholders` runs once per table after the extract step, so it sees
+    the final incremental state. An empty materialized table gets the values too. The schema
+    keeps the merge conditions, never `extra_placeholders`."""
+    schema = dlt.Schema("placeholders")
+    calls: List[Tuple[str, str]] = []
+
+    def last_day(resource: DltResource, table_name: str) -> Any:
+        calls.append((resource.name, table_name))
+        return resource.incremental.incremental.last_value
+
+    @dlt.resource(
+        primary_key="id",
+        write_disposition={
+            "disposition": "merge",
+            "strategy": "delete-insert",
+            "destination_scope": "day = {day}",
+            "extra_placeholders": {"day": last_day, "tenant": "acme"},
+        },
+    )
+    def events(rows: List[Dict[str, Any]], day=dlt.sources.incremental("day")):
+        yield rows or dlt.mark.materialize_table_schema()
+
+    # the incremental keeps its state between the extracts
+    state: TPipelineState = {}
+
+    def extract_placeholders(rows: List[Dict[str, Any]]) -> Any:
+        calls.clear()
+        with Container().injectable_context(StateInjectableContext(state=state)):
+            load_id = extract_step.extract(DltSource(schema, "module", [events(rows)]), 20, 1)
+        package_state = extract_step.extract_storage.new_packages.get_load_package_state(load_id)
+        extract_step.extract_storage.commit_new_load_package(load_id, schema)
+        return package_state["placeholders"]
+
+    assert extract_placeholders([{"id": 1, "day": 1}, {"id": 2, "day": 3}]) == {
+        "events": {"day": 3, "tenant": "acme"}
+    }
+    assert calls == [("events", "events")]
+    assert schema.tables["events"]["x-merge-destination-scope"] == "day = {day}"  # type: ignore[typeddict-item]
+    assert "extra_placeholders" not in json.dumps(schema.to_dict())
+
+    # an empty materialized table has a merge job, so it gets the values too
+    assert extract_placeholders([]) == {"events": {"day": 3, "tenant": "acme"}}
+    assert calls == [("events", "events")]
 
 
 @pytest.mark.parametrize("dispatch", ["marked", "dynamic"])

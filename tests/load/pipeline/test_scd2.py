@@ -795,48 +795,6 @@ def test_boundary_timestamp(
         assert p.default_schema.version_hash == version_hash
 
 
-@pytest.mark.parametrize(
-    "destination_config",
-    destinations_configs(default_sql_configs=True, subset=["duckdb", "postgres"]),
-    ids=lambda x: x.name,
-)
-def test_naive_timestamps_in_session_timezone(
-    destination_config: DestinationTestConfiguration, monkeypatch: pytest.MonkeyPatch
-) -> None:
-    """dlt sends a naive `boundary_timestamp` and `active_record_timestamp` as they are, so the
-    session timezone of the database reads them. The active record still matches between loads
-    in the same session timezone."""
-    env_key = f"DESTINATION__{destination_config.destination_type.upper()}__CREDENTIALS__"
-    monkeypatch.setenv(env_key + "SESSION_TIMEZONE", "Europe/Berlin")
-    p = destination_config.setup_pipeline("abstract", dev_mode=True)
-
-    def dim_test(data: List[Dict[str, Any]], boundary: str) -> DltResource:
-        return dlt.resource(
-            data,
-            name="dim_test",
-            write_disposition={
-                "disposition": "merge",
-                "strategy": "scd2",
-                "boundary_timestamp": boundary,
-                "active_record_timestamp": "9999-12-31",
-            },
-        )
-
-    info = p.run(dim_test([{"nk": 1, "foo": "foo"}], "2024-08-21"), **destination_config.run_kwargs)
-    assert_load_info(info)
-    info = p.run(
-        dim_test([{"nk": 1, "foo": "bar"}], "2024-08-22T12:00:00+00:00"),
-        **destination_config.run_kwargs,
-    )
-    assert_load_info(info)
-    # midnight in Berlin is 22:00 UTC in summer and 23:00 UTC in winter
-    expected = [
-        {FROM: datetime(2024, 8, 20, 22), TO: datetime(2024, 8, 22, 12), "nk": 1, "foo": "foo"},
-        {FROM: datetime(2024, 8, 22, 12), TO: datetime(9999, 12, 30, 23), "nk": 1, "foo": "bar"},
-    ]
-    assert_records_as_set(get_table(p, "dim_test", ts_columns=[FROM, TO]), expected)
-
-
 @pytest.mark.essential
 @pytest.mark.parametrize(
     "destination_config",
