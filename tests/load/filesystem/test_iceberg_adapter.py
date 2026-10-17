@@ -2,6 +2,7 @@ import pytest
 
 import dlt
 import pyarrow as pa
+from dlt.common.schema.typing import TTableSchema
 from dlt.destinations.adapters import iceberg_adapter, iceberg_partition
 from dlt.destinations.impl.filesystem.iceberg_adapter import (
     PARTITION_HINT,
@@ -9,8 +10,8 @@ from dlt.destinations.impl.filesystem.iceberg_adapter import (
     PartitionSpec,
     parse_partition_hints,
     create_identity_specs,
+    get_partition_specs,
 )
-from dlt.destinations.impl.filesystem.iceberg_partition_spec import get_partition_transform
 
 # mark all tests as essential, do not remove
 pytestmark = pytest.mark.essential
@@ -315,47 +316,47 @@ def test_partition_spec_roundtrip(source_column, transform, partition_field, par
 
 
 def test_partition_spec_get_transform() -> None:
-    from pyiceberg.transforms import IdentityTransform, Transform
+    from pyiceberg.transforms import IdentityTransform
 
     spec = PartitionSpec(source_column="region", transform="identity")
-    transform: Transform = get_partition_transform(spec)  # type: ignore[type-arg]
 
-    assert isinstance(transform, IdentityTransform)
+    assert isinstance(spec.get_transform(), IdentityTransform)
 
 
 def test_partition_spec_invalid_transform() -> None:
     spec = PartitionSpec(source_column="col", transform="invalid_transform")
 
     with pytest.raises(ValueError, match="Unknown partition transformation type"):
-        get_partition_transform(spec)
+        spec.get_transform()
 
 
 def test_duplicate_partition_column_in_legacy_and_hints() -> None:
     from dlt.common.schema.exceptions import SchemaCorruptedException
-    from dlt.destinations.impl.filesystem.filesystem import IcebergLoadFilesystemJob
-    from unittest.mock import MagicMock
 
-    mock_load_table = {
+    table_schema: TTableSchema = {
         "name": "test_table",
         "columns": {
             # Partition defined in columns
             "region": {"name": "region", "data_type": "text", "partition": True},
             "id": {"name": "id", "data_type": "bigint"},
         },
-        PARTITION_HINT: [
+        PARTITION_HINT: [  # type: ignore[misc]
             {"transform": "identity", "source_column": "region"},
         ],
         "write_disposition": "append",
     }
 
-    mock_job = MagicMock(spec=IcebergLoadFilesystemJob)
-    mock_job._load_table = mock_load_table
-    mock_job._partition_columns = ["region"]
-    mock_job._schema = MagicMock()
-    mock_job._schema.name = "test_schema"
-
     with pytest.raises(SchemaCorruptedException) as exc_info:
-        IcebergLoadFilesystemJob._get_partition_spec_list(mock_job)
+        get_partition_specs(table_schema, "test_schema")
 
     assert "region" in str(exc_info.value)
     assert "defined both as a partition column" in str(exc_info.value)
+
+    # partition columns go first, then partition hints
+    table_schema[PARTITION_HINT] = [  # type: ignore[literal-required]
+        {"transform": "day", "source_column": "created_at"}
+    ]
+    assert get_partition_specs(table_schema, "test_schema") == [
+        iceberg_partition.identity("region"),
+        iceberg_partition.day("created_at"),
+    ]

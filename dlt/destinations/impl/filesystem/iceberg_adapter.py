@@ -1,9 +1,16 @@
 from dataclasses import dataclass
-from typing import Any, List, Dict, Union, Sequence, Optional, cast
+from typing import TYPE_CHECKING, Any, List, Dict, Union, Sequence, Optional, cast
 
-from dlt.common.destination.typing import PreparedTableSchema
+from dlt.common.schema.exceptions import SchemaCorruptedException
+from dlt.common.schema.typing import TTableSchema
+from dlt.common.schema.utils import get_columns_names_with_prop
 from dlt.destinations.utils import get_resource_for_adapter
 from dlt.extract import DltResource
+
+if TYPE_CHECKING:
+    from pyiceberg.transforms import Transform
+else:
+    Transform = Any
 
 PARTITION_HINT = "x-iceberg-partition"
 TABLE_PROPERTIES_HINT = "x-iceberg-table-properties"
@@ -35,6 +42,12 @@ class PartitionSpec:
             param_value=d.get("param_value"),
             partition_field=d.get("partition_field"),
         )
+
+    def get_transform(self) -> "Transform[Any, Any]":
+        """Returns the pyiceberg transform for this partition spec."""
+        from dlt.common.libs.pyiceberg import get_partition_transform
+
+        return get_partition_transform(self.transform, self.param_value)
 
 
 class iceberg_partition:
@@ -234,7 +247,7 @@ def iceberg_adapter(
     return resource
 
 
-def parse_partition_hints(table_schema: PreparedTableSchema) -> List[PartitionSpec]:
+def parse_partition_hints(table_schema: TTableSchema) -> List[PartitionSpec]:
     """Parse PARTITION_HINT from table schema into PartitionSpec list.
 
     Args:
@@ -261,3 +274,28 @@ def create_identity_specs(column_names: List[str]) -> List[PartitionSpec]:
         List of PartitionSpec objects with identity transform
     """
     return [iceberg_partition.identity(column_name) for column_name in column_names]
+
+
+def get_partition_specs(table_schema: TTableSchema, schema_name: str) -> List[PartitionSpec]:
+    """Collects partition specs of a table: columns with the `partition` hint, then partition hints.
+
+    Args:
+        table_schema: dlt table schema with column and partition hints
+        schema_name: Name of the schema the table belongs to, used in the error message
+
+    Returns:
+        List of PartitionSpec objects, identity specs of partition columns first
+
+    Raises:
+        SchemaCorruptedException: If a column is an identity partition both ways
+    """
+    partition_columns = get_columns_names_with_prop(table_schema, "partition")
+    hint_specs = parse_partition_hints(table_schema)
+    for spec in hint_specs:
+        if spec.transform == "identity" and spec.source_column in partition_columns:
+            raise SchemaCorruptedException(
+                schema_name,
+                f"Column '{spec.source_column}' is defined both as a partition column "
+                "and in partition hints.",
+            )
+    return create_identity_specs(partition_columns) + hint_specs

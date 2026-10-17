@@ -1,5 +1,5 @@
 import os
-from typing import Dict, Any, List, Optional, Sequence, Tuple, Union
+from typing import Callable, Dict, Any, List, Optional, Sequence, Tuple, Union
 from pathlib import Path
 import warnings
 import time
@@ -35,7 +35,16 @@ try:
         PartitionSpec as IcebergPartitionSpec,
     )
     from pyiceberg.schema import Schema as IcebergSchema
-    from pyiceberg.transforms import Transform, IdentityTransform
+    from pyiceberg.transforms import (
+        Transform,
+        IdentityTransform,
+        YearTransform,
+        MonthTransform,
+        DayTransform,
+        HourTransform,
+        BucketTransform,
+        TruncateTransform,
+    )
     import pyarrow as pa
     from pydantic import BaseModel, ConfigDict, Field
 except ModuleNotFoundError:
@@ -47,6 +56,16 @@ except ModuleNotFoundError:
 
 TPartitionField = Tuple[str, Transform[Any, Any], Optional[str]]
 """Source column, transform and partition field name (`None` for the default name)"""
+
+_TRANSFORM_LOOKUP: Dict[str, Callable[[Optional[int]], Transform[Any, Any]]] = {
+    "identity": lambda _: IdentityTransform(),
+    "year": lambda _: YearTransform(),
+    "month": lambda _: MonthTransform(),
+    "day": lambda _: DayTransform(),
+    "hour": lambda _: HourTransform(),
+    "bucket": lambda n: BucketTransform(n),
+    "truncate": lambda w: TruncateTransform(w),
+}
 
 pyiceberg_semver = Version(pyiceberg.__version__)
 
@@ -450,6 +469,28 @@ def evolve_table(
             update.union_by_name(ensure_iceberg_compatible_arrow_schema(schema))
 
     return table
+
+
+def get_partition_transform(
+    transform: str, param_value: Optional[int] = None
+) -> Transform[Any, Any]:
+    """Get the PyIceberg Transform object for a partition transform name.
+
+    Args:
+        transform: Name of the transform, ie. `identity`, `day` or `bucket`
+        param_value: Number of buckets for `bucket`, width for `truncate`
+
+    Returns:
+        A PyIceberg Transform object
+
+    Raises:
+        ValueError: If the transform is not recognized
+    """
+    try:
+        factory = _TRANSFORM_LOOKUP[transform]
+    except KeyError as exc:
+        raise ValueError(f"Unknown partition transformation type: {transform}") from exc
+    return factory(param_value)
 
 
 def create_table(
