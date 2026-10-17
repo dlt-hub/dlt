@@ -1166,6 +1166,7 @@ def test_iceberg_adapter_partitioning(
 
     it = get_iceberg_tables(pipeline, "nested_partitioned")["nested_partitioned"]
     assert [it.schema().find_column_name(f.source_id) for f in it.spec().fields] == ["datetime"]
+    assert [s.spec_id for s in it.metadata.partition_specs] == [0]
     assert load_table_counts(pipeline, "nested_partitioned")["nested_partitioned"] == 4
     loaded_tags = sorted(row["tags"] for row in it.scan().to_arrow().to_pylist())
     assert loaded_tags == sorted(arrow_table["tags"].to_pylist() * 2)

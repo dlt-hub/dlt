@@ -226,7 +226,7 @@ def test_truncate_and_drop_iceberg_table(sqlite_catalog_config, monkeypatch):
         assert any(f.endswith(".parquet") for f in _list_files(table_dir))
 
 
-def test_create_table_partition_fields(sqlite_catalog_config) -> None:
+def test_create_table_partition_fields(sqlite_catalog_config, monkeypatch) -> None:
     from pyiceberg.transforms import (
         BucketTransform,
         DayTransform,
@@ -239,6 +239,10 @@ def test_create_table_partition_fields(sqlite_catalog_config) -> None:
 
     catalog = get_catalog("partition_fields_catalog", iceberg_catalog_config=sqlite_catalog_config)
     catalog.create_namespace("test_ns")
+    # REST catalogs like Glue and S3 Tables reject staged creates
+    monkeypatch.setattr(
+        catalog, "create_table_transaction", mock.Mock(side_effect=NotImplementedError)
+    )
     warehouse = Path(sqlite_catalog_config["warehouse"])
     utc_ts = pa.timestamp("us", tz="UTC")
     # nested columns and types that iceberg needs converted (time32, decimal256)
@@ -252,6 +256,7 @@ def test_create_table_partition_fields(sqlite_catalog_config) -> None:
             pa.field("user_id", pa.int64()),
             pa.field("category", pa.string()),
             pa.field("owner", pa.struct([("name", pa.string()), ("langs", pa.list_(pa.string()))])),
+            pa.field("refs", pa.list_(pa.struct([("n", pa.int64())]))),
             pa.field("attrs", pa.map_(pa.string(), pa.int64())),
             pa.field("start_time", pa.time32("s")),
             pa.field("amount", pa.decimal256(50, 2)),
@@ -288,6 +293,8 @@ def test_create_table_partition_fields(sqlite_catalog_config) -> None:
         ("category_trunc_4", "category", "truncate[4]"),
         ("custom_id", "id", "identity"),
     ]
+    assert [s.spec_id for s in table.metadata.partition_specs] == [0]
+    assert table.metadata.default_spec_id == 0
     assert [table_schema.find_field(name).field_id for name in schema.names] == list(
         range(1, len(schema) + 1)
     )
@@ -304,6 +311,7 @@ def test_create_table_partition_fields(sqlite_catalog_config) -> None:
                 "user_id": i,
                 "category": f"category_{i}",
                 "owner": {"name": f"owner_{i}", "langs": ["pl", "en"]},
+                "refs": [{"n": i}],
                 "attrs": [("k", i)],
                 "start_time": time(1, 2, 3),
                 "amount": Decimal("1.50"),
@@ -327,6 +335,59 @@ def test_create_table_partition_fields(sqlite_catalog_config) -> None:
         )
     legacy_spec = catalog.load_table("test_ns.legacy").spec()
     assert [f.name for f in legacy_spec.fields] == ["category", "created_at_day"]
+
+
+@pytest.mark.parametrize(
+    "partition_fields,error",
+    [
+        ([("missing", "identity", None)], "missing"),
+        ([("category", "day", None)], "cannot transform"),
+        ([("id", "identity", "same"), ("category", "identity", "same")], "same"),
+    ],
+    ids=["unknown_column", "incompatible_transform", "duplicate_name"],
+)
+def test_create_table_partition_fields_invalid(
+    sqlite_catalog_config, partition_fields, error
+) -> None:
+    from pyiceberg.transforms import parse_transform
+
+    catalog = get_catalog("invalid_partition_catalog", iceberg_catalog_config=sqlite_catalog_config)
+    catalog.create_namespace("test_ns")
+    schema = pa.schema([pa.field("id", pa.int64()), pa.field("category", pa.string())])
+    with pytest.raises(ValueError, match=error):
+        create_table(
+            catalog,
+            "test_ns.invalid",
+            _table_location(Path(sqlite_catalog_config["warehouse"]) / "invalid"),
+            schema,
+            partition_fields=[(col, parse_transform(t), name) for col, t, name in partition_fields],
+        )
+    assert not catalog.table_exists("test_ns.invalid")
+
+
+def test_create_table_partition_fields_catalog_managed() -> None:
+    from pyiceberg.transforms import DayTransform
+
+    # REST catalogs accept nested namespaces and assign locations themselves
+    catalog = mock.Mock()
+    schema = pa.schema([pa.field("id", pa.int64()), pa.field("ts", pa.timestamp("us", tz="UTC"))])
+    create_table(
+        catalog,
+        "catalog.ns.events",
+        None,
+        schema,
+        properties={"write.target-file-size-bytes": 536870912},
+        partition_fields=[("ts", DayTransform(), None)],
+    )
+
+    kwargs = catalog.create_table.call_args.kwargs
+    assert kwargs["identifier"] == "catalog.ns.events"
+    assert kwargs["location"] is None
+    assert kwargs["properties"] == {"write.target-file-size-bytes": 536870912}
+    spec_fields = kwargs["partition_spec"].fields
+    assert [(f.name, kwargs["schema"].find_column_name(f.source_id)) for f in spec_fields] == [
+        ("ts_day", "ts")
+    ]
 
 
 def _table_location(path) -> str:
